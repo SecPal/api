@@ -7,8 +7,9 @@ SPDX-License-Identifier: CC0-1.0
 
 > Laravel backend API for SecPal - Digital guard book and security service management
 
-[![REUSE Compliance](https://img.shields.io/badge/REUSE-compliant-green)](https://reuse.software/)
-[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL%203.0+-blue.svg)](LICENSE)
+[![Quality Gates](https://github.com/SecPal/api/actions/workflows/quality.yml/badge.svg)](https://github.com/SecPal/api/actions/workflows/quality.yml)
+[![PR Size](https://github.com/SecPal/api/actions/workflows/pr-size.yml/badge.svg)](https://github.com/SecPal/api/actions/workflows/pr-size.yml)
+[![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3+-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ## About
 
