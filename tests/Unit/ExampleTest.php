@@ -6,15 +6,15 @@
 
 namespace Tests\Unit;
 
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * Test that application environment is set correctly.
      */
-    public function test_that_true_is_true(): void
+    public function test_environment_is_testing(): void
     {
-        $this->assertTrue(true);
+        $this->assertEquals('testing', config('app.env'));
     }
 }

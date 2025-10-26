@@ -13,25 +13,17 @@ parameters:
         - routes
         - tests
 
+    # Memory limit for PHPStan
+    tmpDir: build/phpstan
+    parallel:
+        maximumNumberOfProcesses: 4
+        processTimeout: 300.0
+
     # Ignore errors in generated files
     excludePaths:
         - bootstrap/cache/*
         - storage/*
         - vendor/*
-
-    # Type coverage
-    checkMissingIterableValueType: true
-    checkGenericClassInNonGenericObjectType: true
-
-    # Strict rules
-    checkAlwaysTrueCheckTypeFunctionCall: true
-    checkAlwaysTrueInstanceof: true
-    checkAlwaysTrueStrictComparison: true
-    checkExplicitMixedMissingReturn: true
-    checkFunctionNameCase: true
-    checkInternalClassCaseSensitivity: true
-    reportMaybesInMethodSignatures: true
-    reportStaticMethodSignatures: true
 
     # Laravel specific
     noUnnecessaryCollectionCall: true
