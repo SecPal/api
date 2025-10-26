@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: 2025 SecPal
+# SPDX-License-Identifier: CC0-1.0
+
+version = 1
+SPDX-FileCopyrightText = "SecPal Contributors"
+
+[[annotations]]
+path = "app/**"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "config/**"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "database/**"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "routes/**"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "tests/**"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "public/**"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "bootstrap/**"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "composer.json"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = "composer.lock"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = "package.json"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = "package-lock.json"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = "phpunit.xml"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = "phpstan.neon"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = "pint.json"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".env.example"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".gitignore"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".gitattributes"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".editorconfig"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".prettierrc.json"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".prettierignore"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = "README.md"
+SPDX-FileCopyrightText = "2025 SecPal"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".github/**"
+SPDX-FileCopyrightText = "2025 SecPal"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = "CHANGELOG.md"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".markdownlint*.json"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".markdownlintignore"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".pre-commit-config.yaml"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ".preflight-exclude"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = "scripts/**"
+SPDX-FileCopyrightText = "2025 SecPal Contributors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "artisan"
+SPDX-License-Identifier = "AGPL-3.0-or-later"

@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2025 SecPal
+# SPDX-License-Identifier: CC0-1.0
+
+name: Quality Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  reuse:
+    name: Check REUSE Compliance
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@main
+
+  license-compatibility:
+    name: Check License Compatibility
+    uses: SecPal/.github/.github/workflows/reusable-license-compatibility.yml@main
+
+  prettier:
+    name: Formatting Check
+    uses: SecPal/.github/.github/workflows/reusable-prettier.yml@main
+
+  markdown-lint:
+    name: Markdown Lint
+    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@main
+
+  pint:
+    name: Laravel Pint
+    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@main
+    with:
+      php-version: "8.4"
+
+  phpstan:
+    name: PHPStan
+    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@main
+    with:
+      php-version: "8.4"
+
+  pest:
+    name: PEST Tests
+    uses: SecPal/.github/.github/workflows/reusable-php-test.yml@main
+    with:
+      php-version: "8.4"
+      test-command: "./vendor/bin/pest"
