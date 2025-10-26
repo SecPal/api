@@ -1,5 +1,8 @@
 <?php
 
+// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;

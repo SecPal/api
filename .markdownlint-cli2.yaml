@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+
+# markdownlint-cli2 configuration
+# https://github.com/DavidAnson/markdownlint-cli2
+
+# Ignore vendor directory and node_modules
+ignores:
+  - vendor/**
+  - node_modules/**
+  - .git/**

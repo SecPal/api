@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+
 *.log
 .DS_Store
 .env
@@ -22,3 +25,4 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+build/

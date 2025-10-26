@@ -9,7 +9,7 @@
 repos:
   # REUSE compliance
   - repo: https://github.com/fsfe/reuse-tool
-    rev: v5.0.2
+    rev: v6.1.2
     hooks:
       - id: reuse
 
@@ -29,26 +29,26 @@ repos:
 
   # YAML linting
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.35.1
+    rev: v1.37.1
     hooks:
       - id: yamllint
         args: ["-c", ".yamllint.yml"]
 
   # GitHub Actions workflow linting
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.4
+    rev: v1.7.8
     hooks:
       - id: actionlint
 
   # Shell script linting
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
+    rev: v0.11.0.1
     hooks:
       - id: shellcheck
 
   # Git hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
         args: ["--maxkb=1000"]
