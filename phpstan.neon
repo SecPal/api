@@ -13,7 +13,7 @@ parameters:
         - routes
         - tests
 
-    # Memory limit for PHPStan
+    # PHPStan performance configuration
     tmpDir: build/phpstan
     parallel:
         maximumNumberOfProcesses: 4

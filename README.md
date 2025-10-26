@@ -87,7 +87,7 @@ php artisan migrate
 php artisan serve
 ```
 
-The API will be available at <http://localhost:8000\>.
+The API will be available at <http://localhost:8000>.
 
 ### Code Quality
 
