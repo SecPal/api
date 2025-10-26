@@ -56,9 +56,9 @@ if [ -f composer.json ]; then
     # Run PHPStan (use configured level from phpstan.neon if exists, else max)
     if [ -x ./vendor/bin/phpstan ]; then
       if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
-        ./vendor/bin/phpstan analyse
+        php -d memory_limit=512M ./vendor/bin/phpstan analyse
       else
-        ./vendor/bin/phpstan analyse --level=max
+        php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
       fi
     fi
     # Run tests (Laravel Artisan → Pest → PHPUnit)
