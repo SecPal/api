@@ -19,7 +19,7 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
-      - "php"
+      - "composer"
       - "dependabot"
     open-pull-requests-limit: 10
     rebase-strategy: "auto"
@@ -60,7 +60,7 @@ updates:
       include: "scope"
     labels:
       - "dependencies"
-      - "javascript"
+      - "npm"
       - "dependabot"
     open-pull-requests-limit: 10
     rebase-strategy: "auto"
