@@ -60,16 +60,32 @@ class AuthController extends Controller
     }
 
     /**
-     * Revoke all of the user's access tokens.
+     * Revoke all tokens for the authenticated user.
      */
     public function logoutAll(Request $request): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
+
         $user->tokens()->delete();
 
         return response()->json([
             'message' => 'All tokens revoked successfully.',
+        ]);
+    }
+
+    /**
+     * Get the authenticated user's information.
+     */
+    public function me(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
         ]);
     }
 }

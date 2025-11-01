@@ -27,7 +27,7 @@ class TokenRequest extends FormRequest
         return [
             'email' => 'required|email',
             'password' => 'required|string',
-            'device_name' => 'string|max:255',
+            'device_name' => 'nullable|string|max:255',
         ];
     }
 }

@@ -45,7 +45,7 @@ parameters:
             message: '#Call to an undefined method PHPUnit\\Framework\\TestCase::(get|post|put|patch|delete|getJson|postJson|putJson|patchJson|deleteJson|withHeader|actingAs)\(\)#'
             path: tests/Feature/*
         -
-            message: '#Cannot call method (assertStatus|assertJson|assertJsonStructure|assertJsonFragment|assertJsonPath|assertExactJson|assertJsonValidationErrors|assertJsonMissing|assertSee|assertDontSee|assertSuccessful|assertForbidden|assertNotFound|assertRedirect|assertSessionHas|assertSessionMissing|assertViewIs|assertViewHas|json|getJson|postJson|putJson|patchJson|deleteJson)\(\) on mixed#'
+            message: '#Cannot call method (assertStatus|assertJson|assertJsonStructure|assertJsonFragment|assertJsonPath|assertExactJson|assertJsonValidationErrors|assertJsonMissing|assertSee|assertDontSee|assertSuccessful|assertForbidden|assertNotFound|assertRedirect|assertSessionHas|assertSessionMissing|assertViewIs|assertViewHas|assertCreated|assertOk|assertUnprocessable|assertUnauthorized|json|getJson|postJson|putJson|patchJson|deleteJson)\(\) on mixed#'
             path: tests/Feature/*
         -
             message: '#Cannot (call method|access property) .* on (App\\Models\\User|Laravel\\Sanctum\\PersonalAccessToken)\|null#'

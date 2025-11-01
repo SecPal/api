@@ -21,7 +21,7 @@ describe('Auth Token Generation', function () {
             'device_name' => 'test-device',
         ]);
 
-        $response->assertStatus(201)
+        $response->assertCreated()
             ->assertJsonStructure([
                 'token',
                 'user' => ['id', 'name', 'email'],
@@ -37,7 +37,7 @@ describe('Auth Token Generation', function () {
             'password' => 'password123',
         ]);
 
-        $response->assertStatus(422)
+        $response->assertUnprocessable()
             ->assertJsonValidationErrors(['email']);
     });
 
@@ -52,7 +52,7 @@ describe('Auth Token Generation', function () {
             'password' => 'wrong-password',
         ]);
 
-        $response->assertStatus(422)
+        $response->assertUnprocessable()
             ->assertJsonValidationErrors(['email']);
     });
 
@@ -61,7 +61,7 @@ describe('Auth Token Generation', function () {
             'password' => 'password123',
         ]);
 
-        $response->assertStatus(422)
+        $response->assertUnprocessable()
             ->assertJsonValidationErrors(['email']);
     });
 
@@ -70,7 +70,7 @@ describe('Auth Token Generation', function () {
             'email' => 'test@example.com',
         ]);
 
-        $response->assertStatus(422)
+        $response->assertUnprocessable()
             ->assertJsonValidationErrors(['password']);
     });
 
@@ -85,7 +85,7 @@ describe('Auth Token Generation', function () {
             'password' => 'password123',
         ]);
 
-        $response->assertStatus(201);
+        $response->assertCreated();
         expect($user->tokens()->first()->name)->toBe('api-client');
     });
 
@@ -99,13 +99,13 @@ describe('Auth Token Generation', function () {
             'email' => 'test@example.com',
             'password' => 'password123',
             'device_name' => 'mobile',
-        ])->assertStatus(201);
+        ])->assertCreated();
 
         $this->postJson('/api/v1/auth/token', [
             'email' => 'test@example.com',
             'password' => 'password123',
             'device_name' => 'desktop',
-        ])->assertStatus(201);
+        ])->assertCreated();
 
         expect($user->tokens()->count())->toBe(2);
         expect($user->tokens()->pluck('name')->toArray())->toContain('mobile', 'desktop');
@@ -116,7 +116,7 @@ describe('Protected Endpoints', function () {
     test('protected endpoint requires authentication', function () {
         $response = $this->getJson('/api/v1/me');
 
-        $response->assertStatus(401);
+        $response->assertUnauthorized();
     });
 
     test('protected endpoint works with valid token', function () {
@@ -130,7 +130,7 @@ describe('Protected Endpoints', function () {
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/v1/me');
 
-        $response->assertStatus(200)
+        $response->assertOk()
             ->assertJson([
                 'id' => $user->id,
                 'name' => 'John Doe',
@@ -142,7 +142,7 @@ describe('Protected Endpoints', function () {
         $response = $this->withHeader('Authorization', 'Bearer invalid-token-here')
             ->getJson('/api/v1/me');
 
-        $response->assertStatus(401);
+        $response->assertUnauthorized();
     });
 });
 
@@ -158,7 +158,7 @@ describe('Token Revocation', function () {
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/v1/auth/logout');
 
-        $response->assertStatus(200)
+        $response->assertOk()
             ->assertJson(['message' => 'Token revoked successfully.']);
 
         expect($user->tokens()->count())->toBe(0);
@@ -179,7 +179,7 @@ describe('Token Revocation', function () {
         $response = $this->withHeader('Authorization', "Bearer {$token1}")
             ->postJson('/api/v1/auth/logout-all');
 
-        $response->assertStatus(200)
+        $response->assertOk()
             ->assertJson(['message' => 'All tokens revoked successfully.']);
 
         expect($user->fresh()->tokens()->count())->toBe(0);
@@ -195,7 +195,7 @@ describe('Token Revocation', function () {
         // Logout (revoke token)
         $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/v1/auth/logout')
-            ->assertStatus(200);
+            ->assertOk();
 
         // Token deleted after logout
         expect($user->fresh()->tokens()->count())->toBe(0);
@@ -204,13 +204,13 @@ describe('Token Revocation', function () {
     test('logout requires authentication', function () {
         $response = $this->postJson('/api/v1/auth/logout');
 
-        $response->assertStatus(401);
+        $response->assertUnauthorized();
     });
 
     test('logout-all requires authentication', function () {
         $response = $this->postJson('/api/v1/auth/logout-all');
 
-        $response->assertStatus(401);
+        $response->assertUnauthorized();
     });
 });
 
@@ -225,7 +225,7 @@ describe('Token Security', function () {
             'password' => 'secret-password',
         ]);
 
-        $response->assertStatus(201)
+        $response->assertCreated()
             ->assertJsonMissing(['password'])
             ->assertJsonMissing(['remember_token']);
     });
@@ -237,7 +237,7 @@ describe('Token Security', function () {
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/v1/me');
 
-        $response->assertStatus(200)
+        $response->assertOk()
             ->assertJsonMissing(['password'])
             ->assertJsonMissing(['remember_token']);
     });
