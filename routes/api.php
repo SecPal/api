@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,12 +28,13 @@ Route::get('/health', function () {
 
 // API v1 routes
 Route::prefix('v1')->group(function () {
-    // Authentication routes
-    // Route::post('/login', [AuthController::class, 'login']);
-    // Route::post('/register', [AuthController::class, 'register']);
+    // Authentication routes (public)
+    Route::post('/auth/token', [AuthController::class, 'token']);
 
-    // Protected routes
-    // Route::middleware('auth:sanctum')->group(function () {
-    //     Route::apiResource('users', UserController::class);
-    // });
+    // Protected routes (require auth:sanctum)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/auth/logout', [AuthController::class, 'logout']);
+        Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
+        Route::get('/me', [AuthController::class, 'me']);
+    });
 });
