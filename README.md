@@ -70,7 +70,30 @@ DB_PASSWORD=your_password
 php artisan migrate
 ```
 
-### 5. Set up development tools
+### 5. Security: Generate Key Encryption Key (KEK)
+
+SecPal uses envelope encryption for sensitive data. You must generate a KEK file before running the application:
+
+```bash
+# Create the keys directory if it doesn't exist
+mkdir -p storage/keys
+
+# Generate a random 256-bit KEK and store it securely
+php -r "file_put_contents('storage/keys/kek.key', random_bytes(32));"
+chmod 0600 storage/keys/kek.key
+```
+
+**IMPORTANT:** Never commit the KEK file! It's already in `.gitignore`.
+
+Add the KEK path to your `.env`:
+
+```env
+KEK_PATH=storage/keys/kek.key
+```
+
+> For development, use the relative path above. In production, set `KEK_PATH` to the absolute path of your KEK file (ideally outside the web root), and ensure file permissions are `0600`.
+
+### 6. Set up development tools
 
 ```bash
 # Install pre-commit hooks
@@ -120,9 +143,23 @@ The API will be available at <http://localhost:8000>.
 # Run specific test
 ./vendor/bin/pest --filter=ExampleTest
 
-# Run with coverage
-./vendor/bin/pest --coverage
+# Run with coverage (requires pcov or xdebug extension)
+./vendor/bin/pest --coverage --min=80
 ```
+
+**Note:** Coverage requires `pcov` (preferred) or `xdebug`. Install via:
+
+```bash
+# For pcov (faster, recommended)
+pecl install pcov
+sudo sh -c 'echo "extension=pcov.so" > /etc/php/$(php -r "echo PHP_MAJOR_VERSION.\".\".PHP_MINOR_VERSION;")/cli/conf.d/99-pcov.ini'
+
+# If you do not have root privileges, add to your user-level php.ini:
+# Find your php.ini location: php --ini
+# Add: extension=pcov.so
+```
+
+CI workflows automatically have coverage enabled.
 
 ### Pre-commit Checks
 
@@ -139,7 +176,7 @@ Before pushing, the preflight script runs:
 - All pre-commit checks
 - Laravel Pint code style check
 - PHPStan static analysis
-- PEST tests
+- PEST tests with ≥80% coverage
 - PR size check (600 lines)
 
 To run manually:
@@ -153,6 +190,19 @@ To bypass (not recommended):
 ```bash
 git push --no-verify
 ```
+
+### Preflight Checklist
+
+Before each commit/PR, ensure:
+
+- ✅ KEK file exists at `storage/keys/kek.key` with permissions `0600`
+- ✅ `.env` has `KEK_PATH` set correctly
+- ✅ Database connection is configured and migrations ran
+- ✅ `./vendor/bin/pint` passes (PSR-12)
+- ✅ `./vendor/bin/phpstan analyse` passes (level max)
+- ✅ `./vendor/bin/pest --coverage --min=80` passes
+- ✅ No hardcoded secrets in code
+- ✅ REUSE compliance (all files have license headers)
 
 ## Project Structure
 
