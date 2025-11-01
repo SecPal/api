@@ -30,7 +30,7 @@ parameters:
     noUnnecessaryCollectionCallOnly: []
     noUnnecessaryCollectionCallExcept: []
 
-    # Ignore errors in vendor migrations
+    # Ignore errors in vendor migrations (spatie/laravel-permission)
     ignoreErrors:
         -
             message: '#Cannot access offset .* on mixed#'
@@ -38,9 +38,12 @@ parameters:
         -
             message: '#Parameter .* expects .*, mixed given#'
             path: database/migrations/*_create_permission_tables.php
+
+        # PEST testing framework limitations: PHPStan cannot infer Laravel TestCase methods
+        # in PEST's closure-based tests. These are valid Laravel testing methods.
         -
-            message: '#Call to an undefined method PHPUnit\\Framework\\TestCase::getJson\(\)#'
+            message: '#Call to an undefined method PHPUnit\\Framework\\TestCase::(get|post|put|patch|delete|getJson|postJson|putJson|patchJson|deleteJson)\(\)#'
             path: tests/Feature/*
         -
-            message: '#Cannot call method assert.*\(\) on mixed#'
+            message: '#Cannot call method (assertStatus|assertJson|assertJsonStructure|assertJsonFragment|assertJsonPath|assertExactJson|assertSee|assertDontSee)\(\) on mixed#'
             path: tests/Feature/*
