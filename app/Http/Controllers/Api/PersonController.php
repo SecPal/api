@@ -77,17 +77,12 @@ class PersonController extends Controller
     /**
      * Show a specific person.
      *
-     * GET /api/v1/tenants/{tenant}/persons/{uuid}
-     *
-     * NOTE: SubstituteBindings middleware is disabled for tenant-scoped routes,
-     * so we extract route parameters manually via $request->route().
+     * GET /api/v1/tenants/{tenant}/persons/{id}
      */
-    public function show(Request $request): PersonResource
+    public function show(Request $request, string $id): PersonResource
     {
         $tenantId = $request->tenant_id;
-        $uuid = $request->route('uuid');
-
-        $person = $this->repository->findById($tenantId, $uuid);
+        $person = $this->repository->findById($tenantId, $id);
 
         $this->authorize('view', $person);
 
@@ -97,17 +92,12 @@ class PersonController extends Controller
     /**
      * Update a person.
      *
-     * PUT/PATCH /api/v1/tenants/{tenant}/persons/{uuid}
-     *
-     * NOTE: SubstituteBindings middleware is disabled for tenant-scoped routes,
-     * so we extract route parameters manually via $request->route().
+     * PUT/PATCH /api/v1/tenants/{tenant}/persons/{id}
      */
-    public function update(UpdatePersonRequest $request): PersonResource
+    public function update(UpdatePersonRequest $request, string $id): PersonResource
     {
         $tenantId = $request->tenant_id;
-        $uuid = $request->route('uuid');
-
-        $person = $this->repository->findById($tenantId, $uuid);
+        $person = $this->repository->findById($tenantId, $id);
 
         $this->authorize('update', $person);
 
@@ -128,25 +118,20 @@ class PersonController extends Controller
     /**
      * Delete a person.
      *
-     * DELETE /api/v1/tenants/{tenant}/persons/{uuid}
-     *
-     * NOTE: SubstituteBindings middleware is disabled for tenant-scoped routes,
-     * so we extract route parameters manually via $request->route().
+     * DELETE /api/v1/tenants/{tenant}/persons/{id}
      */
-    public function destroy(Request $request): \Illuminate\Http\JsonResponse
+    public function destroy(Request $request, string $id): \Illuminate\Http\JsonResponse
     {
         $tenantId = $request->tenant_id;
-        $uuid = $request->route('uuid');
-
-        $person = $this->repository->findById($tenantId, $uuid);
+        $person = $this->repository->findById($tenantId, $id);
 
         $this->authorize('delete', $person);
 
-        $this->repository->delete($tenantId, $uuid);
+        $this->repository->delete($tenantId, $id);
 
         Log::info('Person deleted', [
             'tenant_id' => $tenantId,
-            'person_id' => $uuid,
+            'person_id' => $id,
             'user_id' => $request->user()->id,
         ]);
 
