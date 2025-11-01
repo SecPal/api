@@ -88,10 +88,10 @@ chmod 0600 storage/keys/kek.key
 Add the KEK path to your `.env`:
 
 ```env
-KEK_PATH=/absolute/path/to/storage/keys/kek.key
+KEK_PATH=storage/keys/kek.key
 ```
 
-**Production:** Store the KEK outside the web root, use environment-specific paths, and ensure file permissions are `0600`.
+> For development, use the relative path above. In production, set `KEK_PATH` to the absolute path of your KEK file (ideally outside the web root), and ensure file permissions are `0600`.
 
 ### 6. Set up development tools
 
@@ -152,7 +152,7 @@ The API will be available at <http://localhost:8000>.
 ```bash
 # For pcov (faster, recommended)
 pecl install pcov
-sudo sh -c 'echo "extension=pcov.so" > /etc/php/8.4/cli/conf.d/99-pcov.ini'
+sudo sh -c 'echo "extension=pcov.so" > /etc/php/$(php -r "echo PHP_MAJOR_VERSION.\".\".PHP_MINOR_VERSION;")/cli/conf.d/99-pcov.ini'
 
 # If you do not have root privileges, add to your user-level php.ini:
 # Find your php.ini location: php --ini
