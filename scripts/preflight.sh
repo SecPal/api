@@ -43,72 +43,72 @@ if [ "$FORMAT_EXIT" -ne 0 ]; then
   exit 1
 fi
 
+# Helper functions to reduce code duplication
+run_pint() {
+  local cmd_prefix="$1"
+  # Run Laravel Pint validation (--test = check only, do not auto-fix)
+  # Pre-push hooks should validate, not modify code
+  if [ -x ./vendor/bin/pint ]; then
+    ${cmd_prefix} ./vendor/bin/pint --test
+  fi
+}
+
+run_phpstan() {
+  local cmd_prefix="$1"
+  # Run PHPStan static analysis
+  if [ -x ./vendor/bin/phpstan ]; then
+    if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
+      ${cmd_prefix} php -d memory_limit=512M ./vendor/bin/phpstan analyse
+    else
+      ${cmd_prefix} php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
+    fi
+  fi
+}
+
+run_tests() {
+  local cmd_prefix="$1"
+  local test_exit=0
+  # Run tests (Laravel Artisan → Pest → PHPUnit)
+  if [ -f artisan ]; then
+    ${cmd_prefix} php artisan test --parallel || test_exit=$?
+  elif [ -x ./vendor/bin/pest ]; then
+    ${cmd_prefix} ./vendor/bin/pest --parallel || test_exit=$?
+  elif [ -x ./vendor/bin/phpunit ]; then
+    ${cmd_prefix} ./vendor/bin/phpunit || test_exit=$?
+  fi
+  return $test_exit
+}
+
 # 1) PHP / Laravel
 if [ -f composer.json ]; then
   if ! command -v composer >/dev/null 2>&1; then
     echo "Warning: composer.json found but composer not installed - skipping PHP checks" >&2
   else
     # Auto-detect DDEV for consistent environment
-    USE_DDEV=false
+    CMD_PREFIX=""
     if command -v ddev >/dev/null 2>&1 && ddev describe >/dev/null 2>&1; then
-      USE_DDEV=true
+      CMD_PREFIX="ddev exec"
       echo "✓ DDEV detected - using containerized environment for PHP checks"
-    fi
-
-    if [ "$USE_DDEV" = true ]; then
       # Dependencies are managed within DDEV container (vendor/ is bind-mounted from host)
       # No need to run composer install here - DDEV setup already handles it
-      # Run Laravel Pint code style check if available (blocking: aligns with gates)
-      if [ -x ./vendor/bin/pint ]; then
-        ddev exec ./vendor/bin/pint --test
-      fi
-      # Run PHPStan (use configured level from phpstan.neon if exists, else max)
-      if [ -x ./vendor/bin/phpstan ]; then
-        if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
-          ddev exec php -d memory_limit=512M ./vendor/bin/phpstan analyse
-        else
-          ddev exec php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
-        fi
-      fi
     else
       composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
-      # Run Laravel Pint code style check if available (blocking: aligns with gates)
-      if [ -x ./vendor/bin/pint ]; then
-        ./vendor/bin/pint --test
-      fi
-      # Run PHPStan (use configured level from phpstan.neon if exists, else max)
-      if [ -x ./vendor/bin/phpstan ]; then
-        if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
-          php -d memory_limit=512M ./vendor/bin/phpstan analyse
-        else
-          php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
-        fi
-      fi
     fi
-    # Run tests (Laravel Artisan → Pest → PHPUnit)
+
+    # Run quality checks
+    run_pint "$CMD_PREFIX"
+    run_phpstan "$CMD_PREFIX"
+
+    # Run tests and handle failures
     TEST_EXIT=0
-    if [ "$USE_DDEV" = true ]; then
-      if [ -f artisan ]; then
-        ddev exec php artisan test --parallel || TEST_EXIT=$?
-      elif [ -x ./vendor/bin/pest ]; then
-        ddev exec ./vendor/bin/pest --parallel || TEST_EXIT=$?
-      elif [ -x ./vendor/bin/phpunit ]; then
-        ddev exec ./vendor/bin/phpunit || TEST_EXIT=$?
-      fi
-    else
-      if [ -f artisan ]; then
-        php artisan test --parallel || TEST_EXIT=$?
-      elif [ -x ./vendor/bin/pest ]; then
-        ./vendor/bin/pest --parallel || TEST_EXIT=$?
-      elif [ -x ./vendor/bin/phpunit ]; then
-        ./vendor/bin/phpunit || TEST_EXIT=$?
-      fi
-      # Show warning only after test failure when DDEV not available
-      if [ "$TEST_EXIT" -ne 0 ]; then
-        echo "⚠️  Tests failed without DDEV - database connection may be unavailable" >&2
-        echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec ./vendor/bin/pest" >&2
-      fi
+    run_tests "$CMD_PREFIX" || TEST_EXIT=$?
+
+    # Show helpful message only after test failure when DDEV not available
+    if [ "$TEST_EXIT" -ne 0 ] && [ -z "$CMD_PREFIX" ]; then
+      echo "⚠️  Tests failed without DDEV - database connection may be unavailable" >&2
+      echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec ./vendor/bin/pest" >&2
     fi
+
     # Propagate test exit code
     if [ "$TEST_EXIT" -ne 0 ]; then
       exit "$TEST_EXIT"
