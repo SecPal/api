@@ -75,6 +75,8 @@ ddev exec php artisan boost:update
 - When starting a new feature branch
 - If Copilot seems out of sync with current code
 
+**⚠️ Important:** `boost:update` overwrites `boost.json`! If you have custom guidelines in `boost.json`, they will be lost. Always add custom guidelines AFTER running `boost:update`, not before.
+
 ### Boost Commands
 
 ```bash
