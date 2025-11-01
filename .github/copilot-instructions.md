@@ -98,7 +98,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 ### Constructors
 
 - Use PHP 8 constructor property promotion in `__construct()`.
-  - <code-snippet>public function __construct(public GitHub $github) { }</code-snippet>
+  - <code-snippet>public function \_\_construct(public GitHub $github) { }</code-snippet>
 - Do not allow empty `__construct()` methods with zero parameters.
 
 ### Type Declarations
@@ -226,10 +226,10 @@ protected function isAccessible(User $user, ?string $path = null): bool
 - Tests should test all of the happy paths, failure paths, and weird paths.
 - Tests live in the `tests/Feature` and `tests/Unit` directories.
 - Pest tests look and behave like this:
-<code-snippet name="Basic Pest Test Example" lang="php">
+  <code-snippet name="Basic Pest Test Example" lang="php">
 
 it('is true', function () {
-    expect(true)->toBeTrue();
+expect(true)->toBeTrue();
 });
 </code-snippet>
 
@@ -244,12 +244,13 @@ it('is true', function () {
 ### Pest Assertions
 
 - When asserting status codes on a response, use the specific method like `assertForbidden` and `assertNotFound` instead of using `assertStatus(403)` or similar, e.g.:
-<code-snippet name="Pest Example Asserting postJson Response" lang="php">
+  <code-snippet name="Pest Example Asserting postJson Response" lang="php">
 
 it('returns all', function () {
-    $response = $this->postJson('/api/docs', []);
+$response = $this->postJson('/api/docs', []);
 
     $response->assertSuccessful();
+
 });
 </code-snippet>
 
@@ -308,6 +309,7 @@ it('may reset the password', function () {
         ->assertSee('We have emailed your password reset link!')
 
     Notification::assertSent(ResetPassword::class);
+
 });
 </code-snippet>
 
