@@ -15,11 +15,19 @@ require_once __DIR__.'/../TestConstants.php';
 uses(RefreshDatabase::class);
 
 /**
+ * Get process-specific KEK path for parallel test execution.
+ */
+function getProcessKekPath(): string
+{
+    return storage_path('app/keys/kek-test-'.getmypid().'.key');
+}
+
+/**
  * Helper function to clean up the KEK file.
  */
 function cleanupKekFile(): void
 {
-    $kekPath = storage_path('app/keys/kek.key');
+    $kekPath = getProcessKekPath();
     if (file_exists($kekPath)) {
         unlink($kekPath);
     }
@@ -28,10 +36,12 @@ function cleanupKekFile(): void
 // Clean up KEK file before each test for isolation
 beforeEach(function (): void {
     cleanupKekFile();
+    TenantKey::setKekPath(getProcessKekPath());
 });
 
 afterEach(function (): void {
     cleanupKekFile();
+    TenantKey::setKekPath(null);
 });
 
 test('generates KEK file with correct permissions', function (): void {
