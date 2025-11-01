@@ -25,13 +25,9 @@ function getPersonTestKekPath(): string
 
 beforeEach(function (): void {
     // Use process-specific KEK file for parallel test isolation
-    $kekPath = getPersonTestKekPath();
-    $dir = dirname($kekPath);
-    if (! file_exists($dir)) {
-        mkdir($dir, 0755, true);
-    }
-    TenantKey::setKekPath($kekPath);
+    TenantKey::setKekPath(getPersonTestKekPath());
 
+    // generateKek() will create the directory if needed
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
