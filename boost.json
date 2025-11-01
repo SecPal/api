@@ -1,21 +1,48 @@
 {
-  "agents": ["copilot"],
-  "editors": ["vscode"],
-  "guidelines": [
-    "This is a Laravel 12 API-only application (no Blade views)",
-    "PHP 8.4 with strict types enabled in all files",
-    "Multi-tenant architecture with tenant_id isolation via Spatie laravel-permission teams",
-    "Encryption: KEK (file) wraps DEK (per-tenant in tenant_keys table), data encrypted with tenant-specific DEK",
-    "Blind indexes: HMAC-SHA256 for searchable encrypted fields (email_idx, phone_idx)",
-    "Use libsodium for all cryptographic operations (sodium_crypto_aead_aes256gcm_* for data, sodium_crypto_secretbox_* for key wrapping)",
-    "Never expose plaintext in logs, API responses, or query parameters - use *_plain setters, hide *_enc/*_idx fields",
-    "All database queries must include tenant_id in WHERE clause for isolation",
-    "Use Repository Pattern for data access (PersonRepository)",
-    "PEST for testing with Feature/Unit split - use RefreshDatabase trait",
-    "Laravel Pint (PSR-12) for code style, PHPStan Level Max for static analysis",
-    "All routes require authentication (Sanctum) and authorization (Spatie permissions)",
-    "REUSE compliance: SPDX headers in all source files (AGPL-3.0-or-later for code, CC0-1.0 for config/docs)",
-    "Commands must have --force flag, progress bars, confirmation prompts, and comprehensive logging",
-    "Follow Laravel Best Practices: Service Container, Facades, Eloquent ORM, no raw SQL unless necessary"
-  ]
+    "agents": ["copilot"],
+    "editors": ["vscode"],
+    "guidelines": [
+        {
+            "title": "SecPal Project Guidelines",
+            "rules": [
+                "This is the SecPal API - a security-focused personal data management system",
+                "All PRs must be < 400 lines for effective review (see DEVELOPMENT.md)",
+                "Use incremental development: Foundation → Business Logic → API → Security",
+                "Always run ddev exec php artisan boost:update after major changes",
+                "Security is paramount - all PII must be encrypted at rest",
+                "Follow REUSE SPDX license compliance for all files",
+                "Use conventional commits format for all commit messages",
+                "English only for code, comments, and GitHub communication",
+                "All database operations must go through DDEV (PostgreSQL 15+)",
+                "PHPStan level max with baseline - no new errors allowed",
+                "Use Laravel Pint for code formatting (automatic via pre-commit)",
+                "Prefer feature tests over unit tests unless testing isolated logic",
+                "Use PEST test framework, not PHPUnit directly"
+            ]
+        },
+        {
+            "title": "Architecture Decisions",
+            "rules": [
+                "Repository pattern for all database access",
+                "API-only application (no Blade views)",
+                "RESTful API design with Laravel Sanctum authentication",
+                "Use Spatie Laravel Permission for role-based access control",
+                "Tenant isolation enforced via middleware",
+                "Use UUIDs for all public-facing identifiers",
+                "All migrations must be idempotent and reversible"
+            ]
+        },
+        {
+            "title": "Development Workflow",
+            "rules": [
+                "Always create feature branches from main",
+                "Run tests before pushing: ddev exec ./vendor/bin/pest",
+                "Pre-commit hooks run automatically (Pint, PHPStan, REUSE)",
+                "Update Boost after structural changes",
+                "Keep PRs focused - one feature/fix per PR",
+                "Request review before merging to main",
+                "If overwhelmed, reset and start fresh rather than accumulating complexity"
+            ]
+        }
+    ]
 }

@@ -19,7 +19,7 @@ repos:
     hooks:
       - id: prettier
         types_or: [markdown, yaml, json, javascript, ts]
-        exclude: 'package-lock\.json|composer\.lock|yarn\.lock|pnpm-lock\.yaml'
+        exclude: 'package-lock\.json|composer\.lock|yarn\.lock|pnpm-lock\.yaml|boost\.json|\.github/copilot-instructions\.md'
 
   # Markdown linting
   - repo: https://github.com/DavidAnson/markdownlint-cli2
@@ -27,6 +27,7 @@ repos:
     hooks:
       - id: markdownlint-cli2
         args: ["--config", ".markdownlint.json"]
+        exclude: '\.github/copilot-instructions\.md'
 
   # YAML linting
   - repo: https://github.com/adrienverge/yamllint
