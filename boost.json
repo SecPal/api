@@ -4,7 +4,7 @@
   "guidelines": [
     "This is a Laravel 12 API-only application (no Blade views)",
     "PHP 8.4 with strict types enabled in all files",
-    "Multi-tenant architecture with tenant_id isolation via Spatie Laravel-Permission teams",
+    "Multi-tenant architecture with tenant_id isolation via Spatie laravel-permission teams",
     "Encryption: KEK (file) wraps DEK (per-tenant in tenant_keys table), data encrypted with tenant-specific DEK",
     "Blind indexes: HMAC-SHA256 for searchable encrypted fields (email_idx, phone_idx)",
     "Use libsodium for all cryptographic operations (sodium_crypto_aead_aes256gcm_* for data, sodium_crypto_secretbox_* for key wrapping)",
