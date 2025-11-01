@@ -48,26 +48,59 @@ if [ -f composer.json ]; then
   if ! command -v composer >/dev/null 2>&1; then
     echo "Warning: composer.json found but composer not installed - skipping PHP checks" >&2
   else
-    composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
-    # Run Laravel Pint code style check if available (blocking: aligns with gates)
-    if [ -x ./vendor/bin/pint ]; then
-      ./vendor/bin/pint --test
+    # Auto-detect DDEV for consistent environment
+    USE_DDEV=false
+    if command -v ddev >/dev/null 2>&1 && ddev describe >/dev/null 2>&1; then
+      USE_DDEV=true
+      echo "✓ DDEV detected - using containerized environment for PHP checks"
     fi
-    # Run PHPStan (use configured level from phpstan.neon if exists, else max)
-    if [ -x ./vendor/bin/phpstan ]; then
-      if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
-        php -d memory_limit=512M ./vendor/bin/phpstan analyse
-      else
-        php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
+
+    if [ "$USE_DDEV" = true ]; then
+      # Run Laravel Pint code style check if available (blocking: aligns with gates)
+      if [ -x ./vendor/bin/pint ]; then
+        ddev exec ./vendor/bin/pint --test
+      fi
+      # Run PHPStan (use configured level from phpstan.neon if exists, else max)
+      if [ -x ./vendor/bin/phpstan ]; then
+        if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
+          ddev exec php -d memory_limit=512M ./vendor/bin/phpstan analyse
+        else
+          ddev exec php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
+        fi
+      fi
+    else
+      composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+      # Run Laravel Pint code style check if available (blocking: aligns with gates)
+      if [ -x ./vendor/bin/pint ]; then
+        ./vendor/bin/pint --test
+      fi
+      # Run PHPStan (use configured level from phpstan.neon if exists, else max)
+      if [ -x ./vendor/bin/phpstan ]; then
+        if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
+          php -d memory_limit=512M ./vendor/bin/phpstan analyse
+        else
+          php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
+        fi
       fi
     fi
     # Run tests (Laravel Artisan → Pest → PHPUnit)
-    if [ -f artisan ]; then
-      php artisan test --parallel
-    elif [ -x ./vendor/bin/pest ]; then
-      ./vendor/bin/pest --parallel
-    elif [ -x ./vendor/bin/phpunit ]; then
-      ./vendor/bin/phpunit
+    if [ "$USE_DDEV" = true ]; then
+      if [ -f artisan ]; then
+        ddev exec php artisan test --parallel
+      elif [ -x ./vendor/bin/pest ]; then
+        ddev exec ./vendor/bin/pest --parallel
+      elif [ -x ./vendor/bin/phpunit ]; then
+        ddev exec ./vendor/bin/phpunit
+      fi
+    else
+      echo "⚠️  DDEV not detected - running tests on host (may fail with database errors)"
+      if [ -f artisan ]; then
+        php artisan test --parallel
+      elif [ -x ./vendor/bin/pest ]; then
+        ./vendor/bin/pest --parallel
+      elif [ -x ./vendor/bin/phpunit ]; then
+        ./vendor/bin/phpunit
+      fi
     fi
   fi
 fi
