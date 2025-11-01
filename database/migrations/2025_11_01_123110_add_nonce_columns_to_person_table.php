@@ -15,7 +15,7 @@ return new class extends Migration
     /**
      * Run the migrations.
      *
-     * Adds nonce columns for tenant-DEK encryption (Option B).
+     * Adds nonce columns for tenant-specific DEK encryption with libsodium AEAD.
      * Each encrypted field now has a separate nonce stored in binary format.
      */
     public function up(): void

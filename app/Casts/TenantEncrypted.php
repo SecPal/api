@@ -14,9 +14,9 @@ use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
 
 /**
- * Custom cast for tenant-specific DEK encryption (Option B).
+ * Custom cast for tenant-specific DEK encryption with libsodium AEAD.
  *
- * Encrypts data using tenant-specific Data Encryption Key (DEK) with libsodium AEAD.
+ * Encrypts data using tenant-specific Data Encryption Key (DEK).
  * Nonces are stored separately in {field}_nonce columns.
  *
  * @implements CastsAttributes<string|null, string|null>

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Rotate the Data Encryption Key (DEK) for a tenant (Option B).
+ * Rotate the Data Encryption Key (DEK) for a tenant.
  *
  * This command:
  * 1. Loads the old tenant-specific DEK

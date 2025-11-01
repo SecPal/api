@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Person model with encrypted PII and blind indexes.
  *
- * SECURITY NOTES (Option B - Tenant-DEK):
+ * SECURITY NOTES:
  * - All *_enc fields encrypted with tenant-specific DEK via TenantEncrypted cast (libsodium AEAD)
  * - All *_nonce fields store 12-byte nonces for AEAD encryption (BYTEA)
  * - All *_idx fields are HMAC-SHA256 blind indexes (BYTEA) for equality search
@@ -60,7 +60,7 @@ class Person extends Model
     ];
 
     /**
-     * SECURITY: Tenant-DEK encryption (Option B) with libsodium AEAD.
+     * SECURITY: Tenant-specific DEK encryption with libsodium AEAD.
      * Nonces stored in separate *_nonce columns.
      */
     protected $casts = [
