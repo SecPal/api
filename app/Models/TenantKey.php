@@ -74,7 +74,7 @@ class TenantKey extends Model
     protected function dekWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? base64_decode($value) : '',
+            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_wrapped')) : '',
             set: fn (string $value): string => base64_encode($value),
         );
     }
@@ -87,7 +87,7 @@ class TenantKey extends Model
     protected function dekNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? base64_decode($value) : '',
+            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_nonce')) : '',
             set: fn (string $value): string => base64_encode($value),
         );
     }
@@ -100,7 +100,7 @@ class TenantKey extends Model
     protected function idxWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? base64_decode($value) : '',
+            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_wrapped')) : '',
             set: fn (string $value): string => base64_encode($value),
         );
     }
@@ -113,7 +113,7 @@ class TenantKey extends Model
     protected function idxNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? base64_decode($value) : '',
+            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_nonce')) : '',
             set: fn (string $value): string => base64_encode($value),
         );
     }
