@@ -48,6 +48,14 @@ class KeyStore
 
         $kek = file_get_contents($kekPath);
 
+        // SECURITY: In production, insecure permissions are fatal
+        if (app()->environment('production') && ($perms & 0077) !== 0) {
+            throw new \RuntimeException(sprintf(
+                'KEK file MUST have 0600 permissions in production (current: %o)',
+                $perms & 0777
+            ));
+        }
+
         // Support both Base64 and raw binary
         if (preg_match('/^[A-Za-z0-9+\/=\s]+$/', $kek)) {
             $decoded = base64_decode(trim($kek), true);
@@ -109,7 +117,7 @@ class KeyStore
             return $this->doUnwrapIdxKey($tenantId);
         }
 
-        return Cache::remember(
+        return Cache::tags(['tenant_keys', "tenant:{$tenantId}"])->remember(
             "idx_key:{$tenantId}",
             now()->addMinutes($cacheTtl),
             fn () => $this->doUnwrapIdxKey($tenantId)
@@ -129,7 +137,7 @@ class KeyStore
             return $this->doUnwrapDek($tenantId);
         }
 
-        return Cache::remember(
+        return Cache::tags(['tenant_keys', "tenant:{$tenantId}"])->remember(
             "dek:{$tenantId}",
             now()->addMinutes($cacheTtl),
             fn () => $this->doUnwrapDek($tenantId)
@@ -138,16 +146,19 @@ class KeyStore
 
     /**
      * Clear cached keys (call after rotation).
+     *
+     * Uses cache tags to avoid flushing entire cache (sessions, views, etc.).
      */
     public function clearCache(?string $tenantId = null): void
     {
         $this->kekCache = null;
 
         if ($tenantId) {
-            Cache::forget("idx_key:{$tenantId}");
-            Cache::forget("dek:{$tenantId}");
+            // Clear specific tenant's keys
+            Cache::tags(["tenant:{$tenantId}"])->flush();
         } else {
-            Cache::flush();
+            // Clear all tenant keys (but not other cache entries)
+            Cache::tags(['tenant_keys'])->flush();
         }
     }
 
