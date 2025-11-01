@@ -31,12 +31,14 @@ Add these to your **global** VS Code settings (`Ctrl+Shift+P` → "Preferences: 
   "github.copilot.chat.modelContextProtocol.servers": {
     "laravel-boost-secpal": {
       "command": "php",
-      "args": ["artisan", "boost:mcp"],
-      "cwd": "${workspaceFolder}/api"
+      "args": ["/home/user/code/SecPal/api/artisan", "boost:mcp"],
+      "cwd": "/home/user/code/SecPal/api"
     }
   }
 }
 ```
+
+**Important:** Use **absolute paths** for `args` and `cwd` in monorepo setups. The `${workspaceFolder}` placeholder may not resolve correctly.
 
 **Why global?** Shell integration and MCP servers must be configured globally, not per-workspace.
 
@@ -46,8 +48,9 @@ Add these to your **global** VS Code settings (`Ctrl+Shift+P` → "Preferences: 
 # Shell integration should work without warnings
 # Open new terminal in VS Code - no "Enable shell integration" message
 
-# Laravel Boost MCP should autocomplete
-# In Copilot Chat, type: @laravel-boost-secpal
+# Laravel Boost MCP should be available after VS Code reload
+# After "Developer: Reload Window", check MCP servers list
+# In Copilot Chat, type: #laravel-boost-secpal
 ```
 
 ## Testing
