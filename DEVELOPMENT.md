@@ -77,6 +77,13 @@ ddev exec php artisan boost:update
 
 **⚠️ Important:** `boost:update` overwrites `boost.json`! If you have custom guidelines in `boost.json`, they will be lost. Always add custom guidelines AFTER running `boost:update`, not before.
 
+**⚠️ Auto-fixing required:** After `boost:update`, the generated `.github/copilot-instructions.md` needs to be auto-fixed for our linting rules:
+
+```bash
+ddev exec php artisan boost:update                         # Generate guidelines
+npx markdownlint-cli2 --fix .github/copilot-instructions.md  # Fix linting issues
+```
+
 ### Boost Commands
 
 ```bash
