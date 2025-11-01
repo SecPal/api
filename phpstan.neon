@@ -51,22 +51,38 @@ parameters:
             message: '#Cannot (call method|access property) .* on (App\\Models\\User|Laravel\\Sanctum\\PersonalAccessToken)\|null#'
             path: tests/Feature/*
 
-        # PEST dynamic properties: $this->tenant is set in beforeEach() but PHPStan cannot infer
+        # PEST dynamic properties: $this->tenant, $this->user, $this->token set in beforeEach()
         -
-            message: '#Access to an undefined property PHPUnit\\Framework\\TestCase::\$tenant#'
-            path: tests/Feature/PersonTest.php
+            message: '#Access to an undefined property PHPUnit\\Framework\\TestCase::\$(tenant|user|token|testPerson)#'
+            paths:
+                - tests/Feature/PersonTest.php
+                - tests/Feature/PersonApiTest.php
         -
-            message: '#Cannot access property .* on App\\Models\\Person\|null#'
-            path: tests/Feature/PersonTest.php
+            message: '#Cannot access property .* on (App\\Models\\Person|App\\Models\\TenantKey|mixed)\|null#'
+            paths:
+                - tests/Feature/PersonTest.php
+                - tests/Feature/PersonApiTest.php
         -
             message: '#Cannot access property \$id on mixed#'
-            path: tests/Feature/PersonTest.php
+            paths:
+                - tests/Feature/PersonTest.php
+                - tests/Feature/PersonApiTest.php
         -
             message: '#Property App\\Models\\Person::\$tenant_id \(int\) does not accept mixed#'
-            path: tests/Feature/PersonTest.php
+            paths:
+                - tests/Feature/PersonTest.php
+                - tests/Feature/PersonApiTest.php
         -
-            message: '#Parameter \#1 \$tenantId of method App\\Repositories\\PersonRepository::(findByEmail|findByPhone|createOrUpdate)\(\) expects int, mixed given#'
-            path: tests/Feature/PersonTest.php
+            message: '#Parameter .* expects .*, mixed given#'
+            paths:
+                - tests/Feature/PersonTest.php
+                - tests/Feature/PersonApiTest.php
+        -
+            message: '#Part .* of encapsed string cannot be cast to string#'
+            path: tests/Feature/PersonApiTest.php
+        -
+            message: '#Call to an undefined method PHPUnit\\Framework\\TestCase::withToken\(\)#'
+            path: tests/Feature/PersonApiTest.php
 
         # Laravel Eloquent BelongsTo covariance limitation - known PHPStan issue with template types
         -
