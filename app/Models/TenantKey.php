@@ -54,7 +54,8 @@ class TenantKey extends Model
     /**
      * Get the attributes that should be cast.
      *
-     * Binary fields use the Binary custom cast for PostgreSQL BYTEA handling.
+     * Binary fields are stored as VARCHAR columns with base64 encoding;
+     * the Binary custom cast handles base64 encoding/decoding.
      *
      * @return array<string, string>
      */

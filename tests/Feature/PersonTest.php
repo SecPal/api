@@ -116,7 +116,10 @@ describe('Person Observer - Blind Index Generation', function () {
         $person = $person->fresh();
         expect($person->email_idx)->not->toBeNull();
         // email_idx is stored as base64 string (44 chars for 32 bytes)
-        expect(strlen(base64_decode($person->email_idx)))->toBe(HMAC_SHA256_OUTPUT_BYTES);
+        $decoded = base64_decode($person->email_idx, true);
+        expect($decoded)->not->toBeFalse();
+        // @phpstan-ignore argument.type (expect() check narrows type but PHPStan doesn't track it)
+        expect(strlen($decoded))->toBe(HMAC_SHA256_OUTPUT_BYTES);
     });
 
     test('generates phone_idx on creation', function (): void {
@@ -129,7 +132,10 @@ describe('Person Observer - Blind Index Generation', function () {
         $person = $person->fresh();
         expect($person->phone_idx)->not->toBeNull();
         // phone_idx is stored as base64 string (44 chars for 32 bytes)
-        expect(strlen(base64_decode($person->phone_idx)))->toBe(HMAC_SHA256_OUTPUT_BYTES);
+        $decoded = base64_decode($person->phone_idx, true);
+        expect($decoded)->not->toBeFalse();
+        // @phpstan-ignore argument.type (expect() check narrows type but PHPStan doesn't track it)
+        expect(strlen($decoded))->toBe(HMAC_SHA256_OUTPUT_BYTES);
     });
 
     test('normalizes email to lowercase for blind index', function (): void {

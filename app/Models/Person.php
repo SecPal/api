@@ -75,10 +75,9 @@ class Person extends Model
     {
         return [
             'email_enc' => 'encrypted',
-            // email_idx and phone_idx are stored as base64 strings directly (no cast needed)
             'phone_enc' => 'encrypted',
-            // email_idx and phone_idx are stored as base64 strings directly (no cast needed)
             'note_enc' => 'encrypted',
+            // email_idx and phone_idx are stored as base64 strings directly (no cast needed)
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

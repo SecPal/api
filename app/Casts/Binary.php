@@ -64,8 +64,13 @@ class Binary implements CastsAttributes
             return null;
         }
 
+        // Runtime type validation despite PHPDoc string guarantee
+        // @phpstan-ignore function.alreadyNarrowedType
+        if (! is_string($value)) {
+            throw new \RuntimeException("Expected string for {$key} in set(), got: ".gettype($value));
+        }
+
         // Encode binary to base64 for VARCHAR storage
-        // Note: PHPDoc guarantees string type, runtime validation would create PHPStan noise
         return base64_encode($value);
     }
 }
