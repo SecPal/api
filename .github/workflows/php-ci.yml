@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2025 SecPal
+# SPDX-License-Identifier: CC0-1.0
+
+name: PHP CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint:
+    name: Laravel Pint (PSR-12)
+    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@main
+
+  static-analysis:
+    name: PHPStan (Larastan)
+    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@main
+
+  test:
+    name: PEST Tests (Coverage ≥80%)
+    uses: SecPal/.github/.github/workflows/reusable-php-test.yml@main
+    with:
+      test-command: "./vendor/bin/pest --coverage --min=80"
