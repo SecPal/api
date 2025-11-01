@@ -1,10 +1,9 @@
 #!/usr/bin/env php
-
-# SPDX-FileCopyrightText: 2025 SecPal Contributors
-#
-# SPDX-License-Identifier: AGPL-3.0-or-later
-
 <?php
+
+// SPDX-FileCopyrightText: 2025 SecPal Contributors
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Illuminate\Foundation\Application;
 use Symfony\Component\Console\Input\ArgvInput;
