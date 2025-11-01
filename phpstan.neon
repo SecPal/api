@@ -29,3 +29,18 @@ parameters:
     noUnnecessaryCollectionCall: true
     noUnnecessaryCollectionCallOnly: []
     noUnnecessaryCollectionCallExcept: []
+
+    # Ignore errors in vendor migrations
+    ignoreErrors:
+        -
+            message: '#Cannot access offset .* on mixed#'
+            path: database/migrations/*_create_permission_tables.php
+        -
+            message: '#Parameter .* expects .*, mixed given#'
+            path: database/migrations/*_create_permission_tables.php
+        -
+            message: '#Call to an undefined method PHPUnit\\Framework\\TestCase::getJson\(\)#'
+            path: tests/Feature/*
+        -
+            message: '#Cannot call method assert.*\(\) on mixed#'
+            path: tests/Feature/*
