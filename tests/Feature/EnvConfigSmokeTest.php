@@ -7,6 +7,7 @@ declare(strict_types=1);
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 test('essential config values are set', function (): void {
@@ -20,6 +21,6 @@ test('application config is loaded correctly', function (): void {
 });
 
 test('database connection is working', function (): void {
-    expect(fn () => DB::connection()->getPdo())
-        ->not->toThrow(Exception::class);
+    expect(fn () => DB::select('SELECT 1'))
+        ->not->toThrow(QueryException::class);
 });
