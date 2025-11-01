@@ -5,6 +5,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\TokenRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,14 +19,10 @@ class AuthController extends Controller
      *
      * @throws ValidationException
      */
-    public function token(Request $request): JsonResponse
+    public function token(TokenRequest $request): JsonResponse
     {
         /** @var array{email: string, password: string, device_name?: string} $validated */
-        $validated = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required|string',
-            'device_name' => 'string|max:255',
-        ]);
+        $validated = $request->validated();
 
         $user = User::where('email', $validated['email'])->first();
 

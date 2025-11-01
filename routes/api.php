@@ -36,9 +36,16 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
 
-        // Example protected endpoint
+        // Example protected endpoint - explicit field selection to avoid sensitive data exposure
         Route::get('/me', function () {
-            return response()->json(auth()->user());
+            /** @var \App\Models\User $user */
+            $user = auth()->user();
+
+            return response()->json([
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ]);
         });
     });
 });
