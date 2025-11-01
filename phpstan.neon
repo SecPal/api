@@ -50,3 +50,28 @@ parameters:
         -
             message: '#Cannot (call method|access property) .* on (App\\Models\\User|Laravel\\Sanctum\\PersonalAccessToken)\|null#'
             path: tests/Feature/*
+
+        # PEST dynamic properties: $this->tenant is set in beforeEach() but PHPStan cannot infer
+        -
+            message: '#Access to an undefined property PHPUnit\\Framework\\TestCase::\$tenant#'
+            path: tests/Feature/PersonTest.php
+        -
+            message: '#Cannot access property .* on App\\Models\\Person\|null#'
+            path: tests/Feature/PersonTest.php
+        -
+            message: '#Cannot access property \$id on mixed#'
+            path: tests/Feature/PersonTest.php
+        -
+            message: '#Property App\\Models\\Person::\$tenant_id \(int\) does not accept mixed#'
+            path: tests/Feature/PersonTest.php
+        -
+            message: '#Parameter \#1 \$tenantId of method App\\Repositories\\PersonRepository::(findByEmail|findByPhone|createOrUpdate)\(\) expects int, mixed given#'
+            path: tests/Feature/PersonTest.php
+        -
+            message: '#Constant HMAC_SHA256_OUTPUT_BYTES not found#'
+            path: tests/Feature/PersonTest.php
+
+        # Laravel Eloquent BelongsTo covariance limitation - known PHPStan issue with template types
+        -
+            message: '#Method App\\Models\\Person::tenantKey\(\) should return .* but returns .*#'
+            path: app/Models/Person.php

@@ -67,6 +67,45 @@ class TenantKey extends Model
     }
 
     /**
+     * Helper to handle PostgreSQL BYTEA fields.
+     *
+     * - GET: PostgreSQL returns base64-encoded string or stream resource, decode to binary
+     * - SET: Encode binary to base64 for PostgreSQL insertion
+     */
+    private function handleBinaryAttribute(mixed $value, string $fieldName, bool $isGetter): string
+    {
+        if ($isGetter) {
+            // GET: Decode from storage
+            if ($value === null) {
+                throw new \RuntimeException("{$fieldName} is null - ensure TenantKey is persisted");
+            }
+
+            // PostgreSQL BYTEA may return stream resource
+            if (is_resource($value)) {
+                $value = stream_get_contents($value);
+                if ($value === false) {
+                    throw new \RuntimeException("Failed to read {$fieldName} from stream");
+                }
+            }
+
+            if (! is_string($value)) {
+                throw new \RuntimeException("{$fieldName} must be a string or resource, got: ".gettype($value));
+            }
+
+            // Decode from base64 (Laravel/PDO stores BYTEA as base64)
+            $decoded = base64_decode($value, true);
+            if ($decoded === false) {
+                throw new \RuntimeException("Invalid base64 data for {$fieldName}");
+            }
+
+            return $decoded;
+        } else {
+            // SET: Encode for storage
+            return base64_encode($value);
+        }
+    }
+
+    /**
      * Get the DEK wrapped attribute accessor.
      *
      * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
@@ -74,34 +113,34 @@ class TenantKey extends Model
     protected function dekWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_wrapped')) : throw new \RuntimeException('dek_wrapped must be a string'),
-            set: fn (string $value): string => base64_encode($value),
+            get: fn (mixed $value): string => $this->handleBinaryAttribute($value, 'dek_wrapped', true),
+            set: fn (string $value): string => $this->handleBinaryAttribute($value, 'dek_wrapped', false),
         );
     }
 
     /**
-     * Get/set dek_nonce as binary via base64.
+     * Get/set dek_nonce as binary.
      *
      * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
      */
     protected function dekNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_nonce')) : throw new \RuntimeException('dek_nonce must be a string'),
-            set: fn (string $value): string => base64_encode($value),
+            get: fn (mixed $value): string => $this->handleBinaryAttribute($value, 'dek_nonce', true),
+            set: fn (string $value): string => $this->handleBinaryAttribute($value, 'dek_nonce', false),
         );
     }
 
     /**
-     * Get/set idx_wrapped as binary via base64.
+     * Get/set idx_wrapped as binary.
      *
      * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
      */
     protected function idxWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_wrapped')) : throw new \RuntimeException('idx_wrapped must be a string'),
-            set: fn (string $value): string => base64_encode($value),
+            get: fn (mixed $value): string => $this->handleBinaryAttribute($value, 'idx_wrapped', true),
+            set: fn (string $value): string => $this->handleBinaryAttribute($value, 'idx_wrapped', false),
         );
     }
 
@@ -113,8 +152,8 @@ class TenantKey extends Model
     protected function idxNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_nonce')) : throw new \RuntimeException('idx_nonce must be a string'),
-            set: fn (string $value): string => base64_encode($value),
+            get: fn (mixed $value): string => $this->handleBinaryAttribute($value, 'idx_nonce', true),
+            set: fn (string $value): string => $this->handleBinaryAttribute($value, 'idx_nonce', false),
         );
     }
 
