@@ -13,16 +13,16 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Person model with field-level encryption and blind indexes.
  *
- * Encrypted fields (*_enc) use Eloquent encrypted cast.
- * Blind indexes (*_idx) are computed automatically by PersonObserver.
+ * Encrypted fields (*_enc) use Eloquent encrypted cast and are stored as TEXT.
+ * Blind indexes (*_idx) are computed automatically by PersonObserver and are stored as VARCHAR.
  * Transient properties (email_plain, phone_plain) provide write-only plaintext access.
  *
  * @property int $id
  * @property int $tenant_id
- * @property string $email_enc BYTEA encrypted email
- * @property string $email_idx BYTEA blind index for email
- * @property string $phone_enc BYTEA encrypted phone
- * @property string $phone_idx BYTEA blind index for phone
+ * @property string $email_enc TEXT encrypted email
+ * @property string $email_idx VARCHAR blind index for email
+ * @property string $phone_enc TEXT encrypted phone
+ * @property string $phone_idx VARCHAR blind index for phone
  * @property string|null $note_enc TEXT encrypted note
  * @property string|null $note_tsv tsvector for FTS
  * @property \Illuminate\Support\Carbon $created_at
@@ -75,9 +75,9 @@ class Person extends Model
     {
         return [
             'email_enc' => 'encrypted',
-            'email_idx' => \App\Casts\Binary::class,
+            // email_idx and phone_idx are stored as base64 strings directly (no cast needed)
             'phone_enc' => 'encrypted',
-            'phone_idx' => \App\Casts\Binary::class,
+            // email_idx and phone_idx are stored as base64 strings directly (no cast needed)
             'note_enc' => 'encrypted',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

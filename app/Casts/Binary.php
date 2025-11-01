@@ -64,7 +64,8 @@ class Binary implements CastsAttributes
             return null;
         }
 
-        // Encode to base64 for VARCHAR storage
+        // Encode binary to base64 for VARCHAR storage
+        // Note: PHPDoc guarantees string type, runtime validation would create PHPStan noise
         return base64_encode($value);
     }
 }

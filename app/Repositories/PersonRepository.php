@@ -34,7 +34,7 @@ class PersonRepository
         $normalized = $this->normalizeEmail($email);
         $emailIdx = $tenantKey->generateBlindIndex($normalized);
 
-        // WHERE clauses need base64-encoded value (VARCHAR storage)
+        // email_idx is stored as base64 string (no cast), so encode for comparison
         return Person::where('tenant_id', $tenantId)
             ->where('email_idx', base64_encode($emailIdx))
             ->first();
@@ -53,7 +53,7 @@ class PersonRepository
         $normalized = $this->normalizePhone($phone);
         $phoneIdx = $tenantKey->generateBlindIndex($normalized);
 
-        // WHERE clauses need base64-encoded value (VARCHAR storage)
+        // phone_idx is stored as base64 string (no cast), so encode for comparison
         return Person::where('tenant_id', $tenantId)
             ->where('phone_idx', base64_encode($phoneIdx))
             ->first();
@@ -74,8 +74,11 @@ class PersonRepository
     {
         $email = $attributes['email_plain'] ?? null;
 
+        if ($email === null) {
+            throw new \InvalidArgumentException('email_plain is required');
+        }
         if (! is_string($email)) {
-            throw new \InvalidArgumentException('email_plain is required and must be a string');
+            throw new \InvalidArgumentException('email_plain must be a string');
         }
 
         $person = $this->findByEmail($tenantId, $email);

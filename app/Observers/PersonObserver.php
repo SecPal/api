@@ -57,13 +57,17 @@ class PersonObserver
         // Compute email_idx if email_plain is set
         if ($person->email_plain !== null) {
             $normalized = $this->normalizeEmail($person->email_plain);
-            $person->email_idx = $tenantKey->generateBlindIndex($normalized);
+            $rawIdx = $tenantKey->generateBlindIndex($normalized);
+            // Store as base64 string directly (no cast on *_idx columns)
+            $person->email_idx = base64_encode($rawIdx);
         }
 
         // Compute phone_idx if phone_plain is set
         if ($person->phone_plain !== null) {
             $normalized = $this->normalizePhone($person->phone_plain);
-            $person->phone_idx = $tenantKey->generateBlindIndex($normalized);
+            $rawIdx = $tenantKey->generateBlindIndex($normalized);
+            // Store as base64 string directly (no cast on *_idx columns)
+            $person->phone_idx = base64_encode($rawIdx);
         }
     }
 }
