@@ -75,7 +75,9 @@ class Person extends Model
     {
         return [
             'email_enc' => 'encrypted',
+            'email_idx' => \App\Casts\Binary::class,
             'phone_enc' => 'encrypted',
+            'phone_idx' => \App\Casts\Binary::class,
             'note_enc' => 'encrypted',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

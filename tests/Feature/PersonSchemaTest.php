@@ -31,20 +31,30 @@ test('person has correct columns', function (): void {
     ]))->toBeTrue();
 });
 
-test('person binary columns have bytea type', function (): void {
+test('person encrypted and index columns have correct text types', function (): void {
     $columns = DB::select("
         SELECT column_name, data_type
         FROM information_schema.columns
         WHERE table_name = 'person'
         AND column_name IN ('email_enc', 'email_idx', 'phone_enc', 'phone_idx')
+        ORDER BY column_name
     ");
 
     expect($columns)->toHaveCount(4);
 
-    foreach ($columns as $column) {
-        expect($column)->toBeObject();
-        expect($column->data_type)->toBe('bytea'); // @phpstan-ignore property.nonObject
-    }
+    // Encrypted fields (email_enc, phone_enc) use TEXT for Laravel's encrypted cast
+    // Index fields (email_idx, phone_idx) use VARCHAR for base64-encoded blind indexes
+    expect($columns[0]->column_name)->toBe('email_enc'); // @phpstan-ignore property.nonObject
+    expect($columns[0]->data_type)->toBe('text'); // @phpstan-ignore property.nonObject
+
+    expect($columns[1]->column_name)->toBe('email_idx'); // @phpstan-ignore property.nonObject
+    expect($columns[1]->data_type)->toBe('character varying'); // @phpstan-ignore property.nonObject
+
+    expect($columns[2]->column_name)->toBe('phone_enc'); // @phpstan-ignore property.nonObject
+    expect($columns[2]->data_type)->toBe('text'); // @phpstan-ignore property.nonObject
+
+    expect($columns[3]->column_name)->toBe('phone_idx'); // @phpstan-ignore property.nonObject
+    expect($columns[3]->data_type)->toBe('character varying'); // @phpstan-ignore property.nonObject
 });
 
 test('person note_enc column exists and has text type', function (): void {

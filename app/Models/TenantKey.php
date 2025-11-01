@@ -54,107 +54,20 @@ class TenantKey extends Model
     /**
      * Get the attributes that should be cast.
      *
-     * Binary fields use custom accessors for base64 encoding/decoding.
+     * Binary fields use the Binary custom cast for PostgreSQL BYTEA handling.
      *
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
+            'dek_wrapped' => \App\Casts\Binary::class,
+            'dek_nonce' => \App\Casts\Binary::class,
+            'idx_wrapped' => \App\Casts\Binary::class,
+            'idx_nonce' => \App\Casts\Binary::class,
             'key_version' => 'integer',
             'created_at' => 'datetime',
         ];
-    }
-
-    /**
-     * Helper to handle PostgreSQL BYTEA fields.
-     *
-     * - GET: PostgreSQL returns base64-encoded string or stream resource, decode to binary
-     * - SET: Encode binary to base64 for PostgreSQL insertion
-     */
-    private function handleBinaryAttribute(mixed $value, string $fieldName, bool $isGetter): string
-    {
-        if ($isGetter) {
-            // GET: Decode from storage
-            if ($value === null) {
-                throw new \RuntimeException("{$fieldName} is null - ensure TenantKey is persisted");
-            }
-
-            // PostgreSQL BYTEA may return stream resource
-            if (is_resource($value)) {
-                $value = stream_get_contents($value);
-                if ($value === false) {
-                    throw new \RuntimeException("Failed to read {$fieldName} from stream");
-                }
-            }
-
-            if (! is_string($value)) {
-                throw new \RuntimeException("{$fieldName} must be a string or resource, got: ".gettype($value));
-            }
-
-            // Decode from base64 (Laravel/PDO stores BYTEA as base64)
-            $decoded = base64_decode($value, true);
-            if ($decoded === false) {
-                throw new \RuntimeException("Invalid base64 data for {$fieldName}");
-            }
-
-            return $decoded;
-        } else {
-            // SET: Encode for storage
-            return base64_encode($value);
-        }
-    }
-
-    /**
-     * Get the DEK wrapped attribute accessor.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
-     */
-    protected function dekWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
-    {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => $this->handleBinaryAttribute($value, 'dek_wrapped', true),
-            set: fn (string $value): string => $this->handleBinaryAttribute($value, 'dek_wrapped', false),
-        );
-    }
-
-    /**
-     * Get/set dek_nonce as binary.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
-     */
-    protected function dekNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
-    {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => $this->handleBinaryAttribute($value, 'dek_nonce', true),
-            set: fn (string $value): string => $this->handleBinaryAttribute($value, 'dek_nonce', false),
-        );
-    }
-
-    /**
-     * Get/set idx_wrapped as binary.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
-     */
-    protected function idxWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
-    {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => $this->handleBinaryAttribute($value, 'idx_wrapped', true),
-            set: fn (string $value): string => $this->handleBinaryAttribute($value, 'idx_wrapped', false),
-        );
-    }
-
-    /**
-     * Get the idx key nonce attribute accessor.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
-     */
-    protected function idxNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
-    {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => $this->handleBinaryAttribute($value, 'idx_nonce', true),
-            set: fn (string $value): string => $this->handleBinaryAttribute($value, 'idx_nonce', false),
-        );
     }
 
     /**

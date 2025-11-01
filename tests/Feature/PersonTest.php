@@ -10,6 +10,9 @@ use App\Models\Person;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+// Import constant from TenantKeyTest
+require_once __DIR__.'/TenantKeyTest.php';
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

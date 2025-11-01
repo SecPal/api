@@ -31,8 +31,9 @@ class PersonRepository
         $normalized = $this->normalizeEmail($email);
         $emailIdx = $tenantKey->generateBlindIndex($normalized);
 
+        // WHERE clauses need base64-encoded value (VARCHAR storage)
         return Person::where('tenant_id', $tenantId)
-            ->where('email_idx', $emailIdx)
+            ->where('email_idx', base64_encode($emailIdx))
             ->first();
     }
 
@@ -49,8 +50,9 @@ class PersonRepository
         $normalized = $this->normalizePhone($phone);
         $phoneIdx = $tenantKey->generateBlindIndex($normalized);
 
+        // WHERE clauses need base64-encoded value (VARCHAR storage)
         return Person::where('tenant_id', $tenantId)
-            ->where('phone_idx', $phoneIdx)
+            ->where('phone_idx', base64_encode($phoneIdx))
             ->first();
     }
 
