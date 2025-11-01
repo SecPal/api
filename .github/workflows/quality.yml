@@ -88,11 +88,9 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
-      - name: Generate Application Key
-        run: php artisan key:generate --env=testing
-
       - name: Run Tests
         env:
+          APP_KEY: base64:2R5J3K8H6M9P1Q4W7Y0T3V6X9Z2B5N8R1E4U7I0O3A6S9D2F5G8H1J4K7L0M3P6
           DB_CONNECTION: pgsql
           DB_HOST: localhost
           DB_PORT: 5432
