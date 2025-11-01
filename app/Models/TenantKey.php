@@ -34,11 +34,9 @@ class TenantKey extends Model
     protected $table = 'tenant_keys';
 
     /**
-     * Indicates if the model should be timestamped.
-     *
-     * @var bool
+     * Indicates that the model should not use the updated_at column.
      */
-    public $timestamps = false;
+    public const UPDATED_AT = null;
 
     /**
      * The attributes that are mass assignable.
@@ -54,16 +52,19 @@ class TenantKey extends Model
     ];
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
      * Binary fields use custom accessors for base64 encoding/decoding.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        'key_version' => 'integer',
-        'created_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'key_version' => 'integer',
+            'created_at' => 'datetime',
+        ];
+    }
 
     /**
      * Get the DEK wrapped attribute accessor.

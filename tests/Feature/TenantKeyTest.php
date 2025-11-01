@@ -11,20 +11,23 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-beforeEach(function (): void {
-    // Clean up any existing KEK file
+/**
+ * Helper function to clean up the KEK file.
+ */
+function cleanupKekFile(): void
+{
     $kekPath = storage_path('app/keys/kek.key');
     if (file_exists($kekPath)) {
         unlink($kekPath);
     }
+}
+
+beforeEach(function (): void {
+    cleanupKekFile();
 });
 
 afterEach(function (): void {
-    // Clean up KEK file after each test
-    $kekPath = storage_path('app/keys/kek.key');
-    if (file_exists($kekPath)) {
-        unlink($kekPath);
-    }
+    cleanupKekFile();
 });
 
 test('generates KEK file with correct permissions', function (): void {
