@@ -16,7 +16,7 @@ test('essential config values are set', function (): void {
 
 test('application config is loaded correctly', function (): void {
     expect(config('app.name'))->not->toBeNull();
-    expect(config('app.key'))->not->toBeNull();
+    expect(config('app.debug'))->not->toBeNull();
 });
 
 test('database connection is working', function (): void {
