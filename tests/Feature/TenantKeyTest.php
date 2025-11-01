@@ -25,6 +25,7 @@ function cleanupKekFile(): void
     }
 }
 
+// Clean up KEK file before each test for isolation
 beforeEach(function (): void {
     cleanupKekFile();
 });
