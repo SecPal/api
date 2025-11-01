@@ -43,31 +43,75 @@ if [ "$FORMAT_EXIT" -ne 0 ]; then
   exit 1
 fi
 
+# Helper functions to reduce code duplication
+run_pint() {
+  local cmd_prefix="$1"
+  # Run Laravel Pint to auto-fix code style issues
+  # Uses --dirty flag to only process modified files for performance
+  if [ -x ./vendor/bin/pint ]; then
+    ${cmd_prefix} ./vendor/bin/pint --dirty
+  fi
+}
+
+run_phpstan() {
+  local cmd_prefix="$1"
+  # Run PHPStan static analysis
+  if [ -x ./vendor/bin/phpstan ]; then
+    if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
+      ${cmd_prefix} php -d memory_limit=512M ./vendor/bin/phpstan analyse
+    else
+      ${cmd_prefix} php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
+    fi
+  fi
+}
+
+run_tests() {
+  local cmd_prefix="$1"
+  local test_exit=0
+  # Run tests (Laravel Artisan → Pest → PHPUnit)
+  if [ -f artisan ]; then
+    ${cmd_prefix} php artisan test --parallel || test_exit=$?
+  elif [ -x ./vendor/bin/pest ]; then
+    ${cmd_prefix} ./vendor/bin/pest --parallel || test_exit=$?
+  elif [ -x ./vendor/bin/phpunit ]; then
+    ${cmd_prefix} ./vendor/bin/phpunit || test_exit=$?
+  fi
+  return $test_exit
+}
+
 # 1) PHP / Laravel
 if [ -f composer.json ]; then
   if ! command -v composer >/dev/null 2>&1; then
     echo "Warning: composer.json found but composer not installed - skipping PHP checks" >&2
   else
-    composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
-    # Run Laravel Pint code style check if available (blocking: aligns with gates)
-    if [ -x ./vendor/bin/pint ]; then
-      ./vendor/bin/pint --test
+    # Auto-detect DDEV for consistent environment
+    CMD_PREFIX=""
+    if command -v ddev >/dev/null 2>&1 && ddev describe >/dev/null 2>&1; then
+      CMD_PREFIX="ddev exec"
+      echo "✓ DDEV detected - using containerized environment for PHP checks"
+      # Dependencies are managed within DDEV container (vendor/ is bind-mounted from host)
+      # No need to run composer install here - DDEV setup already handles it
+    else
+      composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
     fi
-    # Run PHPStan (use configured level from phpstan.neon if exists, else max)
-    if [ -x ./vendor/bin/phpstan ]; then
-      if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
-        php -d memory_limit=512M ./vendor/bin/phpstan analyse
-      else
-        php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
-      fi
+
+    # Run quality checks
+    run_pint "$CMD_PREFIX"
+    run_phpstan "$CMD_PREFIX"
+
+    # Run tests and handle failures
+    TEST_EXIT=0
+    run_tests "$CMD_PREFIX" || TEST_EXIT=$?
+
+    # Show helpful message only after test failure when DDEV not available
+    if [ "$TEST_EXIT" -ne 0 ] && [ -z "$CMD_PREFIX" ]; then
+      echo "⚠️  Tests failed without DDEV - database connection may be unavailable" >&2
+      echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec php artisan test" >&2
     fi
-    # Run tests (Laravel Artisan → Pest → PHPUnit)
-    if [ -f artisan ]; then
-      php artisan test --parallel
-    elif [ -x ./vendor/bin/pest ]; then
-      ./vendor/bin/pest --parallel
-    elif [ -x ./vendor/bin/phpunit ]; then
-      ./vendor/bin/phpunit
+
+    # Propagate test exit code
+    if [ "$TEST_EXIT" -ne 0 ]; then
+      exit "$TEST_EXIT"
     fi
   fi
 fi
