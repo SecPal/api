@@ -37,8 +37,8 @@ See [README.md](./README.md) for full installation instructions.
 {
   "servers": {
     "laravel-boost-secpal": {
-      "command": "php",
-      "args": ["/home/user/code/SecPal/api/artisan", "boost:mcp"],
+      "command": "ddev",
+      "args": ["exec", "--raw", "php", "artisan", "boost:mcp"],
       "cwd": "/home/user/code/SecPal/api",
       "type": "stdio"
     }
@@ -46,7 +46,7 @@ See [README.md](./README.md) for full installation instructions.
 }
 ```
 
-**Important:** Use **absolute paths** for `args` and `cwd` in monorepo setups.
+**Important:** Use `ddev exec --raw` to run the MCP server inside the DDEV container, which has access to the database and all Laravel dependencies.
 
 **Why two files?**
 
