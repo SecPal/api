@@ -5,9 +5,9 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # PR #48 - Lokaler Code Review Report
 
-**Datum:** 2025-11-01  
-**Branch:** feat/tenant-dek-encryption  
-**Reviewer:** GitHub Copilot (systematischer Review)  
+**Datum:** 2025-11-01
+**Branch:** feat/tenant-dek-encryption
+**Reviewer:** GitHub Copilot (systematischer Review)
 **Commits:** 17 (a4708c4 → ec758ec)
 
 ---
@@ -42,7 +42,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 **Lösung - Option A (EMPFOHLEN):**
 Splitten in **3 logische PRs**:
 
-```
+```text
 PR #48a: Core Encryption Infrastructure (MERGE FIRST)
 ├── app/Support/KeyStore.php
 ├── app/Support/BlindIndex.php
@@ -365,25 +365,25 @@ public function findAll(string $tenantId, int $perPage = 15): LengthAwarePaginat
 
 ## 🎯 ACTIONABLE RECOMMENDATIONS
 
-### Sofort (vor Merge):
+### Sofort (vor Merge)
 
 1. ❌ **PR aufteilen** in 3 separate PRs (siehe Option A oben)
    - Oder explizit als "foundational change" markieren
 2. ⚠️ **Cache::flush()** durch gezielteres Flushing ersetzen
 3. 🔧 **KEK permission check** für Production verschärfen
 
-### Kurzfristig (Follow-up PR):
+### Kurzfristig (Follow-up PR)
 
-4. 📝 **API Dokumentation** erstellen (OpenAPI oder docs/API.md)
-5. ⚠️ **Rate Limiting** auf API Endpoints
-6. 🔧 **BlindIndex input validation** hinzufügen
-7. 🔧 **PersonRepository pagination limit** setzen
+1. 📝 **API Dokumentation** erstellen (OpenAPI oder docs/API.md)
+2. ⚠️ **Rate Limiting** auf API Endpoints
+3. 🔧 **BlindIndex input validation** hinzufügen
+4. 🔧 **PersonRepository pagination limit** setzen
 
-### Mittelfristig (nächster Sprint):
+### Mittelfristig (nächster Sprint)
 
-8. 📝 **ARCHITECTURE.md** erstellen
-9. 📝 **DEPLOYMENT.md** für Production Setup
-10. 📝 **CONTRIBUTING.md** aktualisieren
+1. 📝 **ARCHITECTURE.md** erstellen
+2. 📝 **DEPLOYMENT.md** für Production Setup
+3. 📝 **CONTRIBUTING.md** aktualisieren
 
 ---
 
