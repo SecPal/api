@@ -9,7 +9,6 @@ use App\Models\Person;
 use App\Models\TenantKey;
 use App\Support\KeyStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 
 uses(RefreshDatabase::class);
