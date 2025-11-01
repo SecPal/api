@@ -56,6 +56,8 @@ if [ -f composer.json ]; then
     fi
 
     if [ "$USE_DDEV" = true ]; then
+      # Dependencies are managed within DDEV container (vendor/ is bind-mounted from host)
+      # No need to run composer install here - DDEV setup already handles it
       # Run Laravel Pint code style check if available (blocking: aligns with gates)
       if [ -x ./vendor/bin/pint ]; then
         ddev exec ./vendor/bin/pint --test
@@ -84,23 +86,32 @@ if [ -f composer.json ]; then
       fi
     fi
     # Run tests (Laravel Artisan → Pest → PHPUnit)
+    TEST_EXIT=0
     if [ "$USE_DDEV" = true ]; then
       if [ -f artisan ]; then
-        ddev exec php artisan test --parallel
+        ddev exec php artisan test --parallel || TEST_EXIT=$?
       elif [ -x ./vendor/bin/pest ]; then
-        ddev exec ./vendor/bin/pest --parallel
+        ddev exec ./vendor/bin/pest --parallel || TEST_EXIT=$?
       elif [ -x ./vendor/bin/phpunit ]; then
-        ddev exec ./vendor/bin/phpunit
+        ddev exec ./vendor/bin/phpunit || TEST_EXIT=$?
       fi
     else
-      echo "⚠️  DDEV not detected - running tests on host (may fail with database errors)"
       if [ -f artisan ]; then
-        php artisan test --parallel
+        php artisan test --parallel || TEST_EXIT=$?
       elif [ -x ./vendor/bin/pest ]; then
-        ./vendor/bin/pest --parallel
+        ./vendor/bin/pest --parallel || TEST_EXIT=$?
       elif [ -x ./vendor/bin/phpunit ]; then
-        ./vendor/bin/phpunit
+        ./vendor/bin/phpunit || TEST_EXIT=$?
       fi
+      # Show warning only after test failure when DDEV not available
+      if [ "$TEST_EXIT" -ne 0 ]; then
+        echo "⚠️  Tests failed without DDEV - database connection may be unavailable" >&2
+        echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec ./vendor/bin/pest" >&2
+      fi
+    fi
+    # Propagate test exit code
+    if [ "$TEST_EXIT" -ne 0 ]; then
+      exit "$TEST_EXIT"
     fi
   fi
 fi
