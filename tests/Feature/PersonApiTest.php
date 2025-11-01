@@ -14,19 +14,9 @@ use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 
-/**
- * Helper to assign permissions with tenant context.
- */
-function givePermissionWithTenant(User $user, int $tenantId, string $permission): void
-{
-    app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
-    $user->givePermissionTo($permission);
-    app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId(null); // Reset
-}
-
 beforeEach(function (): void {
     // Use process-specific KEK file for parallel test isolation
-    TenantKey::setKekPath(storage_path('app/keys/kek-test-'.getmypid().'.key'));
+    TenantKey::setKekPath(getTestKekPath());
 
     // generateKek() will create the directory if needed
     TenantKey::generateKek();
@@ -43,10 +33,7 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    $kekPath = storage_path('app/keys/kek-test-'.getmypid().'.key');
-    if (file_exists($kekPath)) {
-        unlink($kekPath);
-    }
+    cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
 
@@ -196,7 +183,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
         $response->assertStatus(403);
     });
 
-    test('returns 400 when email query parameter is missing', function (): void {
+    test('`GET /v1/tenants/{tenant}/persons/by-email` → returns 400 when email query parameter is missing', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.read');
 
         $response = $this->withToken($this->token)
@@ -204,7 +191,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
 
         $response->assertStatus(400)
             ->assertJson([
-                'error' => 'email query parameter is required',
+                'error' => 'Email query parameter is required',
             ]);
     });
 

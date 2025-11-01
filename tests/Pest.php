@@ -39,3 +39,35 @@ pest()->extend(Tests\TestCase::class)
 | global functions to help you to reduce the number of lines of code in your test files.
 |
 */
+
+/**
+ * Get process-specific KEK path for parallel test execution.
+ * Centralized helper to avoid duplication across test files.
+ */
+function getTestKekPath(): string
+{
+    return storage_path('app/keys/kek-test-'.getmypid().'.key');
+}
+
+/**
+ * Clean up the KEK file for the current process.
+ */
+function cleanupTestKekFile(): void
+{
+    $kekPath = getTestKekPath();
+    if (file_exists($kekPath)) {
+        unlink($kekPath);
+    }
+}
+
+/**
+ * Assign permissions to a user with proper tenant context.
+ * Sets Spatie Permission team ID, assigns permission, then resets team ID.
+ */
+function givePermissionWithTenant(\App\Models\User $user, int $tenantId, string $permission): void
+{
+    $registrar = app(\Spatie\Permission\PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($tenantId);
+    $user->givePermissionTo($permission);
+    $registrar->setPermissionsTeamId(null);
+}

@@ -9,6 +9,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StorePersonRequest;
+use App\Http\Resources\PersonResource;
 use App\Repositories\PersonRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -47,12 +48,9 @@ class PersonController extends Controller
             'note_enc' => $request->input('note_enc'),
         ]);
 
-        return response()->json([
-            'id' => $person->id,
-            'tenant_id' => $person->tenant_id,
-            'created_at' => $person->created_at->toIso8601String(),
-            'updated_at' => $person->updated_at->toIso8601String(),
-        ], Response::HTTP_CREATED);
+        return (new PersonResource($person))
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
     }
 
     /**
@@ -60,21 +58,22 @@ class PersonController extends Controller
      *
      * GET /v1/tenants/{tenant}/persons/by-email?email=...
      *
-     * @param  Request  $request  Request with email query parameter
-     * @return JsonResponse Person data (200) or 404
+     * @param  Request  $request  Must contain 'email' query parameter
+     * @return JsonResponse Person (200) or not found (404)
      */
     public function byEmail(Request $request): JsonResponse
     {
         $email = $request->query('email');
 
-        if (! $email || ! is_string($email)) {
+        if (! $email) {
             return response()->json([
-                'error' => 'email query parameter is required',
+                'error' => 'Email query parameter is required',
             ], Response::HTTP_BAD_REQUEST);
         }
 
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
+
         $person = $this->repository->findByEmail($tenantId, $email);
 
         if (! $person) {
@@ -83,11 +82,6 @@ class PersonController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        return response()->json([
-            'id' => $person->id,
-            'tenant_id' => $person->tenant_id,
-            'created_at' => $person->created_at->toIso8601String(),
-            'updated_at' => $person->updated_at->toIso8601String(),
-        ]);
+        return (new PersonResource($person))->response();
     }
 }

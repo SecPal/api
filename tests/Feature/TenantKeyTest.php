@@ -14,33 +14,14 @@ require_once __DIR__.'/../TestConstants.php';
 
 uses(RefreshDatabase::class);
 
-/**
- * Get process-specific KEK path for parallel test execution.
- */
-function getProcessKekPath(): string
-{
-    return storage_path('app/keys/kek-test-'.getmypid().'.key');
-}
-
-/**
- * Helper function to clean up the KEK file.
- */
-function cleanupKekFile(): void
-{
-    $kekPath = getProcessKekPath();
-    if (file_exists($kekPath)) {
-        unlink($kekPath);
-    }
-}
-
 // Clean up KEK file before each test for isolation
 beforeEach(function (): void {
-    cleanupKekFile();
-    TenantKey::setKekPath(getProcessKekPath());
+    cleanupTestKekFile();
+    TenantKey::setKekPath(getTestKekPath());
 });
 
 afterEach(function (): void {
-    cleanupKekFile();
+    cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
 
@@ -59,7 +40,7 @@ test('generates KEK file with correct permissions', function (): void {
 
 test('throws exception when KEK file is missing', function (): void {
     // Explicitly remove KEK file to ensure clean state
-    cleanupKekFile();
+    cleanupTestKekFile();
 
     expect(fn () => TenantKey::generateEnvelopeKeys())
         ->toThrow(RuntimeException::class, 'KEK file not found');
