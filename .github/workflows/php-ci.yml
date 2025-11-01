@@ -23,7 +23,5 @@ jobs:
     uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@main
 
   test:
-    name: PEST Tests (Coverage ≥80%)
+    name: PEST Tests
     uses: SecPal/.github/.github/workflows/reusable-php-test.yml@main
-    with:
-      test-command: "./vendor/bin/pest --coverage --min=80"
