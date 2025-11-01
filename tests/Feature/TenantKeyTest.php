@@ -11,6 +11,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+// SHA-256 produces 32 bytes output
+const HMAC_SHA256_OUTPUT_BYTES = 32;
+
 /**
  * Helper function to clean up the KEK file.
  */
@@ -58,7 +61,7 @@ test('generates envelope keys with correct structure', function (): void {
     expect(strlen($keys['idx_nonce']))->toBe(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
     // Wrapped keys include MAC, so they're longer than the original key
     expect(strlen($keys['dek_wrapped']))->toBeGreaterThan(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
-    expect(strlen($keys['idx_wrapped']))->toBeGreaterThan(32);
+    expect(strlen($keys['idx_wrapped']))->toBeGreaterThan(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
 });
 
 test('generates unique nonces for each key generation', function (): void {
@@ -94,7 +97,7 @@ test('unwraps idx_key correctly', function (): void {
 
     $idxKey = $tenantKey->unwrapIdxKey();
 
-    expect(strlen($idxKey))->toBe(32); // HMAC-SHA256 key size
+    expect(strlen($idxKey))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES); // idx_key same size as DEK
 });
 
 test('encrypts and decrypts data correctly', function (): void {
@@ -140,7 +143,7 @@ test('generates consistent blind index for same plaintext', function (): void {
     $index2 = $tenantKey->generateBlindIndex($plaintext);
 
     expect($index1)->toBe($index2);
-    expect(strlen($index1))->toBe(32); // SHA-256 produces 32 bytes
+    expect(strlen($index1))->toBe(HMAC_SHA256_OUTPUT_BYTES);
 });
 
 test('generates different blind indexes for different plaintexts', function (): void {

@@ -204,8 +204,8 @@ class TenantKey extends Model
         $dekNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
         $dekWrapped = sodium_crypto_secretbox($dek, $dekNonce, $kek);
 
-        // Generate Index Key for blind indexes
-        $idxKey = sodium_crypto_secretbox_keygen(); // Same size as DEK, used for HMAC-SHA256
+        // Generate Index Key for HMAC-SHA256 blind indexes (32 bytes)
+        $idxKey = sodium_crypto_secretbox_keygen();
         $idxNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
         $idxWrapped = sodium_crypto_secretbox($idxKey, $idxNonce, $kek);
 
