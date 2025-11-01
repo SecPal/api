@@ -15,7 +15,23 @@ require_once __DIR__.'/../TestConstants.php';
 
 uses(RefreshDatabase::class);
 
+/**
+ * Get process-specific KEK path for parallel test execution.
+ */
+function getPersonTestKekPath(): string
+{
+    return storage_path('app/keys/kek-test-'.getmypid().'.key');
+}
+
 beforeEach(function (): void {
+    // Use process-specific KEK file for parallel test isolation
+    $kekPath = getPersonTestKekPath();
+    $dir = dirname($kekPath);
+    if (! file_exists($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    TenantKey::setKekPath($kekPath);
+
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
@@ -369,4 +385,13 @@ describe('Person Model - Tenant Isolation', function () {
         $found2 = $repo->findByEmail($tenant2->id, 'test@example.com');
         expect($found2?->id)->toBe($person2->id);
     });
+});
+
+afterEach(function (): void {
+    // Cleanup process-specific KEK file
+    $kekPath = getPersonTestKekPath();
+    if (file_exists($kekPath)) {
+        unlink($kekPath);
+    }
+    TenantKey::setKekPath(null);
 });

@@ -89,11 +89,24 @@ class TenantKey extends Model
     }
 
     /**
+     * Path to the KEK file (can be overridden for testing).
+     */
+    protected static ?string $kekPath = null;
+
+    /**
      * Get the path to the KEK file.
      */
     protected static function getKekPath(): string
     {
-        return storage_path('app/keys/kek.key');
+        return static::$kekPath ?? storage_path('app/keys/kek.key');
+    }
+
+    /**
+     * Set the path to the KEK file.
+     */
+    public static function setKekPath(?string $path): void
+    {
+        static::$kekPath = $path;
     }
 
     /**
