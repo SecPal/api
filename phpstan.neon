@@ -67,9 +67,6 @@ parameters:
         -
             message: '#Parameter \#1 \$tenantId of method App\\Repositories\\PersonRepository::(findByEmail|findByPhone|createOrUpdate)\(\) expects int, mixed given#'
             path: tests/Feature/PersonTest.php
-        -
-            message: '#Constant HMAC_SHA256_OUTPUT_BYTES not found#'
-            path: tests/Feature/PersonTest.php
 
         # Laravel Eloquent BelongsTo covariance limitation - known PHPStan issue with template types
         -
