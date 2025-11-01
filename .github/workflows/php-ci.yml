@@ -69,6 +69,7 @@ jobs:
 
       - name: Run tests
         env:
+          # Test-only APP_KEY - not used in production
           APP_KEY: base64:ZXUevbvUHFMlVnuwTiO0s7pQ1i584bpMKALKwTMNYh4=
           DB_CONNECTION: pgsql
           DB_HOST: localhost
