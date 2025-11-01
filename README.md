@@ -75,6 +75,9 @@ php artisan migrate
 SecPal uses envelope encryption for sensitive data. You must generate a KEK file before running the application:
 
 ```bash
+# Create the keys directory if it doesn't exist
+mkdir -p storage/keys
+
 # Generate a random 256-bit KEK and store it securely
 php -r "file_put_contents('storage/keys/kek.key', random_bytes(32));"
 chmod 0600 storage/keys/kek.key
@@ -149,7 +152,11 @@ The API will be available at <http://localhost:8000>.
 ```bash
 # For pcov (faster, recommended)
 pecl install pcov
-echo "extension=pcov.so" > /etc/php/8.4/cli/conf.d/99-pcov.ini
+sudo sh -c 'echo "extension=pcov.so" > /etc/php/8.4/cli/conf.d/99-pcov.ini'
+
+# If you do not have root privileges, add to your user-level php.ini:
+# Find your php.ini location: php --ini
+# Add: extension=pcov.so
 ```
 
 CI workflows automatically have coverage enabled.
