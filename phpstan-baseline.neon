@@ -1,0 +1,1060 @@
+# SPDX-FileCopyrightText: 2025 SecPal Contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tenant_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Casts/TenantEncrypted.php
+
+		-
+			message: '#^Method App\\Casts\\TenantEncrypted\:\:set\(\) should return array\<string, string\> but returns array\<string, null\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Casts/TenantEncrypted.php
+
+		-
+			message: '#^Parameter \#1 \$tenantId of method App\\Support\\KeyStore\:\:unwrapDekForTenant\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Casts/TenantEncrypted.php
+
+		-
+			message: '#^Parameter \$ciphertext of function sodium_crypto_aead_aes256gcm_decrypt expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Casts/TenantEncrypted.php
+
+		-
+			message: '#^Parameter \$nonce of function sodium_crypto_aead_aes256gcm_decrypt expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Casts/TenantEncrypted.php
+
+		-
+			message: '#^Part \$model\-\>tenant_id \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Casts/TenantEncrypted.php
+
+		-
+			message: '#^Parameter \#1 \$email of static method App\\Support\\BlindIndex\:\:normEmail\(\) expects string, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/RebuildIdxCommand.php
+
+		-
+			message: '#^Parameter \#1 \$ciphertext of function sodium_crypto_aead_aes256gcm_decrypt expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/RotateDekCommand.php
+
+		-
+			message: '#^Parameter \#3 \$nonce of function sodium_crypto_aead_aes256gcm_decrypt expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/RotateDekCommand.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between mixed and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Console/Commands/RotateDekCommand.php
+
+		-
+			message: '#^Cannot access property \$id on App\\Models\\User\|null\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: app/Http/Controllers/Api/PersonController.php
+
+		-
+			message: '#^Parameter \#1 \$tenantId of method App\\Repositories\\PersonRepository\:\:createOrUpdate\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Http/Controllers/Api/PersonController.php
+
+		-
+			message: '#^Parameter \#1 \$tenantId of method App\\Repositories\\PersonRepository\:\:delete\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/PersonController.php
+
+		-
+			message: '#^Parameter \#1 \$tenantId of method App\\Repositories\\PersonRepository\:\:findByEmail\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/PersonController.php
+
+		-
+			message: '#^Parameter \#1 \$tenantId of method App\\Repositories\\PersonRepository\:\:findById\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Http/Controllers/Api/PersonController.php
+
+		-
+			message: '#^Parameter \#1 \$tenantId of method App\\Repositories\\PersonRepository\:\:getAllForTenant\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/PersonController.php
+
+		-
+			message: '#^Parameter \#2 \$email of method App\\Repositories\\PersonRepository\:\:findByEmail\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/PersonController.php
+
+		-
+			message: '#^Parameter \#2 \$perPage of method App\\Repositories\\PersonRepository\:\:getAllForTenant\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/PersonController.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\PersonCollection\:\:currentPage\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/PersonCollection.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\PersonCollection\:\:lastPage\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Resources/PersonCollection.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\PersonCollection\:\:nextPageUrl\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/PersonCollection.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\PersonCollection\:\:perPage\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/PersonCollection.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\PersonCollection\:\:previousPageUrl\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/PersonCollection.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\PersonCollection\:\:total\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/PersonCollection.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\PersonCollection\:\:url\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Resources/PersonCollection.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonResource\:\:\$address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonResource\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonResource\:\:\$note\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonResource\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonResource\:\:\$tenant_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonResource.php
+
+		-
+			message: '#^Cannot call method toIso8601String\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Resources/PersonResource.php
+
+		-
+			message: '#^Cannot call method where\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/Person.php
+
+		-
+			message: '#^Method App\\Models\\Person\:\:scopeForTenant\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Models/Person.php
+
+		-
+			message: '#^Method App\\Models\\Person\:\:scopeForTenant\(\) has parameter \$query with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/Models/Person.php
+
+		-
+			message: '#^Method App\\Models\\Person\:\:tenantKey\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Person.php
+
+		-
+			message: '#^Method App\\Repositories\\PersonRepository\:\:createOrUpdate\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Repositories/PersonRepository.php
+
+		-
+			message: '#^Method App\\Repositories\\PersonRepository\:\:getAllForTenant\(\) return type with generic interface Illuminate\\Contracts\\Pagination\\LengthAwarePaginator does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Repositories/PersonRepository.php
+
+		-
+			message: '#^Method App\\Repositories\\PersonRepository\:\:searchByNote\(\) return type with generic class Illuminate\\Database\\Eloquent\\Collection does not specify its types\: TKey, TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Repositories/PersonRepository.php
+
+		-
+			message: '#^Parameter \#2 \$email of method App\\Repositories\\PersonRepository\:\:findByEmail\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Repositories/PersonRepository.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$address_plain \(string\|null\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Repositories/PersonRepository.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$email_plain \(string\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Repositories/PersonRepository.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$note_plain \(string\|null\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Repositories/PersonRepository.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$phone_plain \(string\|null\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Repositories/PersonRepository.php
+
+		-
+			message: '#^Method App\\Support\\BlindIndex\:\:normBadge\(\) should return string but returns string\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/BlindIndex.php
+
+		-
+			message: '#^Method App\\Support\\BlindIndex\:\:normPhone\(\) should return string but returns string\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/BlindIndex.php
+
+		-
+			message: '#^Parameter \#1 \$normalizedValue of static method App\\Support\\BlindIndex\:\:hmac\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/BlindIndex.php
+
+		-
+			message: '#^Method App\\Support\\KeyStore\:\:unwrapDekForTenant\(\) should return string but returns mixed\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Method App\\Support\\KeyStore\:\:unwrapIdxKeyForTenant\(\) should return string but returns mixed\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Parameter \#1 \$filename of function file_exists expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Parameter \#1 \$filename of function file_get_contents expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Parameter \#1 \$filename of function fileperms expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Parameter \#1 \$string of function strlen expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Parameter \#1 \$string of function substr expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Parameter \#1 \$string of function trim expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Parameter \#1 \$value of method Carbon\\Carbon\:\:addMinutes\(\) expects float\|int, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Parameter \#2 \$subject of function preg_match expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Part \$kekPath \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Support/KeyStore.php
+
+		-
+			message: '#^Parameter \#2 \$string of function explode expects string, bool\|string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: config/sanctum.php
+
+		-
+			message: '#^Cannot access offset ''model_has_permissions'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Cannot access offset ''model_has_roles'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Cannot access offset ''model_morph_key'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 8
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Cannot access offset ''permission_pivot_key'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Cannot access offset ''permissions'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 4
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Cannot access offset ''role_has_permissions'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Cannot access offset ''role_pivot_key'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Cannot access offset ''roles'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 4
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Cannot access offset ''team_foreign_key'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 10
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Parameter \#1 \$column of method Illuminate\\Database\\Schema\\Blueprint\:\:unsignedBigInteger\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 9
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Parameter \#1 \$columns of method Illuminate\\Database\\Schema\\Blueprint\:\:foreign\(\) expects array\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 4
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Parameter \#1 \$columns of method Illuminate\\Database\\Schema\\Blueprint\:\:index\(\) expects array\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 3
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Contracts\\Cache\\Repository\:\:forget\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Parameter \#1 \$name of method Illuminate\\Cache\\CacheManager\:\:store\(\) expects string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Parameter \#1 \$table of method Illuminate\\Database\\Schema\\ForeignKeyDefinition\:\:on\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 4
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Parameter \#1 \$table of static method Illuminate\\Support\\Facades\\Schema\:\:create\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 5
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Parameter \#1 \$table of static method Illuminate\\Support\\Facades\\Schema\:\:drop\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 5
+			path: database/migrations/2025_11_01_085827_create_permission_tables.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$app\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantId\.$#'
+			identifier: property.notFound
+			count: 23
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:assertDatabaseMissing\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:deleteJson\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:getJson\(\)\.$#'
+			identifier: method.notFound
+			count: 6
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:postJson\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:putJson\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:withoutMiddleware\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Call to an undefined method Pest\\PendingCalls\\TestCall\|Pest\\Support\\HigherOrderTapProxy\:\:skip\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Cannot call method assertJson\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Cannot call method assertJsonMissing\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Cannot call method assertJsonStructure\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Cannot call method assertJsonValidationErrors\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Cannot call method assertStatus\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 12
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Cannot call method getJson\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Cannot call method json\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 4
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Cannot call method make\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Parameter \#1 \$id of function setPermissionsTeamId expects Illuminate\\Database\\Eloquent\\Model\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Parameter \#1 \$value of function collect expects Illuminate\\Contracts\\Support\\Arrayable\<\(int\|string\), mixed\>\|iterable\<\(int\|string\), mixed\>\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Part \$this\-\>tenantId \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 12
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$tenant_id \(string\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 8
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Static method Spatie\\Permission\\Models\\Role\:\:create\(\) invoked with 2 parameters, 0\-1 required\.$#'
+			identifier: arguments.count
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Unable to resolve the template type TKey in call to function collect$#'
+			identifier: argument.templateType
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Unable to resolve the template type TValue in call to function collect$#'
+			identifier: argument.templateType
+			count: 1
+			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
+			identifier: larastan.noEnvCallsOutsideOfConfig
+			count: 5
+			path: tests/Feature/EnvironmentTest.php
+
+		-
+			message: '#^Parameter \#1 \$string of function substr expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/EnvironmentTest.php
+
+		-
+			message: '#^Part \$connection \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 2
+			path: tests/Feature/EnvironmentTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$keyStore\.$#'
+			identifier: property.notFound
+			count: 25
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:artisan\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Call to protected method expectNotToPerformAssertions\(\) of class PHPUnit\\Framework\\TestCase\.$#'
+			identifier: method.protected
+			count: 1
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Cannot access offset ''nonce'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 7
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Cannot access offset ''wrapped'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 6
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Cannot call method generateKey\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 8
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Cannot call method loadKek\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 6
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Cannot call method unwrapDekForTenant\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Cannot call method unwrapIdxKeyForTenant\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Cannot call method wrapKey\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 7
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Parameter \#1 \$filename of function file_exists expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Parameter \#1 \$string of function strlen expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantId\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:artisan\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot access property \$address_enc on object\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot access property \$email on App\\Models\\Person\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot access property \$email_enc on object\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot access property \$email_idx on object\|null\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot access property \$note_enc on object\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot access property \$phone on App\\Models\\Person\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot access property \$phone_enc on object\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot access property \$phone_idx on object\|null\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot call method toArray\(\) on App\\Models\\Person\|null\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Cannot call method toJson\(\) on App\\Models\\Person\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Parameter \#1 \$string of function strlen expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$tenant_id \(string\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 6
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Unable to resolve the template type TAndValue in call to method Pest\\Expectation\<mixed\>\:\:and\(\)$#'
+			identifier: argument.templateType
+			count: 4
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Unable to resolve the template type TValue in call to function expect$#'
+			identifier: argument.templateType
+			count: 2
+			path: tests/Feature/PersonModelTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$repository\.$#'
+			identifier: property.notFound
+			count: 14
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantId\.$#'
+			identifier: property.notFound
+			count: 20
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access offset ''normalized_email'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access offset ''normalized_phone'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$context on mixed\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$email on mixed\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$email_idx on mixed\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$id on mixed\.$#'
+			identifier: property.nonObject
+			count: 7
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$level on mixed\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$message on mixed\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$note on mixed\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$phone on mixed\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$phone_idx on mixed\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot access property \$tenant_id on mixed\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot call method createOrUpdate\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot call method findByEmail\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 7
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Cannot call method findByPhone\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Parameter \#1 \$string of function strtolower expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$tenant_id \(string\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 6
+			path: tests/Feature/PersonRepositoryTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$person1\.$#'
+			identifier: property.notFound
+			count: 10
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$person2\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantId\.$#'
+			identifier: property.notFound
+			count: 13
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Cannot access property \$email on App\\Models\\Person\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Person\>\|null\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Cannot access property \$email_idx on App\\Models\\Person\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Person\>\|null\.$#'
+			identifier: property.nonObject
+			count: 5
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Cannot access property \$email_idx on App\\Models\\Person\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Cannot access property \$email_idx on mixed\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Cannot access property \$id on mixed\.$#'
+			identifier: property.nonObject
+			count: 7
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Cannot access property \$phone on App\\Models\\Person\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Person\>\|null\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Cannot access property \$phone_idx on mixed\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Cannot call method saveQuietly\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Parameter \#1 \$tenantId of method App\\Support\\KeyStore\:\:unwrapIdxKeyForTenant\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$tenant_id \(string\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: tests/Feature/RotationCommandsTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:artisan\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/SchemaTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantA\.$#'
+			identifier: property.notFound
+			count: 9
+			path: tests/Feature/TenantIsolationTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantB\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Feature/TenantIsolationTest.php
+
+		-
+			message: '#^Cannot access property \$email on App\\Models\\Person\|null\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: tests/Feature/TenantIsolationTest.php
+
+		-
+			message: '#^Cannot access property \$tenant_id on App\\Models\\Person\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/TenantIsolationTest.php
+
+		-
+			message: '#^Parameter \#1 \$id of function setPermissionsTeamId expects Illuminate\\Database\\Eloquent\\Model\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/TenantIsolationTest.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$tenant_id \(string\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 7
+			path: tests/Feature/TenantIsolationTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:getJson\(\)\.$#'
+			identifier: method.notFound
+			count: 5
+			path: tests/Feature/TenantMiddlewareTest.php
+
+		-
+			message: '#^Cannot call method assertJson\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: tests/Feature/TenantMiddlewareTest.php
+
+		-
+			message: '#^Cannot call method assertStatus\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: tests/Feature/TenantMiddlewareTest.php
