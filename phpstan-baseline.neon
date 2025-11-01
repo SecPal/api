@@ -466,15 +466,9 @@ parameters:
 			path: database/migrations/2025_11_01_085827_create_permission_tables.php
 
 		-
-			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$app\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/ApiPersonsTest.php
-
-		-
 			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantId\.$#'
 			identifier: property.notFound
-			count: 23
+			count: 22
 			path: tests/Feature/ApiPersonsTest.php
 
 		-
@@ -504,7 +498,7 @@ parameters:
 		-
 			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:getJson\(\)\.$#'
 			identifier: method.notFound
-			count: 6
+			count: 7
 			path: tests/Feature/ApiPersonsTest.php
 
 		-
@@ -515,12 +509,6 @@ parameters:
 
 		-
 			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:putJson\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/ApiPersonsTest.php
-
-		-
-			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:withoutMiddleware\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: tests/Feature/ApiPersonsTest.php
@@ -562,25 +550,19 @@ parameters:
 			path: tests/Feature/ApiPersonsTest.php
 
 		-
-			message: '#^Cannot call method getJson\(\) on mixed\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: tests/Feature/ApiPersonsTest.php
-
-		-
 			message: '#^Cannot call method json\(\) on mixed\.$#'
 			identifier: method.nonObject
 			count: 4
 			path: tests/Feature/ApiPersonsTest.php
 
 		-
-			message: '#^Cannot call method make\(\) on mixed\.$#'
-			identifier: method.nonObject
+			message: '#^Parameter \#1 \$id of function setPermissionsTeamId expects Illuminate\\Database\\Eloquent\\Model\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
 			count: 1
 			path: tests/Feature/ApiPersonsTest.php
 
 		-
-			message: '#^Parameter \#1 \$id of function setPermissionsTeamId expects Illuminate\\Database\\Eloquent\\Model\|int\|string\|null, mixed given\.$#'
+			message: '#^Parameter \#1 \$user of static method Laravel\\Sanctum\\Sanctum\<Laravel\\Sanctum\\PersonalAccessToken\>\:\:actingAs\(\) expects Illuminate\\Contracts\\Auth\\Authenticatable\|Laravel\\Sanctum\\HasApiTokens, null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: tests/Feature/ApiPersonsTest.php
@@ -604,12 +586,6 @@ parameters:
 			path: tests/Feature/ApiPersonsTest.php
 
 		-
-			message: '#^Static method Spatie\\Permission\\Models\\Role\:\:create\(\) invoked with 2 parameters, 0\-1 required\.$#'
-			identifier: arguments.count
-			count: 1
-			path: tests/Feature/ApiPersonsTest.php
-
-		-
 			message: '#^Unable to resolve the template type TKey in call to function collect$#'
 			identifier: argument.templateType
 			count: 1
@@ -620,6 +596,36 @@ parameters:
 			identifier: argument.templateType
 			count: 1
 			path: tests/Feature/ApiPersonsTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantId\.$#'
+			identifier: property.notFound
+			count: 12
+			path: tests/Feature/AuditTest.php
+
+		-
+			message: '#^Call to an undefined method PHPUnit\\Framework\\TestCase\:\:artisan\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Feature/AuditTest.php
+
+		-
+			message: '#^Cannot call method assertExitCode\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: tests/Feature/AuditTest.php
+
+		-
+			message: '#^Parameter \#1 \$haystack of function str_contains expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/AuditTest.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$tenant_id \(string\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 7
+			path: tests/Feature/AuditTest.php
 
 		-
 			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
@@ -710,6 +716,30 @@ parameters:
 			identifier: argument.type
 			count: 3
 			path: tests/Feature/KeyStoreTest.php
+
+		-
+			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantId\.$#'
+			identifier: property.notFound
+			count: 14
+			path: tests/Feature/LoggingNoPlaintextTest.php
+
+		-
+			message: '#^Cannot access offset ''person'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: tests/Feature/LoggingNoPlaintextTest.php
+
+		-
+			message: '#^Cannot access property \$email_enc on App\\Models\\Person\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: tests/Feature/LoggingNoPlaintextTest.php
+
+		-
+			message: '#^Property App\\Models\\Person\:\:\$tenant_id \(string\) does not accept mixed\.$#'
+			identifier: assign.propertyType
+			count: 9
+			path: tests/Feature/LoggingNoPlaintextTest.php
 
 		-
 			message: '#^Access to an undefined property PHPUnit\\Framework\\TestCase\:\:\$tenantId\.$#'
@@ -1050,7 +1080,7 @@ parameters:
 		-
 			message: '#^Cannot call method assertJson\(\) on mixed\.$#'
 			identifier: method.nonObject
-			count: 5
+			count: 3
 			path: tests/Feature/TenantMiddlewareTest.php
 
 		-
