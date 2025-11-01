@@ -91,7 +91,7 @@ test('unwraps idx_key correctly', function (): void {
 
     $idxKey = $tenantKey->unwrapIdxKey();
 
-    expect($idxKey)->toHaveLength(32); // HMAC-SHA256 key size
+    expect(strlen($idxKey))->toBe(32); // HMAC-SHA256 key size
 });
 
 test('encrypts and decrypts data correctly', function (): void {
@@ -137,7 +137,7 @@ test('generates consistent blind index for same plaintext', function (): void {
     $index2 = $tenantKey->generateBlindIndex($plaintext);
 
     expect($index1)->toBe($index2);
-    expect($index1)->toHaveLength(32); // SHA-256 produces 32 bytes
+    expect(strlen($index1))->toBe(32); // SHA-256 produces 32 bytes
 });
 
 test('generates different blind indexes for different plaintexts', function (): void {
