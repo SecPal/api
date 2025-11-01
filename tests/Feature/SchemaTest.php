@@ -52,13 +52,9 @@ describe('Database Schema', function () {
     });
 
     it('has optional FTS column on person table', function () {
-        if (config('database.default') === 'pgsql') {
-            // Check if tsvector column exists (PostgreSQL specific)
-            $columns = Schema::getColumnListing('person');
-            // FTS is optional, so this test passes if table exists
-            expect($columns)->toBeArray();
-        } else {
-            $this->markTestSkipped('FTS only on PostgreSQL');
-        }
-    });
+        // Check if tsvector column exists (PostgreSQL specific)
+        $columns = Schema::getColumnListing('person');
+        // FTS is optional, so this test passes if table exists
+        expect($columns)->toBeArray();
+    })->skip(fn () => config('database.default') !== 'pgsql', 'FTS only on PostgreSQL');
 });

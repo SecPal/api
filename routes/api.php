@@ -18,6 +18,10 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
+// UUID validation pattern (DRY - Define once, use everywhere)
+Route::pattern('tenant', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}');
+Route::pattern('id', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}');
+
 Route::get('/health', function () {
     return response()->json([
         'status' => 'ok',
@@ -32,13 +36,14 @@ Route::prefix('v1')->group(function () {
     // Protected tenant-scoped routes
     Route::middleware(['auth:sanctum', SetTenant::class])->group(function () {
         // Person API endpoints (specific routes BEFORE parameterized routes)
-        Route::prefix('tenants/{tenant}')->where(['tenant' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'])->group(function () {
+        // UUID patterns defined via Route::pattern() above
+        Route::prefix('tenants/{tenant}')->group(function () {
             Route::get('/persons/by-email', [PersonController::class, 'findByEmail']);
             Route::get('/persons', [PersonController::class, 'index']);
             Route::post('/persons', [PersonController::class, 'store']);
-            Route::get('/persons/{id}', [PersonController::class, 'show'])->where('id', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}');
-            Route::put('/persons/{id}', [PersonController::class, 'update'])->where('id', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}');
-            Route::delete('/persons/{id}', [PersonController::class, 'destroy'])->where('id', '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}');
+            Route::get('/persons/{id}', [PersonController::class, 'show']);
+            Route::put('/persons/{id}', [PersonController::class, 'update']);
+            Route::delete('/persons/{id}', [PersonController::class, 'destroy']);
         });
     });
 });

@@ -87,11 +87,12 @@ describe('API Persons Endpoints', function () {
         // Create user WITHOUT person.create permission (only person.viewAny)
         $limitedUser = User::factory()->create();
         $viewPermission = Permission::create(['name' => 'person.viewAny', 'guard_name' => 'web']);
-        $limitedRole = Role::create(['name' => 'viewer', 'guard_name' => 'web'], $this->tenantId);
+
+        // Set team context BEFORE creating role (tenant-scoped permissions)
+        setPermissionsTeamId($this->tenantId);
+        $limitedRole = Role::create(['name' => 'viewer', 'guard_name' => 'web']);
         $limitedRole->givePermissionTo($viewPermission);
 
-        // Set team context before assigning role
-        setPermissionsTeamId($this->tenantId);
         $limitedUser->assignRole($limitedRole);
 
         Sanctum::actingAs($limitedUser);
@@ -256,15 +257,16 @@ describe('API Persons Endpoints', function () {
     });
 
     test('API requires authentication', function () {
-        // Make request without Sanctum token (fresh test instance)
-        $freshTest = $this->app->make(\Illuminate\Foundation\Testing\TestCase::class);
+        // Clear Sanctum authentication (remove token)
+        // In a new Pest test instance, Sanctum is not active unless explicitly set
+        \Laravel\Sanctum\Sanctum::actingAs(null);
 
-        $response = $this->withoutMiddleware()->getJson("/api/v1/tenants/{$this->tenantId}/persons");
+        // Request without authentication should fail
+        $response = $this->getJson("/api/v1/tenants/{$this->tenantId}/persons");
 
-        // With auth middleware disabled, should pass
-        // In production, auth:sanctum middleware will reject
-        $response->assertStatus(200);
-    })->skip('Auth test requires refactoring');
+        // auth:sanctum middleware will reject unauthenticated requests
+        $response->assertStatus(401);
+    })->skip('Sanctum::actingAs(null) does not work correctly in Pest beforeEach context');
 
     test('API validates email format', function () {
         $response = $this->postJson("/api/v1/tenants/{$this->tenantId}/persons", [
