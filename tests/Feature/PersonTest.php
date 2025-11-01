@@ -10,8 +10,8 @@ use App\Models\Person;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
-// Import constant from TenantKeyTest
-require_once __DIR__.'/TenantKeyTest.php';
+// HMAC_SHA256_OUTPUT_BYTES is 32 (SHA-256 output size in bytes)
+require_once __DIR__.'/../TestConstants.php';
 
 uses(RefreshDatabase::class);
 

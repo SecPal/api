@@ -12,10 +12,10 @@ use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Cast for binary data stored as base64 in VARCHAR columns.
+ * Cast for binary data stored as base64 in VARCHAR columns to avoid PostgreSQL PDO BYTEA handling issues.
  *
- * Strategy: Store binary data as base64-encoded strings in VARCHAR for
- * reliable cross-database support, avoiding PDO binary binding issues.
+ * Strategy: Store binary data as base64-encoded strings in VARCHAR columns for reliable cross-database support,
+ * specifically to work around PostgreSQL PDO's handling of BYTEA columns and binary binding issues.
  *
  * - GET: Decode base64 from VARCHAR to raw binary
  * - SET: Encode raw binary to base64 for VARCHAR storage

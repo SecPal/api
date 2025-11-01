@@ -10,6 +10,7 @@ namespace App\Repositories;
 
 use App\Models\Person;
 use App\Models\TenantKey;
+use App\Traits\NormalizesPersonFields;
 
 /**
  * PersonRepository provides business logic for Person operations.
@@ -18,6 +19,8 @@ use App\Models\TenantKey;
  */
 class PersonRepository
 {
+    use NormalizesPersonFields;
+
     /**
      * Find a Person by email using blind index search.
      *
@@ -101,21 +104,5 @@ class PersonRepository
         }
 
         return $person;
-    }
-
-    /**
-     * Normalize email for blind index generation.
-     */
-    private function normalizeEmail(string $email): string
-    {
-        return strtolower(trim($email));
-    }
-
-    /**
-     * Normalize phone for blind index generation.
-     */
-    private function normalizePhone(string $phone): string
-    {
-        return preg_replace('/\D/', '', $phone) ?: '';
     }
 }
