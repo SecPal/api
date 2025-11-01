@@ -46,10 +46,10 @@ fi
 # Helper functions to reduce code duplication
 run_pint() {
   local cmd_prefix="$1"
-  # Run Laravel Pint validation (--test = check only, do not auto-fix)
-  # Pre-push hooks should validate, not modify code
+  # Run Laravel Pint to auto-fix code style issues
+  # Uses --dirty flag to only process modified files for performance
   if [ -x ./vendor/bin/pint ]; then
-    ${cmd_prefix} ./vendor/bin/pint --test
+    ${cmd_prefix} ./vendor/bin/pint --dirty
   fi
 }
 
@@ -106,7 +106,7 @@ if [ -f composer.json ]; then
     # Show helpful message only after test failure when DDEV not available
     if [ "$TEST_EXIT" -ne 0 ] && [ -z "$CMD_PREFIX" ]; then
       echo "⚠️  Tests failed without DDEV - database connection may be unavailable" >&2
-      echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec ./vendor/bin/pest" >&2
+      echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec php artisan test" >&2
     fi
 
     # Propagate test exit code
