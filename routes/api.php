@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\PersonController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -36,5 +37,13 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
         Route::get('/me', [AuthController::class, 'me']);
+
+        // Tenant-scoped Person endpoints
+        Route::prefix('tenants/{tenant}')->middleware('tenant')->group(function () {
+            Route::post('/persons', [PersonController::class, 'store'])
+                ->middleware('permission:person.write');
+            Route::get('/persons/by-email', [PersonController::class, 'byEmail'])
+                ->middleware('permission:person.read');
+        });
     });
 });

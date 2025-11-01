@@ -29,10 +29,10 @@ return new class extends Migration
         Schema::table('person', function (Blueprint $table) {
             // Base64 of 32-byte HMAC-SHA256 = 44 chars
             $table->string('email_idx', 64)->change();
-            $table->string('phone_idx', 64)->change();
+            $table->string('phone_idx', 64)->nullable()->change();
             // Encrypted fields also need TEXT (Laravel encrypted cast generates variable-length base64)
             $table->text('email_enc')->change();
-            $table->text('phone_enc')->change();
+            $table->text('phone_enc')->nullable()->change();
         });
     }
 

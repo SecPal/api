@@ -15,17 +15,9 @@ require_once __DIR__.'/../TestConstants.php';
 
 uses(RefreshDatabase::class);
 
-/**
- * Get process-specific KEK path for parallel test execution.
- */
-function getPersonTestKekPath(): string
-{
-    return storage_path('app/keys/kek-test-'.getmypid().'.key');
-}
-
 beforeEach(function (): void {
     // Use process-specific KEK file for parallel test isolation
-    TenantKey::setKekPath(getPersonTestKekPath());
+    TenantKey::setKekPath(getTestKekPath());
 
     // generateKek() will create the directory if needed
     TenantKey::generateKek();
@@ -385,9 +377,6 @@ describe('Person Model - Tenant Isolation', function () {
 
 afterEach(function (): void {
     // Cleanup process-specific KEK file
-    $kekPath = getPersonTestKekPath();
-    if (file_exists($kekPath)) {
-        unlink($kekPath);
-    }
+    cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
