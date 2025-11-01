@@ -74,7 +74,7 @@ class TenantKey extends Model
     protected function dekWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_wrapped')) : '',
+            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_wrapped')) : throw new \RuntimeException('dek_wrapped must be a string'),
             set: fn (string $value): string => base64_encode($value),
         );
     }
@@ -87,7 +87,7 @@ class TenantKey extends Model
     protected function dekNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_nonce')) : '',
+            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_nonce')) : throw new \RuntimeException('dek_nonce must be a string'),
             set: fn (string $value): string => base64_encode($value),
         );
     }
@@ -100,7 +100,7 @@ class TenantKey extends Model
     protected function idxWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_wrapped')) : '',
+            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_wrapped')) : throw new \RuntimeException('idx_wrapped must be a string'),
             set: fn (string $value): string => base64_encode($value),
         );
     }
@@ -113,7 +113,7 @@ class TenantKey extends Model
     protected function idxNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_nonce')) : '',
+            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_nonce')) : throw new \RuntimeException('idx_nonce must be a string'),
             set: fn (string $value): string => base64_encode($value),
         );
     }
@@ -200,12 +200,12 @@ class TenantKey extends Model
         $kek = self::loadKek();
 
         // Generate Data Encryption Key (DEK)
-        $dek = random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+        $dek = sodium_crypto_secretbox_keygen();
         $dekNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
         $dekWrapped = sodium_crypto_secretbox($dek, $dekNonce, $kek);
 
         // Generate Index Key for blind indexes
-        $idxKey = random_bytes(32); // HMAC-SHA256 key
+        $idxKey = sodium_crypto_secretbox_keygen(); // Same size as DEK, used for HMAC-SHA256
         $idxNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
         $idxWrapped = sodium_crypto_secretbox($idxKey, $idxNonce, $kek);
 
