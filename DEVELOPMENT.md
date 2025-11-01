@@ -106,6 +106,47 @@ ddev exec php artisan boost:install  # Initial Boost setup
 ./vendor/bin/phpstan analyse   # Static analysis
 ```
 
+### Pre-Push Review Checklist
+
+**Before every `git push`, run this checklist to avoid multi-iteration PRs:**
+
+```bash
+# 1. Review your changes
+git diff HEAD~1 HEAD | less
+# Look for: code duplication, magic numbers, missing constants, unclear variable names
+
+# 2. Run tests (via DDEV for database access)
+ddev exec ./vendor/bin/pest
+# All tests must pass. Fix intermittent failures (test isolation issues).
+
+# 3. Check code style
+ddev exec ./vendor/bin/pint
+# Must output "No files need formatting" or auto-fix and commit changes.
+
+# 4. Static analysis
+ddev exec ./vendor/bin/phpstan analyse
+# Must show "0 errors". Use baseline for unavoidable vendor issues.
+
+# 5. Pre-push hooks will run automatically
+git push
+# If hooks fail, fix issues and repeat checklist.
+```
+
+**Common Issues Caught by This Checklist:**
+
+- ❌ Code duplication (extract to helper functions)
+- ❌ Magic numbers (use constants: `SODIUM_CRYPTO_SECRETBOX_KEYBYTES`)
+- ❌ Unclear comments (be specific about WHY, not just WHAT)
+- ❌ Test isolation failures (use `RefreshDatabase` trait)
+- ❌ Missing edge case tests (empty values, invalid UUIDs, etc.)
+
+**Why This Matters:**
+
+- Prevents Copilot review comments from accumulating
+- Reduces PR iterations from 4 commits → 1 commit
+- Shows respect for reviewers' time
+- Catches issues locally before CI
+
 ## Best Practices
 
 ### Pull Request Guidelines
@@ -149,6 +190,27 @@ ddev exec php artisan boost:install  # Initial Boost setup
 - Commit critical fixes separately from feature work
 - Use descriptive commit messages (conventional commits)
 - Easy to reset: close PR, delete branch, start clean from main
+
+### Resolving Copilot Review Comments
+
+**After addressing Copilot review comments, resolve them via the GitHub UI:**
+
+1. **Fix all comments** in your code and push changes
+2. **Wait for comments to be outdated** (GitHub auto-detects this)
+3. **Resolve threads** via GitHub PR UI (not via comment replies)
+4. **Do NOT reply to comments** with "Fixed" - just resolve the thread
+
+**Why not use GraphQL directly?**
+
+- GitHub UI handles thread resolution automatically
+- Safer than manual GraphQL mutations
+- Integrated with PR review workflow
+- Less error-prone
+
+**Common Mistake:**
+
+- ❌ Replying with "Fixed" in comments (clutters thread)
+- ✅ Push fix, let GitHub detect outdated comment, resolve thread
 
 ## Documentation
 
