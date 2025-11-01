@@ -48,6 +48,9 @@ test('generates KEK file with correct permissions', function (): void {
 });
 
 test('throws exception when KEK file is missing', function (): void {
+    // Explicitly remove KEK file to ensure clean state
+    cleanupKekFile();
+
     expect(fn () => TenantKey::generateEnvelopeKeys())
         ->toThrow(RuntimeException::class, 'KEK file not found');
 });
