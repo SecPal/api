@@ -7,7 +7,10 @@
  */
 
 use App\Models\TenantKey;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     // Generate KEK if it doesn't exist
