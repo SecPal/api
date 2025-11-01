@@ -22,25 +22,36 @@ See [README.md](./README.md) for full installation instructions.
 
 ### VS Code (Recommended)
 
-Add these to your **global** VS Code settings (`Ctrl+Shift+P` → "Preferences: Open User Settings (JSON)"):
+**Step 1:** Enable MCP in VS Code settings (`~/.config/Code/User/settings.json`):
 
 ```json
 {
   "terminal.integrated.shellIntegration.enabled": true,
-  "github.copilot.chat.modelContextProtocol.enabled": true,
-  "github.copilot.chat.modelContextProtocol.servers": {
+  "github.copilot.chat.modelContextProtocol.enabled": true
+}
+```
+
+**Step 2:** Add Laravel Boost to MCP servers (`~/.config/Code/User/mcp.json`):
+
+```json
+{
+  "servers": {
     "laravel-boost-secpal": {
       "command": "php",
       "args": ["/home/user/code/SecPal/api/artisan", "boost:mcp"],
-      "cwd": "/home/user/code/SecPal/api"
+      "cwd": "/home/user/code/SecPal/api",
+      "type": "stdio"
     }
   }
 }
 ```
 
-**Important:** Use **absolute paths** for `args` and `cwd` in monorepo setups. The `${workspaceFolder}` placeholder may not resolve correctly.
+**Important:** Use **absolute paths** for `args` and `cwd` in monorepo setups.
 
-**Why global?** Shell integration and MCP servers must be configured globally, not per-workspace.
+**Why two files?**
+
+- `settings.json`: Enable/disable MCP globally
+- `mcp.json`: Actual server configurations (discovered automatically)
 
 ### Verify Setup
 
