@@ -97,7 +97,7 @@ test('unwraps idx_key correctly', function (): void {
 
     $idxKey = $tenantKey->unwrapIdxKey();
 
-    expect(strlen($idxKey))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES); // idx_key same size as DEK
+    expect(strlen($idxKey))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES); // Index key is 32 bytes, same size as DEK
 });
 
 test('encrypts and decrypts data correctly', function (): void {
