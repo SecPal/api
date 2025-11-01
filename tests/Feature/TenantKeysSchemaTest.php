@@ -28,19 +28,22 @@ test('tenant_keys has correct columns', function (): void {
     ]))->toBeTrue();
 });
 
-test('tenant_keys binary columns have bytea type', function (): void {
+test('tenant_keys binary columns use VARCHAR for base64 storage', function (): void {
     $columns = DB::select("
         SELECT column_name, data_type
         FROM information_schema.columns
         WHERE table_name = 'tenant_keys'
         AND column_name IN ('dek_wrapped', 'dek_nonce', 'idx_wrapped', 'idx_nonce')
+        ORDER BY column_name
     ");
 
     expect($columns)->toHaveCount(4);
 
+    // All binary fields now use VARCHAR for base64-encoded storage
+    // This avoids PostgreSQL BYTEA + Laravel PDO incompatibility issues
     foreach ($columns as $column) {
         expect($column)->toBeObject();
-        expect($column->data_type)->toBe('bytea'); // @phpstan-ignore property.nonObject
+        expect($column->data_type)->toBe('character varying'); // @phpstan-ignore property.nonObject
     }
 });
 

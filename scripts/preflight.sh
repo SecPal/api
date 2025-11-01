@@ -68,11 +68,20 @@ run_phpstan() {
 run_tests() {
   local cmd_prefix="$1"
   local test_exit=0
+
+  # WORKAROUND: Parallel test execution has intermittent failures (Issue #62)
+  # Use sequential testing until fixed
+  # See: https://github.com/SecPal/api/issues/62
+  local parallel_flag=""
+  if [ ! -f .preflight-sequential-tests ]; then
+    parallel_flag="--parallel"
+  fi
+
   # Run tests (Laravel Artisan → Pest → PHPUnit)
   if [ -f artisan ]; then
-    ${cmd_prefix} php artisan test --parallel || test_exit=$?
+    ${cmd_prefix} php artisan test ${parallel_flag} || test_exit=$?
   elif [ -x ./vendor/bin/pest ]; then
-    ${cmd_prefix} ./vendor/bin/pest --parallel || test_exit=$?
+    ${cmd_prefix} ./vendor/bin/pest ${parallel_flag} || test_exit=$?
   elif [ -x ./vendor/bin/phpunit ]; then
     ${cmd_prefix} ./vendor/bin/phpunit || test_exit=$?
   fi

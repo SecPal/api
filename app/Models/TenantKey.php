@@ -54,68 +54,21 @@ class TenantKey extends Model
     /**
      * Get the attributes that should be cast.
      *
-     * Binary fields use custom accessors for base64 encoding/decoding.
+     * Binary fields are stored as VARCHAR columns with base64 encoding;
+     * the Binary custom cast handles base64 encoding/decoding.
      *
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
+            'dek_wrapped' => \App\Casts\Binary::class,
+            'dek_nonce' => \App\Casts\Binary::class,
+            'idx_wrapped' => \App\Casts\Binary::class,
+            'idx_nonce' => \App\Casts\Binary::class,
             'key_version' => 'integer',
             'created_at' => 'datetime',
         ];
-    }
-
-    /**
-     * Get the DEK wrapped attribute accessor.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
-     */
-    protected function dekWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
-    {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_wrapped')) : throw new \RuntimeException('dek_wrapped must be a string'),
-            set: fn (string $value): string => base64_encode($value),
-        );
-    }
-
-    /**
-     * Get/set dek_nonce as binary via base64.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
-     */
-    protected function dekNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
-    {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for dek_nonce')) : throw new \RuntimeException('dek_nonce must be a string'),
-            set: fn (string $value): string => base64_encode($value),
-        );
-    }
-
-    /**
-     * Get/set idx_wrapped as binary via base64.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
-     */
-    protected function idxWrapped(): \Illuminate\Database\Eloquent\Casts\Attribute
-    {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_wrapped')) : throw new \RuntimeException('idx_wrapped must be a string'),
-            set: fn (string $value): string => base64_encode($value),
-        );
-    }
-
-    /**
-     * Get the idx key nonce attribute accessor.
-     *
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute<string, string>
-     */
-    protected function idxNonce(): \Illuminate\Database\Eloquent\Casts\Attribute
-    {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn (mixed $value): string => is_string($value) ? (base64_decode($value, true) ?: throw new \RuntimeException('Invalid base64 data for idx_nonce')) : throw new \RuntimeException('idx_nonce must be a string'),
-            set: fn (string $value): string => base64_encode($value),
-        );
     }
 
     /**

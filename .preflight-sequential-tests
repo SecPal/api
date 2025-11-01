@@ -1,0 +1,5 @@
+WORKAROUND for Issue #62: Parallel test execution causes intermittent failures
+See: https://github.com/SecPal/api/issues/62
+
+This file forces sequential test execution in preflight.sh until the issue is resolved.
+Remove this file once parallel test isolation is fixed.

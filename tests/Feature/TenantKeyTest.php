@@ -9,10 +9,10 @@
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(RefreshDatabase::class);
+// HMAC_SHA256_OUTPUT_BYTES is 32 (SHA-256 output size in bytes)
+require_once __DIR__.'/../TestConstants.php';
 
-// SHA-256 produces 32 bytes output
-const HMAC_SHA256_OUTPUT_BYTES = 32;
+uses(RefreshDatabase::class);
 
 /**
  * Helper function to clean up the KEK file.
@@ -25,6 +25,7 @@ function cleanupKekFile(): void
     }
 }
 
+// Clean up KEK file before each test for isolation
 beforeEach(function (): void {
     cleanupKekFile();
 });
@@ -47,6 +48,9 @@ test('generates KEK file with correct permissions', function (): void {
 });
 
 test('throws exception when KEK file is missing', function (): void {
+    // Explicitly remove KEK file to ensure clean state
+    cleanupKekFile();
+
     expect(fn () => TenantKey::generateEnvelopeKeys())
         ->toThrow(RuntimeException::class, 'KEK file not found');
 });
