@@ -12,11 +12,11 @@ use Illuminate\Support\Facades\Schema;
 
 uses(RefreshDatabase::class);
 
-test('tenant_keys table exists', function () {
+test('tenant_keys table exists', function (): void {
     expect(Schema::hasTable('tenant_keys'))->toBeTrue();
 });
 
-test('tenant_keys has correct columns', function () {
+test('tenant_keys has correct columns', function (): void {
     expect(Schema::hasColumns('tenant_keys', [
         'id',
         'dek_wrapped',
@@ -28,7 +28,7 @@ test('tenant_keys has correct columns', function () {
     ]))->toBeTrue();
 });
 
-test('tenant_keys binary columns have bytea type', function () {
+test('tenant_keys binary columns have bytea type', function (): void {
     $columns = DB::select("
         SELECT column_name, data_type
         FROM information_schema.columns
@@ -44,7 +44,7 @@ test('tenant_keys binary columns have bytea type', function () {
     }
 });
 
-test('tenant_keys key_version has integer type', function () {
+test('tenant_keys key_version has integer type', function (): void {
     $column = DB::selectOne("
         SELECT data_type
         FROM information_schema.columns

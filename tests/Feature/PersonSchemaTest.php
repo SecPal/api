@@ -12,11 +12,11 @@ use Illuminate\Support\Facades\Schema;
 
 uses(RefreshDatabase::class);
 
-test('person table exists', function () {
+test('person table exists', function (): void {
     expect(Schema::hasTable('person'))->toBeTrue();
 });
 
-test('person has correct columns', function () {
+test('person has correct columns', function (): void {
     expect(Schema::hasColumns('person', [
         'id',
         'tenant_id',
@@ -31,7 +31,7 @@ test('person has correct columns', function () {
     ]))->toBeTrue();
 });
 
-test('person binary columns have bytea type', function () {
+test('person binary columns have bytea type', function (): void {
     $columns = DB::select("
         SELECT column_name, data_type
         FROM information_schema.columns
@@ -47,7 +47,19 @@ test('person binary columns have bytea type', function () {
     }
 });
 
-test('person note_tsv has tsvector type', function () {
+test('person note_enc column exists and has text type', function (): void {
+    $column = DB::selectOne("
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_name = 'person'
+        AND column_name = 'note_enc'
+    ");
+
+    expect($column)->toBeObject();
+    expect($column->data_type)->toBe('text'); // @phpstan-ignore property.nonObject
+});
+
+test('person note_tsv has tsvector type', function (): void {
     $column = DB::selectOne("
         SELECT data_type
         FROM information_schema.columns
@@ -59,7 +71,7 @@ test('person note_tsv has tsvector type', function () {
     expect($column->data_type)->toBe('tsvector'); // @phpstan-ignore property.nonObject
 });
 
-test('person has tenant_id email_idx composite index', function () {
+test('person has tenant_id email_idx composite index', function (): void {
     $index = DB::selectOne("
         SELECT indexname
         FROM pg_indexes
@@ -70,7 +82,7 @@ test('person has tenant_id email_idx composite index', function () {
     expect($index)->not->toBeNull();
 });
 
-test('person has tenant_id phone_idx composite index', function () {
+test('person has tenant_id phone_idx composite index', function (): void {
     $index = DB::selectOne("
         SELECT indexname
         FROM pg_indexes
@@ -81,7 +93,7 @@ test('person has tenant_id phone_idx composite index', function () {
     expect($index)->not->toBeNull();
 });
 
-test('person has GIN index on note_tsv', function () {
+test('person has GIN index on note_tsv', function (): void {
     $index = DB::selectOne("
         SELECT indexname, indexdef
         FROM pg_indexes
@@ -94,7 +106,7 @@ test('person has GIN index on note_tsv', function () {
     expect($index->indexdef)->toContain('USING gin'); // @phpstan-ignore property.nonObject
 });
 
-test('person has foreign key to tenant_keys', function () {
+test('person has foreign key to tenant_keys', function (): void {
     $fk = DB::selectOne("
         SELECT constraint_name
         FROM information_schema.table_constraints
