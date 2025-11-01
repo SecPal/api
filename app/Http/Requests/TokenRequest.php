@@ -30,4 +30,19 @@ class TokenRequest extends FormRequest
             'device_name' => 'nullable|string|max:255',
         ];
     }
+
+    /**
+     * Get custom validation error messages.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'email.required' => 'Email address is required.',
+            'email.email' => 'Please provide a valid email address.',
+            'password.required' => 'Password is required.',
+            'device_name.max' => 'Device name must not exceed 255 characters.',
+        ];
+    }
 }

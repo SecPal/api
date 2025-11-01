@@ -86,7 +86,7 @@ describe('Auth Token Generation', function () {
         ]);
 
         $response->assertCreated();
-        expect($user->tokens()->first()->name)->toBe('api-client');
+        expect($user->tokens()->first()?->name)->toBe('api-client');
     });
 
     test('user can generate multiple tokens for different devices', function () {
