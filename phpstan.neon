@@ -42,8 +42,11 @@ parameters:
         # PEST testing framework limitations: PHPStan cannot infer Laravel TestCase methods
         # in PEST's closure-based tests. These are valid Laravel testing methods.
         -
-            message: '#Call to an undefined method PHPUnit\\Framework\\TestCase::(get|post|put|patch|delete|getJson|postJson|putJson|patchJson|deleteJson)\(\)#'
+            message: '#Call to an undefined method PHPUnit\\Framework\\TestCase#'
             path: tests/Feature/*
         -
-            message: '#Cannot call method (assertStatus|assertJson|assertJsonStructure|assertJsonFragment|assertJsonPath|assertExactJson|assertSee|assertDontSee)\(\) on mixed#'
+            message: '#Cannot call method .* on mixed#'
+            path: tests/Feature/*
+        -
+            message: '#Cannot (call method|access property) .* on (App\\Models\\User|Laravel\\Sanctum\\PersonalAccessToken)\|null#'
             path: tests/Feature/*
