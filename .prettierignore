@@ -18,3 +18,5 @@ composer.lock
 .prettierignore
 .markdownlintignore
 CODEOWNERS
+boost.json
+.github/copilot-instructions.md
