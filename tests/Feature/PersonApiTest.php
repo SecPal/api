@@ -56,8 +56,6 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
     });
 
     test('returns 422 when email_plain is missing', function (): void {
-        // Set team context before assigning permission
-        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($this->tenant->id);
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.write');
 
         $response = $this->withToken($this->token)
