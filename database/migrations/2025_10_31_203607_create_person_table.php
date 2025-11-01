@@ -5,6 +5,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -48,8 +49,11 @@ return new class extends Migration
 
         // Optional: Full-text search support (PostgreSQL only)
         if (config('database.default') === 'pgsql') {
-            DB::statement('ALTER TABLE person ADD COLUMN note_tsv tsvector');
-            DB::statement('CREATE INDEX person_note_tsv_gin ON person USING GIN (note_tsv)');
+            // Idempotent: Check if column exists before adding
+            if (! Schema::hasColumn('person', 'note_tsv')) {
+                DB::statement('ALTER TABLE person ADD COLUMN note_tsv tsvector');
+                DB::statement('CREATE INDEX person_note_tsv_gin ON person USING GIN (note_tsv)');
+            }
 
             DB::statement("
                 CREATE OR REPLACE FUNCTION person_note_tsv_trigger() RETURNS trigger AS $$
