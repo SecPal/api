@@ -144,11 +144,15 @@ describe('Rotation Commands', function () {
             // Also allow debug/error logs from Person model
             Log::shouldReceive('debug')->zeroOrMoreTimes();
             Log::shouldReceive('error')->zeroOrMoreTimes();
+            Log::shouldReceive('warning')->zeroOrMoreTimes();
 
-            Artisan::call('secpal:rotate-dek', [
+            $exitCode = Artisan::call('secpal:rotate-dek', [
                 'tenant_id' => $this->tenantId,
                 '--force' => true,
             ]);
+
+            // Verify command succeeded
+            expect($exitCode)->toBe(0);
         });
     });
 

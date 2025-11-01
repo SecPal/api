@@ -79,7 +79,7 @@ class PersonController extends Controller
      *
      * GET /api/v1/tenants/{tenant}/persons/{id}
      */
-    public function show(Request $request, string $id): PersonResource
+    public function show(Request $request, string $tenant, string $id): PersonResource
     {
         $tenantId = $request->tenant_id;
         $person = $this->repository->findById($tenantId, $id);
@@ -94,7 +94,7 @@ class PersonController extends Controller
      *
      * PUT/PATCH /api/v1/tenants/{tenant}/persons/{id}
      */
-    public function update(UpdatePersonRequest $request, string $id): PersonResource
+    public function update(UpdatePersonRequest $request, string $tenant, string $id): PersonResource
     {
         $tenantId = $request->tenant_id;
         $person = $this->repository->findById($tenantId, $id);
@@ -120,7 +120,7 @@ class PersonController extends Controller
      *
      * DELETE /api/v1/tenants/{tenant}/persons/{id}
      */
-    public function destroy(Request $request, string $id): \Illuminate\Http\JsonResponse
+    public function destroy(Request $request, string $tenant, string $id): JsonResponse
     {
         $tenantId = $request->tenant_id;
         $person = $this->repository->findById($tenantId, $id);
