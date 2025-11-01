@@ -32,8 +32,11 @@ return new class extends Migration
             $table->index(['tenant_id', 'phone_idx']);
         });
 
-        DB::statement('ALTER TABLE person ADD COLUMN note_tsv tsvector');
-        DB::statement('CREATE INDEX person_note_tsv_idx ON person USING GIN (note_tsv)');
+        // PostgreSQL-specific full-text search support
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE person ADD COLUMN note_tsv tsvector');
+            DB::statement('CREATE INDEX person_note_tsv_idx ON person USING GIN (note_tsv)');
+        }
     }
 
     /**

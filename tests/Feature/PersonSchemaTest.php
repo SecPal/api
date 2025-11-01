@@ -6,8 +6,11 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+
+uses(RefreshDatabase::class);
 
 test('person table exists', function () {
     expect(Schema::hasTable('person'))->toBeTrue();
