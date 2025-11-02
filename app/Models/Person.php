@@ -74,9 +74,9 @@ class Person extends Model
     protected function casts(): array
     {
         return [
-            'email_enc' => 'encrypted',
-            'phone_enc' => 'encrypted',
-            'note_enc' => 'encrypted',
+            'email_enc' => \App\Casts\EncryptedWithDek::class,
+            'phone_enc' => \App\Casts\EncryptedWithDek::class,
+            'note_enc' => \App\Casts\EncryptedWithDek::class,
             // email_idx and phone_idx are stored as base64 strings directly (no cast needed)
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
