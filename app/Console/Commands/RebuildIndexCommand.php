@@ -71,7 +71,7 @@ class RebuildIndexCommand extends Command
                 // Decrypt and rebuild email_idx
                 if ($person->getAttributes()['email_enc']) {
                     $emailPlain = $person->email_enc; // Uses cast to decrypt
-                    if ($emailPlain !== null) {
+                    if ($emailPlain !== null && $emailPlain !== '') {
                         $normalized = strtolower(trim($emailPlain));
                         $rawIdx = $tenant->generateBlindIndex($normalized);
                         $person->email_idx = base64_encode($rawIdx); // Store as base64
@@ -81,9 +81,13 @@ class RebuildIndexCommand extends Command
                 // Decrypt and rebuild phone_idx
                 if ($person->getAttributes()['phone_enc']) {
                     $phonePlain = $person->phone_enc; // Uses cast to decrypt
-                    $normalized = preg_replace('/\D/', '', $phonePlain); // Digits only
-                    $rawIdx = $tenant->generateBlindIndex($normalized);
-                    $person->phone_idx = base64_encode($rawIdx); // Store as base64
+                    if ($phonePlain !== null && $phonePlain !== '') {
+                        $normalized = preg_replace('/\D/', '', $phonePlain);
+                        if ($normalized !== null) {
+                            $rawIdx = $tenant->generateBlindIndex($normalized);
+                            $person->phone_idx = base64_encode($rawIdx); // Store as base64
+                        }
+                    }
                 }
 
                 $person->saveQuietly(); // Avoid triggering observers
