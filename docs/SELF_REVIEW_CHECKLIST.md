@@ -24,14 +24,28 @@ This checklist ensures code quality and consistency **before** creating a PR.
 - [ ] **Pint code style passes**
 
   ```bash
-  ddev exec vendor/bin/pint --test
+  ddev exec vendor/bin/pint --test --dirty
   ```
+
+  ⚠️ **CRITICAL:** ALWAYS use `--test --dirty` to check changed files only!
 
   If fails, auto-fix with:
 
   ```bash
-  ddev exec vendor/bin/pint
+  ddev exec vendor/bin/pint --dirty
   ```
+
+  Then verify fix:
+
+  ```bash
+  ddev exec vendor/bin/pint --test --dirty
+  ```
+
+  **Why:**
+  - `--dirty` checks only files you changed (fast, focused)
+  - `--test` validates without auto-fixing (CI parity)
+  - CI uses `pint --test` (all files), so checking your changes first prevents surprises
+  - Pre-commit uses `pint --dirty` (auto-fix) which aligns with this workflow
 
 - [ ] **REUSE compliance passes**
 
@@ -244,6 +258,11 @@ cat database/factories/UserFactory.php
 7. ❌ **Comments not matching code**
    - Fix: Review all comments for technical accuracy
    - Example: `throttle:5,60` = "5 per 60 minutes", not "per hour"
+
+8. ❌ **Running `pint` without `--test --dirty` first**
+   - Fix: ALWAYS run `pint --test --dirty` before auto-fix
+   - Reason: `--dirty` checks only changed files (fast), `--test` validates without fixing (CI parity)
+   - Pre-commit auto-fixes with `pint --dirty`, but checking first prevents CI surprises
 
 ---
 

@@ -213,8 +213,10 @@ protected function isAccessible(User $user, ?string $path = null): bool
 
 ## Laravel Pint Code Formatter
 
-- You must run `vendor/bin/pint --dirty` before finalizing changes to ensure your code matches the project's expected style.
-- Do not run `vendor/bin/pint --test`, simply run `vendor/bin/pint` to fix any formatting issues.
+- You must run `vendor/bin/pint --test --dirty` FIRST to check changed files for style issues.
+- If issues found, run `vendor/bin/pint --dirty` to auto-fix only your changed files.
+- Then verify with `vendor/bin/pint --test --dirty` again before finalizing changes.
+- **Why:** `--dirty` focuses on changed files (fast), `--test` validates without auto-fixing (CI parity), pre-commit auto-fixes with `--dirty` which aligns with this workflow.
 
 === pest/core rules ===
 
