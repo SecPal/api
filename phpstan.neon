@@ -24,6 +24,7 @@ parameters:
         - bootstrap/cache/*
         - storage/*
         - vendor/*
+        - tests/* # Pest dynamic properties cause false positives
 
     # Laravel specific
     noUnnecessaryCollectionCall: true
