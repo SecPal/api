@@ -27,7 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
-        
+
         // Password reset rate limiter (5 per 60 minutes by IP)
         RateLimiter::for('password-reset', function (Request $request) {
             return Limit::perMinutes(60, 5)->by($request->ip());
