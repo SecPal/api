@@ -46,7 +46,6 @@ final class PersonFactory extends Factory
             'tenant_id' => $tenant->id,
             'email_plain' => fake()->unique()->safeEmail(),
             'phone_plain' => fake()->phoneNumber(),
-            'note_enc' => fake()->optional()->text(200),
         ];
     }
 
@@ -60,13 +59,4 @@ final class PersonFactory extends Factory
         ]);
     }
 
-    /**
-     * Indicate that the person should have a specific password.
-     */
-    public function withPassword(string $password): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'password' => Hash::make($password),
-        ]);
-    }
 }

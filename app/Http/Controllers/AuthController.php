@@ -150,7 +150,7 @@ class AuthController extends Controller
         // Find user
         $user = User::where('email', $validated['email'])->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'message' => 'Invalid or expired reset token',
             ], 400);
@@ -162,7 +162,7 @@ class AuthController extends Controller
             ->where('email', $validated['email'])
             ->first();
 
-        if (!$tokenRecord) {
+        if (! $tokenRecord) {
             return response()->json([
                 'message' => 'Invalid or expired reset token',
             ], 400);
@@ -183,7 +183,7 @@ class AuthController extends Controller
         }
 
         // Verify token
-        if (!Hash::check($validated['token'], $tokenRecord->token)) {
+        if (! Hash::check($validated['token'], $tokenRecord->token)) {
             return response()->json([
                 'message' => 'Invalid or expired reset token',
             ], 400);

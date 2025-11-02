@@ -5,94 +5,82 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature\Auth;
-
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
-use Tests\TestCase;
 
 /**
  * Feature tests for password reset request endpoint.
  *
  * @covers POST /api/v1/auth/password/reset-request
  */
-final class PasswordResetRequestTest extends TestCase
-{
-    use RefreshDatabase;
 
-    public function test_user_can_request_password_reset_with_valid_email(): void
-    {
-        Notification::fake();
+uses(RefreshDatabase::class);
 
-        $user = User::factory()->create([
-            'email' => 'test@example.com',
+it('allows a user to request password reset with valid email', function () {
+    Notification::fake();
+
+    $user = User::factory()->create([
+        'email' => 'test@example.com',
+    ]);
+
+    $response = $this->postJson('/api/v1/auth/password/reset-request', [
+        'email' => 'test@example.com',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'message' => 'Password reset email sent if account exists',
         ]);
 
-        $response = $this->postJson('/api/v1/auth/password/reset-request', [
-            'email' => 'test@example.com',
+    // Verify notification was sent
+    // Notification::assertSentTo($user, PasswordResetNotification::class);
+});
+
+it('returns same response for non-existent email', function () {
+    Notification::fake();
+
+    $response = $this->postJson('/api/v1/auth/password/reset-request', [
+        'email' => 'nonexistent@example.com',
+    ]);
+
+    // Security: Same response to prevent email enumeration
+    $response->assertOk()
+        ->assertJson([
+            'message' => 'Password reset email sent if account exists',
         ]);
 
-        $response->assertStatus(200)
-            ->assertJson([
-                'message' => 'Password reset email sent if account exists',
-            ]);
+    Notification::assertNothingSent();
+});
 
-        // Verify notification was sent
-        // Notification::assertSentTo($user, PasswordResetNotification::class);
-    }
+it('requires email field', function () {
+    $response = $this->postJson('/api/v1/auth/password/reset-request', []);
 
-    public function test_returns_same_response_for_non_existent_email(): void
-    {
-        Notification::fake();
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['email']);
+});
 
-        $response = $this->postJson('/api/v1/auth/password/reset-request', [
-            'email' => 'nonexistent@example.com',
-        ]);
+it('requires valid email format', function () {
+    $response = $this->postJson('/api/v1/auth/password/reset-request', [
+        'email' => 'invalid-email',
+    ]);
 
-        // Security: Same response to prevent email enumeration
-        $response->assertStatus(200)
-            ->assertJson([
-                'message' => 'Password reset email sent if account exists',
-            ]);
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['email']);
+});
 
-        Notification::assertNothingSent();
-    }
+it('rate limits password reset requests', function () {
+    $email = 'test@example.com';
 
-    public function test_requires_email_field(): void
-    {
-        $response = $this->postJson('/api/v1/auth/password/reset-request', []);
+    // Make 5 requests (should all be allowed)
+    collect(range(1, 5))->each(fn () => $this->postJson('/api/v1/auth/password/reset-request', [
+        'email' => $email,
+    ])->assertOk());
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['email']);
-    }
+    // 6th request should be rate limited
+    $response = $this->postJson('/api/v1/auth/password/reset-request', [
+        'email' => $email,
+    ]);
 
-    public function test_requires_valid_email_format(): void
-    {
-        $response = $this->postJson('/api/v1/auth/password/reset-request', [
-            'email' => 'invalid-email',
-        ]);
-
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['email']);
-    }
-
-    public function test_rate_limits_password_reset_requests(): void
-    {
-        $email = 'test@example.com';
-
-        // Make multiple requests
-        for ($i = 0; $i < 6; $i++) {
-            $response = $this->postJson('/api/v1/auth/password/reset-request', [
-                'email' => $email,
-            ]);
-
-            if ($i < 5) {
-                $response->assertStatus(200);
-            } else {
-                // 6th request should be rate limited
-                $response->assertStatus(429);
-            }
-        }
-    }
-}
+    $response->assertStatus(429);
+});
