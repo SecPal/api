@@ -19,6 +19,11 @@ use Illuminate\Validation\ValidationException;
 class AuthController extends Controller
 {
     /**
+     * Password reset token expiry time in minutes.
+     */
+    private const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
+
+    /**
      * Generate a new API token for the user.
      *
      * @throws ValidationException
@@ -162,11 +167,11 @@ class AuthController extends Controller
             ], 400);
         }
 
-        // Check if token is expired (60 minutes)
+        // Check if token is expired
         $createdAt = \Carbon\Carbon::parse($tokenRecord->created_at);
-        $minutesAgo = abs(now()->diffInMinutes($createdAt, false));
+        $minutesAgo = $createdAt->diffInMinutes(now());
 
-        if ($minutesAgo > 60) {
+        if ($minutesAgo > self::PASSWORD_RESET_TOKEN_EXPIRY_MINUTES) {
             DB::table('password_reset_tokens')
                 ->where('email', $validated['email'])
                 ->delete();

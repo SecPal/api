@@ -24,21 +24,26 @@ final class PersonFactory extends Factory
     protected $model = Person::class;
 
     /**
+     * Cached tenant instance to avoid N+1 queries.
+     */
+    private static ?TenantKey $cachedTenant = null;
+
+    /**
      * Define the model's default state.
      *
      * @return array<string, mixed>
      */
     public function definition(): array
     {
-        // Create tenant with envelope keys if not exists
-        $tenant = TenantKey::first();
+        // Create tenant with envelope keys if not exists (cached)
+        $tenant = self::$cachedTenant ??= TenantKey::first();
         if (! $tenant) {
             // Ensure KEK exists for testing
             if (! file_exists(TenantKey::getKekPath())) {
                 TenantKey::generateKek();
             }
             $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
+            $tenant = self::$cachedTenant = TenantKey::create($keys);
         }
 
         return [

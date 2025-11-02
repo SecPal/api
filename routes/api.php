@@ -32,9 +32,9 @@ Route::prefix('v1')->group(function () {
     // Authentication routes (public)
     Route::post('/auth/token', [AuthController::class, 'token']);
     Route::post('/auth/password/reset-request', [AuthController::class, 'passwordResetRequest'])
-        ->middleware('throttle:5,60'); // 5 requests per 60 minutes
+        ->middleware('throttle:password-reset');
     Route::post('/auth/password/reset', [AuthController::class, 'passwordReset'])
-        ->middleware('throttle:5,60'); // 5 attempts per 60 minutes to prevent brute-force
+        ->middleware('throttle:password-reset');
 
     // Protected routes (require auth:sanctum)
     Route::middleware('auth:sanctum')->group(function () {
