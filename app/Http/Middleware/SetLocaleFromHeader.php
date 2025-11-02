@@ -31,7 +31,12 @@ class SetLocaleFromHeader
         $locale = $request->getPreferredLanguage($supportedLocales);
 
         // Fall back to default if no match
-        App::setLocale($locale ?: config('app.locale'));
+        if ($locale === null) {
+            $defaultLocale = config('app.locale');
+            $locale = is_string($defaultLocale) ? $defaultLocale : 'en';
+        }
+
+        App::setLocale($locale);
 
         return $next($request);
     }
