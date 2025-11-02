@@ -10,30 +10,37 @@ This checklist ensures code quality and consistency **before** creating a PR.
 **Goal:** Ensure the code works correctly.
 
 - [ ] **All tests pass locally**
+
   ```bash
   ddev exec php artisan test
   ```
 
 - [ ] **PHPStan passes with no errors**
+
   ```bash
   ddev exec vendor/bin/phpstan analyze
   ```
 
 - [ ] **Pint code style passes**
+
   ```bash
   ddev exec vendor/bin/pint --test
   ```
+
   If fails, auto-fix with:
+
   ```bash
   ddev exec vendor/bin/pint
   ```
 
 - [ ] **REUSE compliance passes**
+
   ```bash
   reuse lint
   ```
 
 - [ ] **Markdownlint passes (if docs changed)**
+
   ```bash
   markdownlint-cli2 "**/*.md" "!vendor/**" "!node_modules/**"
   ```
@@ -45,17 +52,21 @@ This checklist ensures code quality and consistency **before** creating a PR.
 ### 2.1 Compare with Existing Code
 
 - [ ] **Test assertions match existing patterns**
+
   ```bash
   # Check what assertions existing tests use
   grep -r "assertStatus\|assertOk\|assertJson" tests/Feature/
   ```
+
   ✅ Use `assertOk()` instead of `assertStatus(200)`
 
 - [ ] **Validation follows existing patterns**
+
   ```bash
   # Check if similar endpoints use Form Requests
   ls -la app/Http/Requests/
   ```
+
   ✅ Extract validation into Form Request classes (like `TokenRequest`)
 
 - [ ] **Factory fields match model properties**
@@ -64,10 +75,12 @@ This checklist ensures code quality and consistency **before** creating a PR.
   - Check transient properties (e.g., `email_plain` generates `email_enc` + `email_idx`)
 
 - [ ] **Test syntax matches project standard**
+
   ```bash
   # Check if project uses Pest or PHPUnit
   grep -r "uses(RefreshDatabase" tests/Feature/ | head -1
   ```
+
   ✅ Use Pest's `it()` or `test()` functions, NOT PHPUnit classes
 
 ### 2.2 Code Style Consistency
@@ -77,10 +90,12 @@ This checklist ensures code quality and consistency **before** creating a PR.
   - ❌ NOT `if (!$variable)` without space
 
 - [ ] **Loop patterns**
+
   ```bash
   # Check how existing tests handle loops
   grep -r "for (\|foreach\|collect.*each" tests/Feature/
   ```
+
   ✅ Prefer `collect()->each()` over `for` loops in Laravel
 
 - [ ] **Magic numbers extracted to constants**
@@ -103,12 +118,14 @@ This checklist ensures code quality and consistency **before** creating a PR.
 **Goal:** Remove temporary/unused code.
 
 - [ ] **No unused imports**
+
   ```bash
   # PHPStan will catch unused imports
   ddev exec vendor/bin/phpstan analyze --level=9
   ```
 
 - [ ] **No temporary files committed**
+
   ```bash
   git status
   # Look for: *.bak, *.tmp, .DS_Store, etc.
@@ -120,9 +137,11 @@ This checklist ensures code quality and consistency **before** creating a PR.
   - Remove `Log::debug()` unless intentional
 
 - [ ] **Git diff review**
+
   ```bash
   git diff --cached
   ```
+
   - Check for accidental changes
   - Verify all changes are intentional
   - Look for inconsistent spacing/formatting
@@ -173,6 +192,7 @@ cat database/factories/UserFactory.php
 ## Phase 5: Pre-Commit Final Check ✅
 
 - [ ] **Run preflight checks**
+
   ```bash
   git add -A
   git commit -m "..."
@@ -185,9 +205,11 @@ cat database/factories/UserFactory.php
   - References issue numbers if applicable
 
 - [ ] **Check PR size**
+
   ```bash
   git diff --stat main...HEAD
   ```
+
   - If > 600 lines, consider splitting
   - Create `.preflight-allow-large-pr` with justification if needed
 
@@ -233,12 +255,14 @@ Copy this to your commit message or PR description:
 ## Self-Review Checklist
 
 ### Phase 1: Functional ✅
+
 - [x] All tests pass locally
 - [x] PHPStan passes (level 9)
 - [x] Pint code style passes
 - [x] REUSE compliance passes
 
 ### Phase 2: Pattern Review ✅
+
 - [x] Test assertions match existing patterns
 - [x] Validation follows Form Request pattern
 - [x] Factory fields match model properties
@@ -246,16 +270,19 @@ Copy this to your commit message or PR description:
 - [x] Code style matches Laravel conventions
 
 ### Phase 3: Cleanup ✅
+
 - [x] No unused imports
 - [x] No temporary files
 - [x] Git diff reviewed
 
 ### Phase 4: Consistency ✅
+
 - [x] Compared with existing similar code
 - [x] Follows established patterns
 - [x] Magic numbers extracted to constants (if applicable)
 
 ### Notes:
+
 - Followed TokenRequest pattern for Form Requests
 - Used assertOk() instead of assertStatus(200)
 - Verified all comments match implementation
@@ -266,11 +293,13 @@ Copy this to your commit message or PR description:
 ## 🎯 When to Use This Checklist
 
 **Always:**
+
 - Before creating a PR
 - After implementing a new feature
 - After fixing a bug that touched multiple files
 
 **Especially when:**
+
 - Writing tests (check existing patterns)
 - Adding validation (check Form Requests)
 - Creating factories (check model PHPDoc)
