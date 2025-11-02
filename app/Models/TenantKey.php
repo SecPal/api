@@ -96,7 +96,7 @@ class TenantKey extends Model
     /**
      * Get the path to the KEK file.
      */
-    protected static function getKekPath(): string
+    public static function getKekPath(): string
     {
         return static::$kekPath ?? storage_path('app/keys/kek.key');
     }
@@ -114,7 +114,7 @@ class TenantKey extends Model
      *
      * @throws \RuntimeException if KEK file is missing
      */
-    protected static function loadKek(): string
+    public static function loadKek(): string
     {
         $path = self::getKekPath();
 
