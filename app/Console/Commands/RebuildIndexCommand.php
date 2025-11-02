@@ -10,6 +10,7 @@ namespace App\Console\Commands;
 
 use App\Models\Person;
 use App\Models\TenantKey;
+use App\Traits\NormalizesPersonFields;
 use Illuminate\Console\Command;
 
 /**
@@ -28,6 +29,8 @@ use Illuminate\Console\Command;
  */
 class RebuildIndexCommand extends Command
 {
+    use NormalizesPersonFields;
+
     /**
      * The name and signature of the console command.
      *
@@ -72,7 +75,7 @@ class RebuildIndexCommand extends Command
                 if ($person->getAttributes()['email_enc']) {
                     $emailPlain = $person->email_enc; // Uses cast to decrypt
                     if ($emailPlain !== null && $emailPlain !== '') {
-                        $normalized = strtolower(trim($emailPlain));
+                        $normalized = $this->normalizeEmail($emailPlain);
                         $rawIdx = $tenant->generateBlindIndex($normalized);
                         $person->email_idx = base64_encode($rawIdx); // Store as base64
                     }
@@ -82,11 +85,9 @@ class RebuildIndexCommand extends Command
                 if ($person->getAttributes()['phone_enc']) {
                     $phonePlain = $person->phone_enc; // Uses cast to decrypt
                     if ($phonePlain !== null && $phonePlain !== '') {
-                        $normalized = preg_replace('/\D/', '', $phonePlain);
-                        if ($normalized !== null) {
-                            $rawIdx = $tenant->generateBlindIndex($normalized);
-                            $person->phone_idx = base64_encode($rawIdx); // Store as base64
-                        }
+                        $normalized = $this->normalizePhone($phonePlain);
+                        $rawIdx = $tenant->generateBlindIndex($normalized);
+                        $person->phone_idx = base64_encode($rawIdx); // Store as base64
                     }
                 }
 

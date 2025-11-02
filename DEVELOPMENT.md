@@ -191,6 +191,107 @@ git push
 - Use descriptive commit messages (conventional commits)
 - Easy to reset: close PR, delete branch, start clean from main
 
+### Pre-PR Quality Checklist
+
+**Before opening a Pull Request, ensure you've completed these checks:**
+
+#### 1. Parallel Test Execution ✅
+
+```bash
+# Catches race conditions and test isolation issues
+ddev . ./vendor/bin/pest --parallel
+```
+
+**Why?** Tests may pass sequentially but fail in parallel (Issue #50: PR #63)
+
+#### 2. Code Duplication Check 🔍
+
+```bash
+# Search for duplicated logic that should be extracted
+grep -r "function normalize" app/
+grep -r "base64_encode.*generateBlindIndex" app/
+grep -r "strtolower(trim(" app/
+
+# Or use PHPStan:
+ddev . ./vendor/bin/phpstan analyse --no-progress
+```
+
+**Action:** Extract duplicated code into traits, helpers, or methods.
+
+#### 3. Magic Numbers & Constants 🔢
+
+```bash
+# Search for hardcoded values
+grep -r "0700\|sha256\|32\|24\|16" app/ --exclude-dir=vendor
+```
+
+**Action:** Replace with named constants:
+
+```php
+// ❌ Bad
+mkdir($dir, 0700, true);
+hash_hmac('sha256', $data, $key);
+
+// ✅ Good
+mkdir($dir, self::KEY_DIRECTORY_PERMISSIONS, true);
+hash_hmac(self::HMAC_ALGORITHM, $data, $key);
+```
+
+#### 4. Quality Gates (Automated) ✅
+
+```bash
+# This runs automatically in pre-push hook:
+ddev . ./vendor/bin/pint           # PSR-12 style
+ddev . ./vendor/bin/phpstan analyse # Level 9 static analysis
+ddev . ./vendor/bin/pest            # All tests
+```
+
+**Action:** Fix all errors before push.
+
+#### 5. Commit Message Format 📝
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```bash
+feat: add key rotation commands
+fix: resolve test isolation issue
+refactor: extract NormalizesPersonFields trait
+docs: update README security section
+test: add parallel execution tests
+```
+
+#### 6. PR Size Discipline 📊
+
+- **Target:** <600 LOC per PR
+- **Acceptable exceptions:**
+  - Critical bugfix + refactor (must be atomic)
+  - Architectural changes (command suite)
+  - Vendor migrations (can't be split)
+
+**Action:** If >600 LOC, document justification in PR body.
+
+#### 7. Review ALL Copilot Suggestions 🤖
+
+- Don't blindly accept/reject suggestions
+- Understand WHY Copilot suggests changes
+- Group related fixes into ONE commit (not iterative pushes)
+
+**Action:** Review → Bulk-fix → Test → Push (not Push → Review → Push → Review)
+
+---
+
+### Quick Pre-PR Command
+
+```bash
+# Run this before opening PR:
+ddev . ./vendor/bin/pest --parallel && \
+ddev . ./vendor/bin/pint && \
+ddev . ./vendor/bin/phpstan analyse && \
+echo "✅ Ready for PR!"
+```
+
+---
+
 ### Resolving Copilot Review Comments
 
 **After addressing Copilot review comments, resolve them via the GitHub UI:**
