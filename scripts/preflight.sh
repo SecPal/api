@@ -292,8 +292,7 @@ else
           echo "" >&2
           echo "💡 Available options:" >&2
           echo "  1. Split PR: Recommended approach" >&2
-          echo "  2. Override check: touch .preflight-allow-large-pr" >&2
-          echo "  3. Bypass hook: git push --no-verify (not recommended)" >&2
+          echo "  2. Override check: touch .preflight-allow-large-pr (for exceptional cases)" >&2
           echo "" >&2
           echo "Note: Lock files and license files are already excluded" >&2
           echo "      See .preflight-exclude for custom exclusion patterns" >&2
