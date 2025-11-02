@@ -48,6 +48,18 @@ repos:
     hooks:
       - id: shellcheck
 
+  # Laravel Pint (PHP code style)
+  # CRITICAL: Uses --dirty to auto-fix only changed files (fast)
+  # Preflight script will verify with --test flag for CI parity
+  - repo: local
+    hooks:
+      - id: pint
+        name: Laravel Pint
+        entry: bash -c 'if [ -x vendor/bin/pint ]; then vendor/bin/pint --dirty; fi'
+        language: system
+        types: [php]
+        pass_filenames: false
+
   # Git hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
