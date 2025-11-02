@@ -371,6 +371,10 @@ This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDU
 - **Discussions:** [GitHub Discussions](https://github.com/orgs/SecPal/discussions)
 - **Documentation:** [Project Wiki](https://github.com/SecPal/api/wiki)
 
+## Translation
+
+SecPal uses [Translation.io](https://translation.io) for managing translations. Translation.io offers free unlimited accounts for open source projects.
+
 ## Related Repositories
 
 - [SecPal/.github](https://github.com/SecPal/.github) - Organization-wide settings

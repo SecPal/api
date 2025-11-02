@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Translation.io integration for multi-language support (en, de)
+- Configuration file `config/translation.php` for Translation.io
+- `TRANSLATIONIO_KEY` environment variable for API key management
+- Translation management via `php artisan translation:*` commands
 - Pint `--test --dirty` workflow in preflight script for CI parity
 - Pre-commit hook for Laravel Pint auto-formatting
 - CHANGELOG validation in preflight script
