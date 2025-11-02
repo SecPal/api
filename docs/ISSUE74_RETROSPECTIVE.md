@@ -3,9 +3,9 @@
 
 # PR #74 Retrospective: Password Reset Feature
 
-**Date:** 2025-11-02  
-**PR:** [#74 - Password Reset Feature (Production Test Phase 1)](https://github.com/SecPal/api/pull/74)  
-**Final Commit:** `f575a55` (merged to main)  
+**Date:** 2025-11-02
+**PR:** [#74 - Password Reset Feature (Production Test Phase 1)](https://github.com/SecPal/api/pull/74)
+**Final Commit:** `f575a55` (merged to main)
 **Duration:** ~6 hours (session interruption + recovery)
 
 ---
@@ -80,11 +80,13 @@ ddev exec vendor/bin/pint  # Auto-fix mode
 **Prevention:**
 
 ```bash
-# ✅ CORRECT workflow:
-ddev exec vendor/bin/pint --test  # Check first
-ddev exec vendor/bin/pint         # Fix if needed
-ddev exec vendor/bin/pint --test  # Verify fix
+# ✅ CORRECT workflow (updated after Copilot PR#75 comment):
+ddev exec vendor/bin/pint --test --dirty  # Check changed files first
+ddev exec vendor/bin/pint --dirty         # Fix if needed
+ddev exec vendor/bin/pint --test --dirty  # Verify fix
 ```
+
+**Note:** Initially documented without `--dirty`, but Copilot correctly identified conflict with existing `.github/copilot-instructions.md` which mandates `--dirty`. Updated to combine both: `--dirty` (fast, changed files only) + `--test` (CI parity).
 
 ### 2. **Copilot Comment Confusion**
 
@@ -296,5 +298,5 @@ The `SELF_REVIEW_CHECKLIST.md` now explicitly warns about this pattern and provi
 
 ---
 
-**Status:** ✅ Merged to main (`f575a55`)  
+**Status:** ✅ Merged to main (`f575a55`)
 **Next Steps:** Apply learnings to next feature (Production Test Phase 2)
