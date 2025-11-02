@@ -93,6 +93,31 @@ KEK_PATH=storage/keys/kek.key
 
 > For development, use the relative path above. In production, set `KEK_PATH` to the absolute path of your KEK file (ideally outside the web root), and ensure file permissions are `0600`.
 
+#### Key Rotation
+
+SecPal provides Artisan commands for key lifecycle management:
+
+```bash
+# Generate new tenant with envelope keys
+php artisan keys:generate-tenant
+
+# Rotate KEK and re-wrap all tenant keys (creates backup)
+php artisan keys:rotate-kek
+
+# Rotate DEK for specific tenant (re-encrypts all data)
+php artisan keys:rotate-dek {tenant_id}
+
+# Rebuild blind indexes for specific tenant
+php artisan idx:rebuild {tenant_id}
+```
+
+**Best Practices:**
+
+- Rotate KEK annually or after suspected compromise
+- Rotate tenant DEKs when offboarding users with access
+- Keep KEK backups (created by `keys:rotate-kek`) in secure offline storage
+- Test rotation procedures in staging before production
+
 ### 6. Set up development tools
 
 ```bash
@@ -288,6 +313,51 @@ Contact us for details.
 See [LICENSE](LICENSE) for full details.
 
 ## Security
+
+### Encryption Architecture
+
+SecPal implements **multi-tenant envelope encryption** with the following security properties:
+
+**Key Hierarchy:**
+
+- **KEK (Key Encryption Key)**: Master key stored in `storage/keys/kek.key` (mode 0600)
+- **Per-Tenant DEK**: Data Encryption Key for encrypting PII fields (email, phone, notes)
+- **Per-Tenant idx_key**: Index key for generating blind indexes (searchable without decryption)
+
+**Encrypted Fields:**
+
+- `email_enc`, `phone_enc`, `note_enc` - Encrypted with tenant DEK using XChaCha20-Poly1305
+- Stored as JSON: `{"ciphertext": "base64", "nonce": "base64"}`
+
+**Blind Indexes:**
+
+- `email_idx`, `phone_idx` - HMAC-SHA256 of normalized values using idx_key
+- Enable equality search without decryption
+- Tenant-isolated (same email in different tenants produces different indexes)
+
+### Security Considerations
+
+**✅ What SecPal Protects Against:**
+
+- Database compromise (all PII encrypted at rest)
+- Cross-tenant data access (tenant-specific keys + middleware isolation)
+- Unauthorized API access (Sanctum PAT authentication + Spatie RBAC)
+
+**⚠️ Known Limitations:**
+
+- **Full-Text Search Leakage**: The `note_tsv` field contains plaintext tokens for FTS. If FTS on notes is required, accept this trade-off or implement separate FTS infrastructure.
+- **Blind Index Frequency Analysis**: Repeated values (e.g., common email domains) can be detected through blind index frequency patterns.
+- **Application-Level Access**: Authenticated users with proper permissions can decrypt data (by design).
+
+**🔒 Operational Security:**
+
+- Never commit KEK file (already in `.gitignore`)
+- Store production KEK outside web root with 0600 permissions
+- Use key rotation commands regularly (see "Key Rotation" section above)
+- Monitor `storage/logs` for any accidental PII leakage (tests enforce this)
+- Backup KEK securely before rotation (kept by `keys:rotate-kek`)
+
+### Reporting Vulnerabilities
 
 See [SECURITY.md](SECURITY.md) for information about reporting security vulnerabilities.
 
