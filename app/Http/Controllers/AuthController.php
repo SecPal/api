@@ -8,11 +8,13 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\PasswordResetRequestRequest;
 use App\Http\Requests\TokenRequest;
+use App\Mail\PasswordResetMail;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -128,8 +130,8 @@ class AuthController extends Controller
                 'created_at' => now(),
             ]);
 
-            // TODO: Send email notification with $token
-            // For now, we just store the token
+            // Send password reset email (queued for async processing)
+            Mail::to($user)->queue(new PasswordResetMail($user, $token));
         }
 
         // Always return same response to prevent email enumeration
