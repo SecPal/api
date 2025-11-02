@@ -1,6 +1,24 @@
 <!-- @EXTENDS: ../../.github/.github/copilot-instructions.md -->
 <!-- INHERITANCE: Core Principles + Org Rules from parent, Laravel-specific rules below -->
 
+<!--
+🚨 AI MUST READ ORGANIZATION-WIDE INSTRUCTIONS FIRST:
+   File: SecPal/.github/.github/copilot-instructions.md
+
+   Contains CRITICAL rules about:
+   - Copilot Review Protocol (GraphQL only, NO comment tools!)
+   - Pre-Commit/Pre-Push/CI Quality Gates
+   - Branch Protection & PR Rules
+   - TDD Mandatory Policy
+   - CHANGELOG Maintenance
+
+   ALWAYS check org instructions before taking actions on:
+   - Pull Request comments/reviews
+   - Commits and pushes
+   - Merges
+   - Quality gate decisions
+-->
+
 <laravel-boost-guidelines>
 === foundation rules ===
 
