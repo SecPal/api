@@ -313,8 +313,53 @@ echo "✅ Ready for PR!"
 - ❌ Replying with "Fixed" in comments (clutters thread)
 - ✅ Push fix, let GitHub detect outdated comment, resolve thread
 
+## Working with Epics & Multi-PR Features
+
+For large features requiring multiple PRs (like Issue #50 with 7 PRs), use the **Sub-Issue pattern**:
+
+### Quick Start
+
+1. **Create Epic Issue**: Use organization template "🗺️ Epic (Multi-PR Feature)"
+2. **Create Sub-Issues**: One per PR using "📦 Sub-Issue (Part of Epic)" template
+3. **Link Sub-Issues**: Update epic's tasklist with sub-issue references
+4. **PR References**:
+   - Each PR: `Fixes #<sub-issue-number>`
+   - ONLY last PR: `Closes #<epic-number>`
+
+### Why?
+
+- ✅ Automatic progress tracking in GitHub Projects ("5 of 7 complete")
+- ✅ Granular status per PR (not just epic-level)
+- ✅ Epic stays open until ALL PRs are merged
+- ✅ Clear dependencies between PRs
+
+### Templates
+
+The Epic and Sub-Issue templates are **organization-wide** (in `SecPal/.github`):
+
+- Available when creating issues in any SecPal repository
+- YAML format with interactive form fields
+- Consistent across all projects
+
+### Full Documentation
+
+See [docs/EPIC_WORKFLOW.md](./docs/EPIC_WORKFLOW.md) for complete guide including:
+
+- When to use epics vs regular issues
+- How to create and link sub-issues
+- Project board automation
+- Real-world example (Issue #50 retrospective)
+- Best practices and FAQ
+
+**Related Documentation:**
+
+- [EPIC_WORKFLOW.md](./docs/EPIC_WORKFLOW.md) - Complete workflow guide
+- [ISSUE50_RETROSPECTIVE.md](./docs/ISSUE50_RETROSPECTIVE.md) - Case study
+- [EPIC_IMPLEMENTATION_SUMMARY.md](./docs/EPIC_IMPLEMENTATION_SUMMARY.md) - Quick reference
+
 ## Documentation
 
 - [Database Schema](./docs/database-schema.md)
 - [Encryption Strategy](./docs/ENCRYPTION_STRATEGY.md)
 - [Database Decisions](./docs/DATABASE_DECISIONS.md)
+- [Epic Workflow](./docs/EPIC_WORKFLOW.md) - Multi-PR feature tracking
