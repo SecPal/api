@@ -68,9 +68,11 @@ describe('keys:generate-tenant Command', function () {
 
 describe('keys:rotate-kek Command', function () {
     test('rotates KEK and re-wraps all tenant keys', function (): void {
-        // Store old wrapped keys for comparison
+        // Store old wrapped keys and nonces for comparison
         $oldDekWrapped = $this->tenant->dek_wrapped;
         $oldIdxWrapped = $this->tenant->idx_wrapped;
+        $oldDekNonce = $this->tenant->dek_nonce;
+        $oldIdxNonce = $this->tenant->idx_nonce;
 
         $this->artisan('keys:rotate-kek')
             ->expectsOutput('Starting KEK rotation...')
@@ -87,8 +89,8 @@ describe('keys:rotate-kek Command', function () {
         expect($this->tenant->idx_wrapped)->not->toBe($oldIdxWrapped);
 
         // Nonces should have changed (new wrapping)
-        expect($this->tenant->dek_nonce)->not->toBe($oldDekWrapped);
-        expect($this->tenant->idx_nonce)->not->toBe($oldIdxWrapped);
+        expect($this->tenant->dek_nonce)->not->toBe($oldDekNonce);
+        expect($this->tenant->idx_nonce)->not->toBe($oldIdxNonce);
 
         // Key version should still be 1 (only wrapping changed, not the keys themselves)
         expect($this->tenant->key_version)->toBe(1);

@@ -65,7 +65,6 @@ class Binary implements CastsAttributes
         }
 
         // Runtime type validation despite PHPDoc string guarantee
-        // @phpstan-ignore function.alreadyNarrowedType
         if (! is_string($value)) {
             throw new \RuntimeException("Expected string for {$key} in set(), got: ".gettype($value));
         }
