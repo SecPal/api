@@ -138,6 +138,7 @@ class AuthController extends Controller
      */
     public function passwordReset(PasswordResetRequest $request): JsonResponse
     {
+        /** @var array{token: string, email: string, password: string} $validated */
         $validated = $request->validated();
 
         // Find user
