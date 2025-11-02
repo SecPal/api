@@ -16,7 +16,6 @@ use Illuminate\Support\Str;
  *
  * @covers POST /api/v1/auth/password/reset
  */
-
 uses(RefreshDatabase::class);
 
 /**
@@ -24,7 +23,7 @@ uses(RefreshDatabase::class);
  */
 function createPasswordResetToken(User $user, ?\DateTimeInterface $createdAt = null): string
 {
-    $token = Str::random(60);
+    $token = Str::random(64);
 
     DB::table('password_reset_tokens')->insert([
         'email' => $user->email,

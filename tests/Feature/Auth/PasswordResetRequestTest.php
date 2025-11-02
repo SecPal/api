@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\Notification;
  *
  * @covers POST /api/v1/auth/password/reset-request
  */
-
 uses(RefreshDatabase::class);
 
 it('allows a user to request password reset with valid email', function () {

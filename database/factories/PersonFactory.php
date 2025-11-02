@@ -10,7 +10,6 @@ namespace Database\Factories;
 use App\Models\Person;
 use App\Models\TenantKey;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Facades\Hash;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Person>
@@ -58,5 +57,4 @@ final class PersonFactory extends Factory
             'email_plain' => $email,
         ]);
     }
-
 }
