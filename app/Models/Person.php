@@ -8,6 +8,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -29,9 +30,14 @@ use Illuminate\Database\Eloquent\Model;
  * @property \Illuminate\Support\Carbon $updated_at
  * @property-write string|null $email_plain Transient plaintext email
  * @property-write string|null $phone_plain Transient plaintext phone
+ *
+ * @method static \Database\Factories\PersonFactory factory($count = null, $state = [])
  */
 class Person extends Model
 {
+    /** @use HasFactory<\Database\Factories\PersonFactory> */
+    use HasFactory;
+
     /**
      * The table associated with the model.
      *
