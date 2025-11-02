@@ -5,6 +5,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\PasswordResetRequest;
+use App\Http\Requests\PasswordResetRequestRequest;
 use App\Http\Requests\TokenRequest;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -99,12 +101,9 @@ class AuthController extends Controller
      *
      * Security: Always returns 200 to prevent email enumeration.
      */
-    public function passwordResetRequest(Request $request): JsonResponse
+    public function passwordResetRequest(PasswordResetRequestRequest $request): JsonResponse
     {
-        /** @var array{email: string} $validated */
-        $validated = $request->validate([
-            'email' => ['required', 'email'],
-        ]);
+        $validated = $request->validated();
 
         $user = User::where('email', $validated['email'])->first();
 
@@ -137,14 +136,9 @@ class AuthController extends Controller
     /**
      * Reset password using token.
      */
-    public function passwordReset(Request $request): JsonResponse
+    public function passwordReset(PasswordResetRequest $request): JsonResponse
     {
-        /** @var array{token: string, email: string, password: string} $validated */
-        $validated = $request->validate([
-            'token' => ['required', 'string'],
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-        ]);
+        $validated = $request->validated();
 
         // Find user
         $user = User::where('email', $validated['email'])->first();
