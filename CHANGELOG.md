@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Pint `--test --dirty` workflow in preflight script for CI parity
+- Pre-commit hook for Laravel Pint auto-formatting
+- CHANGELOG validation in preflight script
 - Initial Laravel 12 setup with PostgreSQL support
 - PEST testing framework integration
 - PHPStan static analysis with Larastan
