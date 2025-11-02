@@ -23,7 +23,7 @@ use Illuminate\Queue\SerializesModels;
  * Security Notes:
  * - Token is only included in email body (never in logs)
  * - Email is queued for async sending
- * - Token expires in 15 minutes (server-side validation)
+ * - Token expires in 60 minutes (must match AuthController::PASSWORD_RESET_TOKEN_EXPIRY_MINUTES)
  * - Reset URL uses HTTPS in production
  */
 class PasswordResetMail extends Mailable
@@ -64,7 +64,7 @@ class PasswordResetMail extends Mailable
             with: [
                 'user' => $this->user,
                 'resetUrl' => $resetUrl,
-                'expiresInMinutes' => 15,
+                'expiresInMinutes' => 60, // Must match AuthController::PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
             ],
         );
     }
