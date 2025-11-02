@@ -27,6 +27,16 @@ use Illuminate\Database\Eloquent\Model;
 class TenantKey extends Model
 {
     /**
+     * File system permissions for keys directory (owner read/write/execute only)
+     */
+    private const KEY_DIRECTORY_PERMISSIONS = 0700;
+
+    /**
+     * HMAC algorithm used for blind index generation
+     */
+    private const HMAC_ALGORITHM = 'sha256';
+
+    /**
      * The table associated with the model.
      *
      * @var string
@@ -141,7 +151,7 @@ class TenantKey extends Model
         $path = self::getKekPath();
         $dir = dirname($path);
 
-        if (! is_dir($dir) && ! mkdir($dir, 0700, true)) {
+        if (! is_dir($dir) && ! mkdir($dir, self::KEY_DIRECTORY_PERMISSIONS, true)) {
             throw new \RuntimeException('Failed to create keys directory');
         }
 
@@ -283,7 +293,7 @@ class TenantKey extends Model
     public function generateBlindIndex(string $plaintext): string
     {
         $idxKey = $this->unwrapIdxKey();
-        $index = hash_hmac('sha256', $plaintext, $idxKey, true);
+        $index = hash_hmac(self::HMAC_ALGORITHM, $plaintext, $idxKey, true);
 
         sodium_memzero($idxKey);
 
