@@ -27,5 +27,8 @@ Homestead.yaml
 Thumbs.db
 build/
 
+# Preflight bypass files (local override)
+.preflight-allow-large-pr
+
 # DDEV local development
 /.ddev/
