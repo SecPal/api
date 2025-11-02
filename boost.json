@@ -1,48 +1,9 @@
 {
-    "agents": ["copilot"],
-    "editors": ["vscode"],
-    "guidelines": [
-        {
-            "title": "SecPal Project Guidelines",
-            "rules": [
-                "This is the SecPal API - a security-focused personal data management system",
-                "All PRs must be < 400 lines for effective review (see DEVELOPMENT.md)",
-                "Use incremental development: Foundation → Business Logic → API → Security",
-                "Always run ddev exec php artisan boost:update after major changes",
-                "Security is paramount - all PII must be encrypted at rest",
-                "Follow REUSE SPDX license compliance for all files",
-                "Use conventional commits format for all commit messages",
-                "English only for code, comments, and GitHub communication",
-                "All database operations must go through DDEV (PostgreSQL 15+)",
-                "PHPStan level max with baseline - no new errors allowed",
-                "Use Laravel Pint for code formatting (automatic via pre-commit)",
-                "Prefer feature tests over unit tests unless testing isolated logic",
-                "Use PEST test framework, not PHPUnit directly"
-            ]
-        },
-        {
-            "title": "Architecture Decisions",
-            "rules": [
-                "Repository pattern for all database access",
-                "API-only application (no Blade views)",
-                "RESTful API design with Laravel Sanctum authentication",
-                "Use Spatie Laravel Permission for role-based access control",
-                "Tenant isolation enforced via middleware",
-                "Use UUIDs for all public-facing identifiers",
-                "All migrations must be idempotent and reversible"
-            ]
-        },
-        {
-            "title": "Development Workflow",
-            "rules": [
-                "Always create feature branches from main",
-                "Run tests before pushing: ddev exec ./vendor/bin/pest",
-                "Pre-commit hooks run automatically (Pint, PHPStan, REUSE)",
-                "Update Boost after structural changes",
-                "Keep PRs focused - one feature/fix per PR",
-                "Request review before merging to main",
-                "If overwhelmed, reset and start fresh rather than accumulating complexity"
-            ]
-        }
-    ]
+    "agents": [
+        "copilot"
+    ],
+    "editors": [
+        "vscode"
+    ],
+    "guidelines": []
 }

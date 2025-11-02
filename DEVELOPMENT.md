@@ -7,6 +7,20 @@ SPDX-License-Identifier: CC0-1.0
 
 Quick start guide for SecPal API development.
 
+## ⚠️ Core Principles (READ FIRST)
+
+**These principles are non-negotiable and are enforced in `.github/copilot-instructions.md`:**
+
+1. **🎯 Quality First** - Clean before quick, maintainable before feature-complete
+2. **🧪 TDD** - Write failing test FIRST, then implement
+3. **🔄 DRY** - Check for existing code before writing new
+4. **🧹 Clean Before Quick** - Refactor when you touch code
+5. **👀 Self Review Before Push** - Run all quality gates locally
+
+**📋 Quick Reminder Patterns:** See [`docs/COPILOT_REMINDER_PATTERNS.md`](./docs/COPILOT_REMINDER_PATTERNS.md) for prompts to keep Copilot aligned with these principles.
+
+---
+
 ## Prerequisites
 
 - PHP 8.4+

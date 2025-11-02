@@ -31,6 +31,10 @@ Route::get('/health', function () {
 Route::prefix('v1')->group(function () {
     // Authentication routes (public)
     Route::post('/auth/token', [AuthController::class, 'token']);
+    Route::post('/auth/password/reset-request', [AuthController::class, 'passwordResetRequest'])
+        ->middleware('throttle:5,60'); // 5 requests per hour
+    Route::post('/auth/password/reset', [AuthController::class, 'passwordReset'])
+        ->middleware('throttle:5,60'); // 5 attempts per hour to prevent brute-force
 
     // Protected routes (require auth:sanctum)
     Route::middleware('auth:sanctum')->group(function () {
