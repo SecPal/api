@@ -23,6 +23,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
         ]);
 
+        // Apply SetLocaleFromHeader middleware to all API routes
+        $middleware->api(append: [
+            \App\Http\Middleware\SetLocaleFromHeader::class,
+        ]);
+
         // Define rate limiters (using cache, not Redis)
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());

@@ -1,0 +1,13 @@
+{
+    "Reset Your Password": "Passwort zurücksetzen",
+    "Hello": "Hallo",
+    "You requested a password reset for your SecPal account.": "Sie haben eine Passwort-Zurücksetzung für Ihr SecPal-Konto angefordert.",
+    "Click the button below to reset your password. This link will expire in :minutes minutes.": "Klicken Sie auf die Schaltfläche unten, um Ihr Passwort zurückzusetzen. Dieser Link läuft in :minutes Minuten ab.",
+    "Reset Password": "Passwort zurücksetzen",
+    "Security Notice:": "Sicherheitshinweis:",
+    "Never share this link with anyone": "Teilen Sie diesen Link niemals mit anderen",
+    "If you didn't request this reset, please ignore this email": "Wenn Sie diese Zurücksetzung nicht angefordert haben, ignorieren Sie diese E-Mail bitte",
+    "Your password will remain unchanged until you complete the reset process": "Ihr Passwort bleibt unverändert, bis Sie den Zurücksetzungsvorgang abschließen",
+    "Thanks": "Vielen Dank",
+    "If you're having trouble clicking the \":button\" button, copy and paste the URL below into your web browser:": "Falls Sie Probleme beim Klicken auf die Schaltfläche \":button\" haben, kopieren Sie die folgende URL und fügen Sie sie in Ihren Webbrowser ein:"
+}
