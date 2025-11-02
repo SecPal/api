@@ -57,6 +57,7 @@ This production test implemented email notifications for the password reset feat
 **Location:** `app/Mail/PasswordResetMail.php`
 
 **Key Features:**
+
 - Queue-based email dispatch (async)
 - URL encoding for email and token parameters
 - Blade/Markdown template support
@@ -64,6 +65,7 @@ This production test implemented email notifications for the password reset feat
 - Security: Token only in email body, never in logs
 
 **Example Usage:**
+
 ```php
 Mail::to($user)->queue(new PasswordResetMail($user, $token));
 ```
@@ -73,6 +75,7 @@ Mail::to($user)->queue(new PasswordResetMail($user, $token));
 **Location:** `resources/views/emails/password-reset.blade.php`
 
 **Features:**
+
 - Laravel Markdown components (`x-mail::message`, `x-mail::button`)
 - 15-minute expiry warning
 - Security notice (never share link)
@@ -82,6 +85,7 @@ Mail::to($user)->queue(new PasswordResetMail($user, $token));
 ### 3. AuthController Integration ✅
 
 **Changes:**
+
 - Replaced `TODO` comment with actual email dispatch
 - Added `use Illuminate\Support\Facades\Mail;`
 - Added `use App\Mail\PasswordResetMail;`
@@ -92,6 +96,7 @@ Mail::to($user)->queue(new PasswordResetMail($user, $token));
 **Test File:** `tests/Feature/Auth/PasswordResetRequestTest.php`
 
 **New Tests Added:**
+
 1. `it allows a user to request password reset with valid email` (updated for Mail)
 2. `it returns same response for non-existent email` (security check)
 3. `it email is queued not sent immediately` (async verification)
@@ -108,6 +113,7 @@ Mail::to($user)->queue(new PasswordResetMail($user, $token));
 ### Red Phase ✅
 
 Tests written FIRST, all failing as expected:
+
 - `PasswordResetMail` class not found
 - `Mail::assertQueued()` failing (no email sent)
 - Template not found
@@ -115,6 +121,7 @@ Tests written FIRST, all failing as expected:
 ### Green Phase ✅
 
 Implementation completed in order:
+
 1. Created `PasswordResetMail` class
 2. Created Blade template
 3. Integrated with `AuthController`
@@ -123,6 +130,7 @@ Implementation completed in order:
 ### Refactor Phase ✅
 
 Quality improvements:
+
 - PHPStan compliance (type hint for `config()`)
 - Code style validation (Pint)
 - Security review completed
@@ -130,16 +138,19 @@ Quality improvements:
 ## Quality Metrics
 
 ### Test Coverage
+
 - **Feature Tests:** 18 tests (Auth endpoints)
 - **Total Tests:** 132 tests passing
 - **Assertions:** 392 total assertions
 - **Coverage:** 100% of new code (PasswordResetMail, template, controller changes)
 
 ### Static Analysis
+
 - **PHPStan:** ✅ 0 errors (level max)
 - **Pint:** ✅ All files compliant
 
 ### Security Checks
+
 - ✅ No sensitive data in email subjects
 - ✅ URL parameters properly encoded
 - ✅ Emails queued (async, non-blocking)
@@ -150,6 +161,7 @@ Quality improvements:
 ## Performance Metrics
 
 ### Implementation Time
+
 - **Planning:** ~10 minutes (Issue #78 creation)
 - **TDD Red Phase:** ~15 minutes (test writing)
 - **TDD Green Phase:** ~30 minutes (implementation)
@@ -158,20 +170,21 @@ Quality improvements:
 - **Total:** ~90 minutes
 
 ### Test Execution Time
+
 - **PasswordResetRequestTest:** 6.09s (10 tests)
 - **Full Auth Suite:** 2.77s (18 tests)
 - **Full Suite:** 10.00s (132 tests)
 
 ## Comparison: Phase 1 vs Phase 2
 
-| Metric | Phase 1 (Password Reset) | Phase 2 (Email) | Improvement |
-|--------|-------------------------|-----------------|-------------|
-| Documentation Gaps | 7 (3 CRITICAL, 2 HIGH, 1 MEDIUM, 1 LOW) | 2 (1 MEDIUM, 1 LOW) | **71% reduction** |
-| Critical Gaps | 3 | 0 | **100% improvement** |
-| Time to Implementation | ~90 minutes | ~90 minutes | Consistent |
-| Tests Written | 13 tests | 10 tests (7 new) | More focused |
-| Security Issues Found | 1 (rate limiting) | 0 | Learnings applied |
-| PHPStan Errors | 1 (minor type issue) | 1 (fixed immediately) | Same speed |
+| Metric                 | Phase 1 (Password Reset)                | Phase 2 (Email)       | Improvement          |
+| ---------------------- | --------------------------------------- | --------------------- | -------------------- |
+| Documentation Gaps     | 7 (3 CRITICAL, 2 HIGH, 1 MEDIUM, 1 LOW) | 2 (1 MEDIUM, 1 LOW)   | **71% reduction**    |
+| Critical Gaps          | 3                                       | 0                     | **100% improvement** |
+| Time to Implementation | ~90 minutes                             | ~90 minutes           | Consistent           |
+| Tests Written          | 13 tests                                | 10 tests (7 new)      | More focused         |
+| Security Issues Found  | 1 (rate limiting)                       | 0                     | Learnings applied    |
+| PHPStan Errors         | 1 (minor type issue)                    | 1 (fixed immediately) | Same speed           |
 
 **Key Takeaway:** Phase 1 learnings successfully prevented 5 major gaps from occurring in Phase 2.
 
@@ -180,6 +193,7 @@ Quality improvements:
 ### 1. `.github/copilot-config.yaml` ✅
 
 Added new `mail:` section:
+
 - Development configuration (Mailpit)
 - Patterns for Mailables and templates
 - Security rules
@@ -189,6 +203,7 @@ Added new `mail:` section:
 ### 2. `.github/copilot-instructions.md` ✅
 
 Added Mail System section with:
+
 - Mailpit access URL
 - Queue-based pattern
 - Security guidelines
@@ -198,6 +213,7 @@ Added Mail System section with:
 ### 3. `.env.example` ✅
 
 Updated mail configuration:
+
 - Correct Mailpit SMTP settings
 - Professional from address (`noreply@secpal.app`)
 - Queue connection set to `database`
@@ -293,6 +309,7 @@ Updated mail configuration:
 ### 1. Incremental Improvements Work 📈
 
 Phase 1 → Phase 2 showed:
+
 - 71% reduction in documentation gaps
 - 100% elimination of critical gaps
 - Consistent implementation time
@@ -303,6 +320,7 @@ Phase 1 → Phase 2 showed:
 ### 2. YAML Configuration is Effective 🎯
 
 Adding Mail section to YAML config:
+
 - Took < 20 minutes
 - Provided clear patterns
 - Will prevent future gaps
@@ -313,6 +331,7 @@ Adding Mail section to YAML config:
 ### 3. TDD + Security Review = Robust Code 🛡️
 
 Phase 2 had:
+
 - 0 security vulnerabilities
 - 0 critical bugs
 - 100% test coverage
@@ -323,6 +342,7 @@ Phase 2 had:
 ### 4. Documentation Gaps Compound 📚
 
 Phase 1 gaps (DDEV, GDPR, Pest):
+
 - Fixed once, helped forever
 - Phase 2 didn't hit same issues
 - New developers will benefit
