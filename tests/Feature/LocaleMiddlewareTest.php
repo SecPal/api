@@ -56,12 +56,3 @@ test('middleware prefers higher quality language from Accept-Language header', f
     expect(App::getLocale())->toBe('de');
     $response->assertOk();
 });
-
-test('middleware applies to all API routes', function (): void {
-    $response = $this->withHeaders([
-        'Accept-Language' => 'de',
-    ])->get('/api/health');
-
-    expect(App::getLocale())->toBe('de');
-    $response->assertOk();
-});

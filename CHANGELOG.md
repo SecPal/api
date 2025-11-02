@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SetLocaleFromHeader` middleware for Accept-Language header detection
 - Automatic locale switching based on HTTP Accept-Language header
 - Support for multi-language API responses (English, German)
-- 7 comprehensive tests for locale middleware functionality
+- 6 comprehensive tests for locale middleware functionality
 - Translation.io integration for multi-language support (en, de)
 - Configuration file `config/translation.php` for Translation.io
 - `TRANSLATIONIO_KEY` environment variable for API key management
