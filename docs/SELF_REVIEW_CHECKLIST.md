@@ -27,11 +27,22 @@ This checklist ensures code quality and consistency **before** creating a PR.
   ddev exec vendor/bin/pint --test
   ```
 
+  ⚠️ **CRITICAL:** ALWAYS run `--test` FIRST to check for issues!
+
   If fails, auto-fix with:
 
   ```bash
   ddev exec vendor/bin/pint
   ```
+
+  Then verify fix with `--test` again:
+
+  ```bash
+  ddev exec vendor/bin/pint --test
+  ```
+
+  **Why:** Running `pint` without `--test` auto-fixes issues locally but hides them.
+  CI uses `--test` (check-only), so local auto-fix creates false confidence!
 
 - [ ] **REUSE compliance passes**
 
@@ -244,6 +255,11 @@ cat database/factories/UserFactory.php
 7. ❌ **Comments not matching code**
    - Fix: Review all comments for technical accuracy
    - Example: `throttle:5,60` = "5 per 60 minutes", not "per hour"
+
+8. ❌ **Running `pint` without `--test` first**
+   - Fix: ALWAYS run `pint --test` before auto-fix
+   - Reason: Auto-fix hides issues that CI will catch
+   - CI uses `--test` (check-only), creating false confidence if you only auto-fix locally
 
 ---
 
