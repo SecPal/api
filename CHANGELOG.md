@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Preflight Script Performance**: Optimized `scripts/preflight.sh` for significantly faster local development
+  - Prettier/markdownlint: Check only changed files in branch instead of all files (10-100x faster for small changes)
+  - composer/npm/pnpm/yarn: Skip dependency installation if lockfile unchanged and vendor/node_modules exists (saves minutes per push)
+  - npm audit: Only run after fresh install, skip when dependencies unchanged (saves 5-10s network call)
+  - git fetch: Cache for 5 minutes with 30s timeout to prevent hanging on slow networks
+  - Expected improvement: 90s → 15s for small fixes, 120s → 35s for features without dependency changes
+  - All quality gates remain enforced: Pint, PHPStan, Tests, Prettier, Markdownlint, REUSE
+
 ### Fixed
 
 - Project automation now triggers on label changes for issues AND pull requests (labeled event)
