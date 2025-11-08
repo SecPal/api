@@ -89,15 +89,8 @@ class User extends Authenticatable
                 'updated_at',
             ])
             ->where(function ($query) {
-                // Only return currently active roles by default
-                $now = now();
-                $query->where(function ($q) use ($now) {
-                    $q->whereNull('model_has_roles.valid_from')
-                        ->orWhere('model_has_roles.valid_from', '<=', $now);
-                })->where(function ($q) use ($now) {
-                    $q->whereNull('model_has_roles.valid_until')
-                        ->orWhere('model_has_roles.valid_until', '>', $now);
-                });
+                // Only return currently active roles using shared filtering logic
+                TemporalRoleUser::applyActiveFilter($query, 'model_has_roles.');
             });
     }
 }
