@@ -44,3 +44,6 @@ parameters:
         -
             message: '#Method App\\Models\\Person::tenantKey\(\) should return .* but returns .*#'
             path: app/Models/Person.php
+        -
+            message: '#Method App\\Models\\RoleAssignmentLog::(user|role|assignedBy)\(\) should return .* but returns .*#'
+            path: app/Models/RoleAssignmentLog.php

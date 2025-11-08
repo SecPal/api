@@ -93,6 +93,8 @@ class RoleAssignmentLog extends Model
 
     /**
      * Get the user who received the role assignment.
+     *
+     * @return BelongsTo<User, RoleAssignmentLog>
      */
     public function user(): BelongsTo
     {
@@ -101,6 +103,8 @@ class RoleAssignmentLog extends Model
 
     /**
      * Get the role that was assigned/revoked.
+     *
+     * @return BelongsTo<Role, RoleAssignmentLog>
      */
     public function role(): BelongsTo
     {
@@ -109,6 +113,8 @@ class RoleAssignmentLog extends Model
 
     /**
      * Get the user who performed the assignment action.
+     *
+     * @return BelongsTo<User, RoleAssignmentLog>
      */
     public function assignedBy(): BelongsTo
     {
