@@ -25,7 +25,6 @@ use Spatie\Permission\Models\Role;
  * @property string|null $assigned_by
  * @property string|null $reason
  * @property \Illuminate\Support\Carbon $created_at
- *
  * @property-read \App\Models\User $user
  * @property-read \Spatie\Permission\Models\Role $role
  * @property-read \App\Models\User|null $assignedBy
@@ -58,18 +57,21 @@ class RoleAssignmentLog extends Model
     ];
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
      */
-    protected $casts = [
-        'valid_from' => 'datetime',
-        'valid_until' => 'datetime',
-        'created_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'valid_from' => 'datetime',
+            'valid_until' => 'datetime',
+            'created_at' => 'datetime',
+        ];
+    }
 
     /**
      * Prevent updates to maintain audit trail integrity.
-     *
-     * @return bool
      */
     public function save(array $options = []): bool
     {
@@ -83,8 +85,6 @@ class RoleAssignmentLog extends Model
 
     /**
      * Prevent deletion to maintain audit trail integrity.
-     *
-     * @return bool
      */
     public function delete(): bool
     {
@@ -121,4 +121,3 @@ class RoleAssignmentLog extends Model
         return $this->belongsTo(User::class, 'assigned_by');
     }
 }
-
