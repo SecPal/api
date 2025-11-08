@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **RBAC Phase 2 Part 1: Audit Trail Infrastructure** - Immutable log for role assignment actions (#106)
+  - `role_assignments_log` table migration with UUID primary key and bigInteger foreign keys
+  - `RoleAssignmentLog` model with read-only enforcement (prevents updates and deletes)
+  - Action types: `assigned`, `revoked`, `expired`, `extended`
+  - Relationships to User (recipient), Role, and User (assigner)
+  - Temporal validity tracking (`valid_from`, `valid_until`) copied from assignments
+  - Comprehensive test suite (6 tests): creation, read-only behavior, relationships
+  - Prepares foundation for automatic role expiration command (Phase 2 Part 2)
+
 ### Fixed
 
 - **RBAC Phase 1 Post-Merge Fixes** - Addressed Copilot review comments from PR #112
