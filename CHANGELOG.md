@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **RBAC Phase 2: Temporal Logic & Auto-Expiration** - Automatic expiration of time-limited role assignments (#106)
+  - `roles:expire` scheduled command runs every minute to revoke expired roles
+  - Only processes roles with `auto_revoke=true` flag set
+  - Logs all expirations to immutable `role_assignments_log` audit trail before deletion
+  - Transaction-based processing ensures data integrity (log → delete)
+  - Comprehensive test suite (10 tests): expiration logic, audit logging, timezone handling, batch processing
+  - Scheduler configuration in `routes/console.php` for automatic execution
+  - PHPDoc annotations for pivot model properties (PHPStan compliance)
+  - Database constraint fix: `assigned_by` column type changed from UUID to bigInteger (matches User table)
 - **RBAC Phase 2 Part 1: Audit Trail Infrastructure** - Immutable log for role assignment actions (#106)
   - `role_assignments_log` table migration with UUID primary key and bigInteger foreign keys
   - `RoleAssignmentLog` model with read-only enforcement (prevents updates and deletes)

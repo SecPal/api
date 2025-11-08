@@ -24,7 +24,7 @@ return new class extends Migration
             $table->boolean('auto_revoke')->default(true)->after('valid_until');
 
             // Audit trail columns
-            $table->uuid('assigned_by')->nullable()->after('auto_revoke');
+            $table->foreignId('assigned_by')->nullable()->after('auto_revoke')->constrained('users')->onDelete('set null');
             $table->text('reason')->nullable()->after('assigned_by');
 
             // Standard timestamps

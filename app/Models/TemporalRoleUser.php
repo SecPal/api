@@ -20,10 +20,14 @@ use Illuminate\Database\Eloquent\Relations\MorphPivot;
  * Extends Spatie's model_has_roles pivot table with temporal validity periods
  * and audit trail capabilities for time-limited role assignments.
  *
+ * @property int $role_id
+ * @property string $model_type
+ * @property int $model_id
+ * @property int $tenant_id
  * @property \Carbon\Carbon|null $valid_from
  * @property \Carbon\Carbon|null $valid_until
  * @property bool $auto_revoke
- * @property string|null $assigned_by
+ * @property int|null $assigned_by
  * @property string|null $reason
  */
 class TemporalRoleUser extends MorphPivot
