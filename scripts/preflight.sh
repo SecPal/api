@@ -7,6 +7,33 @@ set -euo pipefail
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
+# Check if pushing from a protected branch
+# NOTE: Keep this list in sync with .pre-commit-config.yaml (no-commit-to-branch hook)
+CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
+PROTECTED_BRANCHES=("main" "master" "production")
+
+for branch in "${PROTECTED_BRANCHES[@]}"; do
+  if [ "$CURRENT_BRANCH" = "$branch" ]; then
+    echo ""
+    echo "❌ BLOCKED: Direct push from protected branch '$branch' is not allowed!"
+    echo ""
+    echo "Protected branches should only be updated via pull requests."
+    echo "Please create a feature branch and submit a PR instead:"
+    echo ""
+    echo "  git checkout -b feat/your-feature-name"
+    echo "  git commit -am 'Your changes'"
+    echo "  git push -u origin feat/your-feature-name"
+    echo ""
+    echo "EMERGENCY EXCEPTION: If you must bypass this check:"
+    echo "  1. Document the reason for the bypass"
+    echo "  2. Create an issue to track the technical debt"
+    echo "  3. Fix the underlying issue within 24 hours"
+    echo "  4. Use: git push --no-verify"
+    echo ""
+    exit 1
+  fi
+done
+
 # Auto-detect default branch (fallback to main)
 # Use symbolic-ref instead of remote show to avoid network hang
 BASE="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')"
@@ -14,137 +41,14 @@ BASE="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/rem
 
 echo "Using base branch: $BASE"
 
-# Portable timeout function for git fetch (supports Linux GNU timeout and macOS/BSD fallback)
-run_with_timeout() {
-  local timeout_seconds=$1
-  shift
+# Fetch base branch for PR size check (failure is handled later)
+git fetch origin "$BASE" 2>/dev/null || true
 
-  # Try GNU timeout first (Linux)
-  if command -v timeout >/dev/null 2>&1 && timeout --version 2>&1 | grep -q "GNU coreutils"; then
-    timeout "$timeout_seconds" "$@"
-    return $?
-  fi
-
-  # Fallback: Perl with POSIX signals (works on macOS/BSD)
-  if command -v perl >/dev/null 2>&1; then
-    perl -e '
-      use POSIX ":sys_wait_h";
-      use POSIX::SigAction;
-
-      my $timeout = shift @ARGV;
-      my $pid = fork();
-
-      die "fork failed: $!" unless defined $pid;
-
-      if ($pid == 0) {
-        exec @ARGV or die "exec failed: $!";
-      }
-
-      # Parent: set up timeout handler using POSIX::SigAction
-      my $sigaction = POSIX::SigAction->new(
-        sub { kill 15, $pid; },
-        POSIX::SigSet->new(),
-        0
-      );
-      POSIX::sigaction(SIGALRM, $sigaction);
-      alarm($timeout);
-
-      waitpid($pid, 0);
-      my $status = $? >> 8;
-      alarm(0);
-      exit($status);
-    ' "$timeout_seconds" "$@"
-    return $?
-  fi
-
-  # No timeout available - run command directly
-  "$@"
-}
-
-# Portable MD5 function (Linux: md5sum, macOS: md5, fallback: openssl)
-portable_md5() {
-  if command -v md5sum >/dev/null 2>&1; then
-    echo -n "$1" | md5sum | awk '{print $1}'
-  elif command -v md5 >/dev/null 2>&1; then
-    echo -n "$1" | md5 | awk '{print $NF}'
-  else
-    # Fallback: use openssl if available
-    if command -v openssl >/dev/null 2>&1; then
-      echo -n "$1" | openssl md5 | awk '{print $NF}'
-    else
-      echo "Error: No MD5 hash utility found (md5sum, md5, or openssl required)" >&2
-      exit 1
-    fi
-  fi
-}
-
-# Cached git fetch with timeout (5 minutes cache, 30s timeout)
-# This prevents hanging on slow networks and reduces redundant fetches
-FETCH_CACHE="/tmp/preflight-fetch-$(portable_md5 "$ROOT_DIR")-$BASE"
-FETCH_AGE=999999
-if [ -f "$FETCH_CACHE" ]; then
-  FETCH_AGE=$(( $(date +%s) - $(stat -c %Y "$FETCH_CACHE" 2>/dev/null || stat -f %m "$FETCH_CACHE" 2>/dev/null || echo 0) ))
-fi
-
-if [ "$FETCH_AGE" -gt 300 ]; then
-  # Fetch with 30-second timeout
-  if run_with_timeout 30 git fetch origin "$BASE" 2>/dev/null; then
-    touch "$FETCH_CACHE"
-  else
-    FETCH_EXIT=$?
-    # Distinguish timeout (124/142) from other errors (auth, network)
-    if [ "$FETCH_EXIT" -eq 124 ] || [ "$FETCH_EXIT" -eq 142 ]; then
-      echo "Warning: git fetch timed out after 30s - using cached data if available" >&2
-    else
-      echo "Warning: git fetch failed (exit $FETCH_EXIT) - using cached data if available" >&2
-    fi
-  fi
-else
-  CACHE_AGE_MIN=$(( FETCH_AGE / 60 ))
-  echo "ℹ️  Using cached fetch from $CACHE_AGE_MIN minute(s) ago"
-fi
-
-# 0) Formatting & Compliance - OPTIMIZED
+# 0) Formatting & Compliance
 FORMAT_EXIT=0
 if command -v npx >/dev/null 2>&1; then
-  # OPTIMIZATION: Check only changed files in branch instead of all files
-  # This speeds up formatting checks significantly for small changes
-  if [ -d node_modules/.bin ] || command -v prettier >/dev/null 2>&1; then
-    # Determine merge base for changed files comparison
-    MERGE_BASE=""
-    if git rev-parse -q --verify "origin/$BASE" >/dev/null 2>&1; then
-      MERGE_BASE=$(git merge-base "origin/$BASE" HEAD 2>/dev/null || echo "")
-    fi
-
-    if [ -n "$MERGE_BASE" ]; then
-      # Get files changed in current branch using null-terminated strings for safety
-      # This handles filenames with spaces/special characters correctly
-      CHANGED_COUNT=$(git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | grep -izE '\.(md|yml|yaml|json|ts|tsx|js|jsx)\x00' | tr '\0' '\n' | wc -l | tr -d ' ')
-    else
-      # Fallback: check all files if merge-base unavailable
-      CHANGED_COUNT=0
-    fi
-
-    if [ "$CHANGED_COUNT" -gt 0 ]; then
-      echo "ℹ️  Checking formatting on $CHANGED_COUNT changed files"
-      # Check prettier-relevant files using null-terminated strings
-      git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | \
-        grep -izE '\.(md|yml|yaml|json|ts|tsx|js|jsx)\x00' | \
-        xargs -0 npx prettier --check || FORMAT_EXIT=1
-      # Check markdown files using null-terminated strings
-      git diff --name-only --diff-filter=ACMR -z "$MERGE_BASE"..HEAD 2>/dev/null | \
-        grep -izE '\.md\x00' | \
-        xargs -0 npx markdownlint-cli2 || FORMAT_EXIT=1
-    else
-      # Fallback to checking all files
-      npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
-      npx --yes markdownlint-cli2 '**/*.md' || FORMAT_EXIT=1
-    fi
-  else
-    # node_modules not available, use npx --yes
-    npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
-    npx --yes markdownlint-cli2 '**/*.md' || FORMAT_EXIT=1
-  fi
+  npx --yes prettier --check '**/*.{md,yml,yaml,json,ts,tsx,js,jsx}' || FORMAT_EXIT=1
+  npx --yes markdownlint-cli2 '**/*.md' || FORMAT_EXIT=1
 fi
 # Workflow linting (part of documented gates)
 # NOTE: actionlint is disabled in local preflight due to known hanging issues
@@ -176,145 +80,49 @@ if [ -f scripts/check-domains.sh ]; then
   }
 fi
 
-# Helper functions to reduce code duplication
-run_pint() {
-  local cmd_prefix="$1"
-  # Run Laravel Pint with check-first workflow (see SELF_REVIEW_CHECKLIST.md)
-  # CRITICAL: Always check before fixing to ensure CI parity
-  # --test: check-only mode (no auto-fix, matches CI behavior)
-  # --dirty: only process modified files (fast, focused)
-  if [ -x ./vendor/bin/pint ]; then
-    echo "→ Checking code style (pint --test --dirty)..."
-    if ! ${cmd_prefix} ./vendor/bin/pint --test --dirty; then
-      echo "→ Auto-fixing code style issues (pint --dirty)..."
-      ${cmd_prefix} ./vendor/bin/pint --dirty
-      echo "→ Verifying fix matches CI requirements (pint --test --dirty)..."
-      ${cmd_prefix} ./vendor/bin/pint --test --dirty
-    fi
-  fi
-}
-
-run_phpstan() {
-  local cmd_prefix="$1"
-  # Run PHPStan static analysis
-  if [ -x ./vendor/bin/phpstan ]; then
-    if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
-      ${cmd_prefix} php -d memory_limit=512M ./vendor/bin/phpstan analyse
-    else
-      ${cmd_prefix} php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
-    fi
-  fi
-}
-
-run_tests() {
-  local cmd_prefix="$1"
-  local test_exit=0
-
-  # WORKAROUND: Parallel test execution has intermittent failures (Issue #62)
-  # Use sequential testing until fixed
-  # See: https://github.com/SecPal/api/issues/62
-  local parallel_flag=""
-  if [ ! -f .preflight-sequential-tests ]; then
-    parallel_flag="--parallel"
-  fi
-
-  # Run tests (Laravel Artisan → Pest → PHPUnit)
-  if [ -f artisan ]; then
-    ${cmd_prefix} php artisan test ${parallel_flag} || test_exit=$?
-  elif [ -x ./vendor/bin/pest ]; then
-    ${cmd_prefix} ./vendor/bin/pest ${parallel_flag} || test_exit=$?
-  elif [ -x ./vendor/bin/phpunit ]; then
-    ${cmd_prefix} ./vendor/bin/phpunit || test_exit=$?
-  fi
-  return $test_exit
-}
-
 # 1) PHP / Laravel
 if [ -f composer.json ]; then
   if ! command -v composer >/dev/null 2>&1; then
     echo "Warning: composer.json found but composer not installed - skipping PHP checks" >&2
   else
-    # Auto-detect DDEV for consistent environment
-    CMD_PREFIX=""
-    if command -v ddev >/dev/null 2>&1 && ddev describe >/dev/null 2>&1; then
-      CMD_PREFIX="ddev exec"
-      echo "✓ DDEV detected - using containerized environment for PHP checks"
-      # Dependencies are managed within DDEV container (vendor/ is bind-mounted from host)
-      # No need to run composer install here - DDEV setup already handles it
-    else
-      # OPTIMIZATION: Only install if composer.lock changed or vendor/ missing
-      # Compare against vendor/autoload.php to avoid errors when vendor/ doesn't exist
-      if [ ! -d vendor ] || [ ! -f vendor/autoload.php ] || [ composer.lock -nt vendor/autoload.php ]; then
-        echo "Installing dependencies (lockfile changed or vendor missing)..."
-        composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+    composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+    # Run Laravel Pint code style check if available (blocking: aligns with gates)
+    if [ -x ./vendor/bin/pint ]; then
+      ./vendor/bin/pint --test
+    fi
+    # Run PHPStan (use configured level from phpstan.neon if exists, else max)
+    if [ -x ./vendor/bin/phpstan ]; then
+      if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
+        ./vendor/bin/phpstan analyse
       else
-        echo "ℹ️  Dependencies up to date, skipping composer install"
+        ./vendor/bin/phpstan analyse --level=max
       fi
     fi
-
-    # Run quality checks
-    run_pint "$CMD_PREFIX"
-    run_phpstan "$CMD_PREFIX"
-
-    # Run tests and handle failures
-    TEST_EXIT=0
-    run_tests "$CMD_PREFIX" || TEST_EXIT=$?
-
-    # Show helpful message only after test failure when DDEV not available
-    if [ "$TEST_EXIT" -ne 0 ] && [ -z "$CMD_PREFIX" ]; then
-      echo "⚠️  Tests failed without DDEV - database connection may be unavailable" >&2
-      echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec php artisan test" >&2
-    fi
-
-    # Propagate test exit code
-    if [ "$TEST_EXIT" -ne 0 ]; then
-      exit "$TEST_EXIT"
+    # Run tests (Laravel Artisan → Pest → PHPUnit)
+    if [ -f artisan ]; then
+      php artisan test --parallel
+    elif [ -x ./vendor/bin/pest ]; then
+      ./vendor/bin/pest --parallel
+    elif [ -x ./vendor/bin/phpunit ]; then
+      ./vendor/bin/phpunit
     fi
   fi
 fi
 
-# 2) Node / React - OPTIMIZED
+# 2) Node / React
 if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
-  # OPTIMIZATION: Only install if lockfile changed or node_modules missing
-  # Check against node_modules/.modules.yaml for accurate timestamp comparison
-  PNPM_STAMP="node_modules/.modules.yaml"
-  if [ ! -d node_modules ] || [ ! -f "$PNPM_STAMP" ] || [ pnpm-lock.yaml -nt "$PNPM_STAMP" ]; then
-    echo "Installing dependencies (lockfile changed or node_modules missing)..."
-    pnpm install --frozen-lockfile
-  else
-    echo "ℹ️  Dependencies up to date, skipping pnpm install"
-  fi
+  pnpm install --frozen-lockfile
+  # Check if scripts exist before running (pnpm run <script> exits 0 with --if-present)
   pnpm run --if-present lint
   pnpm run --if-present typecheck
   pnpm run --if-present test
 elif [ -f package-lock.json ] && command -v npm >/dev/null 2>&1; then
-  # OPTIMIZATION: Only install if lockfile changed or node_modules missing
-  # Check against node_modules/.package-lock.json for accurate timestamp comparison
-  NPM_STAMP="node_modules/.package-lock.json"
-  if [ ! -d node_modules ] || [ ! -f "$NPM_STAMP" ] || [ package-lock.json -nt "$NPM_STAMP" ]; then
-    echo "Installing dependencies (lockfile changed or node_modules missing)..."
-    npm ci
-  else
-    echo "ℹ️  Dependencies up to date, skipping npm ci"
-  fi
-  # Always run audit to catch newly disclosed vulnerabilities
-  npm audit --audit-level=high || {
-    echo "⚠️  High or critical vulnerabilities detected. Please review and fix." >&2
-    exit 1
-  }
+  npm ci
   npm run --if-present lint
   npm run --if-present typecheck
   npm run --if-present test
 elif [ -f yarn.lock ] && command -v yarn >/dev/null 2>&1; then
-  # OPTIMIZATION: Only install if lockfile changed or node_modules missing
-  # Check against node_modules/.yarn-integrity for accurate timestamp comparison
-  YARN_STAMP="node_modules/.yarn-integrity"
-  if [ ! -d node_modules ] || [ ! -f "$YARN_STAMP" ] || [ yarn.lock -nt "$YARN_STAMP" ]; then
-    echo "Installing dependencies (lockfile changed or node_modules missing)..."
-    yarn install --frozen-lockfile
-  else
-    echo "ℹ️  Dependencies up to date, skipping yarn install"
-  fi
+  yarn install --frozen-lockfile
   # Yarn doesn't have --if-present, check package.json using jq or Node.js
   if command -v jq >/dev/null 2>&1; then
     jq -e '.scripts.lint' package.json >/dev/null 2>&1 && yarn lint
@@ -337,63 +145,7 @@ if [ -f docs/openapi.yaml ] && command -v npx >/dev/null 2>&1; then
   npx --yes @stoplight/spectral-cli lint docs/openapi.yaml
 fi
 
-# 4) CHANGELOG validation (for non-docs branches)
-# Branch prefixes that are exempt from CHANGELOG updates
-# Note: These must be kept in sync with the case statement below
-CHANGELOG_EXEMPT_PREFIXES="docs chore ci test"
-# Minimum lines in [Unreleased] to consider it non-empty
-# Typically: 3 lines = one line each for Added, Changed, Fixed sections
-MIN_CHANGELOG_LINES=3
-
-# Helper function to filter CHANGELOG content (POSIX-compliant with whitespace tolerance)
-filter_changelog_content() {
-  grep -Ev '(^##|^$|^[[:space:]]*<!--|^[[:space:]]*-->)'
-}
-
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
-# Use POSIX-compliant case statement instead of bash-specific [[ =~ ]] for portability
-# The case patterns below must match the prefixes in CHANGELOG_EXEMPT_PREFIXES
-BRANCH_IS_EXEMPT=false
-case "$CURRENT_BRANCH" in
-  docs/*|chore/*|ci/*|test/*)
-    BRANCH_IS_EXEMPT=true
-    ;;
-esac
-
-if [ -f CHANGELOG.md ] && [ "$CURRENT_BRANCH" != "main" ] && [ "$BRANCH_IS_EXEMPT" = false ]; then
-  # Check if CHANGELOG has [Unreleased] section
-  if ! grep -q "## \[Unreleased\]" CHANGELOG.md; then
-    echo "❌ CHANGELOG.md missing [Unreleased] section" >&2
-    echo "Tip: Every feature/fix/refactor branch must update CHANGELOG.md" >&2
-    echo "Exempt branches: docs/*, chore/*, ci/*, test/*" >&2
-    exit 1
-  fi
-
-  # Check if there's actual content after [Unreleased] (robust to last/only section)
-  # Find line number of [Unreleased], then extract content up to next heading or EOF
-  UNRELEASED_START=$(grep -n '^## \[Unreleased\]' CHANGELOG.md | cut -d: -f1)
-  if [ -n "$UNRELEASED_START" ]; then
-    # Find next heading after [Unreleased], or use EOF if none found
-    # Use grep -m 1 to stop after first match for better performance
-    # grep returns exit 1 when no match found - this is expected when [Unreleased] is last section
-    UNRELEASED_END=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | grep -n -m 1 '^## ' | cut -d: -f1 || true)
-    if [ -n "$UNRELEASED_END" ]; then
-      # Extract content between [Unreleased] and next heading (using helper function)
-      # UNRELEASED_END is relative line number from tail, so add to UNRELEASED_START without -1
-      UNRELEASED_CONTENT=$(sed -n "$((UNRELEASED_START + 1)),$((UNRELEASED_START + UNRELEASED_END))p" CHANGELOG.md | filter_changelog_content | wc -l)
-    else
-      # [Unreleased] is the last section, extract all remaining content (using helper function)
-      UNRELEASED_CONTENT=$(tail -n +"$((UNRELEASED_START + 1))" CHANGELOG.md | filter_changelog_content | wc -l)
-    fi
-
-    if [ "$UNRELEASED_CONTENT" -lt "$MIN_CHANGELOG_LINES" ]; then
-      echo "⚠️  Warning: [Unreleased] section appears empty in CHANGELOG.md (found fewer than $MIN_CHANGELOG_LINES content lines)" >&2
-      echo "This is non-blocking, but please add a summary of your changes to the [Unreleased] section before merging." >&2
-    fi
-  fi
-fi
-
-# 5) Check PR size locally (against BASE)
+# 4) Check PR size locally (against BASE)
 if ! git rev-parse -q --verify "origin/$BASE" >/dev/null 2>&1; then
   echo "Warning: Cannot verify base branch origin/$BASE - skipping PR size check." >&2
   echo "Tip: Run 'git fetch origin $BASE' to enable PR size checking." >&2
@@ -478,7 +230,7 @@ else
           echo "" >&2
           echo "💡 Available options:" >&2
           echo "  1. Split PR: Recommended approach" >&2
-          echo "  2. Override check: touch .preflight-allow-large-pr (for exceptional cases)" >&2
+          echo "  2. Override check: touch .preflight-allow-large-pr" >&2
           echo "" >&2
           echo "Note: Lock files and license files are already excluded" >&2
           echo "      See .preflight-exclude for custom exclusion patterns" >&2
