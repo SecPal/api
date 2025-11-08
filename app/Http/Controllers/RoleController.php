@@ -48,6 +48,7 @@ class RoleController extends Controller
 
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
+        /** @var int $tenantId */
         $tenantId = $authUser->currentTeam->id ?? 1;
 
         DB::transaction(function () use ($user, $role, $validFrom, $validUntil, $request, $tenantId, $authUser) {
@@ -98,6 +99,7 @@ class RoleController extends Controller
     {
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
+        /** @var int $tenantId */
         $tenantId = $authUser->currentTeam->id ?? 1;
 
         $roleAssignments = TemporalRoleUser::where('model_id', $id)
@@ -112,9 +114,10 @@ class RoleController extends Controller
 
             // Get role name from role_id
             $role = Role::find($assignment->role_id);
+            $roleName = $role instanceof Role ? $role->name : 'unknown';
 
             return [
-                'role' => $role?->name ?? 'unknown',
+                'role' => $roleName,
                 'valid_from' => $assignment->valid_from?->toIso8601String(),
                 'valid_until' => $assignment->valid_until?->toIso8601String(),
                 'is_active' => $isActive,
@@ -139,6 +142,7 @@ class RoleController extends Controller
 
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
+        /** @var int $tenantId */
         $tenantId = $authUser->currentTeam->id ?? 1;
 
         // Check if role is assigned
@@ -185,6 +189,7 @@ class RoleController extends Controller
 
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
+        /** @var int $tenantId */
         $tenantId = $authUser->currentTeam->id ?? 1;
 
         // Find assignment
