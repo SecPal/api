@@ -12,6 +12,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **RBAC Phase 1: Temporal Role Foundation** - Time-based role assignments with automatic expiration
+  - `TemporalRoleUser` custom MorphPivot model for `model_has_roles` table
+  - Temporal validity columns (`valid_from`, `valid_until`, `auto_revoke`) with migration
+  - Query scopes `active()` and `expired()` for filtering roles by time
+  - Helper methods `isActive()` and `isExpired()` on pivot model
+  - Audit trail support (`assigned_by`, `reason`) for role assignments
+  - User model override of `roles()` relationship with automatic temporal filtering
+  - Shared filtering logic via `applyActiveFilter()` method (DRY principle)
+  - See ADR-004 for architecture decision and Phase 2-4 roadmap
+- **Tenant-Aware Temporal Role Tests** - Comprehensive test suite for RBAC Phase 1 (Issue #110)
+  - 12 test cases covering temporal filtering, query scopes, helper methods, and auto-revoke logic
+  - Proper multi-tenancy support with `setPermissionsTeamId()` context
+  - UUID handling for `assigned_by` foreign key constraint
+  - Test coverage: Temporal filtering (5 tests), Query scopes (2 tests), Helper methods (4 tests), Auto-revoke (1 test)
+  - Resolves TDD compliance requirement for PR #109
+
 ### Changed
 
 - **Preflight Script Performance**: Optimized `scripts/preflight.sh` for significantly faster local development
