@@ -6,29 +6,41 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-use App\Models\Tenant;
+use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
 
 describe('TemporalRoleUser Pivot Model', function () {
     beforeEach(function () {
-        // Create tenant with keys for multi-tenancy support
-        $this->tenant = Tenant::factory()->create();
+        // Use process-specific KEK file for parallel test isolation
+        TenantKey::setKekPath(getTestKekPath());
+        TenantKey::generateKek();
+        $keys = TenantKey::generateEnvelopeKeys();
+        $this->tenant = TenantKey::create($keys);
 
-        // Set tenant context for Spatie Permission
-        setPermissionsTeamId($this->tenant->id);
+        // Get Permission Registrar for tenant context management
+        $this->registrar = app(PermissionRegistrar::class);
+        $this->registrar->setPermissionsTeamId($this->tenant->id);
 
-        // Create user with tenant context
-        $this->user = User::factory()->create([
-            'tenant_id' => $this->tenant->id,
-        ]);
+        // Create user (no tenant_id column in users table)
+        $this->user = User::factory()->create();
 
         // Create roles within tenant context
         $this->managerRole = Role::create(['name' => 'manager']);
         $this->guardRole = Role::create(['name' => 'guard']);
+    });
+
+    afterEach(function () {
+        // Reset tenant context after each test
+        $this->registrar->setPermissionsTeamId(null);
+
+        // Cleanup test KEK file
+        cleanupTestKekFile();
+        TenantKey::setKekPath(null);
     });
 
     describe('Temporal Filtering', function () {
@@ -36,13 +48,11 @@ describe('TemporalRoleUser Pivot Model', function () {
             $validFrom = now()->subHour();
             $validUntil = now()->addHour();
 
-            $this->user->roles()->attach($this->managerRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            // Assign temporal role using test helper
+            assignTemporalRole($this->user, $this->managerRole, $this->tenant->id, [
                 'valid_from' => $validFrom,
                 'valid_until' => $validUntil,
-                'auto_revoke' => true,
-                'assigned_by' => $this->user->id,
+                'assigned_by' => null,
                 'reason' => 'Test temporal assignment',
             ]);
 
@@ -50,18 +60,17 @@ describe('TemporalRoleUser Pivot Model', function () {
 
             expect($roles)->toHaveCount(1);
             expect($roles->first()->id)->toBe($this->managerRole->id);
-            expect($roles->first()->pivot->valid_from->equalTo($validFrom))->toBeTrue();
-            expect($roles->first()->pivot->valid_until->equalTo($validUntil))->toBeTrue();
+            
+            // Compare timestamps (ignore microseconds)
+            expect($roles->first()->pivot->valid_from->toDateTimeString())->toBe($validFrom->toDateTimeString());
+            expect($roles->first()->pivot->valid_until->toDateTimeString())->toBe($validUntil->toDateTimeString());
         });
 
         it('filters out future roles (valid_from > now)', function () {
             // Assign future role
-            $this->user->roles()->attach($this->managerRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            assignTemporalRole($this->user, $this->managerRole, $this->tenant->id, [
                 'valid_from' => now()->addDay(),
                 'valid_until' => now()->addDays(2),
-                'auto_revoke' => true,
             ]);
 
             // User's roles() relationship should filter out future roles
@@ -72,12 +81,9 @@ describe('TemporalRoleUser Pivot Model', function () {
 
         it('filters out expired roles (valid_until < now)', function () {
             // Assign expired role
-            $this->user->roles()->attach($this->managerRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            assignTemporalRole($this->user, $this->managerRole, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
-                'auto_revoke' => true,
             ]);
 
             // User's roles() relationship should filter out expired roles
@@ -88,12 +94,9 @@ describe('TemporalRoleUser Pivot Model', function () {
 
         it('includes currently active roles (valid_from <= now <= valid_until)', function () {
             // Assign active role
-            $this->user->roles()->attach($this->managerRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            assignTemporalRole($this->user, $this->managerRole, $this->tenant->id, [
                 'valid_from' => now()->subHour(),
                 'valid_until' => now()->addHour(),
-                'auto_revoke' => true,
             ]);
 
             $roles = $this->user->roles()->get();
@@ -104,63 +107,46 @@ describe('TemporalRoleUser Pivot Model', function () {
 
         it('includes permanent roles (no temporal bounds)', function () {
             // Assign permanent role (no valid_from/valid_until)
-            $this->user->roles()->attach($this->guardRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
-                'valid_from' => null,
-                'valid_until' => null,
-                'auto_revoke' => false,
-            ]);
+            assignTemporalRole($this->user, $this->guardRole, $this->tenant->id);
 
             $roles = $this->user->roles()->get();
 
             expect($roles)->toHaveCount(1);
             expect($roles->first()->id)->toBe($this->guardRole->id);
+            expect($roles->first()->pivot->valid_from)->toBeNull();
+            expect($roles->first()->pivot->valid_until)->toBeNull();
         });
     });
 
     describe('Query Scopes', function () {
         it('active() scope returns only active roles', function () {
-            // Create 3 role assignments: future, active, expired
-            $futureRole = Role::create(['name' => 'future-role']);
-            $activeRole = Role::create(['name' => 'active-role']);
-            $expiredRole = Role::create(['name' => 'expired-role']);
+            // Create 3 roles with different temporal states
+            $futureRole = Role::create(['name' => 'future']);
+            $activeRole = Role::create(['name' => 'active']);
+            $expiredRole = Role::create(['name' => 'expired']);
 
-            $this->user->roles()->attach($futureRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            // Assign roles with different temporal states
+            assignTemporalRole($this->user, $futureRole, $this->tenant->id, [
                 'valid_from' => now()->addDay(),
                 'valid_until' => now()->addDays(2),
             ]);
 
-            $this->user->roles()->attach($activeRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            assignTemporalRole($this->user, $activeRole, $this->tenant->id, [
                 'valid_from' => now()->subHour(),
                 'valid_until' => now()->addHour(),
             ]);
 
-            $this->user->roles()->attach($expiredRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            assignTemporalRole($this->user, $expiredRole, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
             ]);
 
-            // Query active roles directly on pivot table
-            $activeAssignments = \DB::table('model_has_roles')
+            // Query using active() scope directly on TemporalRoleUser
+            $activeAssignments = \App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
-                ->where(function ($q) {
-                    $now = now();
-                    $q->where(function ($q) use ($now) {
-                        $q->whereNull('valid_from')
-                            ->orWhere('valid_from', '<=', $now);
-                    })->where(function ($q) use ($now) {
-                        $q->whereNull('valid_until')
-                            ->orWhere('valid_until', '>', $now);
-                    });
-                })
+                ->where('tenant_id', $this->tenant->id)
+                ->active()
                 ->get();
 
             expect($activeAssignments)->toHaveCount(1);
@@ -168,44 +154,40 @@ describe('TemporalRoleUser Pivot Model', function () {
         });
 
         it('expired() scope returns only expired roles (with auto_revoke=true)', function () {
-            // Create expired role with auto_revoke=true
+            // Create expired roles with different auto_revoke settings
             $expiredRoleAutoRevoke = Role::create(['name' => 'expired-auto']);
-            $expiredRoleNoRevoke = Role::create(['name' => 'expired-manual']);
+            $expiredRoleNoRevoke = Role::create(['name' => 'expired-no-revoke']);
             $activeRole = Role::create(['name' => 'active']);
 
-            $this->user->roles()->attach($expiredRoleAutoRevoke->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            // Assign expired role with auto_revoke=true
+            assignTemporalRole($this->user, $expiredRoleAutoRevoke, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
                 'auto_revoke' => true,
             ]);
 
-            $this->user->roles()->attach($expiredRoleNoRevoke->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            // Assign expired role with auto_revoke=false
+            assignTemporalRole($this->user, $expiredRoleNoRevoke, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
                 'auto_revoke' => false,
             ]);
 
-            $this->user->roles()->attach($activeRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            // Assign active role
+            assignTemporalRole($this->user, $activeRole, $this->tenant->id, [
                 'valid_from' => now()->subHour(),
                 'valid_until' => now()->addHour(),
-                'auto_revoke' => true,
             ]);
 
-            // Query expired roles ready for auto-revocation
-            $expiredAssignments = \DB::table('model_has_roles')
+            // Query using expired() scope
+            $expiredAssignments = \App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
-                ->whereNotNull('valid_until')
-                ->where('valid_until', '<=', now())
-                ->where('auto_revoke', true)
+                ->where('tenant_id', $this->tenant->id)
+                ->expired()
                 ->get();
 
+            // Only auto_revoke=true expired roles should be returned
             expect($expiredAssignments)->toHaveCount(1);
             expect($expiredAssignments->first()->role_id)->toBe($expiredRoleAutoRevoke->id);
         });
@@ -213,118 +195,101 @@ describe('TemporalRoleUser Pivot Model', function () {
 
     describe('Helper Methods', function () {
         it('isActive() correctly identifies active assignment', function () {
-            $this->user->roles()->attach($this->managerRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            assignTemporalRole($this->user, $this->managerRole, $this->tenant->id, [
                 'valid_from' => now()->subHour(),
                 'valid_until' => now()->addHour(),
             ]);
 
-            $pivot = \DB::table('model_has_roles')
+            $pivot = \App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
+                ->where('model_type', User::class)
                 ->where('role_id', $this->managerRole->id)
+                ->where('tenant_id', $this->tenant->id)
                 ->first();
 
-            // Manually check active logic
-            $validFromCheck = $pivot->valid_from === null || now()->gte($pivot->valid_from);
-            $validUntilCheck = $pivot->valid_until === null || now()->lt($pivot->valid_until);
-            $isActive = $validFromCheck && $validUntilCheck;
-
-            expect($isActive)->toBeTrue();
+            expect($pivot->isActive())->toBeTrue();
         });
 
         it('isActive() correctly identifies inactive assignment (future)', function () {
-            $this->user->roles()->attach($this->managerRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            assignTemporalRole($this->user, $this->managerRole, $this->tenant->id, [
                 'valid_from' => now()->addDay(),
                 'valid_until' => now()->addDays(2),
             ]);
 
-            $pivot = \DB::table('model_has_roles')
+            $pivot = \App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
+                ->where('model_type', User::class)
                 ->where('role_id', $this->managerRole->id)
+                ->where('tenant_id', $this->tenant->id)
                 ->first();
 
-            // Manually check active logic
-            $validFromCheck = $pivot->valid_from === null || now()->gte($pivot->valid_from);
-            $validUntilCheck = $pivot->valid_until === null || now()->lt($pivot->valid_until);
-            $isActive = $validFromCheck && $validUntilCheck;
-
-            expect($isActive)->toBeFalse();
+            expect($pivot->isActive())->toBeFalse();
         });
 
         it('isExpired() correctly identifies expired assignment', function () {
-            $this->user->roles()->attach($this->managerRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            assignTemporalRole($this->user, $this->managerRole, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
             ]);
 
-            $pivot = \DB::table('model_has_roles')
+            $pivot = \App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
+                ->where('model_type', User::class)
                 ->where('role_id', $this->managerRole->id)
+                ->where('tenant_id', $this->tenant->id)
                 ->first();
 
-            // Manually check expired logic
-            $isExpired = $pivot->valid_until !== null && now()->gte($pivot->valid_until);
-
-            expect($isExpired)->toBeTrue();
+            expect($pivot->isExpired())->toBeTrue();
         });
 
         it('isExpired() correctly identifies non-expired assignment', function () {
-            $this->user->roles()->attach($this->managerRole->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            assignTemporalRole($this->user, $this->managerRole, $this->tenant->id, [
                 'valid_from' => now()->subHour(),
                 'valid_until' => now()->addHour(),
             ]);
 
-            $pivot = \DB::table('model_has_roles')
+            $pivot = \App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
+                ->where('model_type', User::class)
                 ->where('role_id', $this->managerRole->id)
+                ->where('tenant_id', $this->tenant->id)
                 ->first();
 
-            // Manually check expired logic
-            $isExpired = $pivot->valid_until !== null && now()->gte($pivot->valid_until);
-
-            expect($isExpired)->toBeFalse();
+            expect($pivot->isExpired())->toBeFalse();
         });
     });
 
     describe('Auto-Revoke', function () {
         it('respects auto_revoke flag (only auto_revoke=true roles appear in expired() scope)', function () {
-            $role1 = Role::create(['name' => 'auto-revoke-true']);
-            $role2 = Role::create(['name' => 'auto-revoke-false']);
+            // Create two roles with different auto_revoke settings
+            $role1 = Role::create(['name' => 'role-auto-revoke']);
+            $role2 = Role::create(['name' => 'role-no-revoke']);
 
-            $this->user->roles()->attach($role1->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            // Assign expired role with auto_revoke=true
+            assignTemporalRole($this->user, $role1, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
                 'auto_revoke' => true,
             ]);
 
-            $this->user->roles()->attach($role2->id, [
-                'model_type' => User::class,
-                'team_id' => $this->tenant->id,
+            // Assign expired role with auto_revoke=false
+            assignTemporalRole($this->user, $role2, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
                 'auto_revoke' => false,
             ]);
 
-            // Query expired roles with auto_revoke=true
-            $autoRevokeAssignments = \DB::table('model_has_roles')
+            // Use expired() scope to get auto-revoke candidates
+            $autoRevokeAssignments = \App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
-                ->whereNotNull('valid_until')
-                ->where('valid_until', '<=', now())
-                ->where('auto_revoke', true)
+                ->where('tenant_id', $this->tenant->id)
+                ->expired()
                 ->get();
 
             expect($autoRevokeAssignments)->toHaveCount(1);
             expect($autoRevokeAssignments->first()->role_id)->toBe($role1->id);
+            expect($autoRevokeAssignments->first()->auto_revoke)->toBeTrue();
         });
     });
 });

@@ -71,3 +71,29 @@ function givePermissionWithTenant(\App\Models\User $user, int $tenantId, string 
     $user->givePermissionTo($permission);
     $registrar->setPermissionsTeamId(null);
 }
+
+/**
+ * Assign role to user with temporal attributes, bypassing relationship constraints.
+ * Directly inserts into model_has_roles with tenant_id support.
+ */
+function assignTemporalRole(
+    \App\Models\User $user,
+    \Spatie\Permission\Models\Role $role,
+    int $tenantId,
+    array $attributes = []
+): void {
+    $now = now();
+
+    \Illuminate\Support\Facades\DB::table('model_has_roles')->insert(array_merge([
+        'model_type' => get_class($user),
+        'model_id' => $user->id,
+        'role_id' => $role->id,
+        'tenant_id' => $tenantId,
+        'auto_revoke' => true,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ], $attributes));
+
+    // Clear relationship cache
+    $user->unsetRelation('roles');
+}
