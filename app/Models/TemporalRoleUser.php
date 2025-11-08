@@ -91,6 +91,7 @@ class TemporalRoleUser extends MorphPivot
      * Can be used in both pivot queries and relationship queries.
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
      * @param  Builder<TModel>  $query
      * @param  string  $tablePrefix  Optional table prefix (e.g., 'model_has_roles.')
      * @return Builder<TModel>
