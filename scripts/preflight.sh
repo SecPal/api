@@ -84,41 +84,58 @@ if [ -f composer.json ]; then
   if ! command -v composer >/dev/null 2>&1; then
     echo "Warning: composer.json found but composer not installed - skipping PHP checks" >&2
   else
-    composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+    # Auto-detect DDEV for consistent environment
+    CMD_PREFIX=""
+    if command -v ddev >/dev/null 2>&1 && ddev describe >/dev/null 2>&1; then
+      CMD_PREFIX="ddev exec"
+      echo "✓ DDEV detected - using containerized environment for PHP checks"
+    fi
+
+    # Only install dependencies if DDEV not available (DDEV manages its own vendor/)
+    if [ -z "$CMD_PREFIX" ]; then
+      composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+    fi
     # Run Laravel Pint code style check if available (blocking: aligns with gates)
     # Workflow: check → fix if needed → verify (per SELF_REVIEW_CHECKLIST.md)
     if [ -x ./vendor/bin/pint ]; then
       echo "→ Checking code style (pint --test --dirty)..."
-      if ! ./vendor/bin/pint --test --dirty; then
+      if ! ${CMD_PREFIX} ./vendor/bin/pint --test --dirty; then
         echo "→ Auto-fixing code style issues (pint --dirty)..."
-        ./vendor/bin/pint --dirty
+        ${CMD_PREFIX} ./vendor/bin/pint --dirty
         echo "→ Verifying fix matches CI requirements (pint --test --dirty)..."
-        ./vendor/bin/pint --test --dirty
+        ${CMD_PREFIX} ./vendor/bin/pint --test --dirty
       fi
     fi
     # Run PHPStan (use configured level from phpstan.neon if exists, else max)
     if [ -x ./vendor/bin/phpstan ]; then
       if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
-        php -d memory_limit=512M ./vendor/bin/phpstan analyse
+        ${CMD_PREFIX} php -d memory_limit=512M ./vendor/bin/phpstan analyse
       else
-        php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
+        ${CMD_PREFIX} php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
       fi
     fi
     # Run tests (Laravel Artisan → Pest → PHPUnit)
     # Tests may fail locally without database - only warn, don't block
     TEST_EXIT=0
     if [ -f artisan ]; then
-      php artisan test --parallel || TEST_EXIT=$?
+      ${CMD_PREFIX} php artisan test --parallel || TEST_EXIT=$?
     elif [ -x ./vendor/bin/pest ]; then
-      ./vendor/bin/pest --parallel || TEST_EXIT=$?
+      ${CMD_PREFIX} ./vendor/bin/pest --parallel || TEST_EXIT=$?
     elif [ -x ./vendor/bin/phpunit ]; then
-      ./vendor/bin/phpunit || TEST_EXIT=$?
+      ${CMD_PREFIX} ./vendor/bin/phpunit || TEST_EXIT=$?
     fi
-    
+
     if [ "$TEST_EXIT" -ne 0 ]; then
       echo "" >&2
-      echo "⚠️  Tests failed - this may be expected if database is unavailable" >&2
-      echo "CI will run tests in proper environment with database" >&2
+      if [ -z "$CMD_PREFIX" ]; then
+        echo "⚠️  Tests failed - this may be expected if database is unavailable" >&2
+        echo "CI will run tests in proper environment with database" >&2
+        echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec php artisan test" >&2
+      else
+        echo "❌ Tests failed in DDEV environment - this should not happen!" >&2
+        echo "Please fix the failing tests before pushing." >&2
+        exit 1
+      fi
       echo "" >&2
     fi
   fi
