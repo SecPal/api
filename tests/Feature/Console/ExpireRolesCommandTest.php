@@ -247,8 +247,7 @@ describe('roles:expire Command', function () {
 
     it('processes large number of expired roles without memory issues', function () {
         // Create 250 expired roles (chunk size will be 100)
-        for ($i = 0; $i < 250; $i++) {
-            $user = User::factory()->create();
+        User::factory()->count(250)->create()->each(function ($user, $i) {
             assignTemporalRole($user, $this->role, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
@@ -256,7 +255,7 @@ describe('roles:expire Command', function () {
                 'assigned_by' => $this->admin->id,
                 'reason' => "Bulk test {$i}",
             ]);
-        }
+        });
 
         expect(TemporalRoleUser::count())->toBe(250);
 
@@ -295,14 +294,13 @@ describe('roles:expire Command', function () {
 
     it('handles chunk boundaries correctly with exactly 100 roles', function () {
         // Create exactly 100 expired roles (one full chunk)
-        for ($i = 0; $i < 100; $i++) {
-            $user = User::factory()->create();
+        User::factory()->count(100)->create()->each(function ($user) {
             assignTemporalRole($user, $this->role, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
                 'auto_revoke' => true,
             ]);
-        }
+        });
 
         expect(TemporalRoleUser::count())->toBe(100);
 
@@ -316,14 +314,13 @@ describe('roles:expire Command', function () {
 
     it('handles chunk boundaries correctly with 101 roles (two chunks)', function () {
         // Create 101 expired roles (forces two chunks: 100 + 1)
-        for ($i = 0; $i < 101; $i++) {
-            $user = User::factory()->create();
+        User::factory()->count(101)->create()->each(function ($user) {
             assignTemporalRole($user, $this->role, $this->tenant->id, [
                 'valid_from' => now()->subDays(2),
                 'valid_until' => now()->subDay(),
                 'auto_revoke' => true,
             ]);
-        }
+        });
 
         expect(TemporalRoleUser::count())->toBe(101);
 

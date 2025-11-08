@@ -22,6 +22,11 @@ use Illuminate\Support\Facades\DB;
 class ExpireRoles extends Command
 {
     /**
+     * Number of roles to process per transaction batch.
+     */
+    private const CHUNK_SIZE = 100;
+
+    /**
      * The name and signature of the console command.
      */
     protected $signature = 'roles:expire';
@@ -48,8 +53,8 @@ class ExpireRoles extends Command
         foreach ($expired as $assignment) {
             $chunk[] = $assignment;
 
-            // Process in batches of 100 for optimal transaction performance
-            if (count($chunk) >= 100) {
+            // Process in batches for optimal transaction performance
+            if (count($chunk) >= self::CHUNK_SIZE) {
                 $count += $this->processChunk($chunk);
                 $chunk = [];
             }
