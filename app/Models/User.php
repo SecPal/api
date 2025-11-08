@@ -80,6 +80,7 @@ class User extends Authenticatable
         )
             ->using(TemporalRoleUser::class)
             ->withPivot([
+                'tenant_id',
                 'valid_from',
                 'valid_until',
                 'auto_revoke',
