@@ -36,12 +36,12 @@ class RoleController extends Controller
     public function store(AssignRoleRequest $request, int $id): JsonResponse
     {
         $user = User::findOrFail($id);
-        $role = Role::where('name', $request->input('role'))->firstOrFail();
+        $role = Role::where('name', (string) $request->input('role'))->firstOrFail();
 
-        $validFrom = $request->input('valid_from') ? \Carbon\Carbon::parse($request->input('valid_from')) : now();
-        $validUntil = $request->input('valid_until') ? \Carbon\Carbon::parse($request->input('valid_until')) : null;
+        $validFrom = $request->input('valid_from') ? \Carbon\Carbon::parse((string) $request->input('valid_from')) : now();
+        $validUntil = $request->input('valid_until') ? \Carbon\Carbon::parse((string) $request->input('valid_until')) : null;
 
-        $tenantId = $request->user()->currentTeam?->id ?? 1; // Default to 1 for now
+        $tenantId = $request->user()->currentTeam->id ?? 1;
 
         DB::transaction(function () use ($user, $role, $validFrom, $validUntil, $request, $tenantId) {
             // Assign role using helper function
@@ -49,7 +49,7 @@ class RoleController extends Controller
                 'valid_from' => $validFrom,
                 'valid_until' => $validUntil,
                 'auto_revoke' => $request->boolean('auto_revoke', true),
-                'assigned_by' => auth()->id(),
+                'assigned_by' => auth()->id(), // @phpstan-ignore method.nonObject
                 'reason' => $request->input('reason'),
             ]);
 
@@ -60,7 +60,7 @@ class RoleController extends Controller
                 'action' => 'assigned',
                 'valid_from' => $validFrom,
                 'valid_until' => $validUntil,
-                'assigned_by' => auth()->id(),
+                'assigned_by' => auth()->id(), // @phpstan-ignore method.nonObject
                 'reason' => $request->input('reason'),
             ]);
         });
@@ -76,38 +76,37 @@ class RoleController extends Controller
     }
 
     /**
-     * List all roles assigned to a user with temporal information.
-     *
-     * GET /v1/users/{id}/roles
+     * List all roles for a user with their expiration status.
      */
     public function index(Request $request, int $id): JsonResponse
     {
-        $user = User::findOrFail($id);
-        $tenantId = $request->user()->currentTeam?->id ?? 1;
+        $tenantId = $request->user()->currentTeam->id ?? 1;
 
-        $assignments = TemporalRoleUser::where('model_id', $user->id)
-            ->where('model_type', 'App\\Models\\User')
+        $roleAssignments = TemporalRoleUser::where('model_id', $id)
+            ->where('model_type', User::class)
             ->where('tenant_id', $tenantId)
-            ->with('role')
-            ->get()
-            ->map(function ($assignment) {
-                $now = now();
-                $isActive = $assignment->valid_from <= $now &&
-                           ($assignment->valid_until === null || $assignment->valid_until >= $now);
-                $isExpired = $assignment->valid_until !== null && $assignment->valid_until < $now;
+            ->get();
 
-                return [
-                    'role' => $assignment->role->name,
-                    'valid_from' => $assignment->valid_from->toIso8601String(),
-                    'valid_until' => $assignment->valid_until?->toIso8601String(),
-                    'auto_revoke' => $assignment->auto_revoke,
-                    'is_active' => $isActive,
-                    'is_expired' => $isExpired,
-                    'reason' => $assignment->reason,
-                ];
-            });
+        $roles = $roleAssignments->map(function ($assignment) {
+            $now = now();
+            $isActive = (! $assignment->valid_from || $assignment->valid_from->lte($now))
+                && (! $assignment->valid_until || $assignment->valid_until->gte($now));
 
-        return response()->json($assignments);
+            // Get role name from role_id
+            $role = Role::find($assignment->role_id);
+
+            return [
+                'role' => $role?->name ?? 'unknown',
+                'valid_from' => $assignment->valid_from?->toIso8601String(),
+                'valid_until' => $assignment->valid_until?->toIso8601String(),
+                'is_active' => $isActive,
+                'is_expired' => $assignment->valid_until && $assignment->valid_until->lt($now),
+                'auto_revoke' => $assignment->auto_revoke,
+                'reason' => $assignment->reason,
+            ];
+        });
+
+        return response()->json(['roles' => $roles]);
     }
 
     /**
@@ -119,7 +118,7 @@ class RoleController extends Controller
     {
         $user = User::findOrFail($id);
         $role = Role::where('name', $roleName)->firstOrFail();
-        $tenantId = $request->user()->currentTeam?->id ?? 1;
+        $tenantId = $request->user()->currentTeam->id ?? 1;
 
         // Check if role is assigned
         $assignment = TemporalRoleUser::where('model_id', $user->id)
@@ -142,7 +141,7 @@ class RoleController extends Controller
                 'action' => 'revoked',
                 'valid_from' => $assignment->valid_from,
                 'valid_until' => $assignment->valid_until,
-                'assigned_by' => auth()->id(),
+                'assigned_by' => auth()->id(), // @phpstan-ignore method.nonObject
                 'reason' => 'Manual revocation',
             ]);
 
@@ -162,7 +161,7 @@ class RoleController extends Controller
     {
         $user = User::findOrFail($id);
         $role = Role::where('name', $roleName)->firstOrFail();
-        $tenantId = $request->user()->currentTeam?->id ?? 1;
+        $tenantId = $request->user()->currentTeam->id ?? 1;
 
         // Find assignment
         $assignment = TemporalRoleUser::where('model_id', $user->id)
@@ -177,12 +176,12 @@ class RoleController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $newValidUntil = \Carbon\Carbon::parse($request->input('valid_until'));
+        $newValidUntil = \Carbon\Carbon::parse((string) $request->input('valid_until'));
 
         DB::transaction(function () use ($assignment, $newValidUntil, $user, $role, $request) {
             // Update expiration
             $assignment->valid_until = $newValidUntil;
-            $assignment->reason = $request->input('reason', $assignment->reason);
+            $assignment->reason = $request->input('reason') ?? $assignment->reason;
             $assignment->save();
 
             // Log extension
@@ -192,7 +191,7 @@ class RoleController extends Controller
                 'action' => 'extended',
                 'valid_from' => $assignment->valid_from,
                 'valid_until' => $newValidUntil,
-                'assigned_by' => auth()->id(),
+                'assigned_by' => auth()->id(), // @phpstan-ignore method.nonObject
                 'reason' => $request->input('reason', 'Expiration extended'),
             ]);
         });
@@ -200,7 +199,7 @@ class RoleController extends Controller
         return response()->json([
             'user_id' => $user->id,
             'role' => $role->name,
-            'valid_from' => $assignment->valid_from->toIso8601String(),
+            'valid_from' => $assignment->valid_from?->toIso8601String(),
             'valid_until' => $newValidUntil->toIso8601String(),
             'reason' => $request->input('reason'),
         ]);

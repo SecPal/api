@@ -8,6 +8,7 @@ namespace App\Http\Requests;
 use App\Models\TemporalRoleUser;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
+use Spatie\Permission\Models\Role;
 
 class ExtendRoleRequest extends FormRequest
 {
@@ -41,18 +42,23 @@ class ExtendRoleRequest extends FormRequest
             $userId = $this->route('id');
             $roleName = $this->route('role');
 
-            // Find current assignment
-            $assignment = TemporalRoleUser::whereHas('role', function ($query) use ($roleName) {
-                $query->where('name', $roleName);
-            })
+            // Find role by name
+            $role = Role::where('name', $roleName)->first();
+
+            if (! $role) {
+                return;
+            }
+
+            // Find current assignment using role_id
+            $assignment = TemporalRoleUser::where('role_id', $role->id)
                 ->where('model_id', $userId)
                 ->where('model_type', 'App\\Models\\User')
                 ->first();
 
             // Validate new valid_until is after current valid_until
             if ($assignment && $this->input('valid_until')) {
-                $newValidUntil = \Carbon\Carbon::parse($this->input('valid_until'));
-                if ($newValidUntil->lessThanOrEqualTo($assignment->valid_until)) {
+                $newValidUntil = \Carbon\Carbon::parse((string) $this->input('valid_until'));
+                if ($assignment->valid_until && $newValidUntil->lessThanOrEqualTo($assignment->valid_until)) {
                     $validator->errors()->add(
                         'valid_until',
                         'New expiration date must be after the current expiration date.'
