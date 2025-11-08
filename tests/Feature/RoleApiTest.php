@@ -36,10 +36,10 @@ beforeEach(function (): void {
     // Create test role
     $this->role = Role::create(['name' => 'manager']);
 
-    // Create permissions
-    Permission::create(['name' => 'role.assign', 'guard_name' => 'web']);
-    Permission::create(['name' => 'role.revoke', 'guard_name' => 'web']);
-    Permission::create(['name' => 'role.read', 'guard_name' => 'web']);
+    // Create permissions (global, not team-scoped)
+    Permission::create(['name' => 'role.assign']);
+    Permission::create(['name' => 'role.revoke']);
+    Permission::create(['name' => 'role.read']);
 });
 
 afterEach(function (): void {
@@ -71,7 +71,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
     });
 
     it('returns 422 when role is missing', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.assign');
+        $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
             ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
@@ -84,7 +84,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
     });
 
     it('returns 422 when valid_until is before valid_from', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.assign');
+        $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
             ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
@@ -98,7 +98,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
     });
 
     it('assigns role with temporal parameters and returns 201', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.assign');
+        $this->user->givePermissionTo('role.assign');
 
         $validFrom = now();
         $validUntil = now()->addDays(7);
@@ -148,17 +148,17 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
     });
 
     it('returns empty array when user has no roles', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.read');
+        $this->user->givePermissionTo('role.read');
 
         $response = $this->withToken($this->token)
             ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
 
         $response->assertStatus(200)
-            ->assertJson([]);
+            ->assertJson(['roles' => []]);
     });
 
     it('returns roles with expiry info when user has roles', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.read');
+        $this->user->givePermissionTo('role.read');
 
         // Assign role with temporal parameters
         $validFrom = now()->subHours(1);
@@ -177,13 +177,15 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                '*' => [
-                    'role',
-                    'valid_from',
-                    'valid_until',
-                    'auto_revoke',
-                    'is_active',
-                    'is_expired',
+                'roles' => [
+                    '*' => [
+                        'role',
+                        'valid_from',
+                        'valid_until',
+                        'auto_revoke',
+                        'is_active',
+                        'is_expired',
+                    ],
                 ],
             ])
             ->assertJsonFragment([
@@ -210,7 +212,7 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
     });
 
     it('returns 404 when role not assigned to user', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.revoke');
+        $this->user->givePermissionTo('role.revoke');
 
         $response = $this->withToken($this->token)
             ->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
@@ -219,7 +221,7 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
     });
 
     it('revokes role and returns 204', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.revoke');
+        $this->user->givePermissionTo('role.revoke');
 
         // Assign role first
         assignTemporalRole($this->targetUser, $this->role, $this->tenant->id, [
@@ -261,7 +263,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
     });
 
     it('returns 404 when role not assigned to user', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.assign');
+        $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
             ->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
@@ -272,7 +274,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
     });
 
     it('returns 422 when new valid_until is before current valid_until', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.assign');
+        $this->user->givePermissionTo('role.assign');
 
         // Assign role with 14 days validity
         assignTemporalRole($this->targetUser, $this->role, $this->tenant->id, [
@@ -293,7 +295,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
     });
 
     it('extends role expiration and returns 200', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'role.assign');
+        $this->user->givePermissionTo('role.assign');
 
         $originalValidUntil = now()->addDays(7);
         $newValidUntil = now()->addDays(14);
