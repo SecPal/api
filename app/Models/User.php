@@ -6,6 +6,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -89,7 +90,7 @@ class User extends Authenticatable
                 'created_at',
                 'updated_at',
             ])
-            ->where(function ($query) {
+            ->where(function (Builder $query) {
                 // Only return currently active roles using shared filtering logic
                 TemporalRoleUser::applyActiveFilter($query, 'model_has_roles.');
             });

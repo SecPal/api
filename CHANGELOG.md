@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **RBAC Phase 1 Post-Merge Fixes** - Addressed Copilot review comments from PR #112
+  - `TemporalRoleUser`: Changed `$fillable` array from `'team_id'` to `'tenant_id'` (matches Spatie Permission config)
+  - `User::roles()`: Added type hint `Builder $query` to where callback for improved type safety and IDE support
+
 ### Added
 
 - **RBAC Phase 1: Temporal Role Foundation** - Time-based role assignments with automatic expiration
