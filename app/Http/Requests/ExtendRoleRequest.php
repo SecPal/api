@@ -39,8 +39,14 @@ class ExtendRoleRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
+            /** @var int|null $userId */
             $userId = $this->route('id');
+            /** @var string|null $roleName */
             $roleName = $this->route('role');
+
+            if (! $userId || ! $roleName) {
+                return;
+            }
 
             // Find role by name
             $role = Role::where('name', $roleName)->first();
@@ -57,7 +63,7 @@ class ExtendRoleRequest extends FormRequest
 
             // Validate new valid_until is after current valid_until
             if ($assignment && $this->input('valid_until')) {
-                $newValidUntil = \Carbon\Carbon::parse((string) $this->input('valid_until'));
+                $newValidUntil = \Carbon\Carbon::parse($this->string('valid_until')->toString());
                 if ($assignment->valid_until && $newValidUntil->lessThanOrEqualTo($assignment->valid_until)) {
                     $validator->errors()->add(
                         'valid_until',
