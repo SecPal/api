@@ -19,6 +19,10 @@ parameters:
         maximumNumberOfProcesses: 4
         processTimeout: 300.0
 
+    # Note: Memory limit is configured in scripts/preflight.sh (512M)
+    # to prevent crashes during analysis of large codebases (51+ files).
+    # PHPStan is invoked with: php -d memory_limit=512M ./vendor/bin/phpstan
+
     # Ignore errors in generated files
     excludePaths:
         - bootstrap/cache/*

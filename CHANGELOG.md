@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PHPStan Memory Configuration** - Documented memory limit in phpstan.neon (#115)
+  - Added documentation comment noting that `scripts/preflight.sh` uses 512M memory limit
+  - Prevents confusion about memory configuration location
+  - Memory limit already sufficient for current codebase (51+ files analyzed successfully)
 - **RBAC Phase 1 Post-Merge Fixes** - Addressed Copilot review comments from PR #112
   - `TemporalRoleUser`: Changed `$fillable` array from `'team_id'` to `'tenant_id'` (matches Spatie Permission config)
   - `User::roles()`: Added type hint `Builder $query` to where callback for improved type safety and IDE support
