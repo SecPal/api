@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **RBAC: Optimized ExpireRoles Command** - Performance and concurrency improvements (#119)
+  - Removed `declare(strict_types=1)` for consistency with other console commands
+  - Switched from per-item transactions to batch processing (100 items per transaction)
+  - Implemented delete-first-then-log pattern to prevent duplicate audit logs on concurrent execution
+  - Changed from `get()` to `cursor()` for memory-efficient streaming without primary key dependency
+  - Added `processChunk()` helper method for cleaner separation of concerns
+  - Comprehensive test coverage for chunk boundaries (100, 101, 250 roles) and race conditions
+  - No memory issues when processing 1000+ expired roles (tested with 250 roles)
+  - Prevents duplicate audit logs when multiple scheduler instances run simultaneously
+
 ### Added
 
 - **RBAC Phase 2: Temporal Logic & Auto-Expiration** - Automatic expiration of time-limited role assignments (#106)

@@ -244,4 +244,91 @@ describe('roles:expire Command', function () {
         expect($exitCode)->toBe(0);
         expect(Artisan::output())->toContain('No expired roles found');
     });
+
+    it('processes large number of expired roles without memory issues', function () {
+        // Create 250 expired roles (chunk size will be 100)
+        User::factory()->count(250)->create()->each(function ($user, $i) {
+            assignTemporalRole($user, $this->role, $this->tenant->id, [
+                'valid_from' => now()->subDays(2),
+                'valid_until' => now()->subDay(),
+                'auto_revoke' => true,
+                'assigned_by' => $this->admin->id,
+                'reason' => "Bulk test {$i}",
+            ]);
+        });
+
+        expect(TemporalRoleUser::count())->toBe(250);
+
+        // Run command - should process in chunks without memory issues
+        $exitCode = Artisan::call('roles:expire');
+
+        // All expired roles should be deleted
+        expect($exitCode)->toBe(0);
+        expect(TemporalRoleUser::count())->toBe(0);
+        expect(RoleAssignmentLog::count())->toBe(250);
+        expect(Artisan::output())->toContain('250 role(s) expired and revoked');
+    });
+
+    it('prevents duplicate audit logs on concurrent execution', function () {
+        // Create expired role
+        assignTemporalRole($this->user, $this->role, $this->tenant->id, [
+            'valid_from' => now()->subDays(2),
+            'valid_until' => now()->subDay(),
+            'auto_revoke' => true,
+            'assigned_by' => $this->admin->id,
+        ]);
+
+        // Simulate concurrent execution by running command twice rapidly
+        // First execution should delete and log
+        $exitCode1 = Artisan::call('roles:expire');
+        expect($exitCode1)->toBe(0);
+
+        // Second execution should find nothing (role already deleted)
+        $exitCode2 = Artisan::call('roles:expire');
+        expect($exitCode2)->toBe(0);
+
+        // Verify only ONE audit log was created (no duplicates)
+        expect(RoleAssignmentLog::count())->toBe(1);
+        expect(Artisan::output())->toContain('No expired roles found');
+    });
+
+    it('handles chunk boundaries correctly with exactly 100 roles', function () {
+        // Create exactly 100 expired roles (one full chunk)
+        User::factory()->count(100)->create()->each(function ($user) {
+            assignTemporalRole($user, $this->role, $this->tenant->id, [
+                'valid_from' => now()->subDays(2),
+                'valid_until' => now()->subDay(),
+                'auto_revoke' => true,
+            ]);
+        });
+
+        expect(TemporalRoleUser::count())->toBe(100);
+
+        // Run command
+        Artisan::call('roles:expire');
+
+        // All should be deleted
+        expect(TemporalRoleUser::count())->toBe(0);
+        expect(RoleAssignmentLog::count())->toBe(100);
+    });
+
+    it('handles chunk boundaries correctly with 101 roles (two chunks)', function () {
+        // Create 101 expired roles (forces two chunks: 100 + 1)
+        User::factory()->count(101)->create()->each(function ($user) {
+            assignTemporalRole($user, $this->role, $this->tenant->id, [
+                'valid_from' => now()->subDays(2),
+                'valid_until' => now()->subDay(),
+                'auto_revoke' => true,
+            ]);
+        });
+
+        expect(TemporalRoleUser::count())->toBe(101);
+
+        // Run command
+        Artisan::call('roles:expire');
+
+        // All should be deleted
+        expect(TemporalRoleUser::count())->toBe(0);
+        expect(RoleAssignmentLog::count())->toBe(101);
+    });
 });
