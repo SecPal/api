@@ -47,7 +47,7 @@ class TemporalRoleUser extends MorphPivot
         'role_id',
         'model_type',
         'model_id',
-        'team_id',
+        'tenant_id',
         'valid_from',
         'valid_until',
         'auto_revoke',
