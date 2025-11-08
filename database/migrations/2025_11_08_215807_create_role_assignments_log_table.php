@@ -44,7 +44,9 @@ return new class extends Migration
             $table->index(['role_id', 'created_at']);
             $table->index('action');
         });
-    }    /**
+    }
+
+    /**
      * Reverse the migrations.
      */
     public function down(): void
