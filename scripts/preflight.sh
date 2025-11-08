@@ -8,7 +8,6 @@ ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
 # Check if pushing from a protected branch
-# NOTE: Keep this list in sync with .pre-commit-config.yaml (no-commit-to-branch hook)
 CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
 PROTECTED_BRANCHES=("main" "master" "production")
 
@@ -87,8 +86,15 @@ if [ -f composer.json ]; then
   else
     composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
     # Run Laravel Pint code style check if available (blocking: aligns with gates)
+    # Workflow: check → fix if needed → verify (per SELF_REVIEW_CHECKLIST.md)
     if [ -x ./vendor/bin/pint ]; then
-      ./vendor/bin/pint --test
+      echo "→ Checking code style (pint --test --dirty)..."
+      if ! ./vendor/bin/pint --test --dirty; then
+        echo "→ Auto-fixing code style issues (pint --dirty)..."
+        ./vendor/bin/pint --dirty
+        echo "→ Verifying fix matches CI requirements (pint --test --dirty)..."
+        ./vendor/bin/pint --test --dirty
+      fi
     fi
     # Run PHPStan (use configured level from phpstan.neon if exists, else max)
     if [ -x ./vendor/bin/phpstan ]; then
