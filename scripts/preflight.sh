@@ -166,6 +166,16 @@ if [ "$FORMAT_EXIT" -ne 0 ]; then
   exit 1
 fi
 
+# Domain Policy Check (CRITICAL: ZERO TOLERANCE)
+if [ -f scripts/check-domains.sh ]; then
+  bash scripts/check-domains.sh || {
+    echo "" >&2
+    echo "❌ Domain Policy Violation detected!" >&2
+    echo "Fix the violations above before committing." >&2
+    exit 1
+  }
+fi
+
 # Helper functions to reduce code duplication
 run_pint() {
   local cmd_prefix="$1"
