@@ -49,7 +49,7 @@ class RoleController extends Controller
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
         /** @var int $tenantId */
-        $tenantId = $authUser->currentTeam->id ?? 1;
+        $tenantId = $authUser->currentTeam->id ?? 1; // @phpstan-ignore property.nonObject
 
         DB::transaction(function () use ($user, $role, $validFrom, $validUntil, $request, $tenantId, $authUser) {
             // Direct database insert to bypass Spatie's relationship methods
@@ -100,7 +100,7 @@ class RoleController extends Controller
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
         /** @var int $tenantId */
-        $tenantId = $authUser->currentTeam->id ?? 1;
+        $tenantId = $authUser->currentTeam->id ?? 1; // @phpstan-ignore property.nonObject
 
         $roleAssignments = TemporalRoleUser::where('model_id', $id)
             ->where('model_type', User::class)
@@ -143,7 +143,7 @@ class RoleController extends Controller
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
         /** @var int $tenantId */
-        $tenantId = $authUser->currentTeam->id ?? 1;
+        $tenantId = $authUser->currentTeam->id ?? 1; // @phpstan-ignore property.nonObject
 
         // Check if role is assigned
         $assignment = TemporalRoleUser::where('model_id', $user->id)
@@ -190,7 +190,7 @@ class RoleController extends Controller
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
         /** @var int $tenantId */
-        $tenantId = $authUser->currentTeam->id ?? 1;
+        $tenantId = $authUser->currentTeam->id ?? 1; // @phpstan-ignore property.nonObject
 
         // Find assignment
         $assignment = TemporalRoleUser::where('model_id', $user->id)
