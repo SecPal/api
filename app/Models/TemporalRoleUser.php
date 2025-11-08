@@ -10,9 +10,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphPivot;
+use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
 
 /**
  * Temporal Role Assignment Pivot Model
@@ -39,6 +39,17 @@ class TemporalRoleUser extends MorphPivot
     public $incrementing = false;
 
     /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'valid_from' => 'datetime',
+        'valid_until' => 'datetime',
+        'auto_revoke' => 'boolean',
+    ];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -56,20 +67,6 @@ class TemporalRoleUser extends MorphPivot
     ];
 
     /**
-     * The attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'valid_from' => 'datetime',
-            'valid_until' => 'datetime',
-            'auto_revoke' => 'boolean',
-        ];
-    }
-
-    /**
      * Scope to filter only currently active (non-expired) role assignments.
      *
      * A role is active if:
@@ -81,31 +78,14 @@ class TemporalRoleUser extends MorphPivot
      */
     public function scopeActive(Builder $query): Builder
     {
-        /** @var Builder<self> */
-        return self::applyActiveFilter($query);
-    }
-
-    /**
-     * Apply temporal filtering to any query builder.
-     *
-     * Can be used in both pivot queries and relationship queries.
-     *
-     * @template TModel of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  Builder<TModel>  $query
-     * @param  string  $tablePrefix  Optional table prefix (e.g., 'model_has_roles.')
-     * @return Builder<TModel>
-     */
-    public static function applyActiveFilter(Builder $query, string $tablePrefix = ''): Builder
-    {
         $now = Carbon::now();
 
-        return $query->where(function (Builder $q) use ($now, $tablePrefix) {
-            $q->whereNull("{$tablePrefix}valid_from")
-                ->orWhere("{$tablePrefix}valid_from", '<=', $now);
-        })->where(function (Builder $q) use ($now, $tablePrefix) {
-            $q->whereNull("{$tablePrefix}valid_until")
-                ->orWhere("{$tablePrefix}valid_until", '>', $now);
+        return $query->where(function (Builder $q) use ($now) {
+            $q->whereNull('valid_from')
+              ->orWhere('valid_from', '<=', $now);
+        })->where(function (Builder $q) use ($now) {
+            $q->whereNull('valid_until')
+              ->orWhere('valid_until', '>', $now);
         });
     }
 
@@ -125,9 +105,7 @@ class TemporalRoleUser extends MorphPivot
         return $query->whereNotNull('valid_until')
             ->where('valid_until', '<=', Carbon::now())
             ->where('auto_revoke', true);
-    }
-
-    /**
+    }    /**
      * Check if this role assignment is currently active.
      */
     public function isActive(): bool
