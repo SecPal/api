@@ -29,7 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - UUID handling for `assigned_by` foreign key constraint
   - Test coverage: Temporal filtering (5 tests), Query scopes (2 tests), Helper methods (4 tests), Auto-revoke (1 test)
   - Resolves TDD compliance requirement for PR #109
-- German translations for password reset emails
 
 ### Changed
 

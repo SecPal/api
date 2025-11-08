@@ -60,8 +60,8 @@ describe('TemporalRoleUser Pivot Model', function () {
 
             expect($roles)->toHaveCount(1);
             expect($roles->first()->id)->toBe($this->managerRole->id);
-            
-            // Compare timestamps (ignore microseconds)
+
+            // Compare timestamps at second precision
             expect($roles->first()->pivot->valid_from->toDateTimeString())->toBe($validFrom->toDateTimeString());
             expect($roles->first()->pivot->valid_until->toDateTimeString())->toBe($validUntil->toDateTimeString());
         });
