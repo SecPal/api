@@ -118,4 +118,3 @@ test('role assignment log has relationship to assigner', function () {
     expect($log->assignedBy)->toBeInstanceOf(User::class)
         ->and($log->assignedBy->id)->toBe($admin->id);
 });
-
