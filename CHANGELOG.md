@@ -12,9 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Guard Architecture Documentation** (#130)
+  - New file: `docs/GUARD_ARCHITECTURE.md` - Comprehensive guide to Laravel Guards in SecPal
+  - Explains guard concept: authentication mechanisms (session vs token-based)
+  - Documents SecPal's architecture decision: Why `sanctum` guard exclusively
+  - Spatie Permission integration: How guard-awareness works, guard mismatch troubleshooting
+  - Configuration walkthrough: `config/auth.php`, User model `$guard_name`, route middleware
+  - Developer guidelines: Best practices for creating permissions/roles with correct guard
+  - Migration context: Historical background and EPIC #125 systematic migration
+  - Code examples: Correct vs incorrect patterns for permissions, roles, tests
+  - Troubleshooting section: Common errors and debug steps
+  - Incorporates insights from Issue #134 and PR #135 (explicit route middleware best practice)
+
 ### Changed
 
-- **Auth Configuration: Set sanctum as default guard** (#134)
+- **Auth Configuration: Set sanctum as default guard** (Issue #134, PR #135)
   - Changed default guard from `'web'` to `'sanctum'` in `config/auth.php`
   - Added explicit `sanctum` guard configuration to guards array
   - Updated documentation comments to explain API-only, token-based architecture
