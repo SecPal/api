@@ -10,14 +10,17 @@ return [
     | Authentication Defaults
     |--------------------------------------------------------------------------
     |
-    | This option defines the default authentication "guard" and password
-    | reset "broker" for your application. You may change these values
-    | as required, but they're a perfect start for most applications.
+    | SecPal is an API-only application (React PWA frontend) using stateless
+    | token-based authentication via Laravel Sanctum. The default guard is
+    | set to 'sanctum' to reflect this architecture.
+    |
+    | The 'web' guard is kept for Laravel's password reset flow (stateless
+    | token-based verification), but is NOT used for actual authentication.
     |
     */
 
     'defaults' => [
-        'guard' => env('AUTH_GUARD', 'web'),
+        'guard' => env('AUTH_GUARD', 'sanctum'),
         'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 
@@ -26,21 +29,24 @@ return [
     | Authentication Guards
     |--------------------------------------------------------------------------
     |
-    | Next, you may define every authentication guard for your application.
-    | Of course, a great default configuration has been defined for you
-    | which utilizes session storage plus the Eloquent user provider.
+    | SecPal uses Laravel Sanctum for API token authentication. All API routes
+    | are protected with the 'sanctum' guard (stateless Bearer tokens).
     |
-    | All authentication guards have a user provider, which defines how the
-    | users are actually retrieved out of your database or other storage
-    | system used by the application. Typically, Eloquent is utilized.
+    | The 'web' guard remains configured for Laravel's password reset email
+    | verification flow only. It is NOT used for actual user authentication.
     |
-    | Supported: "session"
+    | Supported drivers: "session", "sanctum"
     |
     */
 
     'guards' => [
         'web' => [
             'driver' => 'session',
+            'provider' => 'users',
+        ],
+
+        'sanctum' => [
+            'driver' => 'sanctum',
             'provider' => 'users',
         ],
     ],
