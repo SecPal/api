@@ -59,12 +59,12 @@ fi
 
 The script detects these conflict markers:
 
-| Marker           | Meaning                         |
-| ---------------- | ------------------------------- |
-| `<<<<<<<`        | Start of conflict (from HEAD)   |
-| `=======`        | Separator between changes       |
-| `>>>>>>>`        | End of conflict (from incoming) |
-| `\|\|\|\|\|\|\|` | Optional: diff3 style marker    |
+| Marker                  | Meaning                         |
+| ----------------------- | ------------------------------- |
+| `<<<<<<<`               | Start of conflict (from HEAD)   |
+| `=======`               | Separator between changes       |
+| `>>>>>>>`               | End of conflict (from incoming) |
+| `\|\|\|\|\|\|\|` (+ space) | Optional: diff3 style marker    |
 
 ## Exit Codes
 
@@ -191,6 +191,6 @@ brew install file
 
 ## See Also
 
-- [Preflight Scripts](../scripts/preflight.sh) - Quality Gate Checks
+- [Preflight Script Documentation](PREFLIGHT.md) - Quality Gate Checks
 - [System Requirements Check](CHECK_SYSTEM_REQUIREMENTS.md) - Development Prerequisites
 - [Git Merge Conflicts](https://git-scm.com/docs/git-merge#_how_conflicts_are_presented) - Official Git Documentation

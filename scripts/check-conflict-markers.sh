@@ -27,7 +27,7 @@ MARKERS=(
   "<<<<<<< "  # Start of conflict (from HEAD)
   "======="   # Separator between changes
   ">>>>>>> "  # End of conflict (from incoming)
-  "||||||"    # Optional: diff3 style marker
+  "||||||| "  # Optional: diff3 style marker
 )
 
 CONFLICTS_FOUND=0
