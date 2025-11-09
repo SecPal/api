@@ -5,6 +5,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PersonController;
+use App\Http\Controllers\RoleController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -41,6 +42,16 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
         Route::get('/me', [AuthController::class, 'me']);
+
+        // Role management endpoints
+        Route::post('/users/{user}/roles', [RoleController::class, 'store'])
+            ->middleware('permission:role.assign');
+        Route::get('/users/{user}/roles', [RoleController::class, 'index'])
+            ->middleware('permission:role.read');
+        Route::delete('/users/{user}/roles/{role}', [RoleController::class, 'destroy'])
+            ->middleware('permission:role.revoke');
+        Route::patch('/users/{user}/roles/{role}/extend', [RoleController::class, 'extend'])
+            ->middleware('permission:role.assign');
 
         // Tenant-scoped Person endpoints
         Route::prefix('tenants/{tenant}')->middleware('tenant')->group(function () {

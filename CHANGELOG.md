@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **RBAC Phase 3: API Endpoints & Authorization** - Role management REST API (#107)
+  - `POST /api/v1/users/{id}/roles` - Assign role with temporal parameters (valid_from, valid_until, auto_revoke)
+  - `GET /api/v1/users/{id}/roles` - List user roles with expiry info (is_active, is_expired status)
+  - `DELETE /api/v1/users/{id}/roles/{role}` - Revoke role assignment
+  - `PATCH /api/v1/users/{id}/roles/{role}/extend` - Extend role expiration date
+  - `RoleController` with 3 RESTful methods (`store`, `index`, `destroy`) and 1 custom action (`extend`)
+  - `AssignRoleRequest` - Validates temporal parameters (valid_from < valid_until, role existence)
+  - `ExtendRoleRequest` - Validates extension (new date must be after current expiration)
+  - Permission-based authorization: `role.assign`, `role.read`, `role.revoke` permissions required
+  - Audit logging: All actions (assigned, revoked, extended) logged to `role_assignments_log`
+  - Transaction safety: All mutations wrapped in database transactions
+  - ISO 8601 timestamps in API responses for international compatibility
+
 ### Changed
 
 - **RBAC: Optimized ExpireRoles Command** - Performance and concurrency improvements (#119)
