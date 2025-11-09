@@ -12,11 +12,11 @@ The `check-conflict-markers.sh` script detects unresolved Git merge conflict mar
 When resolving merge conflicts, developers sometimes forget to remove conflict markers:
 
 ```bash
-<<<<<<< HEAD
-code from current branch
-=======
-code from incoming branch
->>>>>>> feature-branch
+ <<<<<<< HEAD
+ code from current branch
+ =======
+ code from incoming branch
+ >>>>>>> feature-branch
 ```
 
 These markers cause:
@@ -59,11 +59,11 @@ fi
 
 The script detects these conflict markers:
 
-| Marker                  | Meaning                         |
-| ----------------------- | ------------------------------- |
-| `<<<<<<<`               | Start of conflict (from HEAD)   |
-| `=======`               | Separator between changes       |
-| `>>>>>>>`               | End of conflict (from incoming) |
+| Marker                     | Meaning                         |
+| -------------------------- | ------------------------------- |
+| `<<<<<<<`                  | Start of conflict (from HEAD)   |
+| `=======`                  | Separator between changes       |
+| `>>>>>>>`                  | End of conflict (from incoming) |
 | `\|\|\|\|\|\|\|` (+ space) | Optional: diff3 style marker    |
 
 ## Exit Codes
