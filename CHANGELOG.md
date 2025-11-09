@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Auth Configuration: Set sanctum as default guard** (#134)
+  - Changed default guard from `'web'` to `'sanctum'` in `config/auth.php`
+  - Added explicit `sanctum` guard configuration to guards array
+  - Updated documentation comments to explain API-only, token-based architecture
+  - Aligns configuration with actual authentication mechanism (all routes use `auth:sanctum`)
+  - Self-documenting: Config now clearly shows SecPal is API-only (React PWA frontend)
+  - Consistent with User model `$guard_name = 'sanctum'` property (#129)
+  - No behavior change: All 207 tests passing
+
 ### Fixed
 
 - **Permission System Guard Migration** - Migrated from 'web' to 'sanctum' guard (#126, #127, #128, #129)
