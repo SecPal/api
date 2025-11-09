@@ -32,3 +32,4 @@ build/
 
 # DDEV local development
 /.ddev/
+storage/testing/
