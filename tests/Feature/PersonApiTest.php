@@ -28,8 +28,8 @@ beforeEach(function (): void {
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
     // Create global permissions (not team-scoped for this test)
-    Permission::create(['name' => 'person.write', 'guard_name' => 'web']);
-    Permission::create(['name' => 'person.read', 'guard_name' => 'web']);
+    Permission::create(['name' => 'person.write', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'person.read', 'guard_name' => 'sanctum']);
 });
 
 afterEach(function (): void {
