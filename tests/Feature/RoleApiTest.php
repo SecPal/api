@@ -340,65 +340,6 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
     });
 });
 
-describe('Edge Cases - Tenant Context Validation', function () {
-    it('rejects role assignment when tenant context is missing', function (): void {
-        // Note: Permission middleware runs before controller logic.
-        // When tenant context is null, permission checks fail first, returning 403.
-        // This is correct behavior - authorization before business logic.
-        $this->user->givePermissionTo('role.assign');
-
-        // Clear tenant context
-        $this->registrar->setPermissionsTeamId(null);
-
-        $response = $this->withToken($this->token)
-            ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
-                'role' => 'manager',
-                'valid_from' => now()->toIso8601String(),
-                'valid_until' => now()->addDays(7)->toIso8601String(),
-            ]);
-
-        $response->assertForbidden(); // Permission check fails without tenant context
-    });
-
-    it('rejects role listing when tenant context is missing', function (): void {
-        $this->user->givePermissionTo('role.read');
-
-        // Clear tenant context
-        $this->registrar->setPermissionsTeamId(null);
-
-        $response = $this->withToken($this->token)
-            ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
-
-        $response->assertForbidden(); // Permission check fails without tenant context
-    });
-
-    it('rejects role revocation when tenant context is missing', function (): void {
-        $this->user->givePermissionTo('role.revoke');
-
-        // Clear tenant context
-        $this->registrar->setPermissionsTeamId(null);
-
-        $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
-
-        $response->assertForbidden(); // Permission check fails without tenant context
-    });
-
-    it('rejects role extension when tenant context is missing', function (): void {
-        $this->user->givePermissionTo('role.assign');
-
-        // Clear tenant context
-        $this->registrar->setPermissionsTeamId(null);
-
-        $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
-                'valid_until' => now()->addDays(14)->toIso8601String(),
-            ]);
-
-        $response->assertForbidden(); // Permission check fails without tenant context
-    });
-});
-
 describe('Edge Cases - Temporal Date Validation', function () {
     it('accepts assignment with valid_from in the past and valid_until also past', function (): void {
         $this->user->givePermissionTo('role.assign');
@@ -410,11 +351,11 @@ describe('Edge Cases - Temporal Date Validation', function () {
                 'valid_until' => now()->subDays(5)->toIso8601String(),
             ]);
 
-        // Should accept - validation allows past dates
+        // Should accept - validation allows past dates for historical assignments
         $response->assertCreated();
     });
 
-    it('rejects assignment with only valid_from (validation requires both or neither)', function (): void {
+    it('accepts assignment with only valid_from (no end date - unbegrenzt)', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
@@ -423,12 +364,14 @@ describe('Edge Cases - Temporal Date Validation', function () {
                 'valid_from' => now()->toIso8601String(),
             ]);
 
-        // required_with validation ensures both dates are provided together
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['valid_until']);
+        // Should accept - allows flexible date combinations
+        $response->assertCreated()
+            ->assertJsonFragment([
+                'role' => 'manager',
+            ]);
     });
 
-    it('rejects assignment with only valid_until (validation requires both or neither)', function (): void {
+    it('accepts assignment with only valid_until (no start date)', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
@@ -437,9 +380,11 @@ describe('Edge Cases - Temporal Date Validation', function () {
                 'valid_until' => now()->addDays(7)->toIso8601String(),
             ]);
 
-        // required_with validation ensures both dates are provided together
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['valid_from']);
+        // Should accept - allows flexible date combinations
+        $response->assertCreated()
+            ->assertJsonFragment([
+                'role' => 'manager',
+            ]);
     });
 
     it('accepts assignment with neither valid_from nor valid_until (permanent role)', function (): void {

@@ -5,7 +5,9 @@
 
 namespace App\Http\Requests;
 
+use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class AssignRoleRequest extends FormRequest
 {
@@ -26,11 +28,34 @@ class AssignRoleRequest extends FormRequest
     {
         return [
             'role' => 'required|string|exists:roles,name',
-            'valid_from' => 'nullable|date|required_with:valid_until|before_or_equal:valid_until',
-            'valid_until' => 'nullable|date|required_with:valid_from|after:valid_from',
+            'valid_from' => 'nullable|date',
+            'valid_until' => 'nullable|date',
             'auto_revoke' => 'nullable|boolean',
             'reason' => 'nullable|string|max:500',
         ];
+    }
+
+    /**
+     * Configure the validator instance to add custom date validation.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            /** @var string|null $validFrom */
+            $validFrom = $this->input('valid_from');
+            /** @var string|null $validUntil */
+            $validUntil = $this->input('valid_until');
+
+            // Only validate date order if both are provided
+            if ($validFrom && $validUntil) {
+                $from = Carbon::parse($validFrom);
+                $until = Carbon::parse($validUntil);
+
+                if ($from->greaterThan($until)) {
+                    $validator->errors()->add('valid_until', 'End date must be after start date.');
+                }
+            }
+        });
     }
 
     /**

@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 
 use App\Models\TemporalRoleUser;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 use Spatie\Permission\Models\Role;
@@ -64,7 +65,7 @@ class ExtendRoleRequest extends FormRequest
 
             // Validate new valid_until is after current valid_until
             if ($assignment && $this->input('valid_until')) {
-                $newValidUntil = \Carbon\Carbon::parse($this->string('valid_until')->toString());
+                $newValidUntil = Carbon::parse($this->string('valid_until')->toString());
                 if ($assignment->valid_until && $newValidUntil->lessThanOrEqualTo($assignment->valid_until)) {
                     $validator->errors()->add(
                         'valid_until',
