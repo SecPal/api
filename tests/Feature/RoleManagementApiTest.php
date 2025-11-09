@@ -31,15 +31,15 @@ beforeEach(function (): void {
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
     // Create permissions for role management
-    Permission::create(['name' => 'roles.read']);
-    Permission::create(['name' => 'roles.create']);
-    Permission::create(['name' => 'roles.update']);
-    Permission::create(['name' => 'roles.delete']);
+    Permission::create(['name' => 'roles.read', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'roles.create', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'roles.update', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'roles.delete', 'guard_name' => 'sanctum']);
 
     // Create test permissions for assignment
-    Permission::create(['name' => 'employees.read']);
-    Permission::create(['name' => 'employees.create']);
-    Permission::create(['name' => 'shifts.read']);
+    Permission::create(['name' => 'employees.read', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'employees.create', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'shifts.read', 'guard_name' => 'sanctum']);
 });
 
 afterEach(function (): void {

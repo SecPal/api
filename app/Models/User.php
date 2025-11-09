@@ -20,6 +20,14 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     /**
+     * The guard name for Spatie Laravel-Permission.
+     * Must match the authentication guard used in routes (sanctum).
+     *
+     * @var string
+     */
+    protected $guard_name = 'sanctum';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>

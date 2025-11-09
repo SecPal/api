@@ -46,6 +46,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - No memory issues when processing 1000+ expired roles (tested with 250 roles)
   - Prevents duplicate audit logs when multiple scheduler instances run simultaneously
 
+### Fixed
+
+- **RBAC: Migrated Permission System to sanctum Guard** - Fixed guard mismatch causing 36 test failures (#125, #126, #127, #128, #129)
+  - Updated all `Permission::create()` calls in test files to use explicit `'guard_name' => 'sanctum'` instead of implicit 'web' guard
+  - Added `protected $guard_name = 'sanctum'` to User model with PHPDoc type hint
+  - Fixed guard mismatch: Frontend uses Bearer tokens (sanctum) but permissions defaulted to session-based (web) guard
+  - Test files migrated: `RoleManagementApiTest.php` (7 permissions + 26 tests), `RoleApiTest.php` (3 permissions + 1 role + 27 tests), `PersonApiTest.php` (2 permissions + 13 tests)
+  - All 66 tests now passing (previously 36 failing with `PermissionDoesNotExist` exceptions)
+  - Architecture now semantically correct: Token-based auth uses token-based guard throughout
+  - Self-documenting code: Guard name explicitly declares authentication mechanism
+
 ### Added
 
 - **RBAC Phase 2: Temporal Logic & Auto-Expiration** - Automatic expiration of time-limited role assignments (#106)
