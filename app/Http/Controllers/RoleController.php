@@ -36,7 +36,7 @@ class RoleController extends Controller
      */
     public function store(AssignRoleRequest $request, int $user): JsonResponse
     {
-        $user = User::findOrFail($user);
+        $targetUser = User::findOrFail($user);
         $roleName = $request->string('role')->toString();
         $role = Role::where('name', $roleName)->firstOrFail();
 
@@ -52,15 +52,15 @@ class RoleController extends Controller
         /** @var int|null $tenantId */
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
 
-        DB::transaction(function () use ($user, $role, $validFrom, $validUntil, $request, $tenantId, $authUser) {
+        DB::transaction(function () use ($targetUser, $role, $validFrom, $validUntil, $request, $tenantId, $authUser) {
             // Direct database insert to bypass Spatie's relationship methods:
             // We require additional temporal and audit fields (valid_from, valid_until, auto_revoke, assigned_by, reason)
             // in the model_has_roles table, which are not supported by Spatie's built-in relationship methods.
             // This approach enables temporal role assignments and auditing, at the cost of bypassing Spatie's API.
             // Future maintainers: be aware that changes to Spatie's internals or upgrades may require review of this logic.
             DB::table('model_has_roles')->insert([
-                'model_type' => get_class($user),
-                'model_id' => $user->id,
+                'model_type' => get_class($targetUser),
+                'model_id' => $targetUser->id,
                 'role_id' => $role->id,
                 'tenant_id' => $tenantId,
                 'valid_from' => $validFrom,
@@ -73,11 +73,11 @@ class RoleController extends Controller
             ]);
 
             // Clear relationship cache
-            $user->unsetRelation('roles');
+            $targetUser->unsetRelation('roles');
 
             // Log assignment
             RoleAssignmentLog::create([
-                'user_id' => $user->id,
+                'user_id' => $targetUser->id,
                 'role_id' => $role->id,
                 'action' => 'assigned',
                 'valid_from' => $validFrom,
@@ -88,7 +88,7 @@ class RoleController extends Controller
         });
 
         return response()->json([
-            'user_id' => $user->id,
+            'user_id' => $targetUser->id,
             'role' => $role->name,
             'valid_from' => $validFrom->toIso8601String(),
             'valid_until' => $validUntil?->toIso8601String(),
@@ -144,7 +144,7 @@ class RoleController extends Controller
      */
     public function destroy(Request $request, int $user, string $roleName): JsonResponse|Response
     {
-        $user = User::findOrFail($user);
+        $targetUser = User::findOrFail($user);
         $role = Role::where('name', $roleName)->firstOrFail();
 
         /** @var \App\Models\User $authUser */
@@ -153,7 +153,7 @@ class RoleController extends Controller
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
 
         // Check if role is assigned
-        $assignment = TemporalRoleUser::where('model_id', $user->id)
+        $assignment = TemporalRoleUser::where('model_id', $targetUser->id)
             ->where('model_type', User::class)
             ->where('role_id', $role->id)
             ->where('tenant_id', $tenantId)
@@ -165,10 +165,10 @@ class RoleController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        DB::transaction(function () use ($user, $role, $assignment, $authUser) {
+        DB::transaction(function () use ($targetUser, $role, $assignment, $authUser) {
             // Log revocation
             RoleAssignmentLog::create([
-                'user_id' => $user->id,
+                'user_id' => $targetUser->id,
                 'role_id' => $role->id,
                 'action' => 'revoked',
                 'valid_from' => $assignment->valid_from,
@@ -178,7 +178,7 @@ class RoleController extends Controller
             ]);
 
             // Remove role
-            $user->removeRole($role->name);
+            $targetUser->removeRole($role->name);
         });
 
         return response()->noContent();
@@ -191,7 +191,7 @@ class RoleController extends Controller
      */
     public function extend(ExtendRoleRequest $request, int $user, string $roleName): JsonResponse
     {
-        $user = User::findOrFail($user);
+        $targetUser = User::findOrFail($user);
         $role = Role::where('name', $roleName)->firstOrFail();
 
         /** @var \App\Models\User $authUser */
@@ -200,7 +200,7 @@ class RoleController extends Controller
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
 
         // Find assignment
-        $assignment = TemporalRoleUser::where('model_id', $user->id)
+        $assignment = TemporalRoleUser::where('model_id', $targetUser->id)
             ->where('model_type', User::class)
             ->where('role_id', $role->id)
             ->where('tenant_id', $tenantId)
@@ -217,10 +217,10 @@ class RoleController extends Controller
         // Determine reason: use provided reason, or keep original, or default to 'Expiration extended'
         $reason = $request->string('reason', '')->toString() ?: $assignment->reason ?: 'Expiration extended';
 
-        DB::transaction(function () use ($assignment, $newValidUntil, $user, $role, $reason, $authUser) {
+        DB::transaction(function () use ($assignment, $newValidUntil, $targetUser, $role, $reason, $authUser) {
             // Update expiration using a direct DB query because the pivot table uses a composite key (model_id, role_id, tenant_id) and Eloquent does not support updates without a single primary key.
             DB::table('model_has_roles')
-                ->where('model_id', $user->id)
+                ->where('model_id', $targetUser->id)
                 ->where('model_type', User::class)
                 ->where('role_id', $role->id)
                 ->where('tenant_id', $assignment->tenant_id)
@@ -232,7 +232,7 @@ class RoleController extends Controller
 
             // Log extension
             RoleAssignmentLog::create([
-                'user_id' => $user->id,
+                'user_id' => $targetUser->id,
                 'role_id' => $role->id,
                 'action' => 'extended',
                 'valid_from' => $assignment->valid_from,
@@ -243,7 +243,7 @@ class RoleController extends Controller
         });
 
         return response()->json([
-            'user_id' => $user->id,
+            'user_id' => $targetUser->id,
             'role' => $role->name,
             'valid_from' => $assignment->valid_from?->toIso8601String(),
             'valid_until' => $newValidUntil->toIso8601String(),
