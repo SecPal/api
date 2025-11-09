@@ -26,8 +26,8 @@ class AssignRoleRequest extends FormRequest
     {
         return [
             'role' => 'required|string|exists:roles,name',
-            'valid_from' => 'nullable|date|before_or_equal:valid_until',
-            'valid_until' => 'nullable|date|after:valid_from',
+            'valid_from' => 'nullable|date|required_with:valid_until|before_or_equal:valid_until',
+            'valid_until' => 'nullable|date|required_with:valid_from|after:valid_from',
             'auto_revoke' => 'nullable|boolean',
             'reason' => 'nullable|string|max:500',
         ];

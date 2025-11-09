@@ -48,11 +48,19 @@ class RoleController extends Controller
 
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
-        /** @var int $tenantId */
-        $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId() ?? 1;
+        /** @var int|null $tenantId */
+        $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
+
+        if ($tenantId === null) {
+            throw new \LogicException('Tenant context is required to assign a role.');
+        }
 
         DB::transaction(function () use ($user, $role, $validFrom, $validUntil, $request, $tenantId, $authUser) {
-            // Direct database insert to bypass Spatie's relationship methods
+            // Direct database insert to bypass Spatie's relationship methods:
+            // We require additional temporal and audit fields (valid_from, valid_until, auto_revoke, assigned_by, reason)
+            // in the model_has_roles table, which are not supported by Spatie's built-in relationship methods.
+            // This approach enables temporal role assignments and auditing, at the cost of bypassing Spatie's API.
+            // Future maintainers: be aware that changes to Spatie's internals or upgrades may require review of this logic.
             DB::table('model_has_roles')->insert([
                 'model_type' => get_class($user),
                 'model_id' => $user->id,
@@ -99,21 +107,31 @@ class RoleController extends Controller
     {
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
-        /** @var int $tenantId */
-        $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId() ?? 1;
+        /** @var int|null $tenantId */
+        $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
+
+        if ($tenantId === null) {
+            return response()->json([
+                'message' => 'Tenant context is required to list roles.',
+            ], Response::HTTP_BAD_REQUEST);
+        }
 
         $roleAssignments = TemporalRoleUser::where('model_id', $id)
             ->where('model_type', User::class)
             ->where('tenant_id', $tenantId)
             ->get();
 
-        $roles = $roleAssignments->map(function ($assignment) {
+        // Eager load all roles needed for the assignments in a single query
+        $roleIds = $roleAssignments->pluck('role_id')->unique()->all();
+        $rolesById = Role::whereIn('id', $roleIds)->get()->keyBy('id');
+
+        $roles = $roleAssignments->map(function ($assignment) use ($rolesById) {
             $now = now();
             $isActive = (! $assignment->valid_from || $assignment->valid_from->lte($now))
                 && (! $assignment->valid_until || $assignment->valid_until->gte($now));
 
-            // Get role name from role_id
-            $role = Role::find($assignment->role_id);
+            // Get role name from pre-fetched roles
+            $role = $rolesById->get($assignment->role_id);
             $roleName = $role instanceof Role ? $role->name : 'unknown';
 
             return [
@@ -135,19 +153,25 @@ class RoleController extends Controller
      *
      * DELETE /v1/users/{id}/roles/{role}
      */
-    public function destroy(Request $request, int $id, string $roleName): JsonResponse
+    public function destroy(Request $request, int $id, string $roleName): JsonResponse|Response
     {
         $user = User::findOrFail($id);
         $role = Role::where('name', $roleName)->firstOrFail();
 
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
-        /** @var int $tenantId */
-        $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId() ?? 1;
+        /** @var int|null $tenantId */
+        $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
+
+        if ($tenantId === null) {
+            return response()->json([
+                'error' => 'Tenant context is required to revoke a role.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         // Check if role is assigned
         $assignment = TemporalRoleUser::where('model_id', $user->id)
-            ->where('model_type', 'App\\Models\\User')
+            ->where('model_type', User::class)
             ->where('role_id', $role->id)
             ->where('tenant_id', $tenantId)
             ->first();
@@ -174,7 +198,7 @@ class RoleController extends Controller
             $user->removeRole($role->name);
         });
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 
     /**
@@ -189,12 +213,18 @@ class RoleController extends Controller
 
         /** @var \App\Models\User $authUser */
         $authUser = $request->user();
-        /** @var int $tenantId */
-        $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId() ?? 1;
+        /** @var int|null $tenantId */
+        $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
+
+        if ($tenantId === null) {
+            return response()->json([
+                'error' => 'Tenant context is required to extend a role assignment.',
+            ], Response::HTTP_BAD_REQUEST);
+        }
 
         // Find assignment
         $assignment = TemporalRoleUser::where('model_id', $user->id)
-            ->where('model_type', 'App\\Models\\User')
+            ->where('model_type', User::class)
             ->where('role_id', $role->id)
             ->where('tenant_id', $tenantId)
             ->first();
@@ -208,10 +238,10 @@ class RoleController extends Controller
         $newValidUntil = \Carbon\Carbon::parse($request->string('valid_until')->toString());
 
         DB::transaction(function () use ($assignment, $newValidUntil, $user, $role, $request, $authUser) {
-            // Update expiration using DB query (pivot model has no primary key)
+            // Update expiration using a direct DB query because the pivot table uses a composite key (model_id, role_id, tenant_id) and Eloquent does not support updates without a single primary key.
             DB::table('model_has_roles')
                 ->where('model_id', $user->id)
-                ->where('model_type', 'App\\Models\\User')
+                ->where('model_type', User::class)
                 ->where('role_id', $role->id)
                 ->where('tenant_id', $assignment->tenant_id)
                 ->update([

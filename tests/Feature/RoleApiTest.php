@@ -56,7 +56,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
             'valid_until' => now()->addDays(7)->toIso8601String(),
         ]);
 
-        $response->assertStatus(401);
+        $response->assertUnauthorized();
     });
 
     it('returns 403 when user lacks role.assign permission', function (): void {
@@ -67,7 +67,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
                 'valid_until' => now()->addDays(7)->toIso8601String(),
             ]);
 
-        $response->assertStatus(403);
+        $response->assertForbidden();
     });
 
     it('returns 422 when role is missing', function (): void {
@@ -112,7 +112,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
                 'reason' => 'Vacation coverage',
             ]);
 
-        $response->assertStatus(201)
+        $response->assertCreated()
             ->assertJsonStructure([
                 'user_id',
                 'role',
@@ -137,14 +137,14 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
     it('returns 401 when not authenticated', function (): void {
         $response = $this->getJson("/api/v1/users/{$this->targetUser->id}/roles");
 
-        $response->assertStatus(401);
+        $response->assertUnauthorized();
     });
 
     it('returns 403 when user lacks role.read permission', function (): void {
         $response = $this->withToken($this->token)
             ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
 
-        $response->assertStatus(403);
+        $response->assertForbidden();
     });
 
     it('returns empty array when user has no roles', function (): void {
@@ -153,7 +153,7 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
         $response = $this->withToken($this->token)
             ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
 
-        $response->assertStatus(200)
+        $response->assertOk()
             ->assertJson(['roles' => []]);
     });
 
@@ -175,7 +175,7 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
         $response = $this->withToken($this->token)
             ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
 
-        $response->assertStatus(200)
+        $response->assertOk()
             ->assertJsonStructure([
                 'roles' => [
                     '*' => [
@@ -201,14 +201,14 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
     it('returns 401 when not authenticated', function (): void {
         $response = $this->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
 
-        $response->assertStatus(401);
+        $response->assertUnauthorized();
     });
 
     it('returns 403 when user lacks role.revoke permission', function (): void {
         $response = $this->withToken($this->token)
             ->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
 
-        $response->assertStatus(403);
+        $response->assertForbidden();
     });
 
     it('returns 404 when role not assigned to user', function (): void {
@@ -217,7 +217,7 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
         $response = $this->withToken($this->token)
             ->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
 
-        $response->assertStatus(404);
+        $response->assertNotFound();
     });
 
     it('revokes role and returns 204', function (): void {
@@ -236,7 +236,7 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
         $response = $this->withToken($this->token)
             ->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
 
-        $response->assertStatus(204);
+        $response->assertNoContent();
 
         // Verify role was revoked
         $this->targetUser->refresh();
@@ -250,7 +250,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
             'valid_until' => now()->addDays(14)->toIso8601String(),
         ]);
 
-        $response->assertStatus(401);
+        $response->assertUnauthorized();
     });
 
     it('returns 403 when user lacks role.assign permission', function (): void {
@@ -259,7 +259,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
                 'valid_until' => now()->addDays(14)->toIso8601String(),
             ]);
 
-        $response->assertStatus(403);
+        $response->assertForbidden();
     });
 
     it('returns 404 when role not assigned to user', function (): void {
@@ -270,7 +270,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
                 'valid_until' => now()->addDays(14)->toIso8601String(),
             ]);
 
-        $response->assertStatus(404);
+        $response->assertNotFound();
     });
 
     it('returns 422 when new valid_until is before current valid_until', function (): void {
@@ -315,7 +315,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
                 'reason' => 'Extended vacation period',
             ]);
 
-        $response->assertStatus(200)
+        $response->assertOk()
             ->assertJsonStructure([
                 'user_id',
                 'role',

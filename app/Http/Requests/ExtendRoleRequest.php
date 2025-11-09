@@ -6,6 +6,7 @@
 namespace App\Http\Requests;
 
 use App\Models\TemporalRoleUser;
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 use Spatie\Permission\Models\Role;
@@ -58,7 +59,7 @@ class ExtendRoleRequest extends FormRequest
             // Find current assignment using role_id
             $assignment = TemporalRoleUser::where('role_id', $role->id)
                 ->where('model_id', $userId)
-                ->where('model_type', 'App\\Models\\User')
+                ->where('model_type', User::class)
                 ->first();
 
             // Validate new valid_until is after current valid_until

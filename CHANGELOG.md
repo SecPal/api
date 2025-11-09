@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /api/v1/users/{id}/roles` - List user roles with expiry info (is_active, is_expired status)
   - `DELETE /api/v1/users/{id}/roles/{role}` - Revoke role assignment
   - `PATCH /api/v1/users/{id}/roles/{role}/extend` - Extend role expiration date
-  - `RoleController` with 4 RESTful methods (store, index, destroy, extend)
+  - `RoleController` with 3 RESTful methods (`store`, `index`, `destroy`) and 1 custom action (`extend`)
   - `AssignRoleRequest` - Validates temporal parameters (valid_from < valid_until, role existence)
   - `ExtendRoleRequest` - Validates extension (new date must be after current expiration)
   - Permission-based authorization: `role.assign`, `role.read`, `role.revoke` permissions required
