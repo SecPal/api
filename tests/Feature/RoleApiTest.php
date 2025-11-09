@@ -35,12 +35,12 @@ beforeEach(function (): void {
     $this->targetUser = User::factory()->create();
 
     // Create test role
-    $this->role = Role::create(['name' => 'manager']);
+    $this->role = Role::create(['name' => 'manager', 'guard_name' => 'sanctum']);
 
     // Create permissions (global, not team-scoped)
-    Permission::create(['name' => 'role.assign']);
-    Permission::create(['name' => 'role.revoke']);
-    Permission::create(['name' => 'role.read']);
+    Permission::create(['name' => 'role.assign', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'role.revoke', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'role.read', 'guard_name' => 'sanctum']);
 });
 
 afterEach(function (): void {

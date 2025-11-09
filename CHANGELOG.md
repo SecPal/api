@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Permission System Guard Migration** - Migrated from 'web' to 'sanctum' guard (#126, #127, #128, #129)
+  - Fixed `RoleApiTest.php` - Added explicit `guard_name='sanctum'` to all Permission and Role creation
+  - Fixed `PersonApiTest.php` - Changed `guard_name` from 'web' to 'sanctum' for person permissions
+  - Added `$guard_name = 'sanctum'` property to User model for Spatie Laravel-Permission
+  - Resolves 403 Forbidden errors caused by guard mismatch between sanctum authentication and web permissions
+  - All 40 tests now passing (146 assertions)
+
 ### Added
 
 - **Git Conflict Marker Detection** - Automated check for unresolved merge conflicts
