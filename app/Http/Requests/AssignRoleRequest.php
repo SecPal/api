@@ -27,11 +27,11 @@ class AssignRoleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'role' => 'required|string|exists:roles,name',
-            'valid_from' => 'nullable|date',
-            'valid_until' => 'nullable|date',
-            'auto_revoke' => 'nullable|boolean',
-            'reason' => 'nullable|string|max:500',
+            'role' => ['required', 'string', 'exists:roles,name'],
+            'valid_from' => ['nullable', 'date'],
+            'valid_until' => ['nullable', 'date'],
+            'auto_revoke' => ['nullable', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 

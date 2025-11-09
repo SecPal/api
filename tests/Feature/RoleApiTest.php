@@ -50,7 +50,7 @@ afterEach(function (): void {
 });
 
 describe('POST /v1/users/{id}/roles - Assign Role', function () {
-    it('returns 401 when not authenticated', function (): void {
+    test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
             'role' => 'manager',
             'valid_from' => now()->toIso8601String(),
@@ -60,7 +60,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
         $response->assertUnauthorized();
     });
 
-    it('returns 403 when user lacks role.assign permission', function (): void {
+    test('returns 403 when user lacks role.assign permission', function (): void {
         $response = $this->withToken($this->token)
             ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
                 'role' => 'manager',
@@ -71,7 +71,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
         $response->assertForbidden();
     });
 
-    it('returns 422 when role is missing', function (): void {
+    test('returns 422 when role is missing', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
@@ -84,7 +84,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
             ->assertJsonValidationErrors(['role']);
     });
 
-    it('returns 422 when valid_until is before valid_from', function (): void {
+    test('returns 422 when valid_until is before valid_from', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
@@ -98,7 +98,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
             ->assertJsonValidationErrors(['valid_until']);
     });
 
-    it('assigns role with temporal parameters and returns 201', function (): void {
+    test('assigns role with temporal parameters and returns 201', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $validFrom = now();
@@ -135,20 +135,20 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
 });
 
 describe('GET /v1/users/{id}/roles - List Roles', function () {
-    it('returns 401 when not authenticated', function (): void {
+    test('returns 401 when not authenticated', function (): void {
         $response = $this->getJson("/api/v1/users/{$this->targetUser->id}/roles");
 
         $response->assertUnauthorized();
     });
 
-    it('returns 403 when user lacks role.read permission', function (): void {
+    test('returns 403 when user lacks role.read permission', function (): void {
         $response = $this->withToken($this->token)
             ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
 
         $response->assertForbidden();
     });
 
-    it('returns empty array when user has no roles', function (): void {
+    test('returns empty array when user has no roles', function (): void {
         $this->user->givePermissionTo('role.read');
 
         $response = $this->withToken($this->token)
@@ -158,7 +158,7 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
             ->assertJson(['roles' => []]);
     });
 
-    it('returns roles with expiry info when user has roles', function (): void {
+    test('returns roles with expiry info when user has roles', function (): void {
         $this->user->givePermissionTo('role.read');
 
         // Assign role with temporal parameters
@@ -199,20 +199,20 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
 });
 
 describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
-    it('returns 401 when not authenticated', function (): void {
+    test('returns 401 when not authenticated', function (): void {
         $response = $this->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
 
         $response->assertUnauthorized();
     });
 
-    it('returns 403 when user lacks role.revoke permission', function (): void {
+    test('returns 403 when user lacks role.revoke permission', function (): void {
         $response = $this->withToken($this->token)
             ->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
 
         $response->assertForbidden();
     });
 
-    it('returns 404 when role not assigned to user', function (): void {
+    test('returns 404 when role not assigned to user', function (): void {
         $this->user->givePermissionTo('role.revoke');
 
         $response = $this->withToken($this->token)
@@ -221,7 +221,7 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
         $response->assertNotFound();
     });
 
-    it('revokes role and returns 204', function (): void {
+    test('revokes role and returns 204', function (): void {
         $this->user->givePermissionTo('role.revoke');
 
         // Assign role first
@@ -246,7 +246,7 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
 });
 
 describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
-    it('returns 401 when not authenticated', function (): void {
+    test('returns 401 when not authenticated', function (): void {
         $response = $this->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
             'valid_until' => now()->addDays(14)->toIso8601String(),
         ]);
@@ -254,7 +254,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
         $response->assertUnauthorized();
     });
 
-    it('returns 403 when user lacks role.assign permission', function (): void {
+    test('returns 403 when user lacks role.assign permission', function (): void {
         $response = $this->withToken($this->token)
             ->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
                 'valid_until' => now()->addDays(14)->toIso8601String(),
@@ -263,7 +263,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
         $response->assertForbidden();
     });
 
-    it('returns 404 when role not assigned to user', function (): void {
+    test('returns 404 when role not assigned to user', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
@@ -274,7 +274,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
         $response->assertNotFound();
     });
 
-    it('returns 422 when new valid_until is before current valid_until', function (): void {
+    test('returns 422 when new valid_until is before current valid_until', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         // Assign role with 14 days validity
@@ -295,7 +295,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
             ->assertJsonValidationErrors(['valid_until']);
     });
 
-    it('extends role expiration and returns 200', function (): void {
+    test('extends role expiration and returns 200', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $originalValidUntil = now()->addDays(7);
@@ -341,7 +341,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
 });
 
 describe('Edge Cases - Temporal Date Validation', function () {
-    it('accepts assignment with valid_from in the past and valid_until also past', function (): void {
+    test('accepts assignment with valid_from in the past and valid_until also past', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
@@ -355,7 +355,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
         $response->assertCreated();
     });
 
-    it('accepts assignment with only valid_from (no end date - unbegrenzt)', function (): void {
+    test('accepts assignment with only valid_from (no end date - unbegrenzt)', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
@@ -371,7 +371,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
             ]);
     });
 
-    it('accepts assignment with only valid_until (no start date)', function (): void {
+    test('accepts assignment with only valid_until (no start date)', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
@@ -387,7 +387,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
             ]);
     });
 
-    it('accepts assignment with neither valid_from nor valid_until (permanent role)', function (): void {
+    test('accepts assignment with neither valid_from nor valid_until (permanent role)', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
@@ -402,7 +402,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
             ]);
     });
 
-    it('rejects extension with past date', function (): void {
+    test('rejects extension with past date', function (): void {
         $this->user->givePermissionTo('role.assign');
 
         // Assign role first
@@ -423,7 +423,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
 });
 
 describe('Edge Cases - N+1 Query Prevention', function () {
-    it('fetches multiple role assignments efficiently', function (): void {
+    test('fetches multiple role assignments efficiently', function (): void {
         $this->user->givePermissionTo('role.read');
 
         // Create multiple roles in the current tenant context

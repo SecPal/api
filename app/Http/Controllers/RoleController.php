@@ -32,11 +32,11 @@ class RoleController extends Controller
     /**
      * Assign a role to a user with temporal parameters.
      *
-     * POST /v1/users/{id}/roles
+     * POST /v1/users/{user}/roles
      */
-    public function store(AssignRoleRequest $request, int $id): JsonResponse
+    public function store(AssignRoleRequest $request, int $user): JsonResponse
     {
-        $user = User::findOrFail($id);
+        $user = User::findOrFail($user);
         $roleName = $request->string('role')->toString();
         $role = Role::where('name', $roleName)->firstOrFail();
 
@@ -100,12 +100,12 @@ class RoleController extends Controller
     /**
      * List all roles for a user with their expiration status.
      */
-    public function index(Request $request, int $id): JsonResponse
+    public function index(Request $request, int $user): JsonResponse
     {
         /** @var int|null $tenantId */
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
 
-        $roleAssignments = TemporalRoleUser::where('model_id', $id)
+        $roleAssignments = TemporalRoleUser::where('model_id', $user)
             ->where('model_type', User::class)
             ->where('tenant_id', $tenantId)
             ->get();
@@ -140,11 +140,11 @@ class RoleController extends Controller
     /**
      * Revoke a role from a user.
      *
-     * DELETE /v1/users/{id}/roles/{role}
+     * DELETE /v1/users/{user}/roles/{role}
      */
-    public function destroy(Request $request, int $id, string $roleName): JsonResponse|Response
+    public function destroy(Request $request, int $user, string $roleName): JsonResponse|Response
     {
-        $user = User::findOrFail($id);
+        $user = User::findOrFail($user);
         $role = Role::where('name', $roleName)->firstOrFail();
 
         /** @var \App\Models\User $authUser */
@@ -187,11 +187,11 @@ class RoleController extends Controller
     /**
      * Extend the expiration date of a role assignment.
      *
-     * PATCH /v1/users/{id}/roles/{role}/extend
+     * PATCH /v1/users/{user}/roles/{role}/extend
      */
-    public function extend(ExtendRoleRequest $request, int $id, string $roleName): JsonResponse
+    public function extend(ExtendRoleRequest $request, int $user, string $roleName): JsonResponse
     {
-        $user = User::findOrFail($id);
+        $user = User::findOrFail($user);
         $role = Role::where('name', $roleName)->firstOrFail();
 
         /** @var \App\Models\User $authUser */

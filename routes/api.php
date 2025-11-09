@@ -44,13 +44,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
 
         // Role management endpoints
-        Route::post('/users/{id}/roles', [RoleController::class, 'store'])
+        Route::post('/users/{user}/roles', [RoleController::class, 'store'])
             ->middleware('permission:role.assign');
-        Route::get('/users/{id}/roles', [RoleController::class, 'index'])
+        Route::get('/users/{user}/roles', [RoleController::class, 'index'])
             ->middleware('permission:role.read');
-        Route::delete('/users/{id}/roles/{role}', [RoleController::class, 'destroy'])
+        Route::delete('/users/{user}/roles/{role}', [RoleController::class, 'destroy'])
             ->middleware('permission:role.revoke');
-        Route::patch('/users/{id}/roles/{role}/extend', [RoleController::class, 'extend'])
+        Route::patch('/users/{user}/roles/{role}/extend', [RoleController::class, 'extend'])
             ->middleware('permission:role.assign');
 
         // Tenant-scoped Person endpoints

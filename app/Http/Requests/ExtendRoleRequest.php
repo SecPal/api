@@ -30,8 +30,8 @@ class ExtendRoleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'valid_until' => 'required|date|after:now',
-            'reason' => 'nullable|string|max:500',
+            'valid_until' => ['required', 'date', 'after:now'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 
@@ -42,7 +42,7 @@ class ExtendRoleRequest extends FormRequest
     {
         $validator->after(function (Validator $validator) {
             /** @var int|null $userId */
-            $userId = $this->route('id');
+            $userId = $this->route('user');
             /** @var string|null $roleName */
             $roleName = $this->route('role');
 
