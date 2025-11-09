@@ -25,7 +25,7 @@ class RoleManagementController extends Controller
     {
         Gate::authorize('viewAny', Role::class);
 
-        $roles = Role::withCount('permissions')
+        $roles = Role::withCount(['permissions', 'users'])
             ->orderBy('name')
             ->get();
 
@@ -34,7 +34,7 @@ class RoleManagementController extends Controller
                 'id' => $role->id,
                 'name' => $role->name,
                 'permissions_count' => $role->permissions_count,
-                'users_count' => $role->users()->count(),
+                'users_count' => $role->users_count,
                 'created_at' => $role->created_at?->toIso8601String() ?? '',
                 'updated_at' => $role->updated_at?->toIso8601String() ?? '',
             ]),
@@ -62,7 +62,6 @@ class RoleManagementController extends Controller
             'data' => [
                 'id' => $role->id,
                 'name' => $role->name,
-                'description' => $request->input('description'),
                 'permissions' => $role->fresh()?->permissions->pluck('name') ?? [],
                 'created_at' => $role->created_at?->toIso8601String() ?? '',
                 'updated_at' => $role->updated_at?->toIso8601String() ?? '',

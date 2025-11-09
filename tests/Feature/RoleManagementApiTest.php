@@ -167,13 +167,12 @@ describe('POST /v1/roles - Create Role', function () {
         $response = $this->withToken($this->token)
             ->postJson('/api/v1/roles', [
                 'name' => 'Regional Manager',
-                'description' => 'Manages multiple branches',
                 'permissions' => ['employees.read', 'shifts.read'],
             ]);
 
         $response->assertCreated()
             ->assertJsonStructure([
-                'data' => ['id', 'name', 'description', 'permissions', 'created_at', 'updated_at'],
+                'data' => ['id', 'name', 'permissions', 'created_at', 'updated_at'],
             ])
             ->assertJsonFragment(['name' => 'Regional Manager'])
             ->assertJsonPath('data.permissions', fn ($permissions) => count($permissions) === 2);
