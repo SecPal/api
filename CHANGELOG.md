@@ -24,11 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Migration context: Historical background and EPIC #125 systematic migration
   - Code examples: Correct vs incorrect patterns for permissions, roles, tests
   - Troubleshooting section: Common errors and debug steps
-  - Incorporates insights from PR #134 and PR #135 (explicit route middleware best practice)
+  - Incorporates insights from Issue #134 and PR #135 (explicit route middleware best practice)
 
 ### Changed
 
-- **Auth Configuration: Set sanctum as default guard** (#134)
+- **Auth Configuration: Set sanctum as default guard** (Issue #134, PR #135)
   - Changed default guard from `'web'` to `'sanctum'` in `config/auth.php`
   - Added explicit `sanctum` guard configuration to guards array
   - Updated documentation comments to explain API-only, token-based architecture
