@@ -7,7 +7,10 @@ namespace App\Providers;
 
 use App\Models\Person;
 use App\Observers\PersonObserver;
+use App\Policies\RoleManagementPolicy;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Spatie\Permission\Models\Role;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,5 +28,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Person::observe(PersonObserver::class);
+
+        // Register policy for Spatie Role model
+        Gate::policy(Role::class, RoleManagementPolicy::class);
     }
 }
