@@ -810,13 +810,15 @@ Content-Type: application/json
 // In controller
 public function store(User $user, AssignRoleRequest $request): JsonResponse
 {
-    $user->assignRole($request->validated('role'));
+    $validated = $request->validated();
+
+    $user->assignRole($validated['role']);
 
     return response()->json([
         'data' => [
             'user_id' => $user->id,
-            'role' => $request->validated('role'),
-            'assigned_at' => now()->toISOString(),
+            'role' => $validated['role'],
+            'assigned_at' => now()->toIso8601String(),
         ],
     ], 201);
 }
@@ -856,21 +858,23 @@ Content-Type: application/json
 // In controller
 public function store(User $user, AssignRoleRequest $request): JsonResponse
 {
-    $user->assignRole($request->validated('role'), [
-        'valid_from' => $request->validated('valid_from'),
-        'valid_until' => $request->validated('valid_until'),
+    $validated = $request->validated();
+
+    $user->assignRole($validated['role'], [
+        'valid_from' => $validated['valid_from'],
+        'valid_until' => $validated['valid_until'],
         'auto_revoke' => true,
         'assigned_by' => auth()->id(),
-        'reason' => $request->validated('reason'),
+        'reason' => $validated['reason'],
     ]);
 
     return response()->json([
         'data' => [
             'user_id' => $user->id,
-            'role' => $request->validated('role'),
-            'valid_from' => $request->validated('valid_from'),
-            'valid_until' => $request->validated('valid_until'),
-            'expires_in_days' => now()->diffInDays($request->validated('valid_until')),
+            'role' => $validated['role'],
+            'valid_from' => $validated['valid_from'],
+            'valid_until' => $validated['valid_until'],
+            'expires_in_days' => now()->diffInDays($validated['valid_until']),
         ],
     ], 201);
 }
@@ -909,7 +913,9 @@ Content-Type: application/json
 // In controller
 public function store(User $user, AssignPermissionRequest $request): JsonResponse
 {
-    foreach ($request->validated('permissions') as $permission) {
+    $validated = $request->validated();
+
+    foreach ($validated['permissions'] as $permission) {
         $user->givePermissionTo($permission);
     }
 
@@ -917,7 +923,7 @@ public function store(User $user, AssignPermissionRequest $request): JsonRespons
         'data' => [
             'user_id' => $user->id,
             'direct_permissions' => $user->getDirectPermissions()->pluck('name'),
-            'assigned_at' => now()->toISOString(),
+            'assigned_at' => now()->toIso8601String(),
         ],
     ], 201);
 }
