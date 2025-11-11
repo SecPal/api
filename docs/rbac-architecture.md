@@ -563,6 +563,8 @@ SecPal's RBAC system is built on three core design decisions. Each decision prio
 **Unified Deletion Rule:**
 
 ```php
+use Illuminate\Validation\ValidationException;
+
 // Single rule applies to ALL roles (Admin, Manager, Guard, Custom, etc.)
 public function destroy(Role $role)
 {
@@ -1022,6 +1024,10 @@ $directPermissions = auth()->user()->getDirectPermissions();
 
 ```php
 // Console/Commands/ExpireRoles.php
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use App\Models\RoleAssignmentLog;
+
 class ExpireRoles extends Command
 {
     protected $signature = 'roles:expire';
@@ -1351,7 +1357,7 @@ test('temporal role expires automatically', function () {
 
     expect($user->hasRole('manager'))->toBeTrue();
 
-    // Travel to after expiration
+    // Travel to after expiration (using Pest's time travel helpers)
     $this->travel(2)->hours();
 
     // Run expiration command
