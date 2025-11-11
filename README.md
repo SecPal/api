@@ -251,6 +251,66 @@ api/
 
 API documentation is maintained separately in the [contracts repository](https://github.com/SecPal/contracts) using OpenAPI 3.1 specification.
 
+## RBAC System
+
+SecPal implements a comprehensive Role-Based Access Control (RBAC) system with temporal role assignments and direct permission management.
+
+### Core Features
+
+- **Role-based access control** with predefined roles (Admin, Manager, Guard, Client, Works Council)
+- **Temporal role assignments** with automatic expiration for time-limited access
+- **Direct permissions** allowing exceptions without creating new roles
+- **All roles are equal** and fully manageable (no system/custom distinction)
+- **Idempotent seeder** recreates deleted predefined roles
+
+### Three Core Concepts
+
+#### 1. No System Roles
+
+All roles are equal - predefined roles (Admin, Manager, etc.) can be deleted if not assigned to users. Deleted predefined roles are automatically recreated on next seeder run. This approach provides simplicity and flexibility without artificial distinctions. See [ADR-005](https://github.com/SecPal/.github/blob/main/docs/adr/005-rbac-design-decisions.md) for rationale.
+
+#### 2. Direct Permissions
+
+Users can have permissions assigned directly, bypassing roles entirely. This allows exceptional access without creating single-use roles. Permission hierarchy: `User Permissions = Role Permissions ∪ Direct Permissions`. See [`docs/guides/direct-permissions.md`](docs/guides/direct-permissions.md) for detailed patterns.
+
+#### 3. Temporal Assignments
+
+Role and permission assignments are permanent by default. Temporal constraints (`valid_from`, `valid_until`) are optional for time-limited access (vacation coverage, projects, events). See [`docs/guides/temporal-roles.md`](docs/guides/temporal-roles.md) for use cases.
+
+### Quick Examples
+
+**Assign Permanent Role:**
+
+```bash
+POST /api/v1/users/{id}/roles
+{"role": "manager"}
+```
+
+**Assign Temporal Role:**
+
+```bash
+POST /api/v1/users/{id}/roles
+{
+  "role": "manager",
+  "valid_until": "2025-12-14T23:59:59Z"
+}
+```
+
+**Assign Direct Permission:**
+
+```bash
+POST /api/v1/users/{id}/permissions
+{"permissions": ["employees.export"]}
+```
+
+### Documentation
+
+- **Architecture Overview:** [`docs/rbac-architecture.md`](docs/rbac-architecture.md)
+- **Direct Permissions Guide:** [`docs/guides/direct-permissions.md`](docs/guides/direct-permissions.md)
+- **Temporal Roles Guide:** [`docs/guides/temporal-roles.md`](docs/guides/temporal-roles.md)
+- **Design Decisions:** [ADR-005](https://github.com/SecPal/.github/blob/main/docs/adr/005-rbac-design-decisions.md)
+- **API Documentation:** [Issue #140](https://github.com/SecPal/api/issues/140)
+
 ## 🤖 Automation
 
 This repository uses automated project board management. Issues and PRs are automatically added to the [SecPal Roadmap](https://github.com/orgs/SecPal/projects/1) with status based on labels and PR state.
