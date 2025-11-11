@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **RBAC Architecture Documentation** (#143)
+  - New file: `docs/rbac-architecture.md` - Central RBAC system documentation
+  - System architecture: High-level component diagrams (Users → Roles → Permissions + Direct Permissions)
+  - Core concepts: Roles, Permissions, Direct Permissions, Temporal Assignments
+  - Design principles: Links to ADR-005 (No System Roles, Direct Permissions, Temporal Optional)
+  - Permission hierarchy: Formula and examples showing Role ∪ Direct permission resolution
+  - Implementation patterns: 5+ code examples for role/permission assignment and checking
+  - API overview: Summary of 4 API areas (Role Assignment, Role Management, Permission Management, Direct Permissions)
+  - Developer guidelines: Decision trees, best practices, testing strategies
+  - Serves as single source of truth for RBAC system understanding
+  - Part of Epic #141 (Complete RBAC Documentation), depends on ADR-005, blocks Issues #144, #145, #137-140
+
 - **Guard Architecture Documentation** (#130)
   - New file: `docs/GUARD_ARCHITECTURE.md` - Comprehensive guide to Laravel Guards in SecPal
   - Explains guard concept: authentication mechanisms (session vs token-based)
