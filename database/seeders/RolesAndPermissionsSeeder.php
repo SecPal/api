@@ -32,7 +32,8 @@ class RolesAndPermissionsSeeder extends Seeder
         foreach ($permissions as $resource => $actions) {
             foreach ($actions as $action) {
                 Permission::firstOrCreate(
-                    ['name' => "{$resource}.{$action}"]
+                    ['name' => "{$resource}.{$action}"],
+                    ['guard_name' => 'sanctum']
                 );
             }
         }
@@ -43,7 +44,8 @@ class RolesAndPermissionsSeeder extends Seeder
         // Create roles and assign permissions (idempotent)
         foreach ($roles as $roleName => $roleConfig) {
             $role = Role::firstOrCreate(
-                ['name' => $roleName]
+                ['name' => $roleName],
+                ['guard_name' => 'sanctum']
             );
 
             // Only sync permissions if role has none
@@ -102,6 +104,8 @@ class RolesAndPermissionsSeeder extends Seeder
                 'create',
                 'update',
                 'delete',
+                'assign_direct',
+                'revoke_direct',
             ],
             'works_council' => [
                 'access_employee_files',
