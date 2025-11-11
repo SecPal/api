@@ -752,6 +752,10 @@ class ExpireRoles extends Command
 **Scheduled in `routes/console.php`:**
 
 ```php
+<?php
+
+use Illuminate\Support\Facades\Schedule;
+
 Schedule::command('roles:expire')->everyMinute();
 ```
 
@@ -1058,10 +1062,13 @@ if (soonToExpire.length > 0) {
 
 ## Testing Temporal Logic
 
+> **Note:** The following test examples use SecPal's extended API methods (`assignRole()` with array parameters, `extendRole()`) that add temporal functionality to Spatie Permission. These are custom methods implemented in SecPal's `User` model using traits or direct database manipulation of the `model_has_roles` pivot table. Standard Spatie Permission does not support temporal assignments out of the box—this is SecPal-specific functionality.
+
 ### Test Cases
 
 ```php
 use App\Models\User;
+use App\Models\RoleAssignmentLog;
 use Spatie\Permission\Models\Role;
 
 test('temporal role becomes active when valid_from is reached', function () {
