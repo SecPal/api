@@ -6,10 +6,10 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 

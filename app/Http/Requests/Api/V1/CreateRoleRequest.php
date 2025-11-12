@@ -8,8 +8,8 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\Permission;
 use Illuminate\Foundation\Http\FormRequest;
-use Spatie\Permission\Models\Permission;
 
 class CreateRoleRequest extends FormRequest
 {
