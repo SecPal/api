@@ -8,9 +8,9 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\Permission;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Spatie\Permission\Models\Permission;
 
 class UpdateRoleRequest extends FormRequest
 {

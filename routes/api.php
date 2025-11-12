@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Http\Controllers\Api\V1\PermissionManagementController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PersonController;
@@ -50,6 +51,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/roles/{id}', [RoleManagementController::class, 'show']);
         Route::patch('/roles/{id}', [RoleManagementController::class, 'update']);
         Route::delete('/roles/{id}', [RoleManagementController::class, 'destroy']);
+
+        // Permission Management CRUD API
+        Route::get('/permissions', [PermissionManagementController::class, 'index']);
+        Route::post('/permissions', [PermissionManagementController::class, 'store']);
+        Route::get('/permissions/{id}', [PermissionManagementController::class, 'show']);
+        Route::patch('/permissions/{id}', [PermissionManagementController::class, 'update']);
+        Route::delete('/permissions/{id}', [PermissionManagementController::class, 'destroy']);
 
         // Role management endpoints
         Route::post('/users/{user}/roles', [RoleController::class, 'store'])
