@@ -23,6 +23,17 @@ use Spatie\Permission\Models\Permission as SpatiePermission;
 class Permission extends SpatiePermission
 {
     /**
+     * The attributes that are mass assignable.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'name',
+        'guard_name',
+        'description',
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
