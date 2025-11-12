@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Permission Management CRUD API** (#137)
+  - New endpoint: `GET /v1/permissions` - List all permissions grouped by resource
+  - New endpoint: `POST /v1/permissions` - Create new permission with strict naming validation (resource.action)
+  - New endpoint: `GET /v1/permissions/{id}` - Get permission details with assigned roles
+  - New endpoint: `PATCH /v1/permissions/{id}` - Update permission description (name is immutable)
+  - New endpoint: `DELETE /v1/permissions/{id}` - Delete permission (blocks if assigned to roles)
+  - New migration: Add `description` column to `permissions` table
+  - New model: `App\Models\Permission` - Extended Spatie Permission model with description support
+  - New policy: `PermissionManagementPolicy` - Admin-only authorization for all operations
+  - New form requests: `CreatePermissionRequest`, `UpdatePermissionRequest` - Validation rules
+  - Part of RBAC Phase 4 Epic (#108), enables Issue #138 (User Direct Permission Assignment)
+
 - **RBAC Architecture Documentation** (#143)
   - New file: `docs/rbac-architecture.md` - Central RBAC system documentation
   - System architecture: High-level component diagrams (Users → Roles → Permissions + Direct Permissions)

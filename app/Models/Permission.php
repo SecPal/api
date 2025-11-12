@@ -1,0 +1,34 @@
+<?php
+
+/*
+ * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace App\Models;
+
+use Spatie\Permission\Models\Permission as SpatiePermission;
+
+/**
+ * Extended Permission model with description field support.
+ *
+ * @property int $id
+ * @property string $name
+ * @property string $guard_name
+ * @property string|null $description
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
+ */
+class Permission extends SpatiePermission
+{
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+}
