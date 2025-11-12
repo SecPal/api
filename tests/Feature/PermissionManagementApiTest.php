@@ -6,10 +6,10 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -221,7 +221,7 @@ describe('GET /v1/permissions/{id} - Get Permission Details', function () {
                 'data' => ['id', 'name', 'description', 'roles', 'created_at', 'updated_at'],
             ])
             ->assertJsonFragment(['name' => 'employees.read'])
-            ->assertJsonPath('data.roles', fn ($roles) => count($roles) === 1);
+            ->assertJsonCount(1, 'data.roles');
     });
 });
 
