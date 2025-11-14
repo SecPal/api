@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed 88 markdown-lint errors in `.github/copilot-instructions.md` (#123)
+  - Added blank lines around headings (MD022)
+  - Added blank lines around lists (MD032)
+  - Removed multiple consecutive blank lines (MD012)
+  - Fixed unordered list indentation to 2 spaces (MD007)
+
 ### Added
 
 - **Permission Management CRUD API** (#137)
