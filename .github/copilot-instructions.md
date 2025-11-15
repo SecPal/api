@@ -249,10 +249,11 @@ protected function isAccessible(User $user, ?string $path = null): bool
 - Tests live in the `tests/Feature` and `tests/Unit` directories.
 - Pest tests look and behave like this:
   <code-snippet name="Basic Pest Test Example" lang="php">
-  it('is true', function () {
-  expect(true)->toBeTrue();
-  });
-  </code-snippet>
+
+it('is true', function () {
+expect(true)->toBeTrue();
+});
+</code-snippet>
 
 ### Running Tests
 
@@ -266,13 +267,13 @@ protected function isAccessible(User $user, ?string $path = null): bool
 
 - When asserting status codes on a response, use the specific method like `assertForbidden` and `assertNotFound` instead of using `assertStatus(403)` or similar, e.g.:
   <code-snippet name="Pest Example Asserting postJson Response" lang="php">
-  it('returns all', function () {
-  $response = $this->postJson('/api/docs', []);
 
-      $response->assertSuccessful();
+it('returns all', function () {
+$response = $this->postJson('/api/docs', []);
 
-  });
-  </code-snippet>
+$response->assertSuccessful();
+});
+</code-snippet>
 
 ### Mocking
 

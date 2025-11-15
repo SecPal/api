@@ -75,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Markdown Linting** - Fixed 88 markdown-lint errors in `.github/copilot-instructions.md` (#123)
+  - Added blank lines around headings (MD022)
+  - Added blank lines around lists (MD032)
+  - Removed multiple consecutive blank lines (MD012)
+  - Fixed unordered list indentation to 2 spaces (MD007)
 - **Permission System Guard Migration** - Migrated from 'web' to 'sanctum' guard (#126, #127, #128, #129)
   - Fixed `RoleApiTest.php` - Added explicit `guard_name='sanctum'` to all Permission and Role creation
   - Fixed `PersonApiTest.php` - Changed `guard_name` from 'web' to 'sanctum' for person permissions
