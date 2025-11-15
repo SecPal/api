@@ -52,7 +52,31 @@ class RoleController extends Controller
         /** @var int|null $tenantId */
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
 
-        DB::transaction(function () use ($targetUser, $role, $validFrom, $validUntil, $request, $tenantId, $authUser) {
+        // Idempotency check: Return 200 OK if role already assigned
+        // This prevents DB unique constraint violations on duplicate assignments
+        /** @var object{valid_from: ?string, valid_until: ?string, auto_revoke: bool, reason: ?string}|null $existingAssignment */
+        $existingAssignment = DB::table('model_has_roles')
+            ->where('model_type', get_class($targetUser))
+            ->where('model_id', $targetUser->id)
+            ->where('role_id', $role->id)
+            ->where('tenant_id', $tenantId)
+            ->first();
+
+        if ($existingAssignment) {
+            return response()->json([
+                'message' => 'Role already assigned to user',
+                'user_id' => $targetUser->id,
+                'role' => $role->name,
+                'valid_from' => $existingAssignment->valid_from
+                    ? Carbon::parse($existingAssignment->valid_from)->toIso8601String()
+                    : null,
+                'valid_until' => $existingAssignment->valid_until
+                    ? Carbon::parse($existingAssignment->valid_until)->toIso8601String()
+                    : null,
+                'auto_revoke' => $existingAssignment->auto_revoke,
+                'reason' => $existingAssignment->reason ?? '',
+            ], Response::HTTP_OK); // 200 OK - Idempotent operation
+        }        DB::transaction(function () use ($targetUser, $role, $validFrom, $validUntil, $request, $tenantId, $authUser) {
             // Direct database insert to bypass Spatie's relationship methods:
             // We require additional temporal and audit fields (valid_from, valid_until, auto_revoke, assigned_by, reason)
             // in the model_has_roles table, which are not supported by Spatie's built-in relationship methods.
