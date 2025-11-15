@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 /**
  * Feature tests for password reset confirmation endpoint.
  *
- * @covers POST /api/v1/auth/password/reset
+ * @covers POST /v1/auth/password/reset
  */
 uses(RefreshDatabase::class);
 
@@ -42,7 +42,7 @@ it('allows user to reset password with valid token', function () {
 
     $token = createPasswordResetToken($user);
 
-    $response = $this->postJson('/api/v1/auth/password/reset', [
+    $response = $this->postJson('/v1/auth/password/reset', [
         'token' => $token,
         'email' => 'test@example.com',
         'password' => 'new-secure-password-123',
@@ -65,7 +65,7 @@ it('rejects expired token', function () {
 
     $expiredToken = createPasswordResetToken($user, now()->subMinutes(61));
 
-    $response = $this->postJson('/api/v1/auth/password/reset', [
+    $response = $this->postJson('/v1/auth/password/reset', [
         'token' => $expiredToken,
         'email' => 'test@example.com',
         'password' => 'new-password-123',
@@ -83,7 +83,7 @@ it('rejects invalid token', function () {
         'email' => 'test@example.com',
     ]);
 
-    $response = $this->postJson('/api/v1/auth/password/reset', [
+    $response = $this->postJson('/v1/auth/password/reset', [
         'token' => 'invalid-token-123',
         'email' => 'test@example.com',
         'password' => 'new-password-123',
@@ -97,14 +97,14 @@ it('rejects invalid token', function () {
 });
 
 it('requires all fields', function () {
-    $response = $this->postJson('/api/v1/auth/password/reset', []);
+    $response = $this->postJson('/v1/auth/password/reset', []);
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['token', 'email', 'password']);
 });
 
 it('requires password confirmation', function () {
-    $response = $this->postJson('/api/v1/auth/password/reset', [
+    $response = $this->postJson('/v1/auth/password/reset', [
         'token' => 'some-token',
         'email' => 'test@example.com',
         'password' => 'new-password-123',
@@ -121,7 +121,7 @@ it('validates password requirements', function () {
 
     $token = createPasswordResetToken($user);
 
-    $response = $this->postJson('/api/v1/auth/password/reset', [
+    $response = $this->postJson('/v1/auth/password/reset', [
         'token' => $token,
         'email' => 'test@example.com',
         'password' => 'short',
@@ -140,7 +140,7 @@ it('ensures token can only be used once', function () {
     $token = createPasswordResetToken($user);
 
     // First reset succeeds
-    $this->postJson('/api/v1/auth/password/reset', [
+    $this->postJson('/v1/auth/password/reset', [
         'token' => $token,
         'email' => 'test@example.com',
         'password' => 'new-password-123',
@@ -148,7 +148,7 @@ it('ensures token can only be used once', function () {
     ])->assertOk();
 
     // Second attempt with same token fails
-    $response = $this->postJson('/api/v1/auth/password/reset', [
+    $response = $this->postJson('/v1/auth/password/reset', [
         'token' => $token,
         'email' => 'test@example.com',
         'password' => 'another-password-456',
@@ -167,7 +167,7 @@ it('rate limits password reset attempts', function () {
     ]);
 
     // Make 5 requests (should all be allowed)
-    collect(range(1, 5))->each(fn () => $this->postJson('/api/v1/auth/password/reset', [
+    collect(range(1, 5))->each(fn () => $this->postJson('/v1/auth/password/reset', [
         'token' => 'wrong-token',
         'email' => 'test@example.com',
         'password' => 'new-password-123',
@@ -175,7 +175,7 @@ it('rate limits password reset attempts', function () {
     ])->assertStatus(400)); // Wrong token, but not rate limited
 
     // 6th request should be rate limited
-    $response = $this->postJson('/api/v1/auth/password/reset', [
+    $response = $this->postJson('/v1/auth/password/reset', [
         'token' => 'wrong-token',
         'email' => 'test@example.com',
         'password' => 'new-password-123',

@@ -39,7 +39,7 @@ afterEach(function (): void {
 
 describe('POST /v1/tenants/{tenant}/persons', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->postJson("/api/v1/tenants/{$this->tenant->id}/persons", [
+        $response = $this->postJson("/v1/tenants/{$this->tenant->id}/persons", [
             'email_plain' => 'test@example.com',
         ]);
 
@@ -48,7 +48,7 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
 
     test('returns 403 when user lacks person.write permission', function (): void {
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/tenants/{$this->tenant->id}/persons", [
+            ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
                 'email_plain' => 'test@example.com',
             ]);
 
@@ -59,7 +59,7 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.write');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/tenants/{$this->tenant->id}/persons", [
+            ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
                 'phone_plain' => '+49 123 456789',
             ]);
 
@@ -71,7 +71,7 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.write');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/tenants/{$this->tenant->id}/persons", [
+            ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
                 'email_plain' => 'not-an-email',
             ]);
 
@@ -83,7 +83,7 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.write');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/tenants/{$this->tenant->id}/persons", [
+            ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
                 'email_plain' => 'test@example.com',
                 'phone_plain' => '+49 123 456789',
                 'note_enc' => 'Test note',
@@ -113,7 +113,7 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.write');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/tenants/{$this->tenant->id}/persons", [
+            ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
                 'email_plain' => 'test@example.com',
                 'phone_plain' => '+49 123 456789',
             ]);
@@ -132,7 +132,7 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.write');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/tenants/{$this->tenant->id}/persons", [
+            ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
                 'email_plain' => 'minimal@example.com',
             ]);
 
@@ -149,7 +149,7 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
         $nonExistentTenantId = 99999;
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/tenants/{$nonExistentTenantId}/persons", [
+            ->postJson("/v1/tenants/{$nonExistentTenantId}/persons", [
                 'email_plain' => 'test@example.com',
             ]);
 
@@ -169,14 +169,14 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
     });
 
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->getJson("/api/v1/tenants/{$this->tenant->id}/persons/by-email?email=search@example.com");
+        $response = $this->getJson("/v1/tenants/{$this->tenant->id}/persons/by-email?email=search@example.com");
 
         $response->assertStatus(401);
     });
 
     test('returns 403 when user lacks person.read permission', function (): void {
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/tenants/{$this->tenant->id}/persons/by-email?email=search@example.com");
+            ->getJson("/v1/tenants/{$this->tenant->id}/persons/by-email?email=search@example.com");
 
         $response->assertStatus(403);
     });
@@ -185,7 +185,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.read');
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/tenants/{$this->tenant->id}/persons/by-email");
+            ->getJson("/v1/tenants/{$this->tenant->id}/persons/by-email");
 
         $response->assertStatus(400)
             ->assertJson([
@@ -197,7 +197,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.read');
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/tenants/{$this->tenant->id}/persons/by-email?email=notfound@example.com");
+            ->getJson("/v1/tenants/{$this->tenant->id}/persons/by-email?email=notfound@example.com");
 
         $response->assertStatus(404)
             ->assertJson([
@@ -209,7 +209,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.read');
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/tenants/{$this->tenant->id}/persons/by-email?email=search@example.com");
+            ->getJson("/v1/tenants/{$this->tenant->id}/persons/by-email?email=search@example.com");
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -228,7 +228,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.read');
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/tenants/{$this->tenant->id}/persons/by-email?email=SEARCH@EXAMPLE.COM");
+            ->getJson("/v1/tenants/{$this->tenant->id}/persons/by-email?email=SEARCH@EXAMPLE.COM");
 
         $response->assertStatus(200)
             ->assertJsonFragment([
@@ -240,7 +240,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.read');
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/tenants/{$this->tenant->id}/persons/by-email?email=search@example.com");
+            ->getJson("/v1/tenants/{$this->tenant->id}/persons/by-email?email=search@example.com");
 
         $response->assertStatus(200);
         $json = $response->json();
@@ -266,7 +266,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
 
         // Try to find tenant2's person using tenant1's endpoint
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/tenants/{$this->tenant->id}/persons/by-email?email=other@example.com");
+            ->getJson("/v1/tenants/{$this->tenant->id}/persons/by-email?email=other@example.com");
 
         $response->assertStatus(404);
     });

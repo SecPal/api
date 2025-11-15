@@ -50,7 +50,7 @@ afterEach(function (): void {
 
 describe('GET /v1/roles - List Roles', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->getJson('/api/v1/roles');
+        $response = $this->getJson('/v1/roles');
 
         $response->assertUnauthorized();
     });
@@ -59,7 +59,7 @@ describe('GET /v1/roles - List Roles', function () {
         // User has no permissions
 
         $response = $this->withToken($this->token)
-            ->getJson('/api/v1/roles');
+            ->getJson('/v1/roles');
 
         $response->assertForbidden();
     });
@@ -68,7 +68,7 @@ describe('GET /v1/roles - List Roles', function () {
         $this->user->givePermissionTo('roles.read');
 
         $response = $this->withToken($this->token)
-            ->getJson('/api/v1/roles');
+            ->getJson('/v1/roles');
 
         $response->assertOk()
             ->assertJsonStructure(['data'])
@@ -87,7 +87,7 @@ describe('GET /v1/roles - List Roles', function () {
         $guard->givePermissionTo('shifts.read');
 
         $response = $this->withToken($this->token)
-            ->getJson('/api/v1/roles');
+            ->getJson('/v1/roles');
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -102,7 +102,7 @@ describe('GET /v1/roles - List Roles', function () {
 
 describe('POST /v1/roles - Create Role', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->postJson('/api/v1/roles', [
+        $response = $this->postJson('/v1/roles', [
             'name' => 'Regional Manager',
             'permissions' => ['employees.read'],
         ]);
@@ -114,7 +114,7 @@ describe('POST /v1/roles - Create Role', function () {
         $this->user->givePermissionTo('roles.read');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/roles', [
+            ->postJson('/v1/roles', [
                 'name' => 'Regional Manager',
                 'permissions' => ['employees.read'],
             ]);
@@ -126,7 +126,7 @@ describe('POST /v1/roles - Create Role', function () {
         $this->user->givePermissionTo('roles.create');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/roles', [
+            ->postJson('/v1/roles', [
                 'permissions' => ['employees.read'],
             ]);
 
@@ -139,7 +139,7 @@ describe('POST /v1/roles - Create Role', function () {
         Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/roles', [
+            ->postJson('/v1/roles', [
                 'name' => 'Manager',
                 'permissions' => ['employees.read'],
             ]);
@@ -152,7 +152,7 @@ describe('POST /v1/roles - Create Role', function () {
         $this->user->givePermissionTo('roles.create');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/roles', [
+            ->postJson('/v1/roles', [
                 'name' => 'Regional Manager',
                 'permissions' => ['non.existent.permission'],
             ]);
@@ -165,7 +165,7 @@ describe('POST /v1/roles - Create Role', function () {
         $this->user->givePermissionTo('roles.create');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/roles', [
+            ->postJson('/v1/roles', [
                 'name' => 'Regional Manager',
                 'permissions' => ['employees.read', 'shifts.read'],
             ]);
@@ -184,7 +184,7 @@ describe('POST /v1/roles - Create Role', function () {
         $this->user->givePermissionTo('roles.create');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/roles', [
+            ->postJson('/v1/roles', [
                 'name' => 'Empty Role',
                 'permissions' => [],
             ]);
@@ -198,7 +198,7 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
     test('returns 401 when not authenticated', function (): void {
         $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
 
-        $response = $this->getJson("/api/v1/roles/{$role->id}");
+        $response = $this->getJson("/v1/roles/{$role->id}");
 
         $response->assertUnauthorized();
     });
@@ -207,7 +207,7 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
         $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/roles/{$role->id}");
+            ->getJson("/v1/roles/{$role->id}");
 
         $response->assertForbidden();
     });
@@ -216,7 +216,7 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
         $this->user->givePermissionTo('roles.read');
 
         $response = $this->withToken($this->token)
-            ->getJson('/api/v1/roles/999999');
+            ->getJson('/v1/roles/999999');
 
         $response->assertNotFound();
     });
@@ -228,7 +228,7 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
         $role->givePermissionTo(['employees.read', 'shifts.read']);
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/roles/{$role->id}");
+            ->getJson("/v1/roles/{$role->id}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -243,7 +243,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
     test('returns 401 when not authenticated', function (): void {
         $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
 
-        $response = $this->patchJson("/api/v1/roles/{$role->id}", [
+        $response = $this->patchJson("/v1/roles/{$role->id}", [
             'name' => 'Senior Manager',
         ]);
 
@@ -255,7 +255,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
         $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/roles/{$role->id}", [
+            ->patchJson("/v1/roles/{$role->id}", [
                 'name' => 'Senior Manager',
             ]);
 
@@ -266,7 +266,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
         $this->user->givePermissionTo('roles.update');
 
         $response = $this->withToken($this->token)
-            ->patchJson('/api/v1/roles/999999', [
+            ->patchJson('/v1/roles/999999', [
                 'name' => 'New Name',
             ]);
 
@@ -279,7 +279,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
         $guard = Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/roles/{$guard->id}", [
+            ->patchJson("/v1/roles/{$guard->id}", [
                 'name' => 'Manager',
             ]);
 
@@ -292,7 +292,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
         $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/roles/{$role->id}", [
+            ->patchJson("/v1/roles/{$role->id}", [
                 'name' => 'Senior Manager',
             ]);
 
@@ -308,7 +308,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
         $role->givePermissionTo('employees.read');
 
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/roles/{$role->id}", [
+            ->patchJson("/v1/roles/{$role->id}", [
                 'permissions' => ['shifts.read', 'employees.create'],
             ]);
 
@@ -326,7 +326,7 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
     test('returns 401 when not authenticated', function (): void {
         $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
 
-        $response = $this->deleteJson("/api/v1/roles/{$role->id}");
+        $response = $this->deleteJson("/v1/roles/{$role->id}");
 
         $response->assertUnauthorized();
     });
@@ -336,7 +336,7 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
         $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/roles/{$role->id}");
+            ->deleteJson("/v1/roles/{$role->id}");
 
         $response->assertForbidden();
     });
@@ -345,7 +345,7 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
         $this->user->givePermissionTo('roles.delete');
 
         $response = $this->withToken($this->token)
-            ->deleteJson('/api/v1/roles/999999');
+            ->deleteJson('/v1/roles/999999');
 
         $response->assertNotFound();
     });
@@ -359,7 +359,7 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
         $otherUser->assignRole($role);
 
         $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/roles/{$role->id}");
+            ->deleteJson("/v1/roles/{$role->id}");
 
         $response->assertStatus(422)
             ->assertJsonFragment(['message' => 'Cannot delete role while assigned to users'])
@@ -371,7 +371,7 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
         $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/roles/{$role->id}");
+            ->deleteJson("/v1/roles/{$role->id}");
 
         $response->assertNoContent();
 

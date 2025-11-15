@@ -51,7 +51,7 @@ afterEach(function (): void {
 
 describe('POST /v1/users/{id}/roles - Assign Role', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
+        $response = $this->postJson("/v1/users/{$this->targetUser->id}/roles", [
             'role' => 'manager',
             'valid_from' => now()->toIso8601String(),
             'valid_until' => now()->addDays(7)->toIso8601String(),
@@ -62,7 +62,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
 
     test('returns 403 when user lacks role.assign permission', function (): void {
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
+            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
                 'role' => 'manager',
                 'valid_from' => now()->toIso8601String(),
                 'valid_until' => now()->addDays(7)->toIso8601String(),
@@ -75,7 +75,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
+            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
                 'valid_from' => now()->toIso8601String(),
                 'valid_until' => now()->addDays(7)->toIso8601String(),
             ]);
@@ -88,7 +88,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
+            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
                 'role' => 'manager',
                 'valid_from' => now()->addDays(7)->toIso8601String(),
                 'valid_until' => now()->toIso8601String(), // before valid_from
@@ -105,7 +105,7 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
         $validUntil = now()->addDays(7);
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
+            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
                 'role' => 'manager',
                 'valid_from' => $validFrom->toIso8601String(),
                 'valid_until' => $validUntil->toIso8601String(),
@@ -136,14 +136,14 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
 
 describe('GET /v1/users/{id}/roles - List Roles', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->getJson("/api/v1/users/{$this->targetUser->id}/roles");
+        $response = $this->getJson("/v1/users/{$this->targetUser->id}/roles");
 
         $response->assertUnauthorized();
     });
 
     test('returns 403 when user lacks role.read permission', function (): void {
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
+            ->getJson("/v1/users/{$this->targetUser->id}/roles");
 
         $response->assertForbidden();
     });
@@ -152,7 +152,7 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
         $this->user->givePermissionTo('role.read');
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
+            ->getJson("/v1/users/{$this->targetUser->id}/roles");
 
         $response->assertOk()
             ->assertJson(['roles' => []]);
@@ -174,7 +174,7 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
         ]);
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
+            ->getJson("/v1/users/{$this->targetUser->id}/roles");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -200,14 +200,14 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
 
 describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
+        $response = $this->deleteJson("/v1/users/{$this->targetUser->id}/roles/manager");
 
         $response->assertUnauthorized();
     });
 
     test('returns 403 when user lacks role.revoke permission', function (): void {
         $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
+            ->deleteJson("/v1/users/{$this->targetUser->id}/roles/manager");
 
         $response->assertForbidden();
     });
@@ -216,7 +216,7 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
         $this->user->givePermissionTo('role.revoke');
 
         $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
+            ->deleteJson("/v1/users/{$this->targetUser->id}/roles/manager");
 
         $response->assertNotFound();
     });
@@ -235,7 +235,7 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
         expect($this->targetUser->hasRole('manager'))->toBeTrue();
 
         $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/users/{$this->targetUser->id}/roles/manager");
+            ->deleteJson("/v1/users/{$this->targetUser->id}/roles/manager");
 
         $response->assertNoContent();
 
@@ -247,7 +247,7 @@ describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
 
 describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
+        $response = $this->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
             'valid_until' => now()->addDays(14)->toIso8601String(),
         ]);
 
@@ -256,7 +256,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
 
     test('returns 403 when user lacks role.assign permission', function (): void {
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
+            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
                 'valid_until' => now()->addDays(14)->toIso8601String(),
             ]);
 
@@ -267,7 +267,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
+            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
                 'valid_until' => now()->addDays(14)->toIso8601String(),
             ]);
 
@@ -287,7 +287,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
 
         // Try to "extend" to 7 days (actually shortening)
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
+            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
                 'valid_until' => now()->addDays(7)->toIso8601String(),
             ]);
 
@@ -311,7 +311,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
 
         // Extend role
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
+            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
                 'valid_until' => $newValidUntil->toIso8601String(),
                 'reason' => 'Extended vacation period',
             ]);
@@ -345,7 +345,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
+            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
                 'role' => 'manager',
                 'valid_from' => now()->subDays(10)->toIso8601String(),
                 'valid_until' => now()->subDays(5)->toIso8601String(),
@@ -359,7 +359,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
+            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
                 'role' => 'manager',
                 'valid_from' => now()->toIso8601String(),
             ]);
@@ -375,7 +375,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
+            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
                 'role' => 'manager',
                 'valid_until' => now()->addDays(7)->toIso8601String(),
             ]);
@@ -391,7 +391,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
         $this->user->givePermissionTo('role.assign');
 
         $response = $this->withToken($this->token)
-            ->postJson("/api/v1/users/{$this->targetUser->id}/roles", [
+            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
                 'role' => 'manager',
             ]);
 
@@ -413,7 +413,7 @@ describe('Edge Cases - Temporal Date Validation', function () {
         ]);
 
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/users/{$this->targetUser->id}/roles/manager/extend", [
+            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
                 'valid_until' => now()->subDay()->toIso8601String(),
             ]);
 
@@ -454,7 +454,7 @@ describe('Edge Cases - N+1 Query Prevention', function () {
         DB::enableQueryLog();
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/users/{$this->targetUser->id}/roles");
+            ->getJson("/v1/users/{$this->targetUser->id}/roles");
 
         $queries = DB::getQueryLog();
         DB::disableQueryLog();
