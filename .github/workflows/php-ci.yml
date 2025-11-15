@@ -67,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
-      - name: Run tests
+      - name: Run tests with coverage
         env:
           # Test-only APP_KEY - not used in production
           APP_KEY: base64:ZXUevbvUHFMlVnuwTiO0s7pQ1i584bpMKALKwTMNYh4=
@@ -77,4 +77,14 @@ jobs:
           DB_DATABASE: db
           DB_USERNAME: db
           DB_PASSWORD: db
-        run: php artisan test
+          XDEBUG_MODE: coverage
+        run: php artisan test --coverage-clover coverage.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: true

@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Code Coverage Integration** (#170)
+  - Integrated Codecov for automated coverage tracking
+  - PHPUnit now generates Clover XML coverage reports
+  - CI pipeline uploads coverage to Codecov dashboard
+  - Added coverage badge to README.md
+  - Xdebug coverage enabled in GitHub Actions
+  - Supports organization-wide 80% coverage threshold
+
 ### Fixed
 
 - **Permission Naming Conflict** (#108, Phase 4)
