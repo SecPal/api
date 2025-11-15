@@ -67,11 +67,11 @@ class RoleController extends Controller
                 'message' => 'Role already assigned to user',
                 'user_id' => $targetUser->id,
                 'role' => $role->name,
-                'valid_from' => $existingAssignment->valid_from 
-                    ? Carbon::parse($existingAssignment->valid_from)->toIso8601String() 
+                'valid_from' => $existingAssignment->valid_from
+                    ? Carbon::parse($existingAssignment->valid_from)->toIso8601String()
                     : null,
-                'valid_until' => $existingAssignment->valid_until 
-                    ? Carbon::parse($existingAssignment->valid_until)->toIso8601String() 
+                'valid_until' => $existingAssignment->valid_until
+                    ? Carbon::parse($existingAssignment->valid_until)->toIso8601String()
                     : null,
                 'auto_revoke' => $existingAssignment->auto_revoke,
                 'reason' => $existingAssignment->reason ?? '',
