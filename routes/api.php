@@ -5,6 +5,7 @@
 
 use App\Http\Controllers\Api\V1\PermissionManagementController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
+use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
@@ -68,6 +69,12 @@ Route::prefix('v1')->group(function () {
             ->middleware('permission:role.revoke');
         Route::patch('/users/{user}/roles/{role}/extend', [RoleController::class, 'extend'])
             ->middleware('permission:role.assign');
+
+        // User Direct Permission Assignment API (RBAC Phase 4)
+        Route::get('/users/{user}/permissions', [UserPermissionController::class, 'index']);
+        Route::post('/users/{user}/permissions', [UserPermissionController::class, 'store']);
+        Route::delete('/users/{user}/permissions/{permission}', [UserPermissionController::class, 'destroy']);
+        Route::get('/users/{user}/permissions/direct', [UserPermissionController::class, 'direct']);
 
         // Tenant-scoped Person endpoints
         Route::prefix('tenants/{tenant}')->middleware('tenant')->group(function () {
