@@ -49,7 +49,7 @@ describe('Temporal Role Lifecycle Integration', function (): void {
         $validUntil = now()->addHours(3);
 
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$guard->id}/roles", [
+            ->postJson("/v1/users/{$guard->id}/roles", [
                 'role' => 'Manager',
                 'valid_from' => $validFrom->toIso8601String(),
                 'valid_until' => $validUntil->toIso8601String(),
@@ -84,14 +84,14 @@ describe('Temporal Role Lifecycle Integration', function (): void {
 
         // Assign Manager role (permanent)
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
             ->assertSuccessful();
 
         // Assign temporary Admin role (24 hours)
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Admin',
                 'valid_until' => now()->addHours(24)->toIso8601String(),
                 'auto_revoke' => true,
@@ -119,28 +119,28 @@ describe('Permission Inheritance Integration', function (): void {
 
         // Assign Guard role
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Guard',
             ])
             ->assertSuccessful();
 
         // Assign Client role
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Client',
             ])
             ->assertSuccessful();
 
         // Assign direct permission
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/permissions", [
+            ->postJson("/v1/users/{$user->id}/permissions", [
                 'permissions' => ['employees.export'],
             ])
             ->assertSuccessful();
 
         // Get all permissions
         $response = actingAs($this->admin)
-            ->getJson("/api/v1/users/{$user->id}/permissions")
+            ->getJson("/v1/users/{$user->id}/permissions")
             ->assertOk()
             ->json();
 
@@ -160,14 +160,14 @@ describe('Permission Inheritance Integration', function (): void {
 
         // Assign Manager role
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
             ->assertSuccessful();
 
         // Assign direct permission
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/permissions", [
+            ->postJson("/v1/users/{$user->id}/permissions", [
                 'permissions' => ['reports.generate'],
             ])
             ->assertSuccessful();
@@ -179,7 +179,7 @@ describe('Permission Inheritance Integration', function (): void {
 
         // Revoke Manager role (use role name, not ID)
         actingAs($this->admin)
-            ->deleteJson("/api/v1/users/{$user->id}/roles/Manager")
+            ->deleteJson("/v1/users/{$user->id}/roles/Manager")
             ->assertSuccessful();
 
         // Direct permission remains
@@ -196,7 +196,7 @@ describe('Multi-User Role Assignment Scenarios', function (): void {
 
         // Manager A has permanent role
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$managerA->id}/roles", [
+            ->postJson("/v1/users/{$managerA->id}/roles", [
                 'role' => 'Manager',
             ])
             ->assertSuccessful();
@@ -206,7 +206,7 @@ describe('Multi-User Role Assignment Scenarios', function (): void {
         $vacationEnd = now()->setDate(2025, 12, 14)->endOfDay();
 
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$managerB->id}/roles", [
+            ->postJson("/v1/users/{$managerB->id}/roles", [
                 'role' => 'Manager',
                 'valid_from' => $vacationStart->toIso8601String(),
                 'valid_until' => $vacationEnd->toIso8601String(),
@@ -238,7 +238,7 @@ describe('Error Handling & Edge Cases', function (): void {
         $user = User::factory()->create();
 
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'NonExistentRole',
             ])
             ->assertUnprocessable()
@@ -250,7 +250,7 @@ describe('Error Handling & Edge Cases', function (): void {
 
         // valid_from is after valid_until (invalid)
         $response = actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
                 'valid_from' => now()->addDays(10)->toIso8601String(),
                 'valid_until' => now()->addDays(5)->toIso8601String(),
@@ -265,14 +265,14 @@ describe('Error Handling & Edge Cases', function (): void {
 
         // Assign role first time
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
             ->assertSuccessful();
 
         // Assign same role again - should be idempotent (return 200 OK)
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
             ->assertOk() // 200 OK (not 201 Created)
@@ -290,7 +290,7 @@ describe('Error Handling & Edge Cases', function (): void {
 
         // Assign permanent role (without temporal constraints)
         actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
             ->assertCreated();
@@ -298,7 +298,7 @@ describe('Error Handling & Edge Cases', function (): void {
         // Try to assign same role again with temporal parameters
         // Should return 200 OK with existing assignment unchanged
         $response = actingAs($this->admin)
-            ->postJson("/api/v1/users/{$user->id}/roles", [
+            ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
                 'valid_from' => now()->toIso8601String(),
                 'valid_until' => now()->addDays(7)->toIso8601String(),

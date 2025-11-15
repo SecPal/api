@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\RateLimiter;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         api: __DIR__.'/../routes/api.php',
+        apiPrefix: '', // Remove /api/ prefix - routes accessible at /v1/* directly
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )

@@ -51,14 +51,14 @@ afterEach(function (): void {
 
 describe('GET /v1/permissions - List Permissions', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->getJson('/api/v1/permissions');
+        $response = $this->getJson('/v1/permissions');
 
         $response->assertUnauthorized();
     });
 
     test('returns 403 when user lacks permissions.read permission', function (): void {
         $response = $this->withToken($this->token)
-            ->getJson('/api/v1/permissions');
+            ->getJson('/v1/permissions');
 
         $response->assertForbidden();
     });
@@ -67,7 +67,7 @@ describe('GET /v1/permissions - List Permissions', function () {
         $this->user->givePermissionTo('permissions.read');
 
         $response = $this->withToken($this->token)
-            ->getJson('/api/v1/permissions');
+            ->getJson('/v1/permissions');
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -94,7 +94,7 @@ describe('GET /v1/permissions - List Permissions', function () {
 
 describe('POST /v1/permissions - Create Permission', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->postJson('/api/v1/permissions', [
+        $response = $this->postJson('/v1/permissions', [
             'name' => 'reports.generate',
         ]);
 
@@ -105,7 +105,7 @@ describe('POST /v1/permissions - Create Permission', function () {
         $this->user->givePermissionTo('permissions.read');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/permissions', [
+            ->postJson('/v1/permissions', [
                 'name' => 'reports.generate',
             ]);
 
@@ -116,7 +116,7 @@ describe('POST /v1/permissions - Create Permission', function () {
         $this->user->givePermissionTo('permissions.create');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/permissions', []);
+            ->postJson('/v1/permissions', []);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['name']);
@@ -126,7 +126,7 @@ describe('POST /v1/permissions - Create Permission', function () {
         $this->user->givePermissionTo('permissions.create');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/permissions', [
+            ->postJson('/v1/permissions', [
                 'name' => 'invalid_format',
             ]);
 
@@ -139,7 +139,7 @@ describe('POST /v1/permissions - Create Permission', function () {
         Permission::create(['name' => 'reports.generate', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/permissions', [
+            ->postJson('/v1/permissions', [
                 'name' => 'reports.generate',
             ]);
 
@@ -151,7 +151,7 @@ describe('POST /v1/permissions - Create Permission', function () {
         $this->user->givePermissionTo('permissions.create');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/permissions', [
+            ->postJson('/v1/permissions', [
                 'name' => 'reports.generate',
                 'description' => 'Generate reports',
             ]);
@@ -170,7 +170,7 @@ describe('POST /v1/permissions - Create Permission', function () {
         $this->user->givePermissionTo('permissions.create');
 
         $response = $this->withToken($this->token)
-            ->postJson('/api/v1/permissions', [
+            ->postJson('/v1/permissions', [
                 'name' => 'reports.export',
             ]);
 
@@ -183,7 +183,7 @@ describe('GET /v1/permissions/{id} - Get Permission Details', function () {
     test('returns 401 when not authenticated', function (): void {
         $permission = Permission::where('name', 'employees.read')->first();
 
-        $response = $this->getJson("/api/v1/permissions/{$permission->id}");
+        $response = $this->getJson("/v1/permissions/{$permission->id}");
 
         $response->assertUnauthorized();
     });
@@ -192,7 +192,7 @@ describe('GET /v1/permissions/{id} - Get Permission Details', function () {
         $permission = Permission::where('name', 'employees.read')->first();
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/permissions/{$permission->id}");
+            ->getJson("/v1/permissions/{$permission->id}");
 
         $response->assertForbidden();
     });
@@ -201,7 +201,7 @@ describe('GET /v1/permissions/{id} - Get Permission Details', function () {
         $this->user->givePermissionTo('permissions.read');
 
         $response = $this->withToken($this->token)
-            ->getJson('/api/v1/permissions/999999');
+            ->getJson('/v1/permissions/999999');
 
         $response->assertNotFound();
     });
@@ -214,7 +214,7 @@ describe('GET /v1/permissions/{id} - Get Permission Details', function () {
         $role->givePermissionTo('employees.read');
 
         $response = $this->withToken($this->token)
-            ->getJson("/api/v1/permissions/{$permission->id}");
+            ->getJson("/v1/permissions/{$permission->id}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -229,7 +229,7 @@ describe('PATCH /v1/permissions/{id} - Update Permission', function () {
     test('returns 401 when not authenticated', function (): void {
         $permission = Permission::where('name', 'employees.read')->first();
 
-        $response = $this->patchJson("/api/v1/permissions/{$permission->id}", [
+        $response = $this->patchJson("/v1/permissions/{$permission->id}", [
             'description' => 'Updated description',
         ]);
 
@@ -241,7 +241,7 @@ describe('PATCH /v1/permissions/{id} - Update Permission', function () {
         $permission = Permission::where('name', 'employees.read')->first();
 
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/permissions/{$permission->id}", [
+            ->patchJson("/v1/permissions/{$permission->id}", [
                 'description' => 'Updated description',
             ]);
 
@@ -252,7 +252,7 @@ describe('PATCH /v1/permissions/{id} - Update Permission', function () {
         $this->user->givePermissionTo('permissions.update');
 
         $response = $this->withToken($this->token)
-            ->patchJson('/api/v1/permissions/999999', [
+            ->patchJson('/v1/permissions/999999', [
                 'description' => 'Updated description',
             ]);
 
@@ -264,7 +264,7 @@ describe('PATCH /v1/permissions/{id} - Update Permission', function () {
         $permission = Permission::where('name', 'employees.read')->first();
 
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/permissions/{$permission->id}", [
+            ->patchJson("/v1/permissions/{$permission->id}", [
                 'name' => 'employees.write',
             ]);
 
@@ -277,7 +277,7 @@ describe('PATCH /v1/permissions/{id} - Update Permission', function () {
         $permission = Permission::where('name', 'employees.read')->first();
 
         $response = $this->withToken($this->token)
-            ->patchJson("/api/v1/permissions/{$permission->id}", [
+            ->patchJson("/v1/permissions/{$permission->id}", [
                 'description' => 'View employee data',
             ]);
 
@@ -292,7 +292,7 @@ describe('DELETE /v1/permissions/{id} - Delete Permission', function () {
     test('returns 401 when not authenticated', function (): void {
         $permission = Permission::create(['name' => 'temp.permission', 'guard_name' => 'sanctum']);
 
-        $response = $this->deleteJson("/api/v1/permissions/{$permission->id}");
+        $response = $this->deleteJson("/v1/permissions/{$permission->id}");
 
         $response->assertUnauthorized();
     });
@@ -302,7 +302,7 @@ describe('DELETE /v1/permissions/{id} - Delete Permission', function () {
         $permission = Permission::create(['name' => 'temp.permission', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/permissions/{$permission->id}");
+            ->deleteJson("/v1/permissions/{$permission->id}");
 
         $response->assertForbidden();
     });
@@ -311,7 +311,7 @@ describe('DELETE /v1/permissions/{id} - Delete Permission', function () {
         $this->user->givePermissionTo('permissions.delete');
 
         $response = $this->withToken($this->token)
-            ->deleteJson('/api/v1/permissions/999999');
+            ->deleteJson('/v1/permissions/999999');
 
         $response->assertNotFound();
     });
@@ -323,7 +323,7 @@ describe('DELETE /v1/permissions/{id} - Delete Permission', function () {
         $role->givePermissionTo('employees.read');
 
         $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/permissions/{$permission->id}");
+            ->deleteJson("/v1/permissions/{$permission->id}");
 
         $response->assertStatus(422)
             ->assertJsonFragment(['message' => 'Cannot delete permission while assigned to roles'])
@@ -335,7 +335,7 @@ describe('DELETE /v1/permissions/{id} - Delete Permission', function () {
         $permission = Permission::create(['name' => 'temp.permission', 'guard_name' => 'sanctum']);
 
         $response = $this->withToken($this->token)
-            ->deleteJson("/api/v1/permissions/{$permission->id}");
+            ->deleteJson("/v1/permissions/{$permission->id}");
 
         $response->assertNoContent();
 

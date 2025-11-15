@@ -56,7 +56,7 @@ test('user can view own permissions via_roles and direct and all', function () {
     $user->givePermissionTo('employees.export'); // Direct permission
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson("/api/v1/users/{$user->id}/permissions");
+        ->getJson("/v1/users/{$user->id}/permissions");
 
     $response->assertOk()
         ->assertJsonStructure([
@@ -83,7 +83,7 @@ test('admin can view any user permissions', function () {
     $targetUser->assignRole('Manager');
 
     $response = $this->actingAs($admin, 'sanctum')
-        ->getJson("/api/v1/users/{$targetUser->id}/permissions");
+        ->getJson("/v1/users/{$targetUser->id}/permissions");
 
     $response->assertOk()
         ->assertJsonStructure(['data' => ['via_roles', 'direct', 'all']]);
@@ -94,7 +94,7 @@ test('user cannot view other user permissions', function () {
     $otherUser = User::factory()->create();
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson("/api/v1/users/{$otherUser->id}/permissions");
+        ->getJson("/v1/users/{$otherUser->id}/permissions");
 
     $response->assertForbidden();
 });
@@ -106,7 +106,7 @@ test('admin can assign direct permission to user', function () {
     $targetUser = User::factory()->create();
 
     $response = $this->actingAs($admin, 'sanctum')
-        ->postJson("/api/v1/users/{$targetUser->id}/permissions", [
+        ->postJson("/v1/users/{$targetUser->id}/permissions", [
             'permissions' => ['employees.export'],
         ]);
 
@@ -126,7 +126,7 @@ test('admin can assign direct permission with temporal constraints', function ()
     $validUntil = now()->addDays(7)->toIso8601String();
 
     $response = $this->actingAs($admin, 'sanctum')
-        ->postJson("/api/v1/users/{$targetUser->id}/permissions", [
+        ->postJson("/v1/users/{$targetUser->id}/permissions", [
             'permissions' => ['reports.generate'],
             'valid_from' => $validFrom,
             'valid_until' => $validUntil,
@@ -144,7 +144,7 @@ test('non-admin cannot assign permissions', function () {
     $targetUser = User::factory()->create();
 
     $response = $this->actingAs($user, 'sanctum')
-        ->postJson("/api/v1/users/{$targetUser->id}/permissions", [
+        ->postJson("/v1/users/{$targetUser->id}/permissions", [
             'permissions' => ['employees.export'],
         ]);
 
@@ -161,7 +161,7 @@ test('admin can revoke direct permission from user', function () {
     expect($targetUser->hasDirectPermission('employees.export'))->toBeTrue();
 
     $response = $this->actingAs($admin, 'sanctum')
-        ->deleteJson("/api/v1/users/{$targetUser->id}/permissions/employees.export");
+        ->deleteJson("/v1/users/{$targetUser->id}/permissions/employees.export");
 
     $response->assertOk();
 
@@ -177,7 +177,7 @@ test('revoking direct permission does not affect role permissions', function () 
     $targetUser->givePermissionTo('employees.read'); // Also has it directly
 
     $response = $this->actingAs($admin, 'sanctum')
-        ->deleteJson("/api/v1/users/{$targetUser->id}/permissions/employees.read");
+        ->deleteJson("/v1/users/{$targetUser->id}/permissions/employees.read");
 
     $response->assertOk();
 
@@ -192,7 +192,7 @@ test('user can view only direct permissions', function () {
     $user->givePermissionTo('employees.export'); // Direct
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson("/api/v1/users/{$user->id}/permissions/direct");
+        ->getJson("/v1/users/{$user->id}/permissions/direct");
 
     $response->assertOk()
         ->assertJsonCount(1, 'data.direct')
@@ -202,17 +202,17 @@ test('user can view only direct permissions', function () {
 test('unauthenticated user cannot access permissions endpoints', function () {
     $user = User::factory()->create();
 
-    $this->getJson("/api/v1/users/{$user->id}/permissions")
+    $this->getJson("/v1/users/{$user->id}/permissions")
         ->assertUnauthorized();
 
-    $this->postJson("/api/v1/users/{$user->id}/permissions", [
+    $this->postJson("/v1/users/{$user->id}/permissions", [
         'permissions' => ['employees.read'],
     ])->assertUnauthorized();
 
-    $this->deleteJson("/api/v1/users/{$user->id}/permissions/employees.read")
+    $this->deleteJson("/v1/users/{$user->id}/permissions/employees.read")
         ->assertUnauthorized();
 
-    $this->getJson("/api/v1/users/{$user->id}/permissions/direct")
+    $this->getJson("/v1/users/{$user->id}/permissions/direct")
         ->assertUnauthorized();
 });
 
@@ -223,7 +223,7 @@ test('validation fails when permissions array is empty', function () {
     $targetUser = User::factory()->create();
 
     $response = $this->actingAs($admin, 'sanctum')
-        ->postJson("/api/v1/users/{$targetUser->id}/permissions", [
+        ->postJson("/v1/users/{$targetUser->id}/permissions", [
             'permissions' => [],
         ]);
 
@@ -238,7 +238,7 @@ test('validation fails when permission does not exist', function () {
     $targetUser = User::factory()->create();
 
     $response = $this->actingAs($admin, 'sanctum')
-        ->postJson("/api/v1/users/{$targetUser->id}/permissions", [
+        ->postJson("/v1/users/{$targetUser->id}/permissions", [
             'permissions' => ['nonexistent.permission'],
         ]);
 
@@ -253,7 +253,7 @@ test('validation fails when valid_until is before valid_from', function () {
     $targetUser = User::factory()->create();
 
     $response = $this->actingAs($admin, 'sanctum')
-        ->postJson("/api/v1/users/{$targetUser->id}/permissions", [
+        ->postJson("/v1/users/{$targetUser->id}/permissions", [
             'permissions' => ['employees.export'],
             'valid_from' => now()->addDays(7)->toIso8601String(),
             'valid_until' => now()->toIso8601String(),

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Mail;
 /**
  * Feature tests for password reset request endpoint.
  *
- * @covers POST /api/v1/auth/password/reset-request
+ * @covers POST /v1/auth/password/reset-request
  */
 uses(RefreshDatabase::class);
 
@@ -25,7 +25,7 @@ it('allows a user to request password reset with valid email', function () {
         'email' => 'test@example.com',
     ]);
 
-    $response = $this->postJson('/api/v1/auth/password/reset-request', [
+    $response = $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'test@example.com',
     ]);
 
@@ -43,7 +43,7 @@ it('allows a user to request password reset with valid email', function () {
 it('returns same response for non-existent email', function () {
     Mail::fake();
 
-    $response = $this->postJson('/api/v1/auth/password/reset-request', [
+    $response = $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'nonexistent@example.com',
     ]);
 
@@ -57,14 +57,14 @@ it('returns same response for non-existent email', function () {
 });
 
 it('requires email field', function () {
-    $response = $this->postJson('/api/v1/auth/password/reset-request', []);
+    $response = $this->postJson('/v1/auth/password/reset-request', []);
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['email']);
 });
 
 it('requires valid email format', function () {
-    $response = $this->postJson('/api/v1/auth/password/reset-request', [
+    $response = $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'invalid-email',
     ]);
 
@@ -76,12 +76,12 @@ it('rate limits password reset requests', function () {
     $email = 'test@example.com';
 
     // Make 5 requests (should all be allowed)
-    collect(range(1, 5))->each(fn () => $this->postJson('/api/v1/auth/password/reset-request', [
+    collect(range(1, 5))->each(fn () => $this->postJson('/v1/auth/password/reset-request', [
         'email' => $email,
     ])->assertOk());
 
     // 6th request should be rate limited
-    $response = $this->postJson('/api/v1/auth/password/reset-request', [
+    $response = $this->postJson('/v1/auth/password/reset-request', [
         'email' => $email,
     ]);
 
@@ -95,7 +95,7 @@ it('email is queued not sent immediately', function () {
         'email' => 'test@example.com',
     ]);
 
-    $this->postJson('/api/v1/auth/password/reset-request', [
+    $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'test@example.com',
     ]);
 
@@ -113,7 +113,7 @@ it('email contains valid reset token', function () {
         'email' => 'test@example.com',
     ]);
 
-    $this->postJson('/api/v1/auth/password/reset-request', [
+    $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'test@example.com',
     ]);
 
@@ -132,7 +132,7 @@ it('email contains secure reset url with encoded parameters', function () {
         'email' => 'test+special@example.com',
     ]);
 
-    $this->postJson('/api/v1/auth/password/reset-request', [
+    $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'test+special@example.com',
     ]);
 
@@ -159,7 +159,7 @@ it('email subject does not contain sensitive information', function () {
         'email' => 'test@example.com',
     ]);
 
-    $this->postJson('/api/v1/auth/password/reset-request', [
+    $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'test@example.com',
     ]);
 
@@ -183,7 +183,7 @@ it('deletes old reset tokens before creating new one', function () {
     ]);
 
     // Request password reset first time
-    $this->postJson('/api/v1/auth/password/reset-request', [
+    $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'test@example.com',
     ]);
 
@@ -194,7 +194,7 @@ it('deletes old reset tokens before creating new one', function () {
     expect($firstTokenCount)->toBe(1);
 
     // Request again - should replace old token
-    $this->postJson('/api/v1/auth/password/reset-request', [
+    $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'test@example.com',
     ]);
 

@@ -15,7 +15,7 @@ describe('Auth Token Generation', function () {
             'password' => bcrypt('password123'),
         ]);
 
-        $response = $this->postJson('/api/v1/auth/token', [
+        $response = $this->postJson('/v1/auth/token', [
             'email' => 'test@example.com',
             'password' => 'password123',
             'device_name' => 'test-device',
@@ -32,7 +32,7 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation fails with invalid email', function () {
-        $response = $this->postJson('/api/v1/auth/token', [
+        $response = $this->postJson('/v1/auth/token', [
             'email' => 'nonexistent@example.com',
             'password' => 'password123',
         ]);
@@ -47,7 +47,7 @@ describe('Auth Token Generation', function () {
             'password' => bcrypt('correct-password'),
         ]);
 
-        $response = $this->postJson('/api/v1/auth/token', [
+        $response = $this->postJson('/v1/auth/token', [
             'email' => 'test@example.com',
             'password' => 'wrong-password',
         ]);
@@ -57,7 +57,7 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation requires email', function () {
-        $response = $this->postJson('/api/v1/auth/token', [
+        $response = $this->postJson('/v1/auth/token', [
             'password' => 'password123',
         ]);
 
@@ -66,7 +66,7 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation requires password', function () {
-        $response = $this->postJson('/api/v1/auth/token', [
+        $response = $this->postJson('/v1/auth/token', [
             'email' => 'test@example.com',
         ]);
 
@@ -80,7 +80,7 @@ describe('Auth Token Generation', function () {
             'password' => bcrypt('password123'),
         ]);
 
-        $response = $this->postJson('/api/v1/auth/token', [
+        $response = $this->postJson('/v1/auth/token', [
             'email' => 'test@example.com',
             'password' => 'password123',
         ]);
@@ -95,13 +95,13 @@ describe('Auth Token Generation', function () {
             'password' => bcrypt('password123'),
         ]);
 
-        $this->postJson('/api/v1/auth/token', [
+        $this->postJson('/v1/auth/token', [
             'email' => 'test@example.com',
             'password' => 'password123',
             'device_name' => 'mobile',
         ])->assertCreated();
 
-        $this->postJson('/api/v1/auth/token', [
+        $this->postJson('/v1/auth/token', [
             'email' => 'test@example.com',
             'password' => 'password123',
             'device_name' => 'desktop',
@@ -114,7 +114,7 @@ describe('Auth Token Generation', function () {
 
 describe('Protected Endpoints', function () {
     test('protected endpoint requires authentication', function () {
-        $response = $this->getJson('/api/v1/me');
+        $response = $this->getJson('/v1/me');
 
         $response->assertUnauthorized();
     });
@@ -128,7 +128,7 @@ describe('Protected Endpoints', function () {
         $token = $user->createToken('test-device')->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->getJson('/api/v1/me');
+            ->getJson('/v1/me');
 
         $response->assertOk()
             ->assertJson([
@@ -140,7 +140,7 @@ describe('Protected Endpoints', function () {
 
     test('protected endpoint rejects invalid token', function () {
         $response = $this->withHeader('Authorization', 'Bearer invalid-token-here')
-            ->getJson('/api/v1/me');
+            ->getJson('/v1/me');
 
         $response->assertUnauthorized();
     });
@@ -156,7 +156,7 @@ describe('Token Revocation', function () {
         $token = $user->createToken('device-1')->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->postJson('/api/v1/auth/logout');
+            ->postJson('/v1/auth/logout');
 
         $response->assertOk()
             ->assertJson(['message' => 'Token revoked successfully.']);
@@ -177,7 +177,7 @@ describe('Token Revocation', function () {
         expect($user->tokens()->count())->toBe(3);
 
         $response = $this->withHeader('Authorization', "Bearer {$token1}")
-            ->postJson('/api/v1/auth/logout-all');
+            ->postJson('/v1/auth/logout-all');
 
         $response->assertOk()
             ->assertJson(['message' => 'All tokens revoked successfully.']);
@@ -194,7 +194,7 @@ describe('Token Revocation', function () {
 
         // Logout (revoke token)
         $this->withHeader('Authorization', "Bearer {$token}")
-            ->postJson('/api/v1/auth/logout')
+            ->postJson('/v1/auth/logout')
             ->assertOk();
 
         // Token deleted after logout
@@ -202,13 +202,13 @@ describe('Token Revocation', function () {
     });
 
     test('logout requires authentication', function () {
-        $response = $this->postJson('/api/v1/auth/logout');
+        $response = $this->postJson('/v1/auth/logout');
 
         $response->assertUnauthorized();
     });
 
     test('logout-all requires authentication', function () {
-        $response = $this->postJson('/api/v1/auth/logout-all');
+        $response = $this->postJson('/v1/auth/logout-all');
 
         $response->assertUnauthorized();
     });
@@ -220,7 +220,7 @@ describe('Token Security', function () {
             'password' => bcrypt('secret-password'),
         ]);
 
-        $response = $this->postJson('/api/v1/auth/token', [
+        $response = $this->postJson('/v1/auth/token', [
             'email' => $user->email,
             'password' => 'secret-password',
         ]);
@@ -235,7 +235,7 @@ describe('Token Security', function () {
         $token = $user->createToken('test')->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->getJson('/api/v1/me');
+            ->getJson('/v1/me');
 
         $response->assertOk()
             ->assertJsonMissing(['password'])
@@ -248,7 +248,7 @@ describe('Token Security', function () {
             'password' => bcrypt('password123'),
         ]);
 
-        $response = $this->postJson('/api/v1/auth/token', [
+        $response = $this->postJson('/v1/auth/token', [
             'email' => 'test@example.com',
             'password' => 'password123',
         ]);
