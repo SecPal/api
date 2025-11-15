@@ -28,12 +28,20 @@ beforeEach(function (): void {
     Permission::create(['name' => 'employees.export', 'guard_name' => 'sanctum']);
     Permission::create(['name' => 'reports.generate', 'guard_name' => 'sanctum']);
     Permission::create(['name' => 'shifts.read', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'permissions.read', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'permissions.assign_direct', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'permissions.revoke_direct', 'guard_name' => 'sanctum']);
 
     // Create roles with permissions
     $managerRole = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
     $managerRole->givePermissionTo(['employees.read', 'shifts.read']);
 
     $adminRole = Role::create(['name' => 'Admin', 'guard_name' => 'sanctum']);
+    $adminRole->givePermissionTo([
+        'permissions.read',
+        'permissions.assign_direct',
+        'permissions.revoke_direct',
+    ]);
 });
 
 afterEach(function (): void {

@@ -47,20 +47,30 @@ Route::prefix('v1')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
 
         // Role Management CRUD API
-        // Authorization handled by RoleManagementPolicy
-        Route::get('/roles', [RoleManagementController::class, 'index']);
-        Route::post('/roles', [RoleManagementController::class, 'store']);
-        Route::get('/roles/{id}', [RoleManagementController::class, 'show']);
-        Route::patch('/roles/{id}', [RoleManagementController::class, 'update']);
-        Route::delete('/roles/{id}', [RoleManagementController::class, 'destroy']);
+        // Authorization: Route-level permission middleware + Policy (defense-in-depth)
+        Route::get('/roles', [RoleManagementController::class, 'index'])
+            ->middleware('permission:roles.read');
+        Route::post('/roles', [RoleManagementController::class, 'store'])
+            ->middleware('permission:roles.create');
+        Route::get('/roles/{id}', [RoleManagementController::class, 'show'])
+            ->middleware('permission:roles.read');
+        Route::patch('/roles/{id}', [RoleManagementController::class, 'update'])
+            ->middleware('permission:roles.update');
+        Route::delete('/roles/{id}', [RoleManagementController::class, 'destroy'])
+            ->middleware('permission:roles.delete');
 
         // Permission Management CRUD API
-        // Authorization handled by PermissionManagementPolicy
-        Route::get('/permissions', [PermissionManagementController::class, 'index']);
-        Route::post('/permissions', [PermissionManagementController::class, 'store']);
-        Route::get('/permissions/{id}', [PermissionManagementController::class, 'show']);
-        Route::patch('/permissions/{id}', [PermissionManagementController::class, 'update']);
-        Route::delete('/permissions/{id}', [PermissionManagementController::class, 'destroy']);
+        // Authorization: Route-level permission middleware + Policy (defense-in-depth)
+        Route::get('/permissions', [PermissionManagementController::class, 'index'])
+            ->middleware('permission:permissions.read');
+        Route::post('/permissions', [PermissionManagementController::class, 'store'])
+            ->middleware('permission:permissions.create');
+        Route::get('/permissions/{id}', [PermissionManagementController::class, 'show'])
+            ->middleware('permission:permissions.read');
+        Route::patch('/permissions/{id}', [PermissionManagementController::class, 'update'])
+            ->middleware('permission:permissions.update');
+        Route::delete('/permissions/{id}', [PermissionManagementController::class, 'destroy'])
+            ->middleware('permission:permissions.delete');
 
         // Role management endpoints
         Route::post('/users/{user}/roles', [RoleController::class, 'store'])
@@ -73,10 +83,14 @@ Route::prefix('v1')->group(function () {
             ->middleware('permission:role.assign');
 
         // User Direct Permission Assignment API (RBAC Phase 4)
-        // Authorization handled by UserPermissionPolicy (viewPermissions, assignPermission, revokePermission)
+        // Authorization: Policy-based (users can view own, Admin can view all/modify)
         Route::get('/users/{user}/permissions', [UserPermissionController::class, 'index']);
-        Route::post('/users/{user}/permissions', [UserPermissionController::class, 'store']);
-        Route::delete('/users/{user}/permissions/{permission}', [UserPermissionController::class, 'destroy']);
+        // Authorization: Route-level permission middleware + Policy (Admin only)
+        Route::post('/users/{user}/permissions', [UserPermissionController::class, 'store'])
+            ->middleware('permission:permissions.assign_direct');
+        Route::delete('/users/{user}/permissions/{permission}', [UserPermissionController::class, 'destroy'])
+            ->middleware('permission:permissions.revoke_direct');
+        // Authorization: Policy-based (users can view own, Admin can view all)
         Route::get('/users/{user}/permissions/direct', [UserPermissionController::class, 'direct']);
 
         // Tenant-scoped Person endpoints
