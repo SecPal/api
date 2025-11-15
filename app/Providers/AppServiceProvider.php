@@ -36,5 +36,37 @@ class AppServiceProvider extends ServiceProvider
 
         // Register policy for Spatie Permission model
         Gate::policy(Permission::class, PermissionManagementPolicy::class);
+
+        // Register gates for user permission management
+        $this->registerUserPermissionGates();
+    }
+
+    /**
+     * Register authorization gates for direct user permission management.
+     */
+    private function registerUserPermissionGates(): void
+    {
+        $policy = new \App\Policies\UserPermissionPolicy;
+
+        Gate::define('viewPermissions', function ($currentUser, $targetUser) use ($policy) {
+            assert($currentUser instanceof \App\Models\User);
+            assert($targetUser instanceof \App\Models\User);
+
+            return $policy->viewPermissions($currentUser, $targetUser);
+        });
+
+        Gate::define('assignPermission', function ($currentUser, $targetUser) use ($policy) {
+            assert($currentUser instanceof \App\Models\User);
+            assert($targetUser instanceof \App\Models\User);
+
+            return $policy->assignPermission($currentUser, $targetUser);
+        });
+
+        Gate::define('revokePermission', function ($currentUser, $targetUser) use ($policy) {
+            assert($currentUser instanceof \App\Models\User);
+            assert($targetUser instanceof \App\Models\User);
+
+            return $policy->revokePermission($currentUser, $targetUser);
+        });
     }
 }

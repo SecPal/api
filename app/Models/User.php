@@ -103,4 +103,31 @@ class User extends Authenticatable
                 TemporalRoleUser::applyActiveFilter($query, 'model_has_roles.');
             });
     }
+
+    /**
+     * Check if user has a permission assigned directly (not via roles).
+     *
+     * This method queries the model_has_permissions pivot table directly
+     * to bypass Spatie's role-based permission resolution.
+     *
+     * @param  string|\Spatie\Permission\Contracts\Permission  $permission
+     */
+    public function hasDirectPermission($permission): bool
+    {
+        if (is_string($permission)) {
+            // Use Spatie's Permission model directly to avoid PHPStan complexity
+            $permission = \Spatie\Permission\Models\Permission::findByName($permission, $this->getDefaultGuardName());
+        }
+
+        if (! $permission instanceof \Spatie\Permission\Contracts\Permission) {
+            return false;
+        }
+
+        // Query pivot table directly to check for direct assignment
+        return \Illuminate\Support\Facades\DB::table('model_has_permissions')
+            ->where('model_type', $this->getMorphClass())
+            ->where('model_id', $this->getKey())
+            ->where('permission_id', $permission->id)
+            ->exists();
+    }
 }
