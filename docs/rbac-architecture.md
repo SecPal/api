@@ -230,7 +230,7 @@ $manager->syncPermissions([
 ]);
 
 // API: Dynamic role permission changes (Phase 4)
-POST /api/v1/roles/{id}/permissions
+POST /v1/roles/{id}/permissions
 {
   "permissions": ["employees.export", "reports.generate"]
 }
@@ -310,7 +310,7 @@ Use direct permissions for **exceptional access** that doesn't fit standard role
 **Assign Direct Permission (Permanent):**
 
 ```php
-POST /api/v1/users/123/permissions
+POST /v1/users/123/permissions
 {
   "permissions": ["employees.export", "reports.generate"]
 }
@@ -330,7 +330,7 @@ POST /api/v1/users/123/permissions
 **Assign Direct Permission (Temporal):**
 
 ```php
-POST /api/v1/users/123/permissions
+POST /v1/users/123/permissions
 {
   "permissions": ["reports.generate"],
   "valid_from": "2025-11-01T00:00:00Z",
@@ -343,7 +343,7 @@ POST /api/v1/users/123/permissions
 **View User's Combined Permissions:**
 
 ```php
-GET /api/v1/users/123/permissions
+GET /v1/users/123/permissions
 
 // Response shows three categories:
 {
@@ -369,7 +369,7 @@ GET /api/v1/users/123/permissions
 **Revoke Direct Permission:**
 
 ```php
-DELETE /api/v1/users/123/permissions/employees.export
+DELETE /v1/users/123/permissions/employees.export
 
 // ✅ Removes direct permission only
 // ℹ️ Role-based permissions remain unchanged
@@ -423,7 +423,7 @@ Manager A on vacation (2025-12-01 to 2025-12-14)
 Manager B needs temporary Manager permissions
 
 Solution:
-POST /api/v1/users/{manager_b_id}/roles
+POST /v1/users/{manager_b_id}/roles
 {
   "role": "manager",
   "valid_from": "2025-12-01T00:00:00Z",
@@ -446,7 +446,7 @@ Scenario:
 External consultant needs read access for 3-month project
 
 Solution:
-POST /api/v1/users/{consultant_id}/roles
+POST /v1/users/{consultant_id}/roles
 {
   "role": "client",  // Or custom "consultant" role
   "valid_from": "2025-11-01T00:00:00Z",
@@ -468,7 +468,7 @@ Scenario:
 Guard becomes "Team Lead" during large event (18:00-06:00)
 
 Solution:
-POST /api/v1/users/{guard_id}/permissions
+POST /v1/users/{guard_id}/permissions
 {
   "permissions": ["shifts.update", "work_instructions.publish"],
   "valid_from": "2025-11-15T18:00:00Z",
@@ -489,7 +489,7 @@ Scenario:
 Developer needs production access for critical hotfix
 
 Solution:
-POST /api/v1/users/{developer_id}/roles
+POST /v1/users/{developer_id}/roles
 {
   "role": "admin",
   "valid_from": "2025-11-11T14:00:00Z",
@@ -798,7 +798,7 @@ Permissions: [employees.export]  ← Direct permission remains!
 **API Endpoint:**
 
 ```http
-POST /api/v1/users/{id}/roles
+POST /v1/users/{id}/roles
 Content-Type: application/json
 
 {
@@ -843,7 +843,7 @@ public function store(User $user, AssignRoleRequest $request): JsonResponse
 **API Endpoint:**
 
 ```http
-POST /api/v1/users/{id}/roles
+POST /v1/users/{id}/roles
 Content-Type: application/json
 
 {
@@ -901,7 +901,7 @@ public function store(User $user, AssignRoleRequest $request): JsonResponse
 **API Endpoint:**
 
 ```http
-POST /api/v1/users/{id}/permissions
+POST /v1/users/{id}/permissions
 Content-Type: application/json
 
 {
@@ -1104,12 +1104,12 @@ SecPal's RBAC API is split across four functional areas:
 
 ### Role Assignment API (Phase 3)
 
-| Method   | Endpoint                                 | Description                            |
-| -------- | ---------------------------------------- | -------------------------------------- |
-| `POST`   | `/api/v1/users/{id}/roles`               | Assign role (permanent or temporal)    |
-| `GET`    | `/api/v1/users/{id}/roles`               | List user's roles with expiration info |
-| `DELETE` | `/api/v1/users/{id}/roles/{role}`        | Revoke role from user                  |
-| `PATCH`  | `/api/v1/users/{id}/roles/{role}/extend` | Extend role expiration date            |
+| Method   | Endpoint                             | Description                            |
+| -------- | ------------------------------------ | -------------------------------------- |
+| `POST`   | `/v1/users/{id}/roles`               | Assign role (permanent or temporal)    |
+| `GET`    | `/v1/users/{id}/roles`               | List user's roles with expiration info |
+| `DELETE` | `/v1/users/{id}/roles/{role}`        | Revoke role from user                  |
+| `PATCH`  | `/v1/users/{id}/roles/{role}/extend` | Extend role expiration date            |
 
 **Authorization:** Manager or Admin only
 
@@ -1117,15 +1117,15 @@ SecPal's RBAC API is split across four functional areas:
 
 ### Role Management API (Phase 4)
 
-| Method   | Endpoint                                      | Description                       |
-| -------- | --------------------------------------------- | --------------------------------- |
-| `GET`    | `/api/v1/roles`                               | List all roles (system + custom)  |
-| `POST`   | `/api/v1/roles`                               | Create custom role                |
-| `GET`    | `/api/v1/roles/{id}`                          | Get role details with permissions |
-| `PATCH`  | `/api/v1/roles/{id}`                          | Update role (name + permissions)  |
-| `DELETE` | `/api/v1/roles/{id}`                          | Delete role (if not assigned)     |
-| `POST`   | `/api/v1/roles/{id}/permissions`              | Assign permissions to role        |
-| `DELETE` | `/api/v1/roles/{id}/permissions/{permission}` | Remove permission from role       |
+| Method   | Endpoint                                  | Description                       |
+| -------- | ----------------------------------------- | --------------------------------- |
+| `GET`    | `/v1/roles`                               | List all roles (system + custom)  |
+| `POST`   | `/v1/roles`                               | Create custom role                |
+| `GET`    | `/v1/roles/{id}`                          | Get role details with permissions |
+| `PATCH`  | `/v1/roles/{id}`                          | Update role (name + permissions)  |
+| `DELETE` | `/v1/roles/{id}`                          | Delete role (if not assigned)     |
+| `POST`   | `/v1/roles/{id}/permissions`              | Assign permissions to role        |
+| `DELETE` | `/v1/roles/{id}/permissions/{permission}` | Remove permission from role       |
 
 **Authorization:** Admin only
 
@@ -1133,13 +1133,13 @@ SecPal's RBAC API is split across four functional areas:
 
 ### Permission Management API (Phase 4)
 
-| Method   | Endpoint                   | Description                                |
-| -------- | -------------------------- | ------------------------------------------ |
-| `GET`    | `/api/v1/permissions`      | List all permissions (grouped by resource) |
-| `POST`   | `/api/v1/permissions`      | Create custom permission                   |
-| `GET`    | `/api/v1/permissions/{id}` | Get permission details                     |
-| `PATCH`  | `/api/v1/permissions/{id}` | Update permission description              |
-| `DELETE` | `/api/v1/permissions/{id}` | Delete permission (if not assigned)        |
+| Method   | Endpoint               | Description                                |
+| -------- | ---------------------- | ------------------------------------------ |
+| `GET`    | `/v1/permissions`      | List all permissions (grouped by resource) |
+| `POST`   | `/v1/permissions`      | Create custom permission                   |
+| `GET`    | `/v1/permissions/{id}` | Get permission details                     |
+| `PATCH`  | `/v1/permissions/{id}` | Update permission description              |
+| `DELETE` | `/v1/permissions/{id}` | Delete permission (if not assigned)        |
 
 **Authorization:** Admin only
 
@@ -1147,12 +1147,12 @@ SecPal's RBAC API is split across four functional areas:
 
 ### Direct Permission API (Phase 4)
 
-| Method   | Endpoint                                      | Description                                     |
-| -------- | --------------------------------------------- | ----------------------------------------------- |
-| `GET`    | `/api/v1/users/{id}/permissions`              | List all permissions (role + direct + combined) |
-| `POST`   | `/api/v1/users/{id}/permissions`              | Assign direct permission                        |
-| `DELETE` | `/api/v1/users/{id}/permissions/{permission}` | Revoke direct permission                        |
-| `GET`    | `/api/v1/users/{id}/permissions/direct`       | List only direct permissions                    |
+| Method   | Endpoint                                  | Description                                     |
+| -------- | ----------------------------------------- | ----------------------------------------------- |
+| `GET`    | `/v1/users/{id}/permissions`              | List all permissions (role + direct + combined) |
+| `POST`   | `/v1/users/{id}/permissions`              | Assign direct permission                        |
+| `DELETE` | `/v1/users/{id}/permissions/{permission}` | Revoke direct permission                        |
+| `GET`    | `/v1/users/{id}/permissions/direct`       | List only direct permissions                    |
 
 **Authorization:** Admin only (assign/revoke), User can view own
 

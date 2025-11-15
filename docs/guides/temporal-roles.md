@@ -86,7 +86,7 @@ This is CORRECT for:
 ### Example: Permanent Assignment (Most Common)
 
 ```http
-POST /api/v1/users/123/roles
+POST /v1/users/123/roles
 {
   "role": "manager"
 }
@@ -122,7 +122,7 @@ Only use `valid_from`/`valid_until` when:
 
 ```http
 ❌ BAD - Making every assignment temporal without reason
-POST /api/v1/users/123/roles
+POST /v1/users/123/roles
 {
   "role": "manager",
   "valid_until": "2099-12-31T23:59:59Z"  ← 74 years in future
@@ -178,7 +178,7 @@ If the answer is "When they leave the job" or "Indefinite":
 **Solution:**
 
 ```http
-POST /api/v1/users/{tom_id}/roles
+POST /v1/users/{tom_id}/roles
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -239,7 +239,7 @@ Dec 15 00:01 UTC: System auto-revokes Tom's Manager role
 **Solution:**
 
 ```http
-POST /api/v1/users/{consultant_id}/permissions
+POST /v1/users/{consultant_id}/permissions
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -286,7 +286,7 @@ Authorization: Bearer {token}
 **Solution:**
 
 ```http
-POST /api/v1/users/{john_id}/roles
+POST /v1/users/{john_id}/roles
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -348,7 +348,7 @@ Nov 17 02:01 - System auto-revokes Security Lead role
 **Solution:**
 
 ```http
-POST /api/v1/users/{developer_id}/permissions
+POST /v1/users/{developer_id}/permissions
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -417,7 +417,7 @@ Authorization: Bearer {token}
 **Solution:**
 
 ```http
-POST /api/v1/users/{auditor_id}/permissions
+POST /v1/users/{auditor_id}/permissions
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -491,7 +491,7 @@ Dec 15 00:01 - Audit trail log created
 **Solution:**
 
 ```http
-POST /api/v1/users/{seasonal_worker_id}/roles
+POST /v1/users/{seasonal_worker_id}/roles
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -537,7 +537,7 @@ Authorization: Bearer {token}
 **Request:**
 
 ```http
-POST /api/v1/users/123/roles
+POST /v1/users/123/roles
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -583,7 +583,7 @@ Authorization: Bearer {token}
 **Request:**
 
 ```http
-PATCH /api/v1/users/123/roles/manager/extend
+PATCH /v1/users/123/roles/manager/extend
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -624,7 +624,7 @@ Authorization: Bearer {token}
 **Request:**
 
 ```http
-DELETE /api/v1/users/123/roles/manager
+DELETE /v1/users/123/roles/manager
 Authorization: Bearer {token}
 
 {
@@ -663,7 +663,7 @@ Authorization: Bearer {token}
 **Request:**
 
 ```http
-GET /api/v1/users/123/roles?include_temporal=true
+GET /v1/users/123/roles?include_temporal=true
 Authorization: Bearer {token}
 ```
 
@@ -801,7 +801,7 @@ User's next request after expiration will fail authorization check.
 ```php
 // Frontend should periodically check permissions
 setInterval(async () => {
-  const perms = await fetch('/api/v1/users/me/permissions');
+  const perms = await fetch('/v1/users/me/permissions');
   if (!perms.includes('managers.dashboard')) {
     // Redirect to home or show notification
     alert('Your temporary manager access has expired');

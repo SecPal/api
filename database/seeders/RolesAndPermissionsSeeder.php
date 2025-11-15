@@ -91,21 +91,26 @@ class RolesAndPermissionsSeeder extends Seeder
                 'acknowledge',
                 'view_acknowledgments',
             ],
+            'role' => [
+                'assign',   // Phase 3: POST /users/{user}/roles
+                'read',     // Phase 3: GET /users/{user}/roles
+                'revoke',   // Phase 3: DELETE /users/{user}/roles/{role}
+            ],
             'roles' => [
-                'read',
-                'create',
-                'update',
-                'delete',
-                'assign_temporary',
-                'extend_expiration',
+                'read',               // Phase 4: GET /roles
+                'create',             // Phase 4: POST /roles
+                'update',             // Phase 4: PATCH /roles/{id}
+                'delete',             // Phase 4: DELETE /roles/{id}
+                'assign_temporary',   // Phase 3: Temporal role assignment
+                'extend_expiration',  // Phase 3: PATCH /users/{user}/roles/{role}/extend
             ],
             'permissions' => [
-                'read',
-                'create',
-                'update',
-                'delete',
-                'assign_direct',
-                'revoke_direct',
+                'read',           // Phase 4: GET /permissions
+                'create',         // Phase 4: POST /permissions
+                'update',         // Phase 4: PATCH /permissions/{id}
+                'delete',         // Phase 4: DELETE /permissions/{id}
+                'assign_direct',  // Phase 4: POST /users/{user}/permissions
+                'revoke_direct',  // Phase 4: DELETE /users/{user}/permissions/{permission}
             ],
             'works_council' => [
                 'access_employee_files',
@@ -132,8 +137,9 @@ class RolesAndPermissionsSeeder extends Seeder
                     'employees.*',
                     'shifts.*',
                     'work_instructions.*',
-                    'roles.*',
-                    'permissions.*',
+                    'role.*',        // Phase 3: Role assignment permissions
+                    'roles.*',       // Phase 4: Role management permissions
+                    'permissions.*', // Phase 4: Permission management permissions
                     'works_council.*',
                     'reports.*',
                 ],

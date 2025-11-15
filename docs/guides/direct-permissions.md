@@ -152,7 +152,7 @@ Direct permissions solve **exceptional access scenarios** that don't fit standar
 **Request:**
 
 ```http
-POST /api/v1/users/123/permissions
+POST /v1/users/123/permissions
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -203,7 +203,7 @@ public function store(User $user, AssignPermissionRequest $request): JsonRespons
 **Request:**
 
 ```http
-POST /api/v1/users/123/permissions
+POST /v1/users/123/permissions
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -243,7 +243,7 @@ Authorization: Bearer {token}
 **Request:**
 
 ```http
-GET /api/v1/users/123/permissions
+GET /v1/users/123/permissions
 Authorization: Bearer {token}
 ```
 
@@ -281,7 +281,7 @@ Authorization: Bearer {token}
 **Request:**
 
 ```http
-DELETE /api/v1/users/123/permissions/employees.export
+DELETE /v1/users/123/permissions/employees.export
 Authorization: Bearer {token}
 ```
 
@@ -451,7 +451,7 @@ After removing Manager role:
 3. **Review Direct Permissions Regularly**
 
    ```bash
-   GET /api/v1/users?has_direct_permissions=true
+   GET /v1/users?has_direct_permissions=true
    # Returns all users with direct permissions for review
    ```
 

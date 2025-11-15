@@ -393,7 +393,7 @@ This **replaces** all permissions with the new list.
 
 ```bash
 # Not yet implemented - planned for future release
-POST /api/v1/roles/{id}/permissions
+POST /v1/roles/{id}/permissions
 {
   "permission": "reports.export"
 }
@@ -421,7 +421,7 @@ curl -X PATCH https://api.secpal.app/v1/roles/6 \
 
 ```bash
 # Not yet implemented - planned for future release
-DELETE /api/v1/roles/{id}/permissions/{permission}
+DELETE /v1/roles/{id}/permissions/{permission}
 ```
 
 ---

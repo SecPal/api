@@ -32,7 +32,7 @@ Authorization: Bearer {your_access_token}
 
 Assign a role to a user. Supports both permanent and temporal assignments.
 
-**Endpoint:** `POST /api/v1/users/{user}/roles`
+**Endpoint:** `POST /v1/users/{user}/roles`
 
 **Authorization:** Requires `role.assign` permission (Manager or Admin)
 
@@ -148,7 +148,7 @@ console.log(data);
 
 Get all roles assigned to a user, including temporal information.
 
-**Endpoint:** `GET /api/v1/users/{user}/roles`
+**Endpoint:** `GET /v1/users/{user}/roles`
 
 **Authorization:** Requires `role.read` permission (User can view own, Manager/Admin can view all)
 
@@ -201,7 +201,7 @@ curl -X GET https://api.secpal.app/v1/users/123/roles \
 
 Remove a role assignment from a user.
 
-**Endpoint:** `DELETE /api/v1/users/{user}/roles/{role}`
+**Endpoint:** `DELETE /v1/users/{user}/roles/{role}`
 
 **Authorization:** Requires `role.revoke` permission (Manager or Admin)
 
@@ -247,7 +247,7 @@ curl -X DELETE https://api.secpal.app/v1/users/123/roles/manager \
 
 Extend the expiration date of a temporal role assignment.
 
-**Endpoint:** `PATCH /api/v1/users/{user}/roles/{role}/extend`
+**Endpoint:** `PATCH /v1/users/{user}/roles/{role}/extend`
 
 **Authorization:** Requires `role.extend_expiration` permission (Manager or Admin)
 
@@ -298,7 +298,7 @@ curl -X PATCH https://api.secpal.app/v1/users/123/roles/manager/extend \
 
 Get a list of all roles in the system (predefined + custom).
 
-**Endpoint:** `GET /api/v1/roles`
+**Endpoint:** `GET /v1/roles`
 
 **Authorization:** Requires `role.read` permission
 
@@ -366,7 +366,7 @@ curl -X GET "https://api.secpal.app/v1/roles?page=1&per_page=15&sort=name" \
 
 Create a new custom role with assigned permissions.
 
-**Endpoint:** `POST /api/v1/roles`
+**Endpoint:** `POST /v1/roles`
 
 **Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -449,7 +449,7 @@ curl -X POST https://api.secpal.app/v1/roles \
 
 Get detailed information about a specific role, including assigned permissions.
 
-**Endpoint:** `GET /api/v1/roles/{id}`
+**Endpoint:** `GET /v1/roles/{id}`
 
 **Authorization:** Requires `role.read` permission
 
@@ -503,7 +503,7 @@ curl -X GET https://api.secpal.app/v1/roles/2 \
 
 Update a role's name, description, and/or permissions.
 
-**Endpoint:** `PATCH /api/v1/roles/{id}`
+**Endpoint:** `PATCH /v1/roles/{id}`
 
 **Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -554,7 +554,7 @@ curl -X PATCH https://api.secpal.app/v1/roles/6 \
 
 Delete a custom role. **Cannot delete roles that are assigned to users.**
 
-**Endpoint:** `DELETE /api/v1/roles/{id}`
+**Endpoint:** `DELETE /v1/roles/{id}`
 
 **Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -598,7 +598,7 @@ curl -X DELETE https://api.secpal.app/v1/roles/6 \
 
 Get all permissions grouped by resource.
 
-**Endpoint:** `GET /api/v1/permissions`
+**Endpoint:** `GET /v1/permissions`
 
 **Authorization:** Authorized via Laravel Policy. Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -661,7 +661,7 @@ curl -X GET https://api.secpal.app/v1/permissions \
 
 Create a new custom permission.
 
-**Endpoint:** `POST /api/v1/permissions`
+**Endpoint:** `POST /v1/permissions`
 
 **Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -726,7 +726,7 @@ curl -X POST https://api.secpal.app/v1/permissions \
 
 Get detailed information about a specific permission.
 
-**Endpoint:** `GET /api/v1/permissions/{id}`
+**Endpoint:** `GET /v1/permissions/{id}`
 
 **Authorization:** Authorized via Laravel Policy. Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -772,7 +772,7 @@ curl -X GET https://api.secpal.app/v1/permissions/5 \
 
 Update a permission's description. **Note:** Permission names are immutable for security reasons.
 
-**Endpoint:** `PATCH /api/v1/permissions/{id}`
+**Endpoint:** `PATCH /v1/permissions/{id}`
 
 **Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -818,7 +818,7 @@ curl -X PATCH https://api.secpal.app/v1/permissions/5 \
 
 Delete a custom permission. **Cannot delete if assigned to any role or user.**
 
-**Endpoint:** `DELETE /api/v1/permissions/{id}`
+**Endpoint:** `DELETE /v1/permissions/{id}`
 
 **Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -864,7 +864,7 @@ curl -X DELETE https://api.secpal.app/v1/permissions/43 \
 
 Get all permissions for a user, showing role-based, direct, and combined permissions.
 
-**Endpoint:** `GET /api/v1/users/{user}/permissions`
+**Endpoint:** `GET /v1/users/{user}/permissions`
 
 **Authorization:** User can view own permissions; Admin can view any user's permissions
 
@@ -932,7 +932,7 @@ curl -X GET https://api.secpal.app/v1/users/123/permissions \
 
 Assign one or more permissions directly to a user, bypassing roles.
 
-**Endpoint:** `POST /api/v1/users/{user}/permissions`
+**Endpoint:** `POST /v1/users/{user}/permissions`
 
 **Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -1006,7 +1006,7 @@ curl -X POST https://api.secpal.app/v1/users/123/permissions \
 
 Remove a direct permission from a user. **Does not affect role-based permissions.**
 
-**Endpoint:** `DELETE /api/v1/users/{user}/permissions/{permission}`
+**Endpoint:** `DELETE /v1/users/{user}/permissions/{permission}`
 
 **Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
@@ -1043,7 +1043,7 @@ curl -X DELETE https://api.secpal.app/v1/users/123/permissions/employees.export 
 
 Get only the permissions assigned directly to a user (excludes role-based permissions).
 
-**Endpoint:** `GET /api/v1/users/{user}/permissions/direct`
+**Endpoint:** `GET /v1/users/{user}/permissions/direct`
 
 **Authorization:** User can view own; Admin can view any
 
