@@ -271,8 +271,7 @@ expect(true)->toBeTrue();
 it('returns all', function () {
 $response = $this->postJson('/api/docs', []);
 
-    $response->assertSuccessful();
-
+$response->assertSuccessful();
 });
 </code-snippet>
 
