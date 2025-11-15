@@ -47,6 +47,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
 
         // Role Management CRUD API
+        // Authorization handled by RoleManagementPolicy
         Route::get('/roles', [RoleManagementController::class, 'index']);
         Route::post('/roles', [RoleManagementController::class, 'store']);
         Route::get('/roles/{id}', [RoleManagementController::class, 'show']);
@@ -54,6 +55,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('/roles/{id}', [RoleManagementController::class, 'destroy']);
 
         // Permission Management CRUD API
+        // Authorization handled by PermissionManagementPolicy
         Route::get('/permissions', [PermissionManagementController::class, 'index']);
         Route::post('/permissions', [PermissionManagementController::class, 'store']);
         Route::get('/permissions/{id}', [PermissionManagementController::class, 'show']);
@@ -71,6 +73,7 @@ Route::prefix('v1')->group(function () {
             ->middleware('permission:role.assign');
 
         // User Direct Permission Assignment API (RBAC Phase 4)
+        // Authorization handled by UserPermissionPolicy (viewPermissions, assignPermission, revokePermission)
         Route::get('/users/{user}/permissions', [UserPermissionController::class, 'index']);
         Route::post('/users/{user}/permissions', [UserPermissionController::class, 'store']);
         Route::delete('/users/{user}/permissions/{permission}', [UserPermissionController::class, 'destroy']);
