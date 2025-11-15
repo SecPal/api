@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **User Direct Permission Assignment API** (#138)
+  - New endpoint: `GET /v1/users/{user}/permissions` - List user permissions (via roles + direct + all)
+  - New endpoint: `POST /v1/users/{user}/permissions` - Assign direct permission(s) to user with temporal constraints
+  - New endpoint: `DELETE /v1/users/{user}/permissions/{permission}` - Revoke direct permission from user
+  - New endpoint: `GET /v1/users/{user}/permissions/direct` - List only direct permissions (excludes via roles)
+  - New migration: Add temporal columns (`valid_from`, `valid_until`, `assigned_by`, `reason`) to `model_has_permissions` table
+  - New controller: `UserPermissionController` - Handles direct permission assignment operations
+  - New policy: `UserPermissionPolicy` - Authorization rules (User can view own, Admin can assign/revoke)
+  - New form request: `AssignUserPermissionRequest` - Validation for bulk assignment with temporal constraints
+  - New method: `User::hasDirectPermission()` - Check if permission is directly assigned (not via roles)
+  - Part of RBAC Phase 4 Epic (#108), enables fine-grained permission control bypassing roles
+
 - **Permission Management CRUD API** (#137)
   - New endpoint: `GET /v1/permissions` - List all permissions grouped by resource
   - New endpoint: `POST /v1/permissions` - Create new permission with strict naming validation (resource.action)
