@@ -270,16 +270,52 @@ describe('Error Handling & Edge Cases', function (): void {
             ])
             ->assertSuccessful();
 
-        // Assign same role again - Phase 3 API does not handle idempotency
-        // This is a known limitation - duplicate assignment causes DB constraint violation
-        // Skip this assertion for now
-        // actingAs($this->admin)
-        //     ->postJson("/api/v1/users/{$user->id}/roles", [
-        //         'role' => 'Manager',
-        //     ])
-        //     ->assertSuccessful();
+        // Assign same role again - should be idempotent (return 200 OK)
+        actingAs($this->admin)
+            ->postJson("/api/v1/users/{$user->id}/roles", [
+                'role' => 'Manager',
+            ])
+            ->assertOk() // 200 OK (not 201 Created)
+            ->assertJson([
+                'message' => 'Role already assigned to user',
+                'role' => 'Manager',
+            ]);
 
-        // User should have role
+        // User should still have exactly 1 role (not duplicate)
         expect($user->fresh()->roles)->toHaveCount(1);
-    })->skip('Phase 3 API does not handle idempotent role assignment');
+    });
+
+    test('idempotency returns existing role with different temporal parameters', function (): void {
+        $user = User::factory()->create();
+
+        // Assign permanent role (without temporal constraints)
+        actingAs($this->admin)
+            ->postJson("/api/v1/users/{$user->id}/roles", [
+                'role' => 'Manager',
+            ])
+            ->assertCreated();
+
+        // Try to assign same role again with temporal parameters
+        // Should return 200 OK with existing assignment unchanged
+        $response = actingAs($this->admin)
+            ->postJson("/api/v1/users/{$user->id}/roles", [
+                'role' => 'Manager',
+                'valid_from' => now()->toIso8601String(),
+                'valid_until' => now()->addDays(7)->toIso8601String(),
+            ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'message' => 'Role already assigned to user',
+                'role' => 'Manager',
+            ]);
+
+        // Idempotency: Returns existing assignment, does NOT modify it
+        // Note: valid_from is set to now() by default even for "permanent" roles
+        expect($response->json('valid_from'))->not->toBeNull()
+            ->and($response->json('valid_until'))->toBeNull(); // No expiration
+
+        // User should still have exactly 1 role (not duplicate)
+        expect($user->fresh()->roles)->toHaveCount(1);
+    });
 });
