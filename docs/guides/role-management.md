@@ -833,7 +833,7 @@ curl -X GET https://api.secpal.app/v1/users/me/roles \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-Ensure user has Admin role or `roles.create`, `roles.update`, `roles.delete` permissions.
+Ensure user has Admin role or `role.create`, `role.update`, `role.delete` permissions.
 
 ---
 

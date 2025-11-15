@@ -34,7 +34,7 @@ Assign a role to a user. Supports both permanent and temporal assignments.
 
 **Endpoint:** `POST /api/v1/users/{user}/roles`
 
-**Authorization:** Requires `roles.assign` permission (Manager or Admin)
+**Authorization:** Requires `role.assign` permission (Manager or Admin)
 
 **URL Parameters:**
 
@@ -150,7 +150,7 @@ Get all roles assigned to a user, including temporal information.
 
 **Endpoint:** `GET /api/v1/users/{user}/roles`
 
-**Authorization:** Requires `roles.read` permission (User can view own, Manager/Admin can view all)
+**Authorization:** Requires `role.read` permission (User can view own, Manager/Admin can view all)
 
 **URL Parameters:**
 
@@ -203,7 +203,7 @@ Remove a role assignment from a user.
 
 **Endpoint:** `DELETE /api/v1/users/{user}/roles/{role}`
 
-**Authorization:** Requires `roles.revoke` permission (Manager or Admin)
+**Authorization:** Requires `role.revoke` permission (Manager or Admin)
 
 **URL Parameters:**
 
@@ -249,7 +249,7 @@ Extend the expiration date of a temporal role assignment.
 
 **Endpoint:** `PATCH /api/v1/users/{user}/roles/{role}/extend`
 
-**Authorization:** Requires `roles.extend_expiration` permission (Manager or Admin)
+**Authorization:** Requires `role.extend_expiration` permission (Manager or Admin)
 
 **URL Parameters:**
 
@@ -300,7 +300,7 @@ Get a list of all roles in the system (predefined + custom).
 
 **Endpoint:** `GET /api/v1/roles`
 
-**Authorization:** Requires `roles.read` permission
+**Authorization:** Requires `role.read` permission
 
 **Query Parameters:**
 
@@ -368,7 +368,7 @@ Create a new custom role with assigned permissions.
 
 **Endpoint:** `POST /api/v1/roles`
 
-**Authorization:** Requires `roles.create` permission (Admin only)
+**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
 **Request Body:**
 
@@ -451,7 +451,7 @@ Get detailed information about a specific role, including assigned permissions.
 
 **Endpoint:** `GET /api/v1/roles/{id}`
 
-**Authorization:** Requires `roles.read` permission
+**Authorization:** Requires `role.read` permission
 
 **URL Parameters:**
 
@@ -505,7 +505,7 @@ Update a role's name, description, and/or permissions.
 
 **Endpoint:** `PATCH /api/v1/roles/{id}`
 
-**Authorization:** Requires `roles.update` permission (Admin only)
+**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
 **URL Parameters:**
 
@@ -556,7 +556,7 @@ Delete a custom role. **Cannot delete roles that are assigned to users.**
 
 **Endpoint:** `DELETE /api/v1/roles/{id}`
 
-**Authorization:** Requires `roles.delete` permission (Admin only)
+**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
 **URL Parameters:**
 
@@ -600,7 +600,7 @@ Get all permissions grouped by resource.
 
 **Endpoint:** `GET /api/v1/permissions`
 
-**Authorization:** Requires `permissions.read` permission
+**Authorization:** Authorized via Laravel Policy. Note: Route-level middleware will be added in future release (see Issue #161).
 
 **Query Parameters:**
 
@@ -663,7 +663,7 @@ Create a new custom permission.
 
 **Endpoint:** `POST /api/v1/permissions`
 
-**Authorization:** Requires `permissions.create` permission (Admin only)
+**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
 **Request Body:**
 
@@ -728,7 +728,7 @@ Get detailed information about a specific permission.
 
 **Endpoint:** `GET /api/v1/permissions/{id}`
 
-**Authorization:** Requires `permissions.read` permission
+**Authorization:** Authorized via Laravel Policy. Note: Route-level middleware will be added in future release (see Issue #161).
 
 **URL Parameters:**
 
@@ -774,7 +774,7 @@ Update a permission's description. **Note:** Permission names are immutable for 
 
 **Endpoint:** `PATCH /api/v1/permissions/{id}`
 
-**Authorization:** Requires `permissions.update` permission (Admin only)
+**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
 **URL Parameters:**
 
@@ -820,7 +820,7 @@ Delete a custom permission. **Cannot delete if assigned to any role or user.**
 
 **Endpoint:** `DELETE /api/v1/permissions/{id}`
 
-**Authorization:** Requires `permissions.delete` permission (Admin only)
+**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
 **URL Parameters:**
 
@@ -934,7 +934,7 @@ Assign one or more permissions directly to a user, bypassing roles.
 
 **Endpoint:** `POST /api/v1/users/{user}/permissions`
 
-**Authorization:** Requires `permissions.assign` permission (Admin only)
+**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
 **URL Parameters:**
 
@@ -1008,7 +1008,7 @@ Remove a direct permission from a user. **Does not affect role-based permissions
 
 **Endpoint:** `DELETE /api/v1/users/{user}/permissions/{permission}`
 
-**Authorization:** Requires `permissions.revoke` permission (Admin only)
+**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
 
 **URL Parameters:**
 
@@ -1213,7 +1213,7 @@ List endpoints support pagination:
 
 ## Versioning
 
-API version is specified in the URL: `/api/v1/`
+API version is specified in the URL: `/v1/`
 
 **Current Version:** v1
 

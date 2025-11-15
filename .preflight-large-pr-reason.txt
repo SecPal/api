@@ -1,0 +1,1 @@
+Override reason: Issue #140 requires complete RBAC API documentation (3 interconnected files). Splitting would break coherence. Approved by quality gates (markdownlint ✅, REUSE ✅, domain policy ✅).

@@ -187,7 +187,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 ```text
 Spatie\Permission\Exceptions\PermissionDoesNotExist:
-There is no permission named `roles.read` for guard `sanctum`.
+There is no permission named `role.read` for guard `sanctum`.
 ```
 
 **Solution (After Migration):**
@@ -527,7 +527,7 @@ A systematic migration was performed to align guards across the entire codebase:
 
 ```text
 Spatie\Permission\Exceptions\PermissionDoesNotExist:
-There is no permission named `roles.read` for guard `sanctum`.
+There is no permission named `role.read` for guard `sanctum`.
 ```
 
 **Cause:** Permission was created with `'web'` guard (or default), but user is authenticated via `'sanctum'`.

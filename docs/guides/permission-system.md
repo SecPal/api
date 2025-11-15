@@ -95,7 +95,7 @@ Standard CRUD actions used across resources:
 | `read`   | View/list resources      | `employees.read`   |
 | `create` | Create new resources     | `shifts.create`    |
 | `update` | Modify existing resource | `employees.update` |
-| `delete` | Remove resources         | `roles.delete`     |
+| `delete` | Remove resources         | `role.delete`      |
 | `export` | Export data (CSV/Excel)  | `employees.export` |
 
 ---
@@ -168,8 +168,8 @@ Reports:
 - reports.generate
 
 Roles:
-- roles.read (view team roles)
-- roles.assign (assign roles to team)
+- role.read (view team roles)
+- role.assign (assign roles to team)
 ```
 
 ---
