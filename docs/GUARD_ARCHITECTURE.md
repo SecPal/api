@@ -470,7 +470,7 @@ it('allows manager to read employees', function () {
 
     // Test API endpoint (auth:sanctum middleware)
     $response = $this->actingAs($user)
-        ->getJson('/api/v1/employees');
+        ->getJson('/v1/employees');
 
     $response->assertOk();  // ✅ Permission check succeeds
 });

@@ -24,7 +24,56 @@ SecPal API is the backend service for the SecPal platform, built with Laravel 12
 - **Static Analysis:** PHPStan (Level Max) with Larastan
 - **PHP Version:** 8.4+
 
-## Requirements
+## Key Features
+
+### 🔐 Role-Based Access Control (RBAC)
+
+Comprehensive RBAC system with temporal role assignments and direct permission management.
+
+**Features:**
+
+- **5 Predefined Roles**: Admin, Manager, Guard, Client, Works Council
+- **52 Permissions** across 7 resources (employees, shifts, work_instructions, roles, permissions, works_council, reports)
+- **Temporal Role Assignments**: Assign roles with `valid_from`/`valid_until` dates for automatic expiration
+- **Direct Permissions**: Assign permissions directly to users, bypassing roles for fine-grained control
+- **Permission Inheritance**: User permissions = Role permissions ∪ Direct permissions
+- **Idempotent Seeder**: Predefined roles auto-recreate if deleted
+- **16 REST API Endpoints**: Full CRUD for roles, permissions, assignments, and direct permissions
+
+**API Examples:**
+
+```bash
+# List all roles with counts
+GET /v1/roles
+
+# Assign role to user with expiration
+POST /v1/users/{id}/roles
+{
+  "role": "Manager",
+  "valid_from": "2025-11-15T00:00:00Z",
+  "valid_until": "2025-12-31T23:59:59Z"
+}
+
+# Assign direct permission (bypass role)
+POST /v1/users/{id}/permissions
+{
+  "permissions": ["employees.export", "reports.generate"]
+}
+
+# List user's all permissions (role + direct)
+GET /v1/users/{id}/permissions
+# Returns: { "via_roles": [...], "direct": [...], "all": [...] }
+```
+
+**Documentation:**
+
+- [Role Management Guide](docs/guides/role-management.md)
+- [Permission System](docs/guides/permission-system.md)
+- [Temporal Roles](docs/guides/temporal-roles.md)
+- [Direct Permissions](docs/guides/direct-permissions.md)
+- [API Reference](docs/api/rbac-endpoints.md)
+
+### 🔒 Envelope Encryption
 
 - PHP 8.4 or higher
 - Composer 2.x
@@ -282,14 +331,14 @@ Role and permission assignments are permanent by default. Temporal constraints (
 **Assign Permanent Role:**
 
 ```bash
-POST /api/v1/users/{id}/roles
+POST /v1/users/{id}/roles
 {"role": "manager"}
 ```
 
 **Assign Temporal Role:**
 
 ```bash
-POST /api/v1/users/{id}/roles
+POST /v1/users/{id}/roles
 {
   "role": "manager",
   "valid_until": "2025-12-14T23:59:59Z"
@@ -299,7 +348,7 @@ POST /api/v1/users/{id}/roles
 **Assign Direct Permission:**
 
 ```bash
-POST /api/v1/users/{id}/permissions
+POST /v1/users/{id}/permissions
 {"permissions": ["employees.export"]}
 ```
 

@@ -332,7 +332,7 @@ Permission Created
 **To Role:**
 
 ```bash
-PATCH /api/v1/roles/{id}
+PATCH /v1/roles/{id}
 {
   "permissions": ["employees.read", "employees.export"]
 }
@@ -341,7 +341,7 @@ PATCH /api/v1/roles/{id}
 **To User (Direct):**
 
 ```bash
-POST /api/v1/users/{id}/permissions
+POST /v1/users/{id}/permissions
 {
   "permissions": ["employees.export"]
 }
@@ -355,7 +355,7 @@ POST /api/v1/users/{id}/permissions
 
 ```bash
 # Update role with reduced permissions
-PATCH /api/v1/roles/{id}
+PATCH /v1/roles/{id}
 {
   "permissions": ["employees.read"]  # removed employees.export
 }
@@ -364,7 +364,7 @@ PATCH /api/v1/roles/{id}
 **From User (Direct):**
 
 ```bash
-DELETE /api/v1/users/{id}/permissions/employees.export
+DELETE /v1/users/{id}/permissions/employees.export
 ```
 
 ---
@@ -513,7 +513,7 @@ $shiftPermissions = [
 1. Create permission:
 
 ```bash
-POST /api/v1/permissions
+POST /v1/permissions
 {
   "name": "employees.export",
   "description": "Export employee data to CSV/Excel"
@@ -523,7 +523,7 @@ POST /api/v1/permissions
 1. Add to Manager role:
 
 ```bash
-PATCH /api/v1/roles/2
+PATCH /v1/roles/2
 {
   "permissions": [
     "employees.read",
@@ -561,13 +561,13 @@ public function export(User $user): bool
 
 ```bash
 # Create two permissions
-POST /api/v1/permissions
+POST /v1/permissions
 {
   "name": "reports.view",
   "description": "View existing reports"
 }
 
-POST /api/v1/permissions
+POST /v1/permissions
 {
   "name": "reports.generate",
   "description": "Generate new reports"
@@ -575,13 +575,13 @@ POST /api/v1/permissions
 
 # Assign to roles
 # Junior Manager: view only
-PATCH /api/v1/roles/junior_manager
+PATCH /v1/roles/junior_manager
 {
   "permissions": ["reports.view"]
 }
 
 # Senior Manager: view + generate
-PATCH /api/v1/roles/senior_manager
+PATCH /v1/roles/senior_manager
 {
   "permissions": ["reports.view", "reports.generate"]
 }
@@ -597,20 +597,20 @@ PATCH /api/v1/roles/senior_manager
 
 ```bash
 # Create specific permissions
-POST /api/v1/permissions
+POST /v1/permissions
 {
   "name": "works_council.access_employee_files",
   "description": "Access employee files for works council purposes"
 }
 
-POST /api/v1/permissions
+POST /v1/permissions
 {
   "name": "shifts.approve_as_br",
   "description": "Approve shift plans as works council representative"
 }
 
 # Assign to Works Council role
-PATCH /api/v1/roles/works_council
+PATCH /v1/roles/works_council
 {
   "permissions": [
     "employees.read",
@@ -678,14 +678,14 @@ Use different action or resource name.
 1. Find where it's used:
 
 ```bash
-GET /api/v1/permissions/43
+GET /v1/permissions/43
 # Check "roles_count" and "direct_users_count"
 ```
 
 1. Remove from all roles:
 
 ```bash
-PATCH /api/v1/roles/{id}
+PATCH /v1/roles/{id}
 {
   "permissions": [...]  # without the permission
 }
@@ -694,7 +694,7 @@ PATCH /api/v1/roles/{id}
 1. Revoke from all users:
 
 ```bash
-DELETE /api/v1/users/{id}/permissions/{permission}
+DELETE /v1/users/{id}/permissions/{permission}
 ```
 
 1. Then delete permission.

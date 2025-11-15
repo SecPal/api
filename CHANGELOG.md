@@ -12,7 +12,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Permission Naming Conflict** (#108, Phase 4)
+  - Fixed missing `role.assign`, `role.read`, `role.revoke` permissions in seeder
+  - Phase 3 routes (`POST /v1/users/{user}/roles`) require `role.assign` permission
+  - Seeder was only creating `roles.assign_temporary` (Phase 4 naming)
+  - Admin role now has both `role.*` (Phase 3) and `roles.*` (Phase 4) permissions
+  - Enables integration tests that were previously blocked by authorization failures
+  - Resolves 403 Forbidden errors when admins assign roles to users
+
 ### Added
+
+- **Role Management CRUD API** (#108, Phase 4)
+  - New endpoint: `GET /v1/roles` - List all roles with permission count and user count
+  - New endpoint: `POST /v1/roles` - Create new role with permissions
+  - New endpoint: `GET /v1/roles/{id}` - Get role details with assigned permissions
+  - New endpoint: `PATCH /v1/roles/{id}` - Update role name and/or permissions
+  - New endpoint: `DELETE /v1/roles/{id}` - Delete role (blocks if assigned to users)
+  - New controller: `RoleManagementController` - Handles role CRUD operations
+  - New policy: `RoleManagementPolicy` - Admin-only authorization for all operations
+  - New form requests: `CreateRoleRequest`, `UpdateRoleRequest` - Validation rules
+  - Simple role system: All roles equal, no artificial system/custom distinction
+  - Deletion protection: Cannot delete roles assigned to users (422 response with user count)
+  - Part of RBAC Phase 4 Epic (#108), completes role management capabilities
+
+- **Predefined Roles Seeder** (#108, Phase 4)
+  - New seeder: `RolesAndPermissionsSeeder` - Creates 5 predefined roles with permissions
+  - Predefined roles: Admin, Manager, Guard, Client, Works Council
+  - Idempotent design: Safe to run multiple times, uses `firstOrCreate`
+  - Auto-recreation: Deleted predefined roles are recreated on next seeder run
+  - Permission groups: 52 permissions across 7 resources (employees, shifts, work_instructions, roles, permissions, works_council, reports)
+  - Wildcard expansion: Supports `resource.*` notation for assigning all resource actions
+  - Only syncs permissions if role has none (prevents overwriting customizations)
+  - Part of RBAC Phase 4 Epic (#108), provides production-ready role foundation
+
+- **RBAC Documentation** (#108, Phase 4)
+  - New guide: `docs/guides/role-management.md` - How to create/manage roles (872 lines)
+  - New guide: `docs/guides/permission-system.md` - Permission naming conventions and organization (716 lines)
+  - New guide: `docs/guides/temporal-roles.md` - Temporal role assignment patterns
+  - New guide: `docs/guides/direct-permissions.md` - When and how to use direct permissions
+  - New API docs: `docs/api/rbac-endpoints.md` - Complete API reference for all 16 RBAC endpoints (1239 lines)
+  - Comprehensive examples: Request/response samples for all endpoints
+  - Authorization diagrams: Visual representation of permission checks
+  - Best practices: Guidelines for role design and permission management
+  - Part of RBAC Phase 4 Epic (#108), completes RBAC documentation requirements
 
 - **User Direct Permission Assignment API** (#138)
   - New endpoint: `GET /v1/users/{user}/permissions` - List all user permissions (direct + inherited from roles)
@@ -97,10 +141,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevents accidental commits of broken code from merge conflicts
   - Colored output shows exact file locations and line numbers
 - **RBAC Phase 3: API Endpoints & Authorization** - Role management REST API (#107)
-  - `POST /api/v1/users/{id}/roles` - Assign role with temporal parameters (valid_from, valid_until, auto_revoke)
-  - `GET /api/v1/users/{id}/roles` - List user roles with expiry info (is_active, is_expired status)
-  - `DELETE /api/v1/users/{id}/roles/{role}` - Revoke role assignment
-  - `PATCH /api/v1/users/{id}/roles/{role}/extend` - Extend role expiration date
+  - `POST /v1/users/{id}/roles` - Assign role with temporal parameters (valid_from, valid_until, auto_revoke)
+  - `GET /v1/users/{id}/roles` - List user roles with expiry info (is_active, is_expired status)
+  - `DELETE /v1/users/{id}/roles/{role}` - Revoke role assignment
+  - `PATCH /v1/users/{id}/roles/{role}/extend` - Extend role expiration date
   - `RoleController` with 3 RESTful methods (`store`, `index`, `destroy`) and 1 custom action (`extend`)
   - `AssignRoleRequest` - Validates temporal parameters (valid_from < valid_until, role existence)
   - `ExtendRoleRequest` - Validates extension (new date must be after current expiration)
