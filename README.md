@@ -9,6 +9,7 @@ SPDX-License-Identifier: CC0-1.0
 
 [![Quality Gates](https://github.com/SecPal/api/actions/workflows/quality.yml/badge.svg)](https://github.com/SecPal/api/actions/workflows/quality.yml)
 [![PR Size](https://github.com/SecPal/api/actions/workflows/pr-size.yml/badge.svg)](https://github.com/SecPal/api/actions/workflows/pr-size.yml)
+[![codecov](https://codecov.io/gh/SecPal/api/branch/main/graph/badge.svg)](https://codecov.io/gh/SecPal/api)
 [![License: AGPL v3+](https://img.shields.io/badge/License-AGPL%20v3+-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ## About

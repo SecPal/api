@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Code Coverage Integration** (#170)
+  - Integrated Codecov for automated coverage tracking
+  - PHPUnit now generates Clover XML coverage reports
+  - CI pipeline uploads coverage to Codecov dashboard
+  - Added coverage badge to README.md
+  - Xdebug coverage enabled in GitHub Actions
+  - Supports organization-wide 80% coverage threshold
+
 ### Fixed
 
 - **Permission Naming Conflict** (#108, Phase 4)
@@ -25,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Role Management CRUD API** (#108, Phase 4)
+
   - New endpoint: `GET /v1/roles` - List all roles with permission count and user count
   - New endpoint: `POST /v1/roles` - Create new role with permissions
   - New endpoint: `GET /v1/roles/{id}` - Get role details with assigned permissions
@@ -38,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), completes role management capabilities
 
 - **Predefined Roles Seeder** (#108, Phase 4)
+
   - New seeder: `RolesAndPermissionsSeeder` - Creates 5 predefined roles with permissions
   - Predefined roles: Admin, Manager, Guard, Client, Works Council
   - Idempotent design: Safe to run multiple times, uses `firstOrCreate`
@@ -48,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), provides production-ready role foundation
 
 - **RBAC Documentation** (#108, Phase 4)
+
   - New guide: `docs/guides/role-management.md` - How to create/manage roles (872 lines)
   - New guide: `docs/guides/permission-system.md` - Permission naming conventions and organization (716 lines)
   - New guide: `docs/guides/temporal-roles.md` - Temporal role assignment patterns
@@ -59,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), completes RBAC documentation requirements
 
 - **User Direct Permission Assignment API** (#138)
+
   - New endpoint: `GET /v1/users/{user}/permissions` - List all user permissions (direct + inherited from roles)
   - New endpoint: `POST /v1/users/{user}/permissions` - Assign direct permission(s) to user with temporal tracking (audit trail)
   - New endpoint: `DELETE /v1/users/{user}/permissions/{permission}` - Revoke direct permission from user
@@ -71,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), enables fine-grained permission control bypassing roles
 
 - **Permission Management CRUD API** (#137)
+
   - New endpoint: `GET /v1/permissions` - List all permissions grouped by resource
   - New endpoint: `POST /v1/permissions` - Create new permission with strict naming validation (resource.action)
   - New endpoint: `GET /v1/permissions/{id}` - Get permission details with assigned roles
@@ -83,6 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), enables Issue #138 (User Direct Permission Assignment)
 
 - **RBAC Architecture Documentation** (#143)
+
   - New file: `docs/rbac-architecture.md` - Central RBAC system documentation
   - System architecture: High-level component diagrams (Users → Roles → Permissions + Direct Permissions)
   - Core concepts: Roles, Permissions, Direct Permissions, Temporal Assignments
