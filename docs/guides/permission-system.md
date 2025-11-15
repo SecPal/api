@@ -82,7 +82,7 @@ Permissions are grouped by **resource** (domain entity).
 | `roles`             | Role management        | `read`, `create`, `update`, `delete`           |
 | `permissions`       | Permission management  | `read`, `create`, `update`, `delete`           |
 | `works_council`     | Works council features | `access_employee_files`, `approve_shift_plans` |
-| `reports`           | Report generation      | `read`, `generate`, `export`                   |
+| `reports`           | Report generation      | `view`, `generate`, `export`                   |
 
 ---
 
@@ -164,7 +164,7 @@ Work Instructions:
 - work_instructions.publish
 
 Reports:
-- reports.read
+- reports.view
 - reports.generate
 
 Roles:
@@ -204,7 +204,7 @@ Work Instructions:
 - work_instructions.read (location-specific)
 
 Reports:
-- reports.read (location-specific)
+- reports.view (location-specific)
 ```
 
 ---
@@ -563,7 +563,7 @@ public function export(User $user): bool
 # Create two permissions
 POST /api/v1/permissions
 {
-  "name": "reports.read",
+  "name": "reports.view",
   "description": "View existing reports"
 }
 
@@ -574,16 +574,16 @@ POST /api/v1/permissions
 }
 
 # Assign to roles
-# Junior Manager: read only
+# Junior Manager: view only
 PATCH /api/v1/roles/junior_manager
 {
-  "permissions": ["reports.read"]
+  "permissions": ["reports.view"]
 }
 
-# Senior Manager: read + generate
+# Senior Manager: view + generate
 PATCH /api/v1/roles/senior_manager
 {
-  "permissions": ["reports.read", "reports.generate"]
+  "permissions": ["reports.view", "reports.generate"]
 }
 ```
 
