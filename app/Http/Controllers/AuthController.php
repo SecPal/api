@@ -106,8 +106,6 @@ class AuthController extends Controller
 
     /**
      * Update the authenticated user's language preference.
-     *
-     * @return JsonResponse
      */
     public function updateLanguage(UpdateUserLanguageRequest $request): JsonResponse
     {
