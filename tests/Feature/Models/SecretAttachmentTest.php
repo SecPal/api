@@ -30,6 +30,18 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
+// Helper to create Secret with proper encryption pattern (tenant_id BEFORE title_plain)
+function createTestSecret($test, array $attributes): Secret
+{
+    $secret = new Secret();
+    $secret->tenant_id = $attributes['tenant_id'];
+    $secret->owner_id = $attributes['owner_id'];
+    $secret->title_plain = $attributes['title_plain'] ?? 'Test Secret';
+    $secret->save();
+
+    return $secret;
+}
+
 test('secret attachment has correct fillable fields', function (): void {
     $model = new SecretAttachment();
 
@@ -50,7 +62,7 @@ test('secret attachment hides encrypted fields', function (): void {
 });
 
 test('secret attachment uses UUID primary key', function (): void {
-    $secret = Secret::create([
+    $secret = createTestSecret($this, [
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Test Secret for Attachment',
@@ -58,6 +70,7 @@ test('secret attachment uses UUID primary key', function (): void {
 
     $attachment = SecretAttachment::create([
         'secret_id' => $secret->id,
+        'tenant_id' => $this->tenant->id,
         'filename_plain' => 'test.pdf',
         'file_size' => 1024,
         'mime_type' => 'application/pdf',
@@ -71,7 +84,7 @@ test('secret attachment uses UUID primary key', function (): void {
 });
 
 test('secret attachment encrypts filename with EncryptedWithDek cast', function (): void {
-    $secret = Secret::create([
+    $secret = createTestSecret($this, [
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Secret with Encrypted Attachment',
@@ -79,6 +92,7 @@ test('secret attachment encrypts filename with EncryptedWithDek cast', function 
 
     $attachment = SecretAttachment::create([
         'secret_id' => $secret->id,
+        'tenant_id' => $this->tenant->id,
         'filename_plain' => 'secret-document.pdf',
         'file_size' => 2048,
         'mime_type' => 'application/pdf',
@@ -98,7 +112,7 @@ test('secret attachment encrypts filename with EncryptedWithDek cast', function 
 });
 
 test('secret attachment belongs to secret', function (): void {
-    $secret = Secret::create([
+    $secret = createTestSecret($this, [
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Secret with Relationship',
@@ -106,6 +120,7 @@ test('secret attachment belongs to secret', function (): void {
 
     $attachment = SecretAttachment::create([
         'secret_id' => $secret->id,
+        'tenant_id' => $this->tenant->id,
         'filename_plain' => 'test.jpg',
         'file_size' => 512,
         'mime_type' => 'image/jpeg',
@@ -119,7 +134,7 @@ test('secret attachment belongs to secret', function (): void {
 });
 
 test('secret attachment belongs to user (uploaded_by)', function (): void {
-    $secret = Secret::create([
+    $secret = createTestSecret($this, [
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Secret for Uploader Test',
@@ -127,6 +142,7 @@ test('secret attachment belongs to user (uploaded_by)', function (): void {
 
     $attachment = SecretAttachment::create([
         'secret_id' => $secret->id,
+        'tenant_id' => $this->tenant->id,
         'filename_plain' => 'report.docx',
         'file_size' => 4096,
         'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -140,7 +156,7 @@ test('secret attachment belongs to user (uploaded_by)', function (): void {
 });
 
 test('secret attachment has download_url accessor', function (): void {
-    $secret = Secret::create([
+    $secret = createTestSecret($this, [
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Secret for Download URL Test',
@@ -148,6 +164,7 @@ test('secret attachment has download_url accessor', function (): void {
 
     $attachment = SecretAttachment::create([
         'secret_id' => $secret->id,
+        'tenant_id' => $this->tenant->id,
         'filename_plain' => 'invoice.pdf',
         'file_size' => 1536,
         'mime_type' => 'application/pdf',
