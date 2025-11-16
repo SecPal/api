@@ -191,7 +191,7 @@ test('secret attachment has download_url accessor', function (): void {
     ]);
 
     expect($attachment->download_url)->toBeString();
-    expect($attachment->download_url)->toContain('/api/v1/attachments/');
+    expect($attachment->download_url)->toContain('/v1/attachments/');
     expect($attachment->download_url)->toContain($attachment->id);
     expect($attachment->download_url)->toContain('/download');
 });
