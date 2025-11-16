@@ -14,18 +14,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Secret Sharing Foundation (Phase 3)** (#182)
-  - New `secret_shares` table for fine-grained access control
-  - XOR constraint enforces sharing with either user OR role (not both)
-  - Permission hierarchy: `admin` > `write` > `read`
-  - Optional expiration support via `expires_at` timestamp
-  - `SecretShare` model with UUID primary key, relationships, and scopes
-  - `Secret.shares()` relationship for access control queries
-  - `Secret.userHasPermission()` method validates user permissions (owner OR share)
-  - `active()` scope filters non-expired shares
-  - Migration tests verify schema integrity (3 tests)
-  - Model tests cover relationships, scopes, and expiration logic (10 tests)
-  - Foundation for upcoming Controllers and Policies in separate PR
+- **Secret Sharing & Access Control (Phase 3)** (#182)
+  - **Secret CRUD API**: Full REST API for password manager functionality
+    - Create secrets with encrypted title, username, password, URL, notes (POST `/v1/secrets`)
+    - List user's secrets with pagination (GET `/v1/secrets`)
+    - View secret details (GET `/v1/secrets/{secret}`)
+    - Update secrets with automatic version incrementing (PATCH `/v1/secrets/{secret}`)
+    - Soft delete secrets (DELETE `/v1/secrets/{secret}`)
+    - Owner-based authorization via `SecretPolicy`
+    - Validation via `StoreSecretRequest` and `UpdateSecretRequest`
+    - 17 comprehensive Controller tests
+  - **Secret Sharing API**: Grant/revoke access to secrets
+    - Grant read/write/admin access to users OR roles (POST `/v1/secrets/{secret}/shares`)
+    - List all shares for a secret (GET `/v1/secrets/{secret}/shares`)
+    - Revoke share access (DELETE `/v1/secrets/{secret}/shares/{share}`)
+    - XOR constraint validation: cannot grant to both user AND role
+    - Optional expiration dates for time-limited access
+    - Permission hierarchy: admin > write > read
+    - Authorization via `SecretSharePolicy` (owner-only for now)
+    - 18 comprehensive Controller tests covering all scenarios
+  - **Database Foundation** (already merged):
+    - `secret_shares` table with XOR constraint
+    - `SecretShare` model with relationships and scopes
+    - Migration tests and model tests (13 total)
+  - **Total Test Coverage**: 35 Controller tests, 13 Model tests, all passing
+  - **Note**: Tenant resolution uses temporary `TenantKey::first()` pattern (TODO: TenantMiddleware)
 
 - **File Attachments API (Phase 2)** (#175)
   - Upload encrypted file attachments to secrets (POST `/v1/secrets/{secret}/attachments`)

@@ -9,11 +9,14 @@ use App\Models\Permission;
 use App\Models\Person;
 use App\Models\Secret;
 use App\Models\SecretAttachment;
+use App\Models\SecretShare;
 use App\Observers\PersonObserver;
 use App\Observers\SecretObserver;
 use App\Policies\PermissionManagementPolicy;
 use App\Policies\RoleManagementPolicy;
 use App\Policies\SecretAttachmentPolicy;
+use App\Policies\SecretPolicy;
+use App\Policies\SecretSharePolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\Models\Role;
@@ -41,6 +44,12 @@ class AppServiceProvider extends ServiceProvider
 
         // Register policy for Spatie Permission model
         Gate::policy(Permission::class, PermissionManagementPolicy::class);
+
+        // Register policy for Secret model
+        Gate::policy(Secret::class, SecretPolicy::class);
+
+        // Register policy for SecretShare model
+        Gate::policy(SecretShare::class, SecretSharePolicy::class);
 
         // Register policy for SecretAttachment model
         Gate::policy(SecretAttachment::class, SecretAttachmentPolicy::class);
