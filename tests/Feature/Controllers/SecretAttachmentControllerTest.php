@@ -252,7 +252,7 @@ describe('DELETE /v1/attachments/{attachment} - Delete', function () {
         $response = $this->deleteJson("/v1/attachments/{$attachment->id}");
 
         $response->assertStatus(204);
-        Storage::assertMissing('local', $attachment->storage_path);
+        Storage::assertMissing($attachment->storage_path);
     });
 
     test('requires authorization (non-owner)', function (): void {

@@ -111,9 +111,12 @@ class SecretAttachmentController extends Controller
         $content = $this->storageService->retrieve($attachment);
         $filename = $attachment->getFilenamePlainAttribute();
 
+        // Escape filename for Content-Disposition header (RFC 2231/5987)
+        $safeFilename = str_replace(['"', '\\'], ['', ''], $filename ?? 'download');
+
         return response($content, 200, [
             'Content-Type' => $attachment->mime_type,
-            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Disposition' => 'attachment; filename="'.$safeFilename.'"',
             'Content-Length' => $attachment->file_size,
         ]);
     }

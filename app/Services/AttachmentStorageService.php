@@ -66,7 +66,9 @@ class AttachmentStorageService
             throw new \RuntimeException('Failed to encode encrypted data');
         }
 
-        Storage::disk('local')->put($storagePath, $jsonBlob);
+        /** @var string $disk */
+        $disk = config('attachments.storage_disk');
+        Storage::disk($disk)->put($storagePath, $jsonBlob);
 
         // Create attachment record
         $attachment = new SecretAttachment;
@@ -99,7 +101,9 @@ class AttachmentStorageService
     public function retrieve(SecretAttachment $attachment): string
     {
         // Read encrypted blob from storage
-        $encryptedBlob = Storage::disk('local')->get($attachment->storage_path);
+        /** @var string $disk */
+        $disk = config('attachments.storage_disk');
+        $encryptedBlob = Storage::disk($disk)->get($attachment->storage_path);
         if ($encryptedBlob === null) {
             throw new \RuntimeException('Attachment file not found in storage');
         }
@@ -124,6 +128,12 @@ class AttachmentStorageService
             base64_decode($decoded['nonce'])
         );
 
+        // Verify checksum (integrity check)
+        $actualChecksum = hash('sha256', $decrypted);
+        if ($actualChecksum !== $attachment->checksum_sha256) {
+            throw new \RuntimeException('File integrity check failed: checksum mismatch');
+        }
+
         return $decrypted;
     }
 
@@ -136,7 +146,9 @@ class AttachmentStorageService
     public function delete(SecretAttachment $attachment): bool
     {
         // Delete file from storage
-        Storage::disk('local')->delete($attachment->storage_path);
+        /** @var string $disk */
+        $disk = config('attachments.storage_disk');
+        Storage::disk($disk)->delete($attachment->storage_path);
 
         // Delete attachment record
         $attachment->delete();
