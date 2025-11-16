@@ -34,11 +34,11 @@ test('secret_attachments has UUID primary key', function (): void {
 
     expect($idColumn)->not->toBeNull();
     expect($idColumn['type_name'])->toBe('uuid');
-    
+
     // Check primary key via indexes
     $indexes = Schema::getIndexes('secret_attachments');
     $primaryKey = collect($indexes)->first(fn ($idx) => $idx['primary'] ?? false);
-    
+
     expect($primaryKey)->not->toBeNull();
     expect($primaryKey['columns'])->toContain('id');
 });
