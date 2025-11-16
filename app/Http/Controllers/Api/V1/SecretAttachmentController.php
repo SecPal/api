@@ -49,6 +49,7 @@ class SecretAttachmentController extends Controller
         /** @var array<int, string> $allowedMimes */
         $allowedMimes = config('attachments.allowed_mime_types');
 
+        /** @var array<string, mixed> $validated */
         $validated = $request->validate([
             'file' => [
                 'required',
