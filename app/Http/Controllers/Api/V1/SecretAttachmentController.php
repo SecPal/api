@@ -51,7 +51,7 @@ class SecretAttachmentController extends Controller
                 'required',
                 'file',
                 'max:'.(($maxSize / 1024)), // Laravel expects KB
-                'mimes:'.implode(',', array_map(fn ($mime) => $this->mimeToExtension($mime), $allowedMimes)),
+                'mimetypes:'.implode(',', $allowedMimes),
             ],
         ]);
 
@@ -130,38 +130,5 @@ class SecretAttachmentController extends Controller
         $this->storageService->delete($attachment);
 
         return response()->noContent();
-    }
-
-    /**
-     * Map MIME type to file extension for validation.
-     *
-     * @param  string  $mime
-     * @return string
-     */
-    private function mimeToExtension(string $mime): string
-    {
-        return match ($mime) {
-            'image/jpeg' => 'jpg,jpeg',
-            'image/png' => 'png',
-            'image/gif' => 'gif',
-            'image/webp' => 'webp',
-            'application/pdf' => 'pdf',
-            'application/msword' => 'doc',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
-            'application/vnd.ms-excel' => 'xls',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
-            'application/vnd.ms-powerpoint' => 'ppt',
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
-            'text/plain' => 'txt',
-            'text/csv' => 'csv',
-            'text/html' => 'html',
-            'text/markdown' => 'md',
-            'application/zip' => 'zip',
-            'application/x-7z-compressed' => '7z',
-            'application/x-rar-compressed' => 'rar',
-            'application/json' => 'json',
-            'application/xml' => 'xml',
-            default => '*',
-        };
     }
 }
