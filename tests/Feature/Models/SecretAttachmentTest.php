@@ -42,6 +42,23 @@ function createTestSecret($test, array $attributes): Secret
     return $secret;
 }
 
+// Helper to create SecretAttachment with proper encryption pattern (tenant_id BEFORE filename_plain)
+function createTestAttachment($test, array $attributes): SecretAttachment
+{
+    $attachment = new SecretAttachment;
+    $attachment->secret_id = $attributes['secret_id'];
+    $attachment->tenant_id = $attributes['tenant_id'];
+    $attachment->filename_plain = $attributes['filename_plain'];
+    $attachment->file_size = $attributes['file_size'];
+    $attachment->mime_type = $attributes['mime_type'];
+    $attachment->storage_path = $attributes['storage_path'];
+    $attachment->checksum_sha256 = $attributes['checksum_sha256'];
+    $attachment->uploaded_by = $attributes['uploaded_by'];
+    $attachment->save();
+
+    return $attachment;
+}
+
 test('secret attachment has correct fillable fields', function (): void {
     $model = new SecretAttachment;
 
@@ -68,7 +85,7 @@ test('secret attachment uses UUID primary key', function (): void {
         'title_plain' => 'Test Secret for Attachment',
     ]);
 
-    $attachment = SecretAttachment::create([
+    $attachment = createTestAttachment($this, [
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'test.pdf',
@@ -90,7 +107,7 @@ test('secret attachment encrypts filename with EncryptedWithDek cast', function 
         'title_plain' => 'Secret with Encrypted Attachment',
     ]);
 
-    $attachment = SecretAttachment::create([
+    $attachment = createTestAttachment($this, [
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'secret-document.pdf',
@@ -118,7 +135,7 @@ test('secret attachment belongs to secret', function (): void {
         'title_plain' => 'Secret with Relationship',
     ]);
 
-    $attachment = SecretAttachment::create([
+    $attachment = createTestAttachment($this, [
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'test.jpg',
@@ -140,7 +157,7 @@ test('secret attachment belongs to user (uploaded_by)', function (): void {
         'title_plain' => 'Secret for Uploader Test',
     ]);
 
-    $attachment = SecretAttachment::create([
+    $attachment = createTestAttachment($this, [
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'report.docx',
@@ -162,7 +179,7 @@ test('secret attachment has download_url accessor', function (): void {
         'title_plain' => 'Secret for Download URL Test',
     ]);
 
-    $attachment = SecretAttachment::create([
+    $attachment = createTestAttachment($this, [
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'invoice.pdf',
