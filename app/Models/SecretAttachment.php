@@ -143,4 +143,14 @@ class SecretAttachment extends Model
     {
         return $this->belongsTo(User::class, 'uploaded_by');
     }
+
+    /**
+     * Get the download URL for this attachment.
+     */
+    protected function downloadUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => url("/v1/attachments/{$this->id}/download")
+        );
+    }
 }
