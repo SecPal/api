@@ -256,7 +256,6 @@ class Secret extends Model
      * Scope to filter by owner.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
-     * @param  User  $user
      * @return \Illuminate\Database\Eloquent\Builder<self>
      */
     public function scopeOwned($query, User $user)
