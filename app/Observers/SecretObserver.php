@@ -58,8 +58,6 @@ class SecretObserver
      *
      * Uses HMAC-SHA256 with the DEK as the key to create a searchable hash.
      * This allows equality searches without revealing the plaintext.
-     *
-     * @param Secret $secret
      */
     private function updateBlindIndex(Secret $secret): void
     {
@@ -68,6 +66,7 @@ class SecretObserver
 
         if ($title === null || $title === '' || ! is_string($title)) {
             $secret->title_idx = '';
+
             return;
         }
 
@@ -87,13 +86,13 @@ class SecretObserver
 
         // Clear DEK from memory
         sodium_memzero($dek);
-    }    /**
+    }
+
+    /**
      * Update full-text search vector.
      *
      * Combines searchable fields into a PostgreSQL tsvector for FTS.
      * Runs after save to ensure all encrypted fields are persisted.
-     *
-     * @param Secret $secret
      */
     private function updateFullTextSearch(Secret $secret): void
     {
