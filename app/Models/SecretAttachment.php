@@ -7,6 +7,7 @@
 namespace App\Models;
 
 use App\Casts\EncryptedWithDek;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -146,6 +147,8 @@ class SecretAttachment extends Model
 
     /**
      * Get the download URL for this attachment.
+     *
+     * @return Attribute<string, never>
      */
     protected function downloadUrl(): Attribute
     {
