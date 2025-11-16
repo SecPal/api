@@ -86,4 +86,74 @@ describe('Secret Model - Hidden Fields', function () {
         expect($json)->not->toHaveKey('password_enc');
         expect($json)->not->toHaveKey('notes_tsv');
     });
+
+    test('automatically generates blind index on create', function (): void {
+        $secret = new Secret;
+        $secret->tenant_id = $this->tenant->id;
+        $secret->owner_id = $this->user->id;
+        $secret->title_plain = 'Test Secret';
+        $secret->save();
+
+        expect($secret->title_idx)->not->toBeEmpty();
+        expect($secret->title_idx)->toHaveLength(64); // SHA-256 hex = 64 chars
+    });
+
+    test('updates blind index when title changes', function (): void {
+        $secret = new Secret;
+        $secret->tenant_id = $this->tenant->id;
+        $secret->owner_id = $this->user->id;
+        $secret->title_plain = 'Original Title';
+        $secret->save();
+
+        $originalIndex = $secret->title_idx;
+
+        $secret->title_plain = 'Updated Title';
+        $secret->save();
+
+        expect($secret->title_idx)->not->toBe($originalIndex);
+    });
+
+    test('blind index is consistent for same title', function (): void {
+        $secret1 = new Secret;
+        $secret1->tenant_id = $this->tenant->id;
+        $secret1->owner_id = $this->user->id;
+        $secret1->title_plain = 'Same Title';
+        $secret1->save();
+
+        $secret2 = new Secret;
+        $secret2->tenant_id = $this->tenant->id;
+        $secret2->owner_id = $this->user->id;
+        $secret2->title_plain = 'Same Title';
+        $secret2->save();
+
+        expect($secret1->title_idx)->toBe($secret2->title_idx);
+    });
+
+    test('updates FTS vector on create', function (): void {
+        $secret = new Secret;
+        $secret->tenant_id = $this->tenant->id;
+        $secret->owner_id = $this->user->id;
+        $secret->title_plain = 'GitHub Token';
+        $secret->notes_plain = 'Personal access token for GitHub API';
+        $secret->save();
+
+        // Verify FTS column was populated (check via raw query)
+        $result = \DB::selectOne('SELECT notes_tsv FROM secrets WHERE id = ?', [$secret->id]);
+        expect($result->notes_tsv)->not->toBeNull();
+    });
+
+    test('updates FTS vector on update', function (): void {
+        $secret = new Secret;
+        $secret->tenant_id = $this->tenant->id;
+        $secret->owner_id = $this->user->id;
+        $secret->title_plain = 'Token';
+        $secret->notes_plain = 'Original notes';
+        $secret->save();
+
+        $secret->notes_plain = 'Updated notes with more details';
+        $secret->save();
+
+        $result = \DB::selectOne('SELECT notes_tsv FROM secrets WHERE id = ?', [$secret->id]);
+        expect($result->notes_tsv)->not->toBeNull();
+    });
 });

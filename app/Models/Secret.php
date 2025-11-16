@@ -144,7 +144,7 @@ class Secret extends Model
     /**
      * Get plaintext title (transient).
      */
-    public function getTitlePlainAttribute(): string
+    public function getTitlePlainAttribute(): ?string
     {
         return $this->titlePlain ?? $this->title_enc;
     }
