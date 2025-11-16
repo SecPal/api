@@ -29,9 +29,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * and decryption happens on each access. For performance-critical code, cache
  * the plaintext value in a local variable.
  *
- * @property string $id
- * @property int $tenant_id
- * @property string $owner_id
+ * @property string $id UUID primary key
+ * @property int $tenant_id Foreign key to tenant_keys table
+ * @property string $owner_id UUID foreign key to users table
  * @property string $title_enc Encrypted title (JSON)
  * @property string $title_idx Blind index for title search
  * @property ?string $username_enc Encrypted username (JSON)
