@@ -277,6 +277,7 @@ class Secret extends Model
         if (isset($this->attributes['attachments_count'])) {
             /** @var int|numeric-string $count */
             $count = $this->attributes['attachments_count'];
+
             return (int) $count;
         }
 
