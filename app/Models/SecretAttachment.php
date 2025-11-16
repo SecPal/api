@@ -118,14 +118,6 @@ class SecretAttachment extends Model
     }
 
     /**
-     * Get download URL for this attachment.
-     */
-    public function getDownloadUrlAttribute(): string
-    {
-        return url("/api/v1/attachments/{$this->id}/download");
-    }
-
-    /**
      * Get the secret that owns this attachment.
      *
      * @return BelongsTo<Secret, $this>
