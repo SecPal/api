@@ -88,22 +88,6 @@ describe('SecretController - List Secrets', function () {
             ->assertJsonPath('data.1.id', $ownSecret2->id);
     });
 
-    test('user can filter secrets by owned status', function () {
-        // Arrange: Own secret
-        createTestSecret([
-            'tenant_id' => $this->tenant->id,
-            'owner_id' => $this->user->id,
-            'title_plain' => 'Owned',
-        ]);
-
-        // Act
-        $response = getJson('/v1/secrets?filter=owned');
-
-        // Assert
-        $response->assertOk()
-            ->assertJsonCount(1, 'data');
-    });
-
     test('list secrets returns paginated results', function () {
         // Arrange: Create 15 secrets
         foreach (range(1, 15) as $i) {

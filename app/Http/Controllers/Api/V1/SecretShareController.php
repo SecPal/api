@@ -33,10 +33,7 @@ class SecretShareController extends Controller
 
         // Query active (non-expired) shares
         $shares = SecretShare::where('secret_id', $secret->id)
-            ->where(function ($query) {
-                $query->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
+            ->active()
             ->get();
 
         // Transform to API response

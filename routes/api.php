@@ -110,16 +110,16 @@ Route::prefix('v1')->group(function () {
         Route::get('/attachments/{attachment}/download', [SecretAttachmentController::class, 'download']);
         Route::delete('/attachments/{attachment}', [SecretAttachmentController::class, 'destroy']);
 
+        // Secret Sharing endpoints (Phase 3) - must be before single {secret} routes
+        Route::get('/secrets/{secret}/shares', [SecretShareController::class, 'index']);
+        Route::post('/secrets/{secret}/shares', [SecretShareController::class, 'store']);
+        Route::delete('/secrets/{secret}/shares/{share}', [SecretShareController::class, 'destroy']);
+
         // Secret CRUD endpoints (Phase 3)
         Route::get('/secrets', [SecretController::class, 'index']);
         Route::post('/secrets', [SecretController::class, 'store']);
         Route::get('/secrets/{secret}', [SecretController::class, 'show']);
         Route::patch('/secrets/{secret}', [SecretController::class, 'update']);
         Route::delete('/secrets/{secret}', [SecretController::class, 'destroy']);
-
-        // Secret Sharing endpoints (Phase 3)
-        Route::get('/secrets/{secret}/shares', [SecretShareController::class, 'index']);
-        Route::post('/secrets/{secret}/shares', [SecretShareController::class, 'store']);
-        Route::delete('/secrets/{secret}/shares/{share}', [SecretShareController::class, 'destroy']);
     });
 });

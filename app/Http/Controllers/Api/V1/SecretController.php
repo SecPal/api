@@ -46,6 +46,61 @@ class SecretController extends Controller
     }
 
     /**
+     * Assign request fields to secret model.
+     *
+     * @return bool Whether any field was modified
+     */
+    private function assignFields(Secret $secret, Request $request): bool
+    {
+        $modified = false;
+
+        if ($request->has('title')) {
+            /** @var string $value */
+            $value = $request->input('title');
+            $secret->title_plain = $value;
+            $modified = true;
+        }
+        if ($request->has('username')) {
+            /** @var string|null $value */
+            $value = $request->input('username');
+            $secret->username_plain = $value;
+            $modified = true;
+        }
+        if ($request->has('password')) {
+            /** @var string|null $value */
+            $value = $request->input('password');
+            $secret->password_plain = $value;
+            $modified = true;
+        }
+        if ($request->has('url')) {
+            /** @var string|null $value */
+            $value = $request->input('url');
+            $secret->url_plain = $value;
+            $modified = true;
+        }
+        if ($request->has('notes')) {
+            /** @var string|null $value */
+            $value = $request->input('notes');
+            $secret->notes_plain = $value;
+            $modified = true;
+        }
+        if ($request->has('tags')) {
+            /** @var array<string>|null $value */
+            $value = $request->input('tags');
+            $secret->tags = $value;
+            $modified = true;
+        }
+        if ($request->has('expires_at')) {
+            /** @var \Illuminate\Support\Carbon|null $value */
+            $value = $request->input('expires_at');
+            $secret->expires_at = $value;
+            $modified = true;
+        }
+
+        return $modified;
+    }
+
+    /**
      * Display a listing of secrets accessible to the authenticated user.
      */
     public function index(Request $request): JsonResponse
@@ -82,6 +137,8 @@ class SecretController extends Controller
      */
     public function store(StoreSecretRequest $request): JsonResponse
     {
+        $this->authorize('create', Secret::class);
+
         /** @var \App\Models\User $user */
         $user = $request->user();
 
@@ -97,28 +154,9 @@ class SecretController extends Controller
         $secret = new Secret;
         $secret->tenant_id = $tenantId;
         $secret->owner_id = $user->id;
-        /** @var string $title */
-        $title = $request->input('title');
-        $secret->title_plain = $title;
-        /** @var string|null $username */
-        $username = $request->input('username');
-        $secret->username_plain = $username;
-        /** @var string|null $password */
-        $password = $request->input('password');
-        $secret->password_plain = $password;
-        /** @var string|null $url */
-        $url = $request->input('url');
-        $secret->url_plain = $url;
-        /** @var string|null $notes */
-        $notes = $request->input('notes');
-        $secret->notes_plain = $notes;
-        /** @var array<string>|null $tags */
-        $tags = $request->input('tags');
-        $secret->tags = $tags;
-        /** @var \Illuminate\Support\Carbon|null $expiresAt */
-        $expiresAt = $request->input('expires_at');
-        $secret->expires_at = $expiresAt;
         $secret->version = 1;
+
+        $this->assignFields($secret, $request);
         $secret->save();
 
         return response()->json([
@@ -147,45 +185,13 @@ class SecretController extends Controller
         // Authorization handled by SecretPolicy
         $this->authorize('update', $secret);
 
-        if ($request->has('title')) {
-            /** @var string $title */
-            $title = $request->input('title');
-            $secret->title_plain = $title;
-        }
-        if ($request->has('username')) {
-            /** @var string|null $username */
-            $username = $request->input('username');
-            $secret->username_plain = $username;
-        }
-        if ($request->has('password')) {
-            /** @var string|null $password */
-            $password = $request->input('password');
-            $secret->password_plain = $password;
-        }
-        if ($request->has('url')) {
-            /** @var string|null $url */
-            $url = $request->input('url');
-            $secret->url_plain = $url;
-        }
-        if ($request->has('notes')) {
-            /** @var string|null $notes */
-            $notes = $request->input('notes');
-            $secret->notes_plain = $notes;
-        }
-        if ($request->has('tags')) {
-            /** @var array<string>|null $tags */
-            $tags = $request->input('tags');
-            $secret->tags = $tags;
-        }
-        if ($request->has('expires_at')) {
-            /** @var \Illuminate\Support\Carbon|null $expiresAt */
-            $expiresAt = $request->input('expires_at');
-            $secret->expires_at = $expiresAt;
-        }
+        $modified = $this->assignFields($secret, $request);
 
-        // Increment version on update
-        $secret->version++;
-        $secret->save();
+        if ($modified) {
+            // Increment version on update
+            $secret->version++;
+            $secret->save();
+        }
 
         return response()->json([
             'data' => $this->transformSecret($secret),
