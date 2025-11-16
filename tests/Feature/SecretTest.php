@@ -119,7 +119,7 @@ describe('Secret Model - Hidden Fields', function () {
         $secret->save();
 
         expect($secret->title_idx)->not->toBeEmpty();
-        expect($secret->title_idx)->toHaveLength(64); // SHA-256 hex = 64 chars
+        expect($secret->title_idx)->toHaveLength(44); // Base64-encoded 32-byte HMAC-SHA256 = 44 chars
     });
 
     test('updates blind index when title changes', function (): void {

@@ -70,22 +70,19 @@ class SecretObserver
             return;
         }
 
-        // Get the DEK from the tenant key
+        // Get the tenant key
         $tenantKey = $secret->tenantKey;
 
         if ($tenantKey === null) {
             throw new \RuntimeException('Secret must have a tenant key');
         }
 
-        $dek = $tenantKey->unwrapDek();
-
-        // Generate HMAC-SHA256 blind index
-        // Normalize: lowercase + trim for consistent search
+        // Generate blind index using the tenant's idx_key (not DEK)
+        // This follows the established pattern from PersonObserver
         $normalized = strtolower(trim($title));
-        $secret->title_idx = hash_hmac('sha256', $normalized, $dek);
-
-        // Clear DEK from memory
-        sodium_memzero($dek);
+        $rawIdx = $tenantKey->generateBlindIndex($normalized);
+        // Store as base64 string (blind indexes are binary, must be encoded)
+        $secret->title_idx = base64_encode($rawIdx);
     }
 
     /**

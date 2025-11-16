@@ -20,7 +20,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * Encrypted fields (*_enc) use EncryptedWithDek cast and are stored as TEXT.
  * Blind indexes (*_idx) are computed automatically by SecretObserver.
- * Transient properties (*_plain) provide write-only plaintext access.
+ * Transient properties (*_plain) provide read/write plaintext access.
+ *
+ * **Accessor Pattern:**
+ * Unlike PersonModel which has write-only transients, Secret's *_plain getters
+ * fall back to decrypting *_enc fields. This enables reading secrets from the API
+ * and tests without exposing encrypted fields. After fresh(), transients are null
+ * and decryption happens on each access. For performance-critical code, cache
+ * the plaintext value in a local variable.
  *
  * @property string $id
  * @property int $tenant_id
@@ -249,6 +256,7 @@ class Secret extends Model
      * Scope to filter by owner.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     * @param  User  $user
      * @return \Illuminate\Database\Eloquent\Builder<self>
      */
     public function scopeOwned($query, User $user)
