@@ -181,3 +181,26 @@ describe('Secret Model - Hidden Fields', function () {
         expect($result->notes_tsv)->not->toBeNull();
     });
 });
+
+describe('Secret Model - Relationships', function () {
+    test('has attachments relationship', function (): void {
+        $secret = new Secret;
+        $secret->tenant_id = $this->tenant->id;
+        $secret->owner_id = $this->user->id;
+        $secret->title_plain = 'Test Secret';
+        $secret->save();
+
+        expect($secret->attachments())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class);
+        expect($secret->attachments)->toBeEmpty();
+    });
+
+    test('attachment_count accessor returns zero for secrets without attachments', function (): void {
+        $secret = new Secret;
+        $secret->tenant_id = $this->tenant->id;
+        $secret->owner_id = $this->user->id;
+        $secret->title_plain = 'Test Secret';
+        $secret->save();
+
+        expect($secret->attachment_count)->toBe(0);
+    });
+});

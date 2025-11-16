@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **File Attachments API (Phase 2)** (#175)
+  - Upload encrypted file attachments to secrets (POST `/v1/secrets/{secret}/attachments`)
+  - List attachments for a secret (GET `/v1/secrets/{secret}/attachments`)
+  - Download decrypted attachments (GET `/v1/attachments/{attachment}/download`)
+  - Delete attachments (DELETE `/v1/attachments/{attachment}`)
+  - Files encrypted at rest using tenant DEK encryption
+  - Configurable file size limits and MIME type restrictions
+  - Owner-based authorization via `SecretAttachmentPolicy`
+  - OpenAPI documentation for all attachment endpoints
+  - Comprehensive test coverage: 13 Controller tests, 3 Service tests, 2 Model tests, 8 Policy tests
+
 - **Code Coverage Integration** (#170)
   - Integrated Codecov for automated coverage tracking
   - PHPUnit now generates Clover XML coverage reports
