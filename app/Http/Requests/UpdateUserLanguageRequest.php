@@ -35,4 +35,16 @@ class UpdateUserLanguageRequest extends FormRequest
             ],
         ];
     }
+
+    /**
+     * Get the custom error messages for validation rules.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'locale.in' => 'Language must be either English (en) or German (de).',
+        ];
+    }
 }
