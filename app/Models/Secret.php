@@ -253,6 +253,26 @@ class Secret extends Model
     }
 
     /**
+     * Relation to SecretAttachment (file attachments).
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<SecretAttachment, $this>
+     */
+    public function attachments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(SecretAttachment::class);
+    }
+
+    /**
+     * Get count of attachments for this secret.
+     *
+     * @return int Number of attachments
+     */
+    public function getAttachmentCountAttribute(): int
+    {
+        return $this->attachments()->count();
+    }
+
+    /**
      * Scope to filter by owner.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
