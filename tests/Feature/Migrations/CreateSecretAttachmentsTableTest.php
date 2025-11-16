@@ -48,6 +48,7 @@ test('secret_attachments has correct column types', function (): void {
     $columnTypes = collect($columns)->mapWithKeys(fn ($col) => [$col['name'] => $col['type_name']]);
 
     expect($columnTypes['secret_id'])->toBe('uuid');
+    expect($columnTypes['tenant_id'])->toBe('int8'); // Required for EncryptedWithDek cast
     expect($columnTypes['filename_enc'])->toBe('text');
     expect($columnTypes['file_size'])->toBe('int8');
     expect($columnTypes['mime_type'])->toBe('varchar');
@@ -61,6 +62,7 @@ test('secret_attachments has foreign key constraints', function (): void {
     $foreignKeyColumns = collect($foreignKeys)->pluck('columns')->flatten()->toArray();
 
     expect($foreignKeyColumns)->toContain('secret_id');
+    expect($foreignKeyColumns)->toContain('tenant_id');
     expect($foreignKeyColumns)->toContain('uploaded_by');
 });
 

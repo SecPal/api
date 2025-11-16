@@ -56,6 +56,7 @@ class SecretAttachment extends Model
      */
     protected $fillable = [
         'secret_id',
+        'tenant_id', // Required for EncryptedWithDek cast
         'filename_enc',
         'file_size',
         'mime_type',

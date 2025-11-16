@@ -18,6 +18,7 @@ return new class extends Migration
         Schema::create('secret_attachments', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('secret_id')->constrained('secrets')->cascadeOnDelete();
+            $table->foreignId('tenant_id')->constrained('tenant_keys'); // Required for EncryptedWithDek cast
 
             // File metadata (encrypted)
             $table->text('filename_enc'); // Original filename (encrypted)
