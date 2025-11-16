@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Secret Sharing Foundation (Phase 3)** (#182)
+  - New `secret_shares` table for fine-grained access control
+  - XOR constraint enforces sharing with either user OR role (not both)
+  - Permission hierarchy: `admin` > `write` > `read`
+  - Optional expiration support via `expires_at` timestamp
+  - `SecretShare` model with UUID primary key, relationships, and scopes
+  - `Secret.shares()` relationship for access control queries
+  - `Secret.userHasPermission()` method validates user permissions (owner OR share)
+  - `active()` scope filters non-expired shares
+  - Migration tests verify schema integrity (3 tests)
+  - Model tests cover relationships, scopes, and expiration logic (10 tests)
+  - Foundation for upcoming Controllers and Policies in separate PR
+
 - **File Attachments API (Phase 2)** (#175)
   - Upload encrypted file attachments to secrets (POST `/v1/secrets/{secret}/attachments`)
   - List attachments for a secret (GET `/v1/secrets/{secret}/attachments`)

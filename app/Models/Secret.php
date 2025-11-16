@@ -263,6 +263,16 @@ class Secret extends Model
     }
 
     /**
+     * Relation to SecretShare (access control).
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<SecretShare, $this>
+     */
+    public function shares(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(SecretShare::class);
+    }
+
+    /**
      * Get count of attachments for this secret.
      *
      * Uses the aggregated count from withCount('attachments') if available,
@@ -319,5 +329,44 @@ class Secret extends Model
             $q->whereNull('expires_at')
                 ->orWhere('expires_at', '>', now());
         });
+    }
+
+    /**
+     * Check if user has specific permission on this secret.
+     *
+     * Permission hierarchy: admin > write > read
+     *
+     * @param  string  $permission  One of: read, write, admin
+     */
+    public function userHasPermission(User $user, string $permission): bool
+    {
+        // Owner always has full access
+        if ($this->owner_id === $user->id) {
+            return true;
+        }
+
+        // Check active shares
+        $share = $this->shares()
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)
+                    ->orWhereIn('role_id', $user->roles->pluck('id'));
+            })
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->first();
+
+        if (! $share) {
+            return false;
+        }
+
+        // Permission hierarchy: admin > write > read
+        return match ($permission) {
+            'read' => in_array($share->permission, ['read', 'write', 'admin']),
+            'write' => in_array($share->permission, ['write', 'admin']),
+            'admin' => $share->permission === 'admin',
+            default => false,
+        };
     }
 }
