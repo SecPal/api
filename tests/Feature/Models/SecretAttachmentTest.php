@@ -25,39 +25,10 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
 });
 
-afterEach(function (): void {
+afterEach(function () {
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
-
-// Helper to create Secret with proper encryption pattern (tenant_id BEFORE title_plain)
-function createTestSecret(array $attributes): Secret
-{
-    $secret = new Secret;
-    $secret->tenant_id = $attributes['tenant_id'];
-    $secret->owner_id = $attributes['owner_id'];
-    $secret->title_plain = $attributes['title_plain'] ?? 'Test Secret';
-    $secret->save();
-
-    return $secret;
-}
-
-// Helper to create SecretAttachment with proper encryption pattern (tenant_id BEFORE filename_plain)
-function createTestAttachment(array $attributes): SecretAttachment
-{
-    $attachment = new SecretAttachment;
-    $attachment->secret_id = $attributes['secret_id'];
-    $attachment->tenant_id = $attributes['tenant_id'];
-    $attachment->filename_plain = $attributes['filename_plain'];
-    $attachment->file_size = $attributes['file_size'];
-    $attachment->mime_type = $attributes['mime_type'];
-    $attachment->storage_path = $attributes['storage_path'];
-    $attachment->checksum_sha256 = $attributes['checksum_sha256'];
-    $attachment->uploaded_by = $attributes['uploaded_by'];
-    $attachment->save();
-
-    return $attachment;
-}
 
 test('secret attachment has correct fillable fields', function (): void {
     $model = new SecretAttachment;

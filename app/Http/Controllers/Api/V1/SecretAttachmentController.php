@@ -9,12 +9,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreSecretAttachmentRequest;
+use App\Http\Resources\SecretAttachmentResource;
 use App\Models\Secret;
 use App\Models\SecretAttachment;
 use App\Models\User;
 use App\Services\AttachmentStorageService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 
@@ -36,48 +37,21 @@ class SecretAttachmentController extends Controller
     /**
      * Upload attachment to secret.
      */
-    public function store(Request $request, Secret $secret): JsonResponse
+    public function store(StoreSecretAttachmentRequest $request, Secret $secret): JsonResponse
     {
         Gate::authorize('create', [SecretAttachment::class, $secret]);
 
-        /** @var int<1, max> $maxSize */
-        $maxSize = config('attachments.max_file_size');
-        /** @var array<int, string> $allowedMimes */
-        $allowedMimes = config('attachments.allowed_mime_types');
-
-        /** @var array<string, mixed> $validated */
-        $validated = $request->validate([
-            'file' => [
-                'required',
-                'file',
-                'max:'.((int) ($maxSize / 1024)), // Laravel expects KB
-                'mimetypes:'.implode(',', $allowedMimes),
-            ],
-        ]);
-
-        if (! isset($validated['file']) || ! ($validated['file'] instanceof \Illuminate\Http\UploadedFile)) {
-            throw new \InvalidArgumentException('Valid file upload required');
-        }
-
         /** @var \Illuminate\Http\UploadedFile $file */
-        $file = $validated['file'];
+        $file = $request->validated()['file'];
 
         $user = $request->user();
         assert($user instanceof User, 'User must be authenticated');
 
         $attachment = $this->storageService->store($file, $secret, $user);
 
-        return response()->json([
-            'data' => [
-                'id' => $attachment->id,
-                'filename' => $attachment->getFilenamePlainAttribute(),
-                'file_size' => $attachment->file_size,
-                'mime_type' => $attachment->mime_type,
-                'download_url' => $attachment->download_url,
-                'uploaded_by' => $attachment->uploaded_by,
-                'created_at' => $attachment->created_at->toIso8601String(),
-            ],
-        ], 201);
+        return SecretAttachmentResource::make($attachment)
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
@@ -90,14 +64,7 @@ class SecretAttachmentController extends Controller
         $attachments = $secret->attachments()->latest()->get();
 
         return response()->json([
-            'data' => $attachments->map(fn ($attachment) => [
-                'id' => $attachment->id,
-                'filename' => $attachment->getFilenamePlainAttribute(),
-                'file_size' => $attachment->file_size,
-                'mime_type' => $attachment->mime_type,
-                'download_url' => $attachment->download_url,
-                'created_at' => $attachment->created_at->toIso8601String(),
-            ]),
+            'data' => SecretAttachmentResource::collection($attachments),
         ]);
     }
 
@@ -109,15 +76,20 @@ class SecretAttachmentController extends Controller
         Gate::authorize('view', $attachment);
 
         $content = $this->storageService->retrieve($attachment);
-        $filename = $attachment->getFilenamePlainAttribute();
+        $filename = $attachment->filename_plain;
+
+        // Ensure filename is present; attachments should always have a filename.
+        if ($filename === null) {
+            abort(500, 'Attachment is missing a filename.');
+        }
 
         // Escape filename for Content-Disposition header (RFC 2231/5987)
-        $safeFilename = str_replace(['"', '\\'], ['', ''], $filename ?? 'download');
+        $safeFilename = str_replace(['"', '\\'], ['', ''], $filename);
 
         return response($content, 200, [
             'Content-Type' => $attachment->mime_type,
             'Content-Disposition' => 'attachment; filename="'.$safeFilename.'"',
-            'Content-Length' => $attachment->file_size,
+            'Content-Length' => (string) $attachment->file_size,
         ]);
     }
 
