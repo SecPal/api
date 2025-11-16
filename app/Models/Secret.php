@@ -265,10 +265,22 @@ class Secret extends Model
     /**
      * Get count of attachments for this secret.
      *
+     * Uses the aggregated count from withCount('attachments') if available,
+     * otherwise performs a count query. To avoid N+1 queries, use:
+     * Secret::withCount('attachments')->get()
+     *
      * @return int Number of attachments
      */
     public function getAttachmentCountAttribute(): int
     {
+        // Use aggregated count if available (from withCount())
+        if (isset($this->attributes['attachments_count'])) {
+            /** @var int|numeric-string $count */
+            $count = $this->attributes['attachments_count'];
+            return (int) $count;
+        }
+
+        // Fallback to query (may cause N+1 if used in a loop)
         return $this->attachments()->count();
     }
 

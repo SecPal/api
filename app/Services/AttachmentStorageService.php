@@ -148,7 +148,12 @@ class AttachmentStorageService
         // Delete file from storage
         /** @var string $disk */
         $disk = config('attachments.storage_disk');
-        Storage::disk($disk)->delete($attachment->storage_path);
+        $storage = Storage::disk($disk);
+
+        if ($storage->exists($attachment->storage_path)) {
+            $storage->delete($attachment->storage_path);
+        }
+        // Note: If file is missing, we continue - the database record should still be cleaned up
 
         // Delete attachment record
         $attachment->delete();

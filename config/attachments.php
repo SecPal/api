@@ -24,7 +24,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | List of permitted MIME types for attachments.
-    | Empty array allows all types.
+    |
+    | WARNING: This array MUST NOT be empty in production.
+    | Empty array allows ALL file types including executables (SECURITY RISK).
+    | Only explicitly listed MIME types are permitted when array contains values.
     |
     */
     'allowed_mime_types' => [

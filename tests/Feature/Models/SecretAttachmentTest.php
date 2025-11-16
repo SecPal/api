@@ -31,7 +31,7 @@ afterEach(function (): void {
 });
 
 // Helper to create Secret with proper encryption pattern (tenant_id BEFORE title_plain)
-function createTestSecret($test, array $attributes): Secret
+function createTestSecret(array $attributes): Secret
 {
     $secret = new Secret;
     $secret->tenant_id = $attributes['tenant_id'];
@@ -43,7 +43,7 @@ function createTestSecret($test, array $attributes): Secret
 }
 
 // Helper to create SecretAttachment with proper encryption pattern (tenant_id BEFORE filename_plain)
-function createTestAttachment($test, array $attributes): SecretAttachment
+function createTestAttachment(array $attributes): SecretAttachment
 {
     $attachment = new SecretAttachment;
     $attachment->secret_id = $attributes['secret_id'];
@@ -79,13 +79,13 @@ test('secret attachment hides encrypted fields', function (): void {
 });
 
 test('secret attachment uses UUID primary key', function (): void {
-    $secret = createTestSecret($this, [
+    $secret = createTestSecret([
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Test Secret for Attachment',
     ]);
 
-    $attachment = createTestAttachment($this, [
+    $attachment = createTestAttachment([
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'test.pdf',
@@ -101,13 +101,13 @@ test('secret attachment uses UUID primary key', function (): void {
 });
 
 test('secret attachment encrypts filename with EncryptedWithDek cast', function (): void {
-    $secret = createTestSecret($this, [
+    $secret = createTestSecret([
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Secret with Encrypted Attachment',
     ]);
 
-    $attachment = createTestAttachment($this, [
+    $attachment = createTestAttachment([
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'secret-document.pdf',
@@ -129,13 +129,13 @@ test('secret attachment encrypts filename with EncryptedWithDek cast', function 
 });
 
 test('secret attachment belongs to secret', function (): void {
-    $secret = createTestSecret($this, [
+    $secret = createTestSecret([
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Secret with Relationship',
     ]);
 
-    $attachment = createTestAttachment($this, [
+    $attachment = createTestAttachment([
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'test.jpg',
@@ -151,13 +151,13 @@ test('secret attachment belongs to secret', function (): void {
 });
 
 test('secret attachment belongs to user (uploaded_by)', function (): void {
-    $secret = createTestSecret($this, [
+    $secret = createTestSecret([
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Secret for Uploader Test',
     ]);
 
-    $attachment = createTestAttachment($this, [
+    $attachment = createTestAttachment([
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'report.docx',
@@ -173,13 +173,13 @@ test('secret attachment belongs to user (uploaded_by)', function (): void {
 });
 
 test('secret attachment has download_url accessor', function (): void {
-    $secret = createTestSecret($this, [
+    $secret = createTestSecret([
         'tenant_id' => $this->tenant->id,
         'owner_id' => $this->user->id,
         'title_plain' => 'Secret for Download URL Test',
     ]);
 
-    $attachment = createTestAttachment($this, [
+    $attachment = createTestAttachment([
         'secret_id' => $secret->id,
         'tenant_id' => $this->tenant->id,
         'filename_plain' => 'invoice.pdf',
