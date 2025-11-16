@@ -33,7 +33,7 @@ afterEach(function (): void {
 // Helper to create Secret with proper encryption pattern (tenant_id BEFORE title_plain)
 function createTestSecret($test, array $attributes): Secret
 {
-    $secret = new Secret();
+    $secret = new Secret;
     $secret->tenant_id = $attributes['tenant_id'];
     $secret->owner_id = $attributes['owner_id'];
     $secret->title_plain = $attributes['title_plain'] ?? 'Test Secret';
@@ -43,7 +43,7 @@ function createTestSecret($test, array $attributes): Secret
 }
 
 test('secret attachment has correct fillable fields', function (): void {
-    $model = new SecretAttachment();
+    $model = new SecretAttachment;
 
     expect($model->getFillable())->toContain('secret_id');
     expect($model->getFillable())->toContain('filename_enc');
@@ -55,7 +55,7 @@ test('secret attachment has correct fillable fields', function (): void {
 });
 
 test('secret attachment hides encrypted fields', function (): void {
-    $model = new SecretAttachment();
+    $model = new SecretAttachment;
 
     expect($model->getHidden())->toContain('filename_enc');
     expect($model->getHidden())->toContain('storage_path');
@@ -178,4 +178,3 @@ test('secret attachment has download_url accessor', function (): void {
     expect($attachment->download_url)->toContain($attachment->id);
     expect($attachment->download_url)->toContain('/download');
 });
-

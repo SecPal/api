@@ -69,7 +69,7 @@ class AttachmentStorageService
         Storage::disk('local')->put($storagePath, $jsonBlob);
 
         // Create attachment record
-        $attachment = new SecretAttachment();
+        $attachment = new SecretAttachment;
         $attachment->id = $attachmentId;
         $attachment->secret_id = $secret->id;
         /** @var int<0, max> $tenantId */
@@ -88,7 +88,9 @@ class AttachmentStorageService
         $attachment->save();
 
         return $attachment;
-    }    /**
+    }
+
+    /**
      * Retrieve and decrypt file content.
      *
      * @param  SecretAttachment  $attachment  The attachment to retrieve

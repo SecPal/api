@@ -99,8 +99,6 @@ class SecretAttachment extends Model
 
     /**
      * Set plaintext filename (transient).
-     *
-     * @param  string  $value
      */
     public function setFilenamePlainAttribute(string $value): void
     {
@@ -112,8 +110,6 @@ class SecretAttachment extends Model
      * Get plaintext filename (read accessor).
      *
      * Falls back to decrypting filename_enc if transient is null.
-     *
-     * @return string|null
      */
     public function getFilenamePlainAttribute(): ?string
     {
@@ -122,8 +118,6 @@ class SecretAttachment extends Model
 
     /**
      * Get download URL for this attachment.
-     *
-     * @return string
      */
     public function getDownloadUrlAttribute(): string
     {

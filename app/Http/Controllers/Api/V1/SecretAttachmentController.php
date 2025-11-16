@@ -35,10 +35,6 @@ class SecretAttachmentController extends Controller
 
     /**
      * Upload attachment to secret.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Secret  $secret
-     * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request, Secret $secret): JsonResponse
     {
@@ -86,9 +82,6 @@ class SecretAttachmentController extends Controller
 
     /**
      * List attachments for secret.
-     *
-     * @param  \App\Models\Secret  $secret
-     * @return \Illuminate\Http\JsonResponse
      */
     public function index(Secret $secret): JsonResponse
     {
@@ -110,9 +103,6 @@ class SecretAttachmentController extends Controller
 
     /**
      * Download attachment.
-     *
-     * @param  \App\Models\SecretAttachment  $attachment
-     * @return \Illuminate\Http\Response
      */
     public function download(SecretAttachment $attachment): Response
     {
@@ -130,9 +120,6 @@ class SecretAttachmentController extends Controller
 
     /**
      * Delete attachment.
-     *
-     * @param  \App\Models\SecretAttachment  $attachment
-     * @return \Illuminate\Http\Response
      */
     public function destroy(SecretAttachment $attachment): Response
     {

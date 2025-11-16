@@ -25,7 +25,7 @@ beforeEach(function (): void {
     $this->tenant = TenantKey::create($keys);
     $this->user = User::factory()->create();
 
-    $this->service = new AttachmentStorageService();
+    $this->service = new AttachmentStorageService;
 });
 
 afterEach(function (): void {
@@ -34,7 +34,7 @@ afterEach(function (): void {
 });
 
 test('service stores file with encryption', function (): void {
-    $secret = new Secret();
+    $secret = new Secret;
     $secret->tenant_id = $this->tenant->id;
     $secret->owner_id = $this->user->id;
     $secret->title_plain = 'Secret with Attachment';
@@ -54,7 +54,7 @@ test('service stores file with encryption', function (): void {
 });
 
 test('service encrypts file content in storage', function (): void {
-    $secret = new Secret();
+    $secret = new Secret;
     $secret->tenant_id = $this->tenant->id;
     $secret->owner_id = $this->user->id;
     $secret->title_plain = 'Secret for Encryption Test';
@@ -75,7 +75,7 @@ test('service encrypts file content in storage', function (): void {
 });
 
 test('service retrieves and decrypts file content', function (): void {
-    $secret = new Secret();
+    $secret = new Secret;
     $secret->tenant_id = $this->tenant->id;
     $secret->owner_id = $this->user->id;
     $secret->title_plain = 'Secret for Decryption Test';
