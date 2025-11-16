@@ -97,3 +97,38 @@ function assignTemporalRole(
     // Clear relationship cache
     $user->unsetRelation('roles');
 }
+
+/**
+ * Create Secret with proper encryption pattern.
+ * Sets tenant_id BEFORE title_plain to ensure correct encryption context.
+ */
+function createTestSecret(array $attributes): \App\Models\Secret
+{
+    $secret = new \App\Models\Secret;
+    $secret->tenant_id = $attributes['tenant_id'];
+    $secret->owner_id = $attributes['owner_id'];
+    $secret->title_plain = $attributes['title_plain'] ?? 'Test Secret';
+    $secret->save();
+
+    return $secret;
+}
+
+/**
+ * Create SecretAttachment with proper encryption pattern.
+ * Sets tenant_id BEFORE filename_plain to ensure correct encryption context.
+ */
+function createTestAttachment(array $attributes): \App\Models\SecretAttachment
+{
+    $attachment = new \App\Models\SecretAttachment;
+    $attachment->secret_id = $attributes['secret_id'];
+    $attachment->tenant_id = $attributes['tenant_id'];
+    $attachment->filename_plain = $attributes['filename_plain'];
+    $attachment->file_size = $attributes['file_size'];
+    $attachment->mime_type = $attributes['mime_type'];
+    $attachment->storage_path = $attributes['storage_path'];
+    $attachment->checksum_sha256 = $attributes['checksum_sha256'];
+    $attachment->uploaded_by = $attributes['uploaded_by'];
+    $attachment->save();
+
+    return $attachment;
+}
