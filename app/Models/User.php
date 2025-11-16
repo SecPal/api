@@ -27,6 +27,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $password
  * @property ?\Illuminate\Support\Carbon $email_verified_at
  * @property string|null $remember_token
+ * @property string|null $preferred_locale
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  */
@@ -52,6 +53,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'preferred_locale',
     ];
 
     /**

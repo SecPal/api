@@ -48,6 +48,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
         Route::get('/me', [AuthController::class, 'me']);
+        Route::patch('/me/language', [AuthController::class, 'updateLanguage']);
 
         // Role Management CRUD API
         // Authorization: Route-level permission middleware + Policy (defense-in-depth)

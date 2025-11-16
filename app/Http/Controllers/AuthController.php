@@ -8,6 +8,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\PasswordResetRequestRequest;
 use App\Http\Requests\TokenRequest;
+use App\Http\Requests\UpdateUserLanguageRequest;
 use App\Mail\PasswordResetMail;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -100,6 +101,28 @@ class AuthController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+        ]);
+    }
+
+    /**
+     * Update the authenticated user's language preference.
+     */
+    public function updateLanguage(UpdateUserLanguageRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        /** @var array{locale: string|null} $validated */
+        $validated = $request->validated();
+
+        $user->update([
+            'preferred_locale' => $validated['locale'],
+        ]);
+
+        return response()->json([
+            'data' => [
+                'preferred_locale' => $user->preferred_locale,
+            ],
         ]);
     }
 
