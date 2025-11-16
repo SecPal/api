@@ -41,10 +41,7 @@ class StoreSecretAttachmentRequest extends FormRequest
                 'required',
                 'file',
                 'max:'.($maxSize / 1024), // Convert bytes to KB for Laravel validation
-                'mimes:'.implode(',', array_map(
-                    fn (string $mime): string => str_replace('application/', '', $mime),
-                    $allowedMimes
-                )),
+                'mimetypes:'.implode(',', $allowedMimes),
             ],
         ];
     }
@@ -64,7 +61,7 @@ class StoreSecretAttachmentRequest extends FormRequest
             'file.required' => 'Please select a file to upload.',
             'file.file' => 'The uploaded file is not valid.',
             'file.max' => 'The file size must not exceed '.$maxSize.' MB.',
-            'file.mimes' => 'The file type is not allowed. Only certain file types are permitted.',
+            'file.mimetypes' => 'The file type is not allowed. Only certain file types are permitted.',
         ];
     }
 }

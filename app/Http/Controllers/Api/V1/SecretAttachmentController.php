@@ -78,13 +78,18 @@ class SecretAttachmentController extends Controller
         $content = $this->storageService->retrieve($attachment);
         $filename = $attachment->filename_plain;
 
+        // Ensure filename is present; attachments should always have a filename.
+        if ($filename === null) {
+            abort(500, 'Attachment is missing a filename.');
+        }
+
         // Escape filename for Content-Disposition header (RFC 2231/5987)
-        $safeFilename = str_replace(['"', '\\'], ['', ''], $filename ?? 'download');
+        $safeFilename = str_replace(['"', '\\'], ['', ''], $filename);
 
         return response($content, 200, [
             'Content-Type' => $attachment->mime_type,
             'Content-Disposition' => 'attachment; filename="'.$safeFilename.'"',
-            'Content-Length' => $attachment->file_size,
+            'Content-Length' => (string) $attachment->file_size,
         ]);
     }
 
