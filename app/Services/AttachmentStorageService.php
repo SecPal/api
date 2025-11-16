@@ -72,7 +72,9 @@ class AttachmentStorageService
         $attachment = new SecretAttachment();
         $attachment->id = $attachmentId;
         $attachment->secret_id = $secret->id;
-        $attachment->tenant_id = $secret->tenant_id; // MUST be set BEFORE encrypted fields
+        /** @var int<0, max> $tenantId */
+        $tenantId = $secret->tenant_id;
+        $attachment->tenant_id = $tenantId; // MUST be set BEFORE encrypted fields
         $attachment->filename_plain = $file->getClientOriginalName(); // Triggers encryption
         $attachment->file_size = $file->getSize();
         $mimeType = $file->getMimeType();
@@ -103,6 +105,10 @@ class AttachmentStorageService
         $decoded = json_decode($encryptedBlob, true);
         if (! is_array($decoded) || ! isset($decoded['ciphertext'], $decoded['nonce'])) {
             throw new \RuntimeException('Invalid encrypted blob format');
+        }
+
+        if (! is_string($decoded['ciphertext']) || ! is_string($decoded['nonce'])) {
+            throw new \RuntimeException('Invalid encrypted blob data types');
         }
 
         // Decrypt with tenant DEK

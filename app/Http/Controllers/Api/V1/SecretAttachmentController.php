@@ -58,6 +58,10 @@ class SecretAttachmentController extends Controller
             ],
         ]);
 
+        if (! isset($validated['file']) || ! ($validated['file'] instanceof \Illuminate\Http\UploadedFile)) {
+            throw new \InvalidArgumentException('Valid file upload required');
+        }
+
         /** @var \Illuminate\Http\UploadedFile $file */
         $file = $validated['file'];
 
