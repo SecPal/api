@@ -48,11 +48,35 @@ describe('Secret Model - Encrypted Casts', function () {
         $secret->tenant_id = $this->tenant->id;
         $secret->owner_id = $this->user->id;
         $secret->title_plain = 'My Secret';
-        $secret->password_plain = 'super_secret_password_123';
+        $secret->password_plain = 'super-secure-password';
         $secret->save();
 
         $secret = $secret->fresh();
-        expect($secret->password_plain)->toBe('super_secret_password_123');
+        expect($secret->password_plain)->toBe('super-secure-password');
+    });
+
+    test('encrypts username_enc field using encrypted cast', function (): void {
+        $secret = new Secret;
+        $secret->tenant_id = $this->tenant->id;
+        $secret->owner_id = $this->user->id;
+        $secret->title_plain = 'Database Credentials';
+        $secret->username_plain = 'admin_user';
+        $secret->save();
+
+        $secret = $secret->fresh();
+        expect($secret->username_plain)->toBe('admin_user');
+    });
+
+    test('encrypts url_enc field using encrypted cast', function (): void {
+        $secret = new Secret;
+        $secret->tenant_id = $this->tenant->id;
+        $secret->owner_id = $this->user->id;
+        $secret->title_plain = 'API Endpoint';
+        $secret->url_plain = 'https://api.example.com/v1';
+        $secret->save();
+
+        $secret = $secret->fresh();
+        expect($secret->url_plain)->toBe('https://api.example.com/v1');
     });
 
     test('optional fields can be null', function (): void {
