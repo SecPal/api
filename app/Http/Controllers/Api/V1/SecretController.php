@@ -18,7 +18,8 @@ use Illuminate\Http\Response;
  * SecretController handles CRUD operations for Secrets.
  *
  * All secrets are scoped to the authenticated user's tenant.
- * Users can only access secrets they own or have explicit share access to.
+ * Users can access secrets they own (owner-based) only.
+ * Shared secret access via SecretShare is checked at Policy level.
  */
 class SecretController extends Controller
 {
@@ -49,16 +50,13 @@ class SecretController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Secret::class);
+
         /** @var \App\Models\User $user */
         $user = $request->user();
 
         // Query secrets owned by user
         $query = Secret::where('owner_id', $user->id);
-
-        // Apply filters
-        if ($request->input('filter') === 'owned') {
-            // Already filtered by owner_id
-        }
 
         // Pagination
         /** @var int $perPageInput */
@@ -92,8 +90,8 @@ class SecretController extends Controller
         $tenantId = \App\Models\TenantKey::first()?->id;
         if (! $tenantId) {
             return response()->json([
-                'error' => 'No tenant available',
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+                'error' => 'Tenant resolution not yet implemented. Please contact system administrator.',
+            ], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
         $secret = new Secret;

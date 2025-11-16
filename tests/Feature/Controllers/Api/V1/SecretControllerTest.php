@@ -54,8 +54,6 @@ describe('SecretController - List Secrets', function () {
         // Create secret by other user (should not appear)
         $otherUserKeys = TenantKey::generateEnvelopeKeys();
         $otherTenant = TenantKey::create($otherUserKeys);
-        $otherUserKeys = TenantKey::generateEnvelopeKeys();
-        $otherTenant = TenantKey::create($otherUserKeys);
         $otherUser = User::factory()->create();
         createTestSecret([
             'tenant_id' => $otherTenant->id,
@@ -420,5 +418,161 @@ describe('SecretController - Delete Secret', function () {
 
         // Verify not deleted
         expect(Secret::find($secret->id))->not->toBeNull();
+    });
+});
+
+describe('SecretController - Share-Based Access', function () {
+    test('user with read share can view secret', function () {
+        // Arrange: Create secret owned by different user
+        $owner = User::factory()->create();
+        $secret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $owner->id,
+            'title_plain' => 'Shared Secret',
+            'password_plain' => 'shared-pass',
+        ]);
+
+        // Grant read access to current user
+        \App\Models\SecretShare::create([
+            'secret_id' => $secret->id,
+            'user_id' => $this->user->id,
+            'permission' => 'read',
+            'granted_by' => $owner->id,
+            'granted_at' => now(),
+        ]);
+
+        // Act
+        $response = getJson("/v1/secrets/{$secret->id}");
+
+        // Assert
+        $response->assertOk()
+            ->assertJsonPath('data.title', 'Shared Secret')
+            ->assertJsonPath('data.password', 'shared-pass');
+    });
+
+    test('user with read share cannot update secret', function () {
+        // Arrange
+        $owner = User::factory()->create();
+        $secret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $owner->id,
+            'title_plain' => 'Read Only',
+        ]);
+
+        \App\Models\SecretShare::create([
+            'secret_id' => $secret->id,
+            'user_id' => $this->user->id,
+            'permission' => 'read',
+            'granted_by' => $owner->id,
+            'granted_at' => now(),
+        ]);
+
+        // Act
+        $response = patchJson("/v1/secrets/{$secret->id}", [
+            'title' => 'Hacked',
+        ]);
+
+        // Assert
+        $response->assertForbidden();
+    });
+
+    test('user with write share can update secret', function () {
+        // Arrange
+        $owner = User::factory()->create();
+        $secret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $owner->id,
+            'title_plain' => 'Editable',
+        ]);
+
+        \App\Models\SecretShare::create([
+            'secret_id' => $secret->id,
+            'user_id' => $this->user->id,
+            'permission' => 'write',
+            'granted_by' => $owner->id,
+            'granted_at' => now(),
+        ]);
+
+        // Act
+        $response = patchJson("/v1/secrets/{$secret->id}", [
+            'title' => 'Updated by Shared User',
+        ]);
+
+        // Assert
+        $response->assertOk()
+            ->assertJsonPath('data.title', 'Updated by Shared User');
+    });
+
+    test('user with write share cannot delete secret', function () {
+        // Arrange
+        $owner = User::factory()->create();
+        $secret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $owner->id,
+            'title_plain' => 'Protected',
+        ]);
+
+        \App\Models\SecretShare::create([
+            'secret_id' => $secret->id,
+            'user_id' => $this->user->id,
+            'permission' => 'write',
+            'granted_by' => $owner->id,
+            'granted_at' => now(),
+        ]);
+
+        // Act
+        $response = deleteJson("/v1/secrets/{$secret->id}");
+
+        // Assert
+        $response->assertForbidden();
+    });
+
+    test('user with admin share can delete secret', function () {
+        // Arrange
+        $owner = User::factory()->create();
+        $secret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $owner->id,
+            'title_plain' => 'Deletable',
+        ]);
+
+        \App\Models\SecretShare::create([
+            'secret_id' => $secret->id,
+            'user_id' => $this->user->id,
+            'permission' => 'admin',
+            'granted_by' => $owner->id,
+            'granted_at' => now(),
+        ]);
+
+        // Act
+        $response = deleteJson("/v1/secrets/{$secret->id}");
+
+        // Assert
+        $response->assertNoContent();
+    });
+
+    test('expired share does not grant access', function () {
+        // Arrange
+        $owner = User::factory()->create();
+        $secret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $owner->id,
+            'title_plain' => 'Expired Access',
+        ]);
+
+        \App\Models\SecretShare::create([
+            'secret_id' => $secret->id,
+            'user_id' => $this->user->id,
+            'permission' => 'read',
+            'granted_by' => $owner->id,
+            'granted_at' => now()->subDays(10),
+            'expires_at' => now()->subDay(), // Expired yesterday
+        ]);
+
+        // Act
+        $response = getJson("/v1/secrets/{$secret->id}");
+
+        // Assert
+        $response->assertForbidden();
     });
 });

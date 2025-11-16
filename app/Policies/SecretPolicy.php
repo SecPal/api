@@ -29,14 +29,8 @@ class SecretPolicy
      */
     public function view(User $user, Secret $secret): bool
     {
-        // Owner can always view
-        if ($secret->owner_id === $user->id) {
-            return true;
-        }
-
-        // TODO: Check if user has read+ permission via SecretShare
-        // This will be implemented in Phase 3 (Sharing)
-        return false;
+        // Check via userHasPermission (handles owner + share access)
+        return $secret->userHasPermission($user, 'read');
     }
 
     /**
@@ -52,14 +46,8 @@ class SecretPolicy
      */
     public function update(User $user, Secret $secret): bool
     {
-        // Owner can always update
-        if ($secret->owner_id === $user->id) {
-            return true;
-        }
-
-        // TODO: Check if user has write+ permission via SecretShare
-        // This will be implemented in Phase 3 (Sharing)
-        return false;
+        // Check via userHasPermission (handles owner + share access)
+        return $secret->userHasPermission($user, 'write');
     }
 
     /**
@@ -67,14 +55,8 @@ class SecretPolicy
      */
     public function delete(User $user, Secret $secret): bool
     {
-        // Owner can always delete
-        if ($secret->owner_id === $user->id) {
-            return true;
-        }
-
-        // TODO: Check if user has admin permission via SecretShare
-        // This will be implemented in Phase 3 (Sharing)
-        return false;
+        // Check via userHasPermission (handles owner + share access)
+        return $secret->userHasPermission($user, 'admin');
     }
 
     /**
