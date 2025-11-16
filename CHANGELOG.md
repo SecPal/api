@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **User Language Preference** (#86)
+  - New `preferred_locale` column in `users` table (VARCHAR(5), nullable)
+  - PATCH `/v1/me/language` endpoint to update user's preferred language
+  - Supports `en` (English) and `de` (German)
+  - Can be set to `null` to use default/Accept-Language header
+  - Form request validation via `UpdateUserLanguageRequest`
+  - 8 comprehensive feature tests
+  - Database migration: `2025_11_16_192506_add_preferred_locale_to_users_table`
+
 - **Secret Sharing & Access Control (Phase 3)** (#182)
   - **Secret CRUD API**: Full REST API for password manager functionality
     - Create secrets with encrypted title, username, password, URL, notes (POST `/v1/secrets`)
