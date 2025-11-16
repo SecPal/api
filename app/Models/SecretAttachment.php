@@ -127,7 +127,7 @@ class SecretAttachment extends Model
      */
     public function getDownloadUrlAttribute(): string
     {
-        return route('api.v1.attachments.download', ['attachment' => $this->id]);
+        return url("/v1/attachments/{$this->id}/download");
     }
 
     /**

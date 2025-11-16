@@ -5,6 +5,7 @@
 
 use App\Http\Controllers\Api\V1\PermissionManagementController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
+use App\Http\Controllers\Api\V1\SecretAttachmentController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PersonController;
@@ -100,5 +101,11 @@ Route::prefix('v1')->group(function () {
             Route::get('/persons/by-email', [PersonController::class, 'byEmail'])
                 ->middleware('permission:person.read');
         });
+
+        // Secret Attachment endpoints (File Attachments API - Phase 2)
+        Route::post('/secrets/{secret}/attachments', [SecretAttachmentController::class, 'store']);
+        Route::get('/secrets/{secret}/attachments', [SecretAttachmentController::class, 'index']);
+        Route::get('/attachments/{attachment}/download', [SecretAttachmentController::class, 'download']);
+        Route::delete('/attachments/{attachment}', [SecretAttachmentController::class, 'destroy']);
     });
 });
