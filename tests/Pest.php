@@ -108,6 +108,13 @@ function createTestSecret(array $attributes): \App\Models\Secret
     $secret->tenant_id = $attributes['tenant_id'];
     $secret->owner_id = $attributes['owner_id'];
     $secret->title_plain = $attributes['title_plain'] ?? 'Test Secret';
+    $secret->username_plain = $attributes['username_plain'] ?? null;
+    $secret->password_plain = $attributes['password_plain'] ?? null;
+    $secret->url_plain = $attributes['url_plain'] ?? null;
+    $secret->notes_plain = $attributes['notes_plain'] ?? null;
+    $secret->tags = $attributes['tags'] ?? null;
+    $secret->expires_at = $attributes['expires_at'] ?? null;
+    $secret->version = $attributes['version'] ?? 1;
     $secret->save();
 
     return $secret;
