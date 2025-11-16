@@ -115,7 +115,7 @@ class SecretShare extends Model
      * @param \Illuminate\Database\Eloquent\Builder<SecretShare> $query
      * @return \Illuminate\Database\Eloquent\Builder<SecretShare>
      */
-    public function scopeActive($query)
+    public function scopeActive(\Illuminate\Database\Eloquent\Builder $query)
     {
         return $query->where(function ($q) {
             $q->whereNull('expires_at')
