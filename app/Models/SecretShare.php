@@ -112,7 +112,7 @@ class SecretShare extends Model
     /**
      * Scope to only active (non-expired) shares.
      *
-     * @param \Illuminate\Database\Eloquent\Builder<SecretShare> $query
+     * @param  \Illuminate\Database\Eloquent\Builder<SecretShare>  $query
      * @return \Illuminate\Database\Eloquent\Builder<SecretShare>
      */
     public function scopeActive(\Illuminate\Database\Eloquent\Builder $query)

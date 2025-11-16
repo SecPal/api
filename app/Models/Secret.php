@@ -336,9 +336,7 @@ class Secret extends Model
      *
      * Permission hierarchy: admin > write > read
      *
-     * @param  User  $user
      * @param  string  $permission  One of: read, write, admin
-     * @return bool
      */
     public function userHasPermission(User $user, string $permission): bool
     {
