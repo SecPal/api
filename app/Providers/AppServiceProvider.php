@@ -7,7 +7,9 @@ namespace App\Providers;
 
 use App\Models\Permission;
 use App\Models\Person;
+use App\Models\Secret;
 use App\Observers\PersonObserver;
+use App\Observers\SecretObserver;
 use App\Policies\PermissionManagementPolicy;
 use App\Policies\RoleManagementPolicy;
 use Illuminate\Support\Facades\Gate;
@@ -30,6 +32,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Person::observe(PersonObserver::class);
+        Secret::observe(SecretObserver::class);
 
         // Register policy for Spatie Role model
         Gate::policy(Role::class, RoleManagementPolicy::class);

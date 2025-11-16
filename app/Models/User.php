@@ -7,6 +7,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -14,10 +15,25 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * User model with UUID primary key.
+ *
+ * Uses UUID for primary key (migrated from bigint in 2025_11_16_023000).
+ * All foreign key references use string type for UUID compatibility.
+ *
+ * @property string $id UUID primary key
+ * @property string $name
+ * @property string $email
+ * @property string $password
+ * @property ?\Illuminate\Support\Carbon $email_verified_at
+ * @property string|null $remember_token
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property \Illuminate\Support\Carbon $updated_at
+ */
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, HasRoles, Notifiable;
+    use HasApiTokens, HasFactory, HasRoles, HasUuids, Notifiable;
 
     /**
      * The guard name for Spatie Laravel-Permission.

@@ -34,7 +34,7 @@ class RoleController extends Controller
      *
      * POST /v1/users/{user}/roles
      */
-    public function store(AssignRoleRequest $request, int $user): JsonResponse
+    public function store(AssignRoleRequest $request, string $user): JsonResponse
     {
         $targetUser = User::findOrFail($user);
         $roleName = $request->string('role')->toString();
@@ -124,7 +124,7 @@ class RoleController extends Controller
     /**
      * List all roles for a user with their expiration status.
      */
-    public function index(Request $request, int $user): JsonResponse
+    public function index(Request $request, string $user): JsonResponse
     {
         /** @var int|null $tenantId */
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
@@ -166,7 +166,7 @@ class RoleController extends Controller
      *
      * DELETE /v1/users/{user}/roles/{role}
      */
-    public function destroy(Request $request, int $user, string $roleName): JsonResponse|Response
+    public function destroy(Request $request, string $user, string $roleName): JsonResponse|Response
     {
         $targetUser = User::findOrFail($user);
         $role = Role::where('name', $roleName)->firstOrFail();
@@ -213,7 +213,7 @@ class RoleController extends Controller
      *
      * PATCH /v1/users/{user}/roles/{role}/extend
      */
-    public function extend(ExtendRoleRequest $request, int $user, string $roleName): JsonResponse
+    public function extend(ExtendRoleRequest $request, string $user, string $roleName): JsonResponse
     {
         $targetUser = User::findOrFail($user);
         $role = Role::where('name', $roleName)->firstOrFail();
