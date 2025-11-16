@@ -133,7 +133,7 @@ class SecretAttachment extends Model
     /**
      * Get the secret that owns this attachment.
      *
-     * @return BelongsTo<Secret, SecretAttachment>
+     * @return BelongsTo<Secret, $this>
      */
     public function secret(): BelongsTo
     {
@@ -143,7 +143,7 @@ class SecretAttachment extends Model
     /**
      * Get the user who uploaded this attachment.
      *
-     * @return BelongsTo<User, SecretAttachment>
+     * @return BelongsTo<User, $this>
      */
     public function uploader(): BelongsTo
     {

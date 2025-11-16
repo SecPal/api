@@ -11,6 +11,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Secret;
 use App\Models\SecretAttachment;
+use App\Models\User;
 use App\Services\AttachmentStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,14 +44,16 @@ class SecretAttachmentController extends Controller
     {
         Gate::authorize('create', [SecretAttachment::class, $secret]);
 
+        /** @var int<1, max> $maxSize */
         $maxSize = config('attachments.max_file_size');
+        /** @var array<int, string> $allowedMimes */
         $allowedMimes = config('attachments.allowed_mime_types');
 
         $validated = $request->validate([
             'file' => [
                 'required',
                 'file',
-                'max:'.(($maxSize / 1024)), // Laravel expects KB
+                'max:'.((int) ($maxSize / 1024)), // Laravel expects KB
                 'mimetypes:'.implode(',', $allowedMimes),
             ],
         ]);
@@ -58,7 +61,10 @@ class SecretAttachmentController extends Controller
         /** @var \Illuminate\Http\UploadedFile $file */
         $file = $validated['file'];
 
-        $attachment = $this->storageService->store($file, $secret, $request->user());
+        $user = $request->user();
+        assert($user instanceof User, 'User must be authenticated');
+
+        $attachment = $this->storageService->store($file, $secret, $user);
 
         return response()->json([
             'data' => [

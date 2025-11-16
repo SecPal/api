@@ -33,12 +33,19 @@ class AttachmentStorageService
     {
         // Read original file content
         $content = file_get_contents($file->getRealPath());
+        if ($content === false) {
+            throw new \RuntimeException('Failed to read uploaded file');
+        }
 
         // Calculate checksum (before encryption)
         $checksum = hash('sha256', $content);
 
         // Encrypt with tenant DEK
         $tenant = $secret->tenantKey;
+        if ($tenant === null) {
+            throw new \RuntimeException('Secret must have an associated tenant key');
+        }
+
         $encrypted = $tenant->encrypt($content);
 
         // Generate storage path
@@ -51,10 +58,15 @@ class AttachmentStorageService
         );
 
         // Store encrypted blob as JSON
-        Storage::disk('local')->put($storagePath, json_encode([
+        $jsonBlob = json_encode([
             'ciphertext' => base64_encode($encrypted['ciphertext']),
             'nonce' => base64_encode($encrypted['nonce']),
-        ]));
+        ]);
+        if ($jsonBlob === false) {
+            throw new \RuntimeException('Failed to encode encrypted data');
+        }
+
+        Storage::disk('local')->put($storagePath, $jsonBlob);
 
         // Create attachment record
         $attachment = new SecretAttachment();
@@ -63,7 +75,11 @@ class AttachmentStorageService
         $attachment->tenant_id = $secret->tenant_id; // MUST be set BEFORE encrypted fields
         $attachment->filename_plain = $file->getClientOriginalName(); // Triggers encryption
         $attachment->file_size = $file->getSize();
-        $attachment->mime_type = $file->getMimeType();
+        $mimeType = $file->getMimeType();
+        if ($mimeType === null) {
+            throw new \RuntimeException('Failed to determine file MIME type');
+        }
+        $attachment->mime_type = $mimeType;
         $attachment->storage_path = $storagePath;
         $attachment->checksum_sha256 = $checksum;
         $attachment->uploaded_by = $user->id;
@@ -80,10 +96,21 @@ class AttachmentStorageService
     {
         // Read encrypted blob from storage
         $encryptedBlob = Storage::disk('local')->get($attachment->storage_path);
+        if ($encryptedBlob === null) {
+            throw new \RuntimeException('Attachment file not found in storage');
+        }
+
         $decoded = json_decode($encryptedBlob, true);
+        if (! is_array($decoded) || ! isset($decoded['ciphertext'], $decoded['nonce'])) {
+            throw new \RuntimeException('Invalid encrypted blob format');
+        }
 
         // Decrypt with tenant DEK
         $tenant = $attachment->secret->tenantKey;
+        if ($tenant === null) {
+            throw new \RuntimeException('Attachment secret must have an associated tenant key');
+        }
+
         $decrypted = $tenant->decrypt(
             base64_decode($decoded['ciphertext']),
             base64_decode($decoded['nonce'])
@@ -104,6 +131,8 @@ class AttachmentStorageService
         Storage::disk('local')->delete($attachment->storage_path);
 
         // Delete attachment record
-        return $attachment->delete();
+        $attachment->delete();
+
+        return true;
     }
 }
