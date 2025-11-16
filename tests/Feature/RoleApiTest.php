@@ -52,11 +52,11 @@ afterEach(function (): void {
 // UUID compatibility test - ensures RoleController accepts string UUIDs
 test('role controller accepts UUID string parameters', function (): void {
     $this->user->givePermissionTo('role.assign');
-    
+
     // Verify that User IDs are UUIDs (strings, not integers)
     expect($this->targetUser->id)->toBeString();
     expect($this->targetUser->id)->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i');
-    
+
     // This tests the RoleController::store(string $user) type hint
     $response = $this->withToken($this->token)
         ->postJson("/v1/users/{$this->targetUser->id}/roles", [
@@ -64,7 +64,7 @@ test('role controller accepts UUID string parameters', function (): void {
             'valid_from' => now()->toIso8601String(),
             'valid_until' => now()->addDays(7)->toIso8601String(),
         ]);
-    
+
     $response->assertCreated();
 });
 
