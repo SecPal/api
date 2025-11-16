@@ -14,6 +14,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Transforms attachment metadata for JSON responses.
  *
  * @property \App\Models\SecretAttachment $resource
+ *
  * @mixin \App\Models\SecretAttachment
  */
 class SecretAttachmentResource extends JsonResource
