@@ -560,3 +560,100 @@ describe('SecretController - Share-Based Access', function () {
         $response->assertForbidden();
     });
 });
+
+describe('SecretController - Filter Parameter', function () {
+    test('filter=owned returns only owned secrets', function () {
+        // Arrange: Create owned secret
+        $ownSecret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $this->user->id,
+            'title_plain' => 'My Secret',
+        ]);
+
+        // Create secret shared with user
+        $owner = User::factory()->create();
+        $sharedSecret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $owner->id,
+            'title_plain' => 'Shared Secret',
+        ]);
+        \App\Models\SecretShare::create([
+            'secret_id' => $sharedSecret->id,
+            'user_id' => $this->user->id,
+            'permission' => 'read',
+            'granted_by' => $owner->id,
+            'granted_at' => now(),
+        ]);
+
+        // Act
+        $response = getJson('/v1/secrets?filter=owned');
+
+        // Assert
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title', 'My Secret');
+    });
+
+    test('filter=shared returns only shared secrets', function () {
+        // Arrange: Create owned secret
+        createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $this->user->id,
+            'title_plain' => 'My Secret',
+        ]);
+
+        // Create secret shared with user
+        $owner = User::factory()->create();
+        $sharedSecret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $owner->id,
+            'title_plain' => 'Shared Secret',
+        ]);
+        \App\Models\SecretShare::create([
+            'secret_id' => $sharedSecret->id,
+            'user_id' => $this->user->id,
+            'permission' => 'read',
+            'granted_by' => $owner->id,
+            'granted_at' => now(),
+        ]);
+
+        // Act
+        $response = getJson('/v1/secrets?filter=shared');
+
+        // Assert
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title', 'Shared Secret');
+    });
+
+    test('filter=all returns both owned and shared secrets', function () {
+        // Arrange: Create owned secret
+        createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $this->user->id,
+            'title_plain' => 'My Secret',
+        ]);
+
+        // Create secret shared with user
+        $owner = User::factory()->create();
+        $sharedSecret = createTestSecret([
+            'tenant_id' => $this->tenant->id,
+            'owner_id' => $owner->id,
+            'title_plain' => 'Shared Secret',
+        ]);
+        \App\Models\SecretShare::create([
+            'secret_id' => $sharedSecret->id,
+            'user_id' => $this->user->id,
+            'permission' => 'read',
+            'granted_by' => $owner->id,
+            'granted_at' => now(),
+        ]);
+
+        // Act
+        $response = getJson('/v1/secrets?filter=all');
+
+        // Assert
+        $response->assertOk()
+            ->assertJsonCount(2, 'data');
+    });
+});
