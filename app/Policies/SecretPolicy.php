@@ -74,4 +74,24 @@ class SecretPolicy
     {
         return $secret->owner_id === $user->id;
     }
+
+    /**
+     * Determine whether the user can share the secret with others.
+     *
+     * Only the owner or users with admin permission can grant shares.
+     */
+    public function share(User $user, Secret $secret): bool
+    {
+        return $secret->userHasPermission($user, 'admin');
+    }
+
+    /**
+     * Determine whether the user can view the shares of the secret.
+     *
+     * Only the owner or users with admin permission can see who has access.
+     */
+    public function viewShares(User $user, Secret $secret): bool
+    {
+        return $secret->userHasPermission($user, 'admin');
+    }
 }

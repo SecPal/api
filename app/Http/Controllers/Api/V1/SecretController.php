@@ -110,8 +110,37 @@ class SecretController extends Controller
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        // Query secrets owned by user
-        $query = Secret::where('owner_id', $user->id);
+        // Build query based on filter parameter
+        $filter = $request->input('filter', 'all');
+
+        $query = Secret::query();
+
+        match ($filter) {
+            'owned' => $query->where('owner_id', $user->id),
+            'shared' => $query->whereHas('shares', function ($q) use ($user) {
+                $q->where(function ($shareQuery) use ($user) {
+                    $shareQuery->where('user_id', $user->id)
+                        ->orWhereIn('role_id', $user->roles->pluck('id'));
+                })
+                    ->where(function ($expiryQuery) {
+                        $expiryQuery->whereNull('expires_at')
+                            ->orWhere('expires_at', '>', now());
+                    });
+            }),
+            default => $query->where(function ($q) use ($user) {
+                $q->where('owner_id', $user->id)
+                    ->orWhereHas('shares', function ($shareQuery) use ($user) {
+                        $shareQuery->where(function ($userRoleQuery) use ($user) {
+                            $userRoleQuery->where('user_id', $user->id)
+                                ->orWhereIn('role_id', $user->roles->pluck('id'));
+                        })
+                            ->where(function ($expiryQuery) {
+                                $expiryQuery->whereNull('expires_at')
+                                    ->orWhere('expires_at', '>', now());
+                            });
+                    });
+            }),
+        };
 
         // Pagination
         /** @var int $perPageInput */
