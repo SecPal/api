@@ -56,6 +56,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @method static \Illuminate\Database\Eloquent\Builder|Secret owned(string $userId)
  * @method static \Illuminate\Database\Eloquent\Builder|Secret active()
  * @method static \Illuminate\Database\Eloquent\Builder|Secret expired()
+ * @method static \Illuminate\Database\Eloquent\Builder|Secret sharedWith(User $user, array<int> $roleIds)
  */
 class Secret extends Model
 {
@@ -368,5 +369,29 @@ class Secret extends Model
             'admin' => $share->permission === 'admin',
             default => false,
         };
+    }
+
+    /**
+     * Scope query to secrets shared with the given user.
+     *
+     * Filters secrets that have active shares (not expired) where the user
+     * or any of the user's roles have access.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Secret>  $query
+     * @param  array<int>  $roleIds
+     * @return \Illuminate\Database\Eloquent\Builder<Secret>
+     */
+    public function scopeSharedWith(\Illuminate\Database\Eloquent\Builder $query, User $user, array $roleIds): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereHas('shares', function ($q) use ($user, $roleIds) {
+            $q->where(function ($shareQuery) use ($user, $roleIds) {
+                $shareQuery->where('user_id', $user->id)
+                    ->orWhereIn('role_id', $roleIds);
+            })
+                ->where(function ($expiryQuery) {
+                    $expiryQuery->whereNull('expires_at')
+                        ->orWhere('expires_at', '>', now());
+                });
+        });
     }
 }

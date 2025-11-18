@@ -7,6 +7,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexSecretRequest;
 use App\Http\Requests\StoreSecretRequest;
 use App\Http\Requests\UpdateSecretRequest;
 use App\Models\Secret;
@@ -103,42 +104,28 @@ class SecretController extends Controller
     /**
      * Display a listing of secrets accessible to the authenticated user.
      */
-    public function index(Request $request): JsonResponse
+    public function index(IndexSecretRequest $request): JsonResponse
     {
         $this->authorize('viewAny', Secret::class);
 
         /** @var \App\Models\User $user */
         $user = $request->user();
 
+        // Cache role IDs to avoid N+1 queries
+        /** @var array<int> $roleIds */
+        $roleIds = $user->roles->pluck('id')->toArray();
+
         // Build query based on filter parameter
-        $filter = $request->input('filter', 'all');
+        $filter = $request->validated('filter', 'all');
 
         $query = Secret::query();
 
         match ($filter) {
             'owned' => $query->where('owner_id', $user->id),
-            'shared' => $query->whereHas('shares', function ($q) use ($user) {
-                $q->where(function ($shareQuery) use ($user) {
-                    $shareQuery->where('user_id', $user->id)
-                        ->orWhereIn('role_id', $user->roles->pluck('id'));
-                })
-                    ->where(function ($expiryQuery) {
-                        $expiryQuery->whereNull('expires_at')
-                            ->orWhere('expires_at', '>', now());
-                    });
-            }),
-            default => $query->where(function ($q) use ($user) {
+            'shared' => $query->sharedWith($user, $roleIds),
+            default => $query->where(function ($q) use ($user, $roleIds) {
                 $q->where('owner_id', $user->id)
-                    ->orWhereHas('shares', function ($shareQuery) use ($user) {
-                        $shareQuery->where(function ($userRoleQuery) use ($user) {
-                            $userRoleQuery->where('user_id', $user->id)
-                                ->orWhereIn('role_id', $user->roles->pluck('id'));
-                        })
-                            ->where(function ($expiryQuery) {
-                                $expiryQuery->whereNull('expires_at')
-                                    ->orWhere('expires_at', '>', now());
-                            });
-                    });
+                    ->orWhere(fn ($subQuery) => $subQuery->sharedWith($user, $roleIds));
             }),
         };
 

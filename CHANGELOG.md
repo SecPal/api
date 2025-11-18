@@ -28,8 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (#187)
     - Create secrets with encrypted title, username, password, URL, notes
       (POST `/v1/secrets`)
-    - List user's secrets with filter parameter: `owned` (default), `shared`
-      (via SecretShare), `all` (GET `/v1/secrets?filter={type}`)
+    - List user's secrets with filter parameter: `all` (default), `owned`, `shared`
+      (via SecretShare) (GET `/v1/secrets?filter={type}`)
     - View secret details with owner or share-based access (GET
       `/v1/secrets/{secret}`)
     - Update secrets with automatic version incrementing (PATCH

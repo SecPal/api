@@ -656,4 +656,18 @@ describe('SecretController - Filter Parameter', function () {
         $response->assertOk()
             ->assertJsonCount(2, 'data');
     });
+
+    test('filter parameter rejects invalid values', function () {
+        // Act
+        $response = getJson('/v1/secrets?filter=invalid');
+
+        // Assert
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['filter'])
+            ->assertJsonFragment([
+                'filter' => [
+                    'The filter must be one of: all, owned, shared.',
+                ],
+            ]);
+    });
 });
