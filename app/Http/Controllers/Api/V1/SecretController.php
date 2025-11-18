@@ -7,6 +7,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexSecretRequest;
 use App\Http\Requests\StoreSecretRequest;
 use App\Http\Requests\UpdateSecretRequest;
 use App\Models\Secret;
@@ -103,15 +104,29 @@ class SecretController extends Controller
     /**
      * Display a listing of secrets accessible to the authenticated user.
      */
-    public function index(Request $request): JsonResponse
+    public function index(IndexSecretRequest $request): JsonResponse
     {
         $this->authorize('viewAny', Secret::class);
 
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        // Query secrets owned by user
-        $query = Secret::where('owner_id', $user->id);
+        // Cache role IDs to avoid N+1 queries
+        /** @var array<int> $roleIds */
+        $roleIds = $user->roles->pluck('id')->toArray();
+
+        // Build query based on filter parameter
+        $filter = $request->validated('filter', 'all');
+
+        // Use match expression with explicit return value capture
+        $query = match ($filter) {
+            'owned' => Secret::query()->where('owner_id', $user->id),
+            'shared' => Secret::query()->sharedWith($user, $roleIds),
+            default => Secret::query()->where(function ($q) use ($user, $roleIds) {
+                $q->where('owner_id', $user->id)
+                    ->orWhere(fn ($subQuery) => $subQuery->sharedWith($user, $roleIds));
+            }),
+        };
 
         // Pagination
         /** @var int $perPageInput */

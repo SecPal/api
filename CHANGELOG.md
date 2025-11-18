@@ -25,14 +25,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Secret Sharing & Access Control (Phase 3)** (#182)
   - **Secret CRUD API**: Full REST API for password manager functionality
-    - Create secrets with encrypted title, username, password, URL, notes (POST `/v1/secrets`)
-    - List user's secrets with pagination (GET `/v1/secrets`)
-    - View secret details (GET `/v1/secrets/{secret}`)
-    - Update secrets with automatic version incrementing (PATCH `/v1/secrets/{secret}`)
+    (#187)
+    - Create secrets with encrypted title, username, password, URL, notes
+      (POST `/v1/secrets`)
+    - List user's secrets with filter parameter: `all` (default), `owned`, `shared`
+      (via SecretShare) (GET `/v1/secrets?filter={type}`)
+    - Filter validation via `IndexSecretRequest` (rejects invalid filter values)
+    - Query optimization: Role IDs cached to avoid N+1 queries
+    - DRY implementation: Shared filter logic extracted to `Secret::scopeSharedWith()`
+    - Empty role array optimization: Skips `orWhereIn` when user has no roles
+    - View secret details with owner or share-based access (GET
+      `/v1/secrets/{secret}`)
+    - Update secrets with automatic version incrementing (PATCH
+      `/v1/secrets/{secret}`)
     - Soft delete secrets (DELETE `/v1/secrets/{secret}`)
-    - Owner-based authorization via `SecretPolicy`
-    - Validation via `StoreSecretRequest` and `UpdateSecretRequest`
-    - 17 comprehensive Controller tests
+    - Authorization via `SecretPolicy` with 9 methods: viewAny, view, create,
+      update, delete, restore, forceDelete, share, viewShares
+    - Permission hierarchy: admin > write > read (via
+      `Secret::userHasPermission()`)
+    - Share-based access respects expiration dates and permission levels
+    - Validation via `StoreSecretRequest`, `UpdateSecretRequest`, `IndexSecretRequest`
+    - 22 comprehensive Controller tests covering CRUD + share-based access
+      scenarios
   - **Secret Sharing API**: Grant/revoke access to secrets
     - Grant read/write/admin access to users OR roles (POST `/v1/secrets/{secret}/shares`)
     - List all shares for a secret (GET `/v1/secrets/{secret}/shares`)
