@@ -118,12 +118,11 @@ class SecretController extends Controller
         // Build query based on filter parameter
         $filter = $request->validated('filter', 'all');
 
-        $query = Secret::query();
-
-        match ($filter) {
-            'owned' => $query->where('owner_id', $user->id),
-            'shared' => $query->sharedWith($user, $roleIds),
-            default => $query->where(function ($q) use ($user, $roleIds) {
+        // Use match expression with explicit return value capture
+        $query = match ($filter) {
+            'owned' => Secret::query()->where('owner_id', $user->id),
+            'shared' => Secret::query()->sharedWith($user, $roleIds),
+            default => Secret::query()->where(function ($q) use ($user, $roleIds) {
                 $q->where('owner_id', $user->id)
                     ->orWhere(fn ($subQuery) => $subQuery->sharedWith($user, $roleIds));
             }),

@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       (POST `/v1/secrets`)
     - List user's secrets with filter parameter: `all` (default), `owned`, `shared`
       (via SecretShare) (GET `/v1/secrets?filter={type}`)
+    - Filter validation via `IndexSecretRequest` (rejects invalid filter values)
+    - Query optimization: Role IDs cached to avoid N+1 queries
+    - DRY implementation: Shared filter logic extracted to `Secret::scopeSharedWith()`
+    - Empty role array optimization: Skips `orWhereIn` when user has no roles
     - View secret details with owner or share-based access (GET
       `/v1/secrets/{secret}`)
     - Update secrets with automatic version incrementing (PATCH
@@ -40,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Permission hierarchy: admin > write > read (via
       `Secret::userHasPermission()`)
     - Share-based access respects expiration dates and permission levels
-    - Validation via `StoreSecretRequest` and `UpdateSecretRequest`
+    - Validation via `StoreSecretRequest`, `UpdateSecretRequest`, `IndexSecretRequest`
     - 22 comprehensive Controller tests covering CRUD + share-based access
       scenarios
   - **Secret Sharing API**: Grant/revoke access to secrets

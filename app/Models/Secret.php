@@ -385,8 +385,11 @@ class Secret extends Model
     {
         return $query->whereHas('shares', function ($q) use ($user, $roleIds) {
             $q->where(function ($shareQuery) use ($user, $roleIds) {
-                $shareQuery->where('user_id', $user->id)
-                    ->orWhereIn('role_id', $roleIds);
+                $shareQuery->where('user_id', $user->id);
+                // Only add role check if user has roles (avoids empty array query)
+                if (! empty($roleIds)) {
+                    $shareQuery->orWhereIn('role_id', $roleIds);
+                }
             })
                 ->where(function ($expiryQuery) {
                     $expiryQuery->whereNull('expires_at')
