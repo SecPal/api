@@ -196,7 +196,7 @@ protected function isAccessible(User $user, ?string $path = null): bool
 
 - When creating models for tests, use the factories for the models. Check if the factory has custom states that can be used before manually setting up the model.
 - Faker: Use methods such as `$this->faker->word()` or `fake()->randomDigit()`. Follow existing conventions whether to use `$this->faker` or `fake()`.
-- When creating tests, make use of `php artisan make:test [options] {name}` to create a feature test, and pass `--unit` to create a unit test. Most tests should be feature tests.
+- When creating tests, use `php artisan make:test ExampleTest` to create a feature test, and `php artisan make:test ExampleTest --unit` to create a unit test. Most tests should be feature tests.
 
 ### Vite Error
 
