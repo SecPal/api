@@ -13,44 +13,55 @@ use App\Models\User;
 /**
  * Authorization policy for SecretAttachment model.
  *
- * Attachment permissions are derived from Secret ownership:
- * - viewAny/view: Secret owner only
- * - create: Secret owner only
- * - delete: Secret owner only
+ * Attachment permissions are derived from Secret permissions:
+ * - viewAny/view: Owner OR has read+ permission via share
+ * - create: Owner OR has write+ permission via share
+ * - delete: Owner OR has write+ permission via share
  *
- * TODO: Extend with sharing permissions when Secret sharing is implemented
+ * Permission hierarchy: admin > write > read
+ * - read: View secret + download attachments
+ * - write: read + update secret + upload/delete attachments
+ * - admin: write + delete secret + manage shares
  */
 class SecretAttachmentPolicy
 {
     /**
      * Determine if user can view any attachments for a secret.
+     *
+     * Requires read+ permission (read, write, or admin).
      */
     public function viewAny(User $user, Secret $secret): bool
     {
-        return $user->id === $secret->owner_id;
+        return $secret->userHasPermission($user, 'read');
     }
 
     /**
      * Determine if user can view a specific attachment.
+     *
+     * Requires read+ permission (read, write, or admin) on the secret.
      */
     public function view(User $user, SecretAttachment $attachment): bool
     {
-        return $user->id === $attachment->secret->owner_id;
+        return $attachment->secret->userHasPermission($user, 'read');
     }
 
     /**
      * Determine if user can upload attachments to a secret.
+     *
+     * Requires write+ permission (write or admin).
      */
     public function create(User $user, Secret $secret): bool
     {
-        return $user->id === $secret->owner_id;
+        return $secret->userHasPermission($user, 'write');
     }
 
     /**
      * Determine if user can delete an attachment.
+     *
+     * Requires write+ permission (write or admin) on the secret.
      */
     public function delete(User $user, SecretAttachment $attachment): bool
     {
-        return $user->id === $attachment->secret->owner_id;
+        return $attachment->secret->userHasPermission($user, 'write');
     }
 }
