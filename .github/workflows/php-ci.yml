@@ -87,4 +87,4 @@ jobs:
           files: ./coverage.xml
           flags: backend
           name: backend-coverage
-          fail_ci_if_error: true
+          fail_ci_if_error: ${{ !contains(fromJSON('["dependabot[bot]", "renovate[bot]"]'), github.actor) }}
