@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Set `fail_ci_if_error` conditionally: `false` for dependabot/renovate bots, `true` for normal PRs
   - Allows automated dependency updates without CODECOV_TOKEN access issues
   - Aligns with frontend implementation (DRY principle)
+- **DDEV**: Test database creation now fully automated via post-start hook
+  - Automatically creates `testing`, `testing_test_1`, `testing_test_2` on every `ddev start`
+  - Eliminates "database does not exist" errors during parallel test execution
+  - Idempotent: checks existence before creation, safe to run repeatedly
+  - Root cause fix replacing previous manual workarounds
 
 ### Added
 
