@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI/CD**: Codecov upload failures no longer block Dependabot PRs
+  - Set `fail_ci_if_error` conditionally: `false` for dependabot/renovate bots, `true` for normal PRs
+  - Allows automated dependency updates without CODECOV_TOKEN access issues
+  - Aligns with frontend implementation (DRY principle)
+
 ### Added
 
 - **User Language Preference** (#86)
