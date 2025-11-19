@@ -46,13 +46,23 @@ DDEV automatically creates test databases on every `ddev start` via `.ddev/confi
 
 ### Why Multiple Test Databases?
 
-Pest runs tests in **parallel** (2 processes) for faster execution. Each process needs its own isolated database to prevent race conditions and data conflicts.
+When running tests in **parallel** (e.g., with `php artisan test --parallel`), Pest uses multiple processes for faster execution. Each process needs its own isolated database to prevent race conditions and data conflicts.
 
 **Configuration:**
 
 - `phpunit.xml` sets `DB_DATABASE=testing` as base name
-- Pest parallel runner automatically appends `_test_1`, `_test_2` suffixes
-- DDEV hook creates all DBs idempotently (checks existence first)
+- When running tests in parallel (e.g., with `php artisan test --parallel`), Pest automatically appends `_test_1`, `_test_2` suffixes to the database name for each process.
+- DDEV hook creates all DBs idempotently (checks existence first), so the additional databases are always available if you choose to run tests in parallel.
+
+### How to Run Tests in Parallel
+
+To run your tests in parallel and utilize the additional databases, use:
+
+```bash
+php artisan test --parallel
+```
+
+This will run your tests across multiple processes, each using its own isolated test database.
 
 ### Verification
 
