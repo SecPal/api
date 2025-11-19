@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Laravel Boost**: Automated guideline updates via `composer.json` post-update-cmd
+  - Added `@php artisan boost:update --ansi` to automatically sync AI guidelines after dependency updates
+  - Follows [official Laravel Boost guidelines](https://github.com/laravel/boost?tab=readme-ov-file#keeping-guidelines-up-to-date)
+  - Ensures AI instructions stay in sync with installed package versions
+
 ### Fixed
 
 - **CI/CD**: Codecov upload failures no longer block Dependabot PRs
