@@ -91,7 +91,9 @@ describe('Secrets + Shares Integration', function () {
 
         // User with write permission can perform update (not forbidden)
         $response->assertOk();
-    });    test('user with write permission cannot delete secret', function () {
+    });
+
+    test('user with write permission cannot delete secret', function () {
         SecretShare::create([
             'secret_id' => $this->secret->id,
             'user_id' => $this->sharedUser->id,
