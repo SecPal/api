@@ -31,5 +31,6 @@ build/
 .preflight-allow-large-pr
 
 # DDEV local development
-/.ddev/
+/.ddev/*
+!/.ddev/config.yaml
 storage/testing/
