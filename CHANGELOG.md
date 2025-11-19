@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 8 comprehensive feature tests
   - Database migration: `2025_11_16_192506_add_preferred_locale_to_users_table`
 
-- **Secret Sharing & Access Control (Phase 3)** (#182)
+- **Secret Sharing & Access Control (Phase 3)** (#182) - **COMPLETED 19.11.2025**
   - **Secret CRUD API**: Full REST API for password manager functionality
     (#187)
     - Create secrets with encrypted title, username, password, URL, notes
@@ -68,12 +68,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Permission hierarchy: admin > write > read
     - Authorization via `SecretSharePolicy` (owner-only for now)
     - 18 comprehensive Controller tests covering all scenarios
+  - **Attachment Permissions**: SecretAttachment authorization extended
+    - Updated `SecretAttachmentPolicy` to honor share-based permissions
+    - viewAny/view: Owner OR read+ permission (read/write/admin)
+    - create/delete: Owner OR write+ permission (write/admin)
+    - Removed TODO comment, integrated with `Secret::userHasPermission()`
+  - **Integration Tests**: Comprehensive end-to-end validation (#189)
+    - 20 integration tests covering Secrets + Shares + Attachments workflows
+    - Tests: Permission levels (read/write/admin), expiration, revocation
+    - Tests: Attachment upload/download with share-based access
+    - Tests: Role-based sharing, role removal, multiple roles
+    - Tests: Cascade deletes, owner always-access, self-sharing edge cases
+    - All tests passing with 42 assertions
+  - **Developer Documentation**:
+    - Secret Sharing Guide: docs/guides/secret-sharing.md (created)
+    - CHANGELOG: Phase 3 completion documented
   - **Database Foundation** (already merged):
     - `secret_shares` table with XOR constraint
     - `SecretShare` model with relationships and scopes
     - Migration tests and model tests (13 total)
-  - **Total Test Coverage**: 35 Controller tests, 13 Model tests, all passing
+  - **Total Test Coverage**: 22 Controller tests (Secrets), 18 Controller tests (Shares),
+    20 Integration tests, 13 Model tests = 73 tests, all passing
   - **Note**: Tenant resolution uses temporary `TenantKey::first()` pattern (TODO: TenantMiddleware)
+  - **Delivered**: 4 merged PRs (#183, #184, #185, #191) + Issue #189 completion
+  - **Status**: Phase 3 100% complete, ready for frontend implementation
 
 - **File Attachments API (Phase 2)** (#175)
   - Upload encrypted file attachments to secrets (POST `/v1/secrets/{secret}/attachments`)
