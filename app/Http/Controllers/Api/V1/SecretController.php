@@ -157,17 +157,18 @@ class SecretController extends Controller
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        // TODO: Replace with TenantMiddleware that injects tenant_id into request
-        // For now, use first available tenant (testing only - NOT production-ready)
-        $tenantId = \App\Models\TenantKey::first()?->id;
-        if (! $tenantId) {
+        /** @var int|null $tenantId */
+        $tenantId = $request->input('tenant_id');
+
+        // Validate tenant_id injected by middleware
+        if ($tenantId === null || ! is_numeric($tenantId) || (int) $tenantId <= 0) {
             return response()->json([
-                'error' => 'Tenant resolution not yet implemented. Please contact system administrator.',
-            ], Response::HTTP_SERVICE_UNAVAILABLE);
+                'message' => 'Invalid or missing tenant_id.',
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $secret = new Secret;
-        $secret->tenant_id = $tenantId;
+        $secret->tenant_id = (int) $tenantId;
         $secret->owner_id = $user->id;
         $secret->version = 1;
 

@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **SecretController**: Removed hardcoded tenant ID resolution (#190)
+  - Replaced `TenantKey::first()` workaround with proper `InjectTenantId` middleware
+  - New middleware automatically injects `tenant_id` into request for Secret routes
+  - Single-tenant development mode: Uses first available TenantKey
+  - Production-ready pattern: Middleware can be extended for user-based tenant resolution
+  - Middleware registered as `tenant.inject` alias in `bootstrap/app.php`
+  - Applied to all `/v1/secrets` and `/v1/attachments` routes
+  - 5 comprehensive middleware tests added
+  - Resolves TODO comment in `SecretController::store()`
+  - Maintains backward compatibility: Respects pre-existing `tenant_id` in request
 - **CI/CD**: Codecov upload failures no longer block Dependabot PRs
   - Set `fail_ci_if_error` conditionally: `false` for dependabot/renovate bots, `true` for normal PRs
   - Allows automated dependency updates without CODECOV_TOKEN access issues
