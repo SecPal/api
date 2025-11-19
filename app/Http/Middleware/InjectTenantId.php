@@ -45,7 +45,7 @@ class InjectTenantId
 
         if ($tenantId === null) {
             return response()->json([
-                'error' => 'Tenant resolution not yet implemented. Please contact system administrator.',
+                'error' => 'No tenant keys available. Please ensure at least one tenant key is configured.',
             ], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
