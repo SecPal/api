@@ -24,10 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 5 comprehensive middleware tests added
   - Resolves TODO comment in `SecretController::store()`
   - Maintains backward compatibility: Respects pre-existing `tenant_id` in request
-- **CI/CD**: Codecov upload failures no longer block Dependabot PRs
-  - Set `fail_ci_if_error` conditionally: `false` for dependabot/renovate bots, `true` for normal PRs
-  - Allows automated dependency updates without CODECOV_TOKEN access issues
+- **CI/CD**: Codecov upload now fully functional for Dependabot PRs
+  - Added `continue-on-error` for dependabot/renovate bots to prevent blocking
+  - Made `CODECOV_TOKEN` optional (tokenless uploads work for public repos)
+  - Upload step succeeds even without token access (Dependabot security restriction)
+  - Normal PRs still fail CI on codecov errors (security preserved)
   - Aligns with frontend implementation (DRY principle)
+  - Fixes issue where Codecov checks remained pending/missing on Dependabot PRs
 - **DDEV**: Test database creation now fully automated via post-start hook
   - Automatically creates `testing`, `testing_test_1`, `testing_test_2` on every `ddev start`
   - Eliminates "database does not exist" errors during parallel test execution
