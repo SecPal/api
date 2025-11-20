@@ -83,8 +83,13 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          # Token is optional for public repos (tokenless uploads supported)
+          # Dependabot PRs cannot access secrets, so token may be empty
+          token: ${{ secrets.CODECOV_TOKEN || '' }}
           files: ./coverage.xml
           flags: backend
           name: backend-coverage
           fail_ci_if_error: ${{ !contains(fromJSON('["dependabot[bot]", "renovate[bot]"]'), github.actor) }}
+        # Allow step to succeed even if upload fails for dependabot
+        # This prevents blocking the PR when CODECOV_TOKEN is unavailable
+        continue-on-error: ${{ contains(fromJSON('["dependabot[bot]", "renovate[bot]"]'), github.actor) }}
