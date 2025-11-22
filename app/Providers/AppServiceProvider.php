@@ -49,7 +49,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Password reset rate limiter (5 per 60 minutes by IP)
         RateLimiter::for('password-reset', function (Request $request) {
-            return Limit::perMinutes(60, 5)->by($request->ip());
+            return Limit::perMinutes(5, 60)->by($request->ip());
         });
 
         // Register policy for Spatie Role model
