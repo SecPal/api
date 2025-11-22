@@ -101,8 +101,9 @@ Add these to your **global** VS Code settings (`Ctrl+Shift+P` → "Preferences: 
   "github.copilot.chat.modelContextProtocol.servers": {
     "laravel-boost-secpal": {
       "command": "sh",
-      "args": ["-c", "cd /home/user/code/SecPal/api && ddev exec php artisan boost:mcp"]
-      // Note: Shell wrapper (sh -c) allows changing directory before running DDEV
+      "args": ["-c", "cd /absolute/path/to/your/SecPal/api && ddev exec php artisan boost:mcp"]
+      // Note: Replace '/absolute/path/to/your/SecPal/api' with your actual project path!
+      // Example: "cd /home/youruser/code/SecPal/api && ddev exec php artisan boost:mcp"
     }
   }
 }
