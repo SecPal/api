@@ -100,15 +100,26 @@ Add these to your **global** VS Code settings (`Ctrl+Shift+P` → "Preferences: 
   "github.copilot.chat.modelContextProtocol.enabled": true,
   "github.copilot.chat.modelContextProtocol.servers": {
     "laravel-boost-secpal": {
-      "command": "php",
-      "args": ["artisan", "boost:mcp"],
-      "cwd": "${workspaceFolder}/api"
+      "command": "sh",
+      "args": ["-c", "cd /home/user/code/SecPal/api && ddev exec php artisan boost:mcp"]
+      // Note: Shell wrapper (sh -c) allows changing directory before running DDEV
     }
   }
 }
 ```
 
 **Why global?** Shell integration and MCP servers must be configured globally, not per-workspace.
+
+**Note for DDEV users:** The `cwd` field should NOT be included when using DDEV, as DDEV automatically manages the working directory context.
+
+**Important:** After configuring MCP servers for the first time, you need to:
+
+1. Restart VS Code completely
+2. Open Copilot Chat
+3. Enable the MCP server if it's disabled (it may be disabled by default on first start)
+   - In Copilot Chat, type `@` to see available tools
+   - If `laravel-boost-secpal` appears grayed out or with a disabled icon
+   - Right-click on it and select "Enable" or click the toggle in Chat settings (⚙️ icon)
 
 ### Verify Setup
 
