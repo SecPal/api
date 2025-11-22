@@ -26,6 +26,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(append: [
             \App\Http\Middleware\SetLocaleFromHeader::class,
         ]);
+
+        // Configure CORS for SPA authentication with credentials
+        $middleware->validateCsrfTokens(except: [
+            // CSRF validation handled by Sanctum for SPA
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
