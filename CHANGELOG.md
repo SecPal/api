@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **httpOnly Cookie Authentication** (#210)
+  - Configured Laravel Sanctum for httpOnly cookie-based SPA authentication
+  - Session cookies configured with `httpOnly=true`, `sameSite=lax` for CSRF protection
+  - `SESSION_SECURE_COOKIE` environment variable for HTTPS enforcement in production
+  - CSRF token endpoint accessible at `/sanctum/csrf-cookie` for SPA requests
+  - CORS configuration updated to allow credentials from frontend domains
+  - Security headers middleware added globally (X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy)
+  - HSTS (Strict-Transport-Security) header enabled in production only
+  - 8 comprehensive CSRF protection tests
+  - 6 comprehensive security headers tests
+  - All session and CSRF configuration verified via automated tests
+  - Part of Epic: httpOnly Cookie Authentication Migration (frontend#208)
+
 ### Fixed
 
 - **SecretController**: Removed hardcoded tenant ID resolution (#190)
