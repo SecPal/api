@@ -29,7 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Configure CORS for SPA authentication with credentials
         $middleware->validateCsrfTokens(except: [
-            // CSRF validation handled by Sanctum for SPA
+            // CSRF protection is active - Sanctum middleware handles validation for authenticated SPA routes
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
