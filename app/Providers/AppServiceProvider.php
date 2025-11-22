@@ -17,7 +17,10 @@ use App\Policies\RoleManagementPolicy;
 use App\Policies\SecretAttachmentPolicy;
 use App\Policies\SecretPolicy;
 use App\Policies\SecretSharePolicy;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\Models\Role;
 
@@ -38,6 +41,16 @@ class AppServiceProvider extends ServiceProvider
     {
         Person::observe(PersonObserver::class);
         Secret::observe(SecretObserver::class);
+
+        // Define rate limiters (using cache, not Redis)
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        });
+
+        // Password reset rate limiter (5 per 60 minutes by IP)
+        RateLimiter::for('password-reset', function (Request $request) {
+            return Limit::perMinutes(60, 5)->by($request->ip());
+        });
 
         // Register policy for Spatie Role model
         Gate::policy(Role::class, RoleManagementPolicy::class);
