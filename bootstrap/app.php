@@ -22,7 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
         ]);
 
-        // Apply SetLocaleFromHeader middleware to all API routes
+        // Apply security headers globally to all requests (including API routes and Sanctum routes like /sanctum/csrf-cookie)
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
+
+        // Apply middleware to all API routes
         $middleware->api(append: [
             \App\Http\Middleware\SetLocaleFromHeader::class,
         ]);
