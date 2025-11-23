@@ -9,15 +9,43 @@ Quick start guide for SecPal API development.
 
 ## ⚠️ Core Principles (READ FIRST)
 
-**These principles are non-negotiable and are enforced in `.github/copilot-instructions.md`:**
+**SecPal follows organization-wide development principles documented centrally.**
 
-1. **🎯 Quality First** - Clean before quick, maintainable before feature-complete
-2. **🧪 TDD** - Write failing test FIRST, then implement
-3. **🔄 DRY** - Check for existing code before writing new
-4. **🧹 Clean Before Quick** - Refactor when you touch code
-5. **👀 Self Review Before Push** - Run all quality gates locally
+### 📚 Read the Full Principles Guide
 
-**📋 Quick Reminder Patterns:** See [`docs/COPILOT_REMINDER_PATTERNS.md`](./docs/COPILOT_REMINDER_PATTERNS.md) for prompts to keep Copilot aligned with these principles.
+👉 **[Development Principles & Best Practices](../../.github/docs/development-principles.md)**
+
+This guide covers:
+
+- 🎯 Essential Development Principles (Quality First, TDD, DRY, Clean Before Quick, Self Review)
+- 🏗️ SOLID Principles (SRP, OCP, LSP, ISP, DIP)
+- 🧩 Additional Principles (KISS, YAGNI, Separation of Concerns, Fail Fast)
+- 🔒 Security & Best Practices
+
+### 🚀 Quick Reference
+
+**Essential Principles:**
+
+1. **Quality First** - Clean before quick, maintainable before feature-complete
+2. **TDD (Test-Driven Development)** - Write failing test FIRST, then implement
+3. **DRY (Don't Repeat Yourself)** - Check for existing code before writing new
+4. **Clean Before Quick** - Refactor when you touch code
+5. **Self Review Before Push** - Run all quality gates locally
+
+**Design Principles:**
+
+- **SOLID** - Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
+- **KISS** - Keep It Simple, Stupid
+- **YAGNI** - You Aren't Gonna Need It
+- **Separation of Concerns** - Controller → Service → Repository pattern
+- **Fail Fast** - Validate early, use type hints, catch errors at entry points
+
+**Security & Best Practices:**
+
+- **Security by Design** - Input validation always, never log sensitive data
+- **Convention over Configuration** - Follow Laravel conventions & PSR-12
+
+**📋 Copilot Reminder Patterns:** See [`docs/COPILOT_REMINDER_PATTERNS.md`](./docs/COPILOT_REMINDER_PATTERNS.md) for prompts to keep Copilot aligned with these principles.
 
 ---
 
