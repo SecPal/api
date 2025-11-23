@@ -27,6 +27,33 @@ SecPal API is the backend service for the SecPal platform, built with Laravel 12
 
 ## Key Features
 
+### 🔐 Authentication (Laravel Sanctum)
+
+SecPal uses **Laravel Sanctum** with dual authentication modes:
+
+1. **httpOnly Cookie Authentication (SPA Mode)** - Recommended for browser-based SPAs
+   - XSS-resistant with httpOnly cookies
+   - CSRF protection via Laravel's built-in middleware
+   - Session-based authentication for React PWA
+
+2. **Bearer Token Authentication** - For API clients
+   - Personal Access Tokens (PAT) for mobile apps
+   - Token-based authentication for CLI tools and integrations
+
+**Quick Start:**
+
+```bash
+# SPA: Get CSRF token, then login
+GET /sanctum/csrf-cookie
+POST /v1/auth/token { "email": "...", "password": "..." }
+
+# API Clients: Get Bearer token
+POST /v1/auth/token { "email": "...", "password": "...", "device_name": "mobile" }
+# Use: Authorization: Bearer {token}
+```
+
+**Documentation:** [Authentication API Guide](docs/api/authentication.md)
+
 ### 🔐 Role-Based Access Control (RBAC)
 
 Comprehensive RBAC system with temporal role assignments and direct permission management.
