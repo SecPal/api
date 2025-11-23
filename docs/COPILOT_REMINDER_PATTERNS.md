@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC0-1.0
 
 Quick prompts to reinforce core principles during development sessions.
 
-> **Note:** Full principles documented in [`.github/docs/development-principles.md`](../../../.github/docs/development-principles.md)
+> **Note:** Full principles documented in [`.github/docs/development-principles.md`](https://github.com/SecPal/.github/blob/main/docs/development-principles.md)
 
 ## 🚀 Quick Reminders
 
