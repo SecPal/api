@@ -32,7 +32,6 @@ SecPal API is the backend service for the SecPal platform, built with Laravel 12
 SecPal uses **Laravel Sanctum** with dual authentication modes:
 
 1. **httpOnly Cookie Authentication (SPA Mode)** - Recommended for browser-based SPAs
-
    - XSS-resistant with httpOnly cookies
    - CSRF protection via Laravel's built-in middleware
    - Session-based authentication for React PWA

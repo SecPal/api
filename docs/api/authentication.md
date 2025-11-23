@@ -31,6 +31,7 @@ GET /sanctum/csrf-cookie
 ```
 
 **Response:**
+
 ```http
 HTTP/1.1 204 No Content
 Set-Cookie: XSRF-TOKEN=<token>; path=/; SameSite=lax
@@ -54,6 +55,7 @@ X-XSRF-TOKEN: <token-from-cookie>
 ```
 
 **Response:**
+
 ```http
 HTTP/1.1 201 Created
 Content-Type: application/json
@@ -82,6 +84,7 @@ Cookie: laravel_session=<session>
 ```
 
 **Response:**
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
@@ -106,6 +109,7 @@ Cookie: laravel_session=<session>
 ```
 
 **Response:**
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
@@ -123,23 +127,24 @@ For all state-changing requests (POST, PUT, PATCH, DELETE), include the CSRF tok
 2. **Send** it in the `X-XSRF-TOKEN` request header
 
 **Example (JavaScript):**
+
 ```javascript
 // Read CSRF token from cookie
 function getCsrfToken() {
-  const cookies = document.cookie.split(';');
-  const xsrfCookie = cookies.find(c => c.trim().startsWith('XSRF-TOKEN='));
-  return xsrfCookie ? decodeURIComponent(xsrfCookie.split('=')[1]) : null;
+  const cookies = document.cookie.split(";");
+  const xsrfCookie = cookies.find((c) => c.trim().startsWith("XSRF-TOKEN="));
+  return xsrfCookie ? decodeURIComponent(xsrfCookie.split("=")[1]) : null;
 }
 
 // Make authenticated request
-fetch('/v1/secrets', {
-  method: 'POST',
-  credentials: 'include', // Send cookies
+fetch("/v1/secrets", {
+  method: "POST",
+  credentials: "include", // Send cookies
   headers: {
-    'Content-Type': 'application/json',
-    'X-XSRF-TOKEN': getCsrfToken(),
+    "Content-Type": "application/json",
+    "X-XSRF-TOKEN": getCsrfToken(),
   },
-  body: JSON.stringify({ title: 'My Secret' }),
+  body: JSON.stringify({ title: "My Secret" }),
 });
 ```
 
@@ -200,6 +205,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```http
 HTTP/1.1 201 Created
 Content-Type: application/json
@@ -215,6 +221,7 @@ Content-Type: application/json
 ```
 
 **Store the token securely:**
+
 - ✅ Mobile: Keychain (iOS), KeyStore (Android)
 - ✅ CLI: Encrypted config file
 - ❌ Never store in localStorage (XSS vulnerable)
@@ -292,12 +299,14 @@ CORS_SUPPORTS_CREDENTIALS=true
 ### Manual Testing (cURL)
 
 **Get CSRF token:**
+
 ```bash
 curl -X GET http://api.secpal.test/sanctum/csrf-cookie \
   -c cookies.txt -b cookies.txt -i
 ```
 
 **Login:**
+
 ```bash
 curl -X POST http://api.secpal.test/v1/auth/token \
   -c cookies.txt -b cookies.txt \
@@ -307,6 +316,7 @@ curl -X POST http://api.secpal.test/v1/auth/token \
 ```
 
 **Authenticated request:**
+
 ```bash
 curl -X GET http://api.secpal.test/v1/me \
   -b cookies.txt \
@@ -316,6 +326,7 @@ curl -X GET http://api.secpal.test/v1/me \
 ### Automated Testing (Pest)
 
 See test examples:
+
 - `tests/Feature/Auth/SanctumCookieAuthTest.php` - httpOnly cookie tests
 - `tests/Feature/Auth/CsrfProtectionTest.php` - CSRF validation tests
 - `tests/Feature/AuthTest.php` - Bearer token tests
@@ -327,44 +338,47 @@ See test examples:
 If migrating from localStorage-based authentication:
 
 1. **Remove token storage:**
+
    ```typescript
    // ❌ Old
-   localStorage.setItem('auth_token', token);
-   
+   localStorage.setItem("auth_token", token);
+
    // ✅ New
    // No client-side storage needed
    ```
 
 2. **Update fetch calls:**
+
    ```typescript
    // ❌ Old
-   fetch('/v1/me', {
+   fetch("/v1/me", {
      headers: {
-       'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-     }
-   })
-   
+       Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+     },
+   });
+
    // ✅ New
-   fetch('/v1/me', {
-     credentials: 'include',
+   fetch("/v1/me", {
+     credentials: "include",
      headers: {
-       'X-XSRF-TOKEN': getCsrfToken()
-     }
-   })
+       "X-XSRF-TOKEN": getCsrfToken(),
+     },
+   });
    ```
 
 3. **Add CSRF token handling:**
+
    ```typescript
    // Fetch CSRF token before login
-   await fetch('/sanctum/csrf-cookie', { credentials: 'include' });
-   
+   await fetch("/sanctum/csrf-cookie", { credentials: "include" });
+
    // Then login
-   await fetch('/v1/auth/token', {
-     method: 'POST',
-     credentials: 'include',
+   await fetch("/v1/auth/token", {
+     method: "POST",
+     credentials: "include",
      headers: {
-       'Content-Type': 'application/json',
-       'X-XSRF-TOKEN': getCsrfToken(),
+       "Content-Type": "application/json",
+       "X-XSRF-TOKEN": getCsrfToken(),
      },
      body: JSON.stringify(credentials),
    });

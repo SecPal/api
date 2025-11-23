@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **httpOnly Cookie Authentication Tests & Documentation** (#208)
-
   - Comprehensive test suite in `tests/Feature/Auth/SanctumCookieAuthTest.php`
   - 14 integration tests covering httpOnly cookie authentication flow
   - Tests verify session cookies are httpOnly, secure (production), and sameSite=lax
@@ -71,7 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **User Language Preference** (#86)
-
   - New `preferred_locale` column in `users` table (VARCHAR(5), nullable)
   - PATCH `/v1/me/language` endpoint to update user's preferred language
   - Supports `en` (English) and `de` (German)
@@ -81,7 +79,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Database migration: `2025_11_16_192506_add_preferred_locale_to_users_table`
 
 - **Secret Sharing & Access Control (Phase 3)** (#182) - **COMPLETED 19.11.2025**
-
   - **Secret CRUD API**: Full REST API for password manager functionality
     (#187)
     - Create secrets with encrypted title, username, password, URL, notes
@@ -140,7 +137,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Status**: Phase 3 100% complete, ready for frontend implementation
 
 - **File Attachments API (Phase 2)** (#175)
-
   - Upload encrypted file attachments to secrets (POST `/v1/secrets/{secret}/attachments`)
   - List attachments for a secret (GET `/v1/secrets/{secret}/attachments`)
   - Download decrypted attachments (GET `/v1/attachments/{attachment}/download`)
@@ -172,7 +168,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Role Management CRUD API** (#108, Phase 4)
-
   - New endpoint: `GET /v1/roles` - List all roles with permission count and user count
   - New endpoint: `POST /v1/roles` - Create new role with permissions
   - New endpoint: `GET /v1/roles/{id}` - Get role details with assigned permissions
@@ -186,7 +181,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), completes role management capabilities
 
 - **Predefined Roles Seeder** (#108, Phase 4)
-
   - New seeder: `RolesAndPermissionsSeeder` - Creates 5 predefined roles with permissions
   - Predefined roles: Admin, Manager, Guard, Client, Works Council
   - Idempotent design: Safe to run multiple times, uses `firstOrCreate`
@@ -197,7 +191,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), provides production-ready role foundation
 
 - **RBAC Documentation** (#108, Phase 4)
-
   - New guide: `docs/guides/role-management.md` - How to create/manage roles (872 lines)
   - New guide: `docs/guides/permission-system.md` - Permission naming conventions and organization (716 lines)
   - New guide: `docs/guides/temporal-roles.md` - Temporal role assignment patterns
@@ -209,7 +202,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), completes RBAC documentation requirements
 
 - **User Direct Permission Assignment API** (#138)
-
   - New endpoint: `GET /v1/users/{user}/permissions` - List all user permissions (direct + inherited from roles)
   - New endpoint: `POST /v1/users/{user}/permissions` - Assign direct permission(s) to user with temporal tracking (audit trail)
   - New endpoint: `DELETE /v1/users/{user}/permissions/{permission}` - Revoke direct permission from user
@@ -222,7 +214,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), enables fine-grained permission control bypassing roles
 
 - **Permission Management CRUD API** (#137)
-
   - New endpoint: `GET /v1/permissions` - List all permissions grouped by resource
   - New endpoint: `POST /v1/permissions` - Create new permission with strict naming validation (resource.action)
   - New endpoint: `GET /v1/permissions/{id}` - Get permission details with assigned roles
@@ -235,7 +226,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), enables Issue #138 (User Direct Permission Assignment)
 
 - **RBAC Architecture Documentation** (#143)
-
   - New file: `docs/rbac-architecture.md` - Central RBAC system documentation
   - System architecture: High-level component diagrams (Users → Roles → Permissions + Direct Permissions)
   - Core concepts: Roles, Permissions, Direct Permissions, Temporal Assignments
