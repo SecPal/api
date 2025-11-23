@@ -301,14 +301,14 @@ CORS_SUPPORTS_CREDENTIALS=true
 **Get CSRF token:**
 
 ```bash
-curl -X GET http://api.secpal.test/sanctum/csrf-cookie \
+curl -X GET http://api.secpal.dev/sanctum/csrf-cookie \
   -c cookies.txt -b cookies.txt -i
 ```
 
 **Login:**
 
 ```bash
-curl -X POST http://api.secpal.test/v1/auth/token \
+curl -X POST http://api.secpal.dev/v1/auth/token \
   -c cookies.txt -b cookies.txt \
   -H "Content-Type: application/json" \
   -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN cookies.txt | awk '{print $7}')" \
@@ -318,7 +318,7 @@ curl -X POST http://api.secpal.test/v1/auth/token \
 **Authenticated request:**
 
 ```bash
-curl -X GET http://api.secpal.test/v1/me \
+curl -X GET http://api.secpal.dev/v1/me \
   -b cookies.txt \
   -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN cookies.txt | awk '{print $7}')"
 ```
