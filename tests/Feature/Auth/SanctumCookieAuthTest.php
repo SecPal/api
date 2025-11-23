@@ -92,12 +92,7 @@ describe('httpOnly Cookie Authentication Flow', function () {
 
 describe('Cookie Attributes and Security', function () {
     test('session cookie has correct sameSite attribute', function () {
-        $user = User::factory()->create([
-            'email' => 'test@example.com',
-            'password' => Hash::make('password123'),
-        ]);
-
-        // Get CSRF token (creates session)
+        // Get CSRF cookie (which sets session cookie)
         $response = $this->get('/sanctum/csrf-cookie');
 
         $cookies = $response->headers->getCookies();

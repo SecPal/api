@@ -79,7 +79,6 @@ All subsequent requests automatically include the session cookie:
 
 ```http
 GET /v1/me
-X-XSRF-TOKEN: <token-from-cookie>
 Cookie: laravel_session=<session>
 ```
 
@@ -92,11 +91,7 @@ Content-Type: application/json
 {
   "id": 1,
   "name": "John Doe",
-  "email": "user@example.com",
-  "email_verified_at": "2025-11-23T10:00:00Z",
-  "language": "de",
-  "created_at": "2025-01-15T10:00:00Z",
-  "updated_at": "2025-11-23T10:00:00Z"
+  "email": "user@example.com"
 }
 ```
 
@@ -108,7 +103,7 @@ X-XSRF-TOKEN: <token-from-cookie>
 Cookie: laravel_session=<session>
 ```
 
-**Response:**
+**Response (Bearer Token Mode):**
 
 ```http
 HTTP/1.1 200 OK
@@ -118,6 +113,8 @@ Content-Type: application/json
   "message": "Token revoked successfully."
 }
 ```
+
+> **Note:** When using httpOnly cookie authentication, the logout endpoint works but the message is designed for Bearer token mode. The session is still properly invalidated.
 
 ### CSRF Token Handling
 
@@ -319,8 +316,7 @@ curl -X POST http://api.secpal.dev/v1/auth/token \
 
 ```bash
 curl -X GET http://api.secpal.dev/v1/me \
-  -b cookies.txt \
-  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN cookies.txt | awk '{print $7}')"
+  -b cookies.txt
 ```
 
 ### Automated Testing (Pest)
@@ -359,10 +355,7 @@ If migrating from localStorage-based authentication:
 
    // ✅ New
    fetch("/v1/me", {
-     credentials: "include",
-     headers: {
-       "X-XSRF-TOKEN": getCsrfToken(),
-     },
+     credentials: "include", // Cookies sent automatically
    });
    ```
 
