@@ -22,7 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
         ]);
 
-        // Apply security headers globally to all requests (API and web routes like /sanctum/*)
+        // Apply security headers globally to all requests (including API routes and Sanctum routes like /sanctum/csrf-cookie)
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
         // Apply middleware to all API routes

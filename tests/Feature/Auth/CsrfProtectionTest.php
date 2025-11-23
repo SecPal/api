@@ -55,7 +55,7 @@ describe('CSRF Protection for State-Changing Requests', function () {
         $this->actingAs($user, 'sanctum');
 
         // GET request should work without CSRF token
-        $response = $this->getJson('/v1/user');
+        $response = $this->getJson('/v1/me');
 
         // Should succeed (or return appropriate status, not 419)
         expect($response->status())->not->toBe(419);
