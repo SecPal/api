@@ -13,7 +13,7 @@ Quick start guide for SecPal API development.
 
 ### 📚 Read the Full Principles Guide
 
-👉 **[Development Principles & Best Practices](../../.github/docs/development-principles.md)**
+👉 **[Development Principles & Best Practices](https://github.com/SecPal/.github/blob/main/docs/development-principles.md)**
 
 This guide covers:
 
