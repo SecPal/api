@@ -7,12 +7,14 @@ SPDX-License-Identifier: CC0-1.0
 
 Quick prompts to reinforce core principles during development sessions.
 
+> **Note:** Full principles documented in [`.github/docs/development-principles.md`](../../../.github/docs/development-principles.md)
+
 ## 🚀 Quick Reminders
 
 ### Start of Session
 
 ```text
-@workspace Review our 5 core principles in .github/copilot-instructions.md before we start.
+@workspace Review our design principles in DEVELOPMENT.md and .github/docs/development-principles.md before we start.
 ```
 
 ### Before Major Changes
@@ -22,20 +24,22 @@ Quick prompts to reinforce core principles during development sessions.
 1. Quality First - Is this the cleanest solution?
 2. TDD - Have you written the test first?
 3. DRY - Does similar code already exist?
-4. Clean First - Should we refactor before adding features?
-5. Self Review - Will this pass all quality gates?
+4. SOLID - Does this follow Single Responsibility?
+5. KISS - Is this the simplest solution?
+6. YAGNI - Do we actually need this NOW?
+7. Self Review - Will this pass all quality gates?
 ```
 
 ### Before Committing
 
 ```text
-Run the pre-push checklist from copilot-instructions.md before I commit.
+Run the pre-push checklist from DEVELOPMENT.md before I commit.
 ```
 
 ### When I Catch Violations
 
 ```text
-You violated [PRINCIPLE]. Re-read our core principles and try again.
+You violated [PRINCIPLE]. Re-read our design principles in .github/docs/development-principles.md and try again.
 ```
 
 ## 📋 Detailed Checklists
@@ -47,9 +51,12 @@ Copy-paste this when starting a new feature:
 ```markdown
 - [ ] **TDD**: Written failing test first
 - [ ] **DRY**: Checked for existing similar code
+- [ ] **SOLID**: Single responsibility per class
+- [ ] **KISS**: Simplest solution chosen
+- [ ] **YAGNI**: Only implementing what's needed NOW
 - [ ] **Quality**: Code is clean and readable
 - [ ] **Edge Cases**: Tested nulls, empty values, invalid input
-- [ ] **Constants**: No magic numbers
+- [ ] **Security**: Input validated, no sensitive data logged
 - [ ] **Tests**: All tests pass
 - [ ] **Static Analysis**: PHPStan passes
 - [ ] **Style**: Pint passes
@@ -63,6 +70,7 @@ Copy-paste this when refactoring:
 ```markdown
 - [ ] **Tests First**: Existing tests still pass before changes
 - [ ] **DRY**: Extracted duplicated logic
+- [ ] **SOLID**: Improved class responsibilities
 - [ ] **Clean**: Removed dead code
 - [ ] **Readable**: Variable/method names are descriptive
 - [ ] **Tests After**: All tests still pass after changes
@@ -88,10 +96,10 @@ At the beginning of each session, use this:
 
 ```text
 Hi! Before we start:
-1. Review our 5 core principles (copilot-instructions.md)
+1. Review our design principles (.github/docs/development-principles.md)
 2. Check for any failing tests
 3. Run boost:update if needed
-4. Confirm: You understand TDD is mandatory
+4. Confirm: You understand TDD is mandatory and SOLID principles apply
 
 Ready?
 ```

@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Development Documentation** - Consolidated design principles to central `.github` repository (#TBD)
+  - `DEVELOPMENT.md`: Removed detailed principle explanations, added reference to central `.github/docs/development-principles.md`
+  - `docs/COPILOT_REMINDER_PATTERNS.md`: Updated references to point to central documentation
+  - `docs/DESIGN_PRINCIPLES.md`: Deleted (DRY violation - content centralized in `.github`)
+  - Follows DRY principle: Single source of truth for all development principles across all SecPal repos
+  - Part of organization-wide design principles consolidation
+
 ### Added
 
 - **httpOnly Cookie Authentication Tests & Documentation** (#208)
