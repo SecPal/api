@@ -55,15 +55,6 @@ This guide covers deploying SecPal API to production with Sanctum authentication
 
 ### Application
 
-- [ ] **Sanctum Stateful Domains**
-
-  ```env
-  SANCTUM_STATEFUL_DOMAINS=app.secpal.app,admin.secpal.app
-  SESSION_DOMAIN=.secpal.app  # For subdomain cookie sharing
-  ```
-
-### Application
-
 - [ ] **Migrations Run**
 
   ```bash
@@ -166,7 +157,7 @@ server {
 
     # PHP-FPM Configuration
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;  # Adjust PHP version
+        fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;  # Adjust PHP version
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
@@ -453,7 +444,7 @@ curl https://api.secpal.app/health
     create 0640 www-data www-data
     sharedscripts
     postrotate
-        /usr/bin/systemctl reload php8.3-fpm > /dev/null
+        /usr/bin/systemctl reload php8.4-fpm > /dev/null
     endscript
 }
 ```
@@ -590,7 +581,7 @@ php artisan config:cache
 
 ```bash
 # 1. Stop services
-sudo systemctl stop nginx php8.3-fpm
+sudo systemctl stop nginx php8.4-fpm
 
 # 2. Restore database
 mysql -u secpal_user -p secpal_production < /backups/secpal-db-20251124.sql
@@ -609,7 +600,7 @@ php artisan config:clear
 php artisan cache:clear
 
 # 6. Restart services
-sudo systemctl start php8.3-fpm nginx
+sudo systemctl start php8.4-fpm nginx
 ```
 
 ## References
