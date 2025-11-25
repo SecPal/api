@@ -12,16 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **Development Documentation** - Consolidated design principles to central `.github` repository (#TBD)
-  - `DEVELOPMENT.md`: Removed detailed principle explanations, added reference to central `.github/docs/development-principles.md`
-  - `docs/COPILOT_REMINDER_PATTERNS.md`: Updated references to point to central documentation
-  - `docs/DESIGN_PRINCIPLES.md`: Deleted (DRY violation - content centralized in `.github`)
-  - Follows DRY principle: Single source of truth for all development principles across all SecPal repos
-  - Part of organization-wide design principles consolidation
-
 ### Added
+
+- **Sanctum SPA Authentication Guide** (#218)
+  - Comprehensive documentation for httpOnly cookie authentication
+  - Architecture diagrams and authentication flow
+  - Configuration guide for both development and production
+  - Troubleshooting section with common issues and solutions
+  - API endpoint examples with curl commands
+  - Frontend integration code samples (TypeScript)
+  - Security best practices and production deployment checklist
+  - Part of Epic: httpOnly Cookie Authentication Migration (api#217, frontend#205)
 
 - **httpOnly Cookie Authentication Tests & Documentation** (#208)
   - Comprehensive test suite in `tests/Feature/Auth/SanctumCookieAuthTest.php`
@@ -37,6 +38,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Production deployment checklist for secure cookie configuration
   - Part of Epic: httpOnly Cookie Authentication Migration (frontend#208)
   - Closes: #208
+
+### Changed
+
+- **Development Documentation** - Consolidated design principles to central `.github` repository (#TBD)
+  - `DEVELOPMENT.md`: Removed detailed principle explanations, added reference to central `.github/docs/development-principles.md`
+  - `docs/COPILOT_REMINDER_PATTERNS.md`: Updated references to point to central documentation
+  - `docs/DESIGN_PRINCIPLES.md`: Deleted (DRY violation - content centralized in `.github`)
+  - Follows DRY principle: Single source of truth for all development principles across all SecPal repos
+  - Part of organization-wide design principles consolidation
+
+### Added (continued)
 
 - **httpOnly Cookie Authentication** (#210)
   - Configured Laravel Sanctum for httpOnly cookie-based SPA authentication
