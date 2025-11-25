@@ -14,6 +14,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Production Deployment Guide** (#219)
+  - Complete production deployment checklist with security requirements
+  - Nginx and Apache configuration examples with TLS/SSL
+  - Rate limiting configuration for login and API endpoints
+  - Environment variable templates for production
+  - Client configuration for both httpOnly cookies (Web/PWA) and Bearer tokens (Native apps)
+  - Health check endpoint and monitoring setup
+  - Backup and rollback procedures
+  - Security incident response guidelines
+  - Part of Epic: httpOnly Cookie Authentication Migration (SecPal/api#217)
+
+- **Integration Tests for Sanctum Authentication** (#219)
+  - 8 comprehensive integration tests in `tests/Feature/Auth/SanctumIntegrationTest.php`
+  - CORS credentials and preflight request testing
+  - Session performance and concurrent device tests
+  - Token size and session configuration validation
+  - Hybrid authentication support (Cookie + Bearer token)
+  - Part of Epic: httpOnly Cookie Authentication Migration (SecPal/api#217)
+
 - **Sanctum SPA Authentication Guide** (#218)
   - Comprehensive documentation for httpOnly cookie authentication
   - Architecture diagrams and authentication flow
