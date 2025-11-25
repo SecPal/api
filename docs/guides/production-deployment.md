@@ -15,20 +15,17 @@ This guide covers deploying SecPal API to production with Sanctum authentication
 ### Security
 
 - [ ] **HTTPS/TLS enabled** on production domain
-
   - Valid SSL certificate (Let's Encrypt, purchased cert)
   - HTTP automatically redirects to HTTPS
   - Test with: `curl -I https://api.secpal.app`
 
 - [ ] **Environment Variables Secured**
-
   - `APP_KEY` generated: `php artisan key:generate`
   - `APP_DEBUG=false` in production
   - `.env` file has restrictive permissions: `chmod 600 .env`
   - `.env` excluded from version control
 
 - [ ] **Database Secured**
-
   - Strong database password
   - Database not exposed to public internet
   - Backup strategy in place
@@ -47,6 +44,25 @@ This guide covers deploying SecPal API to production with Sanctum authentication
   ```env
   CORS_ALLOWED_ORIGINS=https://app.secpal.app  # Explicit origins, NO wildcards with credentials
   CORS_SUPPORTS_CREDENTIALS=true
+  ```
+
+- [ ] **Sanctum Stateful Domains**
+
+  ```env
+  SANCTUM_STATEFUL_DOMAINS=app.secpal.app,admin.secpal.app
+  SESSION_DOMAIN=.secpal.app  # For subdomain cookie sharing
+  ```
+
+### Application
+
+- [ ] **Migrations Run**
+
+  ```bash
+  php artisan migrate --force
+  ```
+
+  ```
+
   ```
 
 - [ ] **Sanctum Stateful Domains**
