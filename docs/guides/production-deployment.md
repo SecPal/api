@@ -55,17 +55,8 @@ This guide covers deploying SecPal API to production with Sanctum authentication
 
 ### Application
 
-- [ ] **Migrations Run**
-
-  ```bash
-  php artisan migrate --force
-  ```
-
-  ```
-
-  ```
-
 - [ ] **Sanctum Stateful Domains**
+
   ```env
   SANCTUM_STATEFUL_DOMAINS=app.secpal.app,admin.secpal.app
   SESSION_DOMAIN=.secpal.app  # For subdomain cookie sharing
@@ -102,6 +93,7 @@ This guide covers deploying SecPal API to production with Sanctum authentication
   ```
 
 - [ ] **Queue Workers Running** (if using queues)
+
   ```bash
   php artisan queue:work --daemon --tries=3
   ```
