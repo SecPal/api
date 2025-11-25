@@ -40,7 +40,7 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
      │                            │                            │
      │ Set-Cookie: XSRF-TOKEN=... │                            │
      │<───────────────────────────│                            │
-     │ Set-Cookie: secpal_session │                            │
+     │ Set-Cookie: secpal-session │                            │
      │                            │                            │
      │ POST /v1/auth/token        │                            │
      │ Header: X-XSRF-TOKEN       │                            │
@@ -50,12 +50,12 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
      │                            │───────────────────────────>│
      │                            │<───────────────────────────│
      │                            │                            │
-     │ Set-Cookie: secpal_session │                            │
+     │ Set-Cookie: secpal-session │                            │
      │ Body: {user: {...}}        │                            │
      │<───────────────────────────│                            │
      │                            │                            │
      │ GET /v1/secrets            │                            │
-     │ Cookie: secpal_session     │                            │
+     │ Cookie: secpal-session     │                            │
      │ Header: X-XSRF-TOKEN       │                            │
      │───────────────────────────>│                            │
      │                            │ Validate session + CSRF    │
@@ -67,7 +67,7 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
 
 ### Cookie Types
 
-**1. Session Cookie (`secpal_session`)**
+**1. Session Cookie (`secpal-session`)**
 
 - **Purpose:** Stores encrypted session identifier
 - **httpOnly:** `true` (JavaScript cannot access)
@@ -132,7 +132,7 @@ CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN
 
 ```php
 // config/session.php
-'driver' => env('SESSION_DRIVER', 'cookie'),
+'driver' => env('SESSION_DRIVER', 'database'), // default: database, use 'cookie' for simpler setups
 'lifetime' => 120,
 'http_only' => true,
 'secure' => env('SESSION_SECURE_COOKIE', false), // true in production
@@ -143,7 +143,7 @@ CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN
 
 ```env
 # .env
-SESSION_DRIVER=cookie
+SESSION_DRIVER=database  # or 'cookie' for file-based sessions
 SESSION_LIFETIME=120
 SESSION_HTTP_ONLY=true
 SESSION_SAME_SITE=lax
@@ -207,7 +207,7 @@ export async function login(credentials: LoginCredentials) {
   });
 
   const data = await response.json();
-  return data.data; // Returns user and token; SPA ignores token, uses session cookie
+  return data; // Returns {token, user}; SPA ignores token, uses session cookie
 }
 
 // All subsequent requests
@@ -233,7 +233,7 @@ Host: api.secpal.dev
 
 HTTP/1.1 204 No Content
 Set-Cookie: XSRF-TOKEN=eyJpdiI6...; SameSite=lax
-Set-Cookie: secpal_session=eyJpdiI6...; HttpOnly; SameSite=lax
+Set-Cookie: secpal-session=eyJpdiI6...; HttpOnly; SameSite=lax
 ```
 
 ### Login Endpoint
@@ -243,7 +243,7 @@ POST /v1/auth/token HTTP/1.1
 Host: api.secpal.dev
 Content-Type: application/json
 X-XSRF-TOKEN: eyJpdiI6...
-Cookie: secpal_session=...
+Cookie: secpal-session=...
 
 {
   "email": "user@example.com",
@@ -251,7 +251,7 @@ Cookie: secpal_session=...
 }
 
 HTTP/1.1 201 Created
-Set-Cookie: secpal_session=...; HttpOnly; SameSite=lax
+Set-Cookie: secpal-session=...; HttpOnly; SameSite=lax
 Content-Type: application/json
 
 {
@@ -269,7 +269,7 @@ Content-Type: application/json
 ```http
 GET /v1/secrets HTTP/1.1
 Host: api.secpal.dev
-Cookie: secpal_session=...
+Cookie: secpal-session=...
 X-XSRF-TOKEN: eyJpdiI6...
 
 HTTP/1.1 200 OK
@@ -285,11 +285,11 @@ Content-Type: application/json
 ```http
 POST /v1/auth/logout HTTP/1.1
 Host: api.secpal.dev
-Cookie: secpal_session=...
+Cookie: secpal-session=...
 X-XSRF-TOKEN: eyJpdiI6...
 
 HTTP/1.1 200 OK
-Set-Cookie: secpal_session=; Expires=Thu, 01-Jan-1970 00:00:01 GMT
+Set-Cookie: secpal-session=; Expires=Thu, 01-Jan-1970 00:00:01 GMT
 ```
 
 ## Testing
@@ -320,13 +320,13 @@ test('complete authentication flow with httpOnly cookies', function () {
 
     $response->assertCreated();
 
-    $sessionCookie = $response->getCookie('secpal_session');
+    $sessionCookie = $response->getCookie('secpal-session');
     expect($sessionCookie->isHttpOnly())->toBeTrue();
 
     // Step 3: Access protected endpoint
     $response = $this->withHeaders([
         'X-XSRF-TOKEN' => $csrfToken,
-    ])->withCookie('secpal_session', $sessionCookie->getValue())
+    ])->withCookie('secpal-session', $sessionCookie->getValue())
         ->getJson('/v1/me');
 
     $response->assertOk();
@@ -340,7 +340,7 @@ test('complete authentication flow with httpOnly cookies', function () {
 curl -c cookies.txt -X GET http://api.secpal.dev/sanctum/csrf-cookie -i
 
 # 2. Extract XSRF-TOKEN from cookies.txt
-CSRF_TOKEN=$(grep XSRF-TOKEN cookies.txt | awk '{print $7}')
+CSRF_TOKEN=$(grep XSRF-TOKEN cookies.txt | sed 's/.*XSRF-TOKEN\s*//' | cut -f1)
 
 # 3. Login with credentials
 curl -b cookies.txt -c cookies.txt \
@@ -386,7 +386,7 @@ curl -b cookies.txt \
 
 3. **Inspect Browser Cookies**
    - Open DevTools → Application → Cookies
-   - Verify `secpal_session` and `XSRF-TOKEN` exist
+   - Verify `secpal-session` and `XSRF-TOKEN` exist
    - Check cookie domain/path
 
 ### Issue: CSRF Token Mismatch (419)
