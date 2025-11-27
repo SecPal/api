@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Health Check Endpoints** (#242)
+  - `/health/live` endpoint for liveness probes (minimal process check)
+  - `/health/ready` endpoint for readiness probes (database, tenant keys, KEK file)
+  - Kubernetes-compatible response format with 200 OK (ready) or 503 Service Unavailable (not ready)
+  - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
+
 - **Production Deployment Guide** (#219)
   - Complete production deployment checklist with security requirements
   - Nginx and Apache configuration examples with TLS/SSL
