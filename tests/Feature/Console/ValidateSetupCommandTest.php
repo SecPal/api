@@ -41,6 +41,7 @@ describe('app:validate-setup Command', function () {
             'idx_wrapped' => base64_encode(random_bytes(32)),
             'idx_nonce' => base64_encode(random_bytes(24)),
             'created_at' => now(),
+            'key_version' => 1,
         ]);
 
         // Setup: Create KEK file
@@ -82,6 +83,7 @@ describe('app:validate-setup Command', function () {
             'idx_wrapped' => base64_encode(random_bytes(32)),
             'idx_nonce' => base64_encode(random_bytes(24)),
             'created_at' => now(),
+            'key_version' => 1,
         ]);
 
         // Act
@@ -115,6 +117,7 @@ describe('app:validate-setup Command', function () {
             'idx_wrapped' => base64_encode(random_bytes(32)),
             'idx_nonce' => base64_encode(random_bytes(24)),
             'created_at' => now(),
+            'key_version' => 1,
         ]);
 
         // Act
@@ -135,6 +138,7 @@ describe('app:validate-setup Command', function () {
             'idx_wrapped' => base64_encode(random_bytes(32)),
             'idx_nonce' => base64_encode(random_bytes(24)),
             'created_at' => now(),
+            'key_version' => 1,
         ]);
 
         TenantKey::generateKek();
@@ -170,6 +174,7 @@ describe('app:validate-setup Command', function () {
             'idx_wrapped' => base64_encode(random_bytes(32)),
             'idx_nonce' => base64_encode(random_bytes(24)),
             'created_at' => now(),
+            'key_version' => 1,
         ]);
 
         // Act
@@ -190,6 +195,7 @@ describe('app:validate-setup Command', function () {
             'idx_wrapped' => base64_encode(random_bytes(32)),
             'idx_nonce' => base64_encode(random_bytes(24)),
             'created_at' => now(),
+            'key_version' => 1,
         ]);
 
         // Act
@@ -209,6 +215,7 @@ describe('app:validate-setup Command', function () {
             'idx_wrapped' => base64_encode(random_bytes(32)),
             'idx_nonce' => base64_encode(random_bytes(24)),
             'created_at' => now(),
+            'key_version' => 1,
         ]);
 
         // Act
@@ -250,6 +257,7 @@ describe('app:validate-setup Command', function () {
                 'idx_wrapped' => base64_encode(random_bytes(32)),
                 'idx_nonce' => base64_encode(random_bytes(24)),
                 'created_at' => now(),
+                'key_version' => 1,
             ]);
         }
 
@@ -272,6 +280,7 @@ describe('app:validate-setup Command', function () {
             'idx_wrapped' => base64_encode(random_bytes(32)),
             'idx_nonce' => base64_encode(random_bytes(24)),
             'created_at' => now(),
+            'key_version' => 1,
         ]);
 
         // Act

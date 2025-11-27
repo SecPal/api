@@ -105,7 +105,7 @@ class ValidateSetupCommand extends Command
             $this->line('✅ <fg=green>Database connection:</> OK');
 
             return true;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->line('❌ <fg=red>Database connection:</> Failed');
             $this->line('   <fg=yellow>Error:</> '.$e->getMessage());
 
@@ -133,7 +133,7 @@ class ValidateSetupCommand extends Command
             $this->line('❌ <fg=red>Tenant keys:</> 0 keys found');
 
             return false;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->line('❌ <fg=red>Tenant keys:</> Database query failed');
             $this->line('   <fg=yellow>Error:</> '.$e->getMessage());
 
@@ -202,7 +202,7 @@ class ValidateSetupCommand extends Command
             }
         }
 
-        if (count($missing) > 0) {
+        if (count($missing) !== 0) {
             $this->line('❌ <fg=red>PHP extensions:</> Missing: '.implode(', ', $missing));
 
             return false;
@@ -220,6 +220,11 @@ class ValidateSetupCommand extends Command
      */
     private function provideActionableHelp(array $checks): void
     {
+        if (! $checks['database']) {
+            $this->line('<fg=yellow>Check database connection in .env file</>');
+            $this->line('<fg=yellow>Run:</> php artisan migrate');
+        }
+
         if (! $checks['tenant_keys']) {
             $this->line('<fg=yellow>Run:</> php artisan keys:generate-tenant');
         }
@@ -230,14 +235,9 @@ class ValidateSetupCommand extends Command
             $this->line('<fg=yellow>Ensure KEK file exists with proper permissions (0600)</>');
         }
 
-        if (! $checks['database']) {
-            $this->line('<fg=yellow>Check database connection in .env file</>');
-            $this->line('<fg=yellow>Run:</> php artisan migrate');
-        }
-
         if (! $checks['storage']) {
             $this->line('<fg=yellow>Ensure storage directories are writable:</>');
-            $this->line('<fg=yellow>chmod -R 775 storage bootstrap/cache</>');
+            $this->line('<fg=yellow>chmod -R 755 storage bootstrap/cache</>');
         }
 
         if (! $checks['extensions']) {
