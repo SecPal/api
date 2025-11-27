@@ -205,6 +205,23 @@ php artisan idx:rebuild {tenant_id}
 ./scripts/setup-pre-push.sh
 ```
 
+## Production Deployment
+
+**For production deployment**, see the comprehensive guides:
+
+- 📖 [Production Deployment Guide](docs/deployment.md) - Complete setup instructions
+- ✅ [Deployment Checklist](docs/deployment-checklist.md) - Quick reference checklist
+- 🌐 [Uberspace Deployment](docs/deployment-uberspace.md) - Uberspace-specific guide
+
+**Key differences from development:**
+
+- Use `composer install --no-dev --optimize-autoloader`
+- Set `APP_ENV=production` and `APP_DEBUG=false`
+- Store KEK outside web root with `0600` permissions
+- Run `php artisan tenant:setup` for tenant key initialization
+- Verify deployment with `php artisan app:validate-setup`
+- Monitor health checks: `/health/ready` and `/health/live`
+
 ## Development
 
 ### Running the development server
