@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tenant Key Setup Command** (#244)
+  - `php artisan tenant:setup` command for guided tenant key initialization during new deployments
+  - Interactive validation of KEK file existence and secure permissions (0600)
+  - Idempotent design prevents duplicate tenant key creation
+  - Comprehensive error handling with actionable error messages
+  - Security-first approach: no plaintext keys logged, permission warnings
+  - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
+
 - **Setup Validation Command** (#243)
   - `php artisan app:validate-setup` command for deployment readiness checks
   - Validates database connectivity, tenant keys, KEK file, storage permissions, and PHP extensions
