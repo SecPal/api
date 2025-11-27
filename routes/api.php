@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\SecretController;
 use App\Http\Controllers\Api\V1\SecretShareController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,9 @@ use Illuminate\Support\Facades\Route;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
+
+Route::get('/health/live', [HealthController::class, 'live']);
+Route::get('/health/ready', [HealthController::class, 'ready']);
 
 Route::get('/health', function () {
     return response()->json([
