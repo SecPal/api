@@ -167,6 +167,54 @@ describe('tenant:setup Command', function () {
     // as Laravel maintains connection pools. This test is covered by
     // integration testing and production monitoring instead.
 
+    test('handles corrupted KEK file gracefully', function (): void {
+        // Create KEK file with invalid content (not 32 bytes)
+        $kekPath = TenantKey::getKekPath();
+        file_put_contents($kekPath, 'invalid-kek-too-short');
+        chmod($kekPath, 0600);
+
+        // Command will fail when trying to load corrupted KEK
+        $result = $this->artisan('tenant:setup');
+
+        // Verify command failed
+        $result->assertExitCode(1);
+
+        // Verify error message present
+        $result->expectsOutputToContain('Failed');
+
+        // Verify no tenant key was created
+        expect(TenantKey::count())->toBe(0);
+    });
+
+    test('handles multiple tenant keys existence check', function (): void {
+        TenantKey::generateKek();
+
+        // Create multiple tenant keys
+        TenantKey::create(TenantKey::generateEnvelopeKeys());
+        TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+        expect(TenantKey::count())->toBe(2);
+
+        $this->artisan('tenant:setup')
+            ->expectsOutputToContain('Tenant key already exists')
+            ->assertExitCode(0);
+
+        // Verify count didn't change
+        expect(TenantKey::count())->toBe(2);
+    });
+
+    test('validates KEK path is accessible', function (): void {
+        TenantKey::generateKek();
+        $kekPath = TenantKey::getKekPath();
+
+        // Verify KEK file is readable
+        expect(file_exists($kekPath))->toBeTrue();
+        expect(is_readable($kekPath))->toBeTrue();
+
+        $this->artisan('tenant:setup')
+            ->assertExitCode(0);
+    });
+
     test('command signature and description are correct', function (): void {
         $command = Artisan::all()['tenant:setup'];
 
