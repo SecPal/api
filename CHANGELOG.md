@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Setup Validation Command** (#243)
+  - `php artisan app:validate-setup` command for deployment readiness checks
+  - Validates database connectivity, tenant keys, KEK file, storage permissions, and PHP extensions
+  - Colored console output with ✅/❌ indicators and actionable error messages
+  - Exit code 0 (success) or 1 (failure) for CI/CD integration
+  - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
+
 - **Health Check Endpoints** (#242)
   - `/health/live` endpoint for liveness probes (minimal process check)
   - `/health/ready` endpoint for readiness probes (database, tenant keys, KEK file)
