@@ -201,6 +201,20 @@ describe('Token Revocation', function () {
         expect($user->fresh()->tokens()->count())->toBe(0);
     });
 
+    test('logout handles already-deleted token gracefully', function () {
+        $user = User::factory()->create();
+        $token = $user->createToken('test-device');
+        $plainTextToken = $token->plainTextToken;
+
+        // Manually delete the token (simulating concurrent logout or token expiration)
+        $token->accessToken->delete();
+
+        // Logout should still succeed (no 500 error)
+        $this->withHeader('Authorization', "Bearer {$plainTextToken}")
+            ->postJson('/v1/auth/logout')
+            ->assertUnauthorized(); // Token is already gone, so auth fails
+    });
+
     test('logout requires authentication', function () {
         $response = $this->postJson('/v1/auth/logout');
 

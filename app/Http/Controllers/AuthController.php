@@ -65,9 +65,13 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        /** @var \Laravel\Sanctum\PersonalAccessToken $token */
+        /** @var \Laravel\Sanctum\PersonalAccessToken|null $token */
         $token = $user->currentAccessToken();
-        $token->delete();
+
+        // Token might already be deleted/invalid (e.g., concurrent logout)
+        if ($token !== null) {
+            $token->delete();
+        }
 
         return response()->json([
             'message' => 'Token revoked successfully.',
