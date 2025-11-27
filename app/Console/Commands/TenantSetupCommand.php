@@ -40,7 +40,7 @@ class TenantSetupCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Initialize tenant key setup for new deployments';
+    protected $description = 'Tenant key setup for new deployments';
 
     /**
      * Execute the console command.
@@ -96,16 +96,16 @@ class TenantSetupCommand extends Command
 
         try {
             // Step 3: Generate and wrap tenant keys
-            $this->line('<fg=green>✅</> Generating tenant keys... <fg=green>Done</>');
+            $this->line('<fg=green>✅</> Generating and wrapping tenant keys...');
 
             $keys = TenantKey::generateEnvelopeKeys();
 
-            $this->line('<fg=green>✅</> Wrapping with KEK... <fg=green>Done</>');
+            $this->line('   <fg=green>Done</>');
 
             // Step 4: Store in database
+            $this->line('<fg=green>✅</> Storing in database...');
             $tenantKey = TenantKey::create($keys);
-
-            $this->line('<fg=green>✅</> Storing in database... <fg=green>Done</>');
+            $this->line('   <fg=green>Done</>');
 
             $this->newLine();
             $this->info('Tenant key setup complete!');

@@ -39,8 +39,7 @@ describe('tenant:setup Command', function () {
             ->expectsOutput('SecPal Tenant Key Setup')
             ->expectsOutput('=======================')
             ->expectsOutputToContain('Checking KEK file')
-            ->expectsOutputToContain('Generating tenant keys')
-            ->expectsOutputToContain('Wrapping with KEK')
+            ->expectsOutputToContain('Generating and wrapping tenant keys')
             ->expectsOutputToContain('Storing in database')
             ->expectsOutput('Tenant key setup complete!')
             ->expectsOutputToContain('php artisan app:validate-setup')
@@ -174,13 +173,9 @@ describe('tenant:setup Command', function () {
         chmod($kekPath, 0600);
 
         // Command will fail when trying to load corrupted KEK
-        $result = $this->artisan('tenant:setup');
-
-        // Verify command failed
-        $result->assertExitCode(1);
-
-        // Verify error message present
-        $result->expectsOutputToContain('Failed');
+        $this->artisan('tenant:setup')
+            ->expectsOutputToContain('Failed')
+            ->assertExitCode(1);
 
         // Verify no tenant key was created
         expect(TenantKey::count())->toBe(0);
@@ -219,6 +214,6 @@ describe('tenant:setup Command', function () {
         $command = Artisan::all()['tenant:setup'];
 
         expect($command->getName())->toBe('tenant:setup');
-        expect($command->getDescription())->toContain('tenant key setup');
+        expect($command->getDescription())->toBe('Tenant key setup for new deployments');
     });
 });
