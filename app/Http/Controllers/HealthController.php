@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal
+// SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers;
@@ -69,9 +69,8 @@ class HealthController extends Controller
         }
 
         // Check 3: KEK file is readable
-        /** @var mixed $kekPath */
-        $kekPath = config('app.kek_path');
-        if (is_string($kekPath) && File::exists($kekPath) && File::isReadable($kekPath)) {
+        $kekPath = TenantKey::getKekPath();
+        if (File::exists($kekPath) && File::isReadable($kekPath)) {
             $checks['kek_file'] = 'ok';
         } else {
             $checks['kek_file'] = 'missing';
