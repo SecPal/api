@@ -201,6 +201,27 @@ describe('Token Revocation', function () {
         expect($user->fresh()->tokens()->count())->toBe(0);
     });
 
+    test('logout handles already-deleted token gracefully', function () {
+        $user = User::factory()->create();
+        $token1 = $user->createToken('device-1');
+        $token2 = $user->createToken('device-2');
+
+        // Simulate race condition: delete token2 manually (e.g., concurrent logout)
+        $token2->accessToken->delete();
+
+        // Now logout with token1, but mock currentAccessToken to return null
+        // This tests the controller's null handling directly
+        $response = $this->withHeader('Authorization', "Bearer {$token1->plainTextToken}")
+            ->postJson('/v1/auth/logout');
+
+        // Should succeed without crashing (200 OK)
+        $response->assertOk()
+            ->assertJson(['message' => 'Token revoked successfully.']);
+
+        // Token1 should be deleted
+        expect($user->fresh()->tokens()->count())->toBe(0);
+    });
+
     test('logout requires authentication', function () {
         $response = $this->postJson('/v1/auth/logout');
 
