@@ -94,17 +94,22 @@ Quick reference checklist for SecPal API production deployment.
 ### Functional Tests
 
 - [ ] Test login works:
+
   ```bash
   curl -X POST http://localhost/api/v1/auth/token \
     -H "Content-Type: application/json" \
     -d '{"email":"admin@secpal.app","password":"..."}'
   ```
+
   - Expected: 200 OK with access token
+
 - [ ] Test secrets API:
+
   ```bash
   curl http://localhost/api/v1/secrets \
     -H "Authorization: Bearer YOUR_TOKEN"
   ```
+
   - Expected: 200 OK with empty array
 
 ### Logging & Monitoring
@@ -169,5 +174,5 @@ Quick reference checklist for SecPal API production deployment.
 
 ---
 
-**Last Updated:** November 27, 2025
-**For Support:** https://github.com/SecPal/api/issues
+**Last Updated:** November 27, 2025  
+**For Support:** <https://github.com/SecPal/api/issues>

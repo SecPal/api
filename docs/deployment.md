@@ -213,7 +213,7 @@ php artisan migrate:status
 
 **Expected Output:**
 
-```
+```txt
 Migration name ......................................... Batch / Status
 2014_10_12_000000_create_users_table ....................... [1] Ran
 2025_11_15_create_tenant_keys_table ........................ [1] Ran
@@ -241,7 +241,7 @@ php artisan tenant:setup
 
 **Expected Output:**
 
-```
+```txt
 SecPal Tenant Key Setup
 =======================
 
@@ -270,11 +270,12 @@ php artisan app:validate-setup
 
 **Expected Output:**
 
-```
+```txt
 SecPal Application Setup Validation
 ====================================
 
-✅ Database Connection ... OK
+```txt
+✅ Database Connection: OK
 ✅ Tenant Key Exists ..... OK (ID: 1, Version: 1)
 ✅ KEK File Readable ..... OK
 ✅ KEK Unwraps DEK ....... OK
@@ -509,4 +510,4 @@ sudo chmod -R 775 storage bootstrap/cache
 ---
 
 **Last Updated:** November 27, 2025
-**For Support:** https://github.com/SecPal/api/issues
+**For Support:** <https://github.com/SecPal/api/issues>

@@ -5,7 +5,7 @@ SPDX-License-Identifier: CC0-1.0
 
 # Deployment Guide: Uberspace
 
-SecPal API deployment guide for [Uberspace](https://uberspace.de) shared hosting.
+SecPal API deployment guide specifically for [Uberspace](<https://uberspace.de>) shared hosting.
 
 **Prerequisites:** Active Uberspace account (https://uberspace.de)
 
@@ -218,7 +218,7 @@ php artisan tenant:setup
 
 **Expected Output:**
 
-```
+```txt
 SecPal Tenant Key Setup
 =======================
 
@@ -238,7 +238,7 @@ php artisan app:validate-setup
 
 **Expected Output:**
 
-```
+```txt
 SecPal Application Setup Validation
 ====================================
 
@@ -275,8 +275,11 @@ nano ~/.config/systemd/user/secpal-api.service
 **Service file content:**
 
 ```ini
+Create a systemd service file:
+
+```ini
 [Unit]
-Description=SecPal API Server
+Description=SecPal API
 After=network.target
 
 [Service]
@@ -310,7 +313,7 @@ systemctl --user status secpal-api.service
 
 **Expected Output:**
 
-```
+```txt
 ● secpal-api.service - SecPal API Server
    Loaded: loaded (/home/<username>/.config/systemd/user/secpal-api.service; enabled)
    Active: active (running) since ...
@@ -525,10 +528,10 @@ systemctl --user restart secpal-api.service
 - [Uberspace Manual](https://manual.uberspace.de/)
 - [Uberspace PHP Guide](https://manual.uberspace.de/lang-php/)
 - [Uberspace PostgreSQL Guide](https://manual.uberspace.de/database-postgresql/)
-- [SecPal Deployment Guide](./deployment.md)
+- [ ] Deployment guides: <https://github.com/SecPal/api/tree/main/docs>
 - [SecPal Deployment Checklist](./deployment-checklist.md)
 
 ---
 
-**Last Updated:** November 27, 2025  
+**Last Updated:** November 27, 2025
 **For Support:** https://github.com/SecPal/api/issues
