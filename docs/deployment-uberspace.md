@@ -17,7 +17,11 @@ SecPal API deployment guide specifically for [Uberspace](https://uberspace.de) s
 - [PHP Version Selection](#php-version-selection)
 - [PostgreSQL Setup](#postgresql-setup)
 - [Application Deployment](#application-deployment)
-- [Domain Configuration](#domain-configuration)
+- [Testing the Deployment](#testing-the-deployment)
+- [Deployment Updates](#deployment-updates)
+- [Troubleshooting](#troubleshooting)
+- [Uberspace-Specific Commands](#uberspace-specific-commands)
+- [Backup and Security](#backup-and-security)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -119,10 +123,12 @@ composer --version
 # Output: Composer version 2.x.x
 ```
 
-### 2. Clone Repository
+### 2. Clone Repository to Web Directory
+
+**Important:** Clone directly to `/var/www/virtual/$USER/` (NOT to `/home`) because Apache cannot access `/home` directories.
 
 ```bash
-cd ~
+cd /var/www/virtual/$USER
 git clone https://github.com/SecPal/api.git secpal-api
 cd secpal-api
 ```
@@ -163,8 +169,8 @@ DB_DATABASE=<username>_secpal
 DB_USERNAME=<username>_secpal
 DB_PASSWORD=<password_from_uberspace_tools>
 
-# KEK Path (absolute path)
-KEK_PATH=/home/<username>/secpal-api/storage/keys/kek.key
+# KEK Path (absolute path in /var/www/virtual)
+KEK_PATH=/var/www/virtual/<username>/secpal-api/storage/keys/kek.key
 
 # Sanctum
 SANCTUM_STATEFUL_DOMAINS=<username>.uber.space
@@ -195,22 +201,41 @@ chmod 0600 storage/keys/kek.key
 
 ```bash
 # On your local machine
-scp <username>@<username>.uber.space:~/secpal-api/storage/keys/kek.key ~/secpal-kek-backup.key
+scp <username>@<username>.uber.space:/var/www/virtual/<username>/secpal-api/storage/keys/kek.key ~/secpal-kek-backup.key
 ```
 
-### 7. Run Database Migrations
+### 8. Configure DocumentRoot Symlink
+
+Uberspace serves from `/var/www/virtual/$USER/html`. Create a symlink to Laravel's public directory:
+
+```bash
+# Remove default html directory (if exists)
+rm -rf /var/www/virtual/$USER/html
+
+# Create symlink to Laravel public directory
+ln -s /var/www/virtual/$USER/secpal-api/public /var/www/virtual/$USER/html
+```
+
+Verify symlink:
+
+```bash
+ls -la /var/www/virtual/$USER/html
+# Output: html -> /var/www/virtual/<username>/secpal-api/public
+```
+
+### 9. Run Database Migrations
 
 ```bash
 php artisan migrate --force
 ```
 
-### 8. Seed Predefined Roles
+### 10. Seed Predefined Roles
 
 ```bash
 php artisan db:seed --class=RolesAndPermissionsSeeder
 ```
 
-### 9. Initialize Tenant Keys
+### 11. Initialize Tenant Keys
 
 ```bash
 php artisan tenant:setup
@@ -230,7 +255,7 @@ SecPal Tenant Key Setup
 Tenant key setup complete!
 ```
 
-### 10. Validate Setup
+### 12. Validate Setup
 
 ```bash
 php artisan app:validate-setup
@@ -253,112 +278,41 @@ All checks passed! Application is ready.
 
 ---
 
-## Domain Configuration
+## Testing the Deployment
 
-### 1. Configure Web Backend
-
-Uberspace uses Apache and PHP-FPM to serve web applications securely. Point the web backend to your Laravel application's `public/` directory:
+### Access Health Check Endpoint
 
 ```bash
-# Link web backend to Laravel public directory
-uberspace web backend set / --apache /home/<username>/secpal-api/public
-```
-
-This ensures requests are handled by Apache and PHP-FPM, providing production-grade security, performance, and reliability.
-
-> **⚠️ Important:** Do not use `php artisan serve` for production deployments. The built-in development server lacks security and performance features required for production use. Always use Apache/PHP-FPM on Uberspace.
-
-For more details, see:
-
-- [Uberspace: Web Backends](https://manual.uberspace.de/web-backends/)
-- [Laravel Deployment Best Practices](https://laravel.com/docs/deployment)
-
-### 2. Verify Web Backend Configuration
-
-```bash
-# Check web backend status
-uberspace web backend list
-```
-
-**Expected Output:**
-
-```txt
-/ apache /home/<username>/secpal-api/public
-```
-
-### 3. Configure Queue Worker (Optional)
-
-If your application uses queues, set up a queue worker with systemd:
-
-```bash
-nano ~/.config/systemd/user/secpal-queue.service
-```
-
-**Service file content:**
-
-```ini
-[Unit]
-Description=SecPal Queue Worker
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/home/<username>/secpal-api
-ExecStart=/usr/bin/php artisan queue:work --sleep=3 --tries=3 --max-time=3600
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=default.target
-```
-
-Enable and start the queue worker:
-
-```bash
-systemctl --user daemon-reload
-systemctl --user enable secpal-queue.service
-systemctl --user start secpal-queue.service
-systemctl --user status secpal-queue.service
-```
-
-### 4. Test API Endpoint
-
-```bash
-curl https://<username>.uber.space/health/live
+curl https://<username>.uber.space/api/health
 ```
 
 **Expected Response:**
 
 ```json
 {
-  "status": "ok",
-  "timestamp": "2025-11-27T12:00:00Z"
+  "status": "healthy",
+  "timestamp": "2025-01-01T12:00:00.000000Z"
 }
 ```
 
-### 5. Configure Custom Domain (Optional)
+### Test Application from Browser
 
-If you have a custom domain (e.g., `api.secpal.app`):
+1. Visit `https://<username>.uber.space/api/health`
+2. Should see JSON health status (no Laravel error page)
 
-```bash
-# Add domain to Uberspace
-uberspace web domain add api.secpal.app
+---
 
-# Configure web backend for custom domain
-uberspace web backend set api.secpal.app / --apache /home/<username>/secpal-api/public
-```
+## Deployment Updates
 
-Update `.env`:
+### Updating the Application
 
-```env
-APP_URL=https://api.secpal.app
-SANCTUM_STATEFUL_DOMAINS=api.secpal.app,app.secpal.app
-SESSION_DOMAIN=.secpal.app
-```
-
-Clear Laravel caches:
+When deploying a new version:
 
 ```bash
+cd /var/www/virtual/$USER/secpal-api
+git pull origin main
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force
 php artisan config:clear
 php artisan route:clear
 php artisan view:clear
@@ -375,20 +329,18 @@ php artisan view:clear
 **Solution:**
 
 ```bash
-# Check web backend configuration
-uberspace web backend list
-
-# Verify public directory exists
-ls -la ~/secpal-api/public
+# Verify symlink exists
+ls -la /var/www/virtual/$USER/html
+# Should show: html -> /var/www/virtual/<username>/secpal-api/public
 
 # Check Laravel logs
-tail -f ~/secpal-api/storage/logs/laravel.log
+tail -f /var/www/virtual/$USER/secpal-api/storage/logs/laravel.log
 
 # Check Apache error logs
 tail -f ~/logs/error_log
 
 # Common issues:
-# 1. Wrong public directory path in web backend
+# 1. Symlink broken or missing
 # 2. Database connection failed (.env credentials)
 # 3. KEK file not readable
 # 4. Missing storage permissions
@@ -396,14 +348,14 @@ tail -f ~/logs/error_log
 
 ### Health Check Returns 503
 
-**Problem:** `curl https://<username>.uber.space/health/ready` returns 503.
+**Problem:** `curl https://<username>.uber.space/api/health` returns 503.
 
 **Solutions:**
 
 1. **Missing tenant keys:**
 
    ```bash
-   cd ~/secpal-api
+   cd /var/www/virtual/$USER/secpal-api
    php artisan tenant:setup
    ```
 
@@ -418,7 +370,7 @@ tail -f ~/logs/error_log
 3. **KEK file not readable:**
 
    ```bash
-   chmod 0600 ~/secpal-api/storage/keys/kek.key
+   chmod 0600 /var/www/virtual/$USER/secpal-api/storage/keys/kek.key
    ```
 
 ### Database Migration Fails
@@ -442,63 +394,51 @@ psql -U <username>_secpal -d <username>_secpal -c '\conninfo'
 ### Useful Uberspace Commands
 
 ```bash
-# List all web backends
-uberspace web backend list
-
 # List all domains
 uberspace web domain list
 
 # View PostgreSQL credentials
 cat ~/.postgresql_password
 
-# Check service logs
-journalctl --user -u secpal-api.service -f  # Follow logs
-```
+# Check Apache error logs
+tail -f ~/logs/error_log
 
-### Queue Worker Management (if configured)
-
-```bash
-# Start queue worker
-systemctl --user start secpal-queue.service
-
-# Stop queue worker
-systemctl --user stop secpal-queue.service
-
-# Restart queue worker
-systemctl --user restart secpal-queue.service
-
-# View status
-systemctl --user status secpal-queue.service
-
-# View logs
-journalctl --user -u secpal-queue.service -n 100
+# Check disk usage
+quota -s
 ```
 
 ---
 
-## Deployment Updates
+## Backup and Security
 
-When deploying code updates:
+### Backup KEK File
+
+**Critical:** Always backup the KEK file offline:
 
 ```bash
-cd ~/secpal-api
+# From your local machine
+scp <username>@<username>.uber.space:/var/www/virtual/<username>/secpal-api/storage/keys/kek.key ~/secpal-kek-backup-$(date +%Y%m%d).key
+```
 
-# Pull latest changes
-git pull origin main
+### Database Backups
 
-# Update dependencies
-composer install --no-dev --optimize-autoloader
+```bash
+# Create PostgreSQL backup
+pg_dump <username>_secpal > ~/secpal-backup-$(date +%Y%m%d).sql
 
-# Run migrations (if any)
-php artisan migrate --force
+# Download backup to local machine
+scp <username>@<username>.uber.space:~/secpal-backup-*.sql ~/backups/
+```
 
-# Clear caches
-php artisan config:clear
-php artisan route:clear
-php artisan view:clear
+### File Permissions Check
 
-# Restart queue worker (if configured)
-systemctl --user restart secpal-queue.service
+```bash
+# Verify correct permissions
+ls -la /var/www/virtual/$USER/secpal-api/storage/keys/kek.key
+# Should show: -rw------- (600)
+
+ls -la /var/www/virtual/$USER/secpal-api/.env
+# Should show: -rw------- (600)
 ```
 
 ---
