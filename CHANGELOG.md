@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Deployment Documentation** (#245)
+  - `docs/deployment.md`: Complete production deployment guide with prerequisites, environment setup, KEK generation, database setup, tenant key initialization, health checks, and troubleshooting
+  - `docs/deployment-checklist.md`: Quick reference checklist for deployment operators with step-by-step verification
+  - `docs/deployment-uberspace.md`: Uberspace shared hosting specific deployment guide with platform-specific commands and service configuration
+  - README.md updated with deployment section highlighting key differences from development setup
+  - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
+
 - **Tenant Key Setup Command** (#244)
   - `php artisan tenant:setup` command for guided tenant key initialization during new deployments
   - Interactive validation of KEK file existence and secure permissions (0600)
