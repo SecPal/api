@@ -237,3 +237,193 @@ describe('Multiple Device Sessions', function () {
         expect($user->fresh()->tokens()->count())->toBe(0);
     });
 });
+
+describe('SPA Session-Based Login', function () {
+    beforeEach(function () {
+        // Set stateful domain header so Sanctum activates session middleware
+        $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ]);
+    });
+
+    test('successful login with valid credentials creates session', function () {
+        $user = User::factory()->create([
+            'email' => 'spa@example.com',
+            'password' => Hash::make('securepassword'),
+        ]);
+
+        // Get CSRF cookie first (required for stateful requests)
+        $this->get('/sanctum/csrf-cookie');
+
+        // Login via SPA endpoint
+        $response = $this->postJson('/v1/auth/login', [
+            'email' => 'spa@example.com',
+            'password' => 'securepassword',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'user' => ['id', 'email', 'name'],
+            ])
+            ->assertJsonPath('user.email', 'spa@example.com');
+    });
+
+    test('login fails with invalid credentials', function () {
+        User::factory()->create([
+            'email' => 'user@example.com',
+            'password' => Hash::make('correctpassword'),
+        ]);
+
+        $this->get('/sanctum/csrf-cookie');
+
+        $response = $this->postJson('/v1/auth/login', [
+            'email' => 'user@example.com',
+            'password' => 'wrongpassword',
+        ]);
+
+        // ValidationException throws 422 with error message
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    });
+
+    test('login fails with non-existent user', function () {
+        $this->get('/sanctum/csrf-cookie');
+
+        $response = $this->postJson('/v1/auth/login', [
+            'email' => 'nonexistent@example.com',
+            'password' => 'anypassword',
+        ]);
+
+        // ValidationException throws 422 with error message
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    });
+
+    test('login validation requires email', function () {
+        $this->get('/sanctum/csrf-cookie');
+
+        $response = $this->postJson('/v1/auth/login', [
+            'password' => 'somepassword',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    });
+
+    test('login validation requires password', function () {
+        $this->get('/sanctum/csrf-cookie');
+
+        $response = $this->postJson('/v1/auth/login', [
+            'email' => 'test@example.com',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+    });
+
+    test('login validation requires valid email format', function () {
+        $this->get('/sanctum/csrf-cookie');
+
+        $response = $this->postJson('/v1/auth/login', [
+            'email' => 'invalid-email',
+            'password' => 'somepassword',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    });
+
+    test('login regenerates session to prevent fixation attacks', function () {
+        $user = User::factory()->create([
+            'email' => 'session@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $this->get('/sanctum/csrf-cookie');
+
+        // Get initial session ID
+        $initialSessionId = session()->getId();
+
+        // Login
+        $this->postJson('/v1/auth/login', [
+            'email' => 'session@example.com',
+            'password' => 'password123',
+        ]);
+
+        // Session should be regenerated after login
+        $newSessionId = session()->getId();
+
+        expect($newSessionId)->not->toBe($initialSessionId);
+    });
+});
+
+describe('SPA Session-Based Logout', function () {
+    beforeEach(function () {
+        // Set stateful domain header so Sanctum activates session middleware
+        $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ]);
+    });
+
+    test('session logout invalidates session', function () {
+        $user = User::factory()->create([
+            'email' => 'logout@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+
+        // Login first
+        $this->get('/sanctum/csrf-cookie');
+        $loginResponse = $this->postJson('/v1/auth/login', [
+            'email' => 'logout@example.com',
+            'password' => 'password123',
+        ]);
+        $loginResponse->assertOk();
+
+        // Logout via session endpoint
+        $response = $this->postJson('/v1/auth/session/logout');
+
+        $response->assertOk()
+            ->assertJson([
+                'message' => 'Logged out successfully.',
+            ]);
+    });
+
+    test('session logout requires authentication', function () {
+        // Clear headers to ensure no auth
+        $this->withHeaders([]);
+
+        $response = $this->postJson('/v1/auth/session/logout');
+
+        $response->assertUnauthorized();
+    });
+
+    test('session logout does not affect token-based sessions', function () {
+        $user = User::factory()->create([
+            'email' => 'multiauth@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+
+        // Create a token for mobile app
+        $token = $user->createToken('mobile-device')->plainTextToken;
+
+        // Login via SPA session
+        $this->get('/sanctum/csrf-cookie');
+        $this->postJson('/v1/auth/login', [
+            'email' => 'multiauth@example.com',
+            'password' => 'password123',
+        ]);
+
+        // Logout from session
+        $this->postJson('/v1/auth/session/logout');
+
+        // Token should still be valid
+        expect($user->fresh()->tokens()->count())->toBe(1);
+
+        // Token-based request should still work (use new test instance to clear session)
+        $this->withHeaders(['Authorization' => "Bearer {$token}"])
+            ->getJson('/v1/me')
+            ->assertOk();
+    });
+});
