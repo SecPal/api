@@ -148,7 +148,9 @@ chmod 0600 storage/keys/kek.key
 chown www-data:www-data storage/keys/kek.key
 ```
 
-**⚠️ CRITICAL: KEK Security**
+#### KEK Security (CRITICAL)
+
+**⚠️ IMPORTANT:** The Key Encryption Key (KEK) must be:
 
 - **Permissions:** Must be `0600` (read/write by owner only)
 - **Ownership:** Must be owned by web server user (e.g., `www-data`)
@@ -270,7 +272,7 @@ php artisan app:validate-setup
 
 **Expected Output:**
 
-```txt
+````txt
 SecPal Application Setup Validation
 ====================================
 
@@ -282,7 +284,7 @@ SecPal Application Setup Validation
 ✅ Storage Writable ....... OK
 
 All checks passed! Application is ready.
-```
+````
 
 **If Validation Fails:**
 

@@ -174,5 +174,5 @@ Quick reference checklist for SecPal API production deployment.
 
 ---
 
-**Last Updated:** November 27, 2025  
+**Last Updated:** November 27, 2025
 **For Support:** <https://github.com/SecPal/api/issues>

@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC0-1.0
 
 SecPal API deployment guide specifically for [Uberspace](<https://uberspace.de>) shared hosting.
 
-**Prerequisites:** Active Uberspace account (https://uberspace.de)
+**Prerequisites:** Active Uberspace account (<https://uberspace.de>)
 
 ---
 
@@ -274,7 +274,7 @@ nano ~/.config/systemd/user/secpal-api.service
 
 **Service file content:**
 
-```ini
+````ini
 Create a systemd service file:
 
 ```ini
@@ -291,7 +291,7 @@ RestartSec=10
 
 [Install]
 WantedBy=default.target
-```
+````
 
 Save and exit.
 
@@ -533,5 +533,5 @@ systemctl --user restart secpal-api.service
 
 ---
 
-**Last Updated:** November 27, 2025
-**For Support:** https://github.com/SecPal/api/issues
+**Last Updated:** November 27, 2025  
+**For Support:** <https://github.com/SecPal/api/issues>
