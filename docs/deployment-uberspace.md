@@ -269,6 +269,7 @@ This ensures requests are handled by Apache and PHP-FPM, providing production-gr
 > **⚠️ Important:** Do not use `php artisan serve` for production deployments. The built-in development server lacks security and performance features required for production use. Always use Apache/PHP-FPM on Uberspace.
 
 For more details, see:
+
 - [Uberspace: Web Backends](https://manual.uberspace.de/web-backends/)
 - [Laravel Deployment Best Practices](https://laravel.com/docs/deployment)
 
