@@ -207,7 +207,7 @@ php artisan migrate --force
 ### 8. Seed Predefined Roles
 
 ```bash
-php artisan db:seed --class=RoleSeeder
+php artisan db:seed --class=RolesAndPermissionsSeeder
 ```
 
 ### 9. Initialize Tenant Keys
@@ -257,72 +257,73 @@ All checks passed! Application is ready.
 
 ### 1. Configure Web Backend
 
-Uberspace requires configuring a web backend to route requests to Laravel.
+Uberspace uses Apache and PHP-FPM to serve web applications securely. Point the web backend to your Laravel application's `public/` directory:
 
 ```bash
-# Create web backend for API
-uberspace web backend set / --http --port 8000
+# Link web backend to Laravel public directory
+uberspace web backend set / --apache /home/<username>/secpal-api/public
 ```
 
-### 2. Create Systemd Service
+This ensures requests are handled by Apache and PHP-FPM, providing production-grade security, performance, and reliability.
 
-Laravel needs to run continuously. Create a systemd service:
+> **⚠️ Important:** Do not use `php artisan serve` for production deployments. The built-in development server lacks security and performance features required for production use. Always use Apache/PHP-FPM on Uberspace.
 
-```bash
-nano ~/.config/systemd/user/secpal-api.service
-```
+For more details, see:
+- [Uberspace: Web Backends](https://manual.uberspace.de/web-backends/)
+- [Laravel Deployment Best Practices](https://laravel.com/docs/deployment)
 
-**Service file content:**
-
-````ini
-Create a systemd service file:
-
-```ini
-[Unit]
-Description=SecPal API
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/home/<username>/secpal-api
-ExecStart=/usr/bin/php artisan serve --host=0.0.0.0 --port=8000
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=default.target
-````
-
-Save and exit.
-
-### 3. Enable and Start Service
+### 2. Verify Web Backend Configuration
 
 ```bash
-# Reload systemd
-systemctl --user daemon-reload
-
-# Enable service (auto-start on boot)
-systemctl --user enable secpal-api.service
-
-# Start service
-systemctl --user start secpal-api.service
-
-# Verify status
-systemctl --user status secpal-api.service
+# Check web backend status
+uberspace web backend list
 ```
 
 **Expected Output:**
 
 ```txt
-● secpal-api.service - SecPal API Server
-   Loaded: loaded (/home/<username>/.config/systemd/user/secpal-api.service; enabled)
-   Active: active (running) since ...
+/ apache /home/<username>/secpal-api/public
+```
+
+### 3. Configure Queue Worker (Optional)
+
+If your application uses queues, set up a queue worker with systemd:
+
+```bash
+nano ~/.config/systemd/user/secpal-queue.service
+```
+
+**Service file content:**
+
+```ini
+[Unit]
+Description=SecPal Queue Worker
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/<username>/secpal-api
+ExecStart=/usr/bin/php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+```
+
+Enable and start the queue worker:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable secpal-queue.service
+systemctl --user start secpal-queue.service
+systemctl --user status secpal-queue.service
 ```
 
 ### 4. Test API Endpoint
 
 ```bash
-curl http://localhost:8000/health/live
+curl https://<username>.uber.space/health/live
 ```
 
 **Expected Response:**
@@ -343,7 +344,7 @@ If you have a custom domain (e.g., `api.secpal.app`):
 uberspace web domain add api.secpal.app
 
 # Configure web backend for custom domain
-uberspace web backend set api.secpal.app / --http --port 8000
+uberspace web backend set api.secpal.app / --apache /home/<username>/secpal-api/public
 ```
 
 Update `.env`:
@@ -354,35 +355,47 @@ SANCTUM_STATEFUL_DOMAINS=api.secpal.app,app.secpal.app
 SESSION_DOMAIN=.secpal.app
 ```
 
-Restart service:
+Clear Laravel caches:
 
 ```bash
-systemctl --user restart secpal-api.service
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
 ```
 
 ---
 
 ## Troubleshooting
 
-### Service Not Starting
+### Application Not Accessible
 
-**Problem:** `systemctl --user status secpal-api` shows "failed".
+**Problem:** Website shows 500 error or blank page.
 
 **Solution:**
 
 ```bash
-# View service logs
-journalctl --user -u secpal-api.service -n 50
+# Check web backend configuration
+uberspace web backend list
+
+# Verify public directory exists
+ls -la ~/secpal-api/public
+
+# Check Laravel logs
+tail -f ~/secpal-api/storage/logs/laravel.log
+
+# Check Apache error logs
+tail -f ~/logs/error_log
 
 # Common issues:
-# 1. Wrong WorkingDirectory path
+# 1. Wrong public directory path in web backend
 # 2. Database connection failed (.env credentials)
 # 3. KEK file not readable
+# 4. Missing storage permissions
 ```
 
 ### Health Check Returns 503
 
-**Problem:** `curl http://localhost:8000/health/ready` returns 503.
+**Problem:** `curl https://<username>.uber.space/health/ready` returns 503.
 
 **Solutions:**
 
@@ -406,23 +419,6 @@ journalctl --user -u secpal-api.service -n 50
    ```bash
    chmod 0600 ~/secpal-api/storage/keys/kek.key
    ```
-
-### Port Already in Use
-
-**Problem:** Service fails with "Address already in use".
-
-**Solution:**
-
-```bash
-# Find process using port 8000
-lsof -i :8000
-
-# Kill conflicting process
-kill <PID>
-
-# Restart service
-systemctl --user restart secpal-api.service
-```
 
 ### Database Migration Fails
 
@@ -458,23 +454,23 @@ cat ~/.postgresql_password
 journalctl --user -u secpal-api.service -f  # Follow logs
 ```
 
-### Service Management
+### Queue Worker Management (if configured)
 
 ```bash
-# Start service
-systemctl --user start secpal-api.service
+# Start queue worker
+systemctl --user start secpal-queue.service
 
-# Stop service
-systemctl --user stop secpal-api.service
+# Stop queue worker
+systemctl --user stop secpal-queue.service
 
-# Restart service
-systemctl --user restart secpal-api.service
+# Restart queue worker
+systemctl --user restart secpal-queue.service
 
 # View status
-systemctl --user status secpal-api.service
+systemctl --user status secpal-queue.service
 
 # View logs
-journalctl --user -u secpal-api.service -n 100
+journalctl --user -u secpal-queue.service -n 100
 ```
 
 ---
@@ -500,8 +496,8 @@ php artisan config:clear
 php artisan route:clear
 php artisan view:clear
 
-# Restart service
-systemctl --user restart secpal-api.service
+# Restart queue worker (if configured)
+systemctl --user restart secpal-queue.service
 ```
 
 ---
@@ -528,7 +524,7 @@ systemctl --user restart secpal-api.service
 - [Uberspace Manual](https://manual.uberspace.de/)
 - [Uberspace PHP Guide](https://manual.uberspace.de/lang-php/)
 - [Uberspace PostgreSQL Guide](https://manual.uberspace.de/database-postgresql/)
-- [ ] Deployment guides: <https://github.com/SecPal/api/tree/main/docs>
+- [Deployment Guides](https://github.com/SecPal/api/tree/main/docs)
 - [SecPal Deployment Checklist](./deployment-checklist.md)
 
 ---

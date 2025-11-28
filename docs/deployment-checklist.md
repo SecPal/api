@@ -71,7 +71,7 @@ Quick reference checklist for SecPal API production deployment.
 - [ ] Grant privileges: `GRANT ALL PRIVILEGES ON DATABASE secpal_production TO secpal_user;`
 - [ ] Run migrations: `php artisan migrate --force`
 - [ ] Verify migrations: `php artisan migrate:status`
-- [ ] Seed predefined roles: `php artisan db:seed --class=RoleSeeder`
+- [ ] Seed predefined roles: `php artisan db:seed --class=RolesAndPermissionsSeeder`
 
 ### Tenant Key Setup
 
@@ -169,8 +169,6 @@ Quick reference checklist for SecPal API production deployment.
 
 - [Full Deployment Guide](./deployment.md)
 - [Uberspace Deployment](./deployment-uberspace.md)
-- [RBAC Setup](./guides/role-management.md)
-- [Health Check API](./api/health-checks.md)
 
 ---
 

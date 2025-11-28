@@ -226,7 +226,7 @@ Migration name ......................................... Batch / Status
 
 ```bash
 # Seed 5 predefined roles (Admin, Manager, Guard, Client, Works Council)
-php artisan db:seed --class=RoleSeeder
+php artisan db:seed --class=RolesAndPermissionsSeeder
 ```
 
 ---
@@ -272,11 +272,10 @@ php artisan app:validate-setup
 
 **Expected Output:**
 
-````txt
+```txt
 SecPal Application Setup Validation
 ====================================
 
-```txt
 ✅ Database Connection: OK
 ✅ Tenant Key Exists ..... OK (ID: 1, Version: 1)
 ✅ KEK File Readable ..... OK
@@ -284,7 +283,7 @@ SecPal Application Setup Validation
 ✅ Storage Writable ....... OK
 
 All checks passed! Application is ready.
-````
+```
 
 **If Validation Fails:**
 
@@ -488,9 +487,6 @@ sudo chmod -R 775 storage bootstrap/cache
 
 - [Deployment Checklist](./deployment-checklist.md) - Quick reference checklist
 - [Uberspace Deployment Guide](./deployment-uberspace.md) - Uberspace-specific instructions
-- [Key Rotation Guide](./guides/key-rotation.md) - KEK and DEK rotation procedures
-- [RBAC Setup](./guides/role-management.md) - Role and permission configuration
-- [Health Check API](./api/health-checks.md) - Health check endpoint documentation
 
 ---
 
