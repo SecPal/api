@@ -3,9 +3,11 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -36,5 +38,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Return JSON 401 response for unauthenticated API requests
+        // Prevents "Route [login] not defined" error since this is a pure API without web routes
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        });
     })->create();
