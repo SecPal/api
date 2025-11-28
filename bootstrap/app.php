@@ -27,14 +27,22 @@ return Application::configure(basePath: dirname(__DIR__))
         // Apply security headers globally to all requests (including API routes and Sanctum routes like /sanctum/csrf-cookie)
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
 
+        // Apply Sanctum's stateful middleware to API routes for SPA authentication
+        // This enables session-based auth for requests from stateful domains (localhost:5173, etc.)
+        $middleware->api(prepend: [
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        ]);
+
         // Apply middleware to all API routes
         $middleware->api(append: [
             \App\Http\Middleware\SetLocaleFromHeader::class,
         ]);
 
-        // Configure CORS for SPA authentication with credentials
+        // Configure CSRF protection
+        // Token endpoint is excluded since it's for mobile/native apps without CSRF cookies
+        // Login endpoint requires CSRF token (fetched via /sanctum/csrf-cookie first)
         $middleware->validateCsrfTokens(except: [
-            // CSRF protection is active - Sanctum middleware handles validation for authenticated SPA routes
+            'v1/auth/token',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -41,6 +41,10 @@ Route::get('/health', function () {
 // API v1 routes
 Route::prefix('v1')->group(function () {
     // Authentication routes (public)
+    // SPA Login (session-based, for web browsers)
+    // EnsureFrontendRequestsAreStateful middleware handles session/cookie middleware automatically
+    Route::post('/auth/login', [AuthController::class, 'login']);
+    // Token Login (for mobile/native apps)
     Route::post('/auth/token', [AuthController::class, 'token']);
     Route::post('/auth/password/reset-request', [AuthController::class, 'passwordResetRequest'])
         ->middleware('throttle:password-reset');
@@ -49,7 +53,10 @@ Route::prefix('v1')->group(function () {
 
     // Protected routes (require auth:sanctum)
     Route::middleware('auth:sanctum')->group(function () {
+        // Token logout (for Bearer token auth - mobile/native apps)
         Route::post('/auth/logout', [AuthController::class, 'logout']);
+        // Session logout (for SPA cookie auth)
+        Route::post('/auth/session/logout', [AuthController::class, 'logoutSession']);
         Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/me/language', [AuthController::class, 'updateLanguage']);

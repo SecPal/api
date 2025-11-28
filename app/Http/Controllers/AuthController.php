@@ -5,6 +5,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\LoginRequest;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\PasswordResetRequestRequest;
 use App\Http\Requests\TokenRequest;
@@ -13,6 +14,7 @@ use App\Mail\PasswordResetMail;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -27,7 +29,64 @@ class AuthController extends Controller
     private const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
 
     /**
+     * SPA Login - Authenticate user and start session (for web SPA).
+     *
+     * Uses Laravel's session-based authentication with httpOnly cookies.
+     * This is the preferred method for browser-based SPAs.
+     *
+     * @throws ValidationException
+     */
+    public function login(LoginRequest $request): JsonResponse
+    {
+        /** @var array{email: string, password: string} $credentials */
+        $credentials = $request->validated();
+
+        // Use web guard explicitly for session-based auth
+        if (! Auth::guard('web')->attempt($credentials)) {
+            throw ValidationException::withMessages([
+                'email' => ['The provided credentials are incorrect.'],
+            ]);
+        }
+
+        $request->session()->regenerate();
+
+        /** @var User $user */
+        $user = Auth::guard('web')->user();
+
+        return response()->json([
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
+        ]);
+    }
+
+    /**
+     * SPA Logout - End session (for web SPA).
+     *
+     * Note: This requires the request to have a session.
+     * For token-based logout, use the logout() method.
+     */
+    public function logoutSession(Request $request): JsonResponse
+    {
+        Auth::guard('web')->logout();
+
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        return response()->json([
+            'message' => 'Logged out successfully.',
+        ]);
+    }
+
+    /**
      * Generate a new API token for the user.
+     *
+     * This is for mobile/native apps that need Bearer token authentication.
+     * For web SPAs, use the /auth/login endpoint instead.
      *
      * @throws ValidationException
      */

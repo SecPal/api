@@ -10,12 +10,11 @@ return [
     | Authentication Defaults
     |--------------------------------------------------------------------------
     |
-    | SecPal is an API-only application (React PWA frontend) using stateless
-    | token-based authentication via Laravel Sanctum. The default guard is
-    | set to 'sanctum' to reflect this architecture.
+    | SecPal is an API-only application (React PWA frontend) using:
+    | - Session-based authentication for web SPAs (via Sanctum's stateful mode)
+    | - Token-based authentication for mobile/native apps (Bearer tokens)
     |
-    | The 'web' guard is kept for Laravel's password reset flow (stateless
-    | token-based verification), but is NOT used for actual authentication.
+    | The default guard is 'sanctum' which supports both modes.
     |
     */
 
@@ -29,11 +28,12 @@ return [
     | Authentication Guards
     |--------------------------------------------------------------------------
     |
-    | SecPal uses Laravel Sanctum for API token authentication. All API routes
-    | are protected with the 'sanctum' guard (stateless Bearer tokens).
+    | SecPal uses Laravel Sanctum for authentication:
+    | - 'sanctum' guard: For API token authentication (mobile/native apps)
+    | - 'web' guard: For session-based SPA authentication and password resets
     |
-    | The 'web' guard remains configured for Laravel's password reset email
-    | verification flow only. It is NOT used for actual user authentication.
+    | Web SPAs use the 'web' guard with Sanctum's EnsureFrontendRequestsAreStateful
+    | middleware, which provides session-based auth with httpOnly cookies.
     |
     | Supported drivers: "session", "sanctum"
     |
