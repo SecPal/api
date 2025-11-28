@@ -283,3 +283,21 @@ describe('Token Security', function () {
         expect(strlen($tokenRecord->token))->toBe(64);
     });
 });
+
+describe('Unauthenticated Request Handling', function () {
+    test('unauthenticated request to protected endpoint returns 401 JSON response', function () {
+        // Issue #253: API should return 401 JSON, not 500 "Route [login] not defined"
+        $response = $this->getJson('/v1/secrets');
+
+        $response->assertUnauthorized()
+            ->assertJson(['message' => 'Unauthenticated.']);
+    });
+
+    test('request with invalid token returns 401 JSON response', function () {
+        $response = $this->withHeader('Authorization', 'Bearer invalid-token-12345')
+            ->getJson('/v1/secrets');
+
+        $response->assertUnauthorized()
+            ->assertJson(['message' => 'Unauthenticated.']);
+    });
+});

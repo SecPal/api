@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unauthenticated API Request Handling** (#253)
+  - Fixed 500 "Route [login] not defined" error for unauthenticated requests to protected endpoints
+  - API now returns proper 401 JSON response `{"message": "Unauthenticated."}` instead of attempting redirect
+  - Added exception handler for `AuthenticationException` in `bootstrap/app.php`
+  - Added tests for unauthenticated request scenarios
+
 ### Added
 
 - **Deployment Documentation** (#245)
