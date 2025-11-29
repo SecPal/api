@@ -21,8 +21,8 @@ return new class extends Migration
         Schema::create('role_assignments_log', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
-            // Foreign keys (bigInteger to match users/roles tables)
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            // Foreign keys (UUID to match users table)
+            $table->foreignUuid('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('role_id')->constrained('roles')->onDelete('cascade');
 
             // Action tracking
@@ -33,7 +33,7 @@ return new class extends Migration
             $table->timestamp('valid_until')->nullable();
 
             // Audit trail metadata
-            $table->foreignId('assigned_by')->nullable()->constrained('users')->onDelete('set null');
+            $table->foreignUuid('assigned_by')->nullable()->constrained('users')->onDelete('set null');
             $table->text('reason')->nullable();
 
             // Immutable timestamp (only created_at, no updated_at)
