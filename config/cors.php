@@ -23,7 +23,7 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'v1/*', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*', 'v1/*', 'health/*', 'sanctum/csrf-cookie'],
 
     'allowed_methods' => explode(',', (string) env('CORS_ALLOWED_METHODS', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')),
 
