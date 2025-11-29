@@ -287,7 +287,9 @@ describe('Token Security', function () {
 describe('Login Rate Limiting', function () {
     beforeEach(function () {
         // Clear rate limiter cache between tests
-        \Illuminate\Support\Facades\RateLimiter::clear('login');
+        // RateLimiter::clear('login') doesn't work because it expects full key like 'login:ip|email'
+        // Using Cache::flush() ensures clean state for each test
+        \Illuminate\Support\Facades\Cache::flush();
     });
 
     test('token endpoint is rate limited after 5 failed attempts', function () {
@@ -312,7 +314,8 @@ describe('Login Rate Limiting', function () {
             'password' => 'wrong-password',
         ]);
 
-        $response->assertTooManyRequests();
+        $response->assertTooManyRequests()
+            ->assertJson(['message' => 'Too many login attempts. Please try again in 60 seconds.']);
     });
 
     test('rate limit is per email and IP combination', function () {
@@ -348,12 +351,21 @@ describe('Login Rate Limiting', function () {
         $response->assertUnprocessable(); // 422, not 429
     });
 
-    test('successful token generation is allowed before rate limit', function () {
-        $user = User::factory()->create([
+    test('successful login resets rate limit counter', function () {
+        User::factory()->create([
             'email' => 'test@example.com',
             'password' => bcrypt('correct-password'),
         ]);
 
+        // Make 3 failed attempts (not exhausting the limit)
+        for ($i = 0; $i < 3; $i++) {
+            $this->postJson('/v1/auth/token', [
+                'email' => 'test@example.com',
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        // Successful login should work
         $response = $this->postJson('/v1/auth/token', [
             'email' => 'test@example.com',
             'password' => 'correct-password',
@@ -384,6 +396,38 @@ describe('Login Rate Limiting', function () {
         ]);
 
         $response->assertTooManyRequests();
+    });
+
+    test('same email from different IPs has separate rate limits', function () {
+        User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => bcrypt('password'),
+        ]);
+
+        // Exhaust rate limit from first IP
+        for ($i = 0; $i < 5; $i++) {
+            $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.1'])
+                ->postJson('/v1/auth/token', [
+                    'email' => 'test@example.com',
+                    'password' => 'wrong',
+                ]);
+        }
+
+        // First IP should be rate limited
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.1'])
+            ->postJson('/v1/auth/token', [
+                'email' => 'test@example.com',
+                'password' => 'wrong',
+            ]);
+        $response->assertTooManyRequests();
+
+        // Different IP should NOT be rate limited for same email
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.2'])
+            ->postJson('/v1/auth/token', [
+                'email' => 'test@example.com',
+                'password' => 'wrong',
+            ]);
+        $response->assertUnprocessable(); // 422, not 429
     });
 
     test('session login endpoint is also rate limited', function () {

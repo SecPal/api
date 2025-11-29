@@ -63,7 +63,7 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(5)->by($key)->response(function () {
                 return response()->json([
-                    'message' => __('auth.throttle', ['seconds' => 60]),
+                    'message' => __('Too many login attempts. Please try again in :seconds seconds.', ['seconds' => 60]),
                 ], 429);
             });
         });

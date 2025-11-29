@@ -1,4 +1,5 @@
 {
+  "Too many login attempts. Please try again in :seconds seconds.": "Zu viele Anmeldeversuche. Bitte versuchen Sie es in :seconds Sekunden erneut.",
   "Reset Your Password": "Passwort zurücksetzen",
   "Hello": "Hallo",
   "You requested a password reset for your SecPal account.": "Sie haben eine Passwort-Zurücksetzung für Ihr SecPal-Konto angefordert.",
