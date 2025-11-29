@@ -8,7 +8,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -37,15 +36,6 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Create enum type for PostgreSQL
-        DB::statement("
-            DO $$ BEGIN
-                CREATE TYPE user_scope_access_level AS ENUM ('none', 'read', 'write', 'manage', 'admin');
-            EXCEPTION
-                WHEN duplicate_object THEN null;
-            END $$;
-        ");
-
         Schema::create('user_internal_organizational_scopes', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('user_id')
@@ -55,32 +45,16 @@ return new class extends Migration
                 ->references('id')->on('organizational_units')
                 ->cascadeOnDelete();
 
+            // Access level for this user-unit pair
+            $table->enum('access_level', ['none', 'read', 'write', 'manage', 'admin'])->default('read');
+            $table->boolean('include_descendants')->default(false);
+
             // Unique constraint: One scope entry per user-unit pair
             $table->unique(['user_id', 'organizational_unit_id'], 'user_org_unit_unique');
 
             $table->timestamps();
-        });
 
-        // Add access_level enum column for PostgreSQL
-        if (DB::connection()->getDriverName() === 'pgsql') {
-            DB::statement("
-                ALTER TABLE user_internal_organizational_scopes
-                ADD COLUMN access_level user_scope_access_level NOT NULL DEFAULT 'read'
-            ");
-            DB::statement('
-                ALTER TABLE user_internal_organizational_scopes
-                ADD COLUMN include_descendants BOOLEAN NOT NULL DEFAULT FALSE
-            ');
-        } else {
-            // Fallback for SQLite (testing) or other databases
-            Schema::table('user_internal_organizational_scopes', function (Blueprint $table) {
-                $table->string('access_level')->default('read');
-                $table->boolean('include_descendants')->default(false);
-            });
-        }
-
-        // Add indexes for common queries
-        Schema::table('user_internal_organizational_scopes', function (Blueprint $table) {
+            // Indexes for common queries
             $table->index('access_level');
             $table->index(['user_id', 'access_level']); // "What can this user access?"
             $table->index(['organizational_unit_id', 'access_level']); // "Who can access this unit?"
@@ -95,10 +69,5 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('user_internal_organizational_scopes');
-
-        // Drop enum type if PostgreSQL
-        if (DB::connection()->getDriverName() === 'pgsql') {
-            DB::statement('DROP TYPE IF EXISTS user_scope_access_level');
-        }
     }
 };

@@ -18,10 +18,16 @@ use Illuminate\Support\Facades\Schema;
  * for "all descendants" or "all ancestors" operations.
  *
  * Key properties:
- * - Unlimited depth (depth is an integer, not constrained)
+ * - Unlimited depth (depth is an unsigned integer, not constrained)
  * - Fast queries: "All descendants of X" = WHERE ancestor_id = X
  * - Self-reference: Every unit has entry with depth=0 (ancestor=descendant=self)
  * - Path independence: No need to store/traverse paths
+ *
+ * Note on Soft Deletes:
+ * The cascadeOnDelete() only triggers on hard deletes. Soft-deleted organizational
+ * units retain their closure table entries, allowing restoration with intact
+ * relationships. Queries traversing hierarchies must join with
+ * whereNull('organizational_units.deleted_at') to exclude soft-deleted units.
  *
  * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251126-organizational-structure-hierarchy.md
  */
@@ -40,8 +46,8 @@ return new class extends Migration
                 ->references('id')->on('organizational_units')
                 ->cascadeOnDelete();
 
-            // Depth: 0=self, 1=direct child, 2=grandchild, etc.
-            $table->integer('depth');
+            // Depth: 0=self, 1=direct child, 2=grandchild, etc. (never negative)
+            $table->unsignedInteger('depth');
 
             // Composite primary key
             $table->primary(['ancestor_id', 'descendant_id']);
