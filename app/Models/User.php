@@ -7,11 +7,16 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
+// Models used in organizational scope methods
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection as SupportCollection;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -30,6 +35,8 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $preferred_locale
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
+ * @property-read Collection<int, UserInternalOrganizationalScope> $organizationalScopes
+ * @property-read Collection<int, OrganizationalUnit> $scopedOrganizationalUnits
  */
 class User extends Authenticatable
 {
@@ -147,5 +154,137 @@ class User extends Authenticatable
             ->where('model_id', $this->getKey())
             ->where('permission_id', $permission->id)
             ->exists();
+    }
+
+    /**
+     * Get all organizational scopes assigned to this user.
+     *
+     * @return HasMany<UserInternalOrganizationalScope, $this>
+     */
+    public function organizationalScopes(): HasMany
+    {
+        return $this->hasMany(UserInternalOrganizationalScope::class, 'user_id');
+    }
+
+    /**
+     * Get all organizational units this user has direct scope access to.
+     *
+     * @return BelongsToMany<OrganizationalUnit, $this>
+     */
+    public function scopedOrganizationalUnits(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            OrganizationalUnit::class,
+            'user_internal_organizational_scopes',
+            'user_id',
+            'organizational_unit_id'
+        )->withPivot(['access_level', 'include_descendants']);
+    }
+
+    /**
+     * Get all organizational units accessible to this user.
+     *
+     * Includes directly scoped units and their descendants (when include_descendants is true).
+     * Uses optimized queries to avoid N+1 issues.
+     *
+     * @return Collection<int, OrganizationalUnit>
+     */
+    public function getAccessibleOrganizationalUnits(): Collection
+    {
+        $scopes = $this->organizationalScopes()->get();
+
+        /** @var SupportCollection<int, string> $directUnitIds */
+        $directUnitIds = collect();
+        /** @var SupportCollection<int, string> $ancestorIdsForDescendants */
+        $ancestorIdsForDescendants = collect();
+
+        foreach ($scopes as $scope) {
+            // Always include the directly scoped unit
+            $directUnitIds->push($scope->organizational_unit_id);
+
+            // Collect ancestor IDs for descendant query
+            if ($scope->include_descendants) {
+                $ancestorIdsForDescendants->push($scope->organizational_unit_id);
+            }
+        }
+
+        // Single query for all descendants (N+1 fix)
+        /** @var SupportCollection<int, string> $descendantIds */
+        $descendantIds = collect();
+        if ($ancestorIdsForDescendants->isNotEmpty()) {
+            $descendantIds = OrganizationalUnitClosure::whereIn('ancestor_id', $ancestorIdsForDescendants->unique())
+                ->where('depth', '>', 0)
+                ->pluck('descendant_id');
+        }
+
+        /** @var SupportCollection<int, string> $accessibleUnitIds */
+        $accessibleUnitIds = $directUnitIds->merge($descendantIds)->unique();
+
+        return OrganizationalUnit::whereIn('id', $accessibleUnitIds)->get();
+    }
+
+    /**
+     * Check if user has access to a specific organizational unit.
+     *
+     * Uses optimized queries to avoid N+1 issues:
+     * - Pre-fetches all ancestor relationships for scopes with include_descendants
+     * - Single query to check if target unit is a descendant of any scoped unit
+     *
+     * @param  string|null  $minimumLevel  Optional minimum access level required
+     */
+    public function hasAccessToUnit(OrganizationalUnit $unit, ?string $minimumLevel = null): bool
+    {
+        $scopes = $this->organizationalScopes()->get();
+
+        if ($scopes->isEmpty()) {
+            return false;
+        }
+
+        // Collect unit IDs for direct scope check and descendant check
+        /** @var SupportCollection<int, string> $directScopeUnitIds */
+        $directScopeUnitIds = collect();
+        /** @var SupportCollection<int, string> $descendantScopeUnitIds */
+        $descendantScopeUnitIds = collect();
+
+        foreach ($scopes as $scope) {
+            $directScopeUnitIds->push($scope->organizational_unit_id);
+            if ($scope->include_descendants) {
+                $descendantScopeUnitIds->push($scope->organizational_unit_id);
+            }
+        }
+
+        // Check if unit is directly scoped
+        $isDirectlyScoped = $directScopeUnitIds->contains($unit->id);
+
+        // Check if unit is a descendant of any scoped unit (single query)
+        $ancestorScopeId = null;
+        if (! $isDirectlyScoped && $descendantScopeUnitIds->isNotEmpty()) {
+            $ancestorScopeId = OrganizationalUnitClosure::whereIn('ancestor_id', $descendantScopeUnitIds->unique())
+                ->where('descendant_id', $unit->id)
+                ->where('depth', '>', 0)
+                ->value('ancestor_id');
+        }
+
+        // Determine which scope applies
+        $applicableScope = null;
+        if ($isDirectlyScoped) {
+            // Find scope with direct match
+            $applicableScope = $scopes->first(fn ($s) => $s->organizational_unit_id === $unit->id);
+        } elseif ($ancestorScopeId !== null) {
+            // Find scope for the ancestor
+            $applicableScope = $scopes->first(fn ($s) => $s->organizational_unit_id === $ancestorScopeId && $s->include_descendants);
+        }
+
+        if ($applicableScope === null) {
+            return false;
+        }
+
+        // If no minimum level specified, any access is sufficient
+        if ($minimumLevel === null) {
+            return true;
+        }
+
+        // Check if access level is sufficient
+        return $applicableScope->hasMinimumAccessLevel($minimumLevel);
     }
 }
