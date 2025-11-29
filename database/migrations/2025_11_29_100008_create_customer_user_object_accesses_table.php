@@ -46,7 +46,7 @@ return new class extends Migration
     {
         Schema::create('customer_user_object_accesses', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys');
+            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
 
             $table->foreignUuid('user_id')
                 ->constrained('users')

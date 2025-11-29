@@ -38,7 +38,7 @@ return new class extends Migration
     {
         Schema::create('objects', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys');
+            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
             $table->foreignUuid('customer_id')
                 ->constrained('customers')
                 ->cascadeOnDelete();

@@ -8,6 +8,7 @@
 
 declare(strict_types=1);
 
+use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -29,15 +30,18 @@ uses(RefreshDatabase::class);
  * @see https://github.com/SecPal/api/issues/230
  */
 beforeEach(function (): void {
-    // Ensure we have a tenant key for testing
-    DB::table('tenant_keys')->insertOrIgnore([
-        'id' => 1,
-        'dek_wrapped' => 'test_dek',
-        'dek_nonce' => 'test_nonce',
-        'idx_wrapped' => 'test_idx',
-        'idx_nonce' => 'test_idx_nonce',
-        'key_version' => 1,
-    ]);
+    // Use proper TenantKey initialization as per project pattern
+    TenantKey::setKekPath(getTestKekPath());
+    TenantKey::generateKek();
+
+    // Create a tenant for testing
+    $keys = TenantKey::generateEnvelopeKeys();
+    $this->tenant = TenantKey::create($keys);
+});
+
+afterEach(function (): void {
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
 });
 
 describe('customers table', function (): void {
@@ -66,7 +70,7 @@ describe('customers table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Test Customer',
             'customer_number' => 'CUST-001',
             'type' => 'corporate',
@@ -91,7 +95,7 @@ describe('customers table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $uuid1,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Customer A',
             'customer_number' => 'UNIQUE-001',
             'type' => 'local',
@@ -101,7 +105,7 @@ describe('customers table', function (): void {
 
         expect(fn () => DB::table('customers')->insert([
             'id' => $uuid2,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Customer B',
             'customer_number' => 'UNIQUE-001', // Duplicate
             'type' => 'local',
@@ -117,7 +121,7 @@ describe('customers table', function (): void {
             $uuid = (string) Str::uuid();
             DB::table('customers')->insert([
                 'id' => $uuid,
-                'tenant_id' => 1,
+                'tenant_id' => $this->tenant->id,
                 'name' => "Customer Type {$type}",
                 'customer_number' => "TYPE-{$index}",
                 'type' => $type,
@@ -147,7 +151,7 @@ describe('customer_closures table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Self-Reference Test',
             'customer_number' => 'SELF-001',
             'type' => 'local',
@@ -178,7 +182,7 @@ describe('customer_closures table', function (): void {
         // Create parent customer
         DB::table('customers')->insert([
             'id' => $parentId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Parent Corp',
             'customer_number' => 'PARENT-001',
             'type' => 'corporate',
@@ -189,7 +193,7 @@ describe('customer_closures table', function (): void {
         // Create child customer
         DB::table('customers')->insert([
             'id' => $childId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Child Regional',
             'customer_number' => 'CHILD-001',
             'type' => 'regional',
@@ -218,7 +222,7 @@ describe('customer_closures table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Cascade Test',
             'customer_number' => 'CASCADE-001',
             'type' => 'local',
@@ -248,7 +252,7 @@ describe('customer_closures table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Unique Test',
             'customer_number' => 'UNIQUE-CLOSURE-001',
             'type' => 'local',
@@ -296,7 +300,7 @@ describe('objects table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Object Test Customer',
             'customer_number' => 'OBJ-CUST-001',
             'type' => 'local',
@@ -306,7 +310,7 @@ describe('objects table', function (): void {
 
         DB::table('objects')->insert([
             'id' => $objectId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'customer_id' => $customerId,
             'object_number' => 'OBJ-001',
             'name' => 'Test Building',
@@ -333,7 +337,7 @@ describe('objects table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Unique Object Customer',
             'customer_number' => 'UNIQUE-OBJ-CUST',
             'type' => 'local',
@@ -343,7 +347,7 @@ describe('objects table', function (): void {
 
         DB::table('objects')->insert([
             'id' => $objectId1,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'customer_id' => $customerId,
             'object_number' => 'UNIQUE-OBJ-001',
             'name' => 'Object A',
@@ -354,7 +358,7 @@ describe('objects table', function (): void {
 
         expect(fn () => DB::table('objects')->insert([
             'id' => $objectId2,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'customer_id' => $customerId,
             'object_number' => 'UNIQUE-OBJ-001', // Duplicate in same tenant
             'name' => 'Object B',
@@ -370,7 +374,7 @@ describe('objects table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Cascade Object Customer',
             'customer_number' => 'CASCADE-OBJ-CUST',
             'type' => 'local',
@@ -380,7 +384,7 @@ describe('objects table', function (): void {
 
         DB::table('objects')->insert([
             'id' => $objectId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'customer_id' => $customerId,
             'object_number' => 'CASCADE-OBJ-001',
             'name' => 'Cascade Object',
@@ -424,7 +428,7 @@ describe('object_areas table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Area Test Customer',
             'customer_number' => 'AREA-CUST-001',
             'type' => 'local',
@@ -434,7 +438,7 @@ describe('object_areas table', function (): void {
 
         DB::table('objects')->insert([
             'id' => $objectId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'customer_id' => $customerId,
             'object_number' => 'AREA-OBJ-001',
             'name' => 'Airport',
@@ -445,7 +449,7 @@ describe('object_areas table', function (): void {
 
         DB::table('object_areas')->insert([
             'id' => $areaId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'object_id' => $objectId,
             'name' => 'Terminal 1',
             'description' => 'Main terminal building',
@@ -473,7 +477,7 @@ describe('object_areas table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Cascade Area Customer',
             'customer_number' => 'CASCADE-AREA-CUST',
             'type' => 'local',
@@ -483,7 +487,7 @@ describe('object_areas table', function (): void {
 
         DB::table('objects')->insert([
             'id' => $objectId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'customer_id' => $customerId,
             'object_number' => 'CASCADE-AREA-OBJ',
             'name' => 'Cascade Object',
@@ -494,7 +498,7 @@ describe('object_areas table', function (): void {
 
         DB::table('object_areas')->insert([
             'id' => $areaId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'object_id' => $objectId,
             'name' => 'Cascade Area',
             'requires_separate_guard_book' => false,
@@ -536,7 +540,7 @@ describe('customer_user_accesses table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Access Test Customer',
             'customer_number' => 'ACCESS-CUST-001',
             'type' => 'corporate',
@@ -546,7 +550,7 @@ describe('customer_user_accesses table', function (): void {
 
         DB::table('customer_user_accesses')->insert([
             'id' => $accessId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'user_id' => $user->id,
             'customer_id' => $customerId,
             'access_level' => 'corporate_wide',
@@ -573,7 +577,7 @@ describe('customer_user_accesses table', function (): void {
 
             DB::table('customers')->insert([
                 'id' => $customerId,
-                'tenant_id' => 1,
+                'tenant_id' => $this->tenant->id,
                 'name' => "Level {$level} Customer",
                 'customer_number' => "LEVEL-{$index}",
                 'type' => 'local',
@@ -583,7 +587,7 @@ describe('customer_user_accesses table', function (): void {
 
             DB::table('customer_user_accesses')->insert([
                 'id' => $accessId,
-                'tenant_id' => 1,
+                'tenant_id' => $this->tenant->id,
                 'user_id' => $user->id,
                 'customer_id' => $customerId,
                 'access_level' => $level,
@@ -604,7 +608,7 @@ describe('customer_user_accesses table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Duplicate Access Customer',
             'customer_number' => 'DUP-ACCESS-CUST',
             'type' => 'local',
@@ -614,7 +618,7 @@ describe('customer_user_accesses table', function (): void {
 
         DB::table('customer_user_accesses')->insert([
             'id' => (string) Str::uuid(),
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'user_id' => $user->id,
             'customer_id' => $customerId,
             'access_level' => 'local',
@@ -625,7 +629,7 @@ describe('customer_user_accesses table', function (): void {
 
         expect(fn () => DB::table('customer_user_accesses')->insert([
             'id' => (string) Str::uuid(),
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'user_id' => $user->id,
             'customer_id' => $customerId,
             'access_level' => 'corporate_wide',
@@ -643,7 +647,7 @@ describe('customer_user_accesses table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Cascade Access Customer',
             'customer_number' => 'CASCADE-ACCESS-CUST',
             'type' => 'local',
@@ -653,7 +657,7 @@ describe('customer_user_accesses table', function (): void {
 
         DB::table('customer_user_accesses')->insert([
             'id' => $accessId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'user_id' => $user->id,
             'customer_id' => $customerId,
             'access_level' => 'local',
@@ -664,6 +668,41 @@ describe('customer_user_accesses table', function (): void {
 
         // Delete user
         DB::table('users')->where('id', $user->id)->delete();
+
+        // Access should be deleted
+        $access = DB::table('customer_user_accesses')->find($accessId);
+        expect($access)->toBeNull();
+    });
+
+    test('cascading deletes work when customer deleted', function (): void {
+        $customerId = (string) Str::uuid();
+        $accessId = (string) Str::uuid();
+
+        $user = User::factory()->create();
+
+        DB::table('customers')->insert([
+            'id' => $customerId,
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Cascade Customer Access Customer',
+            'customer_number' => 'CASCADE-CUST-ACCESS-CUST',
+            'type' => 'local',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('customer_user_accesses')->insert([
+            'id' => $accessId,
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $user->id,
+            'customer_id' => $customerId,
+            'access_level' => 'local',
+            'include_descendants' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Delete customer
+        DB::table('customers')->where('id', $customerId)->delete();
 
         // Access should be deleted
         $access = DB::table('customer_user_accesses')->find($accessId);
@@ -695,7 +734,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Object Access Customer',
             'customer_number' => 'OBJ-ACCESS-CUST',
             'type' => 'local',
@@ -705,7 +744,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         DB::table('objects')->insert([
             'id' => $objectId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'customer_id' => $customerId,
             'object_number' => 'OBJ-ACCESS-OBJ',
             'name' => 'Object Access Object',
@@ -718,7 +757,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         DB::table('customer_user_object_accesses')->insert([
             'id' => $accessId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'user_id' => $user->id,
             'object_id' => $objectId,
             'allowed_actions' => json_encode($allowedActions),
@@ -742,7 +781,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Dup Object Access Customer',
             'customer_number' => 'DUP-OBJ-ACCESS-CUST',
             'type' => 'local',
@@ -752,7 +791,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         DB::table('objects')->insert([
             'id' => $objectId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'customer_id' => $customerId,
             'object_number' => 'DUP-OBJ-ACCESS-OBJ',
             'name' => 'Dup Object',
@@ -763,7 +802,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         DB::table('customer_user_object_accesses')->insert([
             'id' => (string) Str::uuid(),
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'user_id' => $user->id,
             'object_id' => $objectId,
             'allowed_actions' => json_encode(['read_guard_book']),
@@ -773,7 +812,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         expect(fn () => DB::table('customer_user_object_accesses')->insert([
             'id' => (string) Str::uuid(),
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'user_id' => $user->id,
             'object_id' => $objectId, // Duplicate
             'allowed_actions' => json_encode(['read_reports']),
@@ -791,7 +830,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Cascade Obj Customer',
             'customer_number' => 'CASCADE-OBJ-CUST',
             'type' => 'local',
@@ -801,7 +840,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         DB::table('objects')->insert([
             'id' => $objectId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'customer_id' => $customerId,
             'object_number' => 'CASCADE-OBJ',
             'name' => 'Cascade Object',
@@ -812,7 +851,7 @@ describe('customer_user_object_accesses table', function (): void {
 
         DB::table('customer_user_object_accesses')->insert([
             'id' => $accessId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'user_id' => $user->id,
             'object_id' => $objectId,
             'allowed_actions' => json_encode(['read_guard_book']),
@@ -827,6 +866,52 @@ describe('customer_user_object_accesses table', function (): void {
         $access = DB::table('customer_user_object_accesses')->find($accessId);
         expect($access)->toBeNull();
     });
+
+    test('cascading deletes work when user deleted', function (): void {
+        $customerId = (string) Str::uuid();
+        $objectId = (string) Str::uuid();
+        $accessId = (string) Str::uuid();
+
+        $user = User::factory()->create();
+
+        DB::table('customers')->insert([
+            'id' => $customerId,
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Cascade User Obj Customer',
+            'customer_number' => 'CASCADE-USER-OBJ-CUST',
+            'type' => 'local',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('objects')->insert([
+            'id' => $objectId,
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customerId,
+            'object_number' => 'CASCADE-USER-OBJ',
+            'name' => 'Cascade User Object',
+            'address' => 'Cascade User Address',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('customer_user_object_accesses')->insert([
+            'id' => $accessId,
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $user->id,
+            'object_id' => $objectId,
+            'allowed_actions' => json_encode(['read_guard_book']),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Delete user
+        DB::table('users')->where('id', $user->id)->delete();
+
+        // Access should be deleted
+        $access = DB::table('customer_user_object_accesses')->find($accessId);
+        expect($access)->toBeNull();
+    });
 });
 
 describe('customer hierarchy independence', function (): void {
@@ -835,7 +920,7 @@ describe('customer hierarchy independence', function (): void {
         $orgUnitId = (string) Str::uuid();
         DB::table('organizational_units')->insert([
             'id' => $orgUnitId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'name' => 'Branch Berlin',
             'type' => 'branch',
             'created_at' => now(),
@@ -846,7 +931,7 @@ describe('customer hierarchy independence', function (): void {
         $customerId = (string) Str::uuid();
         DB::table('customers')->insert([
             'id' => $customerId,
-            'tenant_id' => 1,
+            'tenant_id' => $this->tenant->id,
             'managed_by_organizational_unit_id' => $orgUnitId,
             'name' => 'Managed Customer',
             'customer_number' => 'MANAGED-001',

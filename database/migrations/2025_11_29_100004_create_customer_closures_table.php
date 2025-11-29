@@ -59,6 +59,7 @@ return new class extends Migration
             // are derived data managed by the application layer
 
             // Optimize hierarchical queries
+            $table->index('depth');
             $table->index(['ancestor_id', 'depth'], 'idx_customer_closures_ancestor_depth');
             $table->index(['descendant_id', 'depth'], 'idx_customer_closures_descendant_depth');
 

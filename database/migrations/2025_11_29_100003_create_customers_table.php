@@ -38,7 +38,7 @@ return new class extends Migration
     {
         Schema::create('customers', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignId('tenant_id')->constrained('tenant_keys');
+            $table->foreignId('tenant_id')->constrained('tenant_keys')->cascadeOnDelete();
 
             // Which internal organizational unit manages this customer?
             // This is for INTERNAL use only - customer users do NOT see this!
