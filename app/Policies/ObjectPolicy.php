@@ -112,7 +112,7 @@ class ObjectPolicy
     private function hasCustomerUserAccess(User $user, SecPalObject $object): bool
     {
         // Check customer hierarchy access
-        $accesses = CustomerUserAccess::where('user_id', $user->id)->get();
+        $accesses = CustomerUserAccess::with('customer')->where('user_id', $user->id)->get();
 
         foreach ($accesses as $access) {
             // Skip if tenant doesn't match

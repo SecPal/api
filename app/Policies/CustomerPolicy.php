@@ -161,7 +161,7 @@ class CustomerPolicy
      */
     private function hasCustomerAccess(User $user, Customer $customer): bool
     {
-        $accesses = CustomerUserAccess::where('user_id', $user->id)->get();
+        $accesses = CustomerUserAccess::with('customer')->where('user_id', $user->id)->get();
 
         foreach ($accesses as $access) {
             // Skip if tenant doesn't match (defense-in-depth)

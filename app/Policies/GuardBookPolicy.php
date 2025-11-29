@@ -134,7 +134,7 @@ class GuardBookPolicy
      */
     private function hasCustomerHierarchyAccess(User $user, \App\Models\SecPalObject $object): bool
     {
-        $accesses = CustomerUserAccess::where('user_id', $user->id)->get();
+        $accesses = CustomerUserAccess::with('customer')->where('user_id', $user->id)->get();
 
         foreach ($accesses as $access) {
             // Skip if tenant doesn't match
