@@ -5,13 +5,21 @@
 
 namespace App\Providers;
 
+use App\Models\Customer;
+use App\Models\GuardBook;
+use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\Person;
+use App\Models\SecPalObject;
 use App\Models\Secret;
 use App\Models\SecretAttachment;
 use App\Models\SecretShare;
 use App\Observers\PersonObserver;
 use App\Observers\SecretObserver;
+use App\Policies\CustomerPolicy;
+use App\Policies\GuardBookPolicy;
+use App\Policies\ObjectPolicy;
+use App\Policies\OrganizationalUnitPolicy;
 use App\Policies\PermissionManagementPolicy;
 use App\Policies\RoleManagementPolicy;
 use App\Policies\SecretAttachmentPolicy;
@@ -82,6 +90,12 @@ class AppServiceProvider extends ServiceProvider
 
         // Register policy for SecretAttachment model
         Gate::policy(SecretAttachment::class, SecretAttachmentPolicy::class);
+
+        // Register policies for Organizational Structure & Customer Hierarchies (Issue #236)
+        Gate::policy(OrganizationalUnit::class, OrganizationalUnitPolicy::class);
+        Gate::policy(Customer::class, CustomerPolicy::class);
+        Gate::policy(SecPalObject::class, ObjectPolicy::class);
+        Gate::policy(GuardBook::class, GuardBookPolicy::class);
 
         // Register gates for user permission management
         $this->registerUserPermissionGates();

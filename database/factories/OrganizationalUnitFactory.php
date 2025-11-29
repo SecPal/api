@@ -30,7 +30,7 @@ class OrganizationalUnitFactory extends Factory
         return [
             'tenant_id' => fake()->uuid(),
             'type' => fake()->randomElement([
-                'holding', 'company', 'region', 'branch', 'department', 'team', 'custom',
+                'holding', 'company', 'region', 'branch', 'department', 'division', 'custom',
             ]),
             'name' => fake()->company(),
             'custom_type_name' => null,
