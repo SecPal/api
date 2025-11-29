@@ -18,8 +18,8 @@ use Spatie\Permission\Traits\HasRoles;
 /**
  * User model with UUID primary key.
  *
- * Uses UUID for primary key (migrated from bigint in 2025_11_16_023000).
- * All foreign key references use string type for UUID compatibility.
+ * Uses UUID for primary key (defined in initial migration).
+ * All foreign key references use UUID type for consistency.
  *
  * @property string $id UUID primary key
  * @property string $name

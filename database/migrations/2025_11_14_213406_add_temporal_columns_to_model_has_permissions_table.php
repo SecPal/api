@@ -26,7 +26,7 @@ return new class extends Migration
             $table->timestamp('valid_until')->nullable()->after('valid_from');
 
             // Audit trail columns
-            $table->foreignId('assigned_by')->nullable()->after('valid_until')->constrained('users')->onDelete('set null');
+            $table->foreignUuid('assigned_by')->nullable()->after('valid_until')->constrained('users')->onDelete('set null');
             $table->text('reason')->nullable()->after('assigned_by');
 
             // Standard timestamps
