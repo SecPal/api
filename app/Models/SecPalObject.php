@@ -124,15 +124,26 @@ class SecPalObject extends Model
      * The primary guard book is for the entire object (not area-specific).
      * Returns null if no primary guard book exists yet.
      *
-     * Note: This relationship will be implemented when GuardBook model is created (Issue #233).
-     *
-     * @return HasOne<ObjectArea, $this>|null
+     * @return HasOne<GuardBook, $this>
      */
-    // public function primaryGuardBook(): ?HasOne
-    // {
-    //     // Will be implemented in Issue #233
-    //     return null;
-    // }
+    public function primaryGuardBook(): HasOne
+    {
+        return $this->hasOne(GuardBook::class, 'object_id');
+    }
+
+    /**
+     * Get all object-level guard books for this object.
+     *
+     * This returns guard books directly associated with this object
+     * (where object_id = this object's id). Area-specific guard books
+     * are accessed via ObjectArea->guardBook() relationship.
+     *
+     * @return HasMany<GuardBook, $this>
+     */
+    public function guardBooks(): HasMany
+    {
+        return $this->hasMany(GuardBook::class, 'object_id');
+    }
 
     /**
      * Get customer user object access records for this object.
