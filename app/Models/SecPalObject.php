@@ -132,7 +132,11 @@ class SecPalObject extends Model
     }
 
     /**
-     * Get all guard books for this object (primary + area-specific).
+     * Get all object-level guard books for this object.
+     *
+     * This returns guard books directly associated with this object
+     * (where object_id = this object's id). Area-specific guard books
+     * are accessed via ObjectArea->guardBook() relationship.
      *
      * @return HasMany<GuardBook, $this>
      */

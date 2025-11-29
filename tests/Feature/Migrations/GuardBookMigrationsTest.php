@@ -93,6 +93,95 @@ describe('guard_books migration', function (): void {
 
         expect($indexes)->not->toBeEmpty();
     });
+
+    describe('XOR constraint enforcement at database level', function (): void {
+        beforeEach(function (): void {
+            // Set up tenant and object for constraint tests
+            \App\Models\TenantKey::setKekPath(getTestKekPath());
+            \App\Models\TenantKey::generateKek();
+            $keys = \App\Models\TenantKey::generateEnvelopeKeys();
+            $this->tenant = \App\Models\TenantKey::create($keys);
+
+            $customer = \App\Models\Customer::factory()->forTenant($this->tenant->id)->create();
+            $this->object = \App\Models\SecPalObject::factory()
+                ->forTenant($this->tenant->id)
+                ->forCustomer($customer)
+                ->create();
+            $this->objectArea = \App\Models\ObjectArea::factory()
+                ->forTenant($this->tenant->id)
+                ->forObject($this->object)
+                ->create();
+        });
+
+        afterEach(function (): void {
+            cleanupTestKekFile();
+            \App\Models\TenantKey::setKekPath(null);
+        });
+
+        it('allows insert with only object_id', function (): void {
+            $id = (string) \Illuminate\Support\Str::uuid();
+            $result = DB::table('guard_books')->insert([
+                'id' => $id,
+                'tenant_id' => $this->tenant->id,
+                'object_id' => $this->object->id,
+                'object_area_id' => null,
+                'title' => 'Test Guard Book',
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            expect($result)->toBeTrue();
+            expect(DB::table('guard_books')->where('id', $id)->exists())->toBeTrue();
+        });
+
+        it('allows insert with only object_area_id', function (): void {
+            $id = (string) \Illuminate\Support\Str::uuid();
+            $result = DB::table('guard_books')->insert([
+                'id' => $id,
+                'tenant_id' => $this->tenant->id,
+                'object_id' => null,
+                'object_area_id' => $this->objectArea->id,
+                'title' => 'Area Guard Book',
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            expect($result)->toBeTrue();
+            expect(DB::table('guard_books')->where('id', $id)->exists())->toBeTrue();
+        });
+
+        it('rejects insert with both object_id AND object_area_id', function (): void {
+            $id = (string) \Illuminate\Support\Str::uuid();
+
+            expect(fn () => DB::table('guard_books')->insert([
+                'id' => $id,
+                'tenant_id' => $this->tenant->id,
+                'object_id' => $this->object->id,
+                'object_area_id' => $this->objectArea->id,
+                'title' => 'Invalid Guard Book',
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]))->toThrow(\Illuminate\Database\QueryException::class);
+        });
+
+        it('rejects insert with neither object_id NOR object_area_id', function (): void {
+            $id = (string) \Illuminate\Support\Str::uuid();
+
+            expect(fn () => DB::table('guard_books')->insert([
+                'id' => $id,
+                'tenant_id' => $this->tenant->id,
+                'object_id' => null,
+                'object_area_id' => null,
+                'title' => 'Invalid Guard Book',
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]))->toThrow(\Illuminate\Database\QueryException::class);
+        });
+    });
 });
 
 describe('guard_book_reports migration', function (): void {

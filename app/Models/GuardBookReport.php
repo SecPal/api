@@ -150,13 +150,16 @@ class GuardBookReport extends Model
     }
 
     /**
-     * Check if a specific event type is included in this report.
+     * Check if a specific event type is explicitly included in this report's filter.
+     *
+     * Returns false when no filter is set (no explicit inclusions).
+     * Use getIncludedEventTypes() to check if filtering is active.
      */
     public function includesEventType(string $eventType): bool
     {
         $eventTypes = $this->getIncludedEventTypes();
 
-        // If no event types filter, all events are included (but return false for specific check)
+        // No filter set means no explicit type inclusions
         if (empty($eventTypes)) {
             return false;
         }
@@ -192,11 +195,13 @@ class GuardBookReport extends Model
 
     /**
      * Check if the period represents a full calendar month.
+     *
+     * Uses isSameDay() for robust comparison independent of time components.
      */
     protected function isFullMonth(Carbon $start, Carbon $end): bool
     {
-        return $start->day === 1
-            && $end->day === $end->daysInMonth
+        return $start->isSameDay($start->copy()->startOfMonth())
+            && $end->isSameDay($end->copy()->endOfMonth())
             && $start->month === $end->month
             && $start->year === $end->year;
     }

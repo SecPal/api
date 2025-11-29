@@ -253,6 +253,11 @@ describe('GuardBook Model', function (): void {
 
             expect($guardBook->is_active)->toBeFalse()
                 ->and($guardBook->archived_at)->not->toBeNull();
+
+            // Verify persistence to database
+            $guardBook->refresh();
+            expect($guardBook->is_active)->toBeFalse()
+                ->and($guardBook->archived_at)->not->toBeNull();
         });
 
         it('can be reactivated', function (): void {
@@ -264,6 +269,11 @@ describe('GuardBook Model', function (): void {
 
             $guardBook->reactivate();
 
+            expect($guardBook->is_active)->toBeTrue()
+                ->and($guardBook->archived_at)->toBeNull();
+
+            // Verify persistence to database
+            $guardBook->refresh();
             expect($guardBook->is_active)->toBeTrue()
                 ->and($guardBook->archived_at)->toBeNull();
         });
@@ -409,6 +419,25 @@ describe('GuardBookReport Model', function (): void {
 
             expect($report->includesEventType('incident'))->toBeTrue()
                 ->and($report->includesEventType('other'))->toBeFalse();
+        });
+
+        it('includesEventType returns false when filter_criteria is null', function (): void {
+            $report = GuardBookReport::factory()
+                ->forTenant($this->tenant->id)
+                ->forGuardBook($this->guardBook)
+                ->create(['filter_criteria' => null]);
+
+            expect($report->includesEventType('incident'))->toBeFalse();
+        });
+
+        it('belongs to tenant', function (): void {
+            $report = GuardBookReport::factory()
+                ->forTenant($this->tenant->id)
+                ->forGuardBook($this->guardBook)
+                ->create();
+
+            expect($report->tenant)->toBeInstanceOf(TenantKey::class)
+                ->and($report->tenant->id)->toBe($this->tenant->id);
         });
     });
 

@@ -101,14 +101,13 @@ class GuardBookReportFactory extends Factory
      */
     public function forMonth(int $year, int $month): static
     {
-        $startDate = Carbon::create($year, $month, 1);
-        $endDate = Carbon::create($year, $month, 1);
+        $date = Carbon::create($year, $month, 1);
 
         // Carbon::create can return null, but with valid year/month it won't
-        assert($startDate !== null && $endDate !== null);
+        assert($date !== null);
 
-        $start = $startDate->startOfMonth();
-        $end = $endDate->endOfMonth();
+        $start = $date->copy()->startOfMonth();
+        $end = $date->copy()->endOfMonth();
 
         return $this->forPeriod($start, $end)->state(fn (array $attributes) => [
             'title' => 'Monatsbericht '.$start->translatedFormat('F Y'),
