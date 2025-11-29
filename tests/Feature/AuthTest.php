@@ -284,6 +284,134 @@ describe('Token Security', function () {
     });
 });
 
+describe('Login Rate Limiting', function () {
+    beforeEach(function () {
+        // Clear rate limiter cache between tests
+        \Illuminate\Support\Facades\RateLimiter::clear('login');
+    });
+
+    test('token endpoint is rate limited after 5 failed attempts', function () {
+        User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        // Make 5 failed token attempts (the limit)
+        for ($i = 0; $i < 5; $i++) {
+            $response = $this->postJson('/v1/auth/token', [
+                'email' => 'test@example.com',
+                'password' => 'wrong-password',
+            ]);
+
+            $response->assertUnprocessable();
+        }
+
+        // 6th attempt should be rate limited
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => 'test@example.com',
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertTooManyRequests();
+    });
+
+    test('rate limit is per email and IP combination', function () {
+        User::factory()->create([
+            'email' => 'user1@example.com',
+            'password' => bcrypt('password'),
+        ]);
+        User::factory()->create([
+            'email' => 'user2@example.com',
+            'password' => bcrypt('password'),
+        ]);
+
+        // Exhaust rate limit for user1
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/v1/auth/token', [
+                'email' => 'user1@example.com',
+                'password' => 'wrong',
+            ]);
+        }
+
+        // user1 should be rate limited
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => 'user1@example.com',
+            'password' => 'wrong',
+        ]);
+        $response->assertTooManyRequests();
+
+        // user2 should NOT be rate limited (different email)
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => 'user2@example.com',
+            'password' => 'wrong',
+        ]);
+        $response->assertUnprocessable(); // 422, not 429
+    });
+
+    test('successful token generation is allowed before rate limit', function () {
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => 'test@example.com',
+            'password' => 'correct-password',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonStructure(['token', 'user' => ['id', 'name', 'email']]);
+    });
+
+    test('rate limit applies to email regardless of password', function () {
+        User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => bcrypt('password'),
+        ]);
+
+        // Exhaust rate limit with different wrong passwords
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/v1/auth/token', [
+                'email' => 'test@example.com',
+                'password' => 'wrong'.$i,
+            ]);
+        }
+
+        // 6th attempt with yet another password should still be blocked
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => 'test@example.com',
+            'password' => 'different-wrong',
+        ]);
+
+        $response->assertTooManyRequests();
+    });
+
+    test('session login endpoint is also rate limited', function () {
+        User::factory()->create([
+            'email' => 'session-test@example.com',
+            'password' => bcrypt('password'),
+        ]);
+
+        // Make 5 failed login attempts - use withSession to enable session
+        for ($i = 0; $i < 5; $i++) {
+            $this->withSession([])
+                ->postJson('/v1/auth/login', [
+                    'email' => 'session-test@example.com',
+                    'password' => 'wrong',
+                ]);
+        }
+
+        // 6th attempt should be rate limited
+        $response = $this->withSession([])
+            ->postJson('/v1/auth/login', [
+                'email' => 'session-test@example.com',
+                'password' => 'wrong',
+            ]);
+
+        $response->assertTooManyRequests();
+    });
+});
+
 describe('Unauthenticated Request Handling', function () {
     test('unauthenticated request to protected endpoint returns 401 JSON response', function () {
         // Issue #253: API should return 401 JSON, not 500 "Route [login] not defined"

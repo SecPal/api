@@ -43,9 +43,11 @@ Route::prefix('v1')->group(function () {
     // Authentication routes (public)
     // SPA Login (session-based, for web browsers)
     // EnsureFrontendRequestsAreStateful middleware handles session/cookie middleware automatically
-    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/login', [AuthController::class, 'login'])
+        ->middleware('throttle:login');
     // Token Login (for mobile/native apps)
-    Route::post('/auth/token', [AuthController::class, 'token']);
+    Route::post('/auth/token', [AuthController::class, 'token'])
+        ->middleware('throttle:login');
     Route::post('/auth/password/reset-request', [AuthController::class, 'passwordResetRequest'])
         ->middleware('throttle:password-reset');
     Route::post('/auth/password/reset', [AuthController::class, 'passwordReset'])

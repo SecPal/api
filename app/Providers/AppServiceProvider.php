@@ -52,6 +52,22 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(60, 5)->by($request->ip());
         });
 
+        // Login rate limiter (5 attempts per minute by IP + email combination)
+        // This applies to both session-based (/auth/login) and token-based (/auth/token) login
+        RateLimiter::for('login', function (Request $request) {
+            // Rate limit by IP + email to prevent enumeration attacks while
+            // allowing multiple users from same IP (e.g., office network)
+            $emailInput = $request->input('email', '');
+            $email = is_string($emailInput) ? strtolower($emailInput) : '';
+            $key = $request->ip().'|'.$email;
+
+            return Limit::perMinute(5)->by($key)->response(function () {
+                return response()->json([
+                    'message' => __('auth.throttle', ['seconds' => 60]),
+                ], 429);
+            });
+        });
+
         // Register policy for Spatie Role model
         Gate::policy(Role::class, RoleManagementPolicy::class);
 
