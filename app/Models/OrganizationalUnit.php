@@ -8,11 +8,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 /**
  * OrganizationalUnit model representing internal organizational structure.
@@ -45,7 +47,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class OrganizationalUnit extends Model
 {
-    use HasUuids, SoftDeletes;
+    /** @use HasFactory<\Database\Factories\OrganizationalUnitFactory> */
+    use HasFactory, HasUuids, SoftDeletes;
 
     /**
      * The table associated with the model.
@@ -99,10 +102,8 @@ class OrganizationalUnit extends Model
             ]);
         });
 
-        // Clean up closure entries when unit is force deleted
-        static::forceDeleted(function (OrganizationalUnit $unit): void {
-            // Closure table has ON DELETE CASCADE, entries are automatically removed
-        });
+        // Note: Closure table cleanup on force delete is handled by ON DELETE CASCADE
+        // in the database migration, so no explicit handler is needed here.
     }
 
     /**
@@ -194,6 +195,9 @@ class OrganizationalUnit extends Model
      *
      * Updates the closure table to reflect the new hierarchy position.
      * If moving from an existing parent, old closure entries are removed first.
+     * Wrapped in a database transaction to ensure data consistency.
+     *
+     * @throws \InvalidArgumentException If setting would create a cycle
      */
     public function setParent(?OrganizationalUnit $parent): void
     {
@@ -208,39 +212,52 @@ class OrganizationalUnit extends Model
             throw new \InvalidArgumentException('Cannot set unit as its own parent.');
         }
 
-        // Remove old ancestor entries (if any) for this unit and all descendants
-        $this->removeAncestorClosures();
-
-        // Get all descendants of this unit (including self)
+        // Get all descendants of this unit (including self) - needed for cycle check
+        /** @var list<string> $descendantIds */
         $descendantIds = OrganizationalUnitClosure::where('ancestor_id', $this->id)
             ->pluck('descendant_id')
-            ->toArray();
+            ->all();
 
-        // Get all ancestors of new parent (including parent itself via depth+1)
-        $parentAncestors = OrganizationalUnitClosure::where('descendant_id', $parent->id)
-            ->get();
+        // Prevent setting a descendant as parent (cycle prevention)
+        if (in_array($parent->id, $descendantIds, true)) {
+            throw new \InvalidArgumentException('Cannot set a descendant as parent (would create a cycle).');
+        }
 
-        // Create new closure entries: each ancestor of parent -> each descendant of this unit
-        $newClosures = [];
-        foreach ($parentAncestors as $parentAncestor) {
-            foreach ($descendantIds as $descendantId) {
-                // Get depth from this unit to descendant
-                /** @var int $descendantDepth */
-                $descendantDepth = OrganizationalUnitClosure::where('ancestor_id', $this->id)
-                    ->where('descendant_id', $descendantId)
-                    ->value('depth');
+        // Wrap in transaction for data consistency
+        DB::transaction(function () use ($parent, $descendantIds): void {
+            // Remove old ancestor entries (if any) for this unit and all descendants
+            $this->removeAncestorClosures();
 
-                $newClosures[] = [
-                    'ancestor_id' => $parentAncestor->ancestor_id,
-                    'descendant_id' => $descendantId,
-                    'depth' => $parentAncestor->depth + 1 + $descendantDepth,
-                ];
+            // Fetch all depths from this unit to its descendants in one query (N+1 fix)
+            /** @var array<string, int> $descendantDepths */
+            $descendantDepths = OrganizationalUnitClosure::where('ancestor_id', $this->id)
+                ->whereIn('descendant_id', $descendantIds)
+                ->pluck('depth', 'descendant_id')
+                ->all();
+
+            // Get all ancestors of new parent (including parent itself via depth+1)
+            $parentAncestors = OrganizationalUnitClosure::where('descendant_id', $parent->id)
+                ->get();
+
+            // Create new closure entries: each ancestor of parent -> each descendant of this unit
+            $newClosures = [];
+            foreach ($parentAncestors as $parentAncestor) {
+                foreach ($descendantIds as $descendantId) {
+                    // Lookup depth from pre-fetched array
+                    $descendantDepth = $descendantDepths[$descendantId] ?? 0;
+
+                    $newClosures[] = [
+                        'ancestor_id' => $parentAncestor->ancestor_id,
+                        'descendant_id' => $descendantId,
+                        'depth' => $parentAncestor->depth + 1 + $descendantDepth,
+                    ];
+                }
             }
-        }
 
-        if (count($newClosures) > 0) {
-            OrganizationalUnitClosure::insert($newClosures);
-        }
+            if (count($newClosures) > 0) {
+                OrganizationalUnitClosure::insert($newClosures);
+            }
+        });
     }
 
     /**

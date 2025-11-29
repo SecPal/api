@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection as SupportCollection;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -183,28 +184,42 @@ class User extends Authenticatable
      * Get all organizational units accessible to this user.
      *
      * Includes directly scoped units and their descendants (when include_descendants is true).
+     * Uses optimized queries to avoid N+1 issues.
      *
      * @return Collection<int, OrganizationalUnit>
      */
     public function getAccessibleOrganizationalUnits(): Collection
     {
         $scopes = $this->organizationalScopes()->get();
-        $accessibleUnitIds = collect();
+
+        /** @var SupportCollection<int, string> $directUnitIds */
+        $directUnitIds = collect();
+        /** @var SupportCollection<int, string> $ancestorIdsForDescendants */
+        $ancestorIdsForDescendants = collect();
 
         foreach ($scopes as $scope) {
             // Always include the directly scoped unit
-            $accessibleUnitIds->push($scope->organizational_unit_id);
+            $directUnitIds->push($scope->organizational_unit_id);
 
-            // Include descendants if flag is set
+            // Collect ancestor IDs for descendant query
             if ($scope->include_descendants) {
-                $descendantIds = OrganizationalUnitClosure::where('ancestor_id', $scope->organizational_unit_id)
-                    ->where('depth', '>', 0)
-                    ->pluck('descendant_id');
-                $accessibleUnitIds = $accessibleUnitIds->merge($descendantIds);
+                $ancestorIdsForDescendants->push($scope->organizational_unit_id);
             }
         }
 
-        return OrganizationalUnit::whereIn('id', $accessibleUnitIds->unique())->get();
+        // Single query for all descendants (N+1 fix)
+        /** @var SupportCollection<int, string> $descendantIds */
+        $descendantIds = collect();
+        if ($ancestorIdsForDescendants->isNotEmpty()) {
+            $descendantIds = OrganizationalUnitClosure::whereIn('ancestor_id', $ancestorIdsForDescendants->unique())
+                ->where('depth', '>', 0)
+                ->pluck('descendant_id');
+        }
+
+        /** @var SupportCollection<int, string> $accessibleUnitIds */
+        $accessibleUnitIds = $directUnitIds->merge($descendantIds)->unique();
+
+        return OrganizationalUnit::whereIn('id', $accessibleUnitIds)->get();
     }
 
     /**

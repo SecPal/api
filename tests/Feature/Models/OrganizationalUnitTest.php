@@ -262,7 +262,7 @@ describe('OrganizationalUnit Model', function () {
             $this->branchHamburg->setParent($this->regionHamburg);
         });
 
-        it('can get parent via parent() relationship', function (): void {
+        it('can get parent via parent accessor', function (): void {
             expect($this->branchBerlin->parent)->not->toBeNull();
             expect($this->branchBerlin->parent->id)->toBe($this->regionBerlin->id);
 
@@ -271,7 +271,7 @@ describe('OrganizationalUnit Model', function () {
             expect($this->holding->parent)->toBeNull();
         });
 
-        it('can get direct children via children() relationship', function (): void {
+        it('can get direct children via children accessor', function (): void {
             $regionBerlinChildren = $this->regionBerlin->children;
 
             expect($regionBerlinChildren)->toHaveCount(2);
@@ -527,6 +527,48 @@ describe('OrganizationalUnit Model', function () {
 
             expect($branchAncestors)->toContain('New Holding');
             expect($branchAncestors)->not->toContain('Holding');
+        });
+
+        it('prevents setting self as parent', function (): void {
+            $unit = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Unit',
+                'type' => 'company',
+            ]);
+
+            expect(fn () => $unit->setParent($unit))
+                ->toThrow(\InvalidArgumentException::class, 'Cannot set unit as its own parent.');
+        });
+
+        it('prevents setting a descendant as parent (cycle prevention)', function (): void {
+            // Create hierarchy: A -> B -> C
+            $a = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Unit A',
+                'type' => 'holding',
+            ]);
+
+            $b = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Unit B',
+                'type' => 'company',
+            ]);
+            $b->setParent($a);
+
+            $c = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Unit C',
+                'type' => 'branch',
+            ]);
+            $c->setParent($b);
+
+            // Trying to set C as parent of A would create a cycle: A -> B -> C -> A
+            expect(fn () => $a->setParent($c))
+                ->toThrow(\InvalidArgumentException::class, 'Cannot set a descendant as parent (would create a cycle).');
+
+            // Similarly, trying to set B as parent of A
+            expect(fn () => $a->setParent($b))
+                ->toThrow(\InvalidArgumentException::class, 'Cannot set a descendant as parent (would create a cycle).');
         });
     });
 });
