@@ -144,6 +144,9 @@ class Customer extends Model
      * Get the direct parent customer.
      *
      * Uses the closure table to find the ancestor at depth=1.
+     *
+     * WARNING: This accessor executes a query on each access (N+1 potential).
+     * For batch operations, use ancestors() with eager loading instead.
      */
     public function getParentAttribute(): ?Customer
     {
@@ -162,6 +165,9 @@ class Customer extends Model
 
     /**
      * Get all direct children of this customer.
+     *
+     * WARNING: This accessor executes a query on each access (N+1 potential).
+     * For batch operations, use descendants() with depth=1 filter instead.
      *
      * @return Collection<int, Customer>
      */
@@ -247,6 +253,11 @@ class Customer extends Model
             $this->removeParent();
 
             return;
+        }
+
+        // Prevent cross-tenant hierarchy links (security)
+        if ($parent->tenant_id !== $this->tenant_id) {
+            throw new \InvalidArgumentException('Cannot set parent from a different tenant.');
         }
 
         // Prevent setting self as parent (cycle prevention)

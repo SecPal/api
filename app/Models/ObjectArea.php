@@ -124,6 +124,9 @@ class ObjectArea extends Model
      * Get the customer that owns this area's parent object.
      *
      * Convenience accessor to traverse the object → customer relationship.
+     *
+     * WARNING: This accessor executes queries on each access (N+1 potential).
+     * For batch operations, eager load with: ObjectArea::with('object.customer')
      */
     public function getCustomerAttribute(): ?Customer
     {

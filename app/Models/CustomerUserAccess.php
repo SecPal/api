@@ -7,6 +7,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -38,7 +39,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class CustomerUserAccess extends Model
 {
-    use HasUuids;
+    /** @use HasFactory<\Database\Factories\CustomerUserAccessFactory> */
+    use HasFactory, HasUuids;
 
     /**
      * The table associated with the model.
@@ -111,6 +113,9 @@ class CustomerUserAccess extends Model
      * If include_descendants is true, returns the customer plus all its descendants.
      * Otherwise, returns only the directly assigned customer.
      *
+     * Tenant isolation is enforced by FK constraints - the assigned customer
+     * and all descendants are guaranteed to be in the same tenant.
+     *
      * @return Collection<int, Customer>
      */
     public function getAccessibleCustomers(): Collection
@@ -131,6 +136,9 @@ class CustomerUserAccess extends Model
      * Get all customers accessible to a specific user across all their access records.
      *
      * Aggregates all accessible customers from all CustomerUserAccess records for the user.
+     *
+     * Tenant isolation is enforced by FK constraints on access records and customers.
+     * Each access record's customer and descendants are guaranteed to be in the same tenant.
      *
      * @return Collection<int, Customer>
      */

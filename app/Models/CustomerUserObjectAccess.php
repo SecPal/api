@@ -6,6 +6,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -38,7 +39,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class CustomerUserObjectAccess extends Model
 {
-    use HasUuids;
+    /** @use HasFactory<\Database\Factories\CustomerUserObjectAccessFactory> */
+    use HasFactory, HasUuids;
 
     /**
      * Default allowed actions when none specified.
@@ -49,6 +51,10 @@ class CustomerUserObjectAccess extends Model
 
     /**
      * All possible allowed actions.
+     *
+     * Uses read_ prefix for read-only actions (guard_book, reports)
+     * and view_ prefix for view-only actions (shifts, incidents).
+     * This matches the database migration default.
      *
      * @var list<string>
      */

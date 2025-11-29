@@ -36,8 +36,8 @@ class CustomerUserObjectAccessFactory extends Factory
             'user_id' => User::factory(),
             'object_id' => SecPalObject::factory(),
             'allowed_actions' => fake()->randomElements(
-                ['view_guard_book', 'view_incidents', 'view_patrol_logs', 'view_reports', 'export_reports'],
-                fake()->numberBetween(1, 4)
+                CustomerUserObjectAccess::AVAILABLE_ACTIONS,
+                fake()->numberBetween(1, count(CustomerUserObjectAccess::AVAILABLE_ACTIONS))
             ),
         ];
     }
@@ -82,17 +82,17 @@ class CustomerUserObjectAccessFactory extends Factory
     public function fullReadAccess(): static
     {
         return $this->state(fn (array $attributes) => [
-            'allowed_actions' => ['view_guard_book', 'view_incidents', 'view_patrol_logs', 'view_reports'],
+            'allowed_actions' => CustomerUserObjectAccess::AVAILABLE_ACTIONS,
         ]);
     }
 
     /**
-     * Configure the factory with guard book view access only.
+     * Configure the factory with guard book read access only.
      */
-    public function viewGuardBookOnly(): static
+    public function readGuardBookOnly(): static
     {
         return $this->state(fn (array $attributes) => [
-            'allowed_actions' => ['view_guard_book'],
+            'allowed_actions' => CustomerUserObjectAccess::DEFAULT_ALLOWED_ACTIONS,
         ]);
     }
 
