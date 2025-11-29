@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Http\Controllers\Api\V1\OrganizationalScopeController;
 use App\Http\Controllers\Api\V1\PermissionManagementController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\Api\V1\SecretAttachmentController;
@@ -141,5 +142,17 @@ Route::prefix('v1')->group(function () {
             Route::patch('/secrets/{secret}', [SecretController::class, 'update']);
             Route::delete('/secrets/{secret}', [SecretController::class, 'destroy']);
         });
+
+        // Organizational Unit Scope Management (RBAC Issue #234)
+        // Defense-in-depth: Middleware pre-checks admin access, controller uses policy for authorization
+        Route::get('/me/organizational-scopes', [OrganizationalScopeController::class, 'myScopes']);
+        Route::prefix('organizational-units/{organizational_unit}')
+            ->middleware('check.organizational.scope:admin')
+            ->group(function () {
+                Route::get('/scopes', [OrganizationalScopeController::class, 'index']);
+                Route::post('/scopes', [OrganizationalScopeController::class, 'store']);
+                Route::patch('/scopes/{scope}', [OrganizationalScopeController::class, 'update']);
+                Route::delete('/scopes/{scope}', [OrganizationalScopeController::class, 'destroy']);
+            });
     });
 });
