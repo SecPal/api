@@ -144,13 +144,15 @@ Route::prefix('v1')->group(function () {
         });
 
         // Organizational Unit Scope Management (RBAC Issue #234)
-        // Authorization: Admin access level required on the organizational unit
+        // Defense-in-depth: Middleware pre-checks admin access, controller uses policy for authorization
         Route::get('/me/organizational-scopes', [OrganizationalScopeController::class, 'myScopes']);
-        Route::prefix('organizational-units/{organizational_unit}')->group(function () {
-            Route::get('/scopes', [OrganizationalScopeController::class, 'index']);
-            Route::post('/scopes', [OrganizationalScopeController::class, 'store']);
-            Route::patch('/scopes/{scope}', [OrganizationalScopeController::class, 'update']);
-            Route::delete('/scopes/{scope}', [OrganizationalScopeController::class, 'destroy']);
-        });
+        Route::prefix('organizational-units/{organizational_unit}')
+            ->middleware('check.organizational.scope:admin')
+            ->group(function () {
+                Route::get('/scopes', [OrganizationalScopeController::class, 'index']);
+                Route::post('/scopes', [OrganizationalScopeController::class, 'store']);
+                Route::patch('/scopes/{scope}', [OrganizationalScopeController::class, 'update']);
+                Route::delete('/scopes/{scope}', [OrganizationalScopeController::class, 'destroy']);
+            });
     });
 });

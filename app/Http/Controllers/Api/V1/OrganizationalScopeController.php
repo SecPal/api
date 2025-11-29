@@ -7,13 +7,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreOrganizationalScopeRequest;
+use App\Http\Requests\UpdateOrganizationalScopeRequest;
 use App\Models\OrganizationalUnit;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Validation\Rule;
 
 /**
  * OrganizationalScopeController handles CRUD operations for user organizational scope assignments.
@@ -32,18 +32,11 @@ use Illuminate\Validation\Rule;
 class OrganizationalScopeController extends Controller
 {
     /**
-     * Valid access levels for scope assignments.
-     *
-     * @var array<string>
-     */
-    private const VALID_ACCESS_LEVELS = ['none', 'read', 'write', 'manage', 'admin'];
-
-    /**
      * Transform a scope to API response format.
      *
      * @return array<string, mixed>
      */
-    private function transformScope(UserInternalOrganizationalScope $scope, bool $includeUnit = false): array
+    private function transformScope(UserInternalOrganizationalScope $scope, bool $includeUnit = false, bool $includeUser = false): array
     {
         $data = [
             'id' => $scope->id,
@@ -64,6 +57,15 @@ class OrganizationalScopeController extends Controller
             ];
         }
 
+        if ($includeUser && $scope->relationLoaded('user')) {
+            $user = $scope->user;
+            $data['user'] = [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ];
+        }
+
         return $data;
     }
 
@@ -72,58 +74,26 @@ class OrganizationalScopeController extends Controller
      */
     public function index(OrganizationalUnit $organizational_unit): JsonResponse
     {
-        /** @var User $user */
-        $user = request()->user();
-
-        // Authorization: require admin access to the unit
-        if (! $user->hasAccessToUnit($organizational_unit, 'admin')) {
-            return response()->json([
-                'error' => 'Access denied',
-                'message' => 'Admin access required to manage scopes',
-            ], 403);
-        }
+        $this->authorize('manageScopes', $organizational_unit);
 
         $scopes = UserInternalOrganizationalScope::where('organizational_unit_id', $organizational_unit->id)
             ->with('user:id,name,email')
             ->get();
 
         return response()->json([
-            'data' => $scopes->map(fn ($scope) => $this->transformScope($scope)),
+            'data' => $scopes->map(fn ($scope) => $this->transformScope($scope, false, true)),
         ]);
     }
 
     /**
      * Store a newly created scope assignment.
      */
-    public function store(Request $request, OrganizationalUnit $organizational_unit): JsonResponse
+    public function store(StoreOrganizationalScopeRequest $request, OrganizationalUnit $organizational_unit): JsonResponse
     {
-        /** @var User $user */
-        $user = request()->user();
-
-        // Authorization: require admin access to the unit
-        if (! $user->hasAccessToUnit($organizational_unit, 'admin')) {
-            return response()->json([
-                'error' => 'Access denied',
-                'message' => 'Admin access required to manage scopes',
-            ], 403);
-        }
+        $this->authorize('manageScopes', $organizational_unit);
 
         /** @var array{user_id: string, access_level: string, include_descendants?: bool} $validated */
-        $validated = $request->validate([
-            'user_id' => [
-                'required',
-                'uuid',
-                Rule::exists('users', 'id'),
-                Rule::unique('user_internal_organizational_scopes')
-                    ->where('organizational_unit_id', $organizational_unit->id),
-            ],
-            'access_level' => [
-                'required',
-                'string',
-                Rule::in(self::VALID_ACCESS_LEVELS),
-            ],
-            'include_descendants' => 'boolean',
-        ]);
+        $validated = $request->validated();
 
         $scope = UserInternalOrganizationalScope::create([
             'user_id' => $validated['user_id'],
@@ -140,7 +110,7 @@ class OrganizationalScopeController extends Controller
     /**
      * Update the specified scope assignment.
      */
-    public function update(Request $request, OrganizationalUnit $organizational_unit, string $scope): JsonResponse
+    public function update(UpdateOrganizationalScopeRequest $request, OrganizationalUnit $organizational_unit, string $scope): JsonResponse
     {
         // Load scope manually since route model binding doesn't auto-resolve nested models
         $scopeModel = UserInternalOrganizationalScope::find($scope);
@@ -160,26 +130,10 @@ class OrganizationalScopeController extends Controller
             ], 404);
         }
 
-        /** @var User $user */
-        $user = request()->user();
-
-        // Authorization: require admin access to the unit
-        if (! $user->hasAccessToUnit($organizational_unit, 'admin')) {
-            return response()->json([
-                'error' => 'Access denied',
-                'message' => 'Admin access required to manage scopes',
-            ], 403);
-        }
+        $this->authorize('manageScopes', $organizational_unit);
 
         /** @var array{access_level?: string, include_descendants?: bool} $validated */
-        $validated = $request->validate([
-            'access_level' => [
-                'sometimes',
-                'string',
-                Rule::in(self::VALID_ACCESS_LEVELS),
-            ],
-            'include_descendants' => 'sometimes|boolean',
-        ]);
+        $validated = $request->validated();
 
         if (isset($validated['access_level'])) {
             $scopeModel->access_level = $validated['access_level'];
@@ -219,16 +173,7 @@ class OrganizationalScopeController extends Controller
             ], 404);
         }
 
-        /** @var User $user */
-        $user = request()->user();
-
-        // Authorization: require admin access to the unit
-        if (! $user->hasAccessToUnit($organizational_unit, 'admin')) {
-            return response()->json([
-                'error' => 'Access denied',
-                'message' => 'Admin access required to manage scopes',
-            ], 403);
-        }
+        $this->authorize('manageScopes', $organizational_unit);
 
         $scopeModel->delete();
 
