@@ -115,4 +115,61 @@ describe('Health Check Endpoints', function () {
             ]);
         });
     });
+
+    describe('CORS for health endpoints', function () {
+        it('returns CORS headers for /health/live with whitelisted origin', function () {
+            $response = $this->withHeaders([
+                'Origin' => 'http://localhost:5173',
+            ])->getJson('/health/live');
+
+            $response->assertOk();
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+            expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
+        });
+
+        it('returns CORS headers for /health/ready with whitelisted origin', function () {
+            // Setup for ready endpoint
+            DB::table('tenant_keys')->insert([
+                'dek_wrapped' => base64_encode(random_bytes(32)),
+                'dek_nonce' => base64_encode(random_bytes(24)),
+                'idx_wrapped' => base64_encode(random_bytes(32)),
+                'idx_nonce' => base64_encode(random_bytes(24)),
+                'key_version' => 1,
+                'created_at' => now(),
+            ]);
+            TenantKey::generateKek();
+
+            $response = $this->withHeaders([
+                'Origin' => 'http://localhost:5173',
+            ])->getJson('/health/ready');
+
+            $response->assertOk();
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+            expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
+        });
+
+        it('handles OPTIONS preflight for /health/ready', function () {
+            $response = $this->call('OPTIONS', '/health/ready', [], [], [], [
+                'HTTP_ORIGIN' => 'http://localhost:5173',
+                'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET',
+            ]);
+
+            $response->assertNoContent();
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+            expect($response->headers->get('Access-Control-Allow-Methods'))->toContain('GET');
+            expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
+        });
+
+        it('handles OPTIONS preflight for /health/live', function () {
+            $response = $this->call('OPTIONS', '/health/live', [], [], [], [
+                'HTTP_ORIGIN' => 'http://localhost:5173',
+                'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET',
+            ]);
+
+            $response->assertNoContent();
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+            expect($response->headers->get('Access-Control-Allow-Methods'))->toContain('GET');
+            expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
+        });
+    });
 });
