@@ -34,7 +34,11 @@ return new class extends Migration
         DB::statement('ALTER TABLE users ALTER COLUMN id TYPE uuid USING gen_random_uuid()');
 
         // Convert ALL foreign keys from bigint to uuid
+        // Note: gen_random_uuid() generates new UUIDs that won't match users.id,
+        // effectively orphaning existing data. This is acceptable for pre-1.0
+        // development where databases are regularly refreshed.
         DB::statement('ALTER TABLE personal_access_tokens ALTER COLUMN tokenable_id TYPE uuid USING gen_random_uuid()');
+        DB::statement('ALTER TABLE sessions ALTER COLUMN user_id TYPE uuid USING gen_random_uuid()');
         DB::statement('ALTER TABLE model_has_roles ALTER COLUMN model_id TYPE uuid USING gen_random_uuid()');
         DB::statement('ALTER TABLE model_has_roles ALTER COLUMN assigned_by TYPE uuid USING gen_random_uuid()');
         DB::statement('ALTER TABLE model_has_permissions ALTER COLUMN model_id TYPE uuid USING gen_random_uuid()');
@@ -69,6 +73,7 @@ return new class extends Migration
         DB::statement('ALTER TABLE users ALTER COLUMN id SET DEFAULT nextval(\'users_id_seq\')');
 
         DB::statement('ALTER TABLE personal_access_tokens ALTER COLUMN tokenable_id TYPE bigint USING 1');
+        DB::statement('ALTER TABLE sessions ALTER COLUMN user_id TYPE bigint USING 1');
         DB::statement('ALTER TABLE model_has_roles ALTER COLUMN model_id TYPE bigint USING 1');
         DB::statement('ALTER TABLE model_has_roles ALTER COLUMN assigned_by TYPE bigint USING 1');
         DB::statement('ALTER TABLE model_has_permissions ALTER COLUMN model_id TYPE bigint USING 1');
