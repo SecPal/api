@@ -179,11 +179,18 @@ class CustomerUserObjectAccess extends Model
 
     /**
      * Check if user has access to a specific object with a specific action.
+     *
+     * Enforces tenant alignment: User and Object must belong to the same tenant.
+     * The access record is also scoped by tenant to prevent cross-tenant access.
      */
     public static function userCanAccessObject(User $user, SecPalObject $object, string $action): bool
     {
+        // Enforce tenant alignment between User and Object
+        // Note: User uses organizational_unit_id -> OrganizationalUnit -> tenant_id
+        // For customer users, tenant alignment is enforced by the access record's tenant_id
         $access = self::where('user_id', $user->id)
             ->where('object_id', $object->id)
+            ->where('tenant_id', $object->tenant_id)
             ->first();
 
         if ($access === null) {

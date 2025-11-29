@@ -666,6 +666,23 @@ describe('CustomerUserObjectAccess Model', function (): void {
 
             expect($access->allowed_actions)->toBe(CustomerUserObjectAccess::AVAILABLE_ACTIONS);
         });
+
+        it('creates access with guard book read access only', function (): void {
+            $customer = Customer::factory()->forTenant($this->tenant->id)->create();
+            $object = SecPalObject::factory()->forCustomer($customer)->forTenant($this->tenant->id)->create();
+            $user = User::factory()->create();
+
+            $access = CustomerUserObjectAccess::factory()
+                ->forTenant($this->tenant->id)
+                ->forUser($user)
+                ->forObject($object)
+                ->readGuardBookOnly()
+                ->create();
+
+            expect($access->allowed_actions)->toBe(CustomerUserObjectAccess::DEFAULT_ALLOWED_ACTIONS)
+                ->and($access->allowed_actions)->toContain('read_guard_book')
+                ->and($access->allowed_actions)->toHaveCount(1);
+        });
     });
 
     describe('relationships', function (): void {

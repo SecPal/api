@@ -113,23 +113,29 @@ class CustomerUserAccess extends Model
      * If include_descendants is true, returns the customer plus all its descendants.
      * Otherwise, returns only the directly assigned customer.
      *
-     * Tenant isolation is enforced by FK constraints - the assigned customer
-     * and all descendants are guaranteed to be in the same tenant.
+     * Tenant isolation is enforced by:
+     * 1. FK constraints on access records and customers
+     * 2. Explicit tenant_id filter as defense-in-depth
      *
      * @return Collection<int, Customer>
      */
     public function getAccessibleCustomers(): Collection
     {
         if (! $this->include_descendants) {
-            // Return only the directly assigned customer
-            return Customer::where('id', $this->customer_id)->get();
+            // Return only the directly assigned customer, scoped by tenant
+            return Customer::where('id', $this->customer_id)
+                ->where('tenant_id', $this->tenant_id)
+                ->get();
         }
 
         // Get assigned customer and all descendants via closure table
         $customerIds = CustomerClosure::where('ancestor_id', $this->customer_id)
             ->pluck('descendant_id');
 
-        return Customer::whereIn('id', $customerIds)->get();
+        // Scope final query by tenant as defense-in-depth
+        return Customer::whereIn('id', $customerIds)
+            ->where('tenant_id', $this->tenant_id)
+            ->get();
     }
 
     /**
@@ -137,8 +143,9 @@ class CustomerUserAccess extends Model
      *
      * Aggregates all accessible customers from all CustomerUserAccess records for the user.
      *
-     * Tenant isolation is enforced by FK constraints on access records and customers.
-     * Each access record's customer and descendants are guaranteed to be in the same tenant.
+     * Tenant isolation is enforced by:
+     * 1. FK constraints on access records and customers
+     * 2. Explicit tenant_id filter as defense-in-depth
      *
      * @return Collection<int, Customer>
      */
@@ -151,8 +158,11 @@ class CustomerUserAccess extends Model
         }
 
         $customerIds = collect();
+        $tenantIds = collect();
 
         foreach ($accesses as $access) {
+            $tenantIds->push($access->tenant_id);
+
             if ($access->include_descendants) {
                 // Include assigned customer and all descendants
                 $descendantIds = CustomerClosure::where('ancestor_id', $access->customer_id)
@@ -164,6 +174,10 @@ class CustomerUserAccess extends Model
             }
         }
 
-        return Customer::whereIn('id', $customerIds->unique())->get();
+        // Scope by tenant(s) as defense-in-depth
+        // In practice, a user should only have access to one tenant
+        return Customer::whereIn('id', $customerIds->unique())
+            ->whereIn('tenant_id', $tenantIds->unique())
+            ->get();
     }
 }
