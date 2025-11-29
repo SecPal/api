@@ -25,11 +25,13 @@ class ObjectAreaController extends Controller
 {
     /**
      * Display a listing of object areas.
+     *
+     * Note: Authorization is handled via tenant isolation and parent object access.
+     * Users can only see areas for objects they have access to.
      */
     public function index(Request $request): JsonResponse
     {
-        /** @var int $tenantId */
-        $tenantId = $request->input('tenant_id');
+        $tenantId = $request->integer('tenant_id');
 
         $query = ObjectArea::where('tenant_id', $tenantId);
 
@@ -79,8 +81,12 @@ class ObjectAreaController extends Controller
 
         $object_area->update($validated);
 
+        /** @var ObjectArea $freshObjectArea */
+        $freshObjectArea = $object_area->fresh();
+        $freshObjectArea->load('object');
+
         return response()->json([
-            'data' => new ObjectAreaResource($object_area->fresh()?->load('object')),
+            'data' => new ObjectAreaResource($freshObjectArea),
         ]);
     }
 

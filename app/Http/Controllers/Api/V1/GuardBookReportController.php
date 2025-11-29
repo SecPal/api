@@ -25,11 +25,13 @@ class GuardBookReportController extends Controller
 {
     /**
      * Display a listing of guard book reports.
+     *
+     * Note: Authorization is handled via tenant isolation and parent guard book access.
+     * Users can only see reports for guard books they have access to.
      */
     public function index(Request $request): JsonResponse
     {
-        /** @var int $tenantId */
-        $tenantId = $request->input('tenant_id');
+        $tenantId = $request->integer('tenant_id');
 
         $query = GuardBookReport::where('tenant_id', $tenantId);
 

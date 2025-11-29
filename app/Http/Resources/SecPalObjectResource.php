@@ -34,7 +34,9 @@ class SecPalObjectResource extends JsonResource
             'customer' => new CustomerResource($this->whenLoaded('customer')),
             'areas' => ObjectAreaResource::collection($this->whenLoaded('areas')),
             'guard_books' => GuardBookResource::collection($this->whenLoaded('guardBooks')),
-            'has_area_segmentation' => $this->hasAreaSegmentation(),
+            'has_area_segmentation' => $this->relationLoaded('areas')
+                ? $this->areas->isNotEmpty()
+                : ($this->areas_count ?? 0) > 0,
             'created_at' => $this->created_at->toIso8601String(),
             'updated_at' => $this->updated_at->toIso8601String(),
         ];

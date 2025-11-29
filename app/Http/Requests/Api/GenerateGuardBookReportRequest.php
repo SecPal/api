@@ -31,6 +31,7 @@ class GenerateGuardBookReportRequest extends FormRequest
         return [
             'period_start' => ['required', 'date'],
             'period_end' => ['required', 'date', 'after:period_start'],
+            'title' => ['nullable', 'string', 'max:255'],
             'filter_criteria' => ['nullable', 'array'],
             'filter_criteria.event_types' => ['nullable', 'array'],
             'filter_criteria.event_types.*' => ['string'],

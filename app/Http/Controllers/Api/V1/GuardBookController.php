@@ -133,8 +133,12 @@ class GuardBookController extends Controller
 
         $guard_book->update($validated);
 
+        /** @var GuardBook $freshGuardBook */
+        $freshGuardBook = $guard_book->fresh();
+        $freshGuardBook->load(['object', 'objectArea']);
+
         return response()->json([
-            'data' => new GuardBookResource($guard_book->fresh()?->load(['object', 'objectArea'])),
+            'data' => new GuardBookResource($freshGuardBook),
         ]);
     }
 

@@ -112,8 +112,12 @@ class SecPalObjectController extends Controller
 
         $object->update($validated);
 
+        /** @var SecPalObject $freshObject */
+        $freshObject = $object->fresh();
+        $freshObject->load('customer');
+
         return response()->json([
-            'data' => new SecPalObjectResource($object->fresh()?->load('customer')),
+            'data' => new SecPalObjectResource($freshObject),
         ]);
     }
 
