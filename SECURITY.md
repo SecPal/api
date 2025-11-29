@@ -171,9 +171,13 @@ We compensate with:
 
 ### API Rate Limiting
 
-- Currently: No rate limiting implemented
-- **Planned:** Rate limiting for public APIs (v0.5.0)
-- **Mitigation:** Monitor for unusual traffic patterns
+**Implemented login rate limiting:**
+
+- **Login endpoints** (`/auth/login`, `/auth/token`): 5 attempts per minute per email+IP combination
+- **Password reset**: 5 requests per 60 minutes
+- **General API**: 60 requests per minute
+
+Rate limiting uses email+IP combination to prevent enumeration attacks while allowing multiple legitimate users from the same IP (e.g., office networks).
 
 ### CORS Configuration
 
@@ -184,8 +188,8 @@ We compensate with:
 
 Planned security enhancements:
 
-- [ ] **v0.3.0:** Production-ready CORS configuration
-- [ ] **v0.5.0:** API rate limiting
+- [x] **v0.3.0:** Production-ready CORS configuration
+- [x] **v0.5.0:** API rate limiting _(implemented)_
 - [ ] **v0.7.0:** Comprehensive audit logging
 - [ ] **v0.9.0:** Penetration testing
 - [ ] **v1.0.0:** Security certification (OWASP ASVS Level 2)
