@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -118,6 +119,20 @@ class ObjectArea extends Model
     public function hasSeparateGuardBook(): bool
     {
         return $this->requires_separate_guard_book;
+    }
+
+    /**
+     * Get the guard book for this area (if separate guard books are enabled).
+     *
+     * Note: Only areas with requires_separate_guard_book = true
+     * should have their own guard book. Use hasSeparateGuardBook()
+     * to check eligibility before accessing this relationship.
+     *
+     * @return HasOne<GuardBook, $this>
+     */
+    public function guardBook(): HasOne
+    {
+        return $this->hasOne(GuardBook::class, 'object_area_id');
     }
 
     /**
