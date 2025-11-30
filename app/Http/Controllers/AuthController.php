@@ -62,24 +62,8 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::guard('web')->user();
 
-        // Get role names
-        $roles = $user->getRoleNames()->toArray();
-
-        // Get all permission names (from roles and direct assignments)
-        $permissions = $user->getAllPermissions()->pluck('name')->toArray();
-
-        // Check if user has any organizational scopes
-        $hasOrganizationalScopes = $user->organizationalScopes()->exists();
-
         return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'roles' => $roles,
-                'permissions' => $permissions,
-                'hasOrganizationalScopes' => $hasOrganizationalScopes,
-            ],
+            'user' => $this->buildUserAuthorizationData($user),
         ]);
     }
 
@@ -200,23 +184,7 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        // Get role names
-        $roles = $user->getRoleNames()->toArray();
-
-        // Get all permission names (from roles and direct assignments)
-        $permissions = $user->getAllPermissions()->pluck('name')->toArray();
-
-        // Check if user has any organizational scopes
-        $hasOrganizationalScopes = $user->organizationalScopes()->exists();
-
-        return response()->json([
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'roles' => $roles,
-            'permissions' => $permissions,
-            'hasOrganizationalScopes' => $hasOrganizationalScopes,
-        ]);
+        return response()->json($this->buildUserAuthorizationData($user));
     }
 
     /**
@@ -340,5 +308,39 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Password has been reset successfully',
         ]);
+    }
+
+    /**
+     * Build user data array with authorization context.
+     *
+     * Returns user profile along with authorization context:
+     * - roles: List of assigned role names
+     * - permissions: List of all permission names (from roles + direct assignments)
+     * - hasOrganizationalScopes: Whether user has any organizational scope assignments
+     *
+     * The hasOrganizationalScopes flag is used by the frontend to determine
+     * whether to show organization/customer management navigation items.
+     *
+     * @return array{id: string, name: string, email: string, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool}
+     */
+    private function buildUserAuthorizationData(User $user): array
+    {
+        // Eager load relationships to reduce database queries
+        $user->load(['roles', 'permissions', 'organizationalScopes']);
+
+        /** @var list<string> $roles */
+        $roles = $user->getRoleNames()->toArray();
+
+        /** @var list<string> $permissions */
+        $permissions = $user->getAllPermissions()->pluck('name')->toArray();
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'roles' => $roles,
+            'permissions' => $permissions,
+            'hasOrganizationalScopes' => $user->organizationalScopes->isNotEmpty(),
+        ];
     }
 }
