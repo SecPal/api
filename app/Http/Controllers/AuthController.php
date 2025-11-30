@@ -174,16 +174,36 @@ class AuthController extends Controller
 
     /**
      * Get the authenticated user's information.
+     *
+     * Returns user profile along with authorization context:
+     * - roles: List of assigned role names
+     * - permissions: List of all permission names (from roles + direct assignments)
+     * - hasOrganizationalScopes: Whether user has any organizational scope assignments
+     *
+     * The hasOrganizationalScopes flag is used by the frontend to determine
+     * whether to show organization/customer management navigation items.
      */
     public function me(Request $request): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
 
+        // Get role names
+        $roles = $user->getRoleNames()->toArray();
+
+        // Get all permission names (from roles and direct assignments)
+        $permissions = $user->getAllPermissions()->pluck('name')->toArray();
+
+        // Check if user has any organizational scopes
+        $hasOrganizationalScopes = $user->organizationalScopes()->exists();
+
         return response()->json([
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+            'roles' => $roles,
+            'permissions' => $permissions,
+            'hasOrganizationalScopes' => $hasOrganizationalScopes,
         ]);
     }
 
