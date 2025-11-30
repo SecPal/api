@@ -34,6 +34,13 @@ class AuthController extends Controller
      * Uses Laravel's session-based authentication with httpOnly cookies.
      * This is the preferred method for browser-based SPAs.
      *
+     * For PWA (offline-first) apps, we always set remember=true to maintain
+     * long-lived sessions. This allows users to stay logged in even after
+     * the session expires, as Laravel will automatically restore the session
+     * from the remember_token cookie.
+     *
+     * Security note: Users can explicitly logout-all to revoke the remember token.
+     *
      * @throws ValidationException
      */
     public function login(LoginRequest $request): JsonResponse
@@ -42,7 +49,8 @@ class AuthController extends Controller
         $credentials = $request->validated();
 
         // Use web guard explicitly for session-based auth
-        if (! Auth::guard('web')->attempt($credentials)) {
+        // remember=true for PWA - maintains long-lived session via remember_token cookie
+        if (! Auth::guard('web')->attempt($credentials, remember: true)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);

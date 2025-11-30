@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PWA Session Expiry Handling** (#270)
+  - SPA login now uses `remember: true` for long-lived sessions (PWA requirement)
+  - Users stay logged in until explicit logout instead of 120-minute session timeout
+  - Works via Laravel's remember_token cookie for automatic session extension
+  - Added tests verifying remember token is set on SPA login
+
 - **Unauthenticated API Request Handling** (#253)
   - Fixed 500 "Route [login] not defined" error for unauthenticated requests to protected endpoints
   - API now returns proper 401 JSON response `{"message": "Unauthenticated."}` instead of attempting redirect

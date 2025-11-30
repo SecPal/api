@@ -8,6 +8,103 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+describe('SPA Session Login', function () {
+    test('spa login sets remember token for long-lived sessions', function () {
+        $user = User::factory()->create([
+            'email' => 'spa@example.com',
+            'password' => bcrypt('password123'),
+            'remember_token' => null, // Ensure no remember token before login
+        ]);
+
+        // Verify remember_token is null before login
+        expect($user->remember_token)->toBeNull();
+
+        // Simulate stateful SPA request with Origin header matching SANCTUM_STATEFUL_DOMAINS
+        $response = $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ])->postJson('/v1/auth/login', [
+            'email' => 'spa@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'user' => ['id', 'name', 'email'],
+            ]);
+
+        // Verify remember_token is set after login (for PWA long-lived sessions)
+        $user->refresh();
+        expect($user->remember_token)->not->toBeNull();
+    });
+
+    test('spa login returns user data', function () {
+        User::factory()->create([
+            'name' => 'SPA User',
+            'email' => 'spa@example.com',
+            'password' => bcrypt('password123'),
+        ]);
+
+        $response = $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ])->postJson('/v1/auth/login', [
+            'email' => 'spa@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'user' => [
+                    'name' => 'SPA User',
+                    'email' => 'spa@example.com',
+                ],
+            ]);
+    });
+
+    test('spa login fails with invalid credentials', function () {
+        User::factory()->create([
+            'email' => 'spa@example.com',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $response = $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ])->postJson('/v1/auth/login', [
+            'email' => 'spa@example.com',
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    });
+
+    test('spa login authenticates user via session', function () {
+        User::factory()->create([
+            'email' => 'spa@example.com',
+            'password' => bcrypt('password123'),
+        ]);
+
+        // Login with stateful headers
+        $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ])->postJson('/v1/auth/login', [
+            'email' => 'spa@example.com',
+            'password' => 'password123',
+        ])->assertOk();
+
+        // Verify we can access protected endpoint via session (cookies are preserved in test)
+        $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ])->getJson('/v1/me')
+            ->assertOk()
+            ->assertJson(['email' => 'spa@example.com']);
+    });
+});
+
 describe('Auth Token Generation', function () {
     test('user can generate token with valid credentials', function () {
         $user = User::factory()->create([
