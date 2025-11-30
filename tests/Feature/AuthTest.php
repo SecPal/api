@@ -103,6 +103,37 @@ describe('SPA Session Login', function () {
             ->assertOk()
             ->assertJson(['email' => 'spa@example.com']);
     });
+
+    test('spa logout clears remember token', function () {
+        $user = User::factory()->create([
+            'email' => 'spa@example.com',
+            'password' => bcrypt('password123'),
+            'remember_token' => null,
+        ]);
+
+        // Login
+        $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ])->postJson('/v1/auth/login', [
+            'email' => 'spa@example.com',
+            'password' => 'password123',
+        ])->assertOk();
+
+        // Verify remember token is set
+        $user->refresh();
+        expect($user->remember_token)->not->toBeNull();
+
+        // Logout
+        $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ])->postJson('/v1/auth/session/logout')->assertOk();
+
+        // Verify remember token is cleared
+        $user->refresh();
+        expect($user->remember_token)->toBeNull();
+    });
 });
 
 describe('Auth Token Generation', function () {

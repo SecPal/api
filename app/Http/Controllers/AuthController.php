@@ -39,7 +39,8 @@ class AuthController extends Controller
      * the session expires, as Laravel will automatically restore the session
      * from the remember_token cookie.
      *
-     * Security note: Users can explicitly logout-all to revoke the remember token.
+     * Security note: Users can explicitly log out via logoutSession()
+     * (e.g., /v1/auth/session/logout) to revoke the remember token.
      *
      * @throws ValidationException
      */
@@ -75,9 +76,20 @@ class AuthController extends Controller
      *
      * Note: This requires the request to have a session.
      * For token-based logout, use the logout() method.
+     *
+     * This also clears the remember_token to fully revoke the session,
+     * preventing automatic session restoration on subsequent requests.
      */
     public function logoutSession(Request $request): JsonResponse
     {
+        /** @var User|null $user */
+        $user = Auth::guard('web')->user();
+
+        // Clear remember token to prevent automatic session restoration
+        if ($user) {
+            $user->forceFill(['remember_token' => null])->save();
+        }
+
         Auth::guard('web')->logout();
 
         if ($request->hasSession()) {
