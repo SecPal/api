@@ -62,11 +62,23 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::guard('web')->user();
 
+        // Get role names
+        $roles = $user->getRoleNames()->toArray();
+
+        // Get all permission names (from roles and direct assignments)
+        $permissions = $user->getAllPermissions()->pluck('name')->toArray();
+
+        // Check if user has any organizational scopes
+        $hasOrganizationalScopes = $user->organizationalScopes()->exists();
+
         return response()->json([
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'roles' => $roles,
+                'permissions' => $permissions,
+                'hasOrganizationalScopes' => $hasOrganizationalScopes,
             ],
         ]);
     }
