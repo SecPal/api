@@ -54,6 +54,16 @@ describe('SPA Session Login', function () {
         ]);
 
         $response->assertOk()
+            ->assertJsonStructure([
+                'user' => [
+                    'id',
+                    'name',
+                    'email',
+                    'roles',
+                    'permissions',
+                    'hasOrganizationalScopes',
+                ],
+            ])
             ->assertJson([
                 'user' => [
                     'name' => 'SPA User',
