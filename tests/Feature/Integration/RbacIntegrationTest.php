@@ -201,9 +201,9 @@ describe('Multi-User Role Assignment Scenarios', function (): void {
             ])
             ->assertSuccessful();
 
-        // Manager B gets temporary Manager role during vacation
-        $vacationStart = now()->setDate(2025, 12, 1)->startOfDay();
-        $vacationEnd = now()->setDate(2025, 12, 14)->endOfDay();
+        // Manager B gets temporary Manager role during vacation (starting 7 days from now)
+        $vacationStart = now()->addDays(7)->startOfDay();
+        $vacationEnd = now()->addDays(21)->endOfDay();
 
         actingAs($this->admin)
             ->postJson("/v1/users/{$managerB->id}/roles", [
@@ -220,12 +220,12 @@ describe('Multi-User Role Assignment Scenarios', function (): void {
         expect($managerB->fresh()->hasRole('Manager'))->toBeFalse();
 
         // During vacation: Both have role
-        travelTo($vacationStart->addDays(3));
+        travelTo($vacationStart->copy()->addDays(3));
         expect($managerA->fresh()->hasRole('Manager'))->toBeTrue();
         expect($managerB->fresh()->hasRole('Manager'))->toBeTrue();
 
         // After vacation: Only Manager A has role
-        travelTo($vacationEnd->addDay());
+        travelTo($vacationEnd->copy()->addDay());
         Artisan::call('roles:expire');
 
         expect($managerA->fresh()->hasRole('Manager'))->toBeTrue();
