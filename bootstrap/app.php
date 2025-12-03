@@ -31,8 +31,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Apply Sanctum's stateful middleware to API routes for SPA authentication
         // This enables session-based auth for requests from stateful domains (localhost:5173, etc.)
+        // RestoreSessionFromRememberToken must run AFTER EnsureFrontendRequestsAreStateful
+        // to restore sessions from remember tokens when session expires but remember cookie is valid
         $middleware->api(prepend: [
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            \App\Http\Middleware\RestoreSessionFromRememberToken::class,
         ]);
 
         // Apply middleware to all API routes
