@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **PWA Session Restoration After Long Inactivity** (#271)
+  - Added `RestoreSessionFromRememberToken` middleware to restore sessions from remember token
+  - Fixes 401 logout when accessing protected endpoints after hours of inactivity
+  - Laravel's remember token functionality only works with SessionGuard on web routes,
+    not with Sanctum SPA authentication - this middleware bridges that gap
+  - Middleware runs after `EnsureFrontendRequestsAreStateful` to ensure session availability
+  - Users now stay logged in as long as the remember cookie is valid (typically weeks)
+  - Added tests verifying middleware registration and behavior
+
 - **PWA Session Expiry Handling** (#270)
   - SPA login now uses `remember: true` for long-lived sessions (PWA requirement)
   - Users stay logged in until explicit logout instead of 120-minute session timeout
