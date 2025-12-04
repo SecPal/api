@@ -45,7 +45,7 @@ class InjectTenantId
 
         if ($tenantId === null) {
             return response()->json([
-                'message' => 'No tenant keys available. Please ensure at least one tenant key is configured.',
+                'message' => __('No tenant keys available. Please ensure at least one tenant key is configured.'),
             ], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
