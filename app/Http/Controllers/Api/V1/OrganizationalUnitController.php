@@ -44,8 +44,12 @@ class OrganizationalUnitController extends Controller
         // Determine root unit IDs (units without accessible parents)
         $rootUnitIds = $this->determineRootUnitIds($accessibleUnits);
 
-        // Build query filtered to accessible units only
-        $query = OrganizationalUnit::whereIn('id', $accessibleIds);
+        /** @var string $tenantId */
+        $tenantId = $request->input('tenant_id');
+
+        // Build query filtered to accessible units only AND current tenant (defense-in-depth)
+        $query = OrganizationalUnit::whereIn('id', $accessibleIds)
+            ->where('tenant_id', $tenantId);
 
         // Filter by type if provided
         if ($request->has('type')) {
@@ -101,7 +105,7 @@ class OrganizationalUnitController extends Controller
      * A unit is a "root" in the accessible tree if it has no accessible parent.
      *
      * @param  \Illuminate\Database\Eloquent\Collection<int, OrganizationalUnit>  $accessibleUnits
-     * @return array<int, string>
+     * @return list<string>
      */
     private function determineRootUnitIds($accessibleUnits): array
     {

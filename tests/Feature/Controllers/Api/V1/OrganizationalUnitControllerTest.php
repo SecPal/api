@@ -472,6 +472,26 @@ describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Kno
         $rootUnitIds = $response->json('meta.root_unit_ids');
         expect($rootUnitIds)->toContain($region1->id)->toContain($region2->id);
     });
+
+    test('user cannot access organizational units from different tenant (cross-tenant isolation)', function () {
+        // Arrange: Create a second tenant with its own organizational unit
+        $otherTenantKeys = TenantKey::generateEnvelopeKeys();
+        $otherTenant = TenantKey::create($otherTenantKeys);
+
+        $otherTenantUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'name' => 'Other Tenant Unit',
+            'type' => 'company',
+        ]);
+
+        // Act: Attempt to access with current user (who belongs to $this->tenant)
+        $response = getJson('/v1/organizational-units');
+
+        // Assert: Other tenant's unit is NOT visible
+        $response->assertOk();
+        $unitIds = collect($response->json('data'))->pluck('id')->toArray();
+        expect($unitIds)->not->toContain($otherTenantUnit->id);
+    });
 });
 
 describe('OrganizationalUnitController - Hierarchy', function () {
