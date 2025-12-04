@@ -160,7 +160,6 @@ class CheckCustomerScope
     private function unauthorizedResponse(string $message): Response
     {
         return response()->json([
-            'error' => 'Unauthorized',
             'message' => $message,
         ], 401);
     }
@@ -171,7 +170,6 @@ class CheckCustomerScope
     private function forbiddenResponse(string $message): Response
     {
         return response()->json([
-            'error' => 'Access denied',
             'message' => $message,
         ], 403);
     }
@@ -182,7 +180,6 @@ class CheckCustomerScope
     private function notFoundResponse(string $message): Response
     {
         return response()->json([
-            'error' => 'Not found',
             'message' => $message,
         ], 404);
     }

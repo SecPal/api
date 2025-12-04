@@ -67,7 +67,7 @@ class PersonController extends Controller
 
         if (! $email) {
             return response()->json([
-                'error' => 'Email query parameter is required',
+                'message' => 'Email query parameter is required',
             ], Response::HTTP_BAD_REQUEST);
         }
 
@@ -78,7 +78,7 @@ class PersonController extends Controller
 
         if (! $person) {
             return response()->json([
-                'error' => 'Person not found',
+                'message' => 'Person not found',
             ], Response::HTTP_NOT_FOUND);
         }
 

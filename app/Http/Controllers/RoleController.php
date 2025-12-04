@@ -185,7 +185,7 @@ class RoleController extends Controller
 
         if (! $assignment) {
             return response()->json([
-                'error' => 'Role not assigned to user',
+                'message' => 'Role not assigned to user',
             ], Response::HTTP_NOT_FOUND);
         }
 
@@ -232,7 +232,7 @@ class RoleController extends Controller
 
         if (! $assignment) {
             return response()->json([
-                'error' => 'Role not assigned to user',
+                'message' => 'Role not assigned to user',
             ], Response::HTTP_NOT_FOUND);
         }
 

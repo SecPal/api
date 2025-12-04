@@ -117,7 +117,6 @@ class OrganizationalScopeController extends Controller
 
         if ($scopeModel === null) {
             return response()->json([
-                'error' => 'Not found',
                 'message' => 'Scope not found',
             ], 404);
         }
@@ -125,7 +124,6 @@ class OrganizationalScopeController extends Controller
         // Verify scope belongs to this unit
         if ($scopeModel->organizational_unit_id !== $organizational_unit->id) {
             return response()->json([
-                'error' => 'Not found',
                 'message' => 'Scope not found for this organizational unit',
             ], 404);
         }
@@ -160,7 +158,6 @@ class OrganizationalScopeController extends Controller
 
         if ($scopeModel === null) {
             return response()->json([
-                'error' => 'Not found',
                 'message' => 'Scope not found',
             ], 404);
         }
@@ -168,7 +165,6 @@ class OrganizationalScopeController extends Controller
         // Verify scope belongs to this unit
         if ($scopeModel->organizational_unit_id !== $organizational_unit->id) {
             return response()->json([
-                'error' => 'Not found',
                 'message' => 'Scope not found for this organizational unit',
             ], 404);
         }

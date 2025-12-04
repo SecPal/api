@@ -189,7 +189,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
 
         $response->assertStatus(400)
             ->assertJson([
-                'error' => 'Email query parameter is required',
+                'message' => 'Email query parameter is required',
             ]);
     });
 
@@ -201,7 +201,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
 
         $response->assertStatus(404)
             ->assertJson([
-                'error' => 'Person not found',
+                'message' => 'Person not found',
             ]);
     });
 
