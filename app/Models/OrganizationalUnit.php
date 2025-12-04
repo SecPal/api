@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
@@ -150,6 +151,27 @@ class OrganizationalUnit extends Model
             ->pluck('descendant_id');
 
         return OrganizationalUnit::whereIn('id', $childIds)->get();
+    }
+
+    /**
+     * Get the direct parent organizational unit as an Eloquent relationship.
+     *
+     * Uses the closure table to find the ancestor at depth=1.
+     * This is a proper Eloquent relationship (unlike the getParentAttribute accessor)
+     * that supports eager loading via with('parent').
+     *
+     * @return HasOneThrough<OrganizationalUnit, OrganizationalUnitClosure, $this>
+     */
+    public function parent(): HasOneThrough
+    {
+        return $this->hasOneThrough(
+            OrganizationalUnit::class,
+            OrganizationalUnitClosure::class,
+            'descendant_id', // Foreign key on closure table
+            'id', // Foreign key on organizational_units table
+            'id', // Local key on this model
+            'ancestor_id' // Local key on closure table
+        )->where('organizational_unit_closures.depth', 1);
     }
 
     /**

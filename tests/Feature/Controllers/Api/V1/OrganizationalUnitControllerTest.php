@@ -139,6 +139,61 @@ describe('OrganizationalUnitController - List', function () {
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.type', 'department');
     });
+
+    test('list organizational units includes parent data when accessible', function () {
+        // Arrange: Create child unit under root
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Child Department',
+            'type' => 'department',
+        ]);
+        $child->setParent($this->rootUnit);
+
+        // Act
+        $response = getJson('/v1/organizational-units');
+
+        // Assert: Verify child has parent data
+        $response->assertOk();
+        $childData = collect($response->json('data'))->firstWhere('id', $child->id);
+        expect($childData)->not->toBeNull()
+            ->and($childData['parent'])->not->toBeNull()
+            ->and($childData['parent']['id'])->toBe($this->rootUnit->id)
+            ->and($childData['parent']['name'])->toBe('Root Company');
+    });
+
+    test('list organizational units does not leak inaccessible parent data', function () {
+        // Arrange: Create a unit that user has no scope for (as potential parent)
+        $inaccessibleParent = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Inaccessible Parent',
+            'type' => 'company',
+        ]);
+
+        // Create a child under the inaccessible parent
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Accessible Child',
+            'type' => 'department',
+        ]);
+        $child->setParent($inaccessibleParent);
+
+        // Give user scope ONLY for the child (not the parent)
+        $this->user->organizationalScopes()->delete();
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $child->id,
+            'include_descendants' => false,
+            'access_level' => 'admin',
+        ]);
+
+        // Act
+        $response = getJson('/v1/organizational-units');
+
+        // Assert: Child should be returned but parent should be null (not accessible)
+        $response->assertOk();
+        $childData = collect($response->json('data'))->firstWhere('id', $child->id);
+        expect($childData)->not->toBeNull()
+            ->and($childData['parent'])->toBeNull();
+    });
 });
 
 describe('OrganizationalUnitController - Create', function () {
