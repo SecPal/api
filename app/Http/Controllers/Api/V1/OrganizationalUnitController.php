@@ -26,15 +26,26 @@ class OrganizationalUnitController extends Controller
 {
     /**
      * Display a listing of organizational units.
+     *
+     * Returns ONLY units the authenticated user has access to (Need-to-Know principle).
+     * Uses the user's organizational scopes to filter results.
      */
     public function index(Request $request): JsonResponse
     {
         $this->authorize('viewAny', OrganizationalUnit::class);
 
-        /** @var int $tenantId */
-        $tenantId = $request->input('tenant_id');
+        /** @var \App\Models\User $user */
+        $user = $request->user();
 
-        $query = OrganizationalUnit::where('tenant_id', $tenantId);
+        // Get accessible units based on user's organizational scopes (Need-to-Know principle)
+        $accessibleUnits = $user->getAccessibleOrganizationalUnits();
+        $accessibleIds = $accessibleUnits->pluck('id')->toArray();
+
+        // Determine root unit IDs (units without accessible parents)
+        $rootUnitIds = $this->determineRootUnitIds($accessibleUnits);
+
+        // Build query filtered to accessible units only
+        $query = OrganizationalUnit::whereIn('id', $accessibleIds);
 
         // Filter by type if provided
         if ($request->has('type')) {
@@ -45,12 +56,26 @@ class OrganizationalUnitController extends Controller
         if ($request->has('parent_id')) {
             $parentId = $request->input('parent_id');
             if ($parentId === 'null' || $parentId === null) {
-                // Get root units (no parent)
-                $query->whereDoesntHave('ancestors', fn ($q) => $q->where('depth', 1));
+                // Get root units (units without accessible parents)
+                $query->whereIn('id', $rootUnitIds);
             } else {
-                // Get children of specific parent
+                // Get children of specific parent (only if parent is accessible)
+                if (! in_array($parentId, $accessibleIds, true)) {
+                    // Parent not accessible - return empty result
+                    return response()->json([
+                        'data' => [],
+                        'meta' => [
+                            'current_page' => 1,
+                            'last_page' => 1,
+                            'per_page' => $request->integer('per_page', 15),
+                            'total' => 0,
+                            'root_unit_ids' => $rootUnitIds,
+                        ],
+                    ]);
+                }
                 $childIds = \App\Models\OrganizationalUnitClosure::where('ancestor_id', $parentId)
                     ->where('depth', 1)
+                    ->whereIn('descendant_id', $accessibleIds)
                     ->pluck('descendant_id');
                 $query->whereIn('id', $childIds);
             }
@@ -65,8 +90,40 @@ class OrganizationalUnitController extends Controller
                 'last_page' => $units->lastPage(),
                 'per_page' => $units->perPage(),
                 'total' => $units->total(),
+                'root_unit_ids' => $rootUnitIds,
             ],
         ]);
+    }
+
+    /**
+     * Determine root unit IDs for the user's accessible tree.
+     *
+     * A unit is a "root" in the accessible tree if it has no accessible parent.
+     *
+     * @param  \Illuminate\Database\Eloquent\Collection<int, OrganizationalUnit>  $accessibleUnits
+     * @return array<int, string>
+     */
+    private function determineRootUnitIds($accessibleUnits): array
+    {
+        $accessibleIds = $accessibleUnits->pluck('id')->toArray();
+        $rootIds = [];
+
+        foreach ($accessibleUnits as $unit) {
+            // Get immediate parent via closure table
+            $parentClosure = \App\Models\OrganizationalUnitClosure::where('descendant_id', $unit->id)
+                ->where('depth', 1)
+                ->first();
+
+            if ($parentClosure === null) {
+                // No parent at all - this is a true root
+                $rootIds[] = $unit->id;
+            } elseif (! in_array($parentClosure->ancestor_id, $accessibleIds, true)) {
+                // Parent exists but is not accessible - this is a root in the user's view
+                $rootIds[] = $unit->id;
+            }
+        }
+
+        return $rootIds;
     }
 
     /**
