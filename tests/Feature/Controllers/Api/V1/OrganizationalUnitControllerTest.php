@@ -313,7 +313,7 @@ describe('OrganizationalUnitController - Update', function () {
 });
 
 describe('OrganizationalUnitController - Delete', function () {
-    test('user can delete organizational unit', function () {
+    test('user can delete organizational unit without children', function () {
         // Arrange: Create a unit as child of root (user has scope on root)
         $unitToDelete = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -339,6 +339,93 @@ describe('OrganizationalUnitController - Delete', function () {
         // Verify soft delete
         $this->assertSoftDeleted('organizational_units', [
             'id' => $unitToDelete->id,
+        ]);
+    });
+
+    test('delete is blocked when unit has children (409 Conflict)', function () {
+        // Arrange: Create a unit with children
+        $parentUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Parent Unit',
+            'type' => 'region',
+        ]);
+        $parentUnit->setParent($this->rootUnit);
+
+        // Create 3 child units
+        for ($i = 1; $i <= 3; $i++) {
+            $child = OrganizationalUnit::factory()->create([
+                'tenant_id' => $this->tenant->id,
+                'name' => "Child Unit {$i}",
+                'type' => 'branch',
+            ]);
+            $child->setParent($parentUnit);
+        }
+
+        // Give user explicit scope on the parent unit
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $parentUnit->id,
+            'access_level' => 'admin',
+            'include_descendants' => true,
+        ]);
+
+        // Act
+        $response = deleteJson("/v1/organizational-units/{$parentUnit->id}");
+
+        // Assert: Should return 409 Conflict
+        $response->assertStatus(409)
+            ->assertJson([
+                'message' => 'Cannot delete: 3 child unit(s) exist',
+                'child_count' => 3,
+                'hint' => 'Delete or move child units first',
+            ]);
+
+        // Verify unit is NOT deleted
+        $this->assertDatabaseHas('organizational_units', [
+            'id' => $parentUnit->id,
+            'deleted_at' => null,
+        ]);
+    });
+
+    test('delete succeeds after children are removed', function () {
+        // Arrange: Create a unit with one child
+        $parentUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Parent Unit',
+            'type' => 'region',
+        ]);
+        $parentUnit->setParent($this->rootUnit);
+
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Child Unit',
+            'type' => 'branch',
+        ]);
+        $child->setParent($parentUnit);
+
+        // Give user admin scope
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $parentUnit->id,
+            'access_level' => 'admin',
+            'include_descendants' => true,
+        ]);
+
+        // First attempt: Should be blocked
+        $response = deleteJson("/v1/organizational-units/{$parentUnit->id}");
+        $response->assertStatus(409);
+
+        // Move child to root (reparent)
+        $child->setParent($this->rootUnit);
+
+        // Second attempt: Should succeed now
+        $response = deleteJson("/v1/organizational-units/{$parentUnit->id}");
+        $response->assertNoContent();
+
+        $this->assertSoftDeleted('organizational_units', [
+            'id' => $parentUnit->id,
         ]);
     });
 });

@@ -10,6 +10,7 @@ use App\Http\Requests\Api\StoreOrganizationalUnitRequest;
 use App\Http\Requests\Api\UpdateOrganizationalUnitRequest;
 use App\Http\Resources\OrganizationalUnitResource;
 use App\Models\OrganizationalUnit;
+use App\Models\OrganizationalUnitClosure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -208,10 +209,29 @@ class OrganizationalUnitController extends Controller
 
     /**
      * Remove the specified organizational unit (soft delete).
+     *
+     * Uses blocking mode: deletion is prevented if the unit has child units.
+     * This prevents accidental data loss and enforces explicit restructuring.
+     *
+     * @see https://github.com/SecPal/api/issues/284 Edge-case decision: blocking mode
      */
     public function destroy(OrganizationalUnit $organizational_unit): JsonResponse
     {
         $this->authorize('delete', $organizational_unit);
+
+        // Check for children (Blocking Mode - Issue #284)
+        // We count direct children only (depth=1), as moving them is sufficient
+        $childCount = OrganizationalUnitClosure::where('ancestor_id', $organizational_unit->id)
+            ->where('depth', 1)
+            ->count();
+
+        if ($childCount > 0) {
+            return response()->json([
+                'message' => "Cannot delete: {$childCount} child unit(s) exist",
+                'child_count' => $childCount,
+                'hint' => 'Delete or move child units first',
+            ], Response::HTTP_CONFLICT);
+        }
 
         $organizational_unit->delete();
 
