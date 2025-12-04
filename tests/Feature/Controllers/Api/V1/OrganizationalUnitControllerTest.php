@@ -48,12 +48,13 @@ beforeEach(function () {
         'type' => 'company',
     ]);
 
-    // Give user admin scope on the root unit
+    // Give user admin scope on the root unit with descendants
     UserInternalOrganizationalScope::create([
         'tenant_id' => $this->tenant->id,
         'user_id' => $this->user->id,
         'organizational_unit_id' => $this->rootUnit->id,
         'access_level' => 'admin',
+        'include_descendants' => true,
     ]);
 });
 
@@ -66,17 +67,20 @@ afterEach(function () {
 
 describe('OrganizationalUnitController - List', function () {
     test('user can list organizational units', function () {
-        // Arrange: Create additional units
+        // Arrange: Create additional units as children of root (so user has access via include_descendants)
         $unit1 = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Department A',
             'type' => 'department',
         ]);
+        $unit1->setParent($this->rootUnit);
+
         $unit2 = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Branch B',
             'type' => 'branch',
         ]);
+        $unit2->setParent($this->rootUnit);
 
         // Act
         $response = getJson('/v1/organizational-units');
@@ -87,19 +91,20 @@ describe('OrganizationalUnitController - List', function () {
                 'data' => [
                     '*' => ['id', 'name', 'type', 'created_at', 'updated_at'],
                 ],
-                'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+                'meta' => ['current_page', 'last_page', 'per_page', 'total', 'root_unit_ids'],
             ])
             ->assertJsonCount(3, 'data'); // root + 2 created
     });
 
     test('list organizational units respects pagination', function () {
-        // Arrange: Create 15 units
+        // Arrange: Create 15 units as children of root
         for ($i = 1; $i <= 15; $i++) {
-            OrganizationalUnit::factory()->create([
+            $unit = OrganizationalUnit::factory()->create([
                 'tenant_id' => $this->tenant->id,
                 'name' => "Unit {$i}",
                 'type' => 'department',
             ]);
+            $unit->setParent($this->rootUnit);
         }
 
         // Act
@@ -113,15 +118,18 @@ describe('OrganizationalUnitController - List', function () {
     });
 
     test('list organizational units can filter by type', function () {
-        // Arrange
-        OrganizationalUnit::factory()->create([
+        // Arrange: Create units as children of root
+        $dept = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'type' => 'department',
         ]);
-        OrganizationalUnit::factory()->create([
+        $dept->setParent($this->rootUnit);
+
+        $branch = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'type' => 'branch',
         ]);
+        $branch->setParent($this->rootUnit);
 
         // Act
         $response = getJson('/v1/organizational-units?type=department');
@@ -277,6 +285,212 @@ describe('OrganizationalUnitController - Delete', function () {
         $this->assertSoftDeleted('organizational_units', [
             'id' => $unitToDelete->id,
         ]);
+    });
+});
+
+describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Know)', function () {
+    test('returns only accessible units (Need-to-Know principle)', function () {
+        // Arrange: Create hierarchy - Company -> Region -> Branch
+        $region = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Region Berlin',
+            'type' => 'region',
+        ]);
+        $region->setParent($this->rootUnit);
+
+        $branch = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Branch Berlin-Mitte',
+            'type' => 'branch',
+        ]);
+        $branch->setParent($region);
+
+        // Create another region that user should NOT have access to
+        $otherRegion = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Region Munich',
+            'type' => 'region',
+        ]);
+        $otherRegion->setParent($this->rootUnit);
+
+        // Create user with scope only on Region Berlin (with descendants)
+        $limitedUser = User::factory()->create();
+        $limitedUser->assignRole('Admin');
+
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $limitedUser->id,
+            'organizational_unit_id' => $region->id,
+            'access_level' => 'read',
+            'include_descendants' => true,
+        ]);
+
+        actingAs($limitedUser, 'sanctum');
+
+        // Act - No scope parameter needed, permission filtering is the default
+        $response = getJson('/v1/organizational-units');
+
+        // Assert: Should see Region Berlin and Branch Berlin-Mitte, NOT Company or Munich
+        $response->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonStructure(['meta' => ['root_unit_ids']]);
+
+        $unitIds = collect($response->json('data'))->pluck('id')->toArray();
+        expect($unitIds)->toContain($region->id)
+            ->toContain($branch->id)
+            ->not->toContain($this->rootUnit->id)
+            ->not->toContain($otherRegion->id);
+    });
+
+    test('includes root_unit_ids in metadata', function () {
+        // Arrange: User has scope on a region
+        $region = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Region Hamburg',
+            'type' => 'region',
+        ]);
+        $region->setParent($this->rootUnit);
+
+        $limitedUser = User::factory()->create();
+        $limitedUser->assignRole('Admin');
+
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $limitedUser->id,
+            'organizational_unit_id' => $region->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+        ]);
+
+        actingAs($limitedUser, 'sanctum');
+
+        // Act - Permission filtering is always applied (Need-to-Know principle)
+        $response = getJson('/v1/organizational-units');
+
+        // Assert: Region is the root for this user's view
+        $response->assertOk()
+            ->assertJsonStructure(['meta' => ['root_unit_ids']]);
+
+        $rootUnitIds = $response->json('meta.root_unit_ids');
+        expect($rootUnitIds)->toContain($region->id);
+    });
+
+    test('branch manager sees only own branch', function () {
+        // Arrange: Create Company -> Region -> Branch hierarchy
+        $region = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Region Berlin',
+            'type' => 'region',
+        ]);
+        $region->setParent($this->rootUnit);
+
+        $branch = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Branch Berlin-Mitte',
+            'type' => 'branch',
+        ]);
+        $branch->setParent($region);
+
+        $otherBranch = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Branch Berlin-Kreuzberg',
+            'type' => 'branch',
+        ]);
+        $otherBranch->setParent($region);
+
+        // Branch manager has scope only on own branch (no descendants flag matters)
+        $branchManager = User::factory()->create();
+        $branchManager->assignRole('Admin');
+
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $branchManager->id,
+            'organizational_unit_id' => $branch->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+        ]);
+
+        actingAs($branchManager, 'sanctum');
+
+        // Act - Permission filtering is always applied
+        $response = getJson('/v1/organizational-units');
+
+        // Assert: Only sees own branch
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $branch->id)
+            ->assertJsonPath('meta.root_unit_ids.0', $branch->id);
+    });
+
+    test('user with multiple scopes sees union of accessible units', function () {
+        // Arrange: Create two separate regions
+        $region1 = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Region Berlin',
+            'type' => 'region',
+        ]);
+        $region1->setParent($this->rootUnit);
+
+        $region2 = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Region Hamburg',
+            'type' => 'region',
+        ]);
+        $region2->setParent($this->rootUnit);
+
+        // User has scope on both regions
+        $multiScopeUser = User::factory()->create();
+        $multiScopeUser->assignRole('Admin');
+
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $multiScopeUser->id,
+            'organizational_unit_id' => $region1->id,
+            'access_level' => 'read',
+        ]);
+
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $multiScopeUser->id,
+            'organizational_unit_id' => $region2->id,
+            'access_level' => 'read',
+        ]);
+
+        actingAs($multiScopeUser, 'sanctum');
+
+        // Act - Permission filtering is always applied
+        $response = getJson('/v1/organizational-units');
+
+        // Assert: Sees both regions
+        $response->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        $unitIds = collect($response->json('data'))->pluck('id')->toArray();
+        expect($unitIds)->toContain($region1->id)->toContain($region2->id);
+
+        // Both are root units for this user's view
+        $rootUnitIds = $response->json('meta.root_unit_ids');
+        expect($rootUnitIds)->toContain($region1->id)->toContain($region2->id);
+    });
+
+    test('user cannot access organizational units from different tenant (cross-tenant isolation)', function () {
+        // Arrange: Create a second tenant with its own organizational unit
+        $otherTenantKeys = TenantKey::generateEnvelopeKeys();
+        $otherTenant = TenantKey::create($otherTenantKeys);
+
+        $otherTenantUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'name' => 'Other Tenant Unit',
+            'type' => 'company',
+        ]);
+
+        // Act: Attempt to access with current user (who belongs to $this->tenant)
+        $response = getJson('/v1/organizational-units');
+
+        // Assert: Other tenant's unit is NOT visible
+        $response->assertOk();
+        $unitIds = collect($response->json('data'))->pluck('id')->toArray();
+        expect($unitIds)->not->toContain($otherTenantUnit->id);
     });
 });
 
