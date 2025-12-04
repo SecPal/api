@@ -44,7 +44,7 @@ class CheckCustomerScope
         $user = $request->user();
 
         if ($user === null) {
-            return $this->unauthorizedResponse('Authentication required');
+            return $this->unauthorizedResponse(__('Authentication required'));
         }
 
         // Only apply to customer users (Client role)
@@ -57,23 +57,23 @@ class CheckCustomerScope
         $hasObjectAccess = CustomerUserObjectAccess::where('user_id', $user->id)->exists();
 
         if (! $hasCustomerAccess && ! $hasObjectAccess) {
-            return $this->forbiddenResponse('No customer access assigned');
+            return $this->forbiddenResponse(__('No customer access assigned'));
         }
 
         // If route has a customer parameter, validate access to that specific customer
         $customerId = $this->extractCustomerId($request);
         if ($customerId !== null) {
             if (! $this->isValidUuid($customerId)) {
-                return $this->notFoundResponse('Invalid customer ID format');
+                return $this->notFoundResponse(__('Invalid customer ID format'));
             }
 
             $customer = Customer::find($customerId);
             if ($customer === null) {
-                return $this->notFoundResponse('Customer not found');
+                return $this->notFoundResponse(__('Customer not found'));
             }
 
             if (! $this->userHasAccessToCustomer($user, $customer)) {
-                return $this->forbiddenResponse('Access denied to this customer');
+                return $this->forbiddenResponse(__('Access denied to this customer'));
             }
 
             // Store the loaded customer in request attributes for controller use

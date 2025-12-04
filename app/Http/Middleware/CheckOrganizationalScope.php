@@ -48,24 +48,24 @@ class CheckOrganizationalScope
         $user = $request->user();
 
         if ($user === null) {
-            return $this->unauthorizedResponse('Authentication required');
+            return $this->unauthorizedResponse(__('Authentication required'));
         }
 
         $unitId = $this->extractOrganizationalUnitId($request);
 
         if ($unitId === null) {
-            return $this->notFoundResponse('Organizational unit ID not provided');
+            return $this->notFoundResponse(__('Organizational unit ID not provided'));
         }
 
         // Validate UUID format before querying database
         if (! $this->isValidUuid($unitId)) {
-            return $this->notFoundResponse('Invalid organizational unit ID format');
+            return $this->notFoundResponse(__('Invalid organizational unit ID format'));
         }
 
         $unit = OrganizationalUnit::find($unitId);
 
         if ($unit === null) {
-            return $this->notFoundResponse('Organizational unit not found');
+            return $this->notFoundResponse(__('Organizational unit not found'));
         }
 
         if (! $user->hasAccessToUnit($unit, $requiredLevel)) {
@@ -120,7 +120,7 @@ class CheckOrganizationalScope
     private function forbiddenResponse(string $requiredLevel): Response
     {
         return response()->json([
-            'message' => "Insufficient access level. Required: {$requiredLevel}",
+            'message' => __('Insufficient access level. Required: :level', ['level' => $requiredLevel]),
         ], 403);
     }
 
