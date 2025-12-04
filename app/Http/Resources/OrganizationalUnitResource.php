@@ -50,8 +50,6 @@ class OrganizationalUnitResource extends JsonResource
      *
      * If `accessible_unit_ids` is set in request attributes,
      * only return parent if it's in the accessible list.
-     *
-     * @return OrganizationalUnitResource|null
      */
     private function transformParent(Request $request): ?OrganizationalUnitResource
     {
