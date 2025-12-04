@@ -1,4 +1,5 @@
 {
+  "Too many login attempts. Please try again in :seconds seconds.": "Too many login attempts. Please try again in :seconds seconds.",
   "Reset Your Password": "Reset Your Password",
   "Hello": "Hello",
   "You requested a password reset for your SecPal account.": "You requested a password reset for your SecPal account.",

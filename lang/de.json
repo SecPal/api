@@ -1,4 +1,5 @@
 {
+  "Too many login attempts. Please try again in :seconds seconds.": "Zu viele Anmeldeversuche. Bitte versuchen Sie es in :seconds Sekunden erneut.",
   "Reset Your Password": "Passwort zurücksetzen",
   "Hello": "Hallo",
   "You requested a password reset for your SecPal account.": "Sie haben eine Passwort-Zurücksetzung für Ihr SecPal-Konto angefordert.",
@@ -27,5 +28,5 @@
   "Person not found": "Person nicht gefunden",
   "Role not assigned to user": "Rolle dem Benutzer nicht zugewiesen",
   "Scope not found": "Bereich nicht gefunden",
-  "Scope not found for this organizational unit": "Umfang für diese Organisationseinheit nicht gefunden"
+  "Scope not found for this organizational unit": "Bereich für diese Organisationseinheit nicht gefunden"
 }
