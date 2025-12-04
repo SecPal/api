@@ -36,8 +36,7 @@ describe('SetTenant Middleware', function (): void {
 
         $response->assertStatus(400)
             ->assertJson([
-                'error' => 'Tenant ID is required',
-                'message' => 'Please provide tenant ID in path (/tenants/{tenant}) or X-Tenant header',
+                'message' => 'Tenant ID is required. Please provide tenant ID in path (/tenants/{tenant}) or X-Tenant header.',
             ]);
     });
 
@@ -46,8 +45,7 @@ describe('SetTenant Middleware', function (): void {
 
         $response->assertStatus(404)
             ->assertJson([
-                'error' => 'Tenant not found',
-                'message' => 'The specified tenant does not exist',
+                'message' => 'Tenant not found. The specified tenant does not exist.',
             ]);
     });
 

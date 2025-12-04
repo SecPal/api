@@ -63,7 +63,7 @@ describe('InjectTenantId Middleware', function () {
 
         $response->assertStatus(Response::HTTP_SERVICE_UNAVAILABLE)
             ->assertJson([
-                'error' => 'No tenant keys available. Please ensure at least one tenant key is configured.',
+                'message' => 'No tenant keys available. Please ensure at least one tenant key is configured.',
             ]);
     });
 

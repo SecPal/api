@@ -110,7 +110,6 @@ class CheckOrganizationalScope
     private function unauthorizedResponse(string $message): Response
     {
         return response()->json([
-            'error' => 'Unauthorized',
             'message' => $message,
         ], 401);
     }
@@ -121,7 +120,6 @@ class CheckOrganizationalScope
     private function forbiddenResponse(string $requiredLevel): Response
     {
         return response()->json([
-            'error' => 'Access denied',
             'message' => "Insufficient access level. Required: {$requiredLevel}",
         ], 403);
     }
@@ -132,7 +130,6 @@ class CheckOrganizationalScope
     private function notFoundResponse(string $message): Response
     {
         return response()->json([
-            'error' => 'Not found',
             'message' => $message,
         ], 404);
     }

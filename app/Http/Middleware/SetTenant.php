@@ -31,16 +31,14 @@ class SetTenant
 
         if ($tenantId === null) {
             return response()->json([
-                'error' => 'Tenant ID is required',
-                'message' => 'Please provide tenant ID in path (/tenants/{tenant}) or X-Tenant header',
+                'message' => 'Tenant ID is required. Please provide tenant ID in path (/tenants/{tenant}) or X-Tenant header.',
             ], 400);
         }
 
         // Verify tenant exists
         if (! TenantKey::where('id', $tenantId)->exists()) {
             return response()->json([
-                'error' => 'Tenant not found',
-                'message' => 'The specified tenant does not exist',
+                'message' => 'Tenant not found. The specified tenant does not exist.',
             ], 404);
         }
 

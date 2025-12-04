@@ -194,8 +194,8 @@ describe('CheckOrganizationalScope Middleware', function () {
 
             $content = json_decode($response->getContent(), true);
 
-            expect($content)->toHaveKey('error');
-            expect($content['error'])->toBe('Access denied');
+            expect($content)->toHaveKey('message');
+            expect($content['message'])->toContain('Insufficient access level');
         });
     });
 
