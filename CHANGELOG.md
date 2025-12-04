@@ -12,7 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Need-to-Know Organizational Unit Filtering** (#279, Part of Epic #280)
+  - Implemented permission-based filtering for organizational units API endpoint
+  - Users now only see organizational units they have explicit access to
+  - Added `root_unit_ids` field to pagination meta for frontend tree building
+  - Follows ADR-007 Need-to-Know principle: "If you don't have permission, you don't see it"
+  - Added `getAccessibleOrganizationalUnits()` method to User model
+  - **BREAKING CHANGE**: `/api/v1/organizational-units` response now filtered by user permissions
+
 ### Fixed
+
+- **Organizational Unit Eager Loading** (#282, Part of Epic #280)
+  - Added missing `parent()` relation to `OrganizationalUnit` model for eager loading support
+  - Fixes N+1 query issues when loading organizational units with parent relationships
 
 - **PWA Session Restoration After Long Inactivity** (#271)
   - Added `RestoreSessionFromRememberToken` middleware to restore sessions from remember token
