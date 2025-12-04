@@ -48,7 +48,8 @@ class OrganizationalUnitController extends Controller
         $tenantId = $request->input('tenant_id');
 
         // Build query filtered to accessible units only AND current tenant (defense-in-depth)
-        $query = OrganizationalUnit::whereIn('id', $accessibleIds)
+        $query = OrganizationalUnit::with('parent')
+            ->whereIn('id', $accessibleIds)
             ->where('tenant_id', $tenantId);
 
         // Filter by type if provided
