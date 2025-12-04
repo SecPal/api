@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
@@ -159,9 +160,9 @@ class OrganizationalUnit extends Model
      * This is a proper Eloquent relationship (unlike the getParentAttribute accessor)
      * that supports eager loading via with('parent').
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasOneThrough<OrganizationalUnit, OrganizationalUnitClosure, $this>
+     * @return HasOneThrough<OrganizationalUnit, OrganizationalUnitClosure, $this>
      */
-    public function parent(): \Illuminate\Database\Eloquent\Relations\HasOneThrough
+    public function parent(): HasOneThrough
     {
         return $this->hasOneThrough(
             OrganizationalUnit::class,
