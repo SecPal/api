@@ -297,7 +297,7 @@ describe('Token Revocation', function () {
             ->postJson('/v1/auth/logout');
 
         $response->assertOk()
-            ->assertJson(['message' => 'Token revoked successfully.']);
+            ->assertJson(['message' => 'Token revoked successfully']);
 
         expect($user->tokens()->count())->toBe(0);
     });
@@ -318,7 +318,7 @@ describe('Token Revocation', function () {
             ->postJson('/v1/auth/logout-all');
 
         $response->assertOk()
-            ->assertJson(['message' => 'All tokens revoked successfully.']);
+            ->assertJson(['message' => 'All tokens revoked successfully']);
 
         expect($user->fresh()->tokens()->count())->toBe(0);
     });
@@ -354,7 +354,7 @@ describe('Token Revocation', function () {
 
         // Should succeed without crashing (200 OK)
         $response->assertOk()
-            ->assertJson(['message' => 'Token revoked successfully.']);
+            ->assertJson(['message' => 'Token revoked successfully']);
 
         // Token1 should be deleted
         expect($user->fresh()->tokens()->count())->toBe(0);

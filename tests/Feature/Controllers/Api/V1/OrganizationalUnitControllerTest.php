@@ -376,7 +376,7 @@ describe('OrganizationalUnitController - Delete', function () {
         // Assert: Should return 409 Conflict
         $response->assertStatus(409)
             ->assertJson([
-                'message' => 'Cannot delete: 3 child unit(s) exist',
+                'message' => 'Cannot delete: 3 child units exist',
                 'child_count' => 3,
                 'hint' => 'Delete or move child units first',
             ]);
@@ -458,7 +458,7 @@ describe('OrganizationalUnitController - Delete', function () {
         $response = deleteJson("/v1/organizational-units/{$parentUnit->id}");
         $response->assertStatus(409)
             ->assertJson([
-                'message' => 'Cannot delete: 1 child unit(s) exist',
+                'message' => 'Cannot delete: 1 child unit exists',
                 'child_count' => 1,
             ]);
 

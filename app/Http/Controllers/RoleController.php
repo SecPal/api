@@ -64,7 +64,7 @@ class RoleController extends Controller
 
         if ($existingAssignment) {
             return response()->json([
-                'message' => 'Role already assigned to user',
+                'message' => __('Role already assigned to user'),
                 'user_id' => $targetUser->id,
                 'role' => $role->name,
                 'valid_from' => $existingAssignment->valid_from

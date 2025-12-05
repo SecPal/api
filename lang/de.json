@@ -1,5 +1,4 @@
 {
-  "Too many login attempts. Please try again in :seconds seconds.": "Zu viele Anmeldeversuche. Bitte versuchen Sie es in :seconds Sekunden erneut.",
   "Reset Your Password": "Passwort zurücksetzen",
   "Hello": "Hallo",
   "You requested a password reset for your SecPal account.": "Sie haben eine Passwort-Zurücksetzung für Ihr SecPal-Konto angefordert.",
@@ -11,13 +10,9 @@
   "Your password will remain unchanged until you complete the reset process": "Ihr Passwort bleibt unverändert, bis Sie den Zurücksetzungsvorgang abschließen",
   "Thanks": "Vielen Dank",
   "If you're having trouble clicking the \":button\" button, copy and paste the URL below into your web browser:": "Falls Sie Probleme beim Klicken auf die Schaltfläche \":button\" haben, kopieren Sie die folgende URL und fügen Sie sie in Ihren Webbrowser ein:",
-
-  "Tenant ID is required. Please provide tenant ID in path (/tenants/{tenant}) or X-Tenant header.": "Mandanten-ID erforderlich. Bitte geben Sie die Mandanten-ID im Pfad (/tenants/{tenant}) oder im X-Tenant-Header an.",
-  "Tenant not found. The specified tenant does not exist.": "Mandant nicht gefunden. Der angegebene Mandant existiert nicht.",
-  "No tenant keys available. Please ensure at least one tenant key is configured.": "Keine Mandantenschlüssel verfügbar. Bitte stellen Sie sicher, dass mindestens ein Mandantenschlüssel konfiguriert ist.",
   "Authentication required": "Authentifizierung erforderlich",
   "Organizational unit ID not provided": "ID der Organisationseinheit nicht angegeben",
-  "Invalid organizational unit ID format": "Ungültiges Format der Organisationseinheits-ID",
+  "Invalid organizational unit ID format": "Ungültiges Format der ID der Organisationseinheit",
   "Organizational unit not found": "Organisatorische Einheit nicht gefunden",
   "Insufficient access level. Required: :level": "Unzureichende Zugriffsstufe. Erforderlich: :level",
   "No customer access assigned": "Kein Kundenzugang zugewiesen",
@@ -28,5 +23,9 @@
   "Person not found": "Person nicht gefunden",
   "Role not assigned to user": "Rolle dem Benutzer nicht zugewiesen",
   "Scope not found": "Bereich nicht gefunden",
-  "Scope not found for this organizational unit": "Bereich für diese Organisationseinheit nicht gefunden"
+  "Scope not found for this organizational unit": "Bereich für diese Organisationseinheit nicht gefunden",
+  "Too many login attempts. Please try again in :seconds seconds.": "Zu viele Anmeldeversuche. Bitte versuchen Sie es in :seconds Sekunden erneut.",
+  "Tenant ID is required. Please provide tenant ID in path (/tenants/{tenant}) or X-Tenant header.": "Die Mandanten-ID ist erforderlich. Bitte geben Sie die Mandanten-ID im Pfad (/tenants/{tenant}) oder im X-Tenant-Header an.",
+  "Tenant not found. The specified tenant does not exist.": "Mandant nicht gefunden. Der angegebene Mandant existiert nicht.",
+  "No tenant keys available. Please ensure at least one tenant key is configured.": "Keine Mandantenschlüssel verfügbar. Bitte stellen Sie sicher, dass mindestens ein Mandantenschlüssel konfiguriert ist."
 }

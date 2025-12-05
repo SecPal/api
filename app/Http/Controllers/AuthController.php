@@ -94,7 +94,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message' => 'Logged out successfully.',
+            'message' => __('Logged out successfully'),
         ]);
     }
 
@@ -149,7 +149,7 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message' => 'Token revoked successfully.',
+            'message' => __('Token revoked successfully'),
         ]);
     }
 
@@ -164,7 +164,7 @@ class AuthController extends Controller
         $user->tokens()->delete();
 
         return response()->json([
-            'message' => 'All tokens revoked successfully.',
+            'message' => __('All tokens revoked successfully'),
         ]);
     }
 
@@ -242,7 +242,7 @@ class AuthController extends Controller
 
         // Always return same response to prevent email enumeration
         return response()->json([
-            'message' => 'Password reset email sent if account exists',
+            'message' => __('Password reset email sent if account exists'),
         ]);
     }
 
@@ -259,7 +259,7 @@ class AuthController extends Controller
 
         if (! $user) {
             return response()->json([
-                'message' => 'Invalid or expired reset token',
+                'message' => __('Invalid or expired reset token'),
             ], 400);
         }
 
@@ -271,7 +271,7 @@ class AuthController extends Controller
 
         if (! $tokenRecord) {
             return response()->json([
-                'message' => 'Invalid or expired reset token',
+                'message' => __('Invalid or expired reset token'),
             ], 400);
         }
 
@@ -285,14 +285,14 @@ class AuthController extends Controller
                 ->delete();
 
             return response()->json([
-                'message' => 'Invalid or expired reset token',
+                'message' => __('Invalid or expired reset token'),
             ], 400);
         }
 
         // Verify token
         if (! Hash::check($validated['token'], $tokenRecord->token)) {
             return response()->json([
-                'message' => 'Invalid or expired reset token',
+                'message' => __('Invalid or expired reset token'),
             ], 400);
         }
 
@@ -306,7 +306,7 @@ class AuthController extends Controller
             ->delete();
 
         return response()->json([
-            'message' => 'Password has been reset successfully',
+            'message' => __('Password has been reset successfully'),
         ]);
     }
 
