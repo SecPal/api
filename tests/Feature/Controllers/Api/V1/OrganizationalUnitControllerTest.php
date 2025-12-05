@@ -267,6 +267,101 @@ describe('OrganizationalUnitController - Create', function () {
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['type']);
     });
+
+    test('creator automatically receives admin scope on new root unit', function () {
+        // Arrange: Remove existing scopes so user has no access
+        $this->user->organizationalScopes()->delete();
+
+        // Give user a minimal scope on existing unit (to satisfy viewAny policy)
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $this->rootUnit->id,
+            'access_level' => 'read',
+            'include_descendants' => false,
+        ]);
+
+        $data = [
+            'name' => 'New Root Holding',
+            'type' => 'holding',
+        ];
+
+        // Act
+        $response = postJson('/v1/organizational-units', $data);
+
+        // Assert: Unit was created
+        $response->assertCreated();
+        $newUnitId = $response->json('data.id');
+
+        // Assert: Creator automatically has admin scope on new unit
+        $this->assertDatabaseHas('user_internal_organizational_scopes', [
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $newUnitId,
+            'access_level' => 'admin',
+            'include_descendants' => true,
+        ]);
+    });
+
+    test('newly created root unit is visible in list after creation', function () {
+        // Arrange: Remove existing scopes so user has no access
+        $this->user->organizationalScopes()->delete();
+
+        // Give user a minimal scope on existing unit (to satisfy viewAny policy)
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $this->rootUnit->id,
+            'access_level' => 'read',
+            'include_descendants' => false,
+        ]);
+
+        $data = [
+            'name' => 'Brand New Holding',
+            'type' => 'holding',
+        ];
+
+        // Act: Create the unit
+        $createResponse = postJson('/v1/organizational-units', $data);
+        $createResponse->assertCreated();
+        $newUnitId = $createResponse->json('data.id');
+
+        // Act: List units - the new unit should be visible
+        $listResponse = getJson('/v1/organizational-units');
+
+        // Assert: New unit appears in list and in root_unit_ids
+        $listResponse->assertOk();
+        $unitIds = collect($listResponse->json('data'))->pluck('id')->toArray();
+        expect($unitIds)->toContain($newUnitId);
+
+        $rootUnitIds = $listResponse->json('meta.root_unit_ids');
+        expect($rootUnitIds)->toContain($newUnitId);
+    });
+
+    test('child unit inherits access from parent scope with include_descendants', function () {
+        // Arrange: User already has admin scope on rootUnit with include_descendants=true (from beforeEach)
+        $data = [
+            'name' => 'Child Department',
+            'type' => 'department',
+            'parent_id' => $this->rootUnit->id,
+        ];
+
+        // Act: Create child unit
+        $createResponse = postJson('/v1/organizational-units', $data);
+        $createResponse->assertCreated();
+        $childUnitId = $createResponse->json('data.id');
+
+        // Assert: No additional scope was created (access inherited from parent)
+        $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $childUnitId,
+        ]);
+
+        // Act: List units - child should be visible via inherited access
+        $listResponse = getJson('/v1/organizational-units');
+
+        // Assert: Child unit appears in list
+        $listResponse->assertOk();
+        $unitIds = collect($listResponse->json('data'))->pluck('id')->toArray();
+        expect($unitIds)->toContain($childUnitId);
+    });
 });
 
 describe('OrganizationalUnitController - Show', function () {
