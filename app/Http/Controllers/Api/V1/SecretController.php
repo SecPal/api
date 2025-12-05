@@ -163,7 +163,7 @@ class SecretController extends Controller
         // Validate tenant_id injected by middleware
         if ($tenantId === null || ! is_numeric($tenantId) || (int) $tenantId <= 0) {
             return response()->json([
-                'message' => 'Invalid or missing tenant_id.',
+                'message' => __('Invalid or missing tenant_id'),
             ], Response::HTTP_BAD_REQUEST);
         }
 

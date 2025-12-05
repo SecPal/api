@@ -135,7 +135,7 @@ class RoleManagementController extends Controller
 
         if ($usersCount > 0) {
             return response()->json([
-                'message' => 'Cannot delete role while assigned to users',
+                'message' => __('Cannot delete role while assigned to users'),
                 'assigned_to' => $usersCount,
             ], 422);
         }

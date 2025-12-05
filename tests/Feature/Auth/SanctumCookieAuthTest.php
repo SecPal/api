@@ -69,7 +69,7 @@ describe('httpOnly Cookie Authentication Flow', function () {
             ->postJson('/v1/auth/logout');
 
         $response->assertOk()
-            ->assertJson(['message' => 'Token revoked successfully.']);
+            ->assertJson(['message' => 'Token revoked successfully']);
 
         // Verify token was revoked
         expect($user->fresh()->tokens()->count())->toBe(0);
@@ -386,7 +386,7 @@ describe('SPA Session-Based Logout', function () {
 
         $response->assertOk()
             ->assertJson([
-                'message' => 'Logged out successfully.',
+                'message' => 'Logged out successfully',
             ]);
     });
 

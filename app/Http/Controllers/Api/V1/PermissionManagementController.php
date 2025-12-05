@@ -141,7 +141,7 @@ class PermissionManagementController extends Controller
 
         if ($rolesCount > 0) {
             return response()->json([
-                'message' => 'Cannot delete permission while assigned to roles',
+                'message' => __('Cannot delete permission while assigned to roles'),
                 'assigned_to_roles' => $rolesCount,
             ], 422);
         }

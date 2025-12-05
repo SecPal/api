@@ -227,9 +227,9 @@ class OrganizationalUnitController extends Controller
 
         if ($childCount > 0) {
             return response()->json([
-                'message' => "Cannot delete: {$childCount} child unit(s) exist",
+                'message' => trans_choice('Cannot delete: :count child unit exists|Cannot delete: :count child units exist', $childCount, ['count' => $childCount]),
                 'child_count' => $childCount,
-                'hint' => 'Delete or move child units first',
+                'hint' => __('Delete or move child units first'),
             ], Response::HTTP_CONFLICT);
         }
 

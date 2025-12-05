@@ -134,7 +134,7 @@ class UserPermissionController extends Controller
         app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
         return response()->json([
-            'message' => 'Permissions assigned successfully',
+            'message' => __('Permissions assigned successfully'),
             'data' => $assignedPermissions,
         ], 201);
     }
@@ -152,14 +152,14 @@ class UserPermissionController extends Controller
         // Check if user has this permission directly
         if (! $user->hasDirectPermission($permission)) {
             return response()->json([
-                'message' => 'User does not have this permission directly assigned',
+                'message' => __('User does not have this permission directly assigned'),
             ], 404);
         }
 
         $user->revokePermissionTo($permission);
 
         return response()->json([
-            'message' => 'Permission revoked successfully',
+            'message' => __('Permission revoked successfully'),
         ]);
     }
 
