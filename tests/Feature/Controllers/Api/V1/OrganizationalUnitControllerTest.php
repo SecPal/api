@@ -859,7 +859,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
         ]);
     });
 
-    test('user can detach parent from unit', function () {
+    test('user can detach parent from unit when they have direct scope', function () {
         // Arrange: Create child with parent
         $child = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -867,6 +867,16 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'type' => 'department',
         ]);
         $child->setParent($this->rootUnit);
+
+        // User needs direct scope on child to be able to detach it from parent
+        // (otherwise they would lose access after detach)
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $child->id,
+            'access_level' => 'admin',
+            'include_descendants' => false,
+        ]);
 
         // Act
         $response = deleteJson("/v1/organizational-units/{$child->id}/parent/{$this->rootUnit->id}");
@@ -880,5 +890,85 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'descendant_id' => $child->id,
             'depth' => 1,
         ]);
+    });
+
+    test('user loses access to unit after detaching from parent when access was via include_descendants', function () {
+        // Scenario: User has access to rootUnit with include_descendants.
+        // Child is created under rootUnit, so user has inherited access.
+        // Trying to detach child from rootUnit should be PREVENTED because
+        // the user would lose access after the operation.
+
+        // Arrange: Create child with parent
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Child Unit',
+            'type' => 'department',
+        ]);
+        $child->setParent($this->rootUnit);
+
+        // Verify user has access before detach (via include_descendants)
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+
+        // Act: Try to detach parent (make child a root unit)
+        // This should be FORBIDDEN because user has no direct scope on child
+        $response = deleteJson("/v1/organizational-units/{$child->id}/parent/{$this->rootUnit->id}");
+
+        // Assert: Operation should be forbidden
+        $response->assertForbidden();
+        $response->assertJsonPath('message', 'Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact an administrator to get direct access to this unit first.');
+
+        // Verify the closure table entry is still there (parent not detached)
+        $this->assertDatabaseHas('organizational_unit_closures', [
+            'ancestor_id' => $this->rootUnit->id,
+            'descendant_id' => $child->id,
+            'depth' => 1,
+        ]);
+
+        // User should still have access (nothing changed)
+        $this->user->refresh();
+        $child->refresh();
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+    });
+
+    test('user retains access to unit after detaching if they have direct scope', function () {
+        // Scenario: User has direct scope on the child unit.
+        // After detaching from parent, user should still have access.
+
+        // Arrange: Create child with parent
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Child Unit',
+            'type' => 'department',
+        ]);
+        $child->setParent($this->rootUnit);
+
+        // Give user direct scope on the child unit
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $child->id,
+            'access_level' => 'admin',
+            'include_descendants' => false,
+        ]);
+
+        // Verify user has access before detach
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+
+        // Act: Detach parent (make child a root unit)
+        $response = deleteJson("/v1/organizational-units/{$child->id}/parent/{$this->rootUnit->id}");
+        $response->assertOk();
+
+        // Refresh
+        $this->user->refresh();
+        $child->refresh();
+
+        // Assert: User should still have access (via direct scope)
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+
+        // Trying to update should succeed
+        $updateResponse = patchJson("/v1/organizational-units/{$child->id}", [
+            'name' => 'Updated Name',
+        ]);
+        $updateResponse->assertOk();
     });
 });

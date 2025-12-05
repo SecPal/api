@@ -307,10 +307,33 @@ class OrganizationalUnitController extends Controller
 
     /**
      * Detach a parent from the organizational unit.
+     *
+     * This operation will make the unit a root unit. Before proceeding,
+     * we verify that the user will still have access to the unit after
+     * the parent is detached. If the user's access is only inherited
+     * from the parent via include_descendants, this operation will fail
+     * with a 403 Forbidden response.
      */
     public function detachParent(OrganizationalUnit $organizational_unit, OrganizationalUnit $parent): JsonResponse
     {
         $this->authorize('update', $organizational_unit);
+
+        /** @var \App\Models\User $user */
+        $user = request()->user();
+
+        // Check if user will still have access after detaching parent.
+        // User needs a direct scope on the unit itself, not just inherited access via parent.
+        $hasDirectScope = UserInternalOrganizationalScope::where('user_id', $user->id)
+            ->where('organizational_unit_id', $organizational_unit->id)
+            ->exists();
+
+        if (! $hasDirectScope) {
+            // User's access is only via the parent's include_descendants flag.
+            // After detaching, they would lose access to this unit.
+            return response()->json([
+                'message' => __('Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact an administrator to get direct access to this unit first.'),
+            ], Response::HTTP_FORBIDDEN);
+        }
 
         $organizational_unit->removeParent();
 
