@@ -428,6 +428,59 @@ describe('OrganizationalUnitController - Delete', function () {
             'id' => $parentUnit->id,
         ]);
     });
+
+    test('delete succeeds after children are deleted (soft-deleted children should not block)', function () {
+        // Arrange: Create a unit with one child - Issue #295 regression test
+        $parentUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Parent Unit',
+            'type' => 'region',
+        ]);
+        $parentUnit->setParent($this->rootUnit);
+
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Child Unit',
+            'type' => 'branch',
+        ]);
+        $child->setParent($parentUnit);
+
+        // Give user admin scope on parent with descendants
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $parentUnit->id,
+            'access_level' => 'admin',
+            'include_descendants' => true,
+        ]);
+
+        // First attempt: Should be blocked because child exists
+        $response = deleteJson("/v1/organizational-units/{$parentUnit->id}");
+        $response->assertStatus(409)
+            ->assertJson([
+                'message' => 'Cannot delete: 1 child unit(s) exist',
+                'child_count' => 1,
+            ]);
+
+        // Delete the child unit (soft delete)
+        $response = deleteJson("/v1/organizational-units/{$child->id}");
+        $response->assertNoContent();
+        $this->assertSoftDeleted('organizational_units', ['id' => $child->id]);
+
+        // Verify closure entries were cleaned up (Issue #295 root cause)
+        $this->assertDatabaseMissing('organizational_unit_closures', [
+            'ancestor_id' => $parentUnit->id,
+            'descendant_id' => $child->id,
+        ]);
+
+        // Second attempt: Should succeed now because child was deleted
+        $response = deleteJson("/v1/organizational-units/{$parentUnit->id}");
+        $response->assertNoContent();
+
+        $this->assertSoftDeleted('organizational_units', [
+            'id' => $parentUnit->id,
+        ]);
+    });
 });
 
 describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Know)', function () {
