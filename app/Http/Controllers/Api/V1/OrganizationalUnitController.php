@@ -11,6 +11,7 @@ use App\Http\Requests\Api\UpdateOrganizationalUnitRequest;
 use App\Http\Resources\OrganizationalUnitResource;
 use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
+use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -171,6 +172,18 @@ class OrganizationalUnitController extends Controller
             /** @var OrganizationalUnit $parent */
             $parent = OrganizationalUnit::findOrFail($parentId);
             $unit->setParent($parent);
+        } else {
+            // Root unit created: Auto-assign admin scope to creator
+            // This ensures the creator can see and manage their new unit
+            // Child units inherit access via parent's include_descendants setting
+            /** @var \App\Models\User $user */
+            $user = $request->user();
+            UserInternalOrganizationalScope::create([
+                'user_id' => $user->id,
+                'organizational_unit_id' => $unit->id,
+                'access_level' => 'admin',
+                'include_descendants' => true,
+            ]);
         }
 
         return response()->json([

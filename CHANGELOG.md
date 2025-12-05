@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Newly Created Root Unit Not Visible** (#299, Part of Epic #283)
+  - Root organizational units created without a parent were not visible to the creator
+  - Creator now automatically receives `admin` scope with `include_descendants=true` on new root units
+  - Child units continue to inherit access from parent's scope settings
+  - Added 3 new tests covering auto-scope assignment and visibility
+
 - **Organizational Unit Eager Loading** (#282, Part of Epic #280)
   - Added missing `parent()` relation to `OrganizationalUnit` model for eager loading support
   - Fixes N+1 query issues when loading organizational units with parent relationships
