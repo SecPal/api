@@ -103,8 +103,21 @@ class OrganizationalUnit extends Model
             ]);
         });
 
+        // Clean up closure table entries on soft delete (Issue #295)
+        // This ensures the child count check in destroy() works correctly
+        // after a child unit has been soft-deleted.
+        static::deleted(function (OrganizationalUnit $unit): void {
+            // Delete all closure entries where this unit is ancestor or descendant
+            // Note: This removes the unit from the hierarchy but preserves the
+            // soft-deleted record in organizational_units table for potential restore.
+            OrganizationalUnitClosure::where(function ($query) use ($unit) {
+                $query->where('ancestor_id', $unit->id)
+                    ->orWhere('descendant_id', $unit->id);
+            })->delete();
+        });
+
         // Note: Closure table cleanup on force delete is handled by ON DELETE CASCADE
-        // in the database migration, so no explicit handler is needed here.
+        // in the database migration, so no explicit forceDeleted handler is needed.
     }
 
     /**
