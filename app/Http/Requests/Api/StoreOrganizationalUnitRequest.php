@@ -11,9 +11,27 @@ use Illuminate\Validation\Rule;
 
 /**
  * Form request for storing a new organizational unit.
+ *
+ * Enforces hierarchy validation (Issue #301):
+ * - Child type rank must be >= parent type rank
+ * - Hierarchy: Holding(1) → Company(2) → Region(3) → Branch(4) → Division(5) → Department(6) → Custom(7)
  */
 class StoreOrganizationalUnitRequest extends FormRequest
 {
+    /**
+     * Hierarchy ranking for organizational unit types.
+     * Lower number = higher in hierarchy.
+     */
+    private const TYPE_HIERARCHY = [
+        'holding' => 1,
+        'company' => 2,
+        'region' => 3,
+        'branch' => 4,
+        'division' => 5,
+        'department' => 6,
+        'custom' => 7,
+    ];
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -32,12 +50,56 @@ class StoreOrganizationalUnitRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'string', Rule::in(['holding', 'company', 'region', 'branch', 'division', 'department', 'custom'])],
+            'type' => [
+                'required',
+                'string',
+                Rule::in(['holding', 'company', 'region', 'branch', 'division', 'department', 'custom']),
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (is_string($value)) {
+                        $this->validateHierarchy($value, $fail);
+                    }
+                },
+            ],
             'custom_type_name' => ['nullable', 'string', 'max:255', 'required_if:type,custom'],
             'description' => ['nullable', 'string', 'max:1000'],
             'metadata' => ['nullable', 'array'],
             'parent_id' => ['nullable', 'uuid', Rule::exists(OrganizationalUnit::class, 'id')],
         ];
+    }
+
+    /**
+     * Validate hierarchy constraints.
+     *
+     * Rule: Child rank must be >= parent rank (equal or lower in hierarchy).
+     * Root units (no parent) are always allowed.
+     *
+     * @param  string  $childType  The type being created
+     * @param  \Closure  $fail  Validation failure callback
+     */
+    private function validateHierarchy(string $childType, \Closure $fail): void
+    {
+        /** @var string|null $parentId */
+        $parentId = $this->input('parent_id');
+
+        // Root units have no constraints
+        if ($parentId === null) {
+            return;
+        }
+
+        // Find parent unit
+        $parent = OrganizationalUnit::find($parentId);
+        if ($parent === null || $parent instanceof \Illuminate\Database\Eloquent\Collection) {
+            // Parent doesn't exist or invalid result - will be caught by exists rule
+            return;
+        }
+
+        $parentRank = self::TYPE_HIERARCHY[$parent->type] ?? 999;
+        $childRank = self::TYPE_HIERARCHY[$childType] ?? 999;
+
+        // Child rank must be >= parent rank (numerically equal or higher)
+        if ($childRank < $parentRank) {
+            $fail("Type '{$childType}' cannot be created under type '{$parent->type}'. Hierarchy violation: {$childType} (rank {$childRank}) is hierarchically higher than {$parent->type} (rank {$parentRank}).");
+        }
     }
 
     /**

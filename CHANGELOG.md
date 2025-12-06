@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Organizational Unit Hierarchy Validation** (#301, Part of Epic #283)
+  - Enforced hierarchical constraints when creating organizational units
+  - Hierarchy ranking: Holding(1) → Company(2) → Region(3) → Branch(4) → Division(5) → Department(6) → Custom(7)
+  - Child unit type rank must be equal to or greater than parent type rank
+  - Custom type (lowest rank) can be created under any type but cannot have children
+  - Root units (no parent) can be of any type
+  - Added validation in `StoreOrganizationalUnitRequest` with clear error messages
+  - Added 7 comprehensive tests covering hierarchy validation rules
+
 - **Need-to-Know Organizational Unit Filtering** (#279, Part of Epic #280)
   - Implemented permission-based filtering for organizational units API endpoint
   - Users now only see organizational units they have explicit access to
