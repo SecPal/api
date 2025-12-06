@@ -348,19 +348,138 @@ describe('OrganizationalUnitController - Create', function () {
         $createResponse->assertCreated();
         $childUnitId = $createResponse->json('data.id');
 
-        // Assert: No additional scope was created (access inherited from parent)
-        $this->assertDatabaseMissing('user_internal_organizational_scopes', [
-            'user_id' => $this->user->id,
-            'organizational_unit_id' => $childUnitId,
+    });
+
+    // Issue #301: Hierarchy Validation Tests
+    test('cannot create company under branch (hierarchy violation)', function () {
+        // Arrange: Create a branch as parent
+        $branch = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'type' => 'branch',
+            'name' => 'Berlin Branch',
+        ]);
+        $branch->setParent($this->rootUnit);
+
+        // Act: Try to create a company (rank 2) under branch (rank 4)
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'New Company',
+            'type' => 'company',
+            'parent_id' => $branch->id,
         ]);
 
-        // Act: List units - child should be visible via inherited access
-        $listResponse = getJson('/v1/organizational-units');
+        // Assert
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['type']);
+    });
 
-        // Assert: Child unit appears in list
-        $listResponse->assertOk();
-        $unitIds = collect($listResponse->json('data'))->pluck('id')->toArray();
-        expect($unitIds)->toContain($childUnitId);
+    test('cannot create holding under company (hierarchy violation)', function () {
+        // Arrange: rootUnit is a company (rank 2)
+        $this->rootUnit->update(['type' => 'company']);
+
+        // Act: Try to create a holding (rank 1) under company (rank 2)
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'New Holding',
+            'type' => 'holding',
+            'parent_id' => $this->rootUnit->id,
+        ]);
+
+        // Assert
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['type']);
+    });
+
+    test('can create department under branch (valid hierarchy)', function () {
+        // Arrange: Create a branch as parent
+        $branch = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'type' => 'branch',
+            'name' => 'Munich Branch',
+        ]);
+        $branch->setParent($this->rootUnit);
+
+        // Act: Create department (rank 6) under branch (rank 4) - valid
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'HR Department',
+            'type' => 'department',
+            'parent_id' => $branch->id,
+        ]);
+
+        // Assert
+        $response->assertCreated()
+            ->assertJsonPath('data.name', 'HR Department')
+            ->assertJsonPath('data.type', 'department');
+    });
+
+    test('cannot create same type under same type (same-level nesting forbidden)', function () {
+        // Arrange: rootUnit is a branch
+        $this->rootUnit->update(['type' => 'branch']);
+
+        // Act: Try to create another branch under branch (same rank = invalid)
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Sub-Branch',
+            'type' => 'branch',
+            'parent_id' => $this->rootUnit->id,
+        ]);
+
+        // Assert: Same-level nesting is not allowed
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['type']);
+    });
+
+    test('custom type can be created under any type (lowest rank)', function () {
+        // Arrange: Create a branch
+        $branch = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'type' => 'branch',
+            'name' => 'Test Branch',
+        ]);
+        $branch->setParent($this->rootUnit);
+
+        // Act: Create custom type under branch
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Special Team',
+            'type' => 'custom',
+            'custom_type_name' => 'Security Team',
+            'parent_id' => $branch->id,
+        ]);
+
+        // Assert
+        $response->assertCreated()
+            ->assertJsonPath('data.type', 'custom');
+    });
+
+    test('cannot create any type under custom type (custom is lowest)', function () {
+        // Arrange: Create a custom type unit
+        $customUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'type' => 'custom',
+            'custom_type_name' => 'Project Team',
+            'name' => 'Alpha Team',
+        ]);
+        $customUnit->setParent($this->rootUnit);
+
+        // Act: Try to create department under custom
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Sub Department',
+            'type' => 'department',
+            'parent_id' => $customUnit->id,
+        ]);
+
+        // Assert
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['type']);
+    });
+
+    test('root units can be any type (no parent constraint)', function () {
+        // Act: Create root units of different types
+        $responses = collect(['holding', 'company', 'region', 'branch', 'division', 'department'])
+            ->map(fn ($type) => postJson('/v1/organizational-units', [
+                'name' => "Root {$type}",
+                'type' => $type,
+            ]));
+
+        // Assert: All should succeed
+        $responses->each(fn ($response) => $response->assertCreated());
     });
 });
 

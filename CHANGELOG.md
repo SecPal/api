@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Organizational Unit Hierarchy Validation** (#301, Part of Epic #283)
+  - Added backend validation to enforce organizational hierarchy rules
+  - Hierarchy ranking: Holding(1) → Company(2) → Region(3) → Branch(4) → Division(5) → Department(6) → Custom(7)
+  - Child units must be **lower** in the hierarchy than their parent (child rank > parent rank)
+  - **Same-level nesting is NOT allowed** (e.g., Branch under Branch is invalid)
+  - Custom type (rank 7) is always valid as a child, but cannot have children
+  - Root units (no parent) can be any type
+  - Comprehensive test coverage with 7 hierarchy validation tests
+  - Clear validation error messages with hierarchy explanation
+
 - **Need-to-Know Organizational Unit Filtering** (#279, Part of Epic #280)
   - Implemented permission-based filtering for organizational units API endpoint
   - Users now only see organizational units they have explicit access to
