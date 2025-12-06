@@ -13,7 +13,7 @@ use Illuminate\Validation\Rule;
  * Form request for storing a new organizational unit.
  *
  * Enforces hierarchy validation (Issue #301):
- * - Child type rank must be >= parent type rank
+ * - Child type rank must be > parent type rank
  * - Hierarchy: Holding(1) → Company(2) → Region(3) → Branch(4) → Division(5) → Department(6) → Custom(7)
  */
 class StoreOrganizationalUnitRequest extends FormRequest
@@ -70,7 +70,7 @@ class StoreOrganizationalUnitRequest extends FormRequest
     /**
      * Validate hierarchy constraints.
      *
-     * Rule: Child rank must be >= parent rank (equal or lower in hierarchy).
+     * Rule: Child rank must be > parent rank (lower in hierarchy).
      * Root units (no parent) are always allowed.
      *
      * @param  string  $childType  The type being created
@@ -88,8 +88,8 @@ class StoreOrganizationalUnitRequest extends FormRequest
 
         // Find parent unit
         $parent = OrganizationalUnit::find($parentId);
-        if ($parent === null || $parent instanceof \Illuminate\Database\Eloquent\Collection) {
-            // Parent doesn't exist or invalid result - will be caught by exists rule
+        if ($parent === null) {
+            // Parent doesn't exist - will be caught by exists rule
             return;
         }
 
