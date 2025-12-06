@@ -96,9 +96,9 @@ class StoreOrganizationalUnitRequest extends FormRequest
         $parentRank = self::TYPE_HIERARCHY[$parent->type] ?? 999;
         $childRank = self::TYPE_HIERARCHY[$childType] ?? 999;
 
-        // Child rank must be >= parent rank (numerically equal or higher)
-        if ($childRank < $parentRank) {
-            $fail("Type '{$childType}' cannot be created under type '{$parent->type}'. Hierarchy violation: {$childType} (rank {$childRank}) is hierarchically higher than {$parent->type} (rank {$parentRank}).");
+        // Child rank must be > parent rank (no same-level nesting allowed)
+        if ($childRank <= $parentRank) {
+            $fail("Type '{$childType}' cannot be created under type '{$parent->type}'. Hierarchy violation: {$childType} (rank {$childRank}) must be lower in hierarchy than {$parent->type} (rank {$parentRank}). Same-level nesting is not allowed.");
         }
     }
 

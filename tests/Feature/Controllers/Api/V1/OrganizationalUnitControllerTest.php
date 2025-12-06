@@ -410,21 +410,20 @@ describe('OrganizationalUnitController - Create', function () {
             ->assertJsonPath('data.type', 'department');
     });
 
-    test('can create same type under same type (equal hierarchy)', function () {
-        // Arrange: rootUnit is a company
-        $this->rootUnit->update(['type' => 'company']);
+    test('cannot create same type under same type (same-level nesting forbidden)', function () {
+        // Arrange: rootUnit is a branch
+        $this->rootUnit->update(['type' => 'branch']);
 
-        // Act: Create another company under company (equal rank)
+        // Act: Try to create another branch under branch (same rank = invalid)
         $response = postJson('/v1/organizational-units', [
-            'name' => 'Subsidiary Company',
-            'type' => 'company',
+            'name' => 'Sub-Branch',
+            'type' => 'branch',
             'parent_id' => $this->rootUnit->id,
         ]);
 
-        // Assert
-        $response->assertCreated()
-            ->assertJsonPath('data.name', 'Subsidiary Company')
-            ->assertJsonPath('data.type', 'company');
+        // Assert: Same-level nesting is not allowed
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['type']);
     });
 
     test('custom type can be created under any type (lowest rank)', function () {
