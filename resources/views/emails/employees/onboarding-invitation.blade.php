@@ -24,7 +24,7 @@
 - {{ __('Digitally sign employment contract') }}
 - {{ __('Upload certificates (if applicable)') }}
 
-{{ __('**Important:** Please complete the onboarding by **:deadline** at the latest.', ['deadline' => $employee->contract_start_date->subDays(3)->format('d.m.Y')]) }}
+{{ __('**Important:** Please complete the onboarding by **:deadline** at the latest.', ['deadline' => $employee->contract_start_date->copy()->subDays(3)->format('d.m.Y')]) }}
 
 {{ __('If you have any questions, please contact us at :email.', ['email' => config('mail.from.address')]) }}
 
