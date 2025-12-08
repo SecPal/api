@@ -40,6 +40,10 @@ class OnboardingFormSubmission extends Model
         'review_notes',
     ];
 
+    protected $hidden = [
+        'form_data', // Never expose encrypted data in API responses
+    ];
+
     protected function casts(): array
     {
         return [

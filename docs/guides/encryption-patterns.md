@@ -240,8 +240,8 @@ $employees = Employee::where('first_name_idx', $blindIndex)->get();
 
 ```php
 Schema::table('onboarding_form_submissions', function (Blueprint $table) {
-    // JSON column (Laravel handles encryption via cast)
-    $table->json('form_data')->nullable();
+    // TEXT column for encrypted data (Laravel's encrypted:array cast)
+    $table->text('form_data')->nullable();
 });
 ```
 
@@ -252,6 +252,10 @@ class OnboardingFormSubmission extends Model
 {
     protected $fillable = [
         'form_data',
+    ];
+
+    protected $hidden = [
+        'form_data', // Never expose encrypted data in API responses
     ];
 
     protected function casts(): array
