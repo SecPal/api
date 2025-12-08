@@ -17,8 +17,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $id
  * @property int|null $tenant_id
  * @property string $name
+ * @property string $template_key
+ * @property array<string, mixed>|null $form_schema JSON schema for the form
  * @property string|null $description
- * @property array $form_schema
  * @property bool $is_required
  * @property bool $is_system_template
  * @property int $sort_order
@@ -47,11 +48,17 @@ class OnboardingFormTemplate extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<TenantKey, $this>
+     */
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(TenantKey::class, 'tenant_id');
     }
 
+    /**
+     * @return HasMany<OnboardingFormSubmission, $this>
+     */
     public function submissions(): HasMany
     {
         return $this->hasMany(OnboardingFormSubmission::class, 'form_template_id');

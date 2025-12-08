@@ -30,6 +30,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class EmployeeDocument extends Model
 {
+    /** @use HasFactory<\Database\Factories\EmployeeDocumentFactory> */
     use HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
@@ -56,11 +57,17 @@ class EmployeeDocument extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Employee, $this>
+     */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');

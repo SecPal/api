@@ -48,11 +48,17 @@ class EmployeeQualification extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Employee, $this>
+     */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    /**
+     * @return BelongsTo<Qualification, $this>
+     */
     public function qualification(): BelongsTo
     {
         return $this->belongsTo(Qualification::class);

@@ -16,8 +16,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $id
  * @property string $employee_id
  * @property string $form_template_id
- * @property array $form_data
- * @property string $status
+ * @property array<string, mixed>|null $form_data Encrypted submitted form data
+ * @property string $status pending|approved|rejected
  * @property \Illuminate\Support\Carbon|null $submitted_at
  * @property string|null $reviewed_by
  * @property \Illuminate\Support\Carbon|null $reviewed_at
@@ -47,16 +47,25 @@ class OnboardingFormSubmission extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Employee, $this>
+     */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
+    /**
+     * @return BelongsTo<OnboardingFormTemplate, $this>
+     */
     public function formTemplate(): BelongsTo
     {
         return $this->belongsTo(OnboardingFormTemplate::class, 'form_template_id');
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');

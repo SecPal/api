@@ -63,7 +63,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property ?\Illuminate\Support\Carbon $user_account_activated_at
  * @property ?\Illuminate\Support\Carbon $user_account_deactivated_at
  * @property bool $onboarding_completed
- * @property array|null $onboarding_steps
+ * @property array<string, mixed>|null $onboarding_steps
  * @property ?\Illuminate\Support\Carbon $onboarding_started_at
  * @property ?\Illuminate\Support\Carbon $onboarding_completed_at
  * @property string|null $organizational_unit_id
@@ -194,15 +194,19 @@ class Employee extends Model
     // === RELATIONSHIPS ===
 
     /**
-     * Get the tenant key for encryption.
+     * Get the tenant that owns this employee.
+     *
+     * @return BelongsTo<TenantKey, $this>
      */
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(TenantKey::class, 'tenant_id');
+        return $this->belongsTo(TenantKey::class);
     }
 
     /**
-     * Get the user account associated with this employee.
+     * Get the user account linked to this employee.
+     *
+     * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
@@ -210,7 +214,9 @@ class Employee extends Model
     }
 
     /**
-     * Get the organizational unit for this employee.
+     * Get the organizational unit this employee belongs to.
+     *
+     * @return BelongsTo<OrganizationalUnit, $this>
      */
     public function organizationalUnit(): BelongsTo
     {
@@ -218,7 +224,9 @@ class Employee extends Model
     }
 
     /**
-     * Get all employee qualification pivot records.
+     * Get all employee qualifications (pivot records).
+     *
+     * @return HasMany<EmployeeQualification, $this>
      */
     public function employeeQualifications(): HasMany
     {
@@ -227,6 +235,8 @@ class Employee extends Model
 
     /**
      * Get all qualifications for this employee.
+     *
+     * @return BelongsToMany<Qualification, $this>
      */
     public function qualifications(): BelongsToMany
     {
@@ -247,6 +257,8 @@ class Employee extends Model
 
     /**
      * Get all documents for this employee.
+     *
+     * @return HasMany<EmployeeDocument, $this>
      */
     public function documents(): HasMany
     {
@@ -254,7 +266,9 @@ class Employee extends Model
     }
 
     /**
-     * Get all onboarding form submissions.
+     * Get all onboarding form submissions for this employee.
+     *
+     * @return HasMany<OnboardingFormSubmission, $this>
      */
     public function onboardingSubmissions(): HasMany
     {
@@ -431,6 +445,8 @@ class Employee extends Model
 
     /**
      * Scope employees with applicant status.
+     *
+     * @param  Builder<self>  $query
      */
     public function scopeApplicants(Builder $query): void
     {
@@ -439,6 +455,8 @@ class Employee extends Model
 
     /**
      * Scope employees with pre_contract status.
+     *
+     * @param  Builder<self>  $query
      */
     public function scopePreContract(Builder $query): void
     {
@@ -447,6 +465,8 @@ class Employee extends Model
 
     /**
      * Scope employees with active status.
+     *
+     * @param  Builder<self>  $query
      */
     public function scopeActive(Builder $query): void
     {
@@ -454,7 +474,9 @@ class Employee extends Model
     }
 
     /**
-     * Scope employees with on_leave status.
+     * Scope: Employees on leave.
+     *
+     * @param  Builder<self>  $query
      */
     public function scopeOnLeave(Builder $query): void
     {
@@ -463,6 +485,8 @@ class Employee extends Model
 
     /**
      * Scope employees with terminated status.
+     *
+     * @param  Builder<self>  $query
      */
     public function scopeTerminated(Builder $query): void
     {
@@ -470,7 +494,9 @@ class Employee extends Model
     }
 
     /**
-     * Scope employees with user accounts.
+     * Scope: Employees with user accounts.
+     *
+     * @param  Builder<self>  $query
      */
     public function scopeWithUserAccount(Builder $query): void
     {
@@ -478,7 +504,9 @@ class Employee extends Model
     }
 
     /**
-     * Scope employees without user accounts.
+     * Scope: Employees without user accounts.
+     *
+     * @param  Builder<self>  $query
      */
     public function scopeWithoutUserAccount(Builder $query): void
     {
@@ -486,7 +514,9 @@ class Employee extends Model
     }
 
     /**
-     * Scope employees with incomplete onboarding.
+     * Scope: Employees with incomplete onboarding.
+     *
+     * @param  Builder<self>  $query
      */
     public function scopeOnboardingIncomplete(Builder $query): void
     {
@@ -495,7 +525,9 @@ class Employee extends Model
     }
 
     /**
-     * Scope employees with completed onboarding.
+     * Scope: Employees with completed onboarding.
+     *
+     * @param  Builder<self>  $query
      */
     public function scopeOnboardingCompleted(Builder $query): void
     {

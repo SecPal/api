@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Qualification extends Model
 {
+    /** @use HasFactory<\Database\Factories\QualificationFactory> */
     use HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
@@ -54,16 +55,25 @@ class Qualification extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<TenantKey, $this>
+     */
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(TenantKey::class, 'tenant_id');
     }
 
+    /**
+     * @return BelongsToMany<Employee, $this>
+     */
     public function employees(): BelongsToMany
     {
         return $this->belongsToMany(Employee::class, 'employee_qualifications');
     }
 
+    /**
+     * @return HasMany<EmployeeQualification, $this>
+     */
     public function employeeQualifications(): HasMany
     {
         return $this->hasMany(EmployeeQualification::class);
