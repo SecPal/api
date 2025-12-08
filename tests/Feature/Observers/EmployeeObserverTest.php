@@ -199,3 +199,124 @@ test('employee observer handles transition from pre_contract to terminated', fun
     // Deactivation email should be queued
     Mail::assertQueued(AccountDeactivatedMail::class);
 });
+
+test('employee observer handles transition to on_leave status', function () {
+    Mail::fake();
+
+    // Create active employee
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->subMonths(3),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    // Activate
+    $employee->status = Employee::STATUS_ACTIVE;
+    $employee->save();
+
+    // Put on leave
+    $employee->status = Employee::STATUS_ON_LEAVE;
+    $employee->save();
+
+    // Should complete without errors
+    expect($employee->status)->toBe(Employee::STATUS_ON_LEAVE);
+});
+
+test('employee observer handles transition from on_leave to active', function () {
+    Mail::fake();
+
+    // Create active employee then put on leave
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->subMonths(3),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $employee->status = Employee::STATUS_ACTIVE;
+    $employee->save();
+
+    $employee->status = Employee::STATUS_ON_LEAVE;
+    $employee->save();
+
+    // Return from leave
+    $employee->status = Employee::STATUS_ACTIVE;
+    $employee->save();
+
+    // Should complete without errors
+    expect($employee->status)->toBe(Employee::STATUS_ACTIVE);
+});
+
+test('employee observer handles transition from on_leave to terminated', function () {
+    Mail::fake();
+
+    // Create active employee, put on leave, then terminate
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->subMonths(3),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $employee->status = Employee::STATUS_ACTIVE;
+    $employee->save();
+
+    $employee->status = Employee::STATUS_ON_LEAVE;
+    $employee->save();
+
+    $user = $employee->user;
+    expect($user)->not->toBeNull();
+
+    // Terminate while on leave
+    $employee->status = Employee::STATUS_TERMINATED;
+    $employee->termination_date = now();
+    $employee->save();
+
+    // User should have no roles
+    $user->refresh();
+    expect($user->roles)->toBeEmpty();
+
+    // Deactivation email should be queued
+    Mail::assertQueued(AccountDeactivatedMail::class);
+});
+
+test('employee observer updates blind indexes when encrypted fields change', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'first_name' => 'Original',
+        'last_name' => 'Name',
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $originalFirstNameIdx = $employee->first_name_idx;
+    $originalLastNameIdx = $employee->last_name_idx;
+
+    // Update encrypted fields
+    $employee->first_name = 'Updated';
+    $employee->last_name = 'Changed';
+    $employee->save();
+
+    // Indexes should be updated
+    $employee->refresh();
+    expect($employee->first_name_idx)->not->toBe($originalFirstNameIdx);
+    expect($employee->last_name_idx)->not->toBe($originalLastNameIdx);
+});
+
+test('employee observer does not trigger status transition when status unchanged', function () {
+    Mail::fake();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    // Update non-status field
+    $employee->employee_number = 'NEW-001';
+    $employee->save();
+
+    // No welcome email should be sent
+    Mail::assertNothingQueued();
+});
