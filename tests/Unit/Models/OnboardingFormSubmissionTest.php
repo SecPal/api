@@ -129,4 +129,3 @@ class OnboardingFormSubmissionTest extends TestCase
         $this->assertInstanceOf(\Illuminate\Support\Carbon::class, $rejected->reviewed_at);
     }
 }
-

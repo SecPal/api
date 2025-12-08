@@ -5,7 +5,6 @@
 
 namespace Database\Factories;
 
-use App\Models\OnboardingFormTemplate;
 use App\Models\TenantKey;
 use Illuminate\Database\Eloquent\Factories\Factory;
 

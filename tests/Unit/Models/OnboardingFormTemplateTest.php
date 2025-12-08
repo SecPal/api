@@ -131,4 +131,3 @@ class OnboardingFormTemplateTest extends TestCase
         $this->assertFalse($optional->is_required);
     }
 }
-

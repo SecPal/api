@@ -6,7 +6,6 @@
 namespace Database\Factories;
 
 use App\Models\Employee;
-use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
