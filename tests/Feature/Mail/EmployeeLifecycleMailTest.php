@@ -238,4 +238,3 @@ test('qualification expiring mail contains qualification data', function () {
     expect($mail->qualification->certificate_number)->toBe('CERT-12345');
     expect($mail->qualification->issuing_authority)->toBe('Test Authority');
 });
-
