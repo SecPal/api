@@ -6,6 +6,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,7 +18,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $id
  * @property int|null $tenant_id
  * @property string $name
- * @property string $template_key
  * @property array<string, mixed>|null $form_schema JSON schema for the form
  * @property string|null $description
  * @property bool $is_required
@@ -26,7 +26,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class OnboardingFormTemplate extends Model
 {
-    use HasUuids, SoftDeletes;
+    /** @use HasFactory<\Database\Factories\OnboardingFormTemplateFactory> */
+    use HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'tenant_id',

@@ -6,6 +6,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $employee_id
  * @property string $form_template_id
  * @property array<string, mixed>|null $form_data Encrypted submitted form data
- * @property string $status pending|approved|rejected
+ * @property string $status draft|submitted|approved|rejected
  * @property \Illuminate\Support\Carbon|null $submitted_at
  * @property string|null $reviewed_by
  * @property \Illuminate\Support\Carbon|null $reviewed_at
@@ -25,7 +26,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class OnboardingFormSubmission extends Model
 {
-    use HasUuids, SoftDeletes;
+    /** @use HasFactory<\Database\Factories\OnboardingFormSubmissionFactory> */
+    use HasFactory, HasUuids, SoftDeletes;
 
     protected $fillable = [
         'employee_id',

@@ -157,6 +157,24 @@ class Employee extends Model
     ];
 
     /**
+     * The attributes that should be hidden for arrays and JSON serialization.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'first_name_enc',
+        'first_name_idx',
+        'last_name_enc',
+        'last_name_idx',
+        'date_of_birth_enc',
+        'date_of_birth_idx',
+        'address_encrypted',
+        'hourly_rate_enc',
+        'tax_id_enc',
+        'social_security_number_enc',
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
