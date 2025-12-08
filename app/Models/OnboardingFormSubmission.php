@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $id
  * @property string $employee_id
  * @property string $form_template_id
- * @property array<string, mixed>|null $form_data Encrypted submitted form data
+ * @property array<string, mixed>|null $form_data Encrypted submitted form data (emergency contacts, banking details, etc.)
  * @property string $status draft|submitted|approved|rejected
  * @property \Illuminate\Support\Carbon|null $submitted_at
  * @property string|null $reviewed_by
@@ -40,10 +40,14 @@ class OnboardingFormSubmission extends Model
         'review_notes',
     ];
 
+    protected $hidden = [
+        'form_data', // Never expose encrypted data in API responses
+    ];
+
     protected function casts(): array
     {
         return [
-            'form_data' => 'array',
+            'form_data' => 'encrypted:array',
             'submitted_at' => 'datetime',
             'reviewed_at' => 'datetime',
         ];
