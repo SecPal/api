@@ -20,7 +20,7 @@ return new class extends Migration
             $table->foreignUuid('form_template_id')->constrained('onboarding_form_templates')->cascadeOnDelete();
 
             // Submission Data
-            $table->json('form_data'); // Employee's answers (encrypted via TenantKey)
+            $table->text('form_data')->nullable(); // Encrypted employee answers (emergency contacts, banking details, etc.)
 
             // Status
             $table->enum('status', ['draft', 'submitted', 'approved', 'rejected'])->default('draft');

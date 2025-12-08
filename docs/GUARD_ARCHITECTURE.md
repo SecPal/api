@@ -17,6 +17,7 @@ This document explains Laravel's Guard concept, SecPal's architectural decision 
 - [Developer Guidelines](#developer-guidelines)
 - [Migration Context](#migration-context)
 - [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
 
 ---
 
@@ -599,7 +600,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
 ---
 
-## References
+## Related Documentation
+
+### Security & Encryption
+
+- **[Encryption Patterns](guides/encryption-patterns.md)** - Field-level encryption, JSON encryption, blind indexes, and key rotation
+  - When to use Field-Level Encryption vs JSON Encryption
+  - How to implement searchable encrypted fields with blind indexes
+  - Security considerations and threat model
+  - Key rotation procedures
+
+### Architecture & Design
+
+- **[RBAC Architecture](rbac-architecture.md)** - Role-Based Access Control with temporal roles
+- **[Mail System](MAIL_SYSTEM.md)** - Email notification architecture
+
+### References
 
 - **Laravel Guards Documentation**: <https://laravel.com/docs/authentication#guards>
 - **Laravel Sanctum Documentation**: <https://laravel.com/docs/sanctum>
@@ -611,6 +627,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
 ---
 
-**Last Updated:** 2025-11-09
+**Last Updated:** 2025-12-08
 **Status:** Current (after EPIC #125 migration)
 **Maintainer:** SecPal Contributors
