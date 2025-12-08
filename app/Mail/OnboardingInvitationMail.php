@@ -45,7 +45,7 @@ class OnboardingInvitationMail extends Mailable implements ShouldQueue
         $appName = config('app.name');
 
         return new Envelope(
-            subject: is_string($appName) ? __(('emails.onboarding_invitation.subject'), ['app_name' => $appName]) : __('emails.onboarding_invitation.subject_fallback'),
+            subject: is_string($appName) ? __('emails.onboarding_invitation.subject', ['app_name' => $appName]) : __('emails.onboarding_invitation.subject_fallback'),
         );
     }
 
@@ -63,7 +63,7 @@ class OnboardingInvitationMail extends Mailable implements ShouldQueue
             throw new \RuntimeException('Frontend URL or employee email not configured');
         }
 
-        $resetUrl = $frontendUrl.'/password/reset?token='.$token.'&email='.urlencode($email);
+        $resetUrl = $frontendUrl.'/password/reset?token='.urlencode($token).'&email='.urlencode($email);
 
         return new Content(
             markdown: 'emails.employees.onboarding-invitation',

@@ -29,13 +29,13 @@
 - {{ __('Destroy confidential documents') }}
 - {{ __('Maintain confidentiality obligations') }}
 
-Bei Fragen zur Vertragsbeendigung oder zu offenen Fragen erreichen Sie uns unter {{ config('mail.from.address') }}.
+{{ __('If you have questions about contract termination or other matters, please contact us at :email.', ['email' => config('mail.from.address')]) }}
 
-Wir danken Ihnen für Ihre Mitarbeit und wünschen Ihnen alles Gute für die Zukunft.
+{{ __('We thank you for your work and wish you all the best for the future.') }}
 
-Ihr HR-Team
+{{ __('Your HR Team') }}
 
 ---
 
-Diese E-Mail wurde automatisch generiert.
+{{ __('This email was generated automatically.') }}
 </x-mail::message>

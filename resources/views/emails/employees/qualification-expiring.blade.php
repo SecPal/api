@@ -33,9 +33,9 @@
 {{ __('If you have questions about renewal or cost coverage, please contact us at :email.', ['email' => config('mail.from.address')]) }}
 
 {{ __('Best regards,') }}
-Ihr HR-Team
+{{ __('Your HR Team') }}
 
 ---
 
-Diese E-Mail wurde automatisch generiert.
+{{ __('This email was generated automatically.') }}
 </x-mail::message>

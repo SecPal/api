@@ -29,12 +29,12 @@
 3. {{ __('Upload any missing documents if necessary') }}
 4. {{ __('Contact your supervisor if you have questions') }}
 
-Bei Fragen erreichen Sie uns unter {{ config('mail.from.address') }}.
+{{ __('If you have any questions, please contact us at :email.', ['email' => config('mail.from.address')]) }}
 
-Viel Erfolg und einen guten Start!
-Ihr HR-Team
+{{ __('Best regards and good luck!') }}
+{{ __('Your HR Team') }}
 
 ---
 
-Diese E-Mail wurde automatisch generiert.
+{{ __('This email was generated automatically.') }}
 </x-mail::message>

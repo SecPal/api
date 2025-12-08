@@ -174,16 +174,8 @@ class EmployeeObserver
                     $employee->onboarding_started_at = now();
                 }
 
-                // Send onboarding invitation (outside transaction to not rollback on email failure)
-                try {
-                    Mail::to($user->email)->send(new OnboardingInvitationMail($employee, $user));
-                } catch (\Exception $e) {
-                    Log::warning('Onboarding email failed', [
-                        'employee_id' => $employee->id,
-                        'email' => $employee->email,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+                // Send onboarding invitation asynchronously
+                Mail::to($user->email)->queue(new OnboardingInvitationMail($employee, $user));
             });
         } catch (\Exception $e) {
             Log::error('User account creation failed for employee', [
@@ -249,16 +241,8 @@ class EmployeeObserver
                 $employee->user_account_activated_at = now();
             });
 
-            // Send welcome email (outside transaction)
-            try {
-                Mail::to($user->email)->send(new WelcomeActiveMail($employee));
-            } catch (\Exception $e) {
-                Log::warning('Welcome email failed', [
-                    'employee_id' => $employee->id,
-                    'email' => $user->email,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+            // Send welcome email asynchronously
+            Mail::to($user->email)->queue(new WelcomeActiveMail($employee));
         } catch (\Exception $e) {
             Log::error('User account activation failed', [
                 'employee_id' => $employee->id,
@@ -303,16 +287,8 @@ class EmployeeObserver
                 $user->tokens()->delete();
             });
 
-            // Send deactivation notice (outside transaction)
-            try {
-                Mail::to($user->email)->send(new AccountDeactivatedMail($employee));
-            } catch (\Exception $e) {
-                Log::warning('Deactivation email failed', [
-                    'employee_id' => $employee->id,
-                    'email' => $user->email,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+            // Send deactivation notice asynchronously
+            Mail::to($user->email)->queue(new AccountDeactivatedMail($employee));
         } catch (\Exception $e) {
             Log::error('User account deactivation failed', [
                 'employee_id' => $employee->id,
