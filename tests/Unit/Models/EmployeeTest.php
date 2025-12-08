@@ -24,6 +24,9 @@ class EmployeeTest extends TestCase
     {
         parent::setUp();
 
+        // Disable EmployeeObserver for unit tests - we test the model in isolation
+        Employee::unsetEventDispatcher();
+
         // Create KEK and tenant (no factory for TenantKey)
         TenantKey::setKekPath(getTestKekPath());
         TenantKey::generateKek();

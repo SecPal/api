@@ -40,6 +40,7 @@ afterEach(function () {
 
 test('send contract ending notifications command sends emails 7 days before termination', function () {
     // Create active employee with contract ending in exactly 7 days
+    // Start with pre_contract to let observer create user account
     $employee = Employee::factory()->create([
         'employee_number' => 'EMP-400',
         'tenant_id' => $this->tenant->id,
@@ -57,10 +58,13 @@ test('send contract ending notifications command sends emails 7 days before term
     $employee->status = Employee::STATUS_ACTIVE;
     $employee->save();
 
+    // Clear any emails from observer (onboarding, welcome)
+    Mail::fake();
+
     // Run command
     Artisan::call('employees:send-contract-ending-notifications');
 
-    // Email should be queued
+    // Only ContractEndingSoonMail should be queued
     Mail::assertQueued(ContractEndingSoonMail::class, function ($mail) use ($employee) {
         return $mail->employee->id === $employee->id;
     });
@@ -78,6 +82,9 @@ test('send contract ending notifications command skips employees without termina
 
     $employee->status = Employee::STATUS_ACTIVE;
     $employee->save();
+
+    // Clear any emails from observer
+    Mail::fake();
 
     // Run command
     Artisan::call('employees:send-contract-ending-notifications');
@@ -103,6 +110,9 @@ test('send contract ending notifications command dry run does not send emails', 
 
     $employee->status = Employee::STATUS_ACTIVE;
     $employee->save();
+
+    // Clear any emails from observer
+    Mail::fake();
 
     // Run command with dry-run
     Artisan::call('employees:send-contract-ending-notifications', ['--dry-run' => true]);
@@ -135,6 +145,9 @@ test('send contract ending notifications command handles multiple employees', fu
         $employee->status = Employee::STATUS_ACTIVE;
         $employee->save();
     });
+
+    // Clear any emails from observer
+    Mail::fake();
 
     // Run command
     Artisan::call('employees:send-contract-ending-notifications');

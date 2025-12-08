@@ -43,12 +43,20 @@ class EmployeeObserver
      * Handle the Employee "creating" event.
      *
      * 1. Compute blind indexes before initial save
-     * 2. Create user account if status = pre_contract
+     * Note: User account creation moved to "created" event to avoid FK conflicts
      */
     public function creating(Employee $employee): void
     {
         $this->updateBlindIndexes($employee);
+    }
 
+    /**
+     * Handle the Employee "created" event.
+     *
+     * Create user account for pre_contract employees after employee is persisted.
+     */
+    public function created(Employee $employee): void
+    {
         // Create user account for pre-contract employees
         if ($employee->status === Employee::STATUS_PRE_CONTRACT && ! $employee->user_id) {
             $this->createUserAccount($employee);
@@ -163,16 +171,14 @@ class EmployeeObserver
                     ]);
                 }
 
-                // Link to employee
-                $employee->user_id = $user->id;
-                $employee->user_account_active = true;
-                $employee->user_account_activated_at = now();
-
-                // Initialize onboarding steps if not set
-                if ($employee->onboarding_steps === null) {
-                    $employee->onboarding_steps = Employee::getDefaultOnboardingSteps();
-                    $employee->onboarding_started_at = now();
-                }
+                // Update employee without triggering observers again
+                $employee->updateQuietly([
+                    'user_id' => $user->id,
+                    'user_account_active' => true,
+                    'user_account_activated_at' => now(),
+                    'onboarding_steps' => $employee->onboarding_steps ?? Employee::getDefaultOnboardingSteps(),
+                    'onboarding_started_at' => $employee->onboarding_started_at ?? now(),
+                ]);
 
                 // Send onboarding invitation asynchronously
                 Mail::to($user->email)->queue(new OnboardingInvitationMail($employee, $user));
@@ -236,9 +242,11 @@ class EmployeeObserver
                     ]);
                 }
 
-                // Update employee record
-                $employee->user_account_active = true;
-                $employee->user_account_activated_at = now();
+                // Update employee record without triggering observers again
+                $employee->updateQuietly([
+                    'user_account_active' => true,
+                    'user_account_activated_at' => now(),
+                ]);
             });
 
             // Send welcome email asynchronously
@@ -274,9 +282,11 @@ class EmployeeObserver
                 // Revoke ALL roles
                 $user->roles()->detach();
 
-                // Deactivate account
-                $employee->user_account_active = false;
-                $employee->user_account_deactivated_at = now();
+                // Deactivate account without triggering observers again
+                $employee->updateQuietly([
+                    'user_account_active' => false,
+                    'user_account_deactivated_at' => now(),
+                ]);
 
                 // Delete all sessions
                 DB::table('sessions')

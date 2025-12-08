@@ -57,11 +57,14 @@ class EmployeeFactory extends Factory
             'contract_type' => fake()->randomElement(['full_time', 'part_time', 'minijob', 'freelance']),
             'status' => Employee::STATUS_ACTIVE,
             'onboarding_completed_at' => fake()->dateTimeBetween('-6 months', 'now'),
+            // Don't set user_id by default - let tests control this
+            // or use withUser() state
         ];
     }
 
     /**
      * Indicate that the employee is in pre-contract status.
+     * Note: Observer will automatically create user account when saved.
      */
     public function preContract(): static
     {
@@ -69,6 +72,8 @@ class EmployeeFactory extends Factory
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed_at' => null,
             'hire_date' => null,
+            'user_id' => null, // Observer will create user
+            'user_account_active' => false,
         ]);
     }
 
