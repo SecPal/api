@@ -6,6 +6,7 @@
 namespace App\Providers;
 
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\GuardBook;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
@@ -14,6 +15,7 @@ use App\Models\SecPalObject;
 use App\Models\Secret;
 use App\Models\SecretAttachment;
 use App\Models\SecretShare;
+use App\Observers\EmployeeObserver;
 use App\Observers\PersonObserver;
 use App\Observers\SecretObserver;
 use App\Policies\CustomerPolicy;
@@ -49,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Person::observe(PersonObserver::class);
         Secret::observe(SecretObserver::class);
+        Employee::observe(EmployeeObserver::class);
 
         // Define rate limiters (using cache, not Redis)
         RateLimiter::for('api', function (Request $request) {
