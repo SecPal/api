@@ -34,15 +34,19 @@ return new class extends Migration
             // Status (auto-calculated based on expiry_date)
             $table->enum('status', ['valid', 'expiring_soon', 'expired'])->default('valid');
 
+            // Current qualification flag for quick filtering (allows full history tracking)
+            $table->boolean('is_current')->default(true);
+
             $table->timestamps();
             $table->softDeletes();
 
             // Indexes
             $table->index(['employee_id', 'status']);
+            $table->index(['employee_id', 'qualification_id', 'is_current']); // Fast query for current qualification
             $table->index('expiry_date');
 
-            // Unique constraint: One qualification per employee
-            $table->unique(['employee_id', 'qualification_id'], 'employee_qualification_unique');
+            // Note: No unique constraint to allow full history tracking of qualification renewals
+            // Use is_current=true to filter for the latest/active qualification per employee
         });
     }
 

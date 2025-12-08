@@ -115,6 +115,10 @@ return new class extends Migration
             $table->index('email');
             $table->index('employee_number');
             $table->index('termination_date');
+            // Blind index indexes for encrypted field searches (following pattern from person/secrets tables)
+            $table->index(['tenant_id', 'first_name_idx']);
+            $table->index(['tenant_id', 'last_name_idx']);
+            $table->index(['tenant_id', 'date_of_birth_idx']);
         });
     }
 
