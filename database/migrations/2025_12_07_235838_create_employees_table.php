@@ -38,6 +38,10 @@ return new class extends Migration
             $table->text('address_encrypted')->nullable();
             $table->string('photo_path')->nullable(); // ID badge photo
 
+            // Tax & Social Security (ENCRYPTED - hochsensibel!)
+            $table->text('tax_id_enc')->nullable(); // Steueridentifikationsnummer (encrypted)
+            $table->text('social_security_number_enc')->nullable(); // Sozialversicherungsnummer (encrypted)
+
             // Employment Status State Machine
             // State Transitions (see feature-requirements.md):
             // - applicant → pre_contract  (manual: HR creates employee with contract)
@@ -63,7 +67,8 @@ return new class extends Migration
 
             // Contract Details
             $table->enum('contract_type', ['full_time', 'part_time', 'minijob', 'freelance']);
-            $table->decimal('weekly_hours', 5, 2)->nullable();
+            $table->decimal('weekly_hours', 5, 2)->nullable()->comment('Weekly hours for part-time/hourly contracts');
+            $table->decimal('monthly_hours', 6, 2)->nullable()->comment('Monthly hours (e.g., 173h/month standard in security)');
             $table->text('hourly_rate_enc')->nullable(); // Salary (encrypted)
 
             // Health Insurance

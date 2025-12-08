@@ -6,6 +6,7 @@
 namespace Database\Factories;
 
 use App\Models\OrganizationalUnit;
+use App\Models\TenantKey;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -27,8 +28,20 @@ class OrganizationalUnitFactory extends Factory
      */
     public function definition(): array
     {
+        // Get existing tenant from first test (created by setUp)
+        // Don't cache between tests (RefreshDatabase clears everything)
+        $tenant = TenantKey::first();
+        if (! $tenant) {
+            // Ensure KEK exists for testing
+            if (! file_exists(TenantKey::getKekPath())) {
+                TenantKey::generateKek();
+            }
+            $keys = TenantKey::generateEnvelopeKeys();
+            $tenant = TenantKey::create($keys);
+        }
+
         return [
-            'tenant_id' => fake()->uuid(),
+            'tenant_id' => $tenant->id,
             'type' => fake()->randomElement([
                 'holding', 'company', 'region', 'branch', 'department', 'division', 'custom',
             ]),
