@@ -14,6 +14,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Employee Management Database Schema** (#319, Phase 1 of Epic #211)
+  - Created 6 new database tables for comprehensive employee management system:
+    - `employees`: Core employee data with encrypted personal information (TenantKey)
+    - `qualifications`: System-wide and tenant-specific qualifications (14 predefined)
+    - `employee_qualifications`: Pivot table for employee-qualification relationships
+      with full history tracking
+    - `employee_documents`: Document management with expiry tracking
+    - `onboarding_form_templates`: Hybrid onboarding (system + custom forms)
+    - `onboarding_form_submissions`: Employee onboarding progress tracking
+  - Implemented comprehensive status state machine for employee lifecycle:
+    - `applicant` → `pre_contract` → `active` → `on_leave` → `terminated`
+  - Added 14 predefined system qualifications via `QualificationsSeeder`:
+    - §34a Sachkundeunterrichtung (40h) and Sachkundeprüfung (IHK)
+    - IHK certifications: Servicekraft, Fachkraft, GSSK, Meister (valid §34a
+      alternatives)
+    - First Aid: Betrieblicher Ersthelfer (renewal: 24 months), Betriebssanitäter
+      (renewal: 36 months)
+    - Fire Safety: Brandschutzhelfer, Evakuierungshelfer (renewal: 36 months)
+    - Safety Officer: Sicherheitsbeauftragter
+    - Specialized: Diensthundeführer, Waffensachkundenachweis, Interventionsdienst
+  - Health insurance tracking: type (public/private/foreign), provider, insurance
+    number
+  - Work/residence permit management with unlimited/limited/none types and expiry
+    dates
+  - All employee personal data encrypted with blind indexes for secure search
+    (indexed with tenant_id for performance)
+  - Support for multiple qualification paths (Unterrichtung, Prüfung,
+    IHK-Ausbildungen)
+  - Pre-contract onboarding workflow with JSON-based progress tracking
+  - Document management with visibility control and expiry tracking
+  - Full qualification renewal history tracking with `is_current` flag for active
+    certifications
+  - Comprehensive indexes and foreign keys for optimal query performance
+
 - **Organizational Unit Hierarchy Validation** (#301, Part of Epic #283)
   - Added backend validation to enforce organizational hierarchy rules
   - Hierarchy ranking: Holding(1) → Company(2) → Region(3) → Branch(4) → Division(5) → Department(6) → Custom(7)
