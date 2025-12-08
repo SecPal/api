@@ -66,12 +66,26 @@ return new class extends Migration
             $table->decimal('weekly_hours', 5, 2)->nullable();
             $table->text('hourly_rate_enc')->nullable(); // Salary (encrypted)
 
+            // Health Insurance
+            $table->enum('health_insurance_type', ['public', 'private', 'foreign'])->nullable();
+            $table->string('health_insurance_provider')->nullable();
+            $table->string('health_insurance_number')->nullable();
+
             // Legal Requirements (BewachV)
             // sachkunde_type can be 'unterrichtung', 'pruefung', or IHK qualification reference
             $table->string('sachkunde_type')->nullable(); // 'unterrichtung', 'pruefung', 'gssk', 'servicekraft', 'fachkraft'
             $table->string('sachkunde_certificate')->nullable();
             $table->date('sachkunde_expiry')->nullable();
-            $table->string('work_permit')->nullable(); // For non-EU employees
+
+            // Work/Residence Permit (Non-EU employees)
+            $table->enum('work_permit_type', ['unlimited', 'limited', 'none'])->default('none');
+            $table->string('work_permit_number')->nullable();
+            $table->date('work_permit_expiry')->nullable(); // NULL = unlimited
+            $table->enum('residence_permit_type', ['unlimited', 'limited', 'none'])->default('none');
+            $table->string('residence_permit_number')->nullable();
+            $table->date('residence_permit_expiry')->nullable(); // NULL = unlimited
+
+            // Criminal Record Check
             $table->enum('criminal_record_status', ['valid', 'expired', 'pending'])->nullable();
             $table->date('criminal_record_check_date')->nullable();
 

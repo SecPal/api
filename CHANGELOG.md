@@ -26,13 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `applicant` → `pre_contract` → `active` → `on_leave` → `terminated`
   - Added 14 predefined system qualifications via `QualificationsSeeder`:
     - §34a Sachkundeunterrichtung (40h) and Sachkundeprüfung (IHK)
-    - IHK certifications: Servicekraft, Fachkraft, GSSK, Meister
-    - First Aid: Grundkurs, Betrieblicher Ersthelfer (renewal: 24 months)
+    - IHK certifications: Servicekraft, Fachkraft, GSSK, Meister (valid §34a
+      alternatives)
+    - First Aid: Betrieblicher Ersthelfer (renewal: 24 months), Betriebssanitäter
+      (renewal: 36 months)
     - Fire Safety: Brandschutzhelfer, Evakuierungshelfer (renewal: 36 months)
     - Safety Officer: Sicherheitsbeauftragter
     - Specialized: Diensthundeführer, Waffensachkundenachweis, Interventionsdienst
+  - Health insurance tracking: type (public/private/foreign), provider, insurance
+    number
+  - Work/residence permit management with unlimited/limited/none types and expiry
+    dates
   - All employee personal data encrypted with blind indexes for secure search
-  - Support for multiple qualification paths (Unterrichtung, Prüfung, IHK-Ausbildungen)
+  - Support for multiple qualification paths (Unterrichtung, Prüfung,
+    IHK-Ausbildungen)
   - Pre-contract onboarding workflow with JSON-based progress tracking
   - Document management with visibility control and expiry tracking
   - Comprehensive indexes and foreign keys for optimal query performance

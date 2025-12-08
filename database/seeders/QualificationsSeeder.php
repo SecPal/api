@@ -16,6 +16,8 @@ class QualificationsSeeder extends Seeder
      *
      * Seeds 14 predefined system-wide qualifications for the security industry.
      * These qualifications have tenant_id = NULL and is_system_qualification = true.
+     *
+     * First Aid: Betrieblicher Ersthelfer (2y renewal) + Betriebssanitäter (3y renewal)
      */
     public function run(): void
     {
@@ -100,8 +102,8 @@ class QualificationsSeeder extends Seeder
             [
                 'id' => (string) Str::uuid(),
                 'tenant_id' => null,
-                'name' => 'Erste Hilfe Grundkurs',
-                'description' => 'Erste-Hilfe-Ausbildung (9 UE). Gültigkeit: 2 Jahre.',
+                'name' => 'Betrieblicher Ersthelfer',
+                'description' => 'Betriebliche Ersthelfer-Ausbildung (9 UE). Gültigkeit: 2 Jahre (Fortbildung alle 2 Jahre).',
                 'category' => 'first_aid',
                 'requires_renewal' => true,
                 'renewal_period_months' => 24, // 2 years
@@ -112,11 +114,11 @@ class QualificationsSeeder extends Seeder
             [
                 'id' => (string) Str::uuid(),
                 'tenant_id' => null,
-                'name' => 'Betrieblicher Ersthelfer',
-                'description' => 'Betriebliche Ersthelfer-Ausbildung. Gültigkeit: 2 Jahre.',
+                'name' => 'Betriebssanitäter',
+                'description' => 'Betriebssanitäter-Ausbildung (63 UE Grundlehrgang). Gültigkeit: 3 Jahre (Fortbildung 16 UE alle 3 Jahre).',
                 'category' => 'first_aid',
                 'requires_renewal' => true,
-                'renewal_period_months' => 24,
+                'renewal_period_months' => 36, // 3 years
                 'is_mandatory' => false,
                 'is_system_qualification' => true,
                 'sort_order' => 80,
