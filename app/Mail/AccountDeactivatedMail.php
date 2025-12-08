@@ -39,7 +39,7 @@ class AccountDeactivatedMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Konto deaktiviert - Wichtige Informationen',
+            subject: __('emails.account_deactivated.subject'),
         );
     }
 

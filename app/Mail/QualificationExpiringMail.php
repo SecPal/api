@@ -38,10 +38,10 @@ class QualificationExpiringMail extends Mailable
     public function envelope(): Envelope
     {
         $employee = $this->qualification->employee;
-        $qualName = $this->qualification->qualification->name ?? 'Qualifikation';
+        $qualName = $this->qualification->qualification->name ?? __('emails.qualification_expiring.qualification_fallback');
 
         return new Envelope(
-            subject: "Qualifikation läuft ab: {$qualName}",
+            subject: __('emails.qualification_expiring.subject', ['qualification_name' => $qualName]),
             to: $employee?->email ? [$employee->email] : [],
         );
     }

@@ -2,37 +2,37 @@
 {{-- SPDX-License-Identifier: AGPL-3.0-or-later --}}
 
 <x-mail::message>
-# Qualifikation läuft ab
+# {{ __('Qualification Expiring Soon') }}
 
-Hallo {{ $employee->first_name }},
+{{ __('Hello :first_name,', ['first_name' => $employee->first_name]) }}
 
-Ihre Qualifikation **{{ $qualification->qualification->name }}** läuft in Kürze ab.
+{{ __('Your qualification **:qualification_name** expires soon.', ['qualification_name' => $qualification->qualification->name]) }}
 
-**Ablaufdatum:** {{ $qualification->expiry_date->format('d.m.Y') }}
+**{{ __('Expiry Date') }}:** {{ $qualification->expiry_date->format('d.m.Y') }}
 
 @if ($qualification->certificate_number)
-**Zertifikatsnummer:** {{ $qualification->certificate_number }}
+**{{ __('Certificate Number') }}:** {{ $qualification->certificate_number }}
 @endif
 
 @if ($qualification->issuing_authority)
-**Ausstellende Stelle:** {{ $qualification->issuing_authority }}
+**{{ __('Issuing Authority') }}:** {{ $qualification->issuing_authority }}
 @endif
 
-## Verlängerung erforderlich
+## {{ __('Renewal Required') }}
 
-Bitte kümmern Sie sich rechtzeitig um die Verlängerung bzw. Auffrischung dieser Qualifikation.
+{{ __('Please take care of renewing or refreshing this qualification in a timely manner.') }}
 
-### Nächste Schritte
+### {{ __('Next Steps') }}
 
-1. Termin für Auffrischungskurs vereinbaren
-2. Kurs absolvieren und neues Zertifikat erhalten
-3. Neues Zertifikat in unserem Portal hochladen
+1. {{ __('Schedule a refresher course') }}
+2. {{ __('Complete the course and obtain a new certificate') }}
+3. {{ __('Upload the new certificate to our portal') }}
 
-**Wichtig:** Ohne gültige Qualifikation können bestimmte Tätigkeiten nicht ausgeübt werden.
+{{ __('**Important:** Without a valid qualification, certain activities cannot be performed.') }}
 
-Bei Fragen zur Verlängerung oder Kostenübernahme erreichen Sie uns unter {{ config('mail.from.address') }}.
+{{ __('If you have questions about renewal or cost coverage, please contact us at :email.', ['email' => config('mail.from.address')]) }}
 
-Viele Grüße,  
+{{ __('Best regards,') }}
 Ihr HR-Team
 
 ---

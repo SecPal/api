@@ -44,7 +44,6 @@ test('update employee status command activates employees whose contract starts t
         'email' => 'john.doe@example.com',
         'date_of_birth' => '1990-01-01',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Developer',
         'contract_start_date' => now()->startOfDay(),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -67,7 +66,6 @@ test('update employee status command deactivates employees whose contract ends t
         'email' => 'jane.smith@example.com',
         'date_of_birth' => '1992-03-15',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Manager',
         'contract_start_date' => now()->subMonths(6),
         'termination_date' => now()->startOfDay(),
         'status' => Employee::STATUS_PRE_CONTRACT,
@@ -95,7 +93,6 @@ test('update employee status command dry run does not change status', function (
         'email' => 'bob.johnson@example.com',
         'date_of_birth' => '1985-07-20',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Developer',
         'contract_start_date' => now()->startOfDay(),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -119,24 +116,14 @@ test('update employee status command processes multiple employees', function () 
     // Create multiple employees to activate
     $employees = collect([
         Employee::factory()->create([
-            'employee_number' => 'EMP-200',
-            'first_name' => 'Alice',
-            'last_name' => 'Brown',
-            'email' => 'alice.brown@example.com',
-            'date_of_birth' => '1995-05-10',
+            'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->orgUnit->id,
-            'position' => 'Developer',
             'contract_start_date' => now()->startOfDay(),
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),
         Employee::factory()->create([
-            'employee_number' => 'EMP-201',
-            'first_name' => 'Charlie',
-            'last_name' => 'Davis',
-            'email' => 'charlie.davis@example.com',
-            'date_of_birth' => '1993-08-22',
+            'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->orgUnit->id,
-            'position' => 'Designer',
             'contract_start_date' => now()->startOfDay(),
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),

@@ -2,35 +2,35 @@
 {{-- SPDX-License-Identifier: AGPL-3.0-or-later --}}
 
 <x-mail::message>
-# Ihr Vertrag endet in Kürze
+# {{ __('Your Contract Ends Soon') }}
 
-Hallo {{ $employee->first_name }},
+{{ __('Hello :first_name,', ['first_name' => $employee->first_name]) }}
 
-wir möchten Sie daran erinnern, dass Ihr Arbeitsvertrag in Kürze endet.
+{{ __('We would like to remind you that your employment contract ends soon.') }}
 
-**Vertragsende:** {{ $employee->termination_date->format('d.m.Y') }}
+**{{ __('Contract End Date') }}:** {{ $employee->termination_date->format('d.m.Y') }}
 
 @if ($employee->last_working_day)
-**Letzter Arbeitstag:** {{ $employee->last_working_day->format('d.m.Y') }}
+**{{ __('Last Working Day') }}:** {{ $employee->last_working_day->format('d.m.Y') }}
 @endif
 
-## Möchten Sie weitermachen?
+## {{ __('Would You Like to Continue?') }}
 
-Falls Sie Interesse an einer Vertragsverlängerung haben, kontaktieren Sie bitte zeitnah Ihren Vorgesetzten oder die Personalabteilung.
+{{ __('If you are interested in extending your contract, please contact your supervisor or the HR department promptly.') }}
 
-## Nächste Schritte
+## {{ __('Next Steps') }}
 
-Falls Ihr Vertrag nicht verlängert wird:
-- Ihr Systemzugang wird am {{ $employee->termination_date->format('d.m.Y') }} automatisch deaktiviert
-- Bitte vereinbaren Sie einen Termin zur Rückgabe von Firmeneigentum
-- Wir senden Ihnen Ihr Arbeitszeugnis und weitere Unterlagen zu
+{{ __('If your contract will not be extended:') }}
+- {{ __('Your system access will be automatically deactivated on :date', ['date' => $employee->termination_date->format('d.m.Y')]) }}
+- {{ __('Please schedule an appointment to return company property') }}
+- {{ __('We will send you your employment certificate and other documents') }}
 
-Bei Fragen erreichen Sie uns unter {{ config('mail.from.address') }}.
+{{ __('If you have any questions, please contact us at :email.', ['email' => config('mail.from.address')]) }}
 
-Viele Grüße,
-Ihr HR-Team
+{{ __('Best regards,') }}
+{{ __('Your HR Team') }}
 
 ---
 
-Diese E-Mail wurde automatisch generiert.
+{{ __('This email was generated automatically.') }}
 </x-mail::message>

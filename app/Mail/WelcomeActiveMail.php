@@ -39,7 +39,7 @@ class WelcomeActiveMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Willkommen im Team - Ihr erster Arbeitstag',
+            subject: __('emails.welcome_active.subject'),
         );
     }
 

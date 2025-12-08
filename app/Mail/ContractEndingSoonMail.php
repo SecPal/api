@@ -39,7 +39,7 @@ class ContractEndingSoonMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Ihr Vertrag endet in Kürze',
+            subject: __('emails.contract_ending_soon.subject'),
         );
     }
 

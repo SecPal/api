@@ -2,32 +2,32 @@
 {{-- SPDX-License-Identifier: AGPL-3.0-or-later --}}
 
 <x-mail::message>
-# Konto deaktiviert
+# {{ __('Account Deactivated') }}
 
-Hallo {{ $employee->first_name }},
+{{ __('Hello :first_name,', ['first_name' => $employee->first_name]) }}
 
-Ihr Benutzerkonto wurde deaktiviert.
+{{ __('Your user account has been deactivated.') }}
 
 @if ($employee->termination_date)
-**Letzter Arbeitstag:** {{ $employee->termination_date->format('d.m.Y') }}
+**{{ __('Last Working Day') }}:** {{ $employee->termination_date->format('d.m.Y') }}
 @endif
 
 @if ($employee->last_working_day)
-**Letzter Anwesenheitstag:** {{ $employee->last_working_day->format('d.m.Y') }}
+**{{ __('Last Day of Attendance') }}:** {{ $employee->last_working_day->format('d.m.Y') }}
 @endif
 
-## Was bedeutet das?
+## {{ __('What This Means') }}
 
-- Sie können sich nicht mehr am System anmelden
-- Alle aktiven Sitzungen wurden beendet
-- Ihr Zugang zu Firmendaten wurde gesperrt
+- {{ __('You can no longer log in to the system') }}
+- {{ __('All active sessions have been ended') }}
+- {{ __('Your access to company data has been revoked') }}
 
-## Wichtige Hinweise
+## {{ __('Important Reminders') }}
 
-Bitte denken Sie daran:
-- Rückgabe aller Firmeneigentums (Schlüssel, Ausweise, Geräte)
-- Vernichtung vertraulicher Unterlagen
-- Einhaltung der Verschwiegenheitspflicht
+{{ __('Please remember to:') }}
+- {{ __('Return all company property (keys, badges, devices)') }}
+- {{ __('Destroy confidential documents') }}
+- {{ __('Maintain confidentiality obligations') }}
 
 Bei Fragen zur Vertragsbeendigung oder zu offenen Fragen erreichen Sie uns unter {{ config('mail.from.address') }}.
 

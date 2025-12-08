@@ -2,32 +2,32 @@
 {{-- SPDX-License-Identifier: AGPL-3.0-or-later --}}
 
 <x-mail::message>
-# Willkommen im Team!
+# {{ __('Welcome to the Team!') }}
 
-Hallo {{ $employee->first_name }},
+{{ __('Hello :first_name,', ['first_name' => $employee->first_name]) }}
 
-herzlich willkommen bei {{ config('app.name') }}! Wir freuen uns, dass Sie heute Ihren ersten Arbeitstag bei uns beginnen.
+{{ __('welcome to :app_name! We are happy that you are starting your first day with us today.', ['app_name' => config('app.name')]) }}
 
-## Ihr erster Tag
+## {{ __('Your First Day') }}
 
-**Position:** {{ $employee->position }}
-**Organisationseinheit:** {{ $employee->organizationalUnit->name ?? 'Nicht zugeordnet' }}
-**Mitarbeiternummer:** {{ $employee->employee_number }}
+**{{ __('Position') }}:** {{ $employee->position }}
+**{{ __('Organizational Unit') }}:** {{ $employee->organizationalUnit->name ?? __('Not assigned') }}
+**{{ __('Employee Number') }}:** {{ $employee->employee_number }}
 
-## Wichtige Informationen
+## {{ __('Important Information') }}
 
-Ihr Zugang zu unserem System wurde aktiviert. Sie können sich jetzt mit Ihrer E-Mail-Adresse ({{ $employee->email }}) anmelden.
+{{ __('Your access to our system has been activated. You can now log in with your email address (:email).', ['email' => $employee->email]) }}
 
 <x-mail::button :url="config('app.frontend_url')">
-Zum Portal
+{{ __('Go to Portal') }}
 </x-mail::button>
 
-## Erste Schritte
+## {{ __('First Steps') }}
 
-1. Machen Sie sich mit unserem Portal vertraut
-2. Überprüfen Sie Ihre persönlichen Daten
-3. Laden Sie ggf. noch fehlende Dokumente hoch
-4. Kontaktieren Sie Ihren Vorgesetzten bei Fragen
+1. {{ __('Familiarize yourself with our portal') }}
+2. {{ __('Verify your personal information') }}
+3. {{ __('Upload any missing documents if necessary') }}
+4. {{ __('Contact your supervisor if you have questions') }}
 
 Bei Fragen erreichen Sie uns unter {{ config('mail.from.address') }}.
 

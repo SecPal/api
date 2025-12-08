@@ -58,7 +58,6 @@ test('update qualification status command expires qualifications past expiry dat
         'email' => 'john.doe@example.com',
         'date_of_birth' => '1990-01-01',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Developer',
         'contract_start_date' => now()->subMonths(6),
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -89,7 +88,6 @@ test('update qualification status command sends notification 30 days before expi
         'email' => 'jane.smith@example.com',
         'date_of_birth' => '1992-03-15',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Manager',
         'contract_start_date' => now()->subMonths(3),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -129,7 +127,6 @@ test('update qualification status command dry run does not change status', funct
         'email' => 'bob.johnson@example.com',
         'date_of_birth' => '1985-07-20',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Developer',
         'contract_start_date' => now()->subMonths(6),
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -164,24 +161,14 @@ test('update qualification status command processes multiple qualifications', fu
     // Create multiple employees with expiring qualifications
     $employees = collect([
         Employee::factory()->create([
-            'employee_number' => 'EMP-400',
-            'first_name' => 'Alice',
-            'last_name' => 'Brown',
-            'email' => 'alice.brown@example.com',
-            'date_of_birth' => '1995-05-10',
+            'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->orgUnit->id,
-            'position' => 'Developer',
             'contract_start_date' => now()->subMonths(6),
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),
         Employee::factory()->create([
-            'employee_number' => 'EMP-401',
-            'first_name' => 'Charlie',
-            'last_name' => 'Davis',
-            'email' => 'charlie.davis@example.com',
-            'date_of_birth' => '1993-08-22',
+            'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->orgUnit->id,
-            'position' => 'Designer',
             'contract_start_date' => now()->subMonths(6),
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),

@@ -2,36 +2,36 @@
 {{-- SPDX-License-Identifier: AGPL-3.0-or-later --}}
 
 <x-mail::message>
-# Willkommen bei {{ config('app.name') }}!
+# {{ __('Welcome to :app_name!', ['app_name' => config('app.name')]) }}
 
-Hallo {{ $employee->first_name }},
+{{ __('Hello :first_name,', ['first_name' => $employee->first_name]) }}
 
-wir freuen uns, Sie bald in unserem Team begrüßen zu dürfen!
+{{ __('we are excited to welcome you to our team soon!') }}
 
-Ihr Vertragsbeginn ist am **{{ $employee->contract_start_date->format('d.m.Y') }}**.
+{{ __('Your contract starts on **:date**.', ['date' => $employee->contract_start_date->format('d.m.Y')]) }}
 
-Um Ihren ersten Arbeitstag vorzubereiten, bitten wir Sie, das Onboarding in unserem Portal abzuschließen:
+{{ __('To prepare for your first day, please complete the onboarding process in our portal:') }}
 
 <x-mail::button :url="$resetUrl">
-Onboarding starten
+{{ __('Start Onboarding') }}
 </x-mail::button>
 
-## Was Sie erwartet:
+## {{ __('What to expect:') }}
 
-- Personalfragebogen ausfüllen
-- Bankverbindung hinterlegen
-- Notfallkontakt angeben
-- Arbeitsvertrag digital unterschreiben
-- Zertifikate hochladen (falls vorhanden)
+- {{ __('Complete personal information form') }}
+- {{ __('Provide bank account details') }}
+- {{ __('Add emergency contact') }}
+- {{ __('Digitally sign employment contract') }}
+- {{ __('Upload certificates (if applicable)') }}
 
-**Wichtig:** Bitte schließen Sie das Onboarding bis spätestens **{{ $employee->contract_start_date->subDays(3)->format('d.m.Y') }}** ab.
+{{ __('**Important:** Please complete the onboarding by **:deadline** at the latest.', ['deadline' => $employee->contract_start_date->subDays(3)->format('d.m.Y')]) }}
 
-Bei Fragen erreichen Sie uns unter {{ config('mail.from.address') }}.
+{{ __('If you have any questions, please contact us at :email.', ['email' => config('mail.from.address')]) }}
 
-Viele Grüße,
-Ihr HR-Team
+{{ __('Best regards,') }}
+{{ __('Your HR Team') }}
 
 ---
 
-Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht direkt auf diese E-Mail.
+{{ __('This email was generated automatically. Please do not reply directly to this email.') }}
 </x-mail::message>

@@ -137,13 +137,31 @@ class EmployeeObserver
     {
         try {
             DB::transaction(function () use ($employee) {
-                // Create user
-                $user = User::create([
-                    'name' => $employee->first_name.' '.$employee->last_name,
-                    'email' => $employee->email,
-                    'password' => Hash::make(Str::random(32)), // Random password, user must reset
-                    'email_verified_at' => null, // Must verify email
-                ]);
+                // Check if user already exists with this email
+                $existingUser = User::where('email', $employee->email)->first();
+
+                if ($existingUser) {
+                    // Reuse existing user
+                    $user = $existingUser;
+                    Log::info('Reusing existing user account for employee', [
+                        'employee_id' => $employee->id,
+                        'user_id' => $user->id,
+                        'email' => $employee->email,
+                    ]);
+                } else {
+                    // Create new user
+                    $user = User::create([
+                        'name' => $employee->first_name.' '.$employee->last_name,
+                        'email' => $employee->email,
+                        'password' => Hash::make(Str::random(32)), // Random password, user must reset
+                        'email_verified_at' => null, // Must verify email
+                    ]);
+
+                    Log::info('Created new user account for employee', [
+                        'employee_id' => $employee->id,
+                        'user_id' => $user->id,
+                    ]);
+                }
 
                 // Link to employee
                 $employee->user_id = $user->id;

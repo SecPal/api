@@ -77,7 +77,6 @@ test('employee observer activates user account when status changes to active', f
         'email' => 'jane.smith@example.com',
         'date_of_birth' => '1992-03-15',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Manager',
         'contract_start_date' => now(),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -111,7 +110,6 @@ test('employee observer deactivates user account when status changes to terminat
         'email' => 'bob.johnson@example.com',
         'date_of_birth' => '1985-07-20',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Senior Developer',
         'contract_start_date' => now()->subMonths(6),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -157,12 +155,13 @@ test('employee observer does not create duplicate user account', function () {
         'email' => 'existing@example.com',
         'date_of_birth' => '1988-11-30',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Analyst',
         'contract_start_date' => now()->addDays(14),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
     // Should reuse existing user
+    $employee->refresh();
+    expect($employee->user)->not->toBeNull();
     expect($employee->user->id)->toBe($existingUser->id);
 
     // Only one user should exist with this email
@@ -181,7 +180,6 @@ test('employee observer handles transition from pre_contract to terminated', fun
         'email' => 'alice.brown@example.com',
         'date_of_birth' => '1995-05-10',
         'organizational_unit_id' => $this->orgUnit->id,
-        'position' => 'Intern',
         'contract_start_date' => now()->addDays(30),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
