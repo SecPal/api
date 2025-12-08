@@ -221,4 +221,120 @@ class EmployeeTest extends TestCase
         $this->assertCount(1, $employee->qualifications);
         $this->assertCount(1, $employee->documents);
     }
+
+    public function test_employee_mutators_trigger_encryption(): void
+    {
+        $employee = Employee::factory()->make([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        // Test mutators set encrypted fields
+        $employee->first_name = 'TestFirst';
+        $employee->last_name = 'TestLast';
+        $employee->date_of_birth = '1985-03-20';
+        $employee->address = '123 Test Street, Berlin';
+        $employee->hourly_rate = 18.50;
+        $employee->tax_id = '12345678901';
+        $employee->social_security_number = '12 345678 A 123';
+
+        $employee->save();
+        $employee->refresh();
+
+        // Verify values are encrypted and decrypted correctly
+        $this->assertSame('TestFirst', $employee->first_name);
+        $this->assertSame('TestLast', $employee->last_name);
+        $this->assertSame('1985-03-20', $employee->date_of_birth);
+        $this->assertSame('123 Test Street, Berlin', $employee->address);
+        $this->assertEquals(18.50, $employee->hourly_rate);
+        $this->assertSame('12345678901', $employee->tax_id);
+        $this->assertSame('12 345678 A 123', $employee->social_security_number);
+    }
+
+    public function test_employee_status_check_methods_return_correct_boolean(): void
+    {
+        $applicant = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'status' => Employee::STATUS_APPLICANT,
+        ]);
+        $this->assertTrue($applicant->isApplicant());
+        $this->assertFalse($applicant->isPreContract());
+        $this->assertFalse($applicant->isActive());
+        $this->assertFalse($applicant->isOnLeave());
+        $this->assertFalse($applicant->isTerminated());
+
+        $onLeave = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'status' => Employee::STATUS_ON_LEAVE,
+        ]);
+        $this->assertTrue($onLeave->isOnLeave());
+        $this->assertFalse($onLeave->isActive());
+        $this->assertTrue($onLeave->canTerminate());
+    }
+
+    public function test_employee_can_terminate_returns_true_for_active_and_on_leave(): void
+    {
+        $active = Employee::factory()->active()->create(['tenant_id' => $this->tenant->id]);
+        $this->assertTrue($active->canTerminate());
+
+        $onLeave = Employee::factory()->onLeave()->create(['tenant_id' => $this->tenant->id]);
+        $this->assertTrue($onLeave->canTerminate());
+
+        $preContract = Employee::factory()->preContract()->create(['tenant_id' => $this->tenant->id]);
+        $this->assertFalse($preContract->canTerminate());
+
+        $terminated = Employee::factory()->terminated()->create(['tenant_id' => $this->tenant->id]);
+        $this->assertFalse($terminated->canTerminate());
+    }
+
+    public function test_employee_scopes_applicants_and_on_leave_work_correctly(): void
+    {
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'status' => Employee::STATUS_APPLICANT,
+        ]);
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'status' => Employee::STATUS_ON_LEAVE,
+        ]);
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'status' => Employee::STATUS_ACTIVE,
+        ]);
+
+        $this->assertCount(1, Employee::applicants()->get());
+        $this->assertCount(1, Employee::onLeave()->get());
+    }
+
+    public function test_employee_scopes_with_and_without_user_account(): void
+    {
+        $user = User::factory()->create();
+
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $user->id,
+        ]);
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => null,
+        ]);
+
+        $this->assertCount(1, Employee::withUserAccount()->get());
+        $this->assertCount(1, Employee::withoutUserAccount()->get());
+    }
+
+    public function test_employee_nullable_encrypted_fields_handle_null_values(): void
+    {
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'address' => null,
+            'hourly_rate' => null,
+            'tax_id' => null,
+            'social_security_number' => null,
+        ]);
+
+        $this->assertNull($employee->address);
+        $this->assertNull($employee->hourly_rate);
+        $this->assertNull($employee->tax_id);
+        $this->assertNull($employee->social_security_number);
+    }
 }

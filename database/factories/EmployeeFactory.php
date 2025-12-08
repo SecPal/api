@@ -102,7 +102,6 @@ class EmployeeFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => Employee::STATUS_TERMINATED,
             'termination_date' => fake()->dateTimeBetween('-3 months', 'now'),
-            'termination_reason' => fake()->randomElement(['resignation', 'dismissal', 'retirement', 'contract_end']),
             'onboarding_completed_at' => fake()->dateTimeBetween('-2 years', '-1 year'),
         ]);
     }

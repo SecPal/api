@@ -67,6 +67,7 @@ class QualificationFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'tenant_id' => null,
+            'is_system_qualification' => true,
         ]);
     }
 
@@ -78,7 +79,8 @@ class QualificationFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'name' => '§34a Sachkundeprüfung (IHK)',
             'category' => 'bewachv_34a',
-            'requires_renewal' => false,
+            'requires_renewal' => true,
+            'renewal_period_months' => 60,
             'is_mandatory' => true,
             'is_system_qualification' => true,
         ]);
