@@ -180,7 +180,7 @@ class EmployeeObserver
                     'onboarding_started_at' => $employee->onboarding_started_at ?? now(),
                 ]);
 
-                // Send onboarding invitation asynchronously
+                // Send onboarding invitation
                 Mail::to($user->email)->queue(new OnboardingInvitationMail($employee, $user));
             });
         } catch (\Exception $e) {
@@ -249,7 +249,7 @@ class EmployeeObserver
                 ]);
             });
 
-            // Send welcome email asynchronously
+            // Send welcome email
             Mail::to($user->email)->queue(new WelcomeActiveMail($employee));
         } catch (\Exception $e) {
             Log::error('User account activation failed', [
@@ -297,7 +297,7 @@ class EmployeeObserver
                 $user->tokens()->delete();
             });
 
-            // Send deactivation notice asynchronously
+            // Send deactivation notice
             Mail::to($user->email)->queue(new AccountDeactivatedMail($employee));
         } catch (\Exception $e) {
             Log::error('User account deactivation failed', [

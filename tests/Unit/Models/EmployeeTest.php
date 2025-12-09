@@ -89,10 +89,14 @@ class EmployeeTest extends TestCase
 
     public function test_employee_model_generates_blind_indexes_for_searchable_encrypted_fields(): void
     {
+        // Temporarily enable observer for this test only
+        Employee::observe(\App\Observers\EmployeeObserver::class);
+
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'first_name' => 'Anna',
             'last_name' => 'Schmidt',
+            'status' => Employee::STATUS_ACTIVE, // Avoid user account creation
         ]);
 
         // Check blind indexes are generated (base64-encoded SHA256 HMAC = 44 chars)
@@ -100,6 +104,9 @@ class EmployeeTest extends TestCase
         $this->assertNotNull($employee->last_name_idx);
         $this->assertEquals(44, strlen($employee->first_name_idx));
         $this->assertEquals(44, strlen($employee->last_name_idx));
+
+        // Disable observer again for remaining tests
+        Employee::unsetEventDispatcher();
     }
 
     public function test_employee_date_of_birth_accessor_returns_string_not_carbon_object(): void
