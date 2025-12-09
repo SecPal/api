@@ -24,6 +24,9 @@ class EmployeeTest extends TestCase
     {
         parent::setUp();
 
+        // Disable EmployeeObserver for unit tests - we test the model in isolation
+        Employee::unsetEventDispatcher();
+
         // Create KEK and tenant (no factory for TenantKey)
         TenantKey::setKekPath(getTestKekPath());
         TenantKey::generateKek();
@@ -86,11 +89,20 @@ class EmployeeTest extends TestCase
 
     public function test_employee_model_generates_blind_indexes_for_searchable_encrypted_fields(): void
     {
-        $employee = Employee::factory()->create([
+        // Create employee without observer, then manually trigger blind index generation
+        $employee = Employee::factory()->make([
             'tenant_id' => $this->tenant->id,
             'first_name' => 'Anna',
             'last_name' => 'Schmidt',
+            'status' => Employee::STATUS_ACTIVE,
         ]);
+
+        // Manually generate blind indexes by calling the observer's method
+        $observer = new \App\Observers\EmployeeObserver;
+        $observer->creating($employee);
+
+        // Save the employee
+        $employee->save();
 
         // Check blind indexes are generated (base64-encoded SHA256 HMAC = 44 chars)
         $this->assertNotNull($employee->first_name_idx);

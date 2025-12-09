@@ -28,6 +28,12 @@ class EmployeeQualification extends Model
 {
     use HasUuids, SoftDeletes;
 
+    public const STATUS_ACTIVE = 'valid';
+
+    public const STATUS_EXPIRING = 'expiring_soon';
+
+    public const STATUS_EXPIRED = 'expired';
+
     protected $fillable = [
         'employee_id',
         'qualification_id',

@@ -13,3 +13,12 @@ Artisan::command('inspire', function () {
 
 // Schedule: Expire temporal role assignments every minute
 Schedule::command('roles:expire')->everyMinute();
+
+// Schedule: Update employee statuses based on contract dates daily at 06:00
+Schedule::command('employees:update-status')->dailyAt('06:00');
+
+// Schedule: Update qualification statuses and send expiry notifications daily at 07:00
+Schedule::command('employees:update-qualifications')->dailyAt('07:00');
+
+// Schedule: Send contract ending soon notifications daily at 08:00
+Schedule::command('employees:send-contract-ending-notifications')->dailyAt('08:00');
