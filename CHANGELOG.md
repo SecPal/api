@@ -50,9 +50,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Registered middleware aliases in `bootstrap/app.php`
   - Created `EmployeeQualificationFactory` for testing
   - Added `employee()` relationship to User model
-  - Comprehensive test suite: 71/71 policy tests passing
-  - PHPStan level max compliant with proper null checks
-  - Code formatted with Laravel Pint
+  - Comprehensive test suite: 71/71 policy tests passing (1151 total tests)
+  - PHPStan level max compliant with proper null checks in all policies
+  - Code formatted with Laravel Pint (PSR-12 compliant)
+  - All middleware error messages internationalized (de/en)
+  - Test fixes: Proper exception handling using try-catch blocks
   - Comprehensive test coverage for `EmployeePolicy` (15 tests, all passing)
     - Tests cover role-based access (Admin, Manager, Employee)
     - Organizational scope validation for managers
