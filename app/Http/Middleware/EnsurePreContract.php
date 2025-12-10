@@ -43,12 +43,12 @@ class EnsurePreContract
 
         // If user has no employee record, deny access
         if ($employee === null) {
-            abort(403, 'Access denied. You must be an employee to access this resource.');
+            abort(403, __('Access denied. You must be an employee to access this resource.'));
         }
 
         // Only pre-contract employees can access onboarding endpoints
         if ($employee->status !== 'pre_contract') {
-            abort(403, 'Access denied. Onboarding is only available for pre-contract employees.');
+            abort(403, __('Access denied. Onboarding is only available for pre-contract employees.'));
         }
 
         return $next($request);

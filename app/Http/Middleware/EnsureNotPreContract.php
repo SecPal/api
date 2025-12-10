@@ -48,7 +48,7 @@ class EnsureNotPreContract
 
         // Deny access for pre-contract employees
         if ($employee->status === 'pre_contract') {
-            abort(403, 'Access denied. Please complete onboarding first before accessing operational features.');
+            abort(403, __('Access denied. Please complete onboarding first before accessing operational features.'));
         }
 
         return $next($request);
