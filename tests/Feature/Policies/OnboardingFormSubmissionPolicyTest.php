@@ -59,7 +59,7 @@ test('employee can view own submissions', function (): void {
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
         'employee_id' => $employee->id,
-        'onboarding_form_template_id' => $template->id,
+        'form_template_id' => $template->id,
     ]);
 
     expect($this->policy->view($user, $submission))->toBeTrue();
@@ -73,7 +73,7 @@ test('employee cannot view other employees submissions', function (): void {
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
         'employee_id' => $otherEmployee->id,
-        'onboarding_form_template_id' => $template->id,
+        'form_template_id' => $template->id,
     ]);
 
     expect($this->policy->view($user, $submission))->toBeFalse();
@@ -88,7 +88,7 @@ test('admin can view all submissions', function (): void {
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
         'employee_id' => $employee->id,
-        'onboarding_form_template_id' => $template->id,
+        'form_template_id' => $template->id,
     ]);
 
     expect($this->policy->view($admin, $submission))->toBeTrue();
@@ -112,7 +112,7 @@ test('manager can view submissions in scope', function (): void {
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
         'employee_id' => $employee->id,
-        'onboarding_form_template_id' => $template->id,
+        'form_template_id' => $template->id,
     ]);
 
     expect($this->policy->view($manager, $submission))->toBeTrue();
@@ -147,7 +147,7 @@ test('employee can update own submissions', function (): void {
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
         'employee_id' => $employee->id,
-        'onboarding_form_template_id' => $template->id,
+        'form_template_id' => $template->id,
     ]);
 
     expect($this->policy->update($user, $submission))->toBeTrue();
@@ -161,7 +161,7 @@ test('employee cannot update other employees submissions', function (): void {
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
         'employee_id' => $otherEmployee->id,
-        'onboarding_form_template_id' => $template->id,
+        'form_template_id' => $template->id,
     ]);
 
     expect($this->policy->update($user, $submission))->toBeFalse();
@@ -176,7 +176,7 @@ test('admin can update all submissions', function (): void {
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
         'employee_id' => $employee->id,
-        'onboarding_form_template_id' => $template->id,
+        'form_template_id' => $template->id,
     ]);
 
     expect($this->policy->update($admin, $submission))->toBeTrue();
@@ -195,7 +195,7 @@ test('only admin can delete submissions', function (): void {
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
         'employee_id' => $employee->id,
-        'onboarding_form_template_id' => $template->id,
+        'form_template_id' => $template->id,
     ]);
 
     expect($this->policy->delete($admin, $submission))->toBeTrue();

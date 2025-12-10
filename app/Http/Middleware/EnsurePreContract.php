@@ -39,7 +39,7 @@ class EnsurePreContract
         }
 
         /** @var Employee|null $employee */
-        $employee = $user->employee;
+        $employee = $user->employee()->first();
 
         // If user has no employee record, deny access
         if ($employee === null) {

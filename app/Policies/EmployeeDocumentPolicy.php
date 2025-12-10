@@ -31,8 +31,8 @@ class EmployeeDocumentPolicy
      */
     public function viewAny(User $user): bool
     {
-        // Always allow - specific filtering happens in view()
-        return true;
+        // Admin and Manager can view any documents (with scope filtering in queries)
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**
@@ -44,19 +44,24 @@ class EmployeeDocumentPolicy
      */
     public function view(User $user, EmployeeDocument $document): bool
     {
-        // HR can view all documents
+        // Admin can view all documents
         if ($user->hasRole('Admin')) {
             return true;
         }
 
+        $employee = $document->employee;
+        if ($employee === null) {
+            return false;
+        }
+
         // Employee can view own documents if marked as visible
-        if ($user->id === $document->employee->user_id && $document->visible_to_employee) {
+        if ($user->id === $employee->user_id && $document->visible_to_employee) {
             return true;
         }
 
         // Manager can view documents for employees in their scope
-        if ($user->hasRole('Manager') && $document->employee->organizationalUnit !== null) {
-            return $user->hasAccessToUnit($document->employee->organizationalUnit);
+        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+            return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
         return false;
@@ -65,31 +70,31 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can create documents.
      *
-     * Only HR can upload documents.
+     * Admin and Managers can upload documents.
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('Admin');
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**
      * Determine if user can update a document.
      *
-     * Only HR can update documents.
+     * Admin and Managers can update documents.
      */
     public function update(User $user, EmployeeDocument $document): bool
     {
-        return $user->hasRole('Admin');
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**
      * Determine if user can delete a document.
      *
-     * Only HR can delete documents.
+     * Admin and Managers can delete documents.
      */
     public function delete(User $user, EmployeeDocument $document): bool
     {
-        return $user->hasRole('Admin');
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**

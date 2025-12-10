@@ -60,7 +60,7 @@ test('admin and managers can view individual templates', function (): void {
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
 
-    $template = OnboardingFormTemplate::factory()->create(['is_system' => false]);
+    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
     expect($this->policy->view($admin, $template))->toBeTrue();
     expect($this->policy->view($manager, $template))->toBeTrue();
@@ -68,7 +68,7 @@ test('admin and managers can view individual templates', function (): void {
 
 test('regular employee cannot view individual templates', function (): void {
     $employee = User::factory()->create();
-    $template = OnboardingFormTemplate::factory()->create(['is_system' => false]);
+    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
     expect($this->policy->view($employee, $template))->toBeFalse();
 });
@@ -90,7 +90,7 @@ test('only admin can create onboarding form templates', function (): void {
 test('admin can update custom templates', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
-    $template = OnboardingFormTemplate::factory()->create(['is_system' => false]);
+    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
     expect($this->policy->update($admin, $template))->toBeTrue();
 });
@@ -98,7 +98,7 @@ test('admin can update custom templates', function (): void {
 test('admin cannot update system templates', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
-    $template = OnboardingFormTemplate::factory()->create(['is_system' => true]);
+    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => true]);
 
     expect($this->policy->update($admin, $template))->toBeFalse();
 });
@@ -106,7 +106,7 @@ test('admin cannot update system templates', function (): void {
 test('manager cannot update any templates', function (): void {
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
-    $template = OnboardingFormTemplate::factory()->create(['is_system' => false]);
+    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
     expect($this->policy->update($manager, $template))->toBeFalse();
 });
@@ -114,7 +114,7 @@ test('manager cannot update any templates', function (): void {
 test('admin can delete custom templates', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
-    $template = OnboardingFormTemplate::factory()->create(['is_system' => false]);
+    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
     expect($this->policy->delete($admin, $template))->toBeTrue();
 });
@@ -122,7 +122,7 @@ test('admin can delete custom templates', function (): void {
 test('admin cannot delete system templates', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
-    $template = OnboardingFormTemplate::factory()->create(['is_system' => true]);
+    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => true]);
 
     expect($this->policy->delete($admin, $template))->toBeFalse();
 });
@@ -130,7 +130,7 @@ test('admin cannot delete system templates', function (): void {
 test('manager cannot delete any templates', function (): void {
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
-    $template = OnboardingFormTemplate::factory()->create(['is_system' => false]);
+    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
     expect($this->policy->delete($manager, $template))->toBeFalse();
 });

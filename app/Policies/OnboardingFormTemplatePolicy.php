@@ -25,21 +25,21 @@ class OnboardingFormTemplatePolicy
     /**
      * Determine if user can view any onboarding form templates.
      *
-     * Only HR can view templates.
+     * Admin and Managers can view templates.
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('Admin');
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**
      * Determine if user can view a specific template.
      *
-     * Only HR can view templates.
+     * Admin and Managers can view templates.
      */
     public function view(User $user, OnboardingFormTemplate $template): bool
     {
-        return $user->hasRole('Admin');
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**

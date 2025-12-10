@@ -55,7 +55,7 @@ test('regular employee can view qualifications', function (): void {
 
 test('everyone can view individual qualifications', function (): void {
     $user = User::factory()->create();
-    $qualification = Qualification::factory()->create(['is_system' => false]);
+    $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
     expect($this->policy->view($user, $qualification))->toBeTrue();
 });
@@ -77,7 +77,7 @@ test('only admin can create qualifications', function (): void {
 test('admin can update custom qualifications', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
-    $qualification = Qualification::factory()->create(['is_system' => false]);
+    $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
     expect($this->policy->update($admin, $qualification))->toBeTrue();
 });
@@ -85,7 +85,7 @@ test('admin can update custom qualifications', function (): void {
 test('admin cannot update system qualifications', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
-    $qualification = Qualification::factory()->create(['is_system' => true]);
+    $qualification = Qualification::factory()->create(['is_system_qualification' => true]);
 
     expect($this->policy->update($admin, $qualification))->toBeFalse();
 });
@@ -93,7 +93,7 @@ test('admin cannot update system qualifications', function (): void {
 test('manager cannot update any qualifications', function (): void {
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
-    $qualification = Qualification::factory()->create(['is_system' => false]);
+    $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
     expect($this->policy->update($manager, $qualification))->toBeFalse();
 });
@@ -101,7 +101,7 @@ test('manager cannot update any qualifications', function (): void {
 test('admin can delete custom qualifications', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
-    $qualification = Qualification::factory()->create(['is_system' => false]);
+    $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
     expect($this->policy->delete($admin, $qualification))->toBeTrue();
 });
@@ -109,7 +109,7 @@ test('admin can delete custom qualifications', function (): void {
 test('admin cannot delete system qualifications', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
-    $qualification = Qualification::factory()->create(['is_system' => true]);
+    $qualification = Qualification::factory()->create(['is_system_qualification' => true]);
 
     expect($this->policy->delete($admin, $qualification))->toBeFalse();
 });
@@ -117,7 +117,7 @@ test('admin cannot delete system qualifications', function (): void {
 test('manager cannot delete any qualifications', function (): void {
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
-    $qualification = Qualification::factory()->create(['is_system' => false]);
+    $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
     expect($this->policy->delete($manager, $qualification))->toBeFalse();
 });

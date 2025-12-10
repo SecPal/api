@@ -28,30 +28,41 @@ class OnboardingFormSubmissionPolicy
      * Determine if user can view any submissions.
      *
      * Employee can view own submissions.
-     * HR can view all submissions.
+     * Admin and Managers can view all submissions.
      */
     public function viewAny(User $user): bool
     {
-        // Always allow - specific filtering happens in view()
-        return true;
+        // Admin and Manager can view any (with filtering in queries)
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**
      * Determine if user can view a specific submission.
      *
      * Employee can view own submissions.
-     * HR can view all submissions.
+     * Admin can view all submissions.
+     * Managers can view submissions for employees in their scope.
      */
     public function view(User $user, OnboardingFormSubmission $submission): bool
     {
+        $employee = $submission->employee;
+        if ($employee === null) {
+            return false;
+        }
+
         // Employee can view own submissions
-        if ($user->id === $submission->employee->user_id) {
+        if ($user->id === $employee->user_id) {
             return true;
         }
 
-        // HR can view all
+        // Admin can view all
         if ($user->hasRole('Admin')) {
             return true;
+        }
+
+        // Manager can view submissions for employees in their scope
+        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+            return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
         return false;
@@ -84,13 +95,18 @@ class OnboardingFormSubmissionPolicy
      */
     public function update(User $user, OnboardingFormSubmission $submission): bool
     {
-        // HR can update any submission
+        // Admin can update any submission
         if ($user->hasRole('Admin')) {
             return true;
         }
 
+        $employee = $submission->employee;
+        if ($employee === null) {
+            return false;
+        }
+
         // Employee can update own submissions if status is draft
-        if ($user->id === $submission->employee->user_id && $submission->status === 'draft') {
+        if ($user->id === $employee->user_id && $submission->status === 'draft') {
             return true;
         }
 
@@ -113,6 +129,16 @@ class OnboardingFormSubmissionPolicy
      * Only HR can reject submissions.
      */
     public function reject(User $user, OnboardingFormSubmission $submission): bool
+    {
+        return $user->hasRole('Admin');
+    }
+
+    /**
+     * Determine if user can delete a submission.
+     *
+     * Only Admin can delete submissions.
+     */
+    public function delete(User $user, OnboardingFormSubmission $submission): bool
     {
         return $user->hasRole('Admin');
     }

@@ -37,6 +37,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property \Illuminate\Support\Carbon $updated_at
  * @property-read Collection<int, UserInternalOrganizationalScope> $organizationalScopes
  * @property-read Collection<int, OrganizationalUnit> $scopedOrganizationalUnits
+ * @property-read Employee|null $employee
  */
 class User extends Authenticatable
 {
@@ -221,6 +222,16 @@ class User extends Authenticatable
         $accessibleUnitIds = $directUnitIds->merge($descendantIds)->unique();
 
         return OrganizationalUnit::whereIn('id', $accessibleUnitIds)->get();
+    }
+
+    /**
+     * Get the employee associated with this user account.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne<Employee, $this>
+     */
+    public function employee(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Employee::class, 'user_id');
     }
 
     /**

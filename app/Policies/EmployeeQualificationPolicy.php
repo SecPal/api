@@ -31,8 +31,8 @@ class EmployeeQualificationPolicy
      */
     public function viewAny(User $user): bool
     {
-        // Always allow - specific filtering happens in view()
-        return true;
+        // Admin and Manager can view any (with scope filtering in queries)
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**
@@ -44,19 +44,24 @@ class EmployeeQualificationPolicy
      */
     public function view(User $user, EmployeeQualification $employeeQualification): bool
     {
+        $employee = $employeeQualification->employee;
+        if ($employee === null) {
+            return false;
+        }
+
         // Employee can view own qualifications
-        if ($user->id === $employeeQualification->employee->user_id) {
+        if ($user->id === $employee->user_id) {
             return true;
         }
 
-        // HR can view all
+        // Admin can view all
         if ($user->hasRole('Admin')) {
             return true;
         }
 
         // Manager can view qualifications for employees in their scope
-        if ($user->hasRole('Manager') && $employeeQualification->employee->organizationalUnit !== null) {
-            return $user->hasAccessToUnit($employeeQualification->employee->organizationalUnit);
+        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+            return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
         return false;
@@ -65,30 +70,30 @@ class EmployeeQualificationPolicy
     /**
      * Determine if user can create employee qualifications.
      *
-     * Only HR can assign qualifications to employees.
+     * Admin and Managers can assign qualifications to employees.
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('Admin');
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**
      * Determine if user can update an employee qualification.
      *
-     * Only HR can update certificate details.
+     * Admin and Managers can update certificate details.
      */
     public function update(User $user, EmployeeQualification $employeeQualification): bool
     {
-        return $user->hasRole('Admin');
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 
     /**
      * Determine if user can delete an employee qualification.
      *
-     * Only HR can detach qualifications from employees.
+     * Admin and Managers can detach qualifications from employees.
      */
     public function delete(User $user, EmployeeQualification $employeeQualification): bool
     {
-        return $user->hasRole('Admin');
+        return $user->hasRole('Admin') || $user->hasRole('Manager');
     }
 }
