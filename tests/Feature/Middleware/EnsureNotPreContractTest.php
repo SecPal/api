@@ -34,13 +34,17 @@ test('middleware blocks pre contract employees', function (): void {
         'status' => 'pre_contract',
     ]);
 
-    $request = Request::create('/employees', 'GET');
+    $user->refresh(); // Reload user to ensure employee relationship is fresh
+
+    $request = Request::create('/dashboard', 'GET');
     $request->setUserResolver(fn () => $user);
 
-    $this->expectException(HttpException::class);
-    $this->expectExceptionCode(403);
-
-    $this->middleware->handle($request, fn ($req) => response('OK'));
+    try {
+        $this->middleware->handle($request, fn ($req) => response('OK'));
+        expect(false)->toBeTrue('Expected HttpException to be thrown');
+    } catch (HttpException $e) {
+        expect($e->getStatusCode())->toBe(403);
+    }
 });
 
 test('middleware allows active employees', function (): void {

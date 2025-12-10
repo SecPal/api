@@ -49,13 +49,17 @@ test('middleware blocks active employees', function (): void {
         'status' => 'active',
     ]);
 
+    $user->refresh(); // Reload user to ensure employee relationship is fresh
+
     $request = Request::create('/onboarding/forms', 'GET');
     $request->setUserResolver(fn () => $user);
 
-    $this->expectException(HttpException::class);
-    $this->expectExceptionCode(403);
-
-    $this->middleware->handle($request, fn ($req) => response('OK'));
+    try {
+        $this->middleware->handle($request, fn ($req) => response('OK'));
+        expect(false)->toBeTrue('Expected HttpException to be thrown');
+    } catch (HttpException $e) {
+        expect($e->getStatusCode())->toBe(403);
+    }
 });
 
 test('middleware blocks terminated employees', function (): void {
@@ -65,13 +69,17 @@ test('middleware blocks terminated employees', function (): void {
         'status' => 'terminated',
     ]);
 
+    $user->refresh(); // Reload user to ensure employee relationship is fresh
+
     $request = Request::create('/onboarding/forms', 'GET');
     $request->setUserResolver(fn () => $user);
 
-    $this->expectException(HttpException::class);
-    $this->expectExceptionCode(403);
-
-    $this->middleware->handle($request, fn ($req) => response('OK'));
+    try {
+        $this->middleware->handle($request, fn ($req) => response('OK'));
+        expect(false)->toBeTrue('Expected HttpException to be thrown');
+    } catch (HttpException $e) {
+        expect($e->getStatusCode())->toBe(403);
+    }
 });
 
 test('middleware blocks users without employee record', function (): void {
@@ -80,10 +88,12 @@ test('middleware blocks users without employee record', function (): void {
     $request = Request::create('/onboarding/forms', 'GET');
     $request->setUserResolver(fn () => $user);
 
-    $this->expectException(HttpException::class);
-    $this->expectExceptionCode(403);
-
-    $this->middleware->handle($request, fn ($req) => response('OK'));
+    try {
+        $this->middleware->handle($request, fn ($req) => response('OK'));
+        expect(false)->toBeTrue('Expected HttpException to be thrown');
+    } catch (HttpException $e) {
+        expect($e->getStatusCode())->toBe(403);
+    }
 });
 
 test('middleware blocks applicant status', function (): void {
@@ -93,13 +103,17 @@ test('middleware blocks applicant status', function (): void {
         'status' => 'applicant',
     ]);
 
+    $user->refresh(); // Reload user to ensure employee relationship is fresh
+
     $request = Request::create('/onboarding/forms', 'GET');
     $request->setUserResolver(fn () => $user);
 
-    $this->expectException(HttpException::class);
-    $this->expectExceptionCode(403);
-
-    $this->middleware->handle($request, fn ($req) => response('OK'));
+    try {
+        $this->middleware->handle($request, fn ($req) => response('OK'));
+        expect(false)->toBeTrue('Expected HttpException to be thrown');
+    } catch (HttpException $e) {
+        expect($e->getStatusCode())->toBe(403);
+    }
 });
 
 test('middleware blocks on_leave status', function (): void {
@@ -109,11 +123,15 @@ test('middleware blocks on_leave status', function (): void {
         'status' => 'on_leave',
     ]);
 
+    $user->refresh(); // Reload user to ensure employee relationship is fresh
+
     $request = Request::create('/onboarding/forms', 'GET');
     $request->setUserResolver(fn () => $user);
 
-    $this->expectException(HttpException::class);
-    $this->expectExceptionCode(403);
-
-    $this->middleware->handle($request, fn ($req) => response('OK'));
+    try {
+        $this->middleware->handle($request, fn ($req) => response('OK'));
+        expect(false)->toBeTrue('Expected HttpException to be thrown');
+    } catch (HttpException $e) {
+        expect($e->getStatusCode())->toBe(403);
+    }
 });
