@@ -36,18 +36,14 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-test('admin can view any onboarding form submissions', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with onboarding.read can view any submissions', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
 
-    expect($this->policy->viewAny($admin))->toBeTrue();
-});
+    $userWithoutPermission = User::factory()->create();
 
-test('manager can view any onboarding form submissions', function (): void {
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
-
-    expect($this->policy->viewAny($manager))->toBeTrue();
+    expect($this->policy->viewAny($userWithPermission))->toBeTrue();
+    expect($this->policy->viewAny($userWithoutPermission))->toBeFalse();
 });
 
 test('employee can view own submissions', function (): void {
@@ -79,9 +75,10 @@ test('employee cannot view other employees submissions', function (): void {
     expect($this->policy->view($user, $submission))->toBeFalse();
 });
 
-test('admin can view all submissions', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with onboarding.read can view all submissions regardless of scope', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
+
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'status' => 'pre_contract',
     ]);
@@ -91,15 +88,15 @@ test('admin can view all submissions', function (): void {
         'form_template_id' => $template->id,
     ]);
 
-    expect($this->policy->view($admin, $submission))->toBeTrue();
+    expect($this->policy->view($userWithPermission, $submission))->toBeTrue();
 });
 
-test('manager can view submissions in scope', function (): void {
+test('users with onboarding.read and org scope can view submissions in scope', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $userWithScope = User::factory()->create();
+    givePermissionWithTenant($userWithScope, $this->tenant->id, 'onboarding.read');
 
-    $manager->organizationalScopes()->create([
+    $userWithScope->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit->id,
         'include_descendants' => false,
         'access_level' => 'write',
@@ -115,7 +112,7 @@ test('manager can view submissions in scope', function (): void {
         'form_template_id' => $template->id,
     ]);
 
-    expect($this->policy->view($manager, $submission))->toBeTrue();
+    expect($this->policy->view($userWithScope, $submission))->toBeTrue();
 });
 
 test('only pre contract employees can create submissions', function (): void {
@@ -167,9 +164,10 @@ test('employee cannot update other employees submissions', function (): void {
     expect($this->policy->update($user, $submission))->toBeFalse();
 });
 
-test('admin can update all submissions', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with onboarding.write can update all submissions', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.write');
+
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'status' => 'pre_contract',
     ]);
@@ -179,15 +177,15 @@ test('admin can update all submissions', function (): void {
         'form_template_id' => $template->id,
     ]);
 
-    expect($this->policy->update($admin, $submission))->toBeTrue();
+    expect($this->policy->update($userWithPermission, $submission))->toBeTrue();
 });
 
-test('only admin can delete submissions', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('only users with onboarding.delete can delete submissions', function (): void {
+    $userWithDelete = User::factory()->create();
+    givePermissionWithTenant($userWithDelete, $this->tenant->id, 'onboarding.delete');
 
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $userWithWrite = User::factory()->create();
+    givePermissionWithTenant($userWithWrite, $this->tenant->id, 'onboarding.write');
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'status' => 'pre_contract',
@@ -198,6 +196,6 @@ test('only admin can delete submissions', function (): void {
         'form_template_id' => $template->id,
     ]);
 
-    expect($this->policy->delete($admin, $submission))->toBeTrue();
-    expect($this->policy->delete($manager, $submission))->toBeFalse();
+    expect($this->policy->delete($userWithDelete, $submission))->toBeTrue();
+    expect($this->policy->delete($userWithWrite, $submission))->toBeFalse();
 });

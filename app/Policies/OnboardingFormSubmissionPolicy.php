@@ -138,10 +138,12 @@ class OnboardingFormSubmissionPolicy
     /**
      * Determine if user can delete a submission.
      *
-     * Users with onboarding.write permission can delete submissions.
+     * Users with onboarding.delete permission can delete submissions.
+     * Only Admin has this permission (Admin has onboarding.* wildcard).
+     * Manager has onboarding.write but NOT onboarding.delete.
      */
     public function delete(User $user, OnboardingFormSubmission $submission): bool
     {
-        return $user->can('onboarding.write');
+        return $user->can('onboarding.delete');
     }
 }

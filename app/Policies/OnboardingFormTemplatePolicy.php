@@ -45,17 +45,17 @@ class OnboardingFormTemplatePolicy
     /**
      * Determine if user can create templates.
      *
-     * Users with onboarding.write permission can create custom templates.
+     * Only users with onboarding_template.write or onboarding_template.create permission can create templates.
      */
     public function create(User $user): bool
     {
-        return $user->can('onboarding.write');
+        return $user->can('onboarding_template.write') || $user->can('onboarding_template.create');
     }
 
     /**
      * Determine if user can update a template.
      *
-     * Users with onboarding_template.update permission can update custom templates only.
+     * Users with onboarding_template.write or onboarding_template.update permission can update custom templates only.
      * System templates cannot be updated.
      */
     public function update(User $user, OnboardingFormTemplate $template): bool
@@ -65,13 +65,13 @@ class OnboardingFormTemplatePolicy
             return false;
         }
 
-        return $user->can('onboarding.write');
+        return $user->can('onboarding_template.write') || $user->can('onboarding_template.update');
     }
 
     /**
      * Determine if user can delete a template.
      *
-     * Users with onboarding_template.delete permission can delete custom templates only.
+     * Users with onboarding_template.write or onboarding_template.delete permission can delete custom templates only.
      * System templates cannot be deleted.
      */
     public function delete(User $user, OnboardingFormTemplate $template): bool
@@ -81,6 +81,6 @@ class OnboardingFormTemplatePolicy
             return false;
         }
 
-        return $user->can('onboarding.write');
+        return $user->can('onboarding_template.write') || $user->can('onboarding_template.delete');
     }
 }
