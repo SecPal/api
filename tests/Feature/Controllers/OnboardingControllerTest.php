@@ -248,6 +248,7 @@ describe('POST /v1/onboarding/submissions', function () {
             ->postJson('/v1/onboarding/submissions', [
                 'form_template_id' => $this->template->id,
                 'form_data' => ['field' => 'value'],
+                'status' => 'draft',
             ]);
 
         $response->assertStatus(403);
