@@ -52,17 +52,20 @@ class EmployeeQualificationPolicy
         }
 
         // Users with permission can view
-        if ($user->can('employee_qualification.read')) {
-            // Validate organizational scope if applicable
-            if ($employee->organizationalUnit !== null) {
-                return $user->hasAccessToUnit($employee->organizationalUnit);
-            }
-
-            // Admin/HR: Can view all
-            return true;
+        if (! $user->can('employee_qualification.read')) {
+            return false;
         }
 
-        return false;
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope
+            return $user->hasAccessToUnit($employee->organizationalUnit);
+        }
+
+        // Admin/HR (no scopes): Can view all
+        return ! $hasScopes;
     }
 
     /**
@@ -79,7 +82,7 @@ class EmployeeQualificationPolicy
     /**
      * Determine if user can update an employee qualification.
      *
-     * Users with employee_qualification.write permission can update with scope validation.
+     * Users with employee_qualification.update permission can update with scope validation.
      */
     public function update(User $user, EmployeeQualification $employeeQualification): bool
     {
@@ -92,19 +95,22 @@ class EmployeeQualificationPolicy
             return false;
         }
 
-        // Validate organizational scope if applicable
-        if ($employee->organizationalUnit !== null) {
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        // Admin/HR: Can update all
-        return true;
+        // Admin/HR (no scopes): Can update all
+        return ! $hasScopes;
     }
 
     /**
      * Determine if user can delete an employee qualification.
      *
-     * Users with employee_qualification.write permission can delete with scope validation.
+     * Users with employee_qualification.delete permission can delete with scope validation.
      */
     public function delete(User $user, EmployeeQualification $employeeQualification): bool
     {
@@ -117,12 +123,15 @@ class EmployeeQualificationPolicy
             return false;
         }
 
-        // Validate organizational scope if applicable
-        if ($employee->organizationalUnit !== null) {
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        // Admin/HR: Can delete all
-        return true;
+        // Admin/HR (no scopes): Can delete all
+        return ! $hasScopes;
     }
 }

@@ -33,7 +33,7 @@ class EmployeeQualificationController extends Controller
         $this->authorize('viewAny', [EmployeeQualification::class, $employee]);
 
         $qualifications = $employee->employeeQualifications()
-            ->with('qualification')
+            ->with(['qualification', 'employee'])
             ->get();
 
         return response()->json([

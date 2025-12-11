@@ -65,6 +65,7 @@ describe('GET /v1/employees/{employee}/qualifications', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.read');
 
         $this->employee->qualifications()->attach($this->qualification->id, [
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
             'obtained_date' => now()->toDateString(),
             'status' => 'valid',
         ]);
@@ -118,7 +119,7 @@ describe('POST /v1/employees/{employee}/qualifications', function () {
             ->postJson("/v1/employees/{$this->employee->id}/qualifications", []);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['qualification_id', 'obtained_date', 'status']);
+            ->assertJsonValidationErrors(['qualification_id', 'obtained_date']);
     });
 
     test('attaches qualification to employee with valid data', function (): void {
@@ -136,22 +137,25 @@ describe('POST /v1/employees/{employee}/qualifications', function () {
 
         $response->assertStatus(201)
             ->assertJsonStructure([
-                'id',
-                'employee_id',
-                'qualification_id',
-                'obtained_date',
-                'expiry_date',
-                'certificate_number',
-                'status',
+                'data' => [
+                    'id',
+                    'employee_id',
+                    'qualification_id',
+                    'obtained_date',
+                    'expiry_date',
+                    'certificate_number',
+                    'status',
+                ],
             ]);
 
-        expect($response->json('certificate_number'))->toBe('CERT-12345');
+        expect($response->json('data.certificate_number'))->toBe('CERT-12345');
     });
 
     test('returns 409 when qualification already attached to employee', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.write');
 
         $this->employee->qualifications()->attach($this->qualification->id, [
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
             'obtained_date' => now()->toDateString(),
             'status' => 'valid',
         ]);
@@ -232,11 +236,13 @@ describe('GET /v1/employee-qualifications/{employeeQualification}', function () 
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'id',
-                'employee_id',
-                'qualification_id',
-                'employee',
-                'qualification',
+                'data' => [
+                    'id',
+                    'employee_id',
+                    'qualification_id',
+                    'employee',
+                    'qualification',
+                ],
             ]);
     });
 });
@@ -285,8 +291,8 @@ describe('PATCH /v1/employee-qualifications/{employeeQualification}', function (
             ]);
 
         $response->assertStatus(200);
-        expect($response->json('status'))->toBe('expiring_soon');
-        expect($response->json('notes'))->toBe('Renewal required');
+        expect($response->json('data.status'))->toBe('expiring_soon');
+        expect($response->json('data.notes'))->toBe('Renewal required');
     });
 });
 

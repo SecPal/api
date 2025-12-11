@@ -69,18 +69,18 @@ class EmployeePolicy
     /**
      * Determine if user can create employees.
      *
-     * Users with employee.write permission can create employees.
+     * Users with employee.write or employee.create permission can create employees.
      */
     public function create(User $user): bool
     {
-        return $user->can('employee.write');
+        return $user->can('employee.write') || $user->can('employee.create');
     }
 
     /**
      * Determine if user can update an employee.
      *
      * Employee can update own profile (limited fields).
-     * Users with employee.write permission can update all employees.
+     * Users with employee.update permission can update all employees.
      */
     public function update(User $user, Employee $employee): bool
     {
@@ -90,37 +90,37 @@ class EmployeePolicy
             return true;
         }
 
-        // Users with employee.write permission can update
-        return $user->can('employee.write');
+        // Users with employee.write or employee.update permission can update
+        return $user->can('employee.write') || $user->can('employee.update');
     }
 
     /**
      * Determine if user can delete an employee.
      *
-     * Users with employee.write permission can delete employees (soft delete).
+     * Users with employee.write or employee.delete permission can delete employees (soft delete).
      */
     public function delete(User $user, Employee $employee): bool
     {
-        return $user->can('employee.write');
+        return $user->can('employee.write') || $user->can('employee.delete');
     }
 
     /**
      * Determine if user can activate an employee.
      *
-     * Users with employee.write permission can activate employees (transition to active status).
+     * Users with employee.write or employee.activate permission can activate employees (transition to active status).
      */
     public function activate(User $user, Employee $employee): bool
     {
-        return $user->can('employee.write');
+        return $user->can('employee.write') || $user->can('employee.activate');
     }
 
     /**
      * Determine if user can terminate an employee.
      *
-     * Users with employee.write permission can terminate employees (transition to terminated status).
+     * Users with employee.write or employee.terminate permission can terminate employees (transition to terminated status).
      */
     public function terminate(User $user, Employee $employee): bool
     {
-        return $user->can('employee.write');
+        return $user->can('employee.write') || $user->can('employee.terminate');
     }
 }

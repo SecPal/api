@@ -54,17 +54,20 @@ class OnboardingFormSubmissionPolicy
         }
 
         // Users with permission can view
-        if ($user->can('onboarding.read')) {
-            // Validate organizational scope if applicable
-            if ($employee->organizationalUnit !== null) {
-                return $user->hasAccessToUnit($employee->organizationalUnit);
-            }
-
-            // Admin/HR: Can view all
-            return true;
+        if (! $user->can('onboarding.read')) {
+            return false;
         }
 
-        return false;
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope
+            return $user->hasAccessToUnit($employee->organizationalUnit);
+        }
+
+        // Admin/HR (no scopes): Can view all
+        return ! $hasScopes;
     }
 
     /**
@@ -90,7 +93,7 @@ class OnboardingFormSubmissionPolicy
      * Determine if user can update a submission.
      *
      * Employee can update own submissions if status is draft.
-     * Users with onboarding.write permission can update any submission.
+     * Users with onboarding.update permission can update any submission.
      */
     public function update(User $user, OnboardingFormSubmission $submission): bool
     {

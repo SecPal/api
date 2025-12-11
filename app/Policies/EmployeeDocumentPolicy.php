@@ -52,17 +52,20 @@ class EmployeeDocumentPolicy
         }
 
         // Users with permission can view
-        if ($user->can('employee_document.read')) {
-            // Validate organizational scope if applicable
-            if ($employee->organizationalUnit !== null) {
-                return $user->hasAccessToUnit($employee->organizationalUnit);
-            }
-
-            // Admin/HR: Can view all
-            return true;
+        if (! $user->can('employee_document.read')) {
+            return false;
         }
 
-        return false;
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope
+            return $user->hasAccessToUnit($employee->organizationalUnit);
+        }
+
+        // Admin/HR (no scopes): Can view all
+        return ! $hasScopes;
     }
 
     /**
@@ -79,7 +82,7 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can update a document.
      *
-     * Users with employee_document.write permission can update with scope validation.
+     * Users with employee_document.update permission can update with scope validation.
      */
     public function update(User $user, EmployeeDocument $document): bool
     {
@@ -92,19 +95,22 @@ class EmployeeDocumentPolicy
             return false;
         }
 
-        // Validate organizational scope if applicable
-        if ($employee->organizationalUnit !== null) {
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        // Admin/HR: Can update all
-        return true;
+        // Admin/HR (no scopes): Can update all
+        return ! $hasScopes;
     }
 
     /**
      * Determine if user can delete a document.
      *
-     * Users with employee_document.write permission can delete with scope validation.
+     * Users with employee_document.delete permission can delete with scope validation.
      */
     public function delete(User $user, EmployeeDocument $document): bool
     {
@@ -117,13 +123,16 @@ class EmployeeDocumentPolicy
             return false;
         }
 
-        // Validate organizational scope if applicable
-        if ($employee->organizationalUnit !== null) {
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        // Admin/HR: Can delete all
-        return true;
+        // Admin/HR (no scopes): Can delete all
+        return ! $hasScopes;
     }
 
     /**

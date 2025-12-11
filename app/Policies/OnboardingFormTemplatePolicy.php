@@ -55,7 +55,7 @@ class OnboardingFormTemplatePolicy
     /**
      * Determine if user can update a template.
      *
-     * Users with onboarding.write permission can update custom templates only.
+     * Users with onboarding_template.update permission can update custom templates only.
      * System templates cannot be updated.
      */
     public function update(User $user, OnboardingFormTemplate $template): bool
@@ -71,7 +71,7 @@ class OnboardingFormTemplatePolicy
     /**
      * Determine if user can delete a template.
      *
-     * Users with onboarding.write permission can delete custom templates only.
+     * Users with onboarding_template.delete permission can delete custom templates only.
      * System templates cannot be deleted.
      */
     public function delete(User $user, OnboardingFormTemplate $template): bool
