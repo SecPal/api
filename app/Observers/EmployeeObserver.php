@@ -341,32 +341,59 @@ class EmployeeObserver
 
     /**
      * Update blind indexes for first_name, last_name, date_of_birth.
+     *
+     * During create: _enc fields contain plaintext (before Cast encryption)
+     * During update: _enc fields contain JSON (after Cast encryption)
      */
     private function updateBlindIndexes(Employee $employee): void
     {
         $tenantKey = TenantKey::findOrFail($employee->tenant_id);
 
-        // Compute first_name_idx if first_name_enc is set
-        if ($employee->first_name_enc !== null) {
-            $decrypted = $employee->first_name; // Accessor handles decryption via Cast
-            $rawIdx = $tenantKey->generateBlindIndex(mb_strtolower($decrypted));
+        // Helper to extract plaintext from _enc field (handles both plaintext and encrypted JSON)
+        $getPlaintext = function (string $encField) use ($employee): ?string {
+            $rawValue = $employee->getAttributes()[$encField] ?? null;
+
+            if ($rawValue === null) {
+                return null;
+            }
+
+            if (! is_string($rawValue)) {
+                return null;
+            }
+
+            // Check if it's JSON (existing record) or plaintext (new record before cast)
+            $decoded = json_decode($rawValue, true);
+            if (is_array($decoded) && isset($decoded['ciphertext'], $decoded['nonce'])) {
+                // Encrypted JSON - use accessor to decrypt
+                $field = str_replace(['_enc', '_encrypted'], '', $encField);
+                $decrypted = $employee->$field;
+
+                return is_string($decrypted) ? $decrypted : null;
+            }
+
+            // Plaintext - use directly
+            return $rawValue;
+        };
+
+        // Compute first_name_idx
+        $firstName = $getPlaintext('first_name_enc');
+        if ($firstName !== null) {
+            $rawIdx = $tenantKey->generateBlindIndex(mb_strtolower($firstName));
             $employee->first_name_idx = base64_encode($rawIdx);
         }
 
-        // Compute last_name_idx if last_name_enc is set
-        if ($employee->last_name_enc !== null) {
-            $decrypted = $employee->last_name; // Accessor handles decryption via Cast
-            $rawIdx = $tenantKey->generateBlindIndex(mb_strtolower($decrypted));
+        // Compute last_name_idx
+        $lastName = $getPlaintext('last_name_enc');
+        if ($lastName !== null) {
+            $rawIdx = $tenantKey->generateBlindIndex(mb_strtolower($lastName));
             $employee->last_name_idx = base64_encode($rawIdx);
         }
 
-        // Compute date_of_birth_idx if date_of_birth_enc is set
-        if ($employee->date_of_birth_enc !== null) {
-            $decrypted = $employee->date_of_birth; // Accessor handles decryption via Cast
-            if ($decrypted !== null) {
-                $rawIdx = $tenantKey->generateBlindIndex($decrypted); // No lowercasing for dates
-                $employee->date_of_birth_idx = base64_encode($rawIdx);
-            }
+        // Compute date_of_birth_idx
+        $dateOfBirth = $getPlaintext('date_of_birth_enc');
+        if ($dateOfBirth !== null) {
+            $rawIdx = $tenantKey->generateBlindIndex($dateOfBirth);
+            $employee->date_of_birth_idx = base64_encode($rawIdx);
         }
     }
 }

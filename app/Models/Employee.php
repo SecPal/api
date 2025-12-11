@@ -361,62 +361,62 @@ class Employee extends Model
         return "{$this->first_name} {$this->last_name}";
     }
 
-    // === MUTATORS (Set plaintext values - encryption handled by cast and observer) ===
+    // === MUTATORS (Direct assignment to _enc fields, encryption handled by Cast) ===
 
     /**
-     * Set plaintext first name (transient for blind index computation).
+     * Set plaintext first name - Cast handles encryption.
      */
     public function setFirstNameAttribute(string $value): void
     {
-        $this->first_name_enc = $value; // Trigger EncryptedWithDek cast
+        $this->first_name_enc = $value;
     }
 
     /**
-     * Set plaintext last name (transient for blind index computation).
+     * Set plaintext last name - Cast handles encryption.
      */
     public function setLastNameAttribute(string $value): void
     {
-        $this->last_name_enc = $value; // Trigger EncryptedWithDek cast
+        $this->last_name_enc = $value;
     }
 
     /**
-     * Set plaintext date of birth (transient for blind index computation).
+     * Set plaintext date of birth - Cast handles encryption.
      */
     public function setDateOfBirthAttribute(?string $value): void
     {
-        $this->date_of_birth_enc = $value; // Trigger EncryptedWithDek cast
+        $this->date_of_birth_enc = $value;
     }
 
     /**
-     * Set plaintext address.
+     * Set plaintext address - Cast handles encryption.
      */
     public function setAddressAttribute(?string $value): void
     {
-        $this->address_encrypted = $value; // Trigger EncryptedWithDek cast
+        $this->address_encrypted = $value;
     }
 
     /**
-     * Set plaintext hourly rate.
+     * Set plaintext hourly rate - Cast handles encryption.
      */
     public function setHourlyRateAttribute(?float $value): void
     {
-        $this->hourly_rate_enc = $value !== null ? (string) $value : null; // Trigger EncryptedWithDek cast
+        $this->hourly_rate_enc = $value !== null ? (string) $value : null;
     }
 
     /**
-     * Set plaintext tax ID.
+     * Set plaintext tax ID - Cast handles encryption.
      */
     public function setTaxIdAttribute(?string $value): void
     {
-        $this->tax_id_enc = $value; // Trigger EncryptedWithDek cast
+        $this->tax_id_enc = $value;
     }
 
     /**
-     * Set plaintext social security number.
+     * Set plaintext social security number - Cast handles encryption.
      */
     public function setSocialSecurityNumberAttribute(?string $value): void
     {
-        $this->social_security_number_enc = $value; // Trigger EncryptedWithDek cast
+        $this->social_security_number_enc = $value;
     }
 
     // === STATUS STATE MACHINE ===
