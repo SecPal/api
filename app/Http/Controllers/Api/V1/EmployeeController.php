@@ -35,10 +35,24 @@ class EmployeeController extends Controller
     {
         $this->authorize('viewAny', Employee::class);
 
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
         /** @var int $tenantId */
         $tenantId = $request->input('tenant_id');
 
         $query = Employee::where('tenant_id', $tenantId);
+
+        // Apply organizational scope filtering for scoped users (e.g., managers)
+        $hasScopes = $user->organizationalScopes()->exists();
+        if ($hasScopes) {
+            // Get accessible organizational unit IDs for scoped users
+            $accessibleUnitIds = $user->organizationalScopes()
+                ->pluck('organizational_unit_id')
+                ->toArray();
+
+            $query->whereIn('organizational_unit_id', $accessibleUnitIds);
+        }
 
         // Filter by status
         if ($request->has('status')) {

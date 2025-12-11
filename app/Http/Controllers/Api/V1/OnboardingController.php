@@ -177,9 +177,15 @@ class OnboardingController extends Controller
             ->where('form_template_id', $validated['form_template_id'])
             ->first();
 
-        if ($existing && $existing->status !== 'draft') {
+        if ($existing && $existing->status === 'submitted') {
             return response()->json([
-                'message' => __('Form has already been submitted'),
+                'message' => __('Form has already been submitted and is awaiting review'),
+            ], Response::HTTP_CONFLICT);
+        }
+
+        if ($existing && in_array($existing->status, ['approved', 'rejected'], true)) {
+            return response()->json([
+                'message' => __('Form has already been reviewed and cannot be modified'),
             ], Response::HTTP_CONFLICT);
         }
 

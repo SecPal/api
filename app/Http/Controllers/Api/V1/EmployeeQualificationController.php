@@ -32,6 +32,17 @@ class EmployeeQualificationController extends Controller
     {
         $this->authorize('viewAny', [EmployeeQualification::class, $employee]);
 
+        // Check organizational scope access for scoped users
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            if (! $user->hasAccessToUnit($employee->organizationalUnit)) {
+                abort(Response::HTTP_FORBIDDEN, 'You do not have access to this employee\'s organizational unit');
+            }
+        }
+
         $qualifications = $employee->employeeQualifications()
             ->with(['qualification', 'employee'])
             ->get();

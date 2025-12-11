@@ -34,11 +34,21 @@ class EmployeeDocumentController extends Controller
     {
         $this->authorize('viewAny', [EmployeeDocument::class, $employee]);
 
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        // Check organizational scope access for scoped users
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            if (! $user->hasAccessToUnit($employee->organizationalUnit)) {
+                abort(Response::HTTP_FORBIDDEN, 'You do not have access to this employee\'s organizational unit');
+            }
+        }
+
         $query = $employee->documents();
 
         // Filter by visible_to_employee if user is the employee themselves
-        /** @var \App\Models\User $user */
-        $user = $request->user();
         if ($user->id === $employee->user_id) {
             $query->where('visible_to_employee', true);
         }

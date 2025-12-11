@@ -341,7 +341,8 @@ describe('POST /v1/onboarding/submissions', function () {
                 'status' => 'draft',
             ]);
 
-        $response->assertStatus(409);
+        $response->assertStatus(409)
+            ->assertJson(['message' => 'Form has already been submitted and is awaiting review']);
         expect(OnboardingFormSubmission::where('employee_id', $this->employee->id)->count())->toBe(1);
     });
 });

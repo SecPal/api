@@ -33,7 +33,7 @@ class SubmitOnboardingFormRequest extends FormRequest
         return [
             'form_template_id' => ['required', 'exists:onboarding_form_templates,id'],
             'form_data' => ['required', 'array'],
-            'status' => ['nullable', 'in:draft,submitted'],
+            'status' => ['required', 'in:draft,submitted'],
         ];
     }
 
