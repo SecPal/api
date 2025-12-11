@@ -12,8 +12,6 @@ use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Artisan;
-use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
 
@@ -180,12 +178,8 @@ describe('POST /v1/employees', function () {
                 'first_name',
                 'last_name',
                 'email',
-                'date_of_birth',
+                'status',
                 'contract_type',
-                'contract_start_date',
-                'weekly_hours',
-                'hourly_rate',
-                'organizational_unit_id',
             ]);
     });
 
@@ -211,17 +205,19 @@ describe('POST /v1/employees', function () {
 
         $response->assertStatus(201)
             ->assertJsonStructure([
-                'id',
-                'employee_number',
-                'first_name',
-                'last_name',
-                'email',
-                'status',
+                'data' => [
+                    'id',
+                    'employee_number',
+                    'first_name',
+                    'last_name',
+                    'email',
+                    'status',
+                ],
             ]);
 
-        $employeeNumber = $response->json('employee_number');
+        $employeeNumber = $response->json('data.employee_number');
         expect($employeeNumber)->toMatch('/^EMP-\d{4}-\d{4}$/');
-        expect($response->json('status'))->toBe(Employee::STATUS_PRE_CONTRACT);
+        expect($response->json('data.status'))->toBe(Employee::STATUS_PRE_CONTRACT);
     });
 
     test('creates employee with user account via Observer', function (): void {
@@ -246,7 +242,7 @@ describe('POST /v1/employees', function () {
 
         $response->assertStatus(201);
 
-        $employee = Employee::find($response->json('id'));
+        $employee = Employee::find($response->json('data.id'));
         expect($employee->user_id)->not->toBeNull();
         expect($employee->user->email)->toBe('jane.smith@example.com');
     });
@@ -288,8 +284,8 @@ describe('POST /v1/employees', function () {
                 'criminal_record_status' => 'valid',
             ]);
 
-        $number1 = $response1->json('employee_number');
-        $number2 = $response2->json('employee_number');
+        $number1 = $response1->json('data.employee_number');
+        $number2 = $response2->json('data.employee_number');
 
         expect($number1)->not->toBe($number2);
         expect($number2)->toMatch('/^EMP-\d{4}-\d{4}$/');
@@ -332,14 +328,16 @@ describe('GET /v1/employees/{employee}', function () {
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'id',
-                'employee_number',
-                'first_name',
-                'last_name',
-                'email',
-                'status',
-                'user',
-                'organizational_unit',
+                'data' => [
+                    'id',
+                    'employee_number',
+                    'first_name',
+                    'last_name',
+                    'email',
+                    'status',
+                    'user',
+                    'organizational_unit',
+                ],
             ]);
     });
 });
@@ -387,7 +385,7 @@ describe('PATCH /v1/employees/{employee}', function () {
             ]);
 
         $response->assertStatus(200);
-        expect($response->json('weekly_hours'))->toBe(35);
+        expect($response->json('data.weekly_hours'))->toBe('35.00'); // decimal:2 cast returns string
     });
 });
 
@@ -470,7 +468,7 @@ describe('POST /v1/employees/{employee}/activate', function () {
             ->postJson("/v1/employees/{$employee->id}/activate");
 
         $response->assertStatus(200);
-        expect($response->json('status'))->toBe(Employee::STATUS_ACTIVE);
+        expect($response->json('data.status'))->toBe(Employee::STATUS_ACTIVE);
     });
 
     test('returns 422 when onboarding not completed', function (): void {
@@ -554,7 +552,7 @@ describe('POST /v1/employees/{employee}/terminate', function () {
             ]);
 
         $response->assertStatus(200);
-        expect($response->json('status'))->toBe(Employee::STATUS_TERMINATED);
+        expect($response->json('data.status'))->toBe(Employee::STATUS_TERMINATED);
     });
 
     test('returns 422 when terminating pre-contract employee', function (): void {

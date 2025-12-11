@@ -50,7 +50,7 @@ class EmployeePolicy
         }
 
         // Users with employee.read permission can view
-        if (!$user->can('employee.read')) {
+        if (! $user->can('employee.read')) {
             return false;
         }
 
@@ -63,7 +63,7 @@ class EmployeePolicy
         }
 
         // Admin/HR (no scopes): Can view all
-        return !$hasScopes;
+        return ! $hasScopes;
     }
 
     /**

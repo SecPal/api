@@ -57,6 +57,7 @@ class EmployeeQualificationPolicy
             if ($employee->organizationalUnit !== null) {
                 return $user->hasAccessToUnit($employee->organizationalUnit);
             }
+
             // Admin/HR: Can view all
             return true;
         }
@@ -82,7 +83,7 @@ class EmployeeQualificationPolicy
      */
     public function update(User $user, EmployeeQualification $employeeQualification): bool
     {
-        if (!$user->can('employee_qualification.write')) {
+        if (! $user->can('employee_qualification.write')) {
             return false;
         }
 
@@ -107,7 +108,7 @@ class EmployeeQualificationPolicy
      */
     public function delete(User $user, EmployeeQualification $employeeQualification): bool
     {
-        if (!$user->can('employee_qualification.write')) {
+        if (! $user->can('employee_qualification.write')) {
             return false;
         }
 

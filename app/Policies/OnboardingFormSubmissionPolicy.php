@@ -59,6 +59,7 @@ class OnboardingFormSubmissionPolicy
             if ($employee->organizationalUnit !== null) {
                 return $user->hasAccessToUnit($employee->organizationalUnit);
             }
+
             // Admin/HR: Can view all
             return true;
         }

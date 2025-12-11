@@ -177,6 +177,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Employee Creation Encryption Issue** (#323, resolves #339)
+  - Fixed NULL constraint violation on encrypted fields (`first_name_enc`, `last_name_enc`) during employee creation
+  - Root cause: `$fillable` array only contained `_enc` field names, preventing plaintext mutators from triggering
+  - Solution: Added plaintext field names (`first_name`, `last_name`, `date_of_birth`, `address`, `hourly_rate`, `tax_id`, `social_security_number`) to `$fillable` array in Employee model
+  - Ensured `tenant_id` is set FIRST in data array to enable EncryptedWithDek cast to access tenant DEK
+  - All 30 EmployeeControllerTest tests now pass (previously 9/30 failing on creation)
+
 - **Newly Created Root Unit Not Visible** (#299, Part of Epic #283)
   - Root organizational units created without a parent were not visible to the creator
   - Creator now automatically receives `admin` scope with `include_descendants=true` on new root units

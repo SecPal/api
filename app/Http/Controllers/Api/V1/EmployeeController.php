@@ -52,6 +52,7 @@ class EmployeeController extends Controller
 
         // Search by name, email, or employee_number
         if ($request->has('search')) {
+            /** @var string $search */
             $search = $request->input('search');
             $query->where(function ($q) use ($search) {
                 $q->where('email', 'like', "%{$search}%")
@@ -82,16 +83,21 @@ class EmployeeController extends Controller
         /** @var array<string, mixed> $validated */
         $validated = $request->validated();
 
+        // Prepare data with tenant_id FIRST (required for encryption cast to work)
+        $data = ['tenant_id' => $tenantId];
+
         // Generate employee_number (format: EMP-YYYY-####)
-        $validated['employee_number'] = $this->generateEmployeeNumber($tenantId);
-        $validated['tenant_id'] = $tenantId;
+        $data['employee_number'] = $this->generateEmployeeNumber($tenantId);
 
         // Initialize onboarding steps if status = pre_contract
         if ($validated['status'] === Employee::STATUS_PRE_CONTRACT) {
-            $validated['onboarding_steps'] = Employee::getDefaultOnboardingSteps();
+            $data['onboarding_steps'] = Employee::getDefaultOnboardingSteps();
         }
 
-        $employee = Employee::create($validated);
+        // Merge remaining validated data
+        $data = array_merge($data, $validated);
+
+        $employee = Employee::create($data);
 
         // Observer will handle user account creation if status = pre_contract
 

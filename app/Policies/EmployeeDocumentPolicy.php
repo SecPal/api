@@ -57,6 +57,7 @@ class EmployeeDocumentPolicy
             if ($employee->organizationalUnit !== null) {
                 return $user->hasAccessToUnit($employee->organizationalUnit);
             }
+
             // Admin/HR: Can view all
             return true;
         }
@@ -82,7 +83,7 @@ class EmployeeDocumentPolicy
      */
     public function update(User $user, EmployeeDocument $document): bool
     {
-        if (!$user->can('employee_document.write')) {
+        if (! $user->can('employee_document.write')) {
             return false;
         }
 
@@ -107,7 +108,7 @@ class EmployeeDocumentPolicy
      */
     public function delete(User $user, EmployeeDocument $document): bool
     {
-        if (!$user->can('employee_document.write')) {
+        if (! $user->can('employee_document.write')) {
             return false;
         }
 
