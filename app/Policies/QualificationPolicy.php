@@ -25,21 +25,21 @@ class QualificationPolicy
     /**
      * Determine if user can view any qualifications.
      *
-     * All authenticated users can view qualifications.
+     * Users with qualification.read permission can view qualifications.
      */
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->can('qualification.read');
     }
 
     /**
      * Determine if user can view a specific qualification.
      *
-     * All authenticated users can view qualifications.
+     * Users with qualification.read permission can view qualifications.
      */
     public function view(User $user, Qualification $qualification): bool
     {
-        return true;
+        return $user->can('qualification.read');
     }
 
     /**

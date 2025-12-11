@@ -43,6 +43,8 @@ class OnboardingController extends Controller
         /** @var Employee|null $employee */
         $employee = $user->employee;
 
+        $this->authorize('viewAny', OnboardingFormSubmission::class);
+
         if (! $employee) {
             return response()->json([
                 'message' => __('No employee record found for user'),
@@ -74,6 +76,8 @@ class OnboardingController extends Controller
      */
     public function getTemplates(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', OnboardingFormTemplate::class);
+
         /** @var int $tenantId */
         $tenantId = $request->input('tenant_id');
 
@@ -97,6 +101,8 @@ class OnboardingController extends Controller
      */
     public function getTemplate(OnboardingFormTemplate $template): JsonResponse
     {
+        $this->authorize('view', $template);
+
         return response()->json([
             'data' => new OnboardingFormTemplateResource($template),
         ]);
@@ -109,6 +115,8 @@ class OnboardingController extends Controller
      */
     public function getSubmissions(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', OnboardingFormSubmission::class);
+
         /** @var \App\Models\User $user */
         $user = $request->user();
 
@@ -139,6 +147,8 @@ class OnboardingController extends Controller
      */
     public function submitForm(SubmitOnboardingFormRequest $request): JsonResponse
     {
+        $this->authorize('create', OnboardingFormSubmission::class);
+
         /** @var \App\Models\User $user */
         $user = $request->user();
 
