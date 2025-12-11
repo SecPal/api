@@ -76,14 +76,16 @@ describe('GET /v1/onboarding/steps', function () {
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'employee_id',
-                'status',
-                'onboarding_steps' => [
-                    '*' => ['step', 'completed'],
+                'data' => [
+                    'employee_id',
+                    'status',
+                    'onboarding_steps' => [
+                        '*' => ['step', 'completed'],
+                    ],
                 ],
             ]);
 
-        expect($response->json('status'))->toBe(Employee::STATUS_PRE_CONTRACT);
+        expect($response->json('data.status'))->toBe(Employee::STATUS_PRE_CONTRACT);
     });
 
     test('returns 403 when employee is not pre-contract', function (): void {
@@ -173,11 +175,13 @@ describe('GET /v1/onboarding/templates/{template}', function () {
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'id',
-                'name',
-                'description',
-                'form_schema',
-                'is_required',
+                'data' => [
+                    'id',
+                    'name',
+                    'description',
+                    'form_schema',
+                    'is_required',
+                ],
             ]);
     });
 });
@@ -256,7 +260,7 @@ describe('POST /v1/onboarding/submissions', function () {
             ->postJson('/v1/onboarding/submissions', []);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['form_template_id', 'form_data', 'status']);
+            ->assertJsonValidationErrors(['form_template_id', 'form_data']);
     });
 
     test('creates new submission with draft status', function (): void {
@@ -271,15 +275,17 @@ describe('POST /v1/onboarding/submissions', function () {
 
         $response->assertStatus(201)
             ->assertJsonStructure([
-                'id',
-                'employee_id',
-                'form_template_id',
-                'form_data',
-                'status',
+                'data' => [
+                    'id',
+                    'employee_id',
+                    'form_template_id',
+                    'form_data',
+                    'status',
+                ],
             ]);
 
-        expect($response->json('status'))->toBe('draft');
-        expect($response->json('submitted_at'))->toBeNull();
+        expect($response->json('data.status'))->toBe('draft');
+        expect($response->json('data.submitted_at'))->toBeNull();
     });
 
     test('creates submission with submitted status and timestamp', function (): void {
@@ -293,8 +299,8 @@ describe('POST /v1/onboarding/submissions', function () {
             ]);
 
         $response->assertStatus(201);
-        expect($response->json('status'))->toBe('submitted');
-        expect($response->json('submitted_at'))->not->toBeNull();
+        expect($response->json('data.status'))->toBe('submitted');
+        expect($response->json('data.submitted_at'))->not->toBeNull();
     });
 
     test('updates existing draft submission', function (): void {
@@ -314,9 +320,9 @@ describe('POST /v1/onboarding/submissions', function () {
                 'status' => 'draft',
             ]);
 
-        $response->assertStatus(201);
-        expect($response->json('id'))->toBe($submission->id);
-        expect($response->json('form_data')['name'])->toBe('Updated');
+        $response->assertStatus(200);
+        expect($response->json('data.id'))->toBe($submission->id);
+        expect($response->json('data.form_data')['name'])->toBe('Updated');
     });
 
     test('does not update already submitted submission', function (): void {
@@ -335,8 +341,8 @@ describe('POST /v1/onboarding/submissions', function () {
                 'status' => 'draft',
             ]);
 
-        $response->assertStatus(201);
-        expect(OnboardingFormSubmission::where('employee_id', $this->employee->id)->count())->toBe(2);
+        $response->assertStatus(409);
+        expect(OnboardingFormSubmission::where('employee_id', $this->employee->id)->count())->toBe(1);
     });
 });
 
@@ -378,9 +384,9 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/approve', function 
             ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/approve");
 
         $response->assertStatus(200);
-        expect($response->json('status'))->toBe('approved');
-        expect($response->json('reviewed_by'))->toBe($this->user->id);
-        expect($response->json('reviewed_at'))->not->toBeNull();
+        expect($response->json('data.status'))->toBe('approved');
+        expect($response->json('data.reviewed_by'))->toBe($this->user->id);
+        expect($response->json('data.reviewed_at'))->not->toBeNull();
     });
 
     test('returns 422 when attempting to approve non-submitted submission', function (): void {
@@ -460,10 +466,10 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
             ]);
 
         $response->assertStatus(200);
-        expect($response->json('status'))->toBe('rejected');
-        expect($response->json('review_notes'))->toBe('Missing required documents');
-        expect($response->json('reviewed_by'))->toBe($this->user->id);
-        expect($response->json('reviewed_at'))->not->toBeNull();
+        expect($response->json('data.status'))->toBe('rejected');
+        expect($response->json('data.review_notes'))->toBe('Missing required documents');
+        expect($response->json('data.reviewed_by'))->toBe($this->user->id);
+        expect($response->json('data.reviewed_at'))->not->toBeNull();
     });
 
     test('returns 422 when attempting to reject non-submitted submission', function (): void {

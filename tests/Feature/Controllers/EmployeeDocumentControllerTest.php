@@ -130,6 +130,7 @@ describe('POST /v1/employees/{employee}/documents', function () {
         $response = $this->withToken($this->token)
             ->postJson("/v1/employees/{$this->employee->id}/documents", [
                 'file' => $file,
+                'title' => 'Test Document',
                 'document_type' => 'contract',
                 'visible_to_employee' => true,
             ]);
@@ -155,6 +156,7 @@ describe('POST /v1/employees/{employee}/documents', function () {
         $response = $this->withToken($this->token)
             ->postJson("/v1/employees/{$this->employee->id}/documents", [
                 'file' => $file,
+                'title' => 'Employment Contract',
                 'document_type' => 'contract',
                 'description' => 'Employment contract 2025',
                 'visible_to_employee' => true,
@@ -162,20 +164,22 @@ describe('POST /v1/employees/{employee}/documents', function () {
 
         $response->assertStatus(201)
             ->assertJsonStructure([
-                'id',
-                'employee_id',
-                'document_type',
-                'file_name',
-                'file_path',
-                'mime_type',
-                'file_size',
-                'visible_to_employee',
+                'data' => [
+                    'id',
+                    'employee_id',
+                    'document_type',
+                    'file_name',
+                    'file_path',
+                    'mime_type',
+                    'file_size',
+                    'visible_to_employee',
+                ],
             ]);
 
-        expect($response->json('document_type'))->toBe('contract');
-        expect($response->json('visible_to_employee'))->toBe(true);
+        expect($response->json('data.document_type'))->toBe('contract');
+        expect($response->json('data.visible_to_employee'))->toBe(true);
 
-        Storage::disk('local')->assertExists($response->json('file_path'));
+        Storage::disk('local')->assertExists($response->json('data.file_path'));
     });
 
     test('returns 422 when file exceeds 10MB limit', function (): void {
@@ -245,8 +249,10 @@ describe('GET /v1/employees/{employee}/documents/{document}', function () {
 
         $response->assertStatus(200)
             ->assertJson([
-                'id' => $document->id,
-                'document_type' => 'contract',
+                'data' => [
+                    'id' => $document->id,
+                    'document_type' => 'contract',
+                ],
             ]);
     });
 });

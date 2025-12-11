@@ -148,6 +148,8 @@ describe('POST /v1/qualifications', function () {
         $response = $this->withToken($this->token)->postJson('/v1/qualifications', [
             'name' => 'Test Qualification',
             'category' => 'custom',
+            'requires_renewal' => false,
+            'is_mandatory' => false,
         ]);
 
         $response->assertStatus(403);
@@ -178,14 +180,16 @@ describe('POST /v1/qualifications', function () {
 
         $response->assertStatus(201)
             ->assertJsonStructure([
-                'id',
-                'name',
-                'category',
-                'is_system_qualification',
+                'data' => [
+                    'id',
+                    'name',
+                    'category',
+                    'is_system_qualification',
+                ],
             ]);
 
-        expect($response->json('is_system_qualification'))->toBe(false);
-        expect($response->json('name'))->toBe('Custom First Aid');
+        expect($response->json('data.is_system_qualification'))->toBe(false);
+        expect($response->json('data.name'))->toBe('Custom First Aid');
     });
 
     test('forces is_system_qualification to false for custom qualifications', function (): void {
@@ -196,10 +200,12 @@ describe('POST /v1/qualifications', function () {
                 'name' => 'Attempt System Qualification',
                 'category' => 'specialized',
                 'is_system_qualification' => true, // Should be ignored
+                'requires_renewal' => false,
+                'is_mandatory' => false,
             ]);
 
         $response->assertStatus(201);
-        expect($response->json('is_system_qualification'))->toBe(false);
+        expect($response->json('data.is_system_qualification'))->toBe(false);
     });
 });
 
@@ -237,8 +243,10 @@ describe('GET /v1/qualifications/{qualification}', function () {
 
         $response->assertStatus(200)
             ->assertJson([
-                'id' => $qualification->id,
-                'name' => 'Test Qualification',
+                'data' => [
+                    'id' => $qualification->id,
+                    'name' => 'Test Qualification',
+                ],
             ]);
     });
 });
@@ -284,7 +292,7 @@ describe('PATCH /v1/qualifications/{qualification}', function () {
             ]);
 
         $response->assertStatus(200);
-        expect($response->json('description'))->toBe('Updated description');
+        expect($response->json('data.description'))->toBe('Updated description');
     });
 
     test('returns 403 when attempting to update system qualification', function (): void {
