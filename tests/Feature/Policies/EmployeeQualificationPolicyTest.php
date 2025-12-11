@@ -154,11 +154,19 @@ test('only admin and managers can update employee qualifications', function (): 
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
+    $orgUnit = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
+    $manager->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'include_descendants' => false,
+        'access_level' => 'write',
+    ]);
 
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
-    $qualification = Qualification::factory()->create();
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
+    $qualification = Qualification::factory()->for($this->tenant, 'tenant')->create();
     $employeeQualification = EmployeeQualification::factory()->create([
         'employee_id' => $employee->id,
         'qualification_id' => $qualification->id,
@@ -168,15 +176,46 @@ test('only admin and managers can update employee qualifications', function (): 
     expect($this->policy->update($manager, $employeeQualification))->toBeTrue();
 });
 
+test('manager cannot update employee qualifications outside scope', function (): void {
+    $orgUnit1 = OrganizationalUnit::factory()->create();
+    $orgUnit2 = OrganizationalUnit::factory()->create();
+    $manager = User::factory()->create();
+    $manager->assignRole('Manager');
+    $manager->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit1->id,
+        'include_descendants' => false,
+        'access_level' => 'write',
+    ]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit2->id,
+    ]);
+    $qualification = Qualification::factory()->for($this->tenant, 'tenant')->create();
+    $employeeQualification = EmployeeQualification::factory()->create([
+        'employee_id' => $employee->id,
+        'qualification_id' => $qualification->id,
+    ]);
+
+    expect($this->policy->update($manager, $employeeQualification))->toBeFalse();
+});
+
 test('only admin and managers can delete employee qualifications', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
+    $orgUnit = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
+    $manager->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'include_descendants' => false,
+        'access_level' => 'write',
+    ]);
 
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
-    $qualification = Qualification::factory()->create();
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
+    $qualification = Qualification::factory()->for($this->tenant, 'tenant')->create();
     $employeeQualification = EmployeeQualification::factory()->create([
         'employee_id' => $employee->id,
         'qualification_id' => $qualification->id,
@@ -184,4 +223,27 @@ test('only admin and managers can delete employee qualifications', function (): 
 
     expect($this->policy->delete($admin, $employeeQualification))->toBeTrue();
     expect($this->policy->delete($manager, $employeeQualification))->toBeTrue();
+});
+
+test('manager cannot delete employee qualifications outside scope', function (): void {
+    $orgUnit1 = OrganizationalUnit::factory()->create();
+    $orgUnit2 = OrganizationalUnit::factory()->create();
+    $manager = User::factory()->create();
+    $manager->assignRole('Manager');
+    $manager->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit1->id,
+        'include_descendants' => false,
+        'access_level' => 'write',
+    ]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit2->id,
+    ]);
+    $qualification = Qualification::factory()->for($this->tenant, 'tenant')->create();
+    $employeeQualification = EmployeeQualification::factory()->create([
+        'employee_id' => $employee->id,
+        'qualification_id' => $qualification->id,
+    ]);
+
+    expect($this->policy->delete($manager, $employeeQualification))->toBeFalse();
 });

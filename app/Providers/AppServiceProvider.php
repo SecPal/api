@@ -7,10 +7,15 @@ namespace App\Providers;
 
 use App\Models\Customer;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
+use App\Models\EmployeeQualification;
 use App\Models\GuardBook;
+use App\Models\OnboardingFormSubmission;
+use App\Models\OnboardingFormTemplate;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\Person;
+use App\Models\Qualification;
 use App\Models\SecPalObject;
 use App\Models\Secret;
 use App\Models\SecretAttachment;
@@ -108,11 +113,11 @@ class AppServiceProvider extends ServiceProvider
 
         // Register policies for Employee Management (Issue #322 - Phase 4)
         Gate::policy(Employee::class, EmployeePolicy::class);
-        Gate::policy(\App\Models\EmployeeDocument::class, EmployeeDocumentPolicy::class);
-        Gate::policy(\App\Models\Qualification::class, QualificationPolicy::class);
-        Gate::policy(\App\Models\EmployeeQualification::class, EmployeeQualificationPolicy::class);
-        Gate::policy(\App\Models\OnboardingFormTemplate::class, OnboardingFormTemplatePolicy::class);
-        Gate::policy(\App\Models\OnboardingFormSubmission::class, OnboardingFormSubmissionPolicy::class);
+        Gate::policy(EmployeeDocument::class, EmployeeDocumentPolicy::class);
+        Gate::policy(Qualification::class, QualificationPolicy::class);
+        Gate::policy(EmployeeQualification::class, EmployeeQualificationPolicy::class);
+        Gate::policy(OnboardingFormTemplate::class, OnboardingFormTemplatePolicy::class);
+        Gate::policy(OnboardingFormSubmission::class, OnboardingFormSubmissionPolicy::class);
 
         // Register gates for user permission management
         $this->registerUserPermissionGates();

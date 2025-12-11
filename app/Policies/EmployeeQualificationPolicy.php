@@ -70,7 +70,11 @@ class EmployeeQualificationPolicy
     /**
      * Determine if user can create employee qualifications.
      *
-     * Admin and Managers can assign qualifications to employees.
+     * Admin can assign qualifications to any employee.
+     * Managers can only assign qualifications to employees in their scope.
+     *
+     * Note: Scope validation for managers must be enforced at the controller level
+     * by checking $user->hasAccessToUnit($employee->organizationalUnit) before creation.
      */
     public function create(User $user): bool
     {
@@ -80,20 +84,52 @@ class EmployeeQualificationPolicy
     /**
      * Determine if user can update an employee qualification.
      *
-     * Admin and Managers can update certificate details.
+     * Admin can update any qualification.
+     * Managers can only update qualifications for employees in their scope.
      */
     public function update(User $user, EmployeeQualification $employeeQualification): bool
     {
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        // Admin can update all
+        if ($user->hasRole('Admin')) {
+            return true;
+        }
+
+        $employee = $employeeQualification->employee;
+        if ($employee === null) {
+            return false;
+        }
+
+        // Manager can only update qualifications for employees in their scope
+        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+            return $user->hasAccessToUnit($employee->organizationalUnit);
+        }
+
+        return false;
     }
 
     /**
      * Determine if user can delete an employee qualification.
      *
-     * Admin and Managers can detach qualifications from employees.
+     * Admin can delete any qualification.
+     * Managers can only delete qualifications for employees in their scope.
      */
     public function delete(User $user, EmployeeQualification $employeeQualification): bool
     {
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        // Admin can delete all
+        if ($user->hasRole('Admin')) {
+            return true;
+        }
+
+        $employee = $employeeQualification->employee;
+        if ($employee === null) {
+            return false;
+        }
+
+        // Manager can only delete qualifications for employees in their scope
+        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+            return $user->hasAccessToUnit($employee->organizationalUnit);
+        }
+
+        return false;
     }
 }

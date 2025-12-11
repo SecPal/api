@@ -151,10 +151,18 @@ test('only admin and managers can update documents', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
+    $orgUnit = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
+    $manager->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'include_descendants' => false,
+        'access_level' => 'write',
+    ]);
 
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
     $document = EmployeeDocument::factory()->for($employee)->create();
 
     expect($this->policy->update($admin, $document))->toBeTrue();
@@ -171,16 +179,62 @@ test('regular employee cannot update documents', function (): void {
     expect($this->policy->update($user, $document))->toBeFalse();
 });
 
+test('manager cannot update documents outside scope', function (): void {
+    $orgUnit1 = OrganizationalUnit::factory()->create();
+    $orgUnit2 = OrganizationalUnit::factory()->create();
+    $manager = User::factory()->create();
+    $manager->assignRole('Manager');
+    $manager->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit1->id,
+        'include_descendants' => false,
+        'access_level' => 'write',
+    ]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit2->id,
+    ]);
+    $document = EmployeeDocument::factory()->for($employee)->create();
+
+    expect($this->policy->update($manager, $document))->toBeFalse();
+});
+
 test('only admin and managers can delete documents', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
+    $orgUnit = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
+    $manager->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'include_descendants' => false,
+        'access_level' => 'write',
+    ]);
 
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
     $document = EmployeeDocument::factory()->for($employee)->create();
 
     expect($this->policy->delete($admin, $document))->toBeTrue();
     expect($this->policy->delete($manager, $document))->toBeTrue();
+});
+
+test('manager cannot delete documents outside scope', function (): void {
+    $orgUnit1 = OrganizationalUnit::factory()->create();
+    $orgUnit2 = OrganizationalUnit::factory()->create();
+    $manager = User::factory()->create();
+    $manager->assignRole('Manager');
+    $manager->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit1->id,
+        'include_descendants' => false,
+        'access_level' => 'write',
+    ]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit2->id,
+    ]);
+    $document = EmployeeDocument::factory()->for($employee)->create();
+
+    expect($this->policy->delete($manager, $document))->toBeFalse();
 });

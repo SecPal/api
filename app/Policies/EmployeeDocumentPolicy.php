@@ -70,7 +70,11 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can create documents.
      *
-     * Admin and Managers can upload documents.
+     * Admin can upload documents for any employee.
+     * Managers can only upload documents for employees in their scope.
+     *
+     * Note: Scope validation for managers must be enforced at the controller level
+     * by checking $user->hasAccessToUnit($employee->organizationalUnit) before creation.
      */
     public function create(User $user): bool
     {
@@ -80,21 +84,53 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can update a document.
      *
-     * Admin and Managers can update documents.
+     * Admin can update any document.
+     * Managers can only update documents for employees in their scope.
      */
     public function update(User $user, EmployeeDocument $document): bool
     {
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        // Admin can update all
+        if ($user->hasRole('Admin')) {
+            return true;
+        }
+
+        $employee = $document->employee;
+        if ($employee === null) {
+            return false;
+        }
+
+        // Manager can only update documents for employees in their scope
+        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+            return $user->hasAccessToUnit($employee->organizationalUnit);
+        }
+
+        return false;
     }
 
     /**
      * Determine if user can delete a document.
      *
-     * Admin and Managers can delete documents.
+     * Admin can delete any document.
+     * Managers can only delete documents for employees in their scope.
      */
     public function delete(User $user, EmployeeDocument $document): bool
     {
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        // Admin can delete all
+        if ($user->hasRole('Admin')) {
+            return true;
+        }
+
+        $employee = $document->employee;
+        if ($employee === null) {
+            return false;
+        }
+
+        // Manager can only delete documents for employees in their scope
+        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+            return $user->hasAccessToUnit($employee->organizationalUnit);
+        }
+
+        return false;
     }
 
     /**
