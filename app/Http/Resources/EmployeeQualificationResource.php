@@ -46,9 +46,6 @@ class EmployeeQualificationResource extends JsonResource
             // Relationships (optional)
             'qualification' => new QualificationResource($this->whenLoaded('qualification')),
             'employee' => new EmployeeResource($this->whenLoaded('employee')),
-
-            'created_at' => $this->created_at?->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
         ];
     }
 }
