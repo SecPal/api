@@ -76,7 +76,7 @@ class OnboardingFormSubmissionPolicy
     public function create(User $user): bool
     {
         /** @var Employee|null $employee */
-        $employee = $user->employee;
+        $employee = $user->employee()->first();
 
         // User must have an employee record
         if ($employee === null) {
