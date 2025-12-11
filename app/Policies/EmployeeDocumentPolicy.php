@@ -25,30 +25,22 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can view any documents.
      *
-     * Employee can view own documents.
-     * HR can view all documents.
-     * Managers can view documents for employees in their scope.
+     * Users with employee_document.read permission can view documents.
+     * Scope-based filtering handled at controller level.
      */
     public function viewAny(User $user): bool
     {
-        // Admin and Manager can view any documents (with scope filtering in queries)
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        return $user->can('employee_document.read');
     }
 
     /**
      * Determine if user can view a specific document.
      *
      * Employee can view own documents if marked as visible.
-     * HR can view all documents.
-     * Managers can view documents for employees in their scope.
+     * Users with employee_document.read permission can view with scope checks.
      */
     public function view(User $user, EmployeeDocument $document): bool
     {
-        // Admin can view all documents
-        if ($user->hasRole('Admin')) {
-            return true;
-        }
-
         $employee = $document->employee;
         if ($employee === null) {
             return false;
@@ -59,9 +51,14 @@ class EmployeeDocumentPolicy
             return true;
         }
 
-        // Manager can view documents for employees in their scope
-        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
-            return $user->hasAccessToUnit($employee->organizationalUnit);
+        // Users with permission can view
+        if ($user->can('employee_document.read')) {
+            // Validate organizational scope if applicable
+            if ($employee->organizationalUnit !== null) {
+                return $user->hasAccessToUnit($employee->organizationalUnit);
+            }
+            // Admin/HR: Can view all
+            return true;
         }
 
         return false;
@@ -70,28 +67,23 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can create documents.
      *
-     * Admin can upload documents for any employee.
-     * Managers can only upload documents for employees in their scope.
-     *
-     * Note: Scope validation for managers must be enforced at the controller level
-     * by checking $user->hasAccessToUnit($employee->organizationalUnit) before creation.
+     * Users with employee_document.write permission can upload documents.
+     * Scope validation enforced at controller level.
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        return $user->can('employee_document.write');
     }
 
     /**
      * Determine if user can update a document.
      *
-     * Admin can update any document.
-     * Managers can only update documents for employees in their scope.
+     * Users with employee_document.write permission can update with scope validation.
      */
     public function update(User $user, EmployeeDocument $document): bool
     {
-        // Admin can update all
-        if ($user->hasRole('Admin')) {
-            return true;
+        if (!$user->can('employee_document.write')) {
+            return false;
         }
 
         $employee = $document->employee;
@@ -99,25 +91,24 @@ class EmployeeDocumentPolicy
             return false;
         }
 
-        // Manager can only update documents for employees in their scope
-        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+        // Validate organizational scope if applicable
+        if ($employee->organizationalUnit !== null) {
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        return false;
+        // Admin/HR: Can update all
+        return true;
     }
 
     /**
      * Determine if user can delete a document.
      *
-     * Admin can delete any document.
-     * Managers can only delete documents for employees in their scope.
+     * Users with employee_document.write permission can delete with scope validation.
      */
     public function delete(User $user, EmployeeDocument $document): bool
     {
-        // Admin can delete all
-        if ($user->hasRole('Admin')) {
-            return true;
+        if (!$user->can('employee_document.write')) {
+            return false;
         }
 
         $employee = $document->employee;
@@ -125,12 +116,13 @@ class EmployeeDocumentPolicy
             return false;
         }
 
-        // Manager can only delete documents for employees in their scope
-        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+        // Validate organizational scope if applicable
+        if ($employee->organizationalUnit !== null) {
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        return false;
+        // Admin/HR: Can delete all
+        return true;
     }
 
     /**

@@ -27,30 +27,20 @@ class EmployeePolicy
     /**
      * Determine if user can view any employees.
      *
-     * HR can view all employees.
-     * Managers can view employees in their organizational scope.
+     * Users with employee.read permission can view employees.
+     * Scope-based filtering handled at controller level for managers.
      */
     public function viewAny(User $user): bool
     {
-        // HR can view all
-        if ($user->hasRole('Admin')) {
-            return true;
-        }
-
-        // Managers can view employees in their scope
-        if ($user->hasRole('Manager')) {
-            return true;
-        }
-
-        return false;
+        return $user->can('employee.read');
     }
 
     /**
      * Determine if user can view a specific employee.
      *
      * Employee can view own profile.
-     * HR can view all employees.
-     * Managers can view employees in their organizational scope.
+     * Users with employee.read permission can view employees.
+     * Scope-based access: Users with organizational scopes are restricted to their scope.
      */
     public function view(User $user, Employee $employee): bool
     {
@@ -59,34 +49,38 @@ class EmployeePolicy
             return true;
         }
 
-        // HR can view all
-        if ($user->hasRole('Admin')) {
-            return true;
+        // Users with employee.read permission can view
+        if (!$user->can('employee.read')) {
+            return false;
         }
 
-        // Manager can view employees in their organizational scope
-        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        return false;
+        // Admin/HR (no scopes): Can view all
+        return !$hasScopes;
     }
 
     /**
      * Determine if user can create employees.
      *
-     * Only HR can create employees.
+     * Users with employee.write permission can create employees.
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('Admin');
+        return $user->can('employee.write');
     }
 
     /**
      * Determine if user can update an employee.
      *
      * Employee can update own profile (limited fields).
-     * HR can update all employees.
+     * Users with employee.write permission can update all employees.
      */
     public function update(User $user, Employee $employee): bool
     {
@@ -96,41 +90,37 @@ class EmployeePolicy
             return true;
         }
 
-        // HR can update all
-        if ($user->hasRole('Admin')) {
-            return true;
-        }
-
-        return false;
+        // Users with employee.write permission can update
+        return $user->can('employee.write');
     }
 
     /**
      * Determine if user can delete an employee.
      *
-     * Only HR can delete employees (soft delete).
+     * Users with employee.write permission can delete employees (soft delete).
      */
     public function delete(User $user, Employee $employee): bool
     {
-        return $user->hasRole('Admin');
+        return $user->can('employee.write');
     }
 
     /**
      * Determine if user can activate an employee.
      *
-     * Only HR can activate employees (transition to active status).
+     * Users with employee.write permission can activate employees (transition to active status).
      */
     public function activate(User $user, Employee $employee): bool
     {
-        return $user->hasRole('Admin');
+        return $user->can('employee.write');
     }
 
     /**
      * Determine if user can terminate an employee.
      *
-     * Only HR can terminate employees (transition to terminated status).
+     * Users with employee.write permission can terminate employees (transition to terminated status).
      */
     public function terminate(User $user, Employee $employee): bool
     {
-        return $user->hasRole('Admin');
+        return $user->can('employee.write');
     }
 }

@@ -4,12 +4,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\EmployeeController;
+use App\Http\Controllers\Api\V1\EmployeeDocumentController;
+use App\Http\Controllers\Api\V1\EmployeeQualificationController;
 use App\Http\Controllers\Api\V1\GuardBookController;
 use App\Http\Controllers\Api\V1\GuardBookReportController;
 use App\Http\Controllers\Api\V1\ObjectAreaController;
+use App\Http\Controllers\Api\V1\OnboardingController;
 use App\Http\Controllers\Api\V1\OrganizationalScopeController;
 use App\Http\Controllers\Api\V1\OrganizationalUnitController;
 use App\Http\Controllers\Api\V1\PermissionManagementController;
+use App\Http\Controllers\Api\V1\QualificationController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\Api\V1\SecPalObjectController;
 use App\Http\Controllers\Api\V1\SecretAttachmentController;
@@ -233,6 +238,65 @@ Route::prefix('v1')->group(function () {
             Route::get('/guard-book-reports/{guard_book_report}', [GuardBookReportController::class, 'show']);
             Route::get('/guard-book-reports/{guard_book_report}/export', [GuardBookReportController::class, 'export']);
             Route::delete('/guard-book-reports/{guard_book_report}', [GuardBookReportController::class, 'destroy']);
+        });
+
+        // ==========================================================================
+        // Employee Management REST API (Issue #323 - Epic #211 Phase 5)
+        // All routes use tenant.inject middleware for automatic tenant_id injection
+        // Authorization is handled by respective Policies (defense-in-depth)
+        // ==========================================================================
+
+        // Employees (HR module)
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/employees', [EmployeeController::class, 'index']);
+            Route::post('/employees', [EmployeeController::class, 'store']);
+            Route::get('/employees/{employee}', [EmployeeController::class, 'show']);
+            Route::patch('/employees/{employee}', [EmployeeController::class, 'update']);
+            Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy']);
+            // Status transitions
+            Route::post('/employees/{employee}/activate', [EmployeeController::class, 'activate']);
+            Route::post('/employees/{employee}/terminate', [EmployeeController::class, 'terminate']);
+        });
+
+        // Qualifications (system + custom)
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/qualifications', [QualificationController::class, 'index']);
+            Route::post('/qualifications', [QualificationController::class, 'store']);
+            Route::get('/qualifications/{qualification}', [QualificationController::class, 'show']);
+            Route::patch('/qualifications/{qualification}', [QualificationController::class, 'update']);
+            Route::delete('/qualifications/{qualification}', [QualificationController::class, 'destroy']);
+        });
+
+        // Employee Qualifications (assignments)
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/employees/{employee}/qualifications', [EmployeeQualificationController::class, 'index']);
+            Route::post('/employees/{employee}/qualifications', [EmployeeQualificationController::class, 'store']);
+            Route::get('/employee-qualifications/{employeeQualification}', [EmployeeQualificationController::class, 'show']);
+            Route::patch('/employee-qualifications/{employeeQualification}', [EmployeeQualificationController::class, 'update']);
+            Route::delete('/employee-qualifications/{employeeQualification}', [EmployeeQualificationController::class, 'destroy']);
+        });
+
+        // Employee Documents
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/employees/{employee}/documents', [EmployeeDocumentController::class, 'index']);
+            Route::post('/employees/{employee}/documents', [EmployeeDocumentController::class, 'store']);
+            Route::get('/employees/{employee}/documents/{document}', [EmployeeDocumentController::class, 'show']);
+            Route::get('/employees/{employee}/documents/{document}/download', [EmployeeDocumentController::class, 'download']);
+            Route::delete('/employees/{employee}/documents/{document}', [EmployeeDocumentController::class, 'destroy']);
+        });
+
+        // Onboarding (pre-contract employees only)
+        Route::middleware('tenant.inject')->group(function () {
+            // Employee-facing endpoints
+            Route::get('/onboarding/steps', [OnboardingController::class, 'getSteps']);
+            Route::get('/onboarding/templates', [OnboardingController::class, 'getTemplates']);
+            Route::get('/onboarding/templates/{template}', [OnboardingController::class, 'getTemplate']);
+            Route::get('/onboarding/submissions', [OnboardingController::class, 'getSubmissions']);
+            Route::post('/onboarding/submissions', [OnboardingController::class, 'submitForm']);
+
+            // HR admin endpoints
+            Route::post('/admin/onboarding/submissions/{submission}/approve', [OnboardingController::class, 'approveSubmission']);
+            Route::post('/admin/onboarding/submissions/{submission}/reject', [OnboardingController::class, 'rejectSubmission']);
         });
     });
 });

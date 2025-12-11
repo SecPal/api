@@ -25,22 +25,19 @@ class EmployeeQualificationPolicy
     /**
      * Determine if user can view any employee qualifications.
      *
-     * Employee can view own qualifications.
-     * HR can view all.
-     * Managers can view qualifications for employees in their scope.
+     * Users with employee_qualification.read permission can view qualifications.
+     * Scope-based filtering handled at controller level.
      */
     public function viewAny(User $user): bool
     {
-        // Admin and Manager can view any (with scope filtering in queries)
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        return $user->can('employee_qualification.read');
     }
 
     /**
      * Determine if user can view a specific employee qualification.
      *
      * Employee can view own qualifications.
-     * HR can view all.
-     * Managers can view qualifications for employees in their scope.
+     * Users with employee_qualification.read permission can view with scope checks.
      */
     public function view(User $user, EmployeeQualification $employeeQualification): bool
     {
@@ -54,14 +51,14 @@ class EmployeeQualificationPolicy
             return true;
         }
 
-        // Admin can view all
-        if ($user->hasRole('Admin')) {
+        // Users with permission can view
+        if ($user->can('employee_qualification.read')) {
+            // Validate organizational scope if applicable
+            if ($employee->organizationalUnit !== null) {
+                return $user->hasAccessToUnit($employee->organizationalUnit);
+            }
+            // Admin/HR: Can view all
             return true;
-        }
-
-        // Manager can view qualifications for employees in their scope
-        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
-            return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
         return false;
@@ -70,28 +67,23 @@ class EmployeeQualificationPolicy
     /**
      * Determine if user can create employee qualifications.
      *
-     * Admin can assign qualifications to any employee.
-     * Managers can only assign qualifications to employees in their scope.
-     *
-     * Note: Scope validation for managers must be enforced at the controller level
-     * by checking $user->hasAccessToUnit($employee->organizationalUnit) before creation.
+     * Users with employee_qualification.write permission can assign qualifications.
+     * Scope validation enforced at controller level.
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        return $user->can('employee_qualification.write');
     }
 
     /**
      * Determine if user can update an employee qualification.
      *
-     * Admin can update any qualification.
-     * Managers can only update qualifications for employees in their scope.
+     * Users with employee_qualification.write permission can update with scope validation.
      */
     public function update(User $user, EmployeeQualification $employeeQualification): bool
     {
-        // Admin can update all
-        if ($user->hasRole('Admin')) {
-            return true;
+        if (!$user->can('employee_qualification.write')) {
+            return false;
         }
 
         $employee = $employeeQualification->employee;
@@ -99,25 +91,24 @@ class EmployeeQualificationPolicy
             return false;
         }
 
-        // Manager can only update qualifications for employees in their scope
-        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+        // Validate organizational scope if applicable
+        if ($employee->organizationalUnit !== null) {
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        return false;
+        // Admin/HR: Can update all
+        return true;
     }
 
     /**
      * Determine if user can delete an employee qualification.
      *
-     * Admin can delete any qualification.
-     * Managers can only delete qualifications for employees in their scope.
+     * Users with employee_qualification.write permission can delete with scope validation.
      */
     public function delete(User $user, EmployeeQualification $employeeQualification): bool
     {
-        // Admin can delete all
-        if ($user->hasRole('Admin')) {
-            return true;
+        if (!$user->can('employee_qualification.write')) {
+            return false;
         }
 
         $employee = $employeeQualification->employee;
@@ -125,11 +116,12 @@ class EmployeeQualificationPolicy
             return false;
         }
 
-        // Manager can only delete qualifications for employees in their scope
-        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+        // Validate organizational scope if applicable
+        if ($employee->organizationalUnit !== null) {
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        return false;
+        // Admin/HR: Can delete all
+        return true;
     }
 }

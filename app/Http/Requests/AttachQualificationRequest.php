@@ -1,0 +1,61 @@
+<?php
+
+// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+namespace App\Http\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+/**
+ * AttachQualificationRequest validates requests to attach a qualification to an employee.
+ *
+ * Creates an EmployeeQualification pivot record with certificate details.
+ */
+class AttachQualificationRequest extends FormRequest
+{
+    /**
+     * Determine if the user is authorized to make this request.
+     */
+    public function authorize(): bool
+    {
+        // Authorization is handled by EmployeeQualificationPolicy
+        return true;
+    }
+
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    public function rules(): array
+    {
+        return [
+            'qualification_id' => ['required', 'exists:qualifications,id'],
+            'obtained_date' => ['required', 'date', 'before_or_equal:today'],
+            'expiry_date' => ['nullable', 'date', 'after:obtained_date'],
+            'certificate_number' => ['nullable', 'string', 'max:255'],
+            'issuing_authority' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'document_path' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', Rule::in(['valid', 'expiring_soon', 'expired'])],
+        ];
+    }
+
+    /**
+     * Get custom messages for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'qualification_id.required' => __('Qualification is required'),
+            'qualification_id.exists' => __('Selected qualification does not exist'),
+            'obtained_date.required' => __('Obtained date is required'),
+            'obtained_date.before_or_equal' => __('Obtained date cannot be in the future'),
+            'expiry_date.after' => __('Expiry date must be after obtained date'),
+        ];
+    }
+}
