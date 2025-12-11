@@ -73,10 +73,15 @@ class OnboardingFormSubmissionPolicy
     /**
      * Determine if user can create submissions.
      *
-     * Only pre-contract employees can create submissions.
+     * Users must have onboarding.write permission AND be pre-contract employees.
      */
     public function create(User $user): bool
     {
+        // Must have permission
+        if (! $user->can('onboarding.write')) {
+            return false;
+        }
+
         /** @var Employee|null $employee */
         $employee = $user->employee()->first();
 

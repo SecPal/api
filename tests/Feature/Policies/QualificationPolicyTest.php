@@ -33,91 +33,89 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-test('admin can view any qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with qualification.read can view any qualifications', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'qualification.read');
 
-    expect($this->policy->viewAny($admin))->toBeTrue();
+    expect($this->policy->viewAny($userWithPermission))->toBeTrue();
 });
 
-test('manager can view any qualifications', function (): void {
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+test('users without qualification.read cannot view qualifications', function (): void {
+    $userWithoutPermission = User::factory()->create();
 
-    expect($this->policy->viewAny($manager))->toBeTrue();
+    expect($this->policy->viewAny($userWithoutPermission))->toBeFalse();
 });
 
-test('regular employee can view qualifications', function (): void {
-    $employee = User::factory()->create();
-
-    expect($this->policy->viewAny($employee))->toBeTrue();
-});
-
-test('everyone can view individual qualifications', function (): void {
-    $user = User::factory()->create();
+test('users with qualification.read can view individual qualifications', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'qualification.read');
     $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
-    expect($this->policy->view($user, $qualification))->toBeTrue();
+    expect($this->policy->view($userWithPermission, $qualification))->toBeTrue();
 });
 
-test('only admin can create qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
-
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
-
-    $employee = User::factory()->create();
-
-    expect($this->policy->create($admin))->toBeTrue();
-    expect($this->policy->create($manager))->toBeFalse();
-    expect($this->policy->create($employee))->toBeFalse();
-});
-
-test('admin can update custom qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users without qualification.read cannot view individual qualifications', function (): void {
+    $userWithoutPermission = User::factory()->create();
     $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
-    expect($this->policy->update($admin, $qualification))->toBeTrue();
+    expect($this->policy->view($userWithoutPermission, $qualification))->toBeFalse();
 });
 
-test('admin cannot update system qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with qualification.write can create qualifications', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'qualification.write');
+
+    expect($this->policy->create($userWithPermission))->toBeTrue();
+});
+
+test('users without qualification.write cannot create qualifications', function (): void {
+    $userWithoutPermission = User::factory()->create();
+
+    expect($this->policy->create($userWithoutPermission))->toBeFalse();
+});
+
+test('users with qualification.write can update custom qualifications', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'qualification.write');
+    $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
+
+    expect($this->policy->update($userWithPermission, $qualification))->toBeTrue();
+});
+
+test('users with qualification.write cannot update system qualifications', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'qualification.write');
     $qualification = Qualification::factory()->create(['is_system_qualification' => true]);
 
-    expect($this->policy->update($admin, $qualification))->toBeFalse();
+    expect($this->policy->update($userWithPermission, $qualification))->toBeFalse();
 });
 
-test('manager cannot update any qualifications', function (): void {
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+test('users without qualification.write cannot update any qualifications', function (): void {
+    $userWithoutPermission = User::factory()->create();
     $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
-    expect($this->policy->update($manager, $qualification))->toBeFalse();
+    expect($this->policy->update($userWithoutPermission, $qualification))->toBeFalse();
 });
 
-test('admin can delete custom qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with qualification.write can delete custom qualifications', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'qualification.write');
     $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
-    expect($this->policy->delete($admin, $qualification))->toBeTrue();
+    expect($this->policy->delete($userWithPermission, $qualification))->toBeTrue();
 });
 
-test('admin cannot delete system qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with qualification.write cannot delete system qualifications', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'qualification.write');
     $qualification = Qualification::factory()->create(['is_system_qualification' => true]);
 
-    expect($this->policy->delete($admin, $qualification))->toBeFalse();
+    expect($this->policy->delete($userWithPermission, $qualification))->toBeFalse();
 });
 
-test('manager cannot delete any qualifications', function (): void {
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+test('users without qualification.write cannot delete any qualifications', function (): void {
+    $userWithoutPermission = User::factory()->create();
     $qualification = Qualification::factory()->create(['is_system_qualification' => false]);
 
-    expect($this->policy->delete($manager, $qualification))->toBeFalse();
+    expect($this->policy->delete($userWithoutPermission, $qualification))->toBeFalse();
 });
