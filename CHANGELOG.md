@@ -14,6 +14,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Employee Management Authorization Policies & Middleware** (#322, Phase 4 of Epic #211)
+  - Implemented 6 authorization policies for employee management resources:
+    - `EmployeePolicy`: Scope-based authorization for employee CRUD operations
+      - Admin: Full access to all employees
+      - Manager: Scope-limited access via organizational unit hierarchy
+      - Employee: Self-service access to own profile only
+      - Methods: viewAny, view, create, update, delete, activate, terminate
+    - `EmployeeDocumentPolicy`: Document visibility and access control
+      - `visible_to_employee` flag for document privacy
+      - Admin override for all documents
+      - Manager access within organizational scope
+    - `QualificationPolicy`: System vs custom qualification management
+      - Prevents modification/deletion of system qualifications (14 predefined)
+      - Admin-only creation and management of custom qualifications
+    - `EmployeeQualificationPolicy`: Pivot table authorization
+      - Admin and Manager: Full access
+      - Employee: Read-only access to own qualifications
+      - Scope-based access for managers
+    - `OnboardingFormTemplatePolicy`: Template management authorization
+      - Admin-only access to create/update/delete templates
+      - Manager: Read-only access
+      - Prevents modification of system templates
+    - `OnboardingFormSubmissionPolicy`: Pre-contract submission control
+      - Only pre-contract employees can create submissions
+      - Employees can update own submissions
+      - Admin and Manager: Full access within organizational scope
+  - Implemented 2 middleware classes for employee status control:
+    - `EnsurePreContract`: Restricts access to onboarding endpoints for
+      pre-contract employees only
+    - `EnsureNotPreContract`: Blocks pre-contract employees from operational
+      endpoints
+  - Registered all policies in `AppServiceProvider`
+  - Registered middleware aliases in `bootstrap/app.php`
+  - Created `EmployeeQualificationFactory` for testing
+  - Added `employee()` relationship to User model
+  - Comprehensive test suite: 71/71 policy tests passing (1151 total tests)
+  - PHPStan level max compliant with proper null checks in all policies
+  - Code formatted with Laravel Pint (PSR-12 compliant)
+  - All middleware error messages internationalized (de/en)
+  - Test fixes: Proper exception handling using try-catch blocks
+  - Comprehensive test coverage for `EmployeePolicy` (15 tests, all passing)
+    - Tests cover role-based access (Admin, Manager, Employee)
+    - Organizational scope validation for managers
+    - Self-service access patterns for employees
+    - Status-based operations (activate, terminate)
+
 - **Employee Management Database Schema** (#319, Phase 1 of Epic #211)
   - Created 6 new database tables for comprehensive employee management system:
     - `employees`: Core employee data with encrypted personal information (TenantKey)

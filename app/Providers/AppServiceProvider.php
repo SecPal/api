@@ -7,10 +7,15 @@ namespace App\Providers;
 
 use App\Models\Customer;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
+use App\Models\EmployeeQualification;
 use App\Models\GuardBook;
+use App\Models\OnboardingFormSubmission;
+use App\Models\OnboardingFormTemplate;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\Person;
+use App\Models\Qualification;
 use App\Models\SecPalObject;
 use App\Models\Secret;
 use App\Models\SecretAttachment;
@@ -19,10 +24,16 @@ use App\Observers\EmployeeObserver;
 use App\Observers\PersonObserver;
 use App\Observers\SecretObserver;
 use App\Policies\CustomerPolicy;
+use App\Policies\EmployeeDocumentPolicy;
+use App\Policies\EmployeePolicy;
+use App\Policies\EmployeeQualificationPolicy;
 use App\Policies\GuardBookPolicy;
 use App\Policies\ObjectPolicy;
+use App\Policies\OnboardingFormSubmissionPolicy;
+use App\Policies\OnboardingFormTemplatePolicy;
 use App\Policies\OrganizationalUnitPolicy;
 use App\Policies\PermissionManagementPolicy;
+use App\Policies\QualificationPolicy;
 use App\Policies\RoleManagementPolicy;
 use App\Policies\SecretAttachmentPolicy;
 use App\Policies\SecretPolicy;
@@ -99,6 +110,14 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Customer::class, CustomerPolicy::class);
         Gate::policy(SecPalObject::class, ObjectPolicy::class);
         Gate::policy(GuardBook::class, GuardBookPolicy::class);
+
+        // Register policies for Employee Management (Issue #322 - Phase 4)
+        Gate::policy(Employee::class, EmployeePolicy::class);
+        Gate::policy(EmployeeDocument::class, EmployeeDocumentPolicy::class);
+        Gate::policy(Qualification::class, QualificationPolicy::class);
+        Gate::policy(EmployeeQualification::class, EmployeeQualificationPolicy::class);
+        Gate::policy(OnboardingFormTemplate::class, OnboardingFormTemplatePolicy::class);
+        Gate::policy(OnboardingFormSubmission::class, OnboardingFormSubmissionPolicy::class);
 
         // Register gates for user permission management
         $this->registerUserPermissionGates();

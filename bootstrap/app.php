@@ -24,6 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'check.customer.scope' => \App\Http\Middleware\CheckCustomerScope::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'ensure.pre_contract' => \App\Http\Middleware\EnsurePreContract::class,
+            'ensure.not_pre_contract' => \App\Http\Middleware\EnsureNotPreContract::class,
         ]);
 
         // Apply security headers globally to all requests (including API routes and Sanctum routes like /sanctum/csrf-cookie)

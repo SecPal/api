@@ -28,5 +28,8 @@
   "Person not found": "Person not found",
   "Role not assigned to user": "Role not assigned to user",
   "Scope not found": "Scope not found",
-  "Scope not found for this organizational unit": "Scope not found for this organizational unit"
+  "Scope not found for this organizational unit": "Scope not found for this organizational unit",
+  "Access denied. You must be an employee to access this resource.": "Access denied. You must be an employee to access this resource.",
+  "Access denied. Onboarding is only available for pre-contract employees.": "Access denied. Onboarding is only available for pre-contract employees.",
+  "Access denied. Please complete onboarding first before accessing operational features.": "Access denied. Please complete onboarding first before accessing operational features."
 }
