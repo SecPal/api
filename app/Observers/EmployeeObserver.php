@@ -358,20 +358,39 @@ class EmployeeObserver
             }
 
             if (! is_string($rawValue)) {
+                Log::warning("Unexpected non-string value in {$encField} during blind index computation", [
+                    'employee_id' => $employee->id,
+                    'type' => gettype($rawValue),
+                ]);
+
                 return null;
             }
 
             // Check if it's JSON (existing record) or plaintext (new record before cast)
-            $decoded = json_decode($rawValue, true);
-            if (is_array($decoded) && isset($decoded['ciphertext'], $decoded['nonce'])) {
-                // Encrypted JSON - use accessor to decrypt
-                $field = str_replace(['_enc', '_encrypted'], '', $encField);
-                $decrypted = $employee->$field;
+            // Only treat as encrypted if JSON structure matches exactly {ciphertext, nonce}
+            try {
+                $decoded = json_decode($rawValue, true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($decoded) && isset($decoded['ciphertext'], $decoded['nonce']) && count($decoded) === 2) {
+                    // Encrypted JSON with exact structure - use accessor to decrypt
+                    $field = preg_replace('/_(enc|encrypted)$/', '', $encField);
+                    $decrypted = $employee->$field;
 
-                return is_string($decrypted) ? $decrypted : null;
+                    if (! is_string($decrypted)) {
+                        Log::warning("Decryption returned non-string value in {$encField}", [
+                            'employee_id' => $employee->id,
+                            'type' => gettype($decrypted),
+                        ]);
+
+                        return null;
+                    }
+
+                    return $decrypted;
+                }
+            } catch (\JsonException $e) {
+                // Not valid JSON, treat as plaintext (expected during create)
             }
 
-            // Plaintext - use directly
+            // Plaintext - use directly (happens during create before Cast encryption)
             return $rawValue;
         };
 
