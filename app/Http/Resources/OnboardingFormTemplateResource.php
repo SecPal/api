@@ -40,8 +40,8 @@ class OnboardingFormTemplateResource extends JsonResource
             'is_required' => $this->is_required,
             'is_system_template' => $this->is_system_template,
             'sort_order' => $this->sort_order,
-            'created_at' => $this->created_at->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }

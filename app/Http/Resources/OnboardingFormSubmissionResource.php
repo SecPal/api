@@ -46,8 +46,8 @@ class OnboardingFormSubmissionResource extends JsonResource
             'form_template' => new OnboardingFormTemplateResource($this->whenLoaded('formTemplate')),
             'reviewer' => new UserResource($this->whenLoaded('reviewer')),
 
-            'created_at' => $this->created_at->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }

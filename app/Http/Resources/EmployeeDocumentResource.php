@@ -49,8 +49,8 @@ class EmployeeDocumentResource extends JsonResource
             // Relationships (optional)
             'uploader' => new UserResource($this->whenLoaded('uploader')),
 
-            'created_at' => $this->created_at->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }
