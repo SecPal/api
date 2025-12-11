@@ -35,7 +35,7 @@ class EmployeeQualificationResource extends JsonResource
             'id' => $this->id,
             'employee_id' => $this->employee_id,
             'qualification_id' => $this->qualification_id,
-            'obtained_date' => $this->obtained_date?->toDateString(),
+            'obtained_date' => $this->obtained_date->toDateString(),
             'expiry_date' => $this->expiry_date?->toDateString(),
             'certificate_number' => $this->certificate_number,
             'issuing_authority' => $this->issuing_authority,
