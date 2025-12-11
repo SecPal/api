@@ -42,8 +42,8 @@ class QualificationResource extends JsonResource
             'is_mandatory' => $this->is_mandatory,
             'is_system_qualification' => $this->is_system_qualification,
             'sort_order' => $this->sort_order,
-            'created_at' => $this->created_at->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }
