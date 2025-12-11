@@ -181,7 +181,8 @@ class OnboardingController extends Controller
                 'status' => $status,
                 'submitted_at' => $submittedAt,
             ]);
-            $submission = $existing->fresh();
+            $existing->refresh();
+            $submission = $existing;
         } else {
             // Create new submission
             $submission = OnboardingFormSubmission::create([
