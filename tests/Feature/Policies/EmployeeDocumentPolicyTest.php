@@ -35,14 +35,14 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-test('admin can view any employee documents', function (): void {
+test('users with Admin role can view any employee documents', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
     expect($this->policy->viewAny($admin))->toBeTrue();
 });
 
-test('manager can view any employee documents', function (): void {
+test('users with Manager role can view any employee documents', function (): void {
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
 
@@ -79,7 +79,7 @@ test('employee cannot view own documents marked not visible to employee', functi
     expect($this->policy->view($user, $document))->toBeFalse();
 });
 
-test('admin can view all documents regardless of visibility flag', function (): void {
+test('users with Admin role can view all documents regardless of visibility flag', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
@@ -90,7 +90,7 @@ test('admin can view all documents regardless of visibility flag', function (): 
     expect($this->policy->view($admin, $document))->toBeTrue();
 });
 
-test('manager can view documents of employees in scope', function (): void {
+test('users with Manager role can view documents of employees in scope', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
@@ -111,7 +111,7 @@ test('manager can view documents of employees in scope', function (): void {
     expect($this->policy->view($manager, $document))->toBeTrue();
 });
 
-test('manager cannot view documents of employees outside scope', function (): void {
+test('users with Manager role cannot view documents of employees outside scope', function (): void {
     $orgUnit1 = OrganizationalUnit::factory()->create();
     $orgUnit2 = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();
@@ -133,7 +133,7 @@ test('manager cannot view documents of employees outside scope', function (): vo
     expect($this->policy->view($manager, $document))->toBeFalse();
 });
 
-test('only admin and managers can create documents', function (): void {
+test('only users with Admin or Manager role can create documents', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
@@ -147,7 +147,7 @@ test('only admin and managers can create documents', function (): void {
     expect($this->policy->create($employee))->toBeFalse();
 });
 
-test('only admin and managers can update documents', function (): void {
+test('only users with Admin or Manager role can update documents', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
@@ -179,7 +179,7 @@ test('regular employee cannot update documents', function (): void {
     expect($this->policy->update($user, $document))->toBeFalse();
 });
 
-test('manager cannot update documents outside scope', function (): void {
+test('users with Manager role cannot update documents outside scope', function (): void {
     $orgUnit1 = OrganizationalUnit::factory()->create();
     $orgUnit2 = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();
@@ -198,7 +198,7 @@ test('manager cannot update documents outside scope', function (): void {
     expect($this->policy->update($manager, $document))->toBeFalse();
 });
 
-test('only admin and managers can delete documents', function (): void {
+test('only users with Admin or Manager role can delete documents', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
@@ -220,7 +220,7 @@ test('only admin and managers can delete documents', function (): void {
     expect($this->policy->delete($manager, $document))->toBeTrue();
 });
 
-test('manager cannot delete documents outside scope', function (): void {
+test('users with Manager role cannot delete documents outside scope', function (): void {
     $orgUnit1 = OrganizationalUnit::factory()->create();
     $orgUnit2 = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();

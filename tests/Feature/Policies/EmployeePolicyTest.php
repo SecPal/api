@@ -37,14 +37,14 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-test('admin can view any employees', function (): void {
+test('users with Admin role can view any employees', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
     expect($this->policy->viewAny($admin))->toBeTrue();
 });
 
-test('manager can view any employees', function (): void {
+test('users with Manager role can view any employees', function (): void {
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
 
@@ -73,7 +73,7 @@ test('employee cannot view other employees', function (): void {
     expect($this->policy->view($user, $otherEmployee))->toBeFalse();
 });
 
-test('admin can view all employees', function (): void {
+test('users with Admin role can view all employees', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
@@ -81,7 +81,7 @@ test('admin can view all employees', function (): void {
     expect($this->policy->view($admin, $employee))->toBeTrue();
 });
 
-test('manager can view employees in own organizational scope', function (): void {
+test('users with Manager role can view employees in own organizational scope', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();
     $manager->assignRole('Manager');
@@ -100,7 +100,7 @@ test('manager can view employees in own organizational scope', function (): void
     expect($this->policy->view($manager, $employee))->toBeTrue();
 });
 
-test('manager cannot view employees outside organizational scope', function (): void {
+test('users with Manager role cannot view employees outside organizational scope', function (): void {
     $orgUnit1 = OrganizationalUnit::factory()->create();
     $orgUnit2 = OrganizationalUnit::factory()->create();
     $manager = User::factory()->create();
@@ -121,7 +121,7 @@ test('manager cannot view employees outside organizational scope', function (): 
     expect($this->policy->view($manager, $employee))->toBeFalse();
 });
 
-test('only admin can create employees', function (): void {
+test('only users with Admin role can create employees', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
@@ -144,7 +144,7 @@ test('employee can update own profile', function (): void {
     expect($this->policy->update($user, $employee))->toBeTrue();
 });
 
-test('admin can update all employees', function (): void {
+test('users with Admin role can update all employees', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
@@ -159,7 +159,7 @@ test('employee cannot update other employees', function (): void {
     expect($this->policy->update($user, $otherEmployee))->toBeFalse();
 });
 
-test('only admin can delete employees', function (): void {
+test('only users with Admin role can delete employees', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
@@ -172,7 +172,7 @@ test('only admin can delete employees', function (): void {
     expect($this->policy->delete($manager, $employee))->toBeFalse();
 });
 
-test('only admin can activate employees', function (): void {
+test('only users with Admin role can activate employees', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 
@@ -187,7 +187,7 @@ test('only admin can activate employees', function (): void {
     expect($this->policy->activate($manager, $employee))->toBeFalse();
 });
 
-test('only admin can terminate employees', function (): void {
+test('only users with Admin role can terminate employees', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('Admin');
 

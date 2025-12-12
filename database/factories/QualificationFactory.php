@@ -43,13 +43,7 @@ class QualificationFactory extends Factory
 
         return [
             'tenant_id' => $tenant->id,
-            'name' => fake()->randomElement([
-                '§34a Sachkundeprüfung',
-                'Erste Hilfe Kurs',
-                'Brandschutzhelfer',
-                'Deeskalationstraining',
-                'Waffensachkunde',
-            ]),
+            'name' => fake()->unique()->words(3, true),  // Unique names to prevent constraint violations in parallel tests
             'description' => fake()->optional()->sentence(),
             'category' => $category,
             'requires_renewal' => fake()->boolean(60), // 60% require renewal

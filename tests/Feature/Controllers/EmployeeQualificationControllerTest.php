@@ -14,6 +14,8 @@ use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
 
@@ -23,11 +25,15 @@ beforeEach(function (): void {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
+    // Set tenant context for permission system
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($this->tenant->id);
+
+    // Run seeder to ensure predefined roles exist
+    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
-
-    Permission::create(['name' => 'employee_qualification.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'employee_qualification.write', 'guard_name' => 'sanctum']);
 
     $organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -44,6 +50,8 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
+    // Reset tenant context
+    app(PermissionRegistrar::class)->setPermissionsTeamId(null);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -89,6 +97,56 @@ describe('GET /v1/employees/{employee}/qualifications', function () {
             ]);
 
         expect($response->json('data'))->toHaveCount(1);
+    });
+
+    test('manager with organizational scope cannot list qualifications of employee outside scope', function (): void {
+        $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        // Create manager with scope for unitA only
+        $manager = User::factory()->create();
+        $managerToken = $manager->createToken('test-device')->plainTextToken;
+        $manager->assignRole('Manager');
+        $manager->organizationalScopes()->create([
+            'organizational_unit_id' => $unitA->id,
+            'access_level' => 'read',
+            'include_descendants' => false,
+        ]);
+
+        givePermissionWithTenant($manager, $this->tenant->id, 'employee_qualification.read');
+
+        // Employee in unitA (accessible)
+        $employeeA = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $unitA->id,
+        ]);
+
+        // Employee in unitB (not accessible)
+        $employeeB = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $unitB->id,
+        ]);
+
+        $employeeA->qualifications()->attach($this->qualification->id, [
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'obtained_date' => now()->toDateString(),
+            'status' => 'valid',
+        ]);
+
+        $employeeB->qualifications()->attach($this->qualification->id, [
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'obtained_date' => now()->toDateString(),
+            'status' => 'valid',
+        ]);
+
+        // Manager can access qualifications of employeeA
+        $responseA = $this->withToken($managerToken)->getJson("/v1/employees/{$employeeA->id}/qualifications");
+        $responseA->assertStatus(200);
+        expect($responseA->json('data'))->toHaveCount(1);
+
+        // Manager cannot access qualifications of employeeB (outside scope)
+        $responseB = $this->withToken($managerToken)->getJson("/v1/employees/{$employeeB->id}/qualifications");
+        $responseB->assertStatus(403);
     });
 });
 

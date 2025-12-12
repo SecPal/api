@@ -12,6 +12,8 @@ use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
 
@@ -21,12 +23,15 @@ beforeEach(function (): void {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
+    // Set tenant context for permission system
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($this->tenant->id);
+
+    // Run seeder to ensure predefined roles exist
+    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
-
-    // Create Employee Management permissions
-    Permission::create(['name' => 'employee.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'employee.write', 'guard_name' => 'sanctum']);
 
     $this->organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -34,6 +39,8 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
+    // Reset tenant context
+    app(PermissionRegistrar::class)->setPermissionsTeamId(null);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -113,6 +120,39 @@ describe('GET /v1/employees', function () {
 
         $response->assertStatus(200);
         expect($response->json('data'))->toHaveCount(1);
+    });
+
+    test('manager with organizational scope cannot list employees outside scope', function (): void {
+        $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        // Assign Manager role and organizational scope for unitA only
+        $this->user->assignRole('Manager');
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $unitA->id,
+            'access_level' => 'read',
+            'include_descendants' => false,
+        ]);
+
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        // Create employees in both units
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $unitA->id,
+        ]);
+
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $unitB->id,
+        ]);
+
+        // Manager should only see employee from unitA (scope filtering)
+        $response = $this->withToken($this->token)->getJson('/v1/employees');
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data')[0]['organizational_unit_id'])->toBe($unitA->id);
     });
 
     test('searches employees by email', function (): void {
