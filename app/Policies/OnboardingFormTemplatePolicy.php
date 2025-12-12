@@ -25,37 +25,37 @@ class OnboardingFormTemplatePolicy
     /**
      * Determine if user can view any onboarding form templates.
      *
-     * Admin and Managers can view templates.
+     * Users with onboarding.read permission can view templates.
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        return $user->can('onboarding.read');
     }
 
     /**
      * Determine if user can view a specific template.
      *
-     * Admin and Managers can view templates.
+     * Users with onboarding.read permission can view templates.
      */
     public function view(User $user, OnboardingFormTemplate $template): bool
     {
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        return $user->can('onboarding.read');
     }
 
     /**
      * Determine if user can create templates.
      *
-     * Only HR can create custom templates.
+     * Only users with onboarding_template.write or onboarding_template.create permission can create templates.
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('Admin');
+        return $user->can('onboarding_template.write') || $user->can('onboarding_template.create');
     }
 
     /**
      * Determine if user can update a template.
      *
-     * HR can update custom templates only.
+     * Users with onboarding_template.write or onboarding_template.update permission can update custom templates only.
      * System templates cannot be updated.
      */
     public function update(User $user, OnboardingFormTemplate $template): bool
@@ -65,13 +65,13 @@ class OnboardingFormTemplatePolicy
             return false;
         }
 
-        return $user->hasRole('Admin');
+        return $user->can('onboarding_template.write') || $user->can('onboarding_template.update');
     }
 
     /**
      * Determine if user can delete a template.
      *
-     * HR can delete custom templates only.
+     * Users with onboarding_template.write or onboarding_template.delete permission can delete custom templates only.
      * System templates cannot be deleted.
      */
     public function delete(User $user, OnboardingFormTemplate $template): bool
@@ -81,6 +81,6 @@ class OnboardingFormTemplatePolicy
             return false;
         }
 
-        return $user->hasRole('Admin');
+        return $user->can('onboarding_template.write') || $user->can('onboarding_template.delete');
     }
 }

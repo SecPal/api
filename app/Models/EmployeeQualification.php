@@ -36,6 +36,16 @@ class EmployeeQualification extends Model
 
     public const STATUS_EXPIRED = 'expired';
 
+    /**
+     * Indicates if the IDs are auto-incrementing.
+     */
+    public $incrementing = false;
+
+    /**
+     * The data type of the auto-incrementing ID.
+     */
+    protected $keyType = 'string';
+
     protected $fillable = [
         'employee_id',
         'qualification_id',

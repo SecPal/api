@@ -27,21 +27,19 @@ class OnboardingFormSubmissionPolicy
     /**
      * Determine if user can view any submissions.
      *
-     * Employee can view own submissions.
-     * Admin and Managers can view all submissions.
+     * Users with onboarding.read permission can view submissions.
+     * Scope-based filtering handled at controller level.
      */
     public function viewAny(User $user): bool
     {
-        // Admin and Manager can view any (with filtering in queries)
-        return $user->hasRole('Admin') || $user->hasRole('Manager');
+        return $user->can('onboarding.read');
     }
 
     /**
      * Determine if user can view a specific submission.
      *
      * Employee can view own submissions.
-     * Admin can view all submissions.
-     * Managers can view submissions for employees in their scope.
+     * Users with onboarding.read permission can view with scope checks.
      */
     public function view(User $user, OnboardingFormSubmission $submission): bool
     {
@@ -55,26 +53,35 @@ class OnboardingFormSubmissionPolicy
             return true;
         }
 
-        // Admin can view all
-        if ($user->hasRole('Admin')) {
-            return true;
+        // Users with permission can view
+        if (! $user->can('onboarding.read')) {
+            return false;
         }
 
-        // Manager can view submissions for employees in their scope
-        if ($user->hasRole('Manager') && $employee->organizationalUnit !== null) {
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        return false;
+        // Admin/HR (no scopes): Can view all
+        return ! $hasScopes;
     }
 
     /**
      * Determine if user can create submissions.
      *
-     * Only pre-contract employees can create submissions.
+     * Users must have onboarding.write permission AND be pre-contract employees.
      */
     public function create(User $user): bool
     {
+        // Must have permission
+        if (! $user->can('onboarding.write')) {
+            return false;
+        }
+
         /** @var Employee|null $employee */
         $employee = $user->employee()->first();
 
@@ -91,12 +98,12 @@ class OnboardingFormSubmissionPolicy
      * Determine if user can update a submission.
      *
      * Employee can update own submissions if status is draft.
-     * HR can update any submission.
+     * Users with onboarding.update permission can update any submission.
      */
     public function update(User $user, OnboardingFormSubmission $submission): bool
     {
-        // Admin can update any submission
-        if ($user->hasRole('Admin')) {
+        // Users with onboarding.write permission can update any submission
+        if ($user->can('onboarding.write')) {
             return true;
         }
 
@@ -116,30 +123,32 @@ class OnboardingFormSubmissionPolicy
     /**
      * Determine if user can approve a submission.
      *
-     * Only HR can approve submissions.
+     * Users with onboarding.approve permission can approve submissions.
      */
     public function approve(User $user, OnboardingFormSubmission $submission): bool
     {
-        return $user->hasRole('Admin');
+        return $user->can('onboarding.approve');
     }
 
     /**
      * Determine if user can reject a submission.
      *
-     * Only HR can reject submissions.
+     * Users with onboarding.approve permission can reject submissions.
      */
     public function reject(User $user, OnboardingFormSubmission $submission): bool
     {
-        return $user->hasRole('Admin');
+        return $user->can('onboarding.approve');
     }
 
     /**
      * Determine if user can delete a submission.
      *
-     * Only Admin can delete submissions.
+     * Users with onboarding.delete permission can delete submissions.
+     * Only Admin has this permission (Admin has onboarding.* wildcard).
+     * Manager has onboarding.write but NOT onboarding.delete.
      */
     public function delete(User $user, OnboardingFormSubmission $submission): bool
     {
-        return $user->hasRole('Admin');
+        return $user->can('onboarding.delete');
     }
 }

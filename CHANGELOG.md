@@ -14,6 +14,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Employee Management RESTful API Endpoints** (#323, Phase 5 of Epic #211)
+  - Implemented 5 REST controllers with 30+ endpoints for complete employee lifecycle management:
+    - `EmployeeController`: 7 methods (index, store, show, update, destroy, activate, terminate)
+      - GET /v1/employees: Paginated list with filters (status, organizational_unit_id, search)
+      - POST /v1/employees: Create employee with auto-generated employee_number (EMP-YYYY-####)
+      - GET /v1/employees/{employee}: Fetch employee with relationships
+      - PATCH /v1/employees/{employee}: Update employee data
+      - DELETE /v1/employees/{employee}: Soft delete employee
+      - POST /v1/employees/{employee}/activate: Transition pre-contract → active (validates onboarding completion)
+      - POST /v1/employees/{employee}/terminate: Transition active/on_leave → terminated
+    - `QualificationController`: 5 methods (index, store, show, update, destroy)
+      - Manages system qualifications (14 predefined) + tenant-specific custom qualifications
+      - Prevents modification/deletion of system qualifications
+      - Filters: is_system_qualification, category, is_mandatory
+    - `EmployeeQualificationController`: 5 methods (index, store, show, update, destroy)
+      - Manages employee-qualification assignments with certificate details
+      - Checks for duplicate qualification assignments (409 Conflict)
+      - Supports expiry tracking and status management (valid/expiring_soon/expired)
+    - `EmployeeDocumentController`: 5 methods (index, store, show, download, destroy)
+      - Document upload with validation (max 10MB, pdf/jpg/jpeg/png)
+      - Storage: local disk at employees/{id}/documents/
+      - File download with proper Content-Type and Content-Disposition headers
+      - visible_to_employee flag for privacy control
+      - Physical file deletion on destroy
+    - `OnboardingController`: 7 methods (getSteps, getTemplates, getTemplate, getSubmissions, submitForm, approveSubmission, rejectSubmission)
+      - Pre-contract employee onboarding workflows
+      - Form template management (system + tenant-specific)
+      - Submission lifecycle: draft → submitted → approved/rejected
+      - HR approval/rejection with review notes
+  - Created 6 API Resources for JSON transformation (no envelope wrapping):
+    - `EmployeeResource`: Transforms Employee models with decrypted personal data, includes relationships
+    - `QualificationResource`: Transforms Qualification models (system + custom)
+    - `EmployeeQualificationResource`: Transforms pivot records with certificate details
+    - `EmployeeDocumentResource`: Transforms document metadata with file information
+    - `OnboardingFormTemplateResource`: Transforms templates with form_schema JSON
+    - `OnboardingFormSubmissionResource`: Transforms submissions with encrypted form_data
+  - Created 8 Form Request validators with comprehensive validation rules:
+    - `StoreEmployeeRequest`: Validates employee creation (personal data, contract details, legal requirements)
+    - `UpdateEmployeeRequest`: Validates employee updates (PATCH semantics, all fields optional)
+    - `StoreQualificationRequest`: Validates custom qualification creation (7 categories)
+    - `UpdateQualificationRequest`: Validates qualification updates
+    - `AttachQualificationRequest`: Validates qualification attachment (certificate details, date validation)
+    - `UpdateEmployeeQualificationRequest`: Validates certificate detail updates
+    - `UploadEmployeeDocumentRequest`: Validates document uploads (file size, mime types, document types)
+    - `SubmitOnboardingFormRequest`: Validates onboarding form submissions
+  - Registered 30+ routes in /v1 namespace with tenant.inject middleware:
+    - All routes protected by auth:sanctum middleware
+    - Policy-based authorization (defense-in-depth with EmployeePolicy, QualificationPolicy, etc.)
+    - Automatic tenant_id injection via tenant.inject middleware
+  - Key Features:
+    - Auto-generated unique employee numbers per tenant (format: EMP-YYYY-####)
+    - Status-based workflow: pre_contract → active → on_leave/terminated
+    - Onboarding validation before activation (requires onboarding_completed + contract_start_date)
+    - System qualification protection (14 predefined qualifications cannot be modified via API)
+    - Document visibility control for employee self-service
+    - Scope-based access control for Managers (via Policies from Phase 4)
+  - Test Coverage: Created 5 comprehensive test suites with 100+ test cases covering:
+    - Authentication/Authorization (401/403 tests)
+    - CRUD operations for all endpoints
+    - Edge cases: duplicate qualifications, system qualification protection, onboarding validation, document visibility
+    - Status transition validation
+    - File upload/download functionality
+
 - **Employee Management Authorization Policies & Middleware** (#322, Phase 4 of Epic #211)
   - Implemented 6 authorization policies for employee management resources:
     - `EmployeePolicy`: Scope-based authorization for employee CRUD operations
@@ -113,6 +176,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **BREAKING CHANGE**: `/api/v1/organizational-units` response now filtered by user permissions
 
 ### Fixed
+
+- **Employee Creation Encryption Issue** (#323, resolves #339)
+  - Fixed NULL constraint violation on encrypted fields (`first_name_enc`, `last_name_enc`) during employee creation
+  - Root cause: `$fillable` array only contained `_enc` field names, preventing plaintext mutators from triggering
+  - Solution: Added plaintext field names (`first_name`, `last_name`, `date_of_birth`, `address`, `hourly_rate`, `tax_id`, `social_security_number`) to `$fillable` array in Employee model
+  - Ensured `tenant_id` is set FIRST in data array to enable EncryptedWithDek cast to access tenant DEK
+  - All 30 EmployeeControllerTest tests now pass (previously 9/30 failing on creation)
 
 - **Newly Created Root Unit Not Visible** (#299, Part of Epic #283)
   - Root organizational units created without a parent were not visible to the creator

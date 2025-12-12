@@ -25,37 +25,37 @@ class QualificationPolicy
     /**
      * Determine if user can view any qualifications.
      *
-     * All authenticated users can view qualifications.
+     * Users with qualification.read permission can view qualifications.
      */
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->can('qualification.read');
     }
 
     /**
      * Determine if user can view a specific qualification.
      *
-     * All authenticated users can view qualifications.
+     * Users with qualification.read permission can view qualifications.
      */
     public function view(User $user, Qualification $qualification): bool
     {
-        return true;
+        return $user->can('qualification.read');
     }
 
     /**
      * Determine if user can create qualifications.
      *
-     * Only HR can create custom qualifications.
+     * Users with qualification.write permission can create custom qualifications.
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('Admin');
+        return $user->can('qualification.write');
     }
 
     /**
      * Determine if user can update a qualification.
      *
-     * HR can update custom qualifications only.
+     * Users with qualification.write permission can update custom qualifications only.
      * System qualifications cannot be updated.
      */
     public function update(User $user, Qualification $qualification): bool
@@ -65,13 +65,13 @@ class QualificationPolicy
             return false;
         }
 
-        return $user->hasRole('Admin');
+        return $user->can('qualification.write');
     }
 
     /**
      * Determine if user can delete a qualification.
      *
-     * HR can delete custom qualifications only.
+     * Users with qualification.write permission can delete custom qualifications only.
      * System qualifications cannot be deleted.
      */
     public function delete(User $user, Qualification $qualification): bool
@@ -81,6 +81,6 @@ class QualificationPolicy
             return false;
         }
 
-        return $user->hasRole('Admin');
+        return $user->can('qualification.write');
     }
 }

@@ -74,6 +74,49 @@ class RolesAndPermissionsSeeder extends Seeder
                 'read_all_branches',
                 'export',
             ],
+            // Phase 5: Employee Management API
+            'employee' => [
+                'read',
+                'write', // Convenience permission for create+update+delete
+                'create',
+                'update',
+                'delete',
+                'activate',
+                'terminate',
+            ],
+            'employee_qualification' => [
+                'read',
+                'write',
+                'create',
+                'update',
+                'delete',
+            ],
+            'employee_document' => [
+                'read',
+                'write',
+                'create',
+                'update',
+                'delete',
+            ],
+            'qualification' => [
+                'read',
+                'write',
+            ],
+            'onboarding' => [
+                'read',
+                'write',
+                'create',
+                'update',
+                'delete',
+                'approve',
+            ],
+            'onboarding_template' => [
+                'read',
+                'write',
+                'create',
+                'update',
+                'delete',
+            ],
             'shifts' => [
                 'read',
                 'create',
@@ -141,6 +184,13 @@ class RolesAndPermissionsSeeder extends Seeder
                     'roles.*',       // Phase 4: Role management permissions
                     'permissions.*', // Phase 4: Permission management permissions
                     'works_council.*',
+                    // Phase 5: Employee Management API
+                    'employee.*',
+                    'employee_qualification.*',
+                    'employee_document.*',
+                    'qualification.*',
+                    'onboarding.*',
+                    'onboarding_template.*',
                     'reports.*',
                 ],
             ],
@@ -162,6 +212,16 @@ class RolesAndPermissionsSeeder extends Seeder
                     'work_instructions.view_acknowledgments',
                     'reports.view',
                     'reports.generate',
+                    // Phase 5: Employee Management API
+                    'employee.read',
+                    'employee.update', // Can update employee data (but not create/delete/activate/terminate)
+                    'employee_qualification.read',
+                    'employee_qualification.write',
+                    'employee_document.read',
+                    'employee_document.write',
+                    'qualification.read',
+                    'onboarding.read',
+                    'onboarding.write',
                 ],
             ],
             'Guard' => [

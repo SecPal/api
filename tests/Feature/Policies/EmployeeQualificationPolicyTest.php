@@ -36,18 +36,18 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-test('admin can view any employee qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with employee_qualification.read permission can view any employee qualifications', function (): void {
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.read');
 
-    expect($this->policy->viewAny($admin))->toBeTrue();
+    expect($this->policy->viewAny($user))->toBeTrue();
 });
 
-test('manager can view any employee qualifications', function (): void {
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+test('users with employee_qualification.read permission can view any employee qualifications (Manager)', function (): void {
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.read');
 
-    expect($this->policy->viewAny($manager))->toBeTrue();
+    expect($this->policy->viewAny($user))->toBeTrue();
 });
 
 test('employee can view own qualifications', function (): void {
@@ -76,9 +76,9 @@ test('employee cannot view other employees qualifications', function (): void {
     expect($this->policy->view($user, $employeeQualification))->toBeFalse();
 });
 
-test('admin can view all employee qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with employee_qualification.read permission can view all employee qualifications', function (): void {
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.read');
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
     $qualification = Qualification::factory()->create();
     $employeeQualification = EmployeeQualification::factory()->create([
@@ -86,15 +86,15 @@ test('admin can view all employee qualifications', function (): void {
         'qualification_id' => $qualification->id,
     ]);
 
-    expect($this->policy->view($admin, $employeeQualification))->toBeTrue();
+    expect($this->policy->view($user, $employeeQualification))->toBeTrue();
 });
 
-test('manager can view employee qualifications in scope', function (): void {
+test('users with employee_qualification.read permission can view employee qualifications in scope', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.read');
 
-    $manager->organizationalScopes()->create([
+    $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit->id,
         'include_descendants' => false,
         'access_level' => 'write',
@@ -109,16 +109,16 @@ test('manager can view employee qualifications in scope', function (): void {
         'qualification_id' => $qualification->id,
     ]);
 
-    expect($this->policy->view($manager, $employeeQualification))->toBeTrue();
+    expect($this->policy->view($user, $employeeQualification))->toBeTrue();
 });
 
-test('manager cannot view employee qualifications outside scope', function (): void {
+test('users with employee_qualification.read permission cannot view employee qualifications outside scope', function (): void {
     $orgUnit1 = OrganizationalUnit::factory()->create();
     $orgUnit2 = OrganizationalUnit::factory()->create();
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.read');
 
-    $manager->organizationalScopes()->create([
+    $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit1->id,
         'include_descendants' => false,
         'access_level' => 'write',
@@ -133,31 +133,24 @@ test('manager cannot view employee qualifications outside scope', function (): v
         'qualification_id' => $qualification->id,
     ]);
 
-    expect($this->policy->view($manager, $employeeQualification))->toBeFalse();
+    expect($this->policy->view($user, $employeeQualification))->toBeFalse();
 });
 
-test('only admin and managers can create employee qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('only users with employee_qualification.write permission can create employee qualifications', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee_qualification.write');
 
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $userWithoutPermission = User::factory()->create();
 
-    $employee = User::factory()->create();
-
-    expect($this->policy->create($admin))->toBeTrue();
-    expect($this->policy->create($manager))->toBeTrue();
-    expect($this->policy->create($employee))->toBeFalse();
+    expect($this->policy->create($userWithPermission))->toBeTrue();
+    expect($this->policy->create($userWithoutPermission))->toBeFalse();
 });
 
-test('only admin and managers can update employee qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
-
+test('users with employee_qualification.write permission can update employee qualifications in scope', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
-    $manager->organizationalScopes()->create([
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.write');
+    $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit->id,
         'include_descendants' => false,
         'access_level' => 'write',
@@ -172,16 +165,15 @@ test('only admin and managers can update employee qualifications', function (): 
         'qualification_id' => $qualification->id,
     ]);
 
-    expect($this->policy->update($admin, $employeeQualification))->toBeTrue();
-    expect($this->policy->update($manager, $employeeQualification))->toBeTrue();
+    expect($this->policy->update($user, $employeeQualification))->toBeTrue();
 });
 
-test('manager cannot update employee qualifications outside scope', function (): void {
+test('users with employee_qualification.write permission cannot update employee qualifications outside scope', function (): void {
     $orgUnit1 = OrganizationalUnit::factory()->create();
     $orgUnit2 = OrganizationalUnit::factory()->create();
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
-    $manager->organizationalScopes()->create([
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.write');
+    $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit1->id,
         'include_descendants' => false,
         'access_level' => 'write',
@@ -196,17 +188,14 @@ test('manager cannot update employee qualifications outside scope', function ():
         'qualification_id' => $qualification->id,
     ]);
 
-    expect($this->policy->update($manager, $employeeQualification))->toBeFalse();
+    expect($this->policy->update($user, $employeeQualification))->toBeFalse();
 });
 
-test('only admin and managers can delete employee qualifications', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
-
+test('users with employee_qualification.write permission can delete employee qualifications in scope', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
-    $manager->organizationalScopes()->create([
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.write');
+    $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit->id,
         'include_descendants' => false,
         'access_level' => 'write',
@@ -221,16 +210,15 @@ test('only admin and managers can delete employee qualifications', function (): 
         'qualification_id' => $qualification->id,
     ]);
 
-    expect($this->policy->delete($admin, $employeeQualification))->toBeTrue();
-    expect($this->policy->delete($manager, $employeeQualification))->toBeTrue();
+    expect($this->policy->delete($user, $employeeQualification))->toBeTrue();
 });
 
-test('manager cannot delete employee qualifications outside scope', function (): void {
+test('users with employee_qualification.write permission cannot delete employee qualifications outside scope', function (): void {
     $orgUnit1 = OrganizationalUnit::factory()->create();
     $orgUnit2 = OrganizationalUnit::factory()->create();
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
-    $manager->organizationalScopes()->create([
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.write');
+    $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit1->id,
         'include_descendants' => false,
         'access_level' => 'write',
@@ -245,5 +233,5 @@ test('manager cannot delete employee qualifications outside scope', function ():
         'qualification_id' => $qualification->id,
     ]);
 
-    expect($this->policy->delete($manager, $employeeQualification))->toBeFalse();
+    expect($this->policy->delete($user, $employeeQualification))->toBeFalse();
 });

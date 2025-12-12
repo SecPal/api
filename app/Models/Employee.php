@@ -110,17 +110,23 @@ class Employee extends Model
     protected $fillable = [
         'tenant_id',
         'employee_number',
+        'first_name', // plaintext field → triggers mutator → sets first_name_enc → triggers cast
         'first_name_enc',
         'first_name_idx',
+        'last_name', // plaintext field → triggers mutator → sets last_name_enc → triggers cast
         'last_name_enc',
         'last_name_idx',
+        'date_of_birth', // plaintext field → triggers mutator → sets date_of_birth_enc → triggers cast
         'date_of_birth_enc',
         'date_of_birth_idx',
         'email',
         'phone',
+        'address', // plaintext field → triggers mutator → sets address_encrypted → triggers cast
         'address_encrypted',
         'photo_path',
+        'tax_id', // plaintext field → triggers mutator → sets tax_id_enc → triggers cast
         'tax_id_enc',
+        'social_security_number', // plaintext field → triggers mutator → sets social_security_number_enc → triggers cast
         'social_security_number_enc',
         'status',
         'hire_date',
@@ -130,6 +136,7 @@ class Employee extends Model
         'contract_type',
         'weekly_hours',
         'monthly_hours',
+        'hourly_rate', // plaintext field → triggers mutator → sets hourly_rate_enc → triggers cast
         'hourly_rate_enc',
         'health_insurance_type',
         'health_insurance_provider',

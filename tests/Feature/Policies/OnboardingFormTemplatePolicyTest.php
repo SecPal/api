@@ -33,104 +33,87 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-test('admin can view any onboarding form templates', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with onboarding.read can view any templates', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
 
-    expect($this->policy->viewAny($admin))->toBeTrue();
+    $userWithoutPermission = User::factory()->create();
+
+    expect($this->policy->viewAny($userWithPermission))->toBeTrue();
+    expect($this->policy->viewAny($userWithoutPermission))->toBeFalse();
 });
 
-test('manager can view any onboarding form templates', function (): void {
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+test('users with onboarding.read can view individual templates', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
 
-    expect($this->policy->viewAny($manager))->toBeTrue();
+    $userWithoutPermission = User::factory()->create();
+    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
+
+    expect($this->policy->view($userWithPermission, $template))->toBeTrue();
+    expect($this->policy->view($userWithoutPermission, $template))->toBeFalse();
 });
 
-test('regular employee cannot view templates', function (): void {
-    $employee = User::factory()->create();
+test('users with onboarding_template.write can create templates', function (): void {
+    $userWithWrite = User::factory()->create();
+    givePermissionWithTenant($userWithWrite, $this->tenant->id, 'onboarding_template.write');
 
-    expect($this->policy->viewAny($employee))->toBeFalse();
+    $userWithCreate = User::factory()->create();
+    givePermissionWithTenant($userWithCreate, $this->tenant->id, 'onboarding_template.create');
+
+    $userWithoutPermission = User::factory()->create();
+
+    expect($this->policy->create($userWithWrite))->toBeTrue();
+    expect($this->policy->create($userWithCreate))->toBeTrue();
+    expect($this->policy->create($userWithoutPermission))->toBeFalse();
 });
 
-test('admin and managers can view individual templates', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
-
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+test('users with onboarding_template.write can update custom templates', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding_template.write');
 
     $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
-    expect($this->policy->view($admin, $template))->toBeTrue();
-    expect($this->policy->view($manager, $template))->toBeTrue();
+    expect($this->policy->update($userWithPermission, $template))->toBeTrue();
 });
 
-test('regular employee cannot view individual templates', function (): void {
-    $employee = User::factory()->create();
-    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
+test('no one can update system templates', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding_template.write');
 
-    expect($this->policy->view($employee, $template))->toBeFalse();
-});
-
-test('only admin can create onboarding form templates', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
-
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
-
-    $employee = User::factory()->create();
-
-    expect($this->policy->create($admin))->toBeTrue();
-    expect($this->policy->create($manager))->toBeFalse();
-    expect($this->policy->create($employee))->toBeFalse();
-});
-
-test('admin can update custom templates', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
-    $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
-
-    expect($this->policy->update($admin, $template))->toBeTrue();
-});
-
-test('admin cannot update system templates', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
     $template = OnboardingFormTemplate::factory()->create(['is_system_template' => true]);
 
-    expect($this->policy->update($admin, $template))->toBeFalse();
+    expect($this->policy->update($userWithPermission, $template))->toBeFalse();
 });
 
-test('manager cannot update any templates', function (): void {
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+test('users without onboarding_template.write cannot update templates', function (): void {
+    $userWithoutPermission = User::factory()->create();
     $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
-    expect($this->policy->update($manager, $template))->toBeFalse();
+    expect($this->policy->update($userWithoutPermission, $template))->toBeFalse();
 });
 
-test('admin can delete custom templates', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with onboarding_template.write can delete custom templates', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding_template.write');
+
     $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
-    expect($this->policy->delete($admin, $template))->toBeTrue();
+    expect($this->policy->delete($userWithPermission, $template))->toBeTrue();
 });
 
-test('admin cannot delete system templates', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('no one can delete system templates', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding_template.write');
+
     $template = OnboardingFormTemplate::factory()->create(['is_system_template' => true]);
 
-    expect($this->policy->delete($admin, $template))->toBeFalse();
+    expect($this->policy->delete($userWithPermission, $template))->toBeFalse();
 });
 
-test('manager cannot delete any templates', function (): void {
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+test('users without onboarding_template.write cannot delete templates', function (): void {
+    $userWithoutPermission = User::factory()->create();
     $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
-    expect($this->policy->delete($manager, $template))->toBeFalse();
+    expect($this->policy->delete($userWithoutPermission, $template))->toBeFalse();
 });
