@@ -37,24 +37,24 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-test('users with Admin role can view any employees', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with employee.read permission can view any employees', function (): void {
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
 
-    expect($this->policy->viewAny($admin))->toBeTrue();
+    expect($this->policy->viewAny($user))->toBeTrue();
 });
 
-test('users with Manager role can view any employees', function (): void {
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+test('users with employee.read permission can view any employees (Manager)', function (): void {
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
 
-    expect($this->policy->viewAny($manager))->toBeTrue();
+    expect($this->policy->viewAny($user))->toBeTrue();
 });
 
-test('regular employee cannot view any employees', function (): void {
-    $employee = User::factory()->create();
+test('users without employee.read permission cannot view any employees', function (): void {
+    $user = User::factory()->create();
 
-    expect($this->policy->viewAny($employee))->toBeFalse();
+    expect($this->policy->viewAny($user))->toBeFalse();
 });
 
 test('employee can view own profile', function (): void {
@@ -73,21 +73,21 @@ test('employee cannot view other employees', function (): void {
     expect($this->policy->view($user, $otherEmployee))->toBeFalse();
 });
 
-test('users with Admin role can view all employees', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with employee.read permission can view all employees', function (): void {
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
 
-    expect($this->policy->view($admin, $employee))->toBeTrue();
+    expect($this->policy->view($user, $employee))->toBeTrue();
 });
 
-test('users with Manager role can view employees in own organizational scope', function (): void {
+test('users with employee.read permission can view employees in own organizational scope', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
 
-    // Add organizational scope for manager
-    $manager->organizationalScopes()->create([
+    // Add organizational scope
+    $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit->id,
         'include_descendants' => false,
         'access_level' => 'write',
@@ -97,17 +97,17 @@ test('users with Manager role can view employees in own organizational scope', f
         'organizational_unit_id' => $orgUnit->id,
     ]);
 
-    expect($this->policy->view($manager, $employee))->toBeTrue();
+    expect($this->policy->view($user, $employee))->toBeTrue();
 });
 
-test('users with Manager role cannot view employees outside organizational scope', function (): void {
+test('users with employee.read permission cannot view employees outside organizational scope', function (): void {
     $orgUnit1 = OrganizationalUnit::factory()->create();
     $orgUnit2 = OrganizationalUnit::factory()->create();
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
 
-    // Manager has scope for orgUnit1 only
-    $manager->organizationalScopes()->create([
+    // User has scope for orgUnit1 only
+    $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit1->id,
         'include_descendants' => false,
         'access_level' => 'write',
@@ -118,21 +118,17 @@ test('users with Manager role cannot view employees outside organizational scope
         'organizational_unit_id' => $orgUnit2->id,
     ]);
 
-    expect($this->policy->view($manager, $employee))->toBeFalse();
+    expect($this->policy->view($user, $employee))->toBeFalse();
 });
 
-test('only users with Admin role can create employees', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('only users with employee.write or employee.create permission can create employees', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
 
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $userWithoutPermission = User::factory()->create();
 
-    $employee = User::factory()->create();
-
-    expect($this->policy->create($admin))->toBeTrue();
-    expect($this->policy->create($manager))->toBeFalse();
-    expect($this->policy->create($employee))->toBeFalse();
+    expect($this->policy->create($userWithPermission))->toBeTrue();
+    expect($this->policy->create($userWithoutPermission))->toBeFalse();
 });
 
 test('employee can update own profile', function (): void {
@@ -144,12 +140,12 @@ test('employee can update own profile', function (): void {
     expect($this->policy->update($user, $employee))->toBeTrue();
 });
 
-test('users with Admin role can update all employees', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('users with employee.write permission can update all employees', function (): void {
+    $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
 
-    expect($this->policy->update($admin, $employee))->toBeTrue();
+    expect($this->policy->update($user, $employee))->toBeTrue();
 });
 
 test('employee cannot update other employees', function (): void {
@@ -159,45 +155,42 @@ test('employee cannot update other employees', function (): void {
     expect($this->policy->update($user, $otherEmployee))->toBeFalse();
 });
 
-test('only users with Admin role can delete employees', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('only users with employee.write or employee.delete permission can delete employees', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
 
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $userWithoutPermission = User::factory()->create();
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
 
-    expect($this->policy->delete($admin, $employee))->toBeTrue();
-    expect($this->policy->delete($manager, $employee))->toBeFalse();
+    expect($this->policy->delete($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->delete($userWithoutPermission, $employee))->toBeFalse();
 });
 
-test('only users with Admin role can activate employees', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('only users with employee.write or employee.activate permission can activate employees', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
 
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $userWithoutPermission = User::factory()->create();
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'status' => 'pre_contract',
     ]);
 
-    expect($this->policy->activate($admin, $employee))->toBeTrue();
-    expect($this->policy->activate($manager, $employee))->toBeFalse();
+    expect($this->policy->activate($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->activate($userWithoutPermission, $employee))->toBeFalse();
 });
 
-test('only users with Admin role can terminate employees', function (): void {
-    $admin = User::factory()->create();
-    $admin->assignRole('Admin');
+test('only users with employee.write or employee.terminate permission can terminate employees', function (): void {
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
 
-    $manager = User::factory()->create();
-    $manager->assignRole('Manager');
+    $userWithoutPermission = User::factory()->create();
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'status' => 'active',
     ]);
 
-    expect($this->policy->terminate($admin, $employee))->toBeTrue();
-    expect($this->policy->terminate($manager, $employee))->toBeFalse();
+    expect($this->policy->terminate($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->terminate($userWithoutPermission, $employee))->toBeFalse();
 });
