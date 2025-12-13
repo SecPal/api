@@ -90,7 +90,11 @@ class StoreEmployeeRequest extends FormRequest
             // Organizational - Security: Validate user has access to selected unit
             'organizational_unit_id' => [
                 'nullable',
-                Rule::exists('organizational_units', 'id')->where('tenant_id', (string) $this->input('tenant_id')),
+                Rule::exists('organizational_units', 'id')->where(function (\Illuminate\Database\Query\Builder $query): void {
+                    /** @var string $tenantId */
+                    $tenantId = $this->input('tenant_id');
+                    $query->where('tenant_id', $tenantId);
+                }),
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value === null) {
                         return;
