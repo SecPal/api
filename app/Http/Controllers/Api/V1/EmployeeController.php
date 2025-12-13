@@ -46,9 +46,9 @@ class EmployeeController extends Controller
         // Apply organizational scope filtering for scoped users (e.g., managers)
         $hasScopes = $user->organizationalScopes()->exists();
         if ($hasScopes) {
-            // Get accessible organizational unit IDs for scoped users
-            $accessibleUnitIds = $user->organizationalScopes()
-                ->pluck('organizational_unit_id')
+            // Get accessible organizational unit IDs including descendants (hierarchical access)
+            $accessibleUnitIds = $user->getAccessibleOrganizationalUnits()
+                ->pluck('id')
                 ->toArray();
 
             $query->whereIn('organizational_unit_id', $accessibleUnitIds);
