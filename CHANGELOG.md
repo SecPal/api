@@ -14,7 +14,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Customer & Site Management Database Schema** (#308, Phase 1 of Epic #210)
+  - Created `customers` table for client organizations with flat structure (no hierarchies):
+    - UUID primary key with tenant isolation
+    - Auto-generated customer_number (KD-YYYY-#### format, unique per tenant)
+    - Company name and JSONB billing_address (street, city, postal_code, country)
+    - JSONB contact information (name, email, phone, position)
+    - is_active flag, notes, extensible metadata JSONB field
+    - Soft deletes support
+    - Indexes: unique (tenant_id, customer_number), (tenant_id, is_active), (tenant_id, name)
+  - Created `sites` table for physical locations where security services are provided:
+    - UUID primary key with tenant isolation
+    - Foreign keys to customers and organizational_units
+    - Auto-generated site_number (OBJ-YYYY-#### format, unique per tenant)
+    - Site name and type enum ('permanent', 'temporary')
+    - JSONB address with GPS coordinates (street, city, postal_code, country, lat, lng)
+    - JSONB contact information (name, email, phone, position)
+    - access_instructions for guard briefing, notes, extensible metadata
+    - is_active flag with validity period (valid_from, valid_until) for temporary sites
+    - Soft deletes support
+    - Indexes: unique (tenant_id, site_number), (tenant_id, customer_id), (tenant_id, organizational_unit_id), (tenant_id, type, is_active)
+
+### BREAKING CHANGES
+
+- **Replaced Customer/Object Schema with Epic #210 Design** (#308)
+  - **Removed deprecated Guard Book schema (November 2025)**:
+    - Deleted tables: `customers` (hierarchical), `customer_closures`, `objects`, `object_areas`, `customer_user_accesses`, `customer_user_object_accesses`, `guard_books`, `guard_book_reports`
+    - Deleted models: `Customer`, `CustomerClosure`, `SecPalObject`, `ObjectArea`, `CustomerUserAccess`, `CustomerUserObjectAccess`, `GuardBook`, `GuardBookReport`
+    - Deleted factories: `CustomerFactory`, `SecPalObjectFactory`, `ObjectAreaFactory`, `CustomerUserAccessFactory`, `CustomerUserObjectAccessFactory`
+  - **Rationale**: Pre-v1.0.0 allows clean architectural changes. Old schema was hierarchical and Guard Book-specific; Epic #210 requires flat customer structure for broader security services (patrol, alarm response, event security)
+  - **Migration strategy**: Complete schema replacement (no ALTER TABLE migrations). Use `php artisan migrate:fresh` for clean database rebuild
+  - **Impact**: Any code referencing old Customer/Object models must be updated to use new Customer/Site models (Epic #210 Phases 2-7)
+
+### Added
+
 - **Employee Management RESTful API Endpoints** (#323, Phase 5 of Epic #211)
+
   - Implemented 5 REST controllers with 30+ endpoints for complete employee lifecycle management:
     - `EmployeeController`: 7 methods (index, store, show, update, destroy, activate, terminate)
       - GET /v1/employees: Paginated list with filters (status, organizational_unit_id, search)
@@ -78,6 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - File upload/download functionality
 
 - **Employee Management Authorization Policies & Middleware** (#322, Phase 4 of Epic #211)
+
   - Implemented 6 authorization policies for employee management resources:
     - `EmployeePolicy`: Scope-based authorization for employee CRUD operations
       - Admin: Full access to all employees
@@ -124,6 +160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Status-based operations (activate, terminate)
 
 - **Employee Management Database Schema** (#319, Phase 1 of Epic #211)
+
   - Created 6 new database tables for comprehensive employee management system:
     - `employees`: Core employee data with encrypted personal information (TenantKey)
     - `qualifications`: System-wide and tenant-specific qualifications (14 predefined)
@@ -158,6 +195,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Comprehensive indexes and foreign keys for optimal query performance
 
 - **Organizational Unit Hierarchy Validation** (#301, Part of Epic #283)
+
   - Added backend validation to enforce organizational hierarchy rules
   - Hierarchy ranking: Holding(1) → Company(2) → Region(3) → Branch(4) → Division(5) → Department(6) → Custom(7)
   - Child units must be **lower** in the hierarchy than their parent (child rank > parent rank)
@@ -178,6 +216,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Employee Creation Encryption Issue** (#323, resolves #339)
+
   - Fixed NULL constraint violation on encrypted fields (`first_name_enc`, `last_name_enc`) during employee creation
   - Root cause: `$fillable` array only contained `_enc` field names, preventing plaintext mutators from triggering
   - Solution: Added plaintext field names (`first_name`, `last_name`, `date_of_birth`, `address`, `hourly_rate`, `tax_id`, `social_security_number`) to `$fillable` array in Employee model
@@ -185,16 +224,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All 30 EmployeeControllerTest tests now pass (previously 9/30 failing on creation)
 
 - **Newly Created Root Unit Not Visible** (#299, Part of Epic #283)
+
   - Root organizational units created without a parent were not visible to the creator
   - Creator now automatically receives `admin` scope with `include_descendants=true` on new root units
   - Child units continue to inherit access from parent's scope settings
   - Added 3 new tests covering auto-scope assignment and visibility
 
 - **Organizational Unit Eager Loading** (#282, Part of Epic #280)
+
   - Added missing `parent()` relation to `OrganizationalUnit` model for eager loading support
   - Fixes N+1 query issues when loading organizational units with parent relationships
 
 - **PWA Session Restoration After Long Inactivity** (#271)
+
   - Added `RestoreSessionFromRememberToken` middleware to restore sessions from remember token
   - Fixes 401 logout when accessing protected endpoints after hours of inactivity
   - Laravel's remember token functionality only works with SessionGuard on web routes,
@@ -204,6 +246,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added tests verifying middleware registration and behavior
 
 - **PWA Session Expiry Handling** (#270)
+
   - SPA login now uses `remember: true` for long-lived sessions (PWA requirement)
   - Users stay logged in until explicit logout instead of 120-minute session timeout
   - Works via Laravel's remember_token cookie for automatic session extension
@@ -218,6 +261,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Deployment Documentation** (#245)
+
   - `docs/deployment.md`: Complete production deployment guide with prerequisites, environment setup, KEK generation, database setup, tenant key initialization, health checks, and troubleshooting
   - `docs/deployment-checklist.md`: Quick reference checklist for deployment operators with step-by-step verification
   - `docs/deployment-uberspace.md`: Uberspace shared hosting specific deployment guide with platform-specific commands and service configuration
@@ -225,6 +269,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
 
 - **Tenant Key Setup Command** (#244)
+
   - `php artisan tenant:setup` command for guided tenant key initialization during new deployments
   - Interactive validation of KEK file existence and secure permissions (0600)
   - Idempotent design prevents duplicate tenant key creation
@@ -233,6 +278,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
 
 - **Setup Validation Command** (#243)
+
   - `php artisan app:validate-setup` command for deployment readiness checks
   - Validates database connectivity, tenant keys, KEK file, storage permissions, and PHP extensions
   - Colored console output with ✅/❌ indicators and actionable error messages
@@ -240,12 +286,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
 
 - **Health Check Endpoints** (#242)
+
   - `/health/live` endpoint for liveness probes (minimal process check)
   - `/health/ready` endpoint for readiness probes (database, tenant keys, KEK file)
   - Kubernetes-compatible response format with 200 OK (ready) or 503 Service Unavailable (not ready)
   - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
 
 - **Production Deployment Guide** (#219)
+
   - Complete production deployment checklist with security requirements
   - Nginx and Apache configuration examples with TLS/SSL
   - Rate limiting configuration for login and API endpoints
@@ -257,6 +305,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: httpOnly Cookie Authentication Migration (SecPal/api#217)
 
 - **Integration Tests for Sanctum Authentication** (#219)
+
   - 8 comprehensive integration tests in `tests/Feature/Auth/SanctumIntegrationTest.php`
   - CORS credentials and preflight request testing
   - Session performance and concurrent device tests
@@ -265,6 +314,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: httpOnly Cookie Authentication Migration (SecPal/api#217)
 
 - **Sanctum SPA Authentication Guide** (#218)
+
   - Comprehensive documentation for httpOnly cookie authentication
   - Architecture diagrams and authentication flow
   - Configuration guide for both development and production
@@ -275,6 +325,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: httpOnly Cookie Authentication Migration (SecPal/api#217, SecPal/frontend#205)
 
 - **httpOnly Cookie Authentication Tests & Documentation** (#208)
+
   - Comprehensive test suite in `tests/Feature/Auth/SanctumCookieAuthTest.php`
   - 14 integration tests covering Sanctum authentication configuration
   - Tests verify session cookie configuration (httpOnly, secure, sameSite=lax)
@@ -330,6 +381,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **User Language Preference** (#86)
+
   - New `preferred_locale` column in `users` table (VARCHAR(5), nullable)
   - PATCH `/v1/me/language` endpoint to update user's preferred language
   - Supports `en` (English) and `de` (German)
@@ -339,6 +391,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Database migration: `2025_11_16_192506_add_preferred_locale_to_users_table`
 
 - **Secret Sharing & Access Control (Phase 3)** (#182) - **COMPLETED 19.11.2025**
+
   - **Secret CRUD API**: Full REST API for password manager functionality
     (#187)
     - Create secrets with encrypted title, username, password, URL, notes
@@ -397,6 +450,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Status**: Phase 3 100% complete, ready for frontend implementation
 
 - **File Attachments API (Phase 2)** (#175)
+
   - Upload encrypted file attachments to secrets (POST `/v1/secrets/{secret}/attachments`)
   - List attachments for a secret (GET `/v1/secrets/{secret}/attachments`)
   - Download decrypted attachments (GET `/v1/attachments/{attachment}/download`)
@@ -428,6 +482,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Role Management CRUD API** (#108, Phase 4)
+
   - New endpoint: `GET /v1/roles` - List all roles with permission count and user count
   - New endpoint: `POST /v1/roles` - Create new role with permissions
   - New endpoint: `GET /v1/roles/{id}` - Get role details with assigned permissions
@@ -441,6 +496,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), completes role management capabilities
 
 - **Predefined Roles Seeder** (#108, Phase 4)
+
   - New seeder: `RolesAndPermissionsSeeder` - Creates 5 predefined roles with permissions
   - Predefined roles: Admin, Manager, Guard, Client, Works Council
   - Idempotent design: Safe to run multiple times, uses `firstOrCreate`
@@ -451,6 +507,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), provides production-ready role foundation
 
 - **RBAC Documentation** (#108, Phase 4)
+
   - New guide: `docs/guides/role-management.md` - How to create/manage roles (872 lines)
   - New guide: `docs/guides/permission-system.md` - Permission naming conventions and organization (716 lines)
   - New guide: `docs/guides/temporal-roles.md` - Temporal role assignment patterns
@@ -462,6 +519,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), completes RBAC documentation requirements
 
 - **User Direct Permission Assignment API** (#138)
+
   - New endpoint: `GET /v1/users/{user}/permissions` - List all user permissions (direct + inherited from roles)
   - New endpoint: `POST /v1/users/{user}/permissions` - Assign direct permission(s) to user with temporal tracking (audit trail)
   - New endpoint: `DELETE /v1/users/{user}/permissions/{permission}` - Revoke direct permission from user
@@ -474,6 +532,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), enables fine-grained permission control bypassing roles
 
 - **Permission Management CRUD API** (#137)
+
   - New endpoint: `GET /v1/permissions` - List all permissions grouped by resource
   - New endpoint: `POST /v1/permissions` - Create new permission with strict naming validation (resource.action)
   - New endpoint: `GET /v1/permissions/{id}` - Get permission details with assigned roles
@@ -486,6 +545,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), enables Issue #138 (User Direct Permission Assignment)
 
 - **RBAC Architecture Documentation** (#143)
+
   - New file: `docs/rbac-architecture.md` - Central RBAC system documentation
   - System architecture: High-level component diagrams (Users → Roles → Permissions + Direct Permissions)
   - Core concepts: Roles, Permissions, Direct Permissions, Temporal Assignments

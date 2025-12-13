@@ -3,20 +3,15 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
 use App\Http\Controllers\Api\V1\EmployeeQualificationController;
-use App\Http\Controllers\Api\V1\GuardBookController;
-use App\Http\Controllers\Api\V1\GuardBookReportController;
-use App\Http\Controllers\Api\V1\ObjectAreaController;
 use App\Http\Controllers\Api\V1\OnboardingController;
 use App\Http\Controllers\Api\V1\OrganizationalScopeController;
 use App\Http\Controllers\Api\V1\OrganizationalUnitController;
 use App\Http\Controllers\Api\V1\PermissionManagementController;
 use App\Http\Controllers\Api\V1\QualificationController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
-use App\Http\Controllers\Api\V1\SecPalObjectController;
 use App\Http\Controllers\Api\V1\SecretAttachmentController;
 use App\Http\Controllers\Api\V1\SecretController;
 use App\Http\Controllers\Api\V1\SecretShareController;
@@ -184,60 +179,6 @@ Route::prefix('v1')->group(function () {
             Route::get('/organizational-units/{organizational_unit}/ancestors', [OrganizationalUnitController::class, 'ancestors']);
             Route::post('/organizational-units/{organizational_unit}/parent', [OrganizationalUnitController::class, 'attachParent']);
             Route::delete('/organizational-units/{organizational_unit}/parent/{parent}', [OrganizationalUnitController::class, 'detachParent']);
-        });
-
-        // Customers (external customer hierarchies)
-        Route::middleware('tenant.inject')->group(function () {
-            Route::get('/customers', [CustomerController::class, 'index']);
-            Route::post('/customers', [CustomerController::class, 'store']);
-            Route::get('/customers/{customer}', [CustomerController::class, 'show']);
-            Route::patch('/customers/{customer}', [CustomerController::class, 'update']);
-            Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
-            // Hierarchy management
-            Route::get('/customers/{customer}/descendants', [CustomerController::class, 'descendants']);
-            Route::get('/customers/{customer}/ancestors', [CustomerController::class, 'ancestors']);
-            Route::post('/customers/{customer}/parent', [CustomerController::class, 'attachParent']);
-            Route::delete('/customers/{customer}/parent/{parent}', [CustomerController::class, 'detachParent']);
-        });
-
-        // Objects (physical locations)
-        Route::middleware('tenant.inject')->group(function () {
-            Route::get('/objects', [SecPalObjectController::class, 'index']);
-            Route::post('/objects', [SecPalObjectController::class, 'store']);
-            Route::get('/objects/{object}', [SecPalObjectController::class, 'show']);
-            Route::patch('/objects/{object}', [SecPalObjectController::class, 'update']);
-            Route::delete('/objects/{object}', [SecPalObjectController::class, 'destroy']);
-            // Nested areas
-            Route::get('/objects/{object}/areas', [SecPalObjectController::class, 'areas']);
-            Route::post('/objects/{object}/areas', [SecPalObjectController::class, 'storeArea']);
-        });
-
-        // Object Areas (sub-divisions of objects)
-        Route::middleware('tenant.inject')->group(function () {
-            Route::get('/object-areas', [ObjectAreaController::class, 'index']);
-            Route::get('/object-areas/{object_area}', [ObjectAreaController::class, 'show']);
-            Route::patch('/object-areas/{object_area}', [ObjectAreaController::class, 'update']);
-            Route::delete('/object-areas/{object_area}', [ObjectAreaController::class, 'destroy']);
-        });
-
-        // Guard Books (continuous event stream containers)
-        Route::middleware('tenant.inject')->group(function () {
-            Route::get('/guard-books', [GuardBookController::class, 'index']);
-            Route::post('/guard-books', [GuardBookController::class, 'store']);
-            Route::get('/guard-books/{guard_book}', [GuardBookController::class, 'show']);
-            Route::patch('/guard-books/{guard_book}', [GuardBookController::class, 'update']);
-            Route::delete('/guard-books/{guard_book}', [GuardBookController::class, 'destroy']);
-            // Reports
-            Route::get('/guard-books/{guard_book}/reports', [GuardBookController::class, 'reports']);
-            Route::post('/guard-books/{guard_book}/reports', [GuardBookController::class, 'generateReport']);
-        });
-
-        // Guard Book Reports (snapshots of events)
-        Route::middleware('tenant.inject')->group(function () {
-            Route::get('/guard-book-reports', [GuardBookReportController::class, 'index']);
-            Route::get('/guard-book-reports/{guard_book_report}', [GuardBookReportController::class, 'show']);
-            Route::get('/guard-book-reports/{guard_book_report}/export', [GuardBookReportController::class, 'export']);
-            Route::delete('/guard-book-reports/{guard_book_report}', [GuardBookReportController::class, 'destroy']);
         });
 
         // ==========================================================================
