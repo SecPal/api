@@ -47,6 +47,12 @@ class EmployeeObserver
      */
     public function creating(Employee $employee): void
     {
+        Log::debug('EmployeeObserver::creating fired', [
+            'employee_id' => $employee->id,
+            'status' => $employee->status,
+            'tenant_id' => $employee->tenant_id,
+        ]);
+
         $this->updateBlindIndexes($employee);
     }
 
@@ -57,6 +63,13 @@ class EmployeeObserver
      */
     public function created(Employee $employee): void
     {
+        Log::info('EmployeeObserver::created fired', [
+            'employee_id' => $employee->id,
+            'status' => $employee->status,
+            'user_id' => $employee->user_id,
+            'should_create_user' => $employee->status === Employee::STATUS_PRE_CONTRACT && ! $employee->user_id,
+        ]);
+
         // Create user account for pre-contract employees
         if ($employee->status === Employee::STATUS_PRE_CONTRACT && ! $employee->user_id) {
             $this->createUserAccount($employee);

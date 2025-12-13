@@ -320,3 +320,40 @@ test('employee observer does not trigger status transition when status unchanged
     // No welcome email should be sent
     Mail::assertNothingQueued();
 });
+
+test('employee observer creates user immediately when status=pre_contract during Employee::create() - Issue #345', function () {
+    Mail::fake();
+
+    $tenant = TenantKey::first();
+    $orgUnit = OrganizationalUnit::first();
+
+    // This test reproduces the exact scenario from Issue #345
+    // Create employee with status=pre_contract using Employee::create()
+    // (not factory) to ensure observer fires correctly
+    $employee = Employee::create([
+        'tenant_id' => $tenant->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'employee_number' => 'EMP-TEST-'.time(),
+        'first_name' => 'Issue',
+        'last_name' => 'Test',
+        'email' => 'issue.test.'.time().'@example.com',
+        'date_of_birth' => '1990-01-01',
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'contract_type' => 'full_time',
+        'contract_start_date' => now()->addDays(7)->toDateString(),
+        'weekly_hours' => 40.0,
+        'hourly_rate' => 15.50,
+    ]);
+
+    // Refresh to get latest state
+    $employee->refresh();
+
+    // User account MUST be created automatically by Observer
+    expect($employee->user_id)->not->toBeNull('User account was not created by Observer');
+    expect($employee->user)->not->toBeNull('User relationship is null');
+    expect($employee->user->email)->toBe($employee->email);
+    expect($employee->user_account_active)->toBeTrue();
+
+    // Onboarding invitation email should be queued
+    Mail::assertQueued(OnboardingInvitationMail::class);
+});
