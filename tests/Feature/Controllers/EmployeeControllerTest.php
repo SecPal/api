@@ -612,3 +612,226 @@ describe('POST /v1/employees/{employee}/terminate', function () {
         $response->assertStatus(422);
     });
 });
+
+test('manager cannot create employee in unit outside their scope', function (): void {
+        $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        // Manager has scope only on unitA
+        $this->user->assignRole('Manager');
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $unitA->id,
+            'access_level' => 'write',
+            'include_descendants' => false,
+        ]);
+
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        // Attempt to create employee in unitB (outside scope)
+        $response = $this->withToken($this->token)->postJson('/v1/employees', [
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john.doe@example.com',
+            'date_of_birth' => '1990-01-15',
+            'status' => 'pre_contract',
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'position' => 'Security Guard',
+            'organizational_unit_id' => $unitB->id,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['organizational_unit_id']);
+        expect($response->json('errors.organizational_unit_id.0'))->toContain('do not have access');
+    });
+
+    test('manager can create employee in unit within their scope', function (): void {
+        $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        // Manager has scope on unitA
+        $this->user->assignRole('Manager');
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $unitA->id,
+            'access_level' => 'write',
+            'include_descendants' => false,
+        ]);
+
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        // Create employee in unitA (within scope)
+        $response = $this->withToken($this->token)->postJson('/v1/employees', [
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john.doe@example.com',
+            'date_of_birth' => '1990-01-15',
+            'status' => 'pre_contract',
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'position' => 'Security Guard',
+            'organizational_unit_id' => $unitA->id,
+        ]);
+
+        $response->assertStatus(201);
+        expect($response->json('data.organizational_unit_id'))->toBe($unitA->id);
+    });
+
+    test('manager cannot move employee to unit outside their scope', function (): void {
+        $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        // Manager has scope only on unitA
+        $this->user->assignRole('Manager');
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $unitA->id,
+            'access_level' => 'write',
+            'include_descendants' => false,
+        ]);
+
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        // Create employee in unitA
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $unitA->id,
+        ]);
+
+        // Attempt to move employee to unitB (outside scope)
+        $response = $this->withToken($this->token)->patchJson("/v1/employees/{$employee->id}", [
+            'organizational_unit_id' => $unitB->id,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['organizational_unit_id']);
+        expect($response->json('errors.organizational_unit_id.0'))->toContain('do not have access');
+    });
+
+    test('admin without organizational scopes can create employee in any unit', function (): void {
+        $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        // Admin has no organizational scopes (unrestricted access)
+        $this->user->assignRole('Admin');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $response = $this->withToken($this->token)->postJson('/v1/employees', [
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john.doe@example.com',
+            'date_of_birth' => '1990-01-15',
+            'status' => 'pre_contract',
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'position' => 'Security Guard',
+            'organizational_unit_id' => $unitA->id,
+        ]);
+
+        $response->assertStatus(201);
+    });
+
+test('manager with include_descendants=true can create employee in child unit', function (): void {
+        $parent = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $child = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $child->setParent($parent);
+
+        // Manager has scope on parent with include_descendants=true
+        $this->user->assignRole('Manager');
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $parent->id,
+            'access_level' => 'write',
+            'include_descendants' => true,
+        ]);
+
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        // Create employee in child unit
+        $response = $this->withToken($this->token)->postJson('/v1/employees', [
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john.doe@example.com',
+            'date_of_birth' => '1990-01-15',
+            'status' => 'pre_contract',
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'position' => 'Security Guard',
+            'organizational_unit_id' => $child->id,
+        ]);
+
+        $response->assertStatus(201);
+        expect($response->json('data.organizational_unit_id'))->toBe($child->id);
+    });
+
+    test('manager with include_descendants=false cannot create employee in child unit', function (): void {
+        $parent = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $child = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $child->setParent($parent);
+
+        // Manager has scope on parent with include_descendants=false
+        $this->user->assignRole('Manager');
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $parent->id,
+            'access_level' => 'write',
+            'include_descendants' => false,
+        ]);
+
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        // Attempt to create employee in child unit
+        $response = $this->withToken($this->token)->postJson('/v1/employees', [
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'john.doe@example.com',
+            'date_of_birth' => '1990-01-15',
+            'status' => 'pre_contract',
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'position' => 'Security Guard',
+            'organizational_unit_id' => $child->id,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['organizational_unit_id']);
+    });
+
+    test('manager with scope on parent can list employees from all descendant units', function (): void {
+        $parent = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $child1 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $child1->setParent($parent);
+        $child2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $child2->setParent($parent);
+
+        // Manager has scope on parent with include_descendants=true
+        $this->user->assignRole('Manager');
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $parent->id,
+            'access_level' => 'read',
+            'include_descendants' => true,
+        ]);
+
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        // Create employees in parent and child units
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $parent->id,
+        ]);
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $child1->id,
+        ]);
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $child2->id,
+        ]);
+
+        // Create employee in unrelated unit (should not be visible)
+        $unrelatedUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $unrelatedUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/employees');
+
+        $response->assertStatus(200);
+        // Should see 3 employees (parent + 2 children), not the unrelated one
+        expect($response->json('data'))->toHaveCount(3);
+    });
