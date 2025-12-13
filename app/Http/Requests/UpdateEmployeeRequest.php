@@ -94,7 +94,7 @@ class UpdateEmployeeRequest extends FormRequest
             'organizational_unit_id' => [
                 'sometimes',
                 'nullable',
-                'exists:organizational_units,id',
+                Rule::exists('organizational_units', 'id')->where('tenant_id', $this->input('tenant_id')),
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value === null) {
                         return;
