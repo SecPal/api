@@ -87,8 +87,32 @@ class StoreEmployeeRequest extends FormRequest
             'criminal_record_status' => ['nullable', Rule::in(['valid', 'expired', 'pending'])],
             'criminal_record_check_date' => ['nullable', 'date'],
 
-            // Organizational
-            'organizational_unit_id' => ['nullable', 'exists:organizational_units,id'],
+            // Organizational - Security: Validate user has access to selected unit
+            'organizational_unit_id' => [
+                'nullable',
+                Rule::exists('organizational_units', 'id')->where(function (\Illuminate\Database\Query\Builder $query): void {
+                    /** @var string $tenantId */
+                    $tenantId = $this->input('tenant_id');
+                    $query->where('tenant_id', $tenantId);
+                }),
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value === null) {
+                        return;
+                    }
+
+                    /** @var \App\Models\User $user */
+                    $user = $this->user();
+
+                    // If user has organizational scopes, verify access to the selected unit
+                    $hasScopes = $user->organizationalScopes()->exists();
+                    if ($hasScopes) {
+                        $accessibleUnitIds = $user->getAccessibleOrganizationalUnits()->pluck('id')->toArray();
+                        if (! in_array($value, $accessibleUnitIds, true)) {
+                            $fail(__('You do not have access to the selected organizational unit.'));
+                        }
+                    }
+                },
+            ],
         ];
     }
 
