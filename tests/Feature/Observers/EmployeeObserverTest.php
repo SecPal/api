@@ -328,15 +328,15 @@ test('employee observer creates user immediately when status=pre_contract during
     $orgUnit = OrganizationalUnit::first();
 
     // This test reproduces the exact scenario from Issue #345
-    // Create employee with status=pre_contract using Employee::create()
-    // (not factory) to ensure observer fires correctly
+    // Verifies observer works with direct model creation (not just via factory) for comprehensive coverage
+    $uniqueId = \Illuminate\Support\Str::random(8);
     $employee = Employee::create([
         'tenant_id' => $tenant->id,
         'organizational_unit_id' => $orgUnit->id,
-        'employee_number' => 'EMP-TEST-'.time(),
+        'employee_number' => 'EMP-TEST-'.$uniqueId,
         'first_name' => 'Issue',
         'last_name' => 'Test',
-        'email' => 'issue.test.'.time().'@example.com',
+        'email' => 'issue.test.'.$uniqueId.'@example.com',
         'date_of_birth' => '1990-01-01',
         'status' => Employee::STATUS_PRE_CONTRACT,
         'contract_type' => 'full_time',

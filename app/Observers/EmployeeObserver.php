@@ -48,7 +48,7 @@ class EmployeeObserver
     public function creating(Employee $employee): void
     {
         Log::debug('EmployeeObserver::creating fired', [
-            'employee_id' => $employee->id,
+            'employee_number' => $employee->employee_number,
             'status' => $employee->status,
             'tenant_id' => $employee->tenant_id,
         ]);
