@@ -8,6 +8,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -26,6 +27,9 @@ use Illuminate\Database\Eloquent\Model;
  */
 class TenantKey extends Model
 {
+    /** @use HasFactory<\Database\Factories\TenantKeyFactory> */
+    use HasFactory;
+
     /**
      * File system permissions for keys directory (owner read/write/execute only)
      */
