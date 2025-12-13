@@ -91,7 +91,7 @@ class StoreEmployeeRequest extends FormRequest
             'organizational_unit_id' => [
                 'nullable',
                 'exists:organizational_units,id',
-                function ($attribute, $value, $fail) {
+                function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value === null) {
                         return;
                     }

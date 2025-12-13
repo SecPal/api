@@ -95,7 +95,7 @@ class UpdateEmployeeRequest extends FormRequest
                 'sometimes',
                 'nullable',
                 'exists:organizational_units,id',
-                function ($attribute, $value, $fail) {
+                function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value === null) {
                         return;
                     }
