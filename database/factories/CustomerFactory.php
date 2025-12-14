@@ -52,17 +52,13 @@ class CustomerFactory extends Factory
         /** @var string $companyType */
         $companyType = fake()->randomElement($companyTypes);
 
-        // Use sequence to generate unique customer numbers per tenant for testing
-        // Format: KD-YYYY-NNNN (sequence starts at 1 for each factory run)
-        /** @var array<int, int> $sequence */
-        static $sequence = [];
-        $tenantId = $tenant->id;
-        if (! isset($sequence[$tenantId])) {
-            $sequence[$tenantId] = 1;
-        }
-        $currentSequence = $sequence[$tenantId];
-        $sequence[$tenantId]++;
-        $customerNumber = sprintf('KD-%d-%04d', (int) date('Y'), $currentSequence);
+        // Use faker unique() to generate unique customer numbers for testing
+        // Format: KD-YYYY-NNNN with random sequence to avoid collisions in parallel tests
+        $customerNumber = sprintf(
+            'KD-%d-%04d',
+            (int) date('Y'),
+            fake()->unique()->numberBetween(1, 9999)
+        );
 
         return [
             'tenant_id' => $tenant->id,
