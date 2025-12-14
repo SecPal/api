@@ -45,15 +45,24 @@ class CustomerFactory extends Factory
             $tenant = TenantKey::create($keys);
         }
 
-        // Generate customer number
-        $customerNumber = Customer::generateCustomerNumber($tenant->id);
-
         // German company name suffixes
         /** @var array<int, string> $companyTypes */
         $companyTypes = ['GmbH', 'AG', 'GmbH & Co. KG', 'KG', 'e.K.', 'UG'];
 
         /** @var string $companyType */
         $companyType = fake()->randomElement($companyTypes);
+
+        // Use sequence to generate unique customer numbers per tenant for testing
+        // Format: KD-YYYY-NNNN (sequence starts at 1 for each factory run)
+        /** @var array<int, int> $sequence */
+        static $sequence = [];
+        $tenantId = $tenant->id;
+        if (! isset($sequence[$tenantId])) {
+            $sequence[$tenantId] = 1;
+        }
+        $currentSequence = $sequence[$tenantId];
+        $sequence[$tenantId]++;
+        $customerNumber = sprintf('KD-%d-%04d', (int) date('Y'), $currentSequence);
 
         return [
             'tenant_id' => $tenant->id,

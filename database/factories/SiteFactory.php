@@ -48,8 +48,17 @@ class SiteFactory extends Factory
             $tenant = TenantKey::create($keys);
         }
 
-        // Generate site number
-        $siteNumber = Site::generateSiteNumber($tenant->id);
+        // Use sequence to generate unique site numbers per tenant for testing
+        // Format: OBJ-YYYY-NNNN (sequence starts at 1 for each factory run)
+        /** @var array<int, int> $sequence */
+        static $sequence = [];
+        $tenantId = $tenant->id;
+        if (! isset($sequence[$tenantId])) {
+            $sequence[$tenantId] = 1;
+        }
+        $currentSequence = $sequence[$tenantId];
+        $sequence[$tenantId]++;
+        $siteNumber = sprintf('OBJ-%d-%04d', (int) date('Y'), $currentSequence);
 
         // German site types
         $siteTypes = [
