@@ -45,10 +45,11 @@ test('users with customers.read permission can view any customers', function ():
     expect($this->policy->viewAny($user))->toBeTrue();
 });
 
-test('users without customers.read permission cannot view any customers', function (): void {
+test('users without customers.read permission can still call viewAny', function (): void {
     $user = User::factory()->create();
 
-    expect($this->policy->viewAny($user))->toBeFalse();
+    // viewAny always returns true - Need-to-Know filtering happens in controller
+    expect($this->policy->viewAny($user))->toBeTrue();
 });
 
 // view tests - direct assignment
@@ -162,14 +163,15 @@ test('user with customers.delete permission can delete customer without active s
     expect($this->policy->delete($user, $customer))->toBeTrue();
 });
 
-test('user cannot delete customer with active sites', function (): void {
+test('user with permission can delete customer (active sites check in controller)', function (): void {
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'customers.delete');
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
     Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create(['is_active' => true]);
 
-    expect($this->policy->delete($user, $customer))->toBeFalse();
+    // Policy only checks permission - business rule (active sites) handled in controller
+    expect($this->policy->delete($user, $customer))->toBeTrue();
 });
 
 test('user without customers.delete permission cannot delete customer', function (): void {

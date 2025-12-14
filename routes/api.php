@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
 use App\Http\Controllers\Api\V1\EmployeeQualificationController;
@@ -179,6 +180,23 @@ Route::prefix('v1')->group(function () {
             Route::get('/organizational-units/{organizational_unit}/ancestors', [OrganizationalUnitController::class, 'ancestors']);
             Route::post('/organizational-units/{organizational_unit}/parent', [OrganizationalUnitController::class, 'attachParent']);
             Route::delete('/organizational-units/{organizational_unit}/parent/{parent}', [OrganizationalUnitController::class, 'detachParent']);
+        });
+
+        // ==========================================================================
+        // Customer & Site Management REST API (Issue #313 - Epic #210 Phase 1)
+        // All routes use tenant.inject middleware for automatic tenant_id injection
+        // Authorization is handled by respective Policies (defense-in-depth)
+        // ==========================================================================
+
+        // Customers (external organizations/companies)
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/customers', [CustomerController::class, 'index']);
+            Route::post('/customers', [CustomerController::class, 'store']);
+            Route::get('/customers/{customer}', [CustomerController::class, 'show']);
+            Route::patch('/customers/{customer}', [CustomerController::class, 'update']);
+            Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
+            // Nested resource: customer's sites
+            Route::get('/customers/{customer}/sites', [CustomerController::class, 'sites']);
         });
 
         // ==========================================================================

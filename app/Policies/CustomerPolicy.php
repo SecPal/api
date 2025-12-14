@@ -22,21 +22,31 @@ class CustomerPolicy
 {
     /**
      * Determine whether the user can view any customers.
+     *
+     * Users can always attempt to list customers (Need-to-Know filtering in controller).
+     * Users with customers.read permission see all customers.
+     * Users without permission only see assigned customers (filtered in controller).
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('customers.read');
+        return true;
     }
 
     /**
      * Determine whether the user can view the customer.
      *
      * Access is granted if:
+     * - User has customers.read permission (can view any customer), OR
      * - User is directly assigned to the customer (any role), OR
      * - User has access to at least one site of this customer
      */
     public function view(User $user, Customer $customer): bool
     {
+        // Permission-based access
+        if ($user->can('customers.read')) {
+            return true;
+        }
+
         // Direct assignment to customer (must be currently active)
         if ($customer->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
@@ -82,15 +92,11 @@ class CustomerPolicy
     /**
      * Determine whether the user can delete the customer.
      *
-     * Requires permission AND no active sites exist.
+     * Requires customers.delete permission.
+     * Business rule check (active sites) is handled in controller to return proper HTTP 409.
      */
     public function delete(User $user, Customer $customer): bool
     {
-        if (! $user->can('customers.delete')) {
-            return false;
-        }
-
-        // Cannot delete if has active sites
-        return ! $customer->sites()->where('is_active', true)->exists();
+        return $user->can('customers.delete');
     }
 }

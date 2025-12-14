@@ -45,15 +45,23 @@ class CustomerFactory extends Factory
             $tenant = TenantKey::create($keys);
         }
 
-        // Generate customer number
-        $customerNumber = Customer::generateCustomerNumber($tenant->id);
-
         // German company name suffixes
         /** @var array<int, string> $companyTypes */
         $companyTypes = ['GmbH', 'AG', 'GmbH & Co. KG', 'KG', 'e.K.', 'UG'];
 
         /** @var string $companyType */
         $companyType = fake()->randomElement($companyTypes);
+
+        // Use faker unique() for test customer numbers instead of Customer::generateCustomerNumber()
+        // Trade-off: Fast test execution + parallel test isolation vs production parity
+        // - Customer::generateCustomerNumber() is production-accurate but queries DB on every factory call
+        // - faker unique() is fast, isolated, thread-safe for parallel tests (9999 limit acceptable for tests)
+        // Format: KD-YYYY-NNNN with random sequence to avoid collisions in parallel tests
+        $customerNumber = sprintf(
+            'KD-%d-%04d',
+            (int) date('Y'),
+            fake()->unique()->numberBetween(1, 9999)
+        );
 
         return [
             'tenant_id' => $tenant->id,

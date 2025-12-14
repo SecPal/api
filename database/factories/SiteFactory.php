@@ -48,8 +48,16 @@ class SiteFactory extends Factory
             $tenant = TenantKey::create($keys);
         }
 
-        // Generate site number
-        $siteNumber = Site::generateSiteNumber($tenant->id);
+        // Use faker unique() for test site numbers instead of Site::generateSiteNumber()
+        // Trade-off: Fast test execution + parallel test isolation vs production parity
+        // - Site::generateSiteNumber() is production-accurate but queries DB on every factory call
+        // - faker unique() is fast, isolated, thread-safe for parallel tests (9999 limit acceptable for tests)
+        // Format: OBJ-YYYY-NNNN with random sequence to avoid collisions in parallel tests
+        $siteNumber = sprintf(
+            'OBJ-%d-%04d',
+            (int) date('Y'),
+            fake()->unique()->numberBetween(1, 9999)
+        );
 
         // German site types
         $siteTypes = [
