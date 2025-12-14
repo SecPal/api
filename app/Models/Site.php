@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
@@ -148,15 +149,13 @@ class Site extends Model
     }
 
     /**
-     * Placeholder for all user assignments for this site.
+     * Get all assignments for this site.
      *
-     * @todo Implement actual relationship when SiteAssignment model is available (#311)
-     *
-     * @return \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>
+     * @return HasMany<SiteAssignment, $this>
      */
-    public function assignments()
+    public function assignments(): HasMany
     {
-        return new \Illuminate\Database\Eloquent\Collection;
+        return $this->hasMany(SiteAssignment::class, 'site_id');
     }
 
     /**
@@ -174,13 +173,13 @@ class Site extends Model
     }
 
     /**
-     * Placeholder: Returns an empty collection until CostCenter model is implemented in #311.
+     * Get all cost centers for this site.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>
+     * @return HasMany<CostCenter, $this>
      */
-    public function costCenters()
+    public function costCenters(): HasMany
     {
-        return new \Illuminate\Database\Eloquent\Collection;
+        return $this->hasMany(CostCenter::class, 'site_id');
     }
 
     /**

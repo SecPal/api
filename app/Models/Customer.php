@@ -117,16 +117,13 @@ class Customer extends Model
     }
 
     /**
-     * Placeholder for user assignments relationship.
+     * Get all assignments for this customer.
      *
-     * Note: CustomerAssignment model will be implemented in #311.
-     * This placeholder returns an empty collection to avoid errors.
-     *
-     * @return \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>
+     * @return HasMany<CustomerAssignment, $this>
      */
-    public function assignments()
+    public function assignments(): HasMany
     {
-        return new \Illuminate\Database\Eloquent\Collection;
+        return $this->hasMany(CustomerAssignment::class, 'customer_id');
     }
 
     /**
