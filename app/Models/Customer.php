@@ -126,7 +126,7 @@ class Customer extends Model
      */
     public function assignments()
     {
-        return new \Illuminate\Database\Eloquent\Collection();
+        return new \Illuminate\Database\Eloquent\Collection;
     }
 
     /**

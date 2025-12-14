@@ -12,7 +12,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
@@ -157,7 +156,7 @@ class Site extends Model
      */
     public function assignments()
     {
-        return new \Illuminate\Database\Eloquent\Collection();
+        return new \Illuminate\Database\Eloquent\Collection;
     }
 
     /**
@@ -181,7 +180,7 @@ class Site extends Model
      */
     public function costCenters()
     {
-        return new \Illuminate\Database\Eloquent\Collection();
+        return new \Illuminate\Database\Eloquent\Collection;
     }
 
     /**
