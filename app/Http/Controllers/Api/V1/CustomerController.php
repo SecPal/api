@@ -225,7 +225,7 @@ class CustomerController extends Controller
      * Returns paginated list of sites belonging to the customer.
      * User must have view access to the customer.
      *
-     * @return JsonResponse Paginated site list
+     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection<int, SiteResource> Paginated site list
      */
     public function sites(Request $request, Customer $customer)
     {
