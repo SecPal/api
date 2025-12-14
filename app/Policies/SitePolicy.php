@@ -23,22 +23,32 @@ class SitePolicy
 {
     /**
      * Determine whether the user can view any sites.
+     *
+     * Users can always attempt to list sites (Need-to-Know filtering in controller).
+     * Users with sites.read permission see all sites.
+     * Users without permission only see assigned sites (filtered in controller).
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('sites.read');
+        return true;
     }
 
     /**
      * Determine whether the user can view the site.
      *
      * Access is granted if:
+     * - User has sites.read permission (can view any site), OR
      * - User is directly assigned to the site, OR
      * - User is assigned to the site's customer (Key Accounts see all customer sites), OR
      * - User has access to the site's organizational unit
      */
     public function view(User $user, Site $site): bool
     {
+        // Permission-based access
+        if ($user->can('sites.read')) {
+            return true;
+        }
+
         // Direct assignment to site (must be currently active)
         if ($site->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
