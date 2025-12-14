@@ -14,6 +14,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Customer & Site Management Database Schema** (#308, Phase 1 of Epic #210)
+  - Created `customers` table for client organizations with flat structure (no hierarchies):
+    - UUID primary key with tenant isolation
+    - Auto-generated customer_number (KD-YYYY-#### format, unique per tenant)
+    - Company name and JSONB billing_address (street, city, postal_code, country)
+    - JSONB contact information (name, email, phone, position)
+    - is_active flag, notes, extensible metadata JSONB field
+    - Soft deletes support
+    - Indexes: unique (tenant_id, customer_number), (tenant_id, is_active), (tenant_id, name)
+  - Created `sites` table for physical locations where security services are provided:
+    - UUID primary key with tenant isolation
+    - Foreign keys to customers and organizational_units
+    - Auto-generated site_number (OBJ-YYYY-#### format, unique per tenant)
+    - Site name and type enum ('permanent', 'temporary')
+    - JSONB address with GPS coordinates (street, city, postal_code, country, lat, lng)
+    - JSONB contact information (name, email, phone, position)
+    - access_instructions for guard briefing, notes, extensible metadata
+    - is_active flag with validity period (valid_from, valid_until) for temporary sites
+    - Soft deletes support
+    - Indexes: unique (tenant_id, site_number), (tenant_id, customer_id), (tenant_id, organizational_unit_id), (tenant_id, type, is_active)
+
+### BREAKING CHANGES
+
+- **Replaced Customer/Object Schema with Epic #210 Design** (#308)
+  - **Removed deprecated Guard Book schema (November 2025)**:
+    - Deleted tables: `customers` (hierarchical), `customer_closures`, `objects`, `object_areas`, `customer_user_accesses`, `customer_user_object_accesses`, `guard_books`, `guard_book_reports`
+    - Deleted models: `Customer`, `CustomerClosure`, `SecPalObject`, `ObjectArea`, `CustomerUserAccess`, `CustomerUserObjectAccess`, `GuardBook`, `GuardBookReport`
+    - Deleted factories: `CustomerFactory`, `SecPalObjectFactory`, `ObjectAreaFactory`, `CustomerUserAccessFactory`, `CustomerUserObjectAccessFactory`
+  - **Rationale**: Pre-v1.0.0 allows clean architectural changes. Old schema was hierarchical and Guard Book-specific; Epic #210 requires flat customer structure for broader security services (patrol, alarm response, event security)
+  - **Migration strategy**: Complete schema replacement (no ALTER TABLE migrations). Use `php artisan migrate:fresh` for clean database rebuild
+  - **Impact**: Any code referencing old Customer/Object models must be updated to use new Customer/Site models (Epic #210 Phases 2-7)
+
+### Added
+
 - **Employee Management RESTful API Endpoints** (#323, Phase 5 of Epic #211)
   - Implemented 5 REST controllers with 30+ endpoints for complete employee lifecycle management:
     - `EmployeeController`: 7 methods (index, store, show, update, destroy, activate, terminate)
