@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
