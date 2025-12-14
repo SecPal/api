@@ -10,6 +10,9 @@ use App\Models\Customer;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\TenantKey;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     // Ensure KEK exists and create tenant

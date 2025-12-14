@@ -9,6 +9,9 @@ use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     // Ensure KEK exists and create tenant
