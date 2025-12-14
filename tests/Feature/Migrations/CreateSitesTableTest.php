@@ -22,6 +22,44 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
+/**
+ * Helper function to create a test customer.
+ */
+function createTestCustomer(string $tenantId, string $customerNumber = 'KD-TEST-001'): string
+{
+    $customerId = Str::uuid()->toString();
+    DB::table('customers')->insert([
+        'id' => $customerId,
+        'tenant_id' => $tenantId,
+        'customer_number' => $customerNumber,
+        'name' => 'Test Customer',
+        'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
+        'is_active' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return $customerId;
+}
+
+/**
+ * Helper function to create a test organizational unit.
+ */
+function createTestOrgUnit(string $tenantId, string $type = 'branch'): string
+{
+    $orgUnitId = Str::uuid()->toString();
+    DB::table('organizational_units')->insert([
+        'id' => $orgUnitId,
+        'tenant_id' => $tenantId,
+        'name' => 'Test Unit',
+        'type' => $type,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return $orgUnitId;
+}
+
 describe('CreateSitesTable Migration', function () {
     test('creates sites table with correct columns', function (): void {
         expect(Schema::hasTable('sites'))->toBeTrue();
@@ -108,29 +146,8 @@ describe('CreateSitesTable Migration', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
-        // Create customer first
-        $customerId = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-001',
-            'name' => 'Test Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Create organizational unit
-        $orgUnitId = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId,
-            'tenant_id' => $tenant->id,
-            'name' => 'Test Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createTestCustomer($tenant->id, 'KD-2025-001');
+        $orgUnitId = createTestOrgUnit($tenant->id);
 
         // Create site
         $siteId = Str::uuid()->toString();
@@ -159,27 +176,8 @@ describe('CreateSitesTable Migration', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
-        $customerId = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-002',
-            'name' => 'Test Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $orgUnitId = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId,
-            'tenant_id' => $tenant->id,
-            'name' => 'Test Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createTestCustomer($tenant->id, 'KD-2025-002');
+        $orgUnitId = createTestOrgUnit($tenant->id);
 
         $siteId = Str::uuid()->toString();
         DB::table('sites')->insert([
@@ -207,27 +205,8 @@ describe('CreateSitesTable Migration', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
-        $customerId = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-003',
-            'name' => 'Test Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $orgUnitId = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId,
-            'tenant_id' => $tenant->id,
-            'name' => 'Test Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createTestCustomer($tenant->id, 'KD-2025-003');
+        $orgUnitId = createTestOrgUnit($tenant->id);
 
         $types = ['permanent', 'temporary'];
 
@@ -252,7 +231,7 @@ describe('CreateSitesTable Migration', function () {
         }
     });
 
-    test('address column accepts valid JSONB with GPS coordinates', function (): void {
+    test('type column rejects invalid enum values', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
@@ -260,7 +239,7 @@ describe('CreateSitesTable Migration', function () {
         DB::table('customers')->insert([
             'id' => $customerId,
             'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-004',
+            'customer_number' => 'KD-2025-INVALID',
             'name' => 'Test Customer',
             'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
             'is_active' => true,
@@ -277,6 +256,28 @@ describe('CreateSitesTable Migration', function () {
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        DB::table('sites')->insert([
+            'id' => Str::uuid()->toString(),
+            'tenant_id' => $tenant->id,
+            'customer_id' => $customerId,
+            'organizational_unit_id' => $orgUnitId,
+            'site_number' => 'OBJ-2025-INVALID',
+            'name' => 'Invalid Type Site',
+            'type' => 'invalid_type',
+            'address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    })->throws(PDOException::class);
+
+    test('address column accepts valid JSONB with GPS coordinates', function (): void {
+        $keys = TenantKey::generateEnvelopeKeys();
+        $tenant = TenantKey::create($keys);
+
+        $customerId = createTestCustomer($tenant->id, 'KD-2025-004');
+        $orgUnitId = createTestOrgUnit($tenant->id);
 
         $address = [
             'street' => 'Brandenburger Tor',
@@ -314,27 +315,8 @@ describe('CreateSitesTable Migration', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
-        $customerId = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-005',
-            'name' => 'Test Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $orgUnitId = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId,
-            'tenant_id' => $tenant->id,
-            'name' => 'Test Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createTestCustomer($tenant->id, 'KD-2025-005');
+        $orgUnitId = createTestOrgUnit($tenant->id);
 
         $contact = [
             'name' => 'Site Manager',
@@ -370,27 +352,8 @@ describe('CreateSitesTable Migration', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
-        $customerId = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-006',
-            'name' => 'Test Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $orgUnitId = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId,
-            'tenant_id' => $tenant->id,
-            'name' => 'Test Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createTestCustomer($tenant->id, 'KD-2025-006');
+        $orgUnitId = createTestOrgUnit($tenant->id);
 
         $siteId = Str::uuid()->toString();
         DB::table('sites')->insert([
@@ -420,27 +383,8 @@ describe('CreateSitesTable Migration', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
-        $customerId = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-007',
-            'name' => 'Test Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $orgUnitId = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId,
-            'tenant_id' => $tenant->id,
-            'name' => 'Test Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createTestCustomer($tenant->id, 'KD-2025-007');
+        $orgUnitId = createTestOrgUnit($tenant->id);
 
         $siteId = Str::uuid()->toString();
         DB::table('sites')->insert([
@@ -464,27 +408,8 @@ describe('CreateSitesTable Migration', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
-        $customerId = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-008',
-            'name' => 'Test Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $orgUnitId = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId,
-            'tenant_id' => $tenant->id,
-            'name' => 'Test Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createTestCustomer($tenant->id, 'KD-2025-008');
+        $orgUnitId = createTestOrgUnit($tenant->id);
 
         DB::table('sites')->insert([
             'id' => Str::uuid()->toString(),
@@ -522,51 +447,11 @@ describe('CreateSitesTable Migration', function () {
         $keys2 = TenantKey::generateEnvelopeKeys();
         $tenant2 = TenantKey::create($keys2);
 
-        // Tenant 1 setup
-        $customerId1 = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId1,
-            'tenant_id' => $tenant1->id,
-            'customer_number' => 'KD-T1-001',
-            'name' => 'Tenant 1 Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId1 = createTestCustomer($tenant1->id, 'KD-T1-001');
+        $orgUnitId1 = createTestOrgUnit($tenant1->id);
 
-        $orgUnitId1 = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId1,
-            'tenant_id' => $tenant1->id,
-            'name' => 'Tenant 1 Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Tenant 2 setup
-        $customerId2 = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId2,
-            'tenant_id' => $tenant2->id,
-            'customer_number' => 'KD-T2-001',
-            'name' => 'Tenant 2 Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $orgUnitId2 = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId2,
-            'tenant_id' => $tenant2->id,
-            'name' => 'Tenant 2 Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId2 = createTestCustomer($tenant2->id, 'KD-T2-001');
+        $orgUnitId2 = createTestOrgUnit($tenant2->id);
 
         $siteNumber = 'OBJ-2025-SAME';
 
@@ -606,27 +491,8 @@ describe('CreateSitesTable Migration', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
-        $customerId = Str::uuid()->toString();
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-009',
-            'name' => 'Test Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $orgUnitId = Str::uuid()->toString();
-        DB::table('organizational_units')->insert([
-            'id' => $orgUnitId,
-            'tenant_id' => $tenant->id,
-            'name' => 'Test Unit',
-            'type' => 'branch',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createTestCustomer($tenant->id, 'KD-2025-009');
+        $orgUnitId = createTestOrgUnit($tenant->id);
 
         $siteId = Str::uuid()->toString();
         $validFrom = now()->toDateString();

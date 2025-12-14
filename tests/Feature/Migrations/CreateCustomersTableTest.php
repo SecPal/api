@@ -22,6 +22,26 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
+/**
+ * Helper function to create minimal customer record.
+ */
+function createMinimalCustomer(string $tenantId, string $customerNumber, string $name = 'Test Customer'): string
+{
+    $customerId = Str::uuid()->toString();
+    DB::table('customers')->insert([
+        'id' => $customerId,
+        'tenant_id' => $tenantId,
+        'customer_number' => $customerNumber,
+        'name' => $name,
+        'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
+        'is_active' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return $customerId;
+}
+
 describe('CreateCustomersTable Migration', function () {
     test('creates customers table with correct columns', function (): void {
         expect(Schema::hasTable('customers'))->toBeTrue();
@@ -77,23 +97,7 @@ describe('CreateCustomersTable Migration', function () {
     test('cascade delete removes customers when tenant is deleted', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
-        $customerId = Str::uuid()->toString();
-
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-001',
-            'name' => 'Test Customer GmbH',
-            'billing_address' => json_encode([
-                'street' => 'Musterstraße 123',
-                'city' => 'Berlin',
-                'postal_code' => '10115',
-                'country' => 'DE',
-            ]),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createMinimalCustomer($tenant->id, 'KD-2025-001', 'Test Customer GmbH');
 
         expect(DB::table('customers')->where('id', $customerId)->exists())->toBeTrue();
 
@@ -105,8 +109,8 @@ describe('CreateCustomersTable Migration', function () {
     test('billing_address column accepts valid JSONB', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
-        $customerId = Str::uuid()->toString();
 
+        $customerId = Str::uuid()->toString();
         $billingAddress = [
             'street' => 'Berliner Allee 45',
             'city' => 'München',
@@ -137,8 +141,8 @@ describe('CreateCustomersTable Migration', function () {
     test('contact column accepts valid JSONB and is nullable', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
-        $customerId = Str::uuid()->toString();
 
+        $customerId = Str::uuid()->toString();
         $contact = [
             'name' => 'Max Mustermann',
             'email' => 'max@example.com',
@@ -168,8 +172,8 @@ describe('CreateCustomersTable Migration', function () {
     test('metadata column accepts valid JSONB and is nullable', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
-        $customerId = Str::uuid()->toString();
 
+        $customerId = Str::uuid()->toString();
         $metadata = [
             'tax_id' => 'DE123456789',
             'contract_type' => 'Premium',
@@ -198,18 +202,7 @@ describe('CreateCustomersTable Migration', function () {
     test('soft delete sets deleted_at timestamp', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
-        $customerId = Str::uuid()->toString();
-
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-005',
-            'name' => 'Soft Delete Test',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createMinimalCustomer($tenant->id, 'KD-2025-005', 'Soft Delete Test');
 
         $deletedAt = now();
         DB::table('customers')
@@ -223,17 +216,7 @@ describe('CreateCustomersTable Migration', function () {
     test('is_active defaults to true', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
-        $customerId = Str::uuid()->toString();
-
-        DB::table('customers')->insert([
-            'id' => $customerId,
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-006',
-            'name' => 'Default Active Test',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $customerId = createMinimalCustomer($tenant->id, 'KD-2025-006', 'Default Active Test');
 
         $customer = DB::table('customers')->where('id', $customerId)->first();
         expect($customer->is_active)->toBeTrue();
@@ -243,27 +226,8 @@ describe('CreateCustomersTable Migration', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
 
-        DB::table('customers')->insert([
-            'id' => Str::uuid()->toString(),
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-DUPLICATE',
-            'name' => 'First Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        DB::table('customers')->insert([
-            'id' => Str::uuid()->toString(),
-            'tenant_id' => $tenant->id,
-            'customer_number' => 'KD-2025-DUPLICATE',
-            'name' => 'Second Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        createMinimalCustomer($tenant->id, 'KD-2025-DUPLICATE', 'First Customer');
+        createMinimalCustomer($tenant->id, 'KD-2025-DUPLICATE', 'Second Customer');
     })->throws(PDOException::class);
 
     test('same customer_number allowed for different tenants', function (): void {
@@ -275,27 +239,8 @@ describe('CreateCustomersTable Migration', function () {
 
         $customerNumber = 'KD-2025-SAME';
 
-        DB::table('customers')->insert([
-            'id' => Str::uuid()->toString(),
-            'tenant_id' => $tenant1->id,
-            'customer_number' => $customerNumber,
-            'name' => 'Tenant 1 Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        DB::table('customers')->insert([
-            'id' => Str::uuid()->toString(),
-            'tenant_id' => $tenant2->id,
-            'customer_number' => $customerNumber,
-            'name' => 'Tenant 2 Customer',
-            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        createMinimalCustomer($tenant1->id, $customerNumber, 'Tenant 1 Customer');
+        createMinimalCustomer($tenant2->id, $customerNumber, 'Tenant 2 Customer');
 
         $count = DB::table('customers')->where('customer_number', $customerNumber)->count();
         expect($count)->toBe(2);
