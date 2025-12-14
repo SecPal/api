@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Customer model representing external customer organizations.
@@ -116,15 +117,16 @@ class Customer extends Model
     }
 
     /**
-     * Get all user assignments for this customer.
+     * Placeholder for user assignments relationship.
      *
-     * Note: CustomerAssignment model will be implemented in #311
+     * Note: CustomerAssignment model will be implemented in #311.
+     * This placeholder returns an empty collection to avoid errors.
      *
-     * @return HasMany<\Illuminate\Database\Eloquent\Model, $this>
+     * @return \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>
      */
-    public function assignments(): HasMany
+    public function assignments()
     {
-        return $this->hasMany(\Illuminate\Database\Eloquent\Model::class)->where('customer_id', $this->id);
+        return new \Illuminate\Database\Eloquent\Collection();
     }
 
     /**
@@ -177,22 +179,28 @@ class Customer extends Model
      * The method searches for the highest existing number in the current year
      * (including soft-deleted records to prevent number reuse) and increments it.
      * If no customers exist for the year, starts with 0001.
+     *
+     * Uses database row-level locking to prevent race conditions during concurrent
+     * customer creation.
      */
     public static function generateCustomerNumber(int $tenantId): string
     {
-        $year = now()->year;
+        return DB::transaction(function () use ($tenantId) {
+            $year = now()->year;
 
-        /** @var self|null $latest */
-        $latest = self::withTrashed()
-            ->where('tenant_id', $tenantId)
-            ->where('customer_number', 'like', "KD-{$year}-%")
-            ->orderBy('customer_number', 'desc')
-            ->first();
+            /** @var self|null $latest */
+            $latest = self::withTrashed()
+                ->where('tenant_id', $tenantId)
+                ->where('customer_number', 'like', "KD-{$year}-%")
+                ->orderBy('customer_number', 'desc')
+                ->lockForUpdate()
+                ->first();
 
-        $sequence = $latest !== null
-            ? ((int) substr($latest->customer_number, -4)) + 1
-            : 1;
+            $sequence = $latest !== null
+                ? ((int) substr($latest->customer_number, -4)) + 1
+                : 1;
 
-        return sprintf('KD-%d-%04d', $year, $sequence);
+            return sprintf('KD-%d-%04d', $year, $sequence);
+        });
     }
 }

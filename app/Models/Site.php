@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Site model representing physical locations where services are provided.
@@ -148,15 +149,15 @@ class Site extends Model
     }
 
     /**
-     * Get all user assignments for this site.
+     * Placeholder for all user assignments for this site.
      *
-     * Note: SiteAssignment model will be implemented in #311
+     * @todo Implement actual relationship when SiteAssignment model is available (#311)
      *
-     * @return HasMany<\Illuminate\Database\Eloquent\Model, $this>
+     * @return \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>
      */
-    public function assignments(): HasMany
+    public function assignments()
     {
-        return $this->hasMany(\Illuminate\Database\Eloquent\Model::class)->where('site_id', $this->id);
+        return new \Illuminate\Database\Eloquent\Collection();
     }
 
     /**
@@ -174,15 +175,13 @@ class Site extends Model
     }
 
     /**
-     * Get all cost centers for this site.
+     * Placeholder: Returns an empty collection until CostCenter model is implemented in #311.
      *
-     * Note: CostCenter model will be implemented in #311
-     *
-     * @return HasMany<\Illuminate\Database\Eloquent\Model, $this>
+     * @return \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>
      */
-    public function costCenters(): HasMany
+    public function costCenters()
     {
-        return $this->hasMany(\Illuminate\Database\Eloquent\Model::class)->where('site_id', $this->id);
+        return new \Illuminate\Database\Eloquent\Collection();
     }
 
     /**
@@ -264,23 +263,29 @@ class Site extends Model
      * The method searches for the highest existing number in the current year
      * (including soft-deleted records to prevent number reuse) and increments it.
      * If no sites exist for the year, starts with 0001.
+     *
+     * Uses database row-level locking to prevent race conditions during concurrent
+     * site creation.
      */
     public static function generateSiteNumber(int $tenantId): string
     {
-        $year = now()->year;
+        return DB::transaction(function () use ($tenantId) {
+            $year = now()->year;
 
-        /** @var self|null $latest */
-        $latest = self::withTrashed()
-            ->where('tenant_id', $tenantId)
-            ->where('site_number', 'like', "OBJ-{$year}-%")
-            ->orderBy('site_number', 'desc')
-            ->first();
+            /** @var self|null $latest */
+            $latest = self::withTrashed()
+                ->where('tenant_id', $tenantId)
+                ->where('site_number', 'like', "OBJ-{$year}-%")
+                ->orderBy('site_number', 'desc')
+                ->lockForUpdate()
+                ->first();
 
-        $sequence = $latest !== null
-            ? ((int) substr($latest->site_number, -4)) + 1
-            : 1;
+            $sequence = $latest !== null
+                ? ((int) substr($latest->site_number, -4)) + 1
+                : 1;
 
-        return sprintf('OBJ-%d-%04d', $year, $sequence);
+            return sprintf('OBJ-%d-%04d', $year, $sequence);
+        });
     }
 
     /**

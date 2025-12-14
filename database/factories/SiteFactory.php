@@ -51,12 +51,6 @@ class SiteFactory extends Factory
         // Generate site number
         $siteNumber = Site::generateSiteNumber($tenant->id);
 
-        // Get or create customer
-        $customer = Customer::factory()->forTenant($tenant->id)->create();
-
-        // Get or create organizational unit
-        $orgUnit = OrganizationalUnit::factory()->forTenant((string) $tenant->id)->create();
-
         // German site types
         $siteTypes = [
             'Flughafen Terminal',
@@ -90,8 +84,8 @@ class SiteFactory extends Factory
 
         return [
             'tenant_id' => $tenant->id,
-            'customer_id' => $customer->id,
-            'organizational_unit_id' => $orgUnit->id,
+            'customer_id' => Customer::factory()->forTenant($tenant->id),
+            'organizational_unit_id' => OrganizationalUnit::factory()->forTenant((string) $tenant->id),
             'site_number' => $siteNumber,
             'name' => $siteType.' '.fake()->numberBetween(1, 5),
             'type' => 'permanent',
