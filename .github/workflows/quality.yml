@@ -88,6 +88,18 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
+      - name: Prepare database
+        env:
+          # Test-only APP_KEY - not used in production
+          APP_KEY: base64:ZXUevbvUHFMlVnuwTiO0s7pQ1i584bpMKALKwTMNYh4=
+          DB_CONNECTION: pgsql
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_DATABASE: testing
+          DB_USERNAME: testing
+          DB_PASSWORD: testing
+        run: php artisan migrate:fresh --force
+
       - name: Run Tests
         env:
           # Test-only APP_KEY - not used in production
