@@ -65,6 +65,31 @@ class RolesAndPermissionsSeeder extends Seeder
     private function getPermissionDefinitions(): array
     {
         return [
+            // Epic #210: Customer & Site Management
+            'customers' => [
+                'read',
+                'create',
+                'update',
+                'delete',
+            ],
+            'sites' => [
+                'read',
+                'create',
+                'update',
+                'delete',
+            ],
+            'assignments' => [
+                'create',
+                'update',
+                'delete',
+            ],
+            'cost-centers' => [
+                'read',
+                'create',
+                'update',
+                'delete',
+            ],
+            // Epic #211: Employee Management
             'employees' => [
                 'read',
                 'create',
@@ -177,6 +202,12 @@ class RolesAndPermissionsSeeder extends Seeder
         return [
             'Admin' => [
                 'permissions' => [
+                    // Epic #210: Customer & Site Management
+                    'customers.*',
+                    'sites.*',
+                    'assignments.*',
+                    'cost-centers.*',
+                    // Epic #211: Employee Management
                     'employees.*',
                     'shifts.*',
                     'work_instructions.*',
@@ -196,6 +227,19 @@ class RolesAndPermissionsSeeder extends Seeder
             ],
             'Manager' => [
                 'permissions' => [
+                    // Epic #210: Customer & Site Management
+                    'customers.read',
+                    'customers.create',
+                    'customers.update',
+                    'sites.read',
+                    'sites.create',
+                    'sites.update',
+                    'assignments.create',
+                    'assignments.update',
+                    'cost-centers.read',
+                    'cost-centers.create',
+                    'cost-centers.update',
+                    // Epic #211: Employee Management
                     'employees.read',
                     'employees.create',
                     'employees.update',

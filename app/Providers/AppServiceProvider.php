@@ -99,6 +99,13 @@ class AppServiceProvider extends ServiceProvider
         // Register policy for SecretAttachment model
         Gate::policy(SecretAttachment::class, SecretAttachmentPolicy::class);
 
+        // Register policies for Customer & Site Management (Epic #210)
+        Gate::policy(\App\Models\Customer::class, \App\Policies\CustomerPolicy::class);
+        Gate::policy(\App\Models\Site::class, \App\Policies\SitePolicy::class);
+        Gate::policy(\App\Models\CostCenter::class, \App\Policies\CostCenterPolicy::class);
+        Gate::policy(\App\Models\CustomerAssignment::class, \App\Policies\CustomerAssignmentPolicy::class);
+        Gate::policy(\App\Models\SiteAssignment::class, \App\Policies\SiteAssignmentPolicy::class);
+
         // Register policies for Organizational Structure (Issue #236)
         Gate::policy(OrganizationalUnit::class, OrganizationalUnitPolicy::class);
 

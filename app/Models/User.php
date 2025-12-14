@@ -235,6 +235,116 @@ class User extends Authenticatable
     }
 
     /**
+     * Get all customer assignments for this user.
+     *
+     * @return HasMany<CustomerAssignment, $this>
+     */
+    public function customerAssignments(): HasMany
+    {
+        return $this->hasMany(CustomerAssignment::class, 'user_id');
+    }
+
+    /**
+     * Get all site assignments for this user.
+     *
+     * @return HasMany<SiteAssignment, $this>
+     */
+    public function siteAssignments(): HasMany
+    {
+        return $this->hasMany(SiteAssignment::class, 'user_id');
+    }
+
+    /**
+     * Get all customers assigned to this user.
+     *
+     * Many-to-many relationship through customer_assignments table.
+     *
+     * @return BelongsToMany<Customer, $this>
+     */
+    public function assignedCustomers(): BelongsToMany
+    {
+        return $this->belongsToMany(Customer::class, 'customer_assignments', 'user_id', 'customer_id')
+            ->withPivot(['role', 'valid_from', 'valid_until', 'notes'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get all sites assigned to this user.
+     *
+     * Many-to-many relationship through site_assignments table.
+     *
+     * @return BelongsToMany<Site, $this>
+     */
+    public function assignedSites(): BelongsToMany
+    {
+        return $this->belongsToMany(Site::class, 'site_assignments', 'user_id', 'site_id')
+            ->withPivot(['role', 'valid_from', 'valid_until', 'notes'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get all organizational unit IDs accessible to this user.
+     *
+     * Returns array of UUIDs for use in whereIn() queries.
+     *
+     * @return array<int, string>
+     */
+    public function getAccessibleOrganizationalUnitIds(): array
+    {        /** @var array<int, string> */ return $this->getAccessibleOrganizationalUnits()->pluck('id')->toArray();
+    }
+
+    /**
+     * Get all customers the user can access.
+     *
+     * Access is granted through:
+     * - Direct customer assignments
+     * - Access to sites belonging to the customer (via organizational unit or site assignment)
+     *
+     * @return Collection<int, Customer>
+     */
+    public function getAccessibleCustomers(): Collection
+    {
+        $accessibleUnitIds = $this->getAccessibleOrganizationalUnitIds();
+        $assignedSiteIds = $this->siteAssignments()->pluck('site_id')->toArray();
+        $assignedCustomerIds = $this->customerAssignments()->pluck('customer_id')->toArray();
+
+        return Customer::where(function ($query) use ($assignedCustomerIds, $accessibleUnitIds, $assignedSiteIds) {
+            // Direct customer assignment
+            $query->whereIn('id', $assignedCustomerIds)
+                // Or has sites in accessible org units
+                ->orWhereHas('sites', function ($siteQuery) use ($accessibleUnitIds, $assignedSiteIds) {
+                    $siteQuery->where(function ($sq) use ($accessibleUnitIds, $assignedSiteIds) {
+                        $sq->whereIn('organizational_unit_id', $accessibleUnitIds)
+                            ->orWhereIn('id', $assignedSiteIds);
+                    });
+                });
+        })->get();
+    }
+
+    /**
+     * Get all sites the user can access.
+     *
+     * Access is granted through:
+     * - Direct site assignments
+     * - Access to site's organizational unit
+     * - Assignment to site's customer (Key Accounts see all customer sites)
+     *
+     * @return Collection<int, Site>
+     */
+    public function getAccessibleSites(): Collection
+    {
+        $accessibleUnitIds = $this->getAccessibleOrganizationalUnitIds();
+        $assignedSiteIds = $this->siteAssignments()->pluck('site_id')->toArray();
+        $assignedCustomerIds = $this->customerAssignments()->pluck('customer_id')->toArray();
+
+        return Site::where(function ($query) use ($accessibleUnitIds, $assignedSiteIds, $assignedCustomerIds) {
+            $query->whereIn('organizational_unit_id', $accessibleUnitIds)
+                ->orWhereIn('id', $assignedSiteIds)
+                ->orWhereIn('customer_id', $assignedCustomerIds);
+        })->get();
+    }
+
+    /**
      * Check if user has access to a specific organizational unit.
      *
      * Uses optimized queries to avoid N+1 issues:
