@@ -52,10 +52,13 @@ class CustomerFactory extends Factory
         /** @var array<int, string> $companyTypes */
         $companyTypes = ['GmbH', 'AG', 'GmbH & Co. KG', 'KG', 'e.K.', 'UG'];
 
+        /** @var string $companyType */
+        $companyType = fake()->randomElement($companyTypes);
+
         return [
             'tenant_id' => $tenant->id,
             'customer_number' => $customerNumber,
-            'name' => fake()->company().' '.(string) fake()->randomElement($companyTypes),
+            'name' => fake()->company().' '.$companyType,
             'billing_address' => [
                 'street' => fake()->streetAddress(),
                 'city' => fake()->city(),

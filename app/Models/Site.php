@@ -156,7 +156,6 @@ class Site extends Model
      */
     public function assignments(): HasMany
     {
-        // @phpstan-ignore-next-line - SiteAssignment will be implemented in #311
         return $this->hasMany(\Illuminate\Database\Eloquent\Model::class)->where('site_id', $this->id);
     }
 
@@ -183,7 +182,6 @@ class Site extends Model
      */
     public function costCenters(): HasMany
     {
-        // @phpstan-ignore-next-line - CostCenter will be implemented in #311
         return $this->hasMany(\Illuminate\Database\Eloquent\Model::class)->where('site_id', $this->id);
     }
 

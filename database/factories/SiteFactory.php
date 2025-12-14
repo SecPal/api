@@ -85,12 +85,15 @@ class SiteFactory extends Factory
         /** @var array{name: string, lat: float, lng: float} $city */
         $city = fake()->randomElement($cities);
 
+        /** @var string $siteType */
+        $siteType = fake()->randomElement($siteTypes);
+
         return [
             'tenant_id' => $tenant->id,
             'customer_id' => $customer->id,
             'organizational_unit_id' => $orgUnit->id,
             'site_number' => $siteNumber,
-            'name' => fake()->randomElement($siteTypes).' '.fake()->numberBetween(1, 5),
+            'name' => $siteType.' '.fake()->numberBetween(1, 5),
             'type' => 'permanent',
             'address' => [
                 'street' => fake()->streetAddress(),

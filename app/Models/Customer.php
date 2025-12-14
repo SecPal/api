@@ -124,7 +124,6 @@ class Customer extends Model
      */
     public function assignments(): HasMany
     {
-        // @phpstan-ignore-next-line - CustomerAssignment will be implemented in #311
         return $this->hasMany(\Illuminate\Database\Eloquent\Model::class)->where('customer_id', $this->id);
     }
 
