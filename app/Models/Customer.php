@@ -42,7 +42,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Illuminate\Support\Carbon|null $deleted_at
  * @property-read TenantKey $tenant The tenant this customer belongs to
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Site> $sites Sites belonging to this customer
- * @property-read \Illuminate\Database\Eloquent\Collection<int, CustomerAssignment> $assignments User assignments to this customer
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model> $assignments User assignments to this customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $assignedUsers Users assigned to this customer
  *
  * @see SecPal/.github#210 Customer & Site Management Epic
@@ -118,11 +118,14 @@ class Customer extends Model
     /**
      * Get all user assignments for this customer.
      *
-     * @return HasMany<CustomerAssignment, $this>
+     * Note: CustomerAssignment model will be implemented in #311
+     *
+     * @return HasMany<\Illuminate\Database\Eloquent\Model, $this>
      */
     public function assignments(): HasMany
     {
-        return $this->hasMany(CustomerAssignment::class, 'customer_id');
+        // @phpstan-ignore-next-line - CustomerAssignment will be implemented in #311
+        return $this->hasMany(\Illuminate\Database\Eloquent\Model::class)->where('customer_id', $this->id);
     }
 
     /**

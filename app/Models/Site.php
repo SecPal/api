@@ -55,9 +55,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read TenantKey $tenant The tenant this site belongs to
  * @property-read Customer $customer The customer that owns this site
  * @property-read OrganizationalUnit $organizationalUnit The internal unit responsible
- * @property-read \Illuminate\Database\Eloquent\Collection<int, SiteAssignment> $assignments User assignments to this site
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model> $assignments User assignments to this site
  * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $assignedUsers Users assigned to this site
- * @property-read \Illuminate\Database\Eloquent\Collection<int, CostCenter> $costCenters Cost centers for this site
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model> $costCenters Cost centers for this site
  *
  * @see SecPal/.github#210 Customer & Site Management Epic
  * @see SecPal/api#310 Customer and Site Eloquent models
@@ -150,11 +150,14 @@ class Site extends Model
     /**
      * Get all user assignments for this site.
      *
-     * @return HasMany<SiteAssignment, $this>
+     * Note: SiteAssignment model will be implemented in #311
+     *
+     * @return HasMany<\Illuminate\Database\Eloquent\Model, $this>
      */
     public function assignments(): HasMany
     {
-        return $this->hasMany(SiteAssignment::class, 'site_id');
+        // @phpstan-ignore-next-line - SiteAssignment will be implemented in #311
+        return $this->hasMany(\Illuminate\Database\Eloquent\Model::class)->where('site_id', $this->id);
     }
 
     /**
@@ -174,11 +177,14 @@ class Site extends Model
     /**
      * Get all cost centers for this site.
      *
-     * @return HasMany<CostCenter, $this>
+     * Note: CostCenter model will be implemented in #311
+     *
+     * @return HasMany<\Illuminate\Database\Eloquent\Model, $this>
      */
     public function costCenters(): HasMany
     {
-        return $this->hasMany(CostCenter::class, 'site_id');
+        // @phpstan-ignore-next-line - CostCenter will be implemented in #311
+        return $this->hasMany(\Illuminate\Database\Eloquent\Model::class)->where('site_id', $this->id);
     }
 
     /**

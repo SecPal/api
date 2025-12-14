@@ -55,7 +55,7 @@ class SiteFactory extends Factory
         $customer = Customer::factory()->forTenant($tenant->id)->create();
 
         // Get or create organizational unit
-        $orgUnit = OrganizationalUnit::factory()->forTenant($tenant->id)->create();
+        $orgUnit = OrganizationalUnit::factory()->forTenant((string) $tenant->id)->create();
 
         // German site types
         $siteTypes = [
@@ -82,6 +82,7 @@ class SiteFactory extends Factory
             ['name' => 'Düsseldorf', 'lat' => 51.2277, 'lng' => 6.7735],
         ];
 
+        /** @var array{name: string, lat: float, lng: float} $city */
         $city = fake()->randomElement($cities);
 
         return [
@@ -94,7 +95,7 @@ class SiteFactory extends Factory
             'address' => [
                 'street' => fake()->streetAddress(),
                 'city' => $city['name'],
-                'postal_code' => fake()->postcode(),
+                'postal_code' => (string) fake()->postcode(),
                 'country' => 'DE',
                 'lat' => $city['lat'] + fake()->randomFloat(4, -0.1, 0.1),
                 'lng' => $city['lng'] + fake()->randomFloat(4, -0.1, 0.1),

@@ -49,16 +49,17 @@ class CustomerFactory extends Factory
         $customerNumber = Customer::generateCustomerNumber($tenant->id);
 
         // German company name suffixes
+        /** @var array<int, string> $companyTypes */
         $companyTypes = ['GmbH', 'AG', 'GmbH & Co. KG', 'KG', 'e.K.', 'UG'];
 
         return [
             'tenant_id' => $tenant->id,
             'customer_number' => $customerNumber,
-            'name' => fake()->company().' '.fake()->randomElement($companyTypes),
+            'name' => fake()->company().' '.(string) fake()->randomElement($companyTypes),
             'billing_address' => [
                 'street' => fake()->streetAddress(),
                 'city' => fake()->city(),
-                'postal_code' => fake()->postcode(),
+                'postal_code' => (string) fake()->postcode(),
                 'country' => 'DE',
             ],
             'contact' => [
