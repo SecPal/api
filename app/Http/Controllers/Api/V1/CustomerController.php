@@ -58,7 +58,17 @@ class CustomerController extends Controller
 
         // Need-to-Know filtering: Users without customers.read only see assigned customers
         if (! $user->can('customers.read')) {
-            $query->where(function ($q) use ($user) {
+            // Pre-compute accessible unit IDs and assigned site IDs to avoid repeated execution
+            $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();
+            $assignedSiteIds = $user->siteAssignments()
+                ->where('valid_from', '<=', now())
+                ->where(function ($q) {
+                    $q->whereNull('valid_until')
+                        ->orWhere('valid_until', '>=', now());
+                })
+                ->pluck('site_id')->toArray();
+
+            $query->where(function ($q) use ($user, $accessibleUnitIds, $assignedSiteIds) {
                 // Direct assignment (must be currently active)
                 $q->whereHas('assignments', function ($a) use ($user) {
                     $a->where('user_id', $user->id)
@@ -71,16 +81,7 @@ class CustomerController extends Controller
                         });
                 })
                     // Or has accessible sites
-                    ->orWhereHas('sites', function ($s) use ($user) {
-                        $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();
-                        $assignedSiteIds = $user->siteAssignments()
-                            ->where('valid_from', '<=', now())
-                            ->where(function ($q) {
-                                $q->whereNull('valid_until')
-                                    ->orWhere('valid_until', '>=', now());
-                            })
-                            ->pluck('site_id')->toArray();
-
+                    ->orWhereHas('sites', function ($s) use ($accessibleUnitIds, $assignedSiteIds) {
                         $s->where(function ($sq) use ($accessibleUnitIds, $assignedSiteIds) {
                             $sq->whereIn('organizational_unit_id', $accessibleUnitIds)
                                 ->orWhereIn('id', $assignedSiteIds);
@@ -226,7 +227,7 @@ class CustomerController extends Controller
      *
      * @return JsonResponse Paginated site list
      */
-    public function sites(Request $request, Customer $customer): JsonResponse
+    public function sites(Request $request, Customer $customer)
     {
         $this->authorize('view', $customer);
 
@@ -235,14 +236,6 @@ class CustomerController extends Controller
             ->with(['organizationalUnit', 'assignments.user'])
             ->paginate($perPage);
 
-        return response()->json([
-            'data' => SiteResource::collection($sites),
-            'meta' => [
-                'current_page' => $sites->currentPage(),
-                'last_page' => $sites->lastPage(),
-                'per_page' => $sites->perPage(),
-                'total' => $sites->total(),
-            ],
-        ]);
+        return SiteResource::collection($sites);
     }
 }

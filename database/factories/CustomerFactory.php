@@ -52,7 +52,10 @@ class CustomerFactory extends Factory
         /** @var string $companyType */
         $companyType = fake()->randomElement($companyTypes);
 
-        // Use faker unique() to generate unique customer numbers for testing
+        // Use faker unique() for test customer numbers instead of Customer::generateCustomerNumber()
+        // Trade-off: Fast test execution + parallel test isolation vs production parity
+        // - Customer::generateCustomerNumber() is production-accurate but queries DB on every factory call
+        // - faker unique() is fast, isolated, thread-safe for parallel tests (9999 limit acceptable for tests)
         // Format: KD-YYYY-NNNN with random sequence to avoid collisions in parallel tests
         $customerNumber = sprintf(
             'KD-%d-%04d',

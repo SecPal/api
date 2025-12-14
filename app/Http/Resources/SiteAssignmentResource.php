@@ -39,7 +39,7 @@ class SiteAssignmentResource extends JsonResource
 
             // Relationships
             'user' => new UserResource($this->whenLoaded('user')),
-            'site' => new SiteResource($this->whenLoaded('site')),
+            // site relationship omitted to prevent circular dependency with SiteResource
 
             // Timestamps
             'created_at' => $this->created_at->toIso8601String(),

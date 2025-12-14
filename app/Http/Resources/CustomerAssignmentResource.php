@@ -39,7 +39,7 @@ class CustomerAssignmentResource extends JsonResource
 
             // Relationships
             'user' => new UserResource($this->whenLoaded('user')),
-            'customer' => new CustomerResource($this->whenLoaded('customer')),
+            // customer relationship omitted to prevent circular dependency with CustomerResource
 
             // Timestamps
             'created_at' => $this->created_at->toIso8601String(),

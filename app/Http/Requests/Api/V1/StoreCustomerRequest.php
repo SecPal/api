@@ -34,9 +34,18 @@ class StoreCustomerRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var int $tenantId */
+        $tenantId = $this->input('tenant_id');
+
         return [
             'name' => ['required', 'string', 'max:255'],
-            'customer_number' => ['nullable', 'string', 'max:50', 'unique:customers,customer_number'],
+            'customer_number' => [
+                'nullable',
+                'string',
+                'max:50',
+                \Illuminate\Validation\Rule::unique('customers', 'customer_number')
+                    ->where('tenant_id', $tenantId),
+            ],
             'billing_address' => ['required', 'array'],
             'billing_address.street' => ['required', 'string', 'max:255'],
             'billing_address.city' => ['required', 'string', 'max:255'],
