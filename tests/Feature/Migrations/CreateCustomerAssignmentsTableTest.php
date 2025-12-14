@@ -282,7 +282,7 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
     test('unique constraint prevents duplicate user and role per customer', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
-        $userId = createTestUser($tenant->id, 'user@example.com');
+        $userId = createTestUser('user@example.com');
         $customerId = createTestCustomer($tenant->id, 'KD-2025-007');
 
         createMinimalCustomerAssignment($tenant->id, $customerId, $userId, 'Manager');
