@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **CRITICAL: Fixed tenant_id spoofing vulnerability in InjectTenantId middleware** (PR #356)
+  - Client-provided `tenant_id` parameters (query string or request body) are now **always rejected**
+  - Prevents cross-tenant data access attacks in multi-tenant deployments
+  - Affected: All controllers using `tenant.inject` middleware (Sites, Customers, Secrets, etc.)
+  - Root cause: Middleware accepted client-side tenant_id without validation
+  - Fix: Middleware now explicitly removes client parameters before injecting server-resolved tenant_id
+  - Impact: Security hardening for current single-tenant development mode, **critical** for future multi-tenant production (Epic #357)
+  - Related: Issue #190 (tenant resolution), Epic #357 (Production-Ready Multi-Tenant Architecture)
+
 ### Added
 
 - **Customer & Site Management Database Schema** (#308, Phase 1 of Epic #210)
