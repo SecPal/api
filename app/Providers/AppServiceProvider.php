@@ -5,6 +5,9 @@
 
 namespace App\Providers;
 
+use App\Models\CostCenter;
+use App\Models\Customer;
+use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeQualification;
@@ -17,9 +20,14 @@ use App\Models\Qualification;
 use App\Models\Secret;
 use App\Models\SecretAttachment;
 use App\Models\SecretShare;
+use App\Models\Site;
+use App\Models\SiteAssignment;
 use App\Observers\EmployeeObserver;
 use App\Observers\PersonObserver;
 use App\Observers\SecretObserver;
+use App\Policies\CostCenterPolicy;
+use App\Policies\CustomerAssignmentPolicy;
+use App\Policies\CustomerPolicy;
 use App\Policies\EmployeeDocumentPolicy;
 use App\Policies\EmployeePolicy;
 use App\Policies\EmployeeQualificationPolicy;
@@ -32,6 +40,8 @@ use App\Policies\RoleManagementPolicy;
 use App\Policies\SecretAttachmentPolicy;
 use App\Policies\SecretPolicy;
 use App\Policies\SecretSharePolicy;
+use App\Policies\SiteAssignmentPolicy;
+use App\Policies\SitePolicy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -98,6 +108,13 @@ class AppServiceProvider extends ServiceProvider
 
         // Register policy for SecretAttachment model
         Gate::policy(SecretAttachment::class, SecretAttachmentPolicy::class);
+
+        // Register policies for Customer & Site Management (Epic #210)
+        Gate::policy(Customer::class, CustomerPolicy::class);
+        Gate::policy(Site::class, SitePolicy::class);
+        Gate::policy(CostCenter::class, CostCenterPolicy::class);
+        Gate::policy(CustomerAssignment::class, CustomerAssignmentPolicy::class);
+        Gate::policy(SiteAssignment::class, SiteAssignmentPolicy::class);
 
         // Register policies for Organizational Structure (Issue #236)
         Gate::policy(OrganizationalUnit::class, OrganizationalUnitPolicy::class);
