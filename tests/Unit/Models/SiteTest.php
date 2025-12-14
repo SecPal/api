@@ -220,19 +220,17 @@ class SiteTest extends TestCase
 
     public function test_site_has_assignments_relationship(): void
     {
-        $this->markTestSkipped('SiteAssignment model will be implemented in #311');
-
         $site = Site::factory()->create();
 
+        $this->assertInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class, $site->assignments());
         $this->assertInstanceOf(\Illuminate\Database\Eloquent\Collection::class, $site->assignments);
     }
 
     public function test_site_has_cost_centers_relationship(): void
     {
-        $this->markTestSkipped('CostCenter model will be implemented in #311');
-
         $site = Site::factory()->create();
 
+        $this->assertInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class, $site->costCenters());
         $this->assertInstanceOf(\Illuminate\Database\Eloquent\Collection::class, $site->costCenters);
     }
 

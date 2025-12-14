@@ -155,10 +155,9 @@ class CustomerTest extends TestCase
 
     public function test_customer_has_assignments_relationship(): void
     {
-        $this->markTestSkipped('CustomerAssignment model will be implemented in #311');
-
         $customer = Customer::factory()->create();
 
+        $this->assertInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class, $customer->assignments());
         $this->assertInstanceOf(\Illuminate\Database\Eloquent\Collection::class, $customer->assignments);
     }
 
