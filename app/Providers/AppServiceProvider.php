@@ -5,6 +5,9 @@
 
 namespace App\Providers;
 
+use App\Models\CostCenter;
+use App\Models\Customer;
+use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeQualification;
@@ -17,9 +20,14 @@ use App\Models\Qualification;
 use App\Models\Secret;
 use App\Models\SecretAttachment;
 use App\Models\SecretShare;
+use App\Models\Site;
+use App\Models\SiteAssignment;
 use App\Observers\EmployeeObserver;
 use App\Observers\PersonObserver;
 use App\Observers\SecretObserver;
+use App\Policies\CostCenterPolicy;
+use App\Policies\CustomerAssignmentPolicy;
+use App\Policies\CustomerPolicy;
 use App\Policies\EmployeeDocumentPolicy;
 use App\Policies\EmployeePolicy;
 use App\Policies\EmployeeQualificationPolicy;
@@ -28,6 +36,8 @@ use App\Policies\OnboardingFormTemplatePolicy;
 use App\Policies\OrganizationalUnitPolicy;
 use App\Policies\PermissionManagementPolicy;
 use App\Policies\QualificationPolicy;
+use App\Policies\SiteAssignmentPolicy;
+use App\Policies\SitePolicy;
 use App\Policies\RoleManagementPolicy;
 use App\Policies\SecretAttachmentPolicy;
 use App\Policies\SecretPolicy;
@@ -100,11 +110,11 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SecretAttachment::class, SecretAttachmentPolicy::class);
 
         // Register policies for Customer & Site Management (Epic #210)
-        Gate::policy(\App\Models\Customer::class, \App\Policies\CustomerPolicy::class);
-        Gate::policy(\App\Models\Site::class, \App\Policies\SitePolicy::class);
-        Gate::policy(\App\Models\CostCenter::class, \App\Policies\CostCenterPolicy::class);
-        Gate::policy(\App\Models\CustomerAssignment::class, \App\Policies\CustomerAssignmentPolicy::class);
-        Gate::policy(\App\Models\SiteAssignment::class, \App\Policies\SiteAssignmentPolicy::class);
+        Gate::policy(Customer::class, CustomerPolicy::class);
+        Gate::policy(Site::class, SitePolicy::class);
+        Gate::policy(CostCenter::class, CostCenterPolicy::class);
+        Gate::policy(CustomerAssignment::class, CustomerAssignmentPolicy::class);
+        Gate::policy(SiteAssignment::class, SiteAssignmentPolicy::class);
 
         // Register policies for Organizational Structure (Issue #236)
         Gate::policy(OrganizationalUnit::class, OrganizationalUnitPolicy::class);

@@ -178,3 +178,62 @@ test('user without customers.delete permission cannot delete customer', function
 
     expect($this->policy->delete($user, $customer))->toBeFalse();
 });
+
+// Temporal validation tests
+test('user with expired customer assignment cannot view customer', function (): void {
+    $user = User::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+
+    CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'customer_id' => $customer->id,
+        'valid_from' => now()->subDays(30),
+        'valid_until' => now()->subDay(), // expired yesterday
+    ]);
+
+    expect($this->policy->view($user, $customer))->toBeFalse();
+});
+
+test('user with future customer assignment cannot view customer yet', function (): void {
+    $user = User::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+
+    CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'customer_id' => $customer->id,
+        'valid_from' => now()->addDay(), // starts tomorrow
+        'valid_until' => now()->addDays(30),
+    ]);
+
+    expect($this->policy->view($user, $customer))->toBeFalse();
+});
+
+test('user with expired customer assignment cannot update customer', function (): void {
+    $user = User::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+
+    CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'customer_id' => $customer->id,
+        'valid_from' => now()->subDays(30),
+        'valid_until' => now()->subDay(),
+    ]);
+
+    expect($this->policy->update($user, $customer))->toBeFalse();
+});
+
+test('user with expired site assignment cannot view customer via site', function (): void {
+    $user = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+
+    SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'site_id' => $site->id,
+        'valid_from' => now()->subDays(30),
+        'valid_until' => now()->subDay(),
+    ]);
+
+    expect($this->policy->view($user, $customer))->toBeFalse();
+});

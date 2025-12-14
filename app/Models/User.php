@@ -290,7 +290,9 @@ class User extends Authenticatable
      * @return array<int, string>
      */
     public function getAccessibleOrganizationalUnitIds(): array
-    {        /** @var array<int, string> */ return $this->getAccessibleOrganizationalUnits()->pluck('id')->toArray();
+    {
+        /** @var array<int, string> */
+        return $this->getAccessibleOrganizationalUnits()->pluck('id')->toArray();
     }
 
     /**
@@ -305,8 +307,8 @@ class User extends Authenticatable
     public function getAccessibleCustomers(): Collection
     {
         $accessibleUnitIds = $this->getAccessibleOrganizationalUnitIds();
-        $assignedSiteIds = $this->siteAssignments()->pluck('site_id')->toArray();
-        $assignedCustomerIds = $this->customerAssignments()->pluck('customer_id')->toArray();
+        $assignedSiteIds = $this->siteAssignments()->currentlyActive()->pluck('site_id')->toArray();
+        $assignedCustomerIds = $this->customerAssignments()->currentlyActive()->pluck('customer_id')->toArray();
 
         return Customer::where(function ($query) use ($assignedCustomerIds, $accessibleUnitIds, $assignedSiteIds) {
             // Direct customer assignment
@@ -334,8 +336,8 @@ class User extends Authenticatable
     public function getAccessibleSites(): Collection
     {
         $accessibleUnitIds = $this->getAccessibleOrganizationalUnitIds();
-        $assignedSiteIds = $this->siteAssignments()->pluck('site_id')->toArray();
-        $assignedCustomerIds = $this->customerAssignments()->pluck('customer_id')->toArray();
+        $assignedSiteIds = $this->siteAssignments()->currentlyActive()->pluck('site_id')->toArray();
+        $assignedCustomerIds = $this->customerAssignments()->currentlyActive()->pluck('customer_id')->toArray();
 
         return Site::where(function ($query) use ($accessibleUnitIds, $assignedSiteIds, $assignedCustomerIds) {
             $query->whereIn('organizational_unit_id', $accessibleUnitIds)

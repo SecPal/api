@@ -39,13 +39,13 @@ class SitePolicy
      */
     public function view(User $user, Site $site): bool
     {
-        // Direct assignment to site
-        if ($site->assignments()->where('user_id', $user->id)->exists()) {
+        // Direct assignment to site (must be currently active)
+        if ($site->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
         }
 
-        // Assignment to customer (Key Account sees all customer sites)
-        if ($site->customer->assignments()->where('user_id', $user->id)->exists()) {
+        // Assignment to customer (Key Account sees all customer sites, must be currently active)
+        if ($site->customer->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
         }
 
@@ -70,8 +70,8 @@ class SitePolicy
      */
     public function update(User $user, Site $site): bool
     {
-        // Assigned users can update
-        if ($site->assignments()->where('user_id', $user->id)->exists()) {
+        // Assigned users can update (must be currently active)
+        if ($site->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
         }
 

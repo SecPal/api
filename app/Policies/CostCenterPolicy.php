@@ -6,6 +6,7 @@
 namespace App\Policies;
 
 use App\Models\CostCenter;
+use App\Models\Site;
 use App\Models\User;
 
 /**
@@ -45,7 +46,7 @@ class CostCenterPolicy
      *
      * Requires permission AND ability to update the parent site.
      */
-    public function create(User $user, \App\Models\Site $site): bool
+    public function create(User $user, Site $site): bool
     {
         return $user->can('cost-centers.create') && $user->can('update', $site);
     }
@@ -55,7 +56,7 @@ class CostCenterPolicy
      *
      * Requires permission AND ability to update the parent site.
      */
-    public function update(User $user, CostCenter $costCenter): bool
+    public function update(User $user, CostCenter $costCenter, Site $site): bool
     {
         return $user->can('cost-centers.update') && $user->can('update', $costCenter->site);
     }

@@ -93,3 +93,52 @@ test('user cannot delete site with active cost centers', function (): void {
 
     expect($this->policy->delete($user, $site))->toBeFalse();
 });
+
+// Temporal validation tests
+test('user with expired site assignment cannot view site', function (): void {
+    $user = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+
+    SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'site_id' => $site->id,
+        'valid_from' => now()->subDays(30),
+        'valid_until' => now()->subDay(),
+    ]);
+
+    expect($this->policy->view($user, $site))->toBeFalse();
+});
+
+test('user with future site assignment cannot view site yet', function (): void {
+    $user = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+
+    SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'site_id' => $site->id,
+        'valid_from' => now()->addDay(),
+        'valid_until' => now()->addDays(30),
+    ]);
+
+    expect($this->policy->view($user, $site))->toBeFalse();
+});
+
+test('user with expired site assignment cannot update site', function (): void {
+    $user = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+
+    SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'site_id' => $site->id,
+        'valid_from' => now()->subDays(30),
+        'valid_until' => now()->subDay(),
+    ]);
+
+    expect($this->policy->update($user, $site))->toBeFalse();
+});

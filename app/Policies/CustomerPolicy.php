@@ -37,16 +37,16 @@ class CustomerPolicy
      */
     public function view(User $user, Customer $customer): bool
     {
-        // Direct assignment to customer
-        if ($customer->assignments()->where('user_id', $user->id)->exists()) {
+        // Direct assignment to customer (must be currently active)
+        if ($customer->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
         }
 
         // Access via site (user has access to at least one site of this customer)
         $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();
 
-        // Sites where user is assigned directly
-        $assignedSiteIds = $user->siteAssignments()->pluck('site_id')->toArray();
+        // Sites where user is assigned directly (currently active only)
+        $assignedSiteIds = $user->siteAssignments()->currentlyActive()->pluck('site_id')->toArray();
 
         return $customer->sites()
             ->where(function ($query) use ($accessibleUnitIds, $assignedSiteIds) {
@@ -71,8 +71,8 @@ class CustomerPolicy
      */
     public function update(User $user, Customer $customer): bool
     {
-        // Assigned users can update
-        if ($customer->assignments()->where('user_id', $user->id)->exists()) {
+        // Assigned users can update (must be currently active)
+        if ($customer->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
         }
 
