@@ -843,6 +843,26 @@ describe('PATCH /v1/sites/{site}', function () {
                 'address.country',
             ]);
     });
+
+    test('validates valid_until against existing valid_from in partial updates', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            'valid_from' => '2025-01-01',
+            'valid_until' => null,
+        ]);
+
+        // Try to set valid_until before existing valid_from
+        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
+            'valid_until' => '2024-12-31', // Before existing valid_from (2025-01-01)
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['valid_until']);
+    });
 });
 
 describe('DELETE /v1/sites/{site}', function () {

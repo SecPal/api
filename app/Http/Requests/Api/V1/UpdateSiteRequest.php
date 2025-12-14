@@ -35,7 +35,7 @@ class UpdateSiteRequest extends FormRequest
     public function rules(): array
     {
         /** @var int $tenantId */
-        $tenantId = $this->input('tenant_id');
+        $tenantId = $this->get('tenant_id');
         /** @var \App\Models\Site $site */
         $site = $this->route('site');
 
@@ -80,6 +80,32 @@ class UpdateSiteRequest extends FormRequest
             'valid_from' => ['sometimes', 'nullable', 'date'],
             'valid_until' => ['sometimes', 'nullable', 'date', 'after:valid_from'],
         ];
+    }
+
+    /**
+     * Configure the validator instance.
+     *
+     * Adds custom validation to ensure valid_until is after the existing
+     * valid_from value in the database when valid_from is not provided in the request.
+     */
+    public function withValidator(\Illuminate\Validation\Validator $validator): void
+    {
+        $validator->after(function (\Illuminate\Validation\Validator $validator) {
+            // Only validate if valid_until is provided but valid_from is not
+            if ($this->has('valid_until') && ! $this->has('valid_from')) {
+                /** @var \App\Models\Site $site */
+                $site = $this->route('site');
+                $validUntil = $this->date('valid_until');
+
+                // Compare against existing database value
+                if ($site->valid_from && $validUntil && $validUntil->lt($site->valid_from)) {
+                    $validator->errors()->add(
+                        'valid_until',
+                        __('The valid until date must be after the existing valid from date.')
+                    );
+                }
+            }
+        });
     }
 
     /**

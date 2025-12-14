@@ -30,14 +30,18 @@ class InjectTenantId
     /**
      * Handle an incoming request.
      *
+     * SECURITY: Always overrides client-provided tenant_id to prevent cross-tenant attacks.
+     * In single-tenant mode, uses first available TenantKey.
+     * In multi-tenant production, should resolve from authenticated user.
+     *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Skip if tenant_id already set (e.g., by SetTenant middleware)
-        if ($request->has('tenant_id')) {
-            return $next($request);
-        }
+        // SECURITY FIX: Remove any client-provided tenant_id to prevent spoofing
+        // Only SetTenant middleware (which validates tenant from route/header) should set tenant_id
+        $request->request->remove('tenant_id');
+        $request->query->remove('tenant_id');
 
         // SINGLE-TENANT MODE: Use first available tenant
         // TODO: Replace with user-based tenant resolution for multi-tenant production

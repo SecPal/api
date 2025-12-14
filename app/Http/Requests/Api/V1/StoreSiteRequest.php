@@ -40,7 +40,7 @@ class StoreSiteRequest extends FormRequest
     public function rules(): array
     {
         /** @var int $tenantId */
-        $tenantId = $this->input('tenant_id');
+        $tenantId = $this->get('tenant_id');
 
         return [
             'name' => ['required', 'string', 'max:255'],

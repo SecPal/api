@@ -65,19 +65,11 @@ class SiteController extends Controller
             // Pre-compute accessible unit IDs and assigned site IDs to avoid repeated execution
             $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();
             $assignedSiteIds = $user->siteAssignments()
-                ->where('valid_from', '<=', now())
-                ->where(function ($q) {
-                    $q->whereNull('valid_until')
-                        ->orWhere('valid_until', '>=', now());
-                })
+                ->currentlyActive()
                 ->pluck('site_id')->toArray();
 
             $assignedCustomerIds = $user->customerAssignments()
-                ->where('valid_from', '<=', now())
-                ->where(function ($q) {
-                    $q->whereNull('valid_until')
-                        ->orWhere('valid_until', '>=', now());
-                })
+                ->currentlyActive()
                 ->pluck('customer_id')->toArray();
 
             $query->where(function ($q) use ($accessibleUnitIds, $assignedSiteIds, $assignedCustomerIds) {
