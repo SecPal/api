@@ -56,6 +56,9 @@ class InjectTenantId
         // Inject tenant_id into request
         $request->merge(['tenant_id' => $tenantId]);
 
+        // Set tenant for Spatie Permission (team-based permissions)
+        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
+
         return $next($request);
     }
 }
