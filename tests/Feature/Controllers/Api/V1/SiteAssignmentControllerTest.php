@@ -68,10 +68,23 @@ describe('GET /v1/sites/{site}/assignments', function () {
 
         $targetUser = User::factory()->create();
 
-        SiteAssignment::factory()->count(3)->create([
+        SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
             'site_id' => $this->site->id,
             'user_id' => $targetUser->id,
+            'role' => 'Site Manager',
+        ]);
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $this->site->id,
+            'user_id' => $targetUser->id,
+            'role' => 'Operations Lead',
+        ]);
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $this->site->id,
+            'user_id' => $targetUser->id,
+            'role' => 'Quality Manager',
         ]);
 
         $response = $this->withToken($this->token)
@@ -157,6 +170,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('creates site assignment with valid data', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $targetUser = User::factory()->create();
 
@@ -179,6 +193,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('creates assignment with validity period', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $targetUser = User::factory()->create();
 
@@ -199,6 +214,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('returns 409 when duplicate assignment exists', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $targetUser = User::factory()->create();
 
@@ -227,6 +243,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('validates user_id is required', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $response = $this->withToken($this->token)
             ->postJson("/v1/sites/{$this->site->id}/assignments", [
@@ -239,6 +256,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('validates role is required', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $targetUser = User::factory()->create();
 
@@ -253,6 +271,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('validates user_id must exist', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $response = $this->withToken($this->token)
             ->postJson("/v1/sites/{$this->site->id}/assignments", [
@@ -266,6 +285,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('validates role max length 100 characters', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $targetUser = User::factory()->create();
 
@@ -281,6 +301,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('validates notes max length 1000 characters', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $targetUser = User::factory()->create();
 
@@ -297,6 +318,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('validates valid_from must be date format', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $targetUser = User::factory()->create();
 
@@ -313,6 +335,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
     test('validates valid_until must be date format', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         $targetUser = User::factory()->create();
 
@@ -351,8 +374,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
     });
 
     test('updates assignment role', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
-
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -371,8 +393,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
     });
 
     test('updates assignment notes', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
-
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -390,8 +411,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
     });
 
     test('updates validity period', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
-
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -414,8 +434,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
     });
 
     test('allows partial updates (PATCH semantics)', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
-
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -459,8 +478,7 @@ describe('DELETE /v1/site-assignments/{assignment}', function () {
     });
 
     test('deletes assignment permanently', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
-
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
