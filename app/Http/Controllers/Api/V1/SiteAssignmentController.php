@@ -101,15 +101,15 @@ class SiteAssignmentController extends Controller
      *
      * @return JsonResponse SiteAssignmentResource (200 OK)
      */
-    public function update(UpdateAssignmentRequest $request, SiteAssignment $assignment): JsonResponse
+    public function update(UpdateAssignmentRequest $request, SiteAssignment $siteAssignment): JsonResponse
     {
-        $assignment->load('site'); // Eager-load for authorization check
-        $this->authorize('update', $assignment->site);
+        $siteAssignment->load('site'); // Eager-load for authorization check
+        $this->authorize('update', $siteAssignment->site);
 
-        $assignment->update($request->validated());
+        $siteAssignment->update($request->validated());
 
         return response()->json([
-            'data' => new SiteAssignmentResource($assignment->fresh(['user', 'site'])),
+            'data' => new SiteAssignmentResource($siteAssignment->fresh(['user', 'site'])),
         ]);
     }
 
@@ -121,12 +121,12 @@ class SiteAssignmentController extends Controller
      *
      * @return JsonResponse Empty response (204 No Content)
      */
-    public function destroy(SiteAssignment $assignment): JsonResponse
+    public function destroy(SiteAssignment $siteAssignment): JsonResponse
     {
-        $assignment->load('site'); // Eager-load for authorization check
-        $this->authorize('update', $assignment->site);
+        $siteAssignment->load('site'); // Eager-load for authorization check
+        $this->authorize('update', $siteAssignment->site);
 
-        $assignment->delete();
+        $siteAssignment->delete();
 
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }

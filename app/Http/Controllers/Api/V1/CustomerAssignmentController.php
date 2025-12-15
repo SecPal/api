@@ -101,15 +101,15 @@ class CustomerAssignmentController extends Controller
      *
      * @return JsonResponse CustomerAssignmentResource (200 OK)
      */
-    public function update(UpdateAssignmentRequest $request, CustomerAssignment $assignment): JsonResponse
+    public function update(UpdateAssignmentRequest $request, CustomerAssignment $customerAssignment): JsonResponse
     {
-        $assignment->load('customer'); // Eager-load for authorization check
-        $this->authorize('update', $assignment->customer);
+        $customerAssignment->load('customer'); // Eager-load for authorization check
+        $this->authorize('update', $customerAssignment->customer);
 
-        $assignment->update($request->validated());
+        $customerAssignment->update($request->validated());
 
         return response()->json([
-            'data' => new CustomerAssignmentResource($assignment->fresh(['user', 'customer'])),
+            'data' => new CustomerAssignmentResource($customerAssignment->fresh(['user', 'customer'])),
         ]);
     }
 
@@ -121,12 +121,12 @@ class CustomerAssignmentController extends Controller
      *
      * @return JsonResponse Empty response (204 No Content)
      */
-    public function destroy(CustomerAssignment $assignment): JsonResponse
+    public function destroy(CustomerAssignment $customerAssignment): JsonResponse
     {
-        $assignment->load('customer'); // Eager-load for authorization check
-        $this->authorize('update', $assignment->customer);
+        $customerAssignment->load('customer'); // Eager-load for authorization check
+        $this->authorize('update', $customerAssignment->customer);
 
-        $assignment->delete();
+        $customerAssignment->delete();
 
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }
