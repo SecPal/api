@@ -56,6 +56,7 @@ class SiteResource extends JsonResource
             'organizational_unit' => new OrganizationalUnitResource($this->whenLoaded('organizationalUnit')),
             'assignments' => SiteAssignmentResource::collection($this->whenLoaded('assignments')),
             'assigned_users_count' => $this->whenCounted('assignedUsers'),
+            'cost_centers_count' => $this->whenCounted('costCenters'),
 
             // Timestamps
             'created_at' => $this->created_at->toIso8601String(),

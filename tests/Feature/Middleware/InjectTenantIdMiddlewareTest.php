@@ -67,13 +67,13 @@ describe('InjectTenantId Middleware', function () {
             ]);
     });
 
-    test('middleware does not overwrite existing tenant_id in request', function () {
-        // Test that middleware respects pre-existing tenant_id
-        // by directly calling the middleware handle method
+    test('middleware removes client-provided tenant_id (security fix)', function () {
+        // Test that middleware removes client-provided tenant_id to prevent spoofing
+        // This is a critical security fix from PR #356
         $middleware = new InjectTenantId;
 
         $request = Request::create('/test', 'POST');
-        $request->merge(['tenant_id' => 999]); // Pre-set tenant_id
+        $request->merge(['tenant_id' => 999]); // Client attempts to provide tenant_id
         $request->setUserResolver(fn () => $this->user);
 
         $response = $middleware->handle($request, function ($req) {
@@ -83,7 +83,9 @@ describe('InjectTenantId Middleware', function () {
         });
 
         expect($response->getStatusCode())->toBe(200);
-        expect(json_decode($response->getContent(), true)['tenant_id'])->toBe(999);
+        // Should use first tenant from DB, NOT client-provided 999
+        $expectedTenantId = TenantKey::oldest('id')->value('id');
+        expect(json_decode($response->getContent(), true)['tenant_id'])->toBe($expectedTenantId);
     });
 
     test('injects tenant_id when user is authenticated', function () {

@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\Api\V1\SecretAttachmentController;
 use App\Http\Controllers\Api\V1\SecretController;
 use App\Http\Controllers\Api\V1\SecretShareController;
+use App\Http\Controllers\Api\V1\SiteController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HealthController;
@@ -197,6 +198,16 @@ Route::prefix('v1')->group(function () {
             Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
             // Nested resource: customer's sites
             Route::get('/customers/{customer}/sites', [CustomerController::class, 'sites']);
+        });
+
+        // Sites (physical locations where services are provided)
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/sites', [SiteController::class, 'index']);
+            Route::post('/sites', [SiteController::class, 'store']);
+            Route::get('/sites/{site}', [SiteController::class, 'show']);
+            Route::patch('/sites/{site}', [SiteController::class, 'update']);
+            Route::delete('/sites/{site}', [SiteController::class, 'destroy']);
+            // Note: Nested cost-centers route will be added when CostCenter CRUD endpoints are implemented
         });
 
         // ==========================================================================
