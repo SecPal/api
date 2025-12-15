@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Http\Controllers\Api\V1\CustomerAssignmentController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
@@ -16,7 +17,9 @@ use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\Api\V1\SecretAttachmentController;
 use App\Http\Controllers\Api\V1\SecretController;
 use App\Http\Controllers\Api\V1\SecretShareController;
+use App\Http\Controllers\Api\V1\SiteAssignmentController;
 use App\Http\Controllers\Api\V1\SiteController;
+use App\Http\Controllers\Api\V1\UserAssignmentController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HealthController;
@@ -208,6 +211,35 @@ Route::prefix('v1')->group(function () {
             Route::patch('/sites/{site}', [SiteController::class, 'update']);
             Route::delete('/sites/{site}', [SiteController::class, 'destroy']);
             // Note: Nested cost-centers route will be added when CostCenter CRUD endpoints are implemented
+        });
+
+        // ==========================================================================
+        // Assignment Management REST API (Issue #315 - Epic #210 Phase 4.3)
+        // Flexible user-to-customer/site role assignments with tenant-specific terminology
+        // All routes use tenant.inject middleware for automatic tenant_id injection
+        // Authorization is handled by respective Policies (defense-in-depth)
+        // ==========================================================================
+
+        // Customer Assignments (user → customer flexible role assignments)
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/customers/{customer}/assignments', [CustomerAssignmentController::class, 'index']);
+            Route::post('/customers/{customer}/assignments', [CustomerAssignmentController::class, 'store']);
+            Route::patch('/customer-assignments/{customerAssignment}', [CustomerAssignmentController::class, 'update']);
+            Route::delete('/customer-assignments/{customerAssignment}', [CustomerAssignmentController::class, 'destroy']);
+        });
+
+        // Site Assignments (user → site flexible role assignments)
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/sites/{site}/assignments', [SiteAssignmentController::class, 'index']);
+            Route::post('/sites/{site}/assignments', [SiteAssignmentController::class, 'store']);
+            Route::patch('/site-assignments/{siteAssignment}', [SiteAssignmentController::class, 'update']);
+            Route::delete('/site-assignments/{siteAssignment}', [SiteAssignmentController::class, 'destroy']);
+        });
+
+        // User Assignments ("My Assignments" - retrieve authenticated user's assignments)
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/me/customer-assignments', [UserAssignmentController::class, 'customerAssignments']);
+            Route::get('/me/site-assignments', [UserAssignmentController::class, 'siteAssignments']);
         });
 
         // ==========================================================================
