@@ -157,8 +157,13 @@ describe('POST /v1/customers/{customer}/assignments', function () {
     });
 
     test('returns 403 when user lacks assignments.create permission', function (): void {
+        $targetUser = User::factory()->create();
+
         $response = $this->withToken($this->token)
-            ->postJson("/v1/customers/{$this->customer->id}/assignments", []);
+            ->postJson("/v1/customers/{$this->customer->id}/assignments", [
+                'user_id' => $targetUser->id,
+                'role' => 'Manager',
+            ]);
         $response->assertStatus(403);
     });
 

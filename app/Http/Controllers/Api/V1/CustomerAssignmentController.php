@@ -103,6 +103,7 @@ class CustomerAssignmentController extends Controller
      */
     public function update(UpdateAssignmentRequest $request, CustomerAssignment $assignment): JsonResponse
     {
+        $assignment->load('customer'); // Eager-load for authorization check
         $this->authorize('update', $assignment->customer);
 
         $assignment->update($request->validated());
@@ -122,6 +123,7 @@ class CustomerAssignmentController extends Controller
      */
     public function destroy(CustomerAssignment $assignment): JsonResponse
     {
+        $assignment->load('customer'); // Eager-load for authorization check
         $this->authorize('update', $assignment->customer);
 
         $assignment->delete();

@@ -163,8 +163,13 @@ describe('POST /v1/sites/{site}/assignments', function () {
     });
 
     test('returns 403 when user lacks sites.assign.users permission', function (): void {
+        $targetUser = User::factory()->create();
+
         $response = $this->withToken($this->token)
-            ->postJson("/v1/sites/{$this->site->id}/assignments", []);
+            ->postJson("/v1/sites/{$this->site->id}/assignments", [
+                'user_id' => $targetUser->id,
+                'role' => 'Manager',
+            ]);
         $response->assertStatus(403);
     });
 

@@ -103,6 +103,7 @@ class SiteAssignmentController extends Controller
      */
     public function update(UpdateAssignmentRequest $request, SiteAssignment $assignment): JsonResponse
     {
+        $assignment->load('site'); // Eager-load for authorization check
         $this->authorize('update', $assignment->site);
 
         $assignment->update($request->validated());
@@ -122,6 +123,7 @@ class SiteAssignmentController extends Controller
      */
     public function destroy(SiteAssignment $assignment): JsonResponse
     {
+        $assignment->load('site'); // Eager-load for authorization check
         $this->authorize('update', $assignment->site);
 
         $assignment->delete();
