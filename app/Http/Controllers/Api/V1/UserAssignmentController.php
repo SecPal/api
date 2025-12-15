@@ -44,7 +44,8 @@ class UserAssignmentController extends Controller
         $user = $request->user();
 
         $assignments = $user->customerAssignments()
-            ->with('customer')
+            ->where('tenant_id', $request->input('tenant_id'))
+            ->with(['user', 'customer'])
             ->when($request->boolean('active_only'), fn ($q) => $q->currentlyActive())
             ->get();
 
@@ -71,7 +72,8 @@ class UserAssignmentController extends Controller
         $user = $request->user();
 
         $assignments = $user->siteAssignments()
-            ->with(['site', 'site.customer'])
+            ->where('tenant_id', $request->input('tenant_id'))
+            ->with(['user', 'site', 'site.customer'])
             ->when($request->boolean('active_only'), fn ($q) => $q->currentlyActive())
             ->get();
 

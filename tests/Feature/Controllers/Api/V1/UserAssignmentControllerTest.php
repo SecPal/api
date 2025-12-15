@@ -53,11 +53,18 @@ describe('GET /v1/me/customer-assignments', function () {
             'tenant_id' => $this->tenant->id,
         ]);
 
-        // Create 2 assignments for authenticated user
-        CustomerAssignment::factory()->count(2)->create([
+        // Create 2 assignments for authenticated user with explicit roles
+        CustomerAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $customer->id,
             'user_id' => $this->user->id,
+            'role' => 'Account Manager',
+        ]);
+        CustomerAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'user_id' => $this->user->id,
+            'role' => 'Billing Contact',
         ]);
 
         // Create 1 assignment for another user (should NOT appear)
@@ -192,11 +199,18 @@ describe('GET /v1/me/site-assignments', function () {
             'customer_id' => $customer->id,
         ]);
 
-        // Create 2 assignments for authenticated user
-        SiteAssignment::factory()->count(2)->create([
+        // Create 2 assignments for authenticated user with explicit roles
+        SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
             'site_id' => $site->id,
             'user_id' => $this->user->id,
+            'role' => 'Site Manager',
+        ]);
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $site->id,
+            'user_id' => $this->user->id,
+            'role' => 'Operations Lead',
         ]);
 
         // Create 1 assignment for another user (should NOT appear)

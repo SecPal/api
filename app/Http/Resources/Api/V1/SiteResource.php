@@ -35,6 +35,7 @@ class SiteResource extends JsonResource
             'site_number' => $this->resource->site_number,
             'name' => $this->resource->name,
             'is_active' => $this->resource->is_active,
+            'customer' => $this->whenLoaded('customer', fn () => new CustomerResource($this->resource->customer)),
             'created_at' => $this->resource->created_at->toISOString(),
             'updated_at' => $this->resource->updated_at->toISOString(),
         ];
