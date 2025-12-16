@@ -19,6 +19,17 @@ use App\Models\Site;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
+/**
+ * CostCenterController handles CostCenter resource CRUD operations.
+ *
+ * Implements access control via CostCenterPolicy:
+ * - Users can access cost centers through their parent site access
+ * - Create/Update/Delete requires both cost-centers.* permission AND sites.update permission
+ * - Full CRUD requires appropriate permissions
+ *
+ * @see SecPal/.github#316 CostCenter API endpoints
+ * @see SecPal/.github#210 Customer & Site Management Epic
+ */
 class CostCenterController extends Controller
 {
     /**
@@ -26,7 +37,7 @@ class CostCenterController extends Controller
      */
     public function index(Site $site): AnonymousResourceCollection
     {
-        $this->authorize('viewAny', [CostCenter::class, $site]);
+        $this->authorize('viewAny', CostCenter::class);
 
         $query = $site->costCenters();
 
@@ -60,31 +71,35 @@ class CostCenterController extends Controller
             'tenant_id' => $site->tenant_id,
         ]);
 
-        return (new CostCenterResource($costCenter))
-            ->response()
-            ->setStatusCode(201);
+        return response()->json([
+            'data' => new CostCenterResource($costCenter),
+        ], 201);
     }
 
     /**
      * Display the specified cost center.
      */
-    public function show(Site $site, CostCenter $costCenter): CostCenterResource
+    public function show(Site $site, CostCenter $costCenter): JsonResponse
     {
-        $this->authorize('view', [$costCenter, $site]);
+        $this->authorize('view', $costCenter);
 
-        return new CostCenterResource($costCenter);
+        return response()->json([
+            'data' => new CostCenterResource($costCenter),
+        ]);
     }
 
     /**
      * Update the specified cost center.
      */
-    public function update(UpdateCostCenterRequest $request, Site $site, CostCenter $costCenter): CostCenterResource
+    public function update(UpdateCostCenterRequest $request, Site $site, CostCenter $costCenter): JsonResponse
     {
         $this->authorize('update', [$costCenter, $site]);
 
         $costCenter->update($request->validated());
 
-        return new CostCenterResource($costCenter->fresh());
+        return response()->json([
+            'data' => new CostCenterResource($costCenter->fresh()),
+        ]);
     }
 
     /**
@@ -92,7 +107,7 @@ class CostCenterController extends Controller
      */
     public function destroy(Site $site, CostCenter $costCenter): JsonResponse
     {
-        $this->authorize('delete', [$costCenter, $site]);
+        $this->authorize('delete', $costCenter);
 
         $costCenter->delete();
 
