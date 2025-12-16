@@ -56,6 +56,10 @@ class InjectTenantId
         // Inject tenant_id into request
         $request->merge(['tenant_id' => $tenantId]);
 
+        // Set tenant for Spatie Permission (team-based permissions)
+        /** @var int $tenantId PHPStan: value() returns mixed, explicit cast for type safety */
+        app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
+
         return $next($request);
     }
 }

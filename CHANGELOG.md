@@ -25,6 +25,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Assignment API endpoints** (#315, Phase 4.3 of Epic #210)
+  - Customer Assignments: Flexible user-to-customer role assignments with tenant-specific terminology
+    - `GET /v1/customers/{customer}/assignments` - List assignments for customer (filters: role, active_only)
+    - `POST /v1/customers/{customer}/assignments` - Create assignment (prevents duplicates with 409)
+    - `PATCH /v1/customer-assignments/{assignment}` - Update assignment (PATCH semantics)
+    - `DELETE /v1/customer-assignments/{assignment}` - Delete assignment
+  - Site Assignments: Flexible user-to-site role assignments
+    - `GET /v1/sites/{site}/assignments` - List assignments for site (filters: role, active_only)
+    - `POST /v1/sites/{site}/assignments` - Create assignment (prevents duplicates with 409)
+    - `PATCH /v1/site-assignments/{assignment}` - Update assignment
+    - `DELETE /v1/site-assignments/{assignment}` - Delete assignment
+  - User Assignments: Retrieve authenticated user's assignments
+    - `GET /v1/me/customer-assignments` - Get my customer assignments (filter: active_only)
+    - `GET /v1/me/site-assignments` - Get my site assignments (filter: active_only)
+  - Authorization: `customers.read` for viewing, `assignments.create/update/delete` for mutations
+  - Created controllers, form requests, API resources for all endpoints
+  - Placeholder resources for Customer/Site models (will be replaced in #313/#314)
+
 - **Customer & Site Management Database Schema** (#308, Phase 1 of Epic #210)
   - Created `customers` table for client organizations with flat structure (no hierarchies):
     - UUID primary key with tenant isolation
