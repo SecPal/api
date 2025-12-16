@@ -25,19 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **CostCenter API endpoints** (#316, Phase 4.4 of Epic #210, PR #368)
-  - Implemented 5 RESTful endpoints for CostCenter management (nested under sites):
-    - `GET /v1/sites/{site}/cost-centers` - List cost centers for site (filter: active_only)
-    - `POST /v1/sites/{site}/cost-centers` - Create cost center
-    - `GET /v1/sites/{site}/cost-centers/{costCenter}` - Show cost center details
-    - `PUT /v1/sites/{site}/cost-centers/{costCenter}` - Update cost center
-    - `DELETE /v1/sites/{site}/cost-centers/{costCenter}` - Soft delete cost center
-  - Validation: code (unique per site, max 50 chars), name (required, max 255 chars)
-  - Authorization via CostCenterPolicy: Inherits access from parent site
-  - 24 comprehensive feature tests covering all CRUD operations
-  - CostCenterResource for consistent API responses
-  - Full integration with Site API
-
 - **Site CRUD API endpoints** (#314, Phase 4.2 of Epic #210, PR #356)
   - Implemented 6 RESTful endpoints for Site management:
     - `GET /v1/sites` - Paginated list with comprehensive filtering
@@ -55,8 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       - Validates organizational unit access if changed
       - Conditional field visibility: access_instructions and notes only for users with update permission
     - `DELETE /v1/sites/{site}` - Soft delete site
-      - Will block deletion if active cost centers exist (once CostCenter CRUD is implemented)
-    - `GET /v1/sites/{site}/cost-centers` - List cost centers for site (paginated, filter: active_only)
+      - Will block deletion if active cost centers exist
+    - For cost center management under sites, see CostCenter API endpoints below
   - Authorization: Need-to-Know enforcement with SitePolicy
     - View access: Site assignment OR organizational unit access OR customer assignment
     - Create: Requires sites.create permission + access to organizational unit
@@ -83,6 +70,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Authorization: `customers.read` for viewing, `assignments.create/update/delete` for mutations
   - Created controllers, form requests, API resources for all endpoints
   - Full SiteResource implementation replacing placeholder
+
+- **CostCenter API endpoints** (#316, Phase 4.4 of Epic #210, PR #368)
+  - Implemented 5 RESTful endpoints for CostCenter management (nested under sites):
+    - `GET /v1/sites/{site}/cost-centers` - List cost centers for site (filter: active_only)
+    - `POST /v1/sites/{site}/cost-centers` - Create cost center
+    - `GET /v1/sites/{site}/cost-centers/{costCenter}` - Show cost center details
+    - `PUT /v1/sites/{site}/cost-centers/{costCenter}` - Update cost center
+    - `DELETE /v1/sites/{site}/cost-centers/{costCenter}` - Soft delete cost center
+  - Validation: code (unique per site, max 50 chars), name (required, max 255 chars)
+  - Authorization via CostCenterPolicy: Inherits access from parent site
+  - 24 comprehensive feature tests covering all CRUD operations
+  - CostCenterResource for consistent API responses
+  - Full integration with Site API
 
 - **Customer & Site Management Database Schema** (#308, Phase 1 of Epic #210)
   - Created `customers` table for client organizations with flat structure (no hierarchies):
