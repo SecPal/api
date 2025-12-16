@@ -1,17 +1,17 @@
-# SPDX-FileCopyrightText: 2025 SecPal Contributors
-#
+# SPDX-FileCopyrightText: 2025 SecPal
 # SPDX-License-Identifier: CC0-1.0
 
+# Auto detect text files and perform LF normalization
 * text=auto eol=lf
 
 # Explicitly declare text files you want to always be normalized and converted to native line endings on checkout
-*.php text
-*.js text
-*.ts text
-*.json text
-*.yml text
-*.yaml text
-*.md text
+*.php text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
 *.sh text eol=lf
 *.bash text eol=lf
 

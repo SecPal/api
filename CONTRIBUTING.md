@@ -51,23 +51,26 @@ Create a dedicated directory for all SecPal repositories. This mirrors the GitHu
    cd <repository>
    ```
 
-2. **Set up Git hooks (automatic):**
+2. **Set up Git hooks:**
 
-   Git hooks are automatically configured via `.githooks/` directory:
-
-   ```bash
-   git config core.hooksPath .githooks
-   ```
-
-3. **Install pre-commit (optional, for additional checks):**
+   Install both pre-commit and pre-push hooks:
 
    ```bash
-   # Install pre-commit
-   pip install pre-commit
-   # or: brew install pre-commit
+   # Install pre-commit (choose one method):
+   # Recommended: Use pipx (isolated, no PATH issues)
+   pipx install pre-commit
+   # Or: Use your system package manager
+   # macOS: brew install pre-commit
+   # Debian/Ubuntu: apt install pre-commit
+   # Or: Use pip in a virtual environment
+   # python3 -m venv .venv && source .venv/bin/activate && pip install pre-commit
+   # For more options: https://pre-commit.com/#installation
 
-   # Install hooks
-   pre-commit install
+   # Setup pre-commit hooks
+   ./scripts/setup-pre-commit.sh
+
+   # Install pre-push hook
+   ./scripts/setup-pre-push.sh
    ```
 
 ### Local Development Workflow
@@ -261,6 +264,56 @@ git push origin --delete spike/auth-library-evaluation
 - ✅ Formatting checks **STILL RUN** (Prettier, linting)
 - ✅ REUSE compliance **STILL REQUIRED**
 - ⏭️ **Test suites are SKIPPED** (no TDD enforcement)
+
+---
+
+## Code Coverage
+
+SecPal uses [Codecov](https://codecov.io) for automated code coverage tracking across all repositories.
+
+### Coverage Requirements
+
+- **Minimum Coverage:** 80% for new code (enforced by Codecov)
+- **Critical Paths:** 100% coverage required (authentication, encryption, RBAC)
+- **Coverage Reports:** Auto-generated in CI and uploaded to Codecov
+- **PR Impact:** PRs must not decrease overall coverage below 80%
+
+### Viewing Coverage
+
+- **Codecov Dashboard:** [https://codecov.io/gh/SecPal](https://codecov.io/gh/SecPal)
+- **PR Comments:** Codecov automatically comments on PRs with coverage impact
+- **Badges:** Coverage badges displayed in each repository README
+
+### Local Coverage Reports
+
+**Backend (PHP/Laravel with Pest):**
+
+```bash
+# Run tests with coverage (clover format for CI)
+vendor/bin/pest --coverage-clover=coverage.xml
+
+# View HTML coverage report
+vendor/bin/pest --coverage-html=coverage-html/
+open coverage-html/index.html
+
+# Or use artisan test wrapper
+php artisan test --coverage
+```
+
+### Coverage Configuration
+
+- **Organization Config:** `.codecov.yml` in `.github` repository
+- **Backend Config:** PHPUnit/Pest coverage in `phpunit.xml` (`<source>` element)
+
+### Exclusions
+
+The following are excluded from coverage:
+
+- Test files (`**/*Test.php`, `**/*.test.ts`, etc.)
+- Configuration files (`**/*.config.ts`, `**/*.config.js`)
+- Type definitions (`**/*.d.ts`)
+- Database migrations and seeders
+- Build artifacts and dependencies
 
 ---
 
