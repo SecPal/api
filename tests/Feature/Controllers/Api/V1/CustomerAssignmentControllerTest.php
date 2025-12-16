@@ -129,6 +129,7 @@ describe('GET /v1/customers/{customer}/assignments', function () {
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
             'user_id' => $targetUser->id,
+            'role' => 'Active Account Manager',
             'valid_from' => null,
             'valid_until' => null,
         ]);
@@ -138,6 +139,7 @@ describe('GET /v1/customers/{customer}/assignments', function () {
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
             'user_id' => $targetUser->id,
+            'role' => 'Former Account Manager',
             'valid_until' => now()->subDay(),
         ]);
 

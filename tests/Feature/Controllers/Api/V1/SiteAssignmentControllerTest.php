@@ -135,6 +135,7 @@ describe('GET /v1/sites/{site}/assignments', function () {
             'tenant_id' => $this->tenant->id,
             'site_id' => $this->site->id,
             'user_id' => $targetUser->id,
+            'role' => 'Active Site Manager',
             'valid_from' => null,
             'valid_until' => null,
         ]);
@@ -144,6 +145,7 @@ describe('GET /v1/sites/{site}/assignments', function () {
             'tenant_id' => $this->tenant->id,
             'site_id' => $this->site->id,
             'user_id' => $targetUser->id,
+            'role' => 'Former Site Manager',
             'valid_until' => now()->subDay(),
         ]);
 

@@ -118,6 +118,7 @@ describe('GET /v1/me/customer-assignments', function () {
             'tenant_id' => $this->tenant->id,
             'customer_id' => $customer->id,
             'user_id' => $this->user->id,
+            'role' => 'Active Account Manager',
             'valid_from' => null,
             'valid_until' => null,
         ]);
@@ -127,6 +128,7 @@ describe('GET /v1/me/customer-assignments', function () {
             'tenant_id' => $this->tenant->id,
             'customer_id' => $customer->id,
             'user_id' => $this->user->id,
+            'role' => 'Former Account Manager',
             'valid_until' => now()->subDay(),
         ]);
 
@@ -276,6 +278,7 @@ describe('GET /v1/me/site-assignments', function () {
             'tenant_id' => $this->tenant->id,
             'site_id' => $site->id,
             'user_id' => $this->user->id,
+            'role' => 'Active Site Manager',
             'valid_from' => null,
             'valid_until' => null,
         ]);
@@ -285,6 +288,7 @@ describe('GET /v1/me/site-assignments', function () {
             'tenant_id' => $this->tenant->id,
             'site_id' => $site->id,
             'user_id' => $this->user->id,
+            'role' => 'Former Site Manager',
             'valid_until' => now()->subDay(),
         ]);
 
