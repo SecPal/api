@@ -25,7 +25,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Assignment API endpoints** (#315, Phase 4.3 of Epic #210)
+- **CostCenter API endpoints** (#316, Phase 4.4 of Epic #210, PR #368)
+  - Implemented 5 RESTful endpoints for CostCenter management (nested under sites):
+    - `GET /v1/sites/{site}/cost-centers` - List cost centers for site (filter: active_only)
+    - `POST /v1/sites/{site}/cost-centers` - Create cost center
+    - `GET /v1/sites/{site}/cost-centers/{costCenter}` - Show cost center details
+    - `PUT /v1/sites/{site}/cost-centers/{costCenter}` - Update cost center
+    - `DELETE /v1/sites/{site}/cost-centers/{costCenter}` - Soft delete cost center
+  - Validation: code (unique per site, max 50 chars), name (required, max 255 chars)
+  - Authorization via CostCenterPolicy: Inherits access from parent site
+  - 24 comprehensive feature tests covering all CRUD operations
+  - CostCenterResource for consistent API responses
+  - Full integration with Site API
+
+- **Site CRUD API endpoints** (#314, Phase 4.2 of Epic #210, PR #356)
+  - Implemented 6 RESTful endpoints for Site management:
+    - `GET /v1/sites` - Paginated list with comprehensive filtering
+      - Filters: customer_id, organizational_unit_id, type (permanent/temporary), is_active, currently_valid, search
+      - Need-to-Know access: Users see sites via org unit access OR direct assignment OR customer assignment
+      - Search: name, site_number, customer name (case-insensitive)
+      - Pagination: Default 15 per page (configurable)
+    - `POST /v1/sites` - Create site with auto-generated site_number (OBJ-YYYY-####)
+      - Validates organizational unit access for user
+      - Required: name, customer_id, organizational_unit_id, type, address
+      - Optional: contact, access_instructions, notes, metadata, validity dates
+      - Supports GPS coordinates (latitude/longitude) in address
+    - `GET /v1/sites/{site}` - Show site with relationships (customer, organizationalUnit, assignments, costCenters)
+    - `PATCH /v1/sites/{site}` - Update site (PATCH semantics, all fields optional)
+      - Validates organizational unit access if changed
+      - Conditional field visibility: access_instructions and notes only for users with update permission
+    - `DELETE /v1/sites/{site}` - Soft delete site
+      - Will block deletion if active cost centers exist (once CostCenter CRUD is implemented)
+    - `GET /v1/sites/{site}/cost-centers` - List cost centers for site (paginated, filter: active_only)
+  - Authorization: Need-to-Know enforcement with SitePolicy
+    - View access: Site assignment OR organizational unit access OR customer assignment
+    - Create: Requires sites.create permission + access to organizational unit
+    - Update: Requires sites.update permission + view access
+    - Delete: Requires sites.delete permission + view access
+  - SiteResource with conditional field visibility (access_instructions, notes hidden for read-only users)
+  - 41 comprehensive feature tests covering all endpoints
+  - Full integration with Customer & Assignment APIs
+
+- **Assignment API endpoints** (#315, Phase 4.3 of Epic #210, PR #363)
   - Customer Assignments: Flexible user-to-customer role assignments with tenant-specific terminology
     - `GET /v1/customers/{customer}/assignments` - List assignments for customer (filters: role, active_only)
     - `POST /v1/customers/{customer}/assignments` - Create assignment (prevents duplicates with 409)
@@ -41,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `GET /v1/me/site-assignments` - Get my site assignments (filter: active_only)
   - Authorization: `customers.read` for viewing, `assignments.create/update/delete` for mutations
   - Created controllers, form requests, API resources for all endpoints
-  - Placeholder resources for Customer/Site models (will be replaced in #313/#314)
+  - Full SiteResource implementation replacing placeholder
 
 - **Customer & Site Management Database Schema** (#308, Phase 1 of Epic #210)
   - Created `customers` table for client organizations with flat structure (no hierarchies):
