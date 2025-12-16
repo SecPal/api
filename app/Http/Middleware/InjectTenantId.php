@@ -57,8 +57,7 @@ class InjectTenantId
         $request->merge(['tenant_id' => $tenantId]);
 
         // Set tenant for Spatie Permission (team-based permissions)
-        // PHPStan: value('id') returns mixed, but we know it's int after null check
-        /** @var int $tenantId */
+        /** @var int $tenantId PHPStan: value() returns mixed, explicit cast for type safety */
         app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
 
         return $next($request);
