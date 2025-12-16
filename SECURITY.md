@@ -118,20 +118,24 @@ All PRs automatically run:
 ### Secure Development Guidelines
 
 1. **Never commit secrets:**
+
    - Use environment variables (`.env`)
    - Utilize secret management services
    - Enable push protection (automatically enabled)
 
 2. **Keep dependencies updated:**
+
    - Dependabot creates PRs daily (04:00 CET)
    - Security updates have priority
    - Review and merge promptly
 
 3. **Follow OWASP Top 10:**
+
    - [OWASP Top Ten](https://owasp.org/www-project-top-ten/)
    - Regular security training encouraged
 
 4. **Validate all inputs:**
+
    - Server-side validation (never trust client)
    - Sanitize outputs to prevent XSS
    - Use framework's built-in protection (Laravel, React)
@@ -171,9 +175,12 @@ We compensate with:
 
 ### API Rate Limiting
 
-- Currently: No rate limiting implemented
-- **Planned:** Rate limiting for public APIs (v0.5.0)
-- **Mitigation:** Monitor for unusual traffic patterns
+- **Implemented:** API rate limiting is enforced via Laravel's middleware:
+  - `api`: 60 requests per minute per user/IP
+  - `password-reset`: 5 requests per 60 minutes per email/IP
+  - `login`: 5 requests per minute per email/IP combination
+- Comprehensive automated tests verify rate limiting is active and effective
+- **Future:** Rate limiting policies may be further refined as usage patterns evolve
 
 ### CORS Configuration
 
@@ -184,8 +191,8 @@ We compensate with:
 
 Planned security enhancements:
 
-- [ ] **v0.3.0:** Production-ready CORS configuration
-- [ ] **v0.5.0:** API rate limiting
+- [x] **v0.3.0:** Production-ready CORS configuration
+- [x] **v0.5.0:** API rate limiting
 - [ ] **v0.7.0:** Comprehensive audit logging
 - [ ] **v0.9.0:** Penetration testing
 - [ ] **v1.0.0:** Security certification (OWASP ASVS Level 2)

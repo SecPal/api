@@ -56,8 +56,14 @@ Create a dedicated directory for all SecPal repositories. This mirrors the GitHu
    Install both pre-commit and pre-push hooks:
 
    ```bash
-   # Install pre-commit (requires pre-commit to be installed first)
-   pip install --user pre-commit
+   # Install pre-commit (choose one method):
+   # Recommended: Use pipx (isolated, no PATH issues)
+   pipx install pre-commit
+   # Or: Use pip in a virtual environment
+   # python3 -m venv .venv && source .venv/bin/activate && pip install pre-commit
+   # For more options: https://pre-commit.com/#installation
+
+   # Setup pre-commit hooks
    ./scripts/setup-pre-commit.sh
 
    # Install pre-push hook
@@ -277,32 +283,24 @@ SecPal uses [Codecov](https://codecov.io) for automated code coverage tracking a
 
 ### Local Coverage Reports
 
-**Backend (PHP/Laravel):**
+**Backend (PHP/Laravel with Pest):**
 
 ```bash
-# Run tests with coverage
-ddev exec php artisan test --coverage-clover coverage.xml
+# Run tests with coverage (clover format for CI)
+vendor/bin/pest --coverage-clover=coverage.xml
 
-# View HTML report
-ddev exec php artisan test --coverage-html coverage-html/
+# View HTML coverage report
+vendor/bin/pest --coverage-html=coverage-html/
 open coverage-html/index.html
-```
 
-**Frontend (TypeScript/React):**
-
-```bash
-# Run tests with coverage
-npm run test:coverage
-
-# View HTML report (auto-opens in browser)
-open coverage/index.html
+# Or use artisan test wrapper
+php artisan test --coverage
 ```
 
 ### Coverage Configuration
 
 - **Organization Config:** `.codecov.yml` in `.github` repository
-- **Backend Config:** PHPUnit coverage in `phpunit.xml` (`<source>` element)
-- **Frontend Config:** Vitest coverage in `vite.config.ts` (`test.coverage`)
+- **Backend Config:** PHPUnit/Pest coverage in `phpunit.xml` (`<source>` element)
 
 ### Exclusions
 
