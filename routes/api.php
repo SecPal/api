@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CustomerAssignmentController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\EmployeeController;
@@ -210,7 +211,12 @@ Route::prefix('v1')->group(function () {
             Route::get('/sites/{site}', [SiteController::class, 'show']);
             Route::patch('/sites/{site}', [SiteController::class, 'update']);
             Route::delete('/sites/{site}', [SiteController::class, 'destroy']);
-            // Note: Nested cost-centers route will be added when CostCenter CRUD endpoints are implemented
+            // Nested resource: site's cost centers
+            Route::get('/sites/{site}/cost-centers', [CostCenterController::class, 'index']);
+            Route::post('/sites/{site}/cost-centers', [CostCenterController::class, 'store']);
+            Route::get('/sites/{site}/cost-centers/{costCenter}', [CostCenterController::class, 'show']);
+            Route::put('/sites/{site}/cost-centers/{costCenter}', [CostCenterController::class, 'update']);
+            Route::delete('/sites/{site}/cost-centers/{costCenter}', [CostCenterController::class, 'destroy']);
         });
 
         // ==========================================================================
