@@ -33,6 +33,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'preferred_locale' => null,
+            'tenant_id' => \App\Models\TenantKey::factory(),
         ];
     }
 

@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $idx_nonce BYTEA nonce for idx_key
  * @property int $key_version Key version for rotation
  * @property \Illuminate\Support\Carbon $created_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $users
  */
 class TenantKey extends Model
 {
@@ -100,6 +101,16 @@ class TenantKey extends Model
     public function getTenantIdColumn(): string
     {
         return 'id'; // tenant_keys.id is the tenant identifier
+    }
+
+    /**
+     * Get all users belonging to this tenant.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<User, $this>
+     */
+    public function users(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(User::class, 'tenant_id');
     }
 
     /**

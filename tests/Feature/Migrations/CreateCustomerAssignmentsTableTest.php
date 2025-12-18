@@ -29,11 +29,13 @@ afterEach(function (): void {
 function createCustomerAssignmentTestUser(string $email): string
 {
     $userId = Str::uuid()->toString();
+    $tenantId = TenantKey::factory()->create()->id;
     DB::table('users')->insert([
         'id' => $userId,
         'name' => 'Test User',
         'email' => $email,
         'password' => Hash::make('password'),
+        'tenant_id' => $tenantId,
         'created_at' => now(),
         'updated_at' => now(),
     ]);

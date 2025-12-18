@@ -141,7 +141,7 @@ test('employee observer does not create duplicate user account', function () {
     Mail::fake();
 
     // Create employee with existing user
-    $existingUser = User::create([
+    $existingUser = User::factory()->create([
         'name' => 'Existing User',
         'email' => 'existing@example.com',
         'password' => bcrypt('password'),
