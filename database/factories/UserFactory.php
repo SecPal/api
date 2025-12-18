@@ -26,6 +26,8 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        $tenant = \App\Models\TenantKey::first();
+
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
@@ -33,7 +35,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'preferred_locale' => null,
-            'tenant_id' => \App\Models\TenantKey::factory(),
+            'tenant_id' => $tenant !== null ? $tenant->id : \App\Models\TenantKey::factory(),
         ];
     }
 

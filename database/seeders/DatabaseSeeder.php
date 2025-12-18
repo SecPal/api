@@ -41,6 +41,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Test User',
                 'password' => bcrypt('password'),
+                'tenant_id' => $tenantId,
             ]
         );
 
