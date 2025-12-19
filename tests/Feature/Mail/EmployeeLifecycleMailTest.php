@@ -52,7 +52,7 @@ test('onboarding invitation mail has correct content', function () {
         'status' => Employee::STATUS_ACTIVE, // Avoid observer creating user
     ]);
 
-    $user = User::create([
+    $user = User::factory()->create([
         'name' => 'John Doe',
         'email' => 'john.doe.onboarding@example.com',
         'password' => bcrypt('password'),
@@ -72,7 +72,7 @@ test('onboarding invitation mail generates password reset token', function () {
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
-    $user = User::create([
+    $user = User::factory()->create([
         'name' => 'Test User',
         'email' => 'test.reset@example.com',
         'password' => bcrypt('password'),

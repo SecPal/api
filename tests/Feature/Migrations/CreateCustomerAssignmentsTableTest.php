@@ -25,15 +25,24 @@ afterEach(function (): void {
 
 /**
  * Helper function to create test user for customer assignments.
+ * Reuses first available tenant (parallel-test safe).
  */
-function createCustomerAssignmentTestUser(string $email): string
+function createCustomerAssignmentTestUser(string $email, ?int $tenantId = null): string
 {
+    if ($tenantId === null) {
+        // Use first available tenant or create one
+        // Each parallel process has its own database instance
+        $tenant = TenantKey::first();
+        $tenantId = $tenant !== null ? $tenant->id : TenantKey::factory()->create()->id;
+    }
+
     $userId = Str::uuid()->toString();
     DB::table('users')->insert([
         'id' => $userId,
         'name' => 'Test User',
         'email' => $email,
         'password' => Hash::make('password'),
+        'tenant_id' => $tenantId,
         'created_at' => now(),
         'updated_at' => now(),
     ]);

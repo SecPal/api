@@ -9,7 +9,6 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Route;
 
 use function Pest\Laravel\actingAs;
@@ -25,8 +24,8 @@ beforeEach(function (): void {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
-    // Create authenticated user
-    $this->user = User::factory()->create();
+    // Create authenticated user in this tenant
+    $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     // Register test route with middleware
     Route::middleware(['auth:sanctum', InjectTenantId::class])->group(function () {
@@ -44,70 +43,125 @@ afterEach(function (): void {
 });
 
 describe('InjectTenantId Middleware', function () {
-    test('injects tenant_id from first available TenantKey', function () {
+    test('injects tenant_id from authenticated user', function () {
         $response = actingAs($this->user, 'sanctum')
             ->postJson('/test/inject-tenant');
 
         $response->assertOk()
             ->assertJson([
-                'tenant_id' => $this->tenant->id,
+                'tenant_id' => $this->user->tenant_id,
             ]);
     });
 
-    test('returns 503 when no TenantKey exists', function () {
-        // Delete the tenant
-        $this->tenant->delete();
+    test('returns 401 when user is not authenticated', function () {
+        $response = $this->postJson('/test/inject-tenant');
 
-        $response = actingAs($this->user, 'sanctum')
-            ->postJson('/test/inject-tenant');
-
-        $response->assertStatus(Response::HTTP_SERVICE_UNAVAILABLE)
+        $response->assertStatus(401)
             ->assertJson([
-                'message' => 'No tenant keys available. Please ensure at least one tenant key is configured.',
+                'message' => 'Unauthenticated.',
             ]);
     });
 
     test('middleware removes client-provided tenant_id (security fix)', function () {
-        // Test that middleware removes client-provided tenant_id to prevent spoofing
-        // This is a critical security fix from PR #356
-        $middleware = new InjectTenantId;
-
-        $request = Request::create('/test', 'POST');
-        $request->merge(['tenant_id' => 999]); // Client attempts to provide tenant_id
-        $request->setUserResolver(fn () => $this->user);
-
-        $response = $middleware->handle($request, function ($req) {
-            return response()->json([
-                'tenant_id' => $req->input('tenant_id'),
-            ]);
-        });
-
-        expect($response->getStatusCode())->toBe(200);
-        // Should use first tenant from DB, NOT client-provided 999
-        $expectedTenantId = TenantKey::oldest('id')->value('id');
-        expect(json_decode($response->getContent(), true)['tenant_id'])->toBe($expectedTenantId);
-    });
-
-    test('injects tenant_id when user is authenticated', function () {
+        // Attempt to spoof tenant_id - middleware should ignore it
         $response = actingAs($this->user, 'sanctum')
-            ->postJson('/test/inject-tenant', ['foo' => 'bar']);
+            ->postJson('/test/inject-tenant', ['tenant_id' => 999]);
 
         $response->assertOk();
-        expect($response->json('tenant_id'))->toBe($this->tenant->id);
+        // Should use user's tenant_id, NOT client-provided 999
+        expect($response->json('tenant_id'))->toBe($this->user->tenant_id);
+        expect($response->json('tenant_id'))->not->toBe(999);
     });
 
-    test('middleware works with multiple TenantKeys (uses first)', function () {
-        // Create a second tenant
+    test('middleware removes tenant_id from query string (security fix)', function () {
+        // Attempt to spoof tenant_id via query string
+        $response = actingAs($this->user, 'sanctum')
+            ->postJson('/test/inject-tenant?tenant_id=999');
+
+        $response->assertOk();
+        // Should use user's tenant_id, NOT query string value
+        expect($response->json('tenant_id'))->toBe($this->user->tenant_id);
+        expect($response->json('tenant_id'))->not->toBe(999);
+    });
+
+    test('multiple users from different tenants get their own tenant_id', function () {
+        // Create second tenant
         $keys2 = TenantKey::generateEnvelopeKeys();
         $tenant2 = TenantKey::create($keys2);
 
-        $response = actingAs($this->user, 'sanctum')
+        // Create user in second tenant
+        $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);
+
+        // First user gets tenant 1
+        $response1 = actingAs($this->user, 'sanctum')
             ->postJson('/test/inject-tenant');
 
-        $response->assertOk();
+        $response1->assertOk();
+        expect($response1->json('tenant_id'))->toBe($this->tenant->id);
 
-        // Should use first tenant (oldest by ID)
-        $firstTenantId = TenantKey::oldest('id')->value('id');
-        expect($response->json('tenant_id'))->toBe($firstTenantId);
+        // Second user gets tenant 2
+        $response2 = actingAs($user2, 'sanctum')
+            ->postJson('/test/inject-tenant');
+
+        $response2->assertOk();
+        expect($response2->json('tenant_id'))->toBe($tenant2->id);
+
+        // Verify tenant isolation
+        expect($response1->json('tenant_id'))->not->toBe($response2->json('tenant_id'));
+    });
+
+    test('middleware sets Spatie Permission team ID correctly', function () {
+        $middleware = new InjectTenantId;
+
+        $request = Request::create('/test', 'POST');
+        $request->setUserResolver(fn () => $this->user);
+
+        $middleware->handle($request, function ($req) {
+            // Verify that Spatie Permission team ID was set
+            $permissionRegistrar = app(\Spatie\Permission\PermissionRegistrar::class);
+            expect($permissionRegistrar->getPermissionsTeamId())->toBe($this->user->tenant_id);
+
+            return response()->json(['ok' => true]);
+        });
+    });
+
+    test('handles user without tenant_id gracefully', function () {
+        // This scenario should never happen due to NOT NULL constraint
+        // but we test defensive programming
+
+        // Create request with mock user that has null tenant_id
+        $middleware = new InjectTenantId;
+        $request = Request::create('/test', 'POST');
+
+        $mockUser = new class
+        {
+            public $tenant_id = null;
+        };
+
+        $request->setUserResolver(fn () => $mockUser);
+
+        $response = $middleware->handle($request, function ($req) {
+            return response()->json(['ok' => true]);
+        });
+
+        expect($response->getStatusCode())->toBe(500);
+        $content = json_decode($response->getContent(), true);
+        expect($content['message'])->toContain('no assigned tenant');
+    });
+
+    test('middleware removes tenant_id from request body and query', function () {
+        // Test that middleware explicitly removes tenant_id from both sources
+        $middleware = new InjectTenantId;
+        $request = Request::create('/test?tenant_id=999', 'POST', ['tenant_id' => 888]);
+        $request->setUserResolver(fn () => $this->user);
+
+        $middleware->handle($request, function ($req) {
+            // Verify middleware injected correct tenant_id
+            expect($req->input('tenant_id'))->toBe($this->user->tenant_id);
+            expect($req->input('tenant_id'))->not->toBe(888);
+            expect($req->input('tenant_id'))->not->toBe(999);
+
+            return response()->json(['ok' => true]);
+        });
     });
 });

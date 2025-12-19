@@ -22,10 +22,16 @@ class UserFactory extends Factory
     /**
      * Define the model's default state.
      *
+     * Note: TenantKey::first() is called for each user creation, which can
+     * cause N+1 issues when creating many users. For bulk operations, explicitly
+     * pass tenant_id: User::factory()->create(['tenant_id' => $tenantId])
+     *
      * @return array<string, mixed>
      */
     public function definition(): array
     {
+        $tenant = \App\Models\TenantKey::first();
+
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
@@ -33,6 +39,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'preferred_locale' => null,
+            'tenant_id' => $tenant !== null ? $tenant->id : \App\Models\TenantKey::factory(),
         ];
     }
 

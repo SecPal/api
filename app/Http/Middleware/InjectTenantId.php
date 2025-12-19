@@ -6,7 +6,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\TenantKey;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -14,50 +13,58 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * InjectTenantId middleware injects tenant_id into the request.
  *
- * SINGLE-TENANT DEVELOPMENT MODE:
- * Currently uses the first available TenantKey. This is NOT production-ready
- * for multi-tenant deployments.
+ * PRODUCTION-READY MULTI-TENANT IMPLEMENTATION:
+ * Resolves tenant_id from authenticated user's tenant relationship.
+ * This ensures each user can only access data from their assigned tenant.
  *
- * FUTURE PRODUCTION IMPLEMENTATION:
- * - Extract tenant_id from authenticated user's tenant relationship
- * - Support subdomain-based tenant resolution
- * - Support JWT claim-based tenant resolution
+ * SECURITY:
+ * - Always requires authentication (returns 401 for unauthenticated requests)
+ * - Rejects any client-provided tenant_id to prevent cross-tenant attacks
+ * - Uses user.tenant_id foreign key relationship for tenant resolution
  *
- * @see https://github.com/SecPal/api/issues/190
+ * @see https://github.com/SecPal/api/issues/357
+ * @see https://github.com/SecPal/api/issues/359
  */
 class InjectTenantId
 {
     /**
      * Handle an incoming request.
      *
-     * SECURITY: Always overrides client-provided tenant_id to prevent cross-tenant attacks.
-     * In single-tenant mode, uses first available TenantKey.
-     * In multi-tenant production, should resolve from authenticated user.
+     * SECURITY: Resolves tenant_id from authenticated user.
+     * Returns 401 if user is not authenticated.
+     * Always overrides client-provided tenant_id to prevent cross-tenant attacks.
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
         // SECURITY FIX: Remove any client-provided tenant_id to prevent spoofing
-        // Only SetTenant middleware (which validates tenant from route/header) should set tenant_id
         $request->request->remove('tenant_id');
         $request->query->remove('tenant_id');
 
-        // SINGLE-TENANT MODE: Use first available tenant
-        // TODO: Replace with user-based tenant resolution for multi-tenant production
-        $tenantId = TenantKey::oldest('id')->value('id');
+        // Require authenticated user
+        $user = $request->user();
+        if ($user === null) {
+            return response()->json([
+                'message' => __('Unauthenticated.'),
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // Resolve tenant_id from authenticated user
+        $tenantId = $user->tenant_id;
 
         if ($tenantId === null) {
+            // This should never happen due to NOT NULL constraint
+            // but we handle it gracefully for defensive programming
             return response()->json([
-                'message' => __('No tenant keys available. Please ensure at least one tenant key is configured.'),
-            ], Response::HTTP_SERVICE_UNAVAILABLE);
+                'message' => __('User has no assigned tenant. Please contact system administrator.'),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         // Inject tenant_id into request
         $request->merge(['tenant_id' => $tenantId]);
 
         // Set tenant for Spatie Permission (team-based permissions)
-        /** @var int $tenantId PHPStan: value() returns mixed, explicit cast for type safety */
         app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
 
         return $next($request);

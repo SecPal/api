@@ -176,6 +176,7 @@ class EmployeeObserver
                         'email' => $employee->email,
                         'password' => Hash::make(Str::random(32)), // Random password, user must reset
                         'email_verified_at' => null, // Must verify email
+                        'tenant_id' => $employee->tenant_id,
                     ]);
 
                     Log::info('Created new user account for employee', [
