@@ -17,7 +17,7 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * Without this middleware, when a validation error occurs and the request
  * doesn't have 'Accept: application/json', Laravel returns an HTML error page
- * (status 200 with HTML content), which causes frontend parsing errors.
+ * (status 422 with HTML content), which causes frontend parsing errors.
  *
  * This middleware ensures consistent JSON responses for all API endpoints.
  */
