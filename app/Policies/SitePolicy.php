@@ -44,6 +44,11 @@ class SitePolicy
      */
     public function view(User $user, Site $site): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $site->tenant_id) {
+            return false;
+        }
+
         // Permission-based access
         if ($user->can('sites.read')) {
             return true;
@@ -80,6 +85,11 @@ class SitePolicy
      */
     public function update(User $user, Site $site): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $site->tenant_id) {
+            return false;
+        }
+
         // Assigned users can update (must be currently active)
         if ($site->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
@@ -95,6 +105,11 @@ class SitePolicy
      */
     public function delete(User $user, Site $site): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $site->tenant_id) {
+            return false;
+        }
+
         if (! $user->can('sites.delete')) {
             return false;
         }
