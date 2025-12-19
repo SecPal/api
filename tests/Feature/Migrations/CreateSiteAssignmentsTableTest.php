@@ -25,18 +25,15 @@ afterEach(function (): void {
 
 /**
  * Helper function to create test user.
- * Uses shared tenant to avoid creating separate tenant per user.
+ * Reuses first available tenant (parallel-test safe).
  */
 function createSiteTestUser(string $email, ?int $tenantId = null): string
 {
-    static $sharedTenantId = null;
-
     if ($tenantId === null) {
-        if ($sharedTenantId === null) {
-            $sharedTenantId = TenantKey::factory()->create()->id;
-        }
-
-        $tenantId = $sharedTenantId;
+        // Use first available tenant or create one
+        // Each parallel process has its own database instance
+        $tenant = TenantKey::first();
+        $tenantId = $tenant !== null ? $tenant->id : TenantKey::factory()->create()->id;
     }
 
     $userId = Str::uuid()->toString();
