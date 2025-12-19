@@ -148,4 +148,20 @@ describe('InjectTenantId Middleware', function () {
         $content = json_decode($response->getContent(), true);
         expect($content['message'])->toContain('no assigned tenant');
     });
+
+    test('middleware removes tenant_id from request body and query', function () {
+        // Test that middleware explicitly removes tenant_id from both sources
+        $middleware = new InjectTenantId;
+        $request = Request::create('/test?tenant_id=999', 'POST', ['tenant_id' => 888]);
+        $request->setUserResolver(fn () => $this->user);
+
+        $middleware->handle($request, function ($req) {
+            // Verify middleware injected correct tenant_id
+            expect($req->input('tenant_id'))->toBe($this->user->tenant_id);
+            expect($req->input('tenant_id'))->not->toBe(888);
+            expect($req->input('tenant_id'))->not->toBe(999);
+
+            return response()->json(['ok' => true]);
+        });
+    });
 });
