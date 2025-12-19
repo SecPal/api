@@ -35,7 +35,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // This enables session-based auth for requests from stateful domains (localhost:5173, etc.)
         // RestoreSessionFromRememberToken must run AFTER EnsureFrontendRequestsAreStateful
         // to restore sessions from remember tokens when session expires but remember cookie is valid
+        // ForceJsonResponse ensures all API routes return JSON, never HTML (prevents HTML error pages on validation errors)
         $middleware->api(prepend: [
+            \App\Http\Middleware\ForceJsonResponse::class,
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \App\Http\Middleware\RestoreSessionFromRememberToken::class,
         ]);
