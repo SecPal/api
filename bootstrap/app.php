@@ -42,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Apply middleware to all API routes
         $middleware->api(append: [
+            \App\Http\Middleware\InjectTenantId::class,
             \App\Http\Middleware\SetLocaleFromHeader::class,
         ]);
 

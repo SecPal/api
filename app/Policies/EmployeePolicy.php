@@ -44,6 +44,11 @@ class EmployeePolicy
      */
     public function view(User $user, Employee $employee): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
         // Employee can view own profile
         if ($user->id === $employee->user_id) {
             return true;
@@ -84,6 +89,11 @@ class EmployeePolicy
      */
     public function update(User $user, Employee $employee): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
         // Employee can update own profile (limited fields)
         // Note: Field-level restrictions handled in controller/request validation
         if ($user->id === $employee->user_id) {
@@ -101,6 +111,11 @@ class EmployeePolicy
      */
     public function delete(User $user, Employee $employee): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
         return $user->can('employee.write') || $user->can('employee.delete');
     }
 
@@ -111,6 +126,11 @@ class EmployeePolicy
      */
     public function activate(User $user, Employee $employee): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
         return $user->can('employee.write') || $user->can('employee.activate');
     }
 
@@ -121,6 +141,11 @@ class EmployeePolicy
      */
     public function terminate(User $user, Employee $employee): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
         return $user->can('employee.write') || $user->can('employee.terminate');
     }
 }

@@ -42,6 +42,11 @@ class OrganizationalUnitPolicy
      */
     public function view(User $user, OrganizationalUnit $unit): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $unit->tenant_id) {
+            return false;
+        }
+
         return $user->hasAccessToUnit($unit, 'read');
     }
 
@@ -54,6 +59,11 @@ class OrganizationalUnitPolicy
      */
     public function create(User $user, OrganizationalUnit $parent): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $parent->tenant_id) {
+            return false;
+        }
+
         return $user->hasAccessToUnit($parent, 'manage');
     }
 
@@ -64,6 +74,11 @@ class OrganizationalUnitPolicy
      */
     public function update(User $user, OrganizationalUnit $unit): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $unit->tenant_id) {
+            return false;
+        }
+
         return $user->hasAccessToUnit($unit, 'write');
     }
 
@@ -74,6 +89,11 @@ class OrganizationalUnitPolicy
      */
     public function delete(User $user, OrganizationalUnit $unit): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $unit->tenant_id) {
+            return false;
+        }
+
         return $user->hasAccessToUnit($unit, 'admin');
     }
 
