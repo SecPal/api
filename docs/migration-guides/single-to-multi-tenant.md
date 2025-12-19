@@ -548,7 +548,7 @@ protected function setUp(): void
 php artisan tenant:provision "New Customer" "admin@newcustomer.com"
 ```
 
-See [Tenant Provisioning Guide](/api/docs/guides/tenant-provisioning.md) for details.
+See [Tenant Provisioning Guide](/docs/guides/tenant-provisioning.md) for details.
 
 ---
 
@@ -560,7 +560,7 @@ Migration is successful when:
 2. ✅ **Authentication Works:** Existing users can login
 3. ✅ **Tenant Isolation:** User1 cannot see User2's data (different tenants)
 4. ✅ **Performance Maintained:** Query times similar to pre-migration
-5. ✅ **Tests Passing:** All 316+ tests pass (including 45 new tenant isolation tests)
+5. ✅ **Tests Passing:** All 1452 tests pass (including 45 new tenant isolation tests)
 6. ✅ **No Errors:** No "User has no assigned tenant" errors in logs
 7. ✅ **Backward Compatible:** Single-tenant deployments function identically
 
@@ -568,10 +568,10 @@ Migration is successful when:
 
 ## Related Documentation
 
-- [Multi-Tenant Deployment Guide](/api/docs/guides/multi-tenant-deployment.md) - Production setup
-- [Tenant Provisioning Guide](/api/docs/guides/tenant-provisioning.md) - Adding new tenants
-- [RBAC Architecture](/api/docs/rbac-architecture.md) - Tenant-scoped permissions
-- [ADR-008: User-Based Tenant Resolution](/.github/docs/adr/20251219-user-based-tenant-resolution.md) - Architecture decision
+- [Multi-Tenant Deployment Guide](/docs/guides/multi-tenant-deployment.md) - Production setup
+- [Tenant Provisioning Guide](/docs/guides/tenant-provisioning.md) - Adding new tenants
+- [RBAC Architecture](/docs/rbac-architecture.md) - Tenant-scoped permissions
+- [ADR-008: User-Based Tenant Resolution](https://github.com/SecPal/.github/blob/main/docs/adr/20251219-user-based-tenant-resolution.md) - Architecture decision
 - [Epic #357](https://github.com/SecPal/api/issues/357) - Implementation tracking
 
 ---

@@ -16,7 +16,7 @@ SecPal supports **production-ready multi-tenant SaaS deployment** using user-bas
 - ✅ **Tenant-scoped RBAC** (roles and permissions per tenant)
 - ✅ **Independent configuration** (branding, limits, features)
 
-This guide assumes you've already completed the [Production Deployment Guide](/api/docs/deployment.md) for basic setup.
+This guide assumes you've already completed the [Production Deployment Guide](/docs/deployment.md) for basic setup.
 
 ---
 
@@ -71,7 +71,7 @@ This guide assumes you've already completed the [Production Deployment Guide](/a
 
 Before deploying multi-tenant:
 
-1. ✅ Complete [Production Deployment Guide](/api/docs/deployment.md)
+1. ✅ Complete [Production Deployment Guide](/docs/deployment.md)
 2. ✅ PostgreSQL 15+ or 16+ installed and running
 3. ✅ PHP 8.4+ with required extensions
 4. ✅ Composer 2.x installed
@@ -725,10 +725,10 @@ After successful multi-tenant deployment:
 
 ## Related Documentation
 
-- [Production Deployment Guide](/api/docs/deployment.md) - Basic setup
-- [Tenant Provisioning Guide](/api/docs/guides/tenant-provisioning.md) - Customer onboarding
-- [Migration Guide: Single → Multi-Tenant](/api/docs/migration-guides/single-to-multi-tenant.md) - Upgrading existing deployments
-- [RBAC Architecture](/api/docs/rbac-architecture.md) - Tenant-scoped permissions
+- [Production Deployment Guide](/docs/deployment.md) - Basic setup
+- [Tenant Provisioning Guide](/docs/guides/tenant-provisioning.md) - Customer onboarding
+- [Migration Guide: Single → Multi-Tenant](/docs/migration-guides/single-to-multi-tenant.md) - Upgrading existing deployments
+- [RBAC Architecture](/docs/rbac-architecture.md) - Tenant-scoped permissions
 - [ADR-008: User-Based Tenant Resolution](/.github/docs/adr/20251219-user-based-tenant-resolution.md) - Architecture decision
 
 ---

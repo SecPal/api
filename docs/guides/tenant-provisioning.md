@@ -44,7 +44,7 @@ This section is relevant when onboarding **additional customer organizations** i
 
 ### Prerequisites
 
-- ✅ SecPal deployed in multi-tenant mode ([Deployment Guide](/api/docs/guides/multi-tenant-deployment.md))
+- ✅ SecPal deployed in multi-tenant mode ([Deployment Guide](/docs/guides/multi-tenant-deployment.md))
 - ✅ Database migrations completed (`php artisan migrate`)
 - ✅ KEK (Key Encryption Key) generated and secured
 - ✅ SSH access to production server (or admin API access)
@@ -707,9 +707,9 @@ After provisioning:
 
 ## Related Documentation
 
-- [Multi-Tenant Deployment Guide](/api/docs/guides/multi-tenant-deployment.md) - Production setup
-- [Migration Guide: Single → Multi-Tenant](/api/docs/migration-guides/single-to-multi-tenant.md) - Upgrading existing deployments
-- [RBAC Architecture](/api/docs/rbac-architecture.md) - Tenant-scoped permissions
+- [Multi-Tenant Deployment Guide](/docs/guides/multi-tenant-deployment.md) - Production setup
+- [Migration Guide: Single → Multi-Tenant](/docs/migration-guides/single-to-multi-tenant.md) - Upgrading existing deployments
+- [RBAC Architecture](/docs/rbac-architecture.md) - Tenant-scoped permissions
 - [ADR-008: User-Based Tenant Resolution](/.github/docs/adr/20251219-user-based-tenant-resolution.md) - Architecture decision
 
 ---

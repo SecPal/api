@@ -131,7 +131,7 @@ Templates are **organization-wide** in the `SecPal/.github` repository:
 - **Templates:** `SecPal/.github/.github/ISSUE_TEMPLATE/`
   - `epic.yml` - Epic template
   - `sub-issue.yml` - Sub-issue template
-- **Documentation:** `SecPal/api/docs/`
+- **Documentation:** `SecPal/docs/`
   - `EPIC_WORKFLOW.md` - Complete guide
   - `ISSUE50_RETROSPECTIVE.md` - Case study
 - **Quick Reference:** `SecPal/api/DEVELOPMENT.md`
