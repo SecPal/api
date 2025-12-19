@@ -49,6 +49,7 @@ beforeEach(function (): void {
         'sites.read', 'sites.create', 'sites.update', 'sites.delete',
         'customers.read', 'customers.create', 'customers.update', 'customers.delete',
         'employee.read', 'employee.create', 'employee.update', 'employee.delete',
+        'employee.activate', 'employee.terminate',
     ];
 
     foreach ($permissions as $permission) {
@@ -290,6 +291,40 @@ describe('Cross-Tenant Isolation - Employees', function () {
 
         $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
         expect(Employee::find($employee2->id))->not->toBeNull();
+    });
+
+    test('user cannot activate employee from other tenant', function () {
+        $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant2->id]);
+        $employee2 = Employee::factory()->create([
+            'tenant_id' => $this->tenant2->id,
+            'organizational_unit_id' => $orgUnit2->id,
+            'status' => 'pre_contract',
+        ]);
+
+        $response = $this->withToken($this->token1)->postJson("/v1/employees/{$employee2->id}/activate");
+
+        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+
+        // Verify status unchanged
+        $employee2->refresh();
+        expect($employee2->status)->toBe('pre_contract');
+    });
+
+    test('user cannot terminate employee from other tenant', function () {
+        $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant2->id]);
+        $employee2 = Employee::factory()->create([
+            'tenant_id' => $this->tenant2->id,
+            'organizational_unit_id' => $orgUnit2->id,
+            'status' => 'active',
+        ]);
+
+        $response = $this->withToken($this->token1)->postJson("/v1/employees/{$employee2->id}/terminate");
+
+        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+
+        // Verify status unchanged
+        $employee2->refresh();
+        expect($employee2->status)->toBe('active');
     });
 });
 

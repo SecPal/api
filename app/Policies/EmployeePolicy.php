@@ -126,6 +126,11 @@ class EmployeePolicy
      */
     public function activate(User $user, Employee $employee): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
         return $user->can('employee.write') || $user->can('employee.activate');
     }
 
@@ -136,6 +141,11 @@ class EmployeePolicy
      */
     public function terminate(User $user, Employee $employee): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
         return $user->can('employee.write') || $user->can('employee.terminate');
     }
 }
