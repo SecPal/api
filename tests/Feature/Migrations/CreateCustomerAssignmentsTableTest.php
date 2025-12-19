@@ -25,11 +25,21 @@ afterEach(function (): void {
 
 /**
  * Helper function to create test user for customer assignments.
+ * Uses shared tenant to avoid creating separate tenant per user.
  */
-function createCustomerAssignmentTestUser(string $email): string
+function createCustomerAssignmentTestUser(string $email, ?int $tenantId = null): string
 {
+    static $sharedTenantId = null;
+
+    if ($tenantId === null) {
+        if ($sharedTenantId === null) {
+            $sharedTenantId = TenantKey::factory()->create()->id;
+        }
+
+        $tenantId = $sharedTenantId;
+    }
+
     $userId = Str::uuid()->toString();
-    $tenantId = TenantKey::factory()->create()->id;
     DB::table('users')->insert([
         'id' => $userId,
         'name' => 'Test User',
