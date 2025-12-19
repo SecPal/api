@@ -12,6 +12,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **🎉 MAJOR: Production-Ready Multi-Tenant Architecture** (Epic #357)
+  - User-based tenant resolution via `users.tenant_id` foreign key relationship
+  - Every user belongs to exactly ONE tenant (database-enforced with NOT NULL constraint)
+  - `InjectTenantId` middleware updated to resolve tenant from authenticated user
+  - Tenant-scoped RBAC using Spatie Permission's team feature (team_id = tenant_id)
+  - Complete tenant isolation: users can only access data from their assigned tenant
+  - 45+ comprehensive tenant isolation tests validating security boundaries
+  - Zero-downtime migration path for existing deployments (3-step migration process)
+  - **Documentation:**
+    - [ADR-008: User-Based Tenant Resolution](/.github/docs/adr/20251219-user-based-tenant-resolution.md)
+    - [Multi-Tenant Deployment Guide](/docs/guides/multi-tenant-deployment.md)
+    - [Tenant Provisioning Guide](/docs/guides/tenant-provisioning.md)
+    - [Migration Guide: Single → Multi-Tenant](/docs/migration-guides/single-to-multi-tenant.md)
+    - [RBAC Architecture - Multi-Tenant Context](/docs/rbac-architecture.md#0-multi-tenant-context-foundation)
+  - **Related Issues:** #358 (User → Tenant relationship), #359 (InjectTenantId update), #360 (Registration), #361 (Tenant isolation tests)
+
+### Changed
+
+- **BREAKING: User → Tenant Relationship** (Issue #358, Epic #357)
+  - Added `users.tenant_id` foreign key to `tenant_keys` table (NOT NULL)
+  - Migration includes 3-step process: add nullable column → backfill data → make NOT NULL
+  - All existing users automatically assigned to first tenant (backward-compatible for single-tenant deployments)
+  - User model now includes `tenant()` relationship: `$user->tenant`
+  - TenantKey model now includes `users()` relationship: `$tenant->users`
+  - Cascade delete: Deleting tenant deletes all its users
+  - **Migration Files:**
+    - `2025_12_18_193721_add_tenant_id_to_users_table.php`
+    - `2025_12_18_193745_backfill_user_tenant_ids.php`
+    - `2025_12_18_193808_make_user_tenant_id_not_nullable.php`
+
+- **BREAKING: InjectTenantId Middleware - User-Based Resolution** (Issue #359, Epic #357)
+  - Replaced hardcoded `TenantKey::oldest('id')` with user-based resolution: `$user->tenant_id`
+  - Middleware now requires authenticated user (returns 401 for unauthenticated requests to tenant-scoped routes)
+  - Security hardening: Client-provided `tenant_id` parameters (query string or request body) are **always removed**
+  - Sets Spatie Permission team ID: `app(PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id)`
+  - Updated documentation comments from "SINGLE-TENANT DEVELOPMENT MODE" to "PRODUCTION MULTI-TENANT MODE"
+  - **Impact:** All API routes using `tenant.inject` middleware now require authentication and resolve tenant from user
+
+- **BREAKING: Registration/User Creation - Tenant Assignment** (Issue #360, Epic #357)
+  - User registration now requires or auto-assigns `tenant_id`
+  - If no `tenant_id` provided, defaults to first available tenant (MVP behavior)
+  - Admin user creation validates that tenant_id matches admin's tenant (cannot create users in other tenants)
+  - UserFactory updated to include `tenant_id` attribute
+  - DatabaseSeeder updated to explicitly assign users to tenants
+  - **Impact:** Cannot create users without valid tenant_id (FK constraint violation)
+
+- **RBAC Architecture - Tenant-Scoped Permissions** (Epic #357)
+  - All role assignments now tenant-scoped via Spatie Permission's team feature
+  - User with role "Admin" in Tenant 1 ≠ User with role "Admin" in Tenant 2 (separate assignments)
+  - Permission checks automatically scoped to user's tenant
+  - Cross-tenant policy checks return 404 (resource not found in user's tenant)
+  - Updated [RBAC Architecture documentation](/docs/rbac-architecture.md) with Multi-Tenant Context section
+
 ### Security
 
 - **CRITICAL: Fixed tenant_id spoofing vulnerability in InjectTenantId middleware** (PR #356)

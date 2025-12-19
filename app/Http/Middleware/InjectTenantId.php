@@ -42,12 +42,11 @@ class InjectTenantId
         $request->request->remove('tenant_id');
         $request->query->remove('tenant_id');
 
-        // Require authenticated user
+        // Skip injection for unauthenticated requests (auth endpoints)
+        // Auth middleware will handle authentication check if needed
         $user = $request->user();
         if ($user === null) {
-            return response()->json([
-                'message' => __('Unauthenticated.'),
-            ], Response::HTTP_UNAUTHORIZED);
+            return $next($request);
         }
 
         // Resolve tenant_id from authenticated user

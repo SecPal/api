@@ -42,6 +42,11 @@ class CustomerPolicy
      */
     public function view(User $user, Customer $customer): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $customer->tenant_id) {
+            return false;
+        }
+
         // Permission-based access
         if ($user->can('customers.read')) {
             return true;
@@ -81,6 +86,11 @@ class CustomerPolicy
      */
     public function update(User $user, Customer $customer): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $customer->tenant_id) {
+            return false;
+        }
+
         // Assigned users can update (must be currently active)
         if ($customer->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
@@ -97,6 +107,11 @@ class CustomerPolicy
      */
     public function delete(User $user, Customer $customer): bool
     {
+        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
+        if ($user->tenant_id !== $customer->tenant_id) {
+            return false;
+        }
+
         return $user->can('customers.delete');
     }
 }
