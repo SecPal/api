@@ -23,63 +23,182 @@ This document serves as the **single source of truth** for understanding SecPal'
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                          SecPal RBAC System                     │
+│                    (Multi-Tenant Architecture)                  │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌──────┐       ┌─────────┐       ┌─────────────┐             │
-│  │ User │──────▶│  Roles  │──────▶│ Permissions │             │
-│  └──────┘       └─────────┘       └─────────────┘             │
-│      │               │                    ▲                    │
-│      │               │                    │                    │
-│      │           ┌───┴──────────────┐     │                    │
-│      │           │ Temporal         │     │                    │
-│      │           │ Constraints      │     │                    │
-│      │           │ (optional)       │     │                    │
-│      │           └──────────────────┘     │                    │
-│      │                                    │                    │
-│      └────────────────────────────────────┘                    │
-│             Direct Permissions                                  │
-│             (bypass roles)                                      │
+│  ┌──────────┐                                                  │
+│  │  Tenant  │──┐                                               │
+│  └──────────┘  │                                               │
+│        │       │                                               │
+│        ▼       │                                               │
+│  ┌──────┐     │   ┌─────────┐       ┌─────────────┐           │
+│  │ User │─────┴──▶│  Roles  │──────▶│ Permissions │           │
+│  └──────┘         └─────────┘       └─────────────┘           │
+│      │                 │                    ▲                  │
+│      │                 │                    │                  │
+│      │             ┌───┴──────────────┐     │                  │
+│      │             │ Temporal         │     │                  │
+│      │             │ Constraints      │     │                  │
+│      │             │ (optional)       │     │                  │
+│      │             └──────────────────┘     │                  │
+│      │                                      │                  │
+│      └──────────────────────────────────────┘                  │
+│                 Direct Permissions                              │
+│                 (bypass roles)                                  │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 
 Permission Resolution:
 User Permissions = (Role Permissions ∪ Direct Permissions)
                    WHERE role.valid_from <= NOW() <= role.valid_until
+                   AND role.tenant_id = user.tenant_id (tenant-scoped)
+
+Note: All role assignments and permissions are tenant-scoped via Spatie
+      Permission's "team" feature (team_id = tenant_id).
 ```
 
 ### Database Schema Overview
 
 ```text
-users                     model_has_roles                roles
-┌──────────────┐         ┌──────────────────┐         ┌──────────────┐
-│ id           │────┐    │ model_id (FK)    │    ┌───│ id           │
-│ email        │    └───▶│ role_id (FK)     │◀───┘   │ name         │
-│ name         │         │ tenant_id        │         │ guard_name   │
-└──────────────┘         │ valid_from       │         └──────────────┘
-                         │ valid_until      │                │
-                         │ auto_revoke      │                │
-                         │ assigned_by (FK) │                │
-                         │ reason           │                │
-                         └──────────────────┘                │
-                                                             │
-permissions              role_has_permissions                │
-┌──────────────┐         ┌──────────────────┐              │
-│ id           │◀───┐    │ permission_id (FK)│◀─────────────┘
-│ name         │    └────│ role_id (FK)     │
-│ guard_name   │         └──────────────────┘
-└──────────────┘
-        ▲
-        │
-        │               model_has_permissions
-        │               ┌──────────────────┐
-        └───────────────│ permission_id (FK)│
-                        │ model_id (FK)    │
-                        │ model_type       │
-                        └──────────────────┘
-                        Direct Permissions
+tenant_keys                users                    model_has_roles
+┌──────────────┐         ┌──────────────┐         ┌──────────────────┐
+│ id (PK)      │◀────────│ id           │────┐    │ model_id (FK)    │
+│ dek_wrapped  │         │ email        │    └───▶│ role_id (FK)     │
+│ idx_wrapped  │         │ name         │         │ team_id (FK)     │◀──┐
+└──────────────┘         │ tenant_id(FK)│         │ valid_from       │   │
+                         └──────────────┘         │ valid_until      │   │
+                                                  │ auto_revoke      │   │
+                                                  │ assigned_by (FK) │   │
+                                                  │ reason           │   │
+                                                  └──────────────────┘   │
+                                                                         │
+roles                    role_has_permissions                           │
+┌──────────────┐         ┌──────────────────┐                          │
+│ id (PK)      │◀───┐    │ permission_id (FK)│                         │
+│ name         │    └────│ role_id (FK)     │                         │
+│ guard_name   │         │ team_id (FK)     │◀────────────────────────┘
+│ team_id (FK) │         └──────────────────┘
+└──────────────┘         (tenant-scoped)
+
+permissions              model_has_permissions
+┌──────────────┐         ┌──────────────────┐
+│ id (PK)      │◀───┐    │ permission_id(FK)│
+│ name         │    └────│ model_id (FK)    │
+│ guard_name   │         │ model_type       │
+└──────────────┘         │ team_id (FK)     │◀─────────────┐
+                         └──────────────────┘              │
+                         Direct Permissions                │
+                         (tenant-scoped)                   │
+                                                           │
+All Spatie Permission relations use team_id = tenant_id   │
+for multi-tenant isolation ──────────────────────────────┘
 ```
 
 ## Core Concepts
+
+### 0. Multi-Tenant Context (Foundation)
+
+**NEW in v0.5.0:** SecPal now supports **production-ready multi-tenant architecture** (Epic #357), enabling multiple customers (tenants) to share the same infrastructure with complete data isolation.
+
+#### Tenant-Scoped RBAC
+
+All role assignments and permissions are **tenant-scoped** using Spatie Permission's "team" feature:
+
+```php
+// User belongs to a tenant
+$user->tenant_id = 1; // Foreign key to tenant_keys table
+
+// When assigning roles, set team ID (tenant ID)
+app(PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id);
+$user->assignRole('Manager');
+
+// Role assignment is now scoped to tenant 1
+// User with same role in tenant 2 is separate
+```
+
+#### How Tenant Isolation Works
+
+**1. User → Tenant Relationship:**
+
+- Every user belongs to **exactly ONE tenant** (`users.tenant_id` FK)
+- Foreign key constraint enforces referential integrity
+- Cascade delete: Deleting tenant deletes all its users
+
+**2. Middleware Injection:**
+
+- `InjectTenantId` middleware resolves `tenant_id` from authenticated user
+- Sets `$request->tenant_id` and Spatie Permission team ID
+- All controllers use this `tenant_id` for data queries
+
+**3. Spatie Permission Team Integration:**
+
+```php
+// In middleware (app/Http/Middleware/InjectTenantId.php)
+app(PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id);
+
+// Role assignments are now scoped to user's tenant
+// User1 (tenant 1) with role "Manager" ≠ User2 (tenant 2) with role "Manager"
+```
+
+**4. Database-Level Isolation:**
+
+- All models have `tenant_id` column with foreign key constraint
+- Policies enforce `tenant_id` boundaries
+- Cross-tenant access returns 404 (resource not found in user's tenant)
+
+#### Role Assignment Example (Tenant-Scoped)
+
+```php
+// Create two tenants
+$tenant1 = TenantKey::find(1);
+$tenant2 = TenantKey::find(2);
+
+// Create users in different tenants
+$user1 = User::create(['email' => 'admin@tenant1.com', 'tenant_id' => 1]);
+$user2 = User::create(['email' => 'admin@tenant2.com', 'tenant_id' => 2]);
+
+// Assign same role "Admin" to both users (but in different tenants)
+app(PermissionRegistrar::class)->setPermissionsTeamId(1); // Tenant 1
+$user1->assignRole('Admin');
+
+app(PermissionRegistrar::class)->setPermissionsTeamId(2); // Tenant 2
+$user2->assignRole('Admin');
+
+// Result: User1 is Admin in Tenant1, User2 is Admin in Tenant2
+// These are SEPARATE role assignments (different team_id in pivot table)
+```
+
+#### Permission Checking (Tenant-Aware)
+
+```php
+// In controller or policy
+$user = $request->user(); // User from Tenant 1
+
+// Middleware already set team ID to user's tenant
+app(PermissionRegistrar::class)->getPermissionsTeamId(); // Returns 1
+
+// Permission checks automatically scoped to user's tenant
+$user->can('employees.read'); // Checks permissions in Tenant 1 only
+
+// Accessing data from another tenant returns 404
+$employee = Employee::where('tenant_id', 2)->first(); // Tenant 2 employee
+$this->authorize('view', $employee); // Throws NotFoundHttpException (404)
+```
+
+#### Security Guarantees
+
+✅ **User cannot spoof tenant_id:** Middleware removes client-provided values (PR #356)
+✅ **User cannot access other tenant's data:** Policies enforce tenant boundaries
+✅ **Role assignments are tenant-isolated:** Spatie Permission team feature
+✅ **Database-enforced isolation:** Foreign key constraints prevent invalid tenant_id
+
+For detailed multi-tenant architecture documentation, see:
+
+- [ADR-008: User-Based Tenant Resolution](https://github.com/SecPal/.github/blob/main/docs/adr/20251219-user-based-tenant-resolution.md)
+- [Multi-Tenant Deployment Guide](/docs/guides/multi-tenant-deployment.md)
+- [Tenant Provisioning Guide](/docs/guides/tenant-provisioning.md)
+
+---
 
 ### 1. Roles
 
