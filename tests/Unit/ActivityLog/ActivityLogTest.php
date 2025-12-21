@@ -79,7 +79,7 @@ test('hash chain is deterministic', function () {
         'causer_type' => $log->causer_type,
         'causer_id' => $log->causer_id,
         'properties' => $log->properties,
-    ]);
+    ], JSON_THROW_ON_ERROR);
 
     $expectedHash = hash('sha256', ($log->previous_hash ?? '').$logData);
 

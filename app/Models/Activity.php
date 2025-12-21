@@ -29,9 +29,9 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  * @property string|null $log_name
  * @property string $description
  * @property string|null $subject_type
- * @property int|null $subject_id
+ * @property string|null $subject_id
  * @property string|null $causer_type
- * @property int|null $causer_id
+ * @property string|null $causer_id
  * @property array<string, mixed>|null $properties
  * @property string|null $batch_uuid
  * @property string|null $ip_address
@@ -201,10 +201,22 @@ class Activity extends SpatieActivity
      */
     protected function buildHashChain(): void
     {
+        // Validate tenant_id is set
+        if ($this->tenant_id === null) {
+            throw new \RuntimeException('Cannot build hash chain: tenant_id is required.');
+        }
+
         // Find previous log in tenant's chain (including soft-deleted)
+        $query = static::withTrashed()
+            ->where('tenant_id', $this->tenant_id);
+
+        // Exclude current record if it already exists
+        if ($this->exists && $this->getKey() !== null) {
+            $query->whereKeyNot($this->getKey());
+        }
+
         /** @var Activity|null $previousLog */
-        $previousLog = static::withTrashed()
-            ->where('tenant_id', $this->tenant_id)
+        $previousLog = $query
             ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->first();
@@ -212,18 +224,22 @@ class Activity extends SpatieActivity
         $this->previous_hash = $previousLog?->event_hash;
 
         // Calculate event hash: SHA256(previous_hash + log_data)
-        $logData = json_encode([
-            'tenant_id' => $this->tenant_id,
-            'log_name' => $this->log_name,
-            'description' => $this->description,
-            'subject_type' => $this->subject_type,
-            'subject_id' => $this->subject_id,
-            'causer_type' => $this->causer_type,
-            'causer_id' => $this->causer_id,
-            'properties' => $this->properties,
-        ], JSON_THROW_ON_ERROR);
+        try {
+            $logData = json_encode([
+                'tenant_id' => $this->tenant_id,
+                'log_name' => $this->log_name,
+                'description' => $this->description,
+                'subject_type' => $this->subject_type,
+                'subject_id' => $this->subject_id,
+                'causer_type' => $this->causer_type,
+                'causer_id' => $this->causer_id,
+                'properties' => $this->properties,
+            ], JSON_THROW_ON_ERROR);
 
-        $this->event_hash = hash('sha256', ($this->previous_hash ?? '').$logData);
+            $this->event_hash = hash('sha256', ($this->previous_hash ?? '').$logData);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException('Failed to encode activity log data for hashing.', 0, $exception);
+        }
     }
 
     /**
@@ -236,6 +252,11 @@ class Activity extends SpatieActivity
      */
     public function verifyChain(): bool
     {
+        // Validate tenant_id is set
+        if ($this->tenant_id === null) {
+            return false; // Cannot verify chain without tenant_id
+        }
+
         // Orphaned genesis logs are valid (predecessor was legitimately deleted)
         if ($this->is_orphaned_genesis) {
             return true;
