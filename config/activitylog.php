@@ -104,9 +104,8 @@ return [
      * SecPal uses a custom Activity model with hash chain, Merkle tree,
      * and OpenTimestamp extensions.
      *
-     * @see App\Models\Activity (will be created in PR-2)
+     * @see App\Models\Activity
      * @see ADR-010 Section 2: Custom Activity Model with Extensions
-     * @phpstan-ignore class.notFound (Activity model created in PR-2, Issue #387)
      */
     'activity_model' => \App\Models\Activity::class,
 
