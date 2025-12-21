@@ -177,8 +177,6 @@ class ActivityLogService
                 'event' => 'hr_data_accessed',
                 'accessed_fields' => $accessedFields,
                 'reason' => $reason,
-                'subject_type' => get_class($subject),
-                'subject_id' => $subject->getKey(),
             ])
             ->log('Accessed sensitive HR data');
     }
@@ -199,8 +197,6 @@ class ActivityLogService
                 'event' => 'sensitive_data_accessed',
                 'data_type' => $dataType,
                 'reason' => $reason,
-                'subject_type' => get_class($subject),
-                'subject_id' => $subject->getKey(),
             ], $metadata))
             ->log('Accessed sensitive data');
     }

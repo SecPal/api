@@ -158,14 +158,11 @@ class Activity extends SpatieActivity
             // Priority 1: Try to get tenant_id from subject model (for auto-logging via LogsActivity trait)
             // First try to get the subject from the relation (if it's been set by Spatie)
             $subjectModel = null;
-            try {
-                // Try to get the loaded relation first (avoids DB query)
-                if ($activity->relationLoaded('subject')) {
-                    $subjectModel = $activity->getRelation('subject');
-                }
-            } catch (\Exception $e) {
-                // Relation not set, will try DB query below
+            // Try to get the loaded relation first (avoids DB query)
+            if ($activity->relationLoaded('subject')) {
+                $subjectModel = $activity->getRelation('subject');
             }
+            // If relation not loaded, will try DB query below
 
             // If relation not loaded, try to query the database
             if (! $subjectModel && $activity->subject_type && $activity->subject_id) {
