@@ -157,11 +157,14 @@ class Activity extends SpatieActivity
         static::creating(function (Activity $activity) {
             // Priority 1: Try to get tenant_id from subject model (for auto-logging via LogsActivity trait)
             if ($activity->subject_type && $activity->subject_id) {
-                /** @var class-string $subjectType */
+                /** @var class-string<\Illuminate\Database\Eloquent\Model> $subjectType */
                 $subjectType = $activity->subject_type;
                 if (class_exists($subjectType)) {
-                    /** @var \Illuminate\Database\Eloquent\Model|null $subjectModel */
-                    $subjectModel = $subjectType::find($activity->subject_id);
+                    // Use withTrashed() to find soft-deleted models (e.g., during 'deleted' event)
+                    $subjectModel = method_exists($subjectType, 'withTrashed')
+                        ? $subjectType::withTrashed()->find($activity->subject_id) /** @phpstan-ignore method.nonObject */
+                        : $subjectType::find($activity->subject_id);
+
                     if ($subjectModel instanceof \Illuminate\Database\Eloquent\Model) {
                         /** @var mixed $subjectTenantId */
                         $subjectTenantId = $subjectModel->getAttribute('tenant_id');
