@@ -17,7 +17,6 @@ uses(RefreshDatabase::class);
  * Note: Tests use Activity::create() directly instead of activity() helper
  * to avoid Laravel 12 UUID polymorphic morph binding issues in test environment.
  */
-
 beforeEach(function () {
     $this->tenant = TenantKey::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);

@@ -11,7 +11,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity as SpatieActivity;
 
 /**
@@ -187,7 +186,6 @@ class Activity extends SpatieActivity
     /**
      * Get security level for log type.
      *
-     * @param  string  $logName
      * @return int Security level (1, 2, or 3)
      */
     public static function getSecurityLevel(string $logName): int
