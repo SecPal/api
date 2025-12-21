@@ -325,19 +325,25 @@ test('merkle proof returns false without data', function () {
     expect($log->verifyMerkleProof())->toBeFalse();
 });
 
-test('merkle proof placeholder returns true with data', function () {
+test('merkle proof verifies with valid proof via batch job', function () {
     $this->actingAs($this->user);
 
-    $log = Activity::create([
+    // Create Level 2 logs that will get batched
+    $logs = collect(range(1, 2))->map(fn ($i) => Activity::create([
         'tenant_id' => $this->tenant->id,
-        'log_name' => 'authentication',
-        'description' => 'Test log',
-        'merkle_root' => hash('sha256', 'root'),
-        'merkle_proof' => [['hash' => hash('sha256', 'sibling'), 'position' => 'left']],
-    ]);
+        'log_name' => 'authentication', // Level 2
+        'description' => "Test log {$i}",
+    ]));
 
-    // Placeholder implementation returns true
-    expect($log->verifyMerkleProof())->toBeTrue();
+    // Build Merkle tree via job
+    $job = new \App\Jobs\BuildMerkleTreeBatch();
+    $job->handle();
+
+    // Verify proofs work
+    $logs->each(function ($log) {
+        $log->refresh();
+        expect($log->verifyMerkleProof())->toBeTrue();
+    });
 });
 
 // ============================================================================

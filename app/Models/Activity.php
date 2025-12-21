@@ -228,6 +228,16 @@ class Activity extends SpatieActivity
     }
 
     /**
+     * Get all configured security levels.
+     *
+     * @return array<string, int> Mapping of log_name => security_level
+     */
+    public static function getSecurityLevels(): array
+    {
+        return self::$securityLevels;
+    }
+
+    /**
      * Build hash chain by linking to previous log.
      *
      * Calculates SHA256 hash of current log data concatenated with
@@ -341,24 +351,46 @@ class Activity extends SpatieActivity
      * Verify Merkle proof for this log.
      *
      * Validates that this log's event_hash is part of the Merkle tree
-     * with root stored in merkle_root. Stub implementation - full logic
-     * will be implemented in PR-5.
+     * with root stored in merkle_root. Iterates through sibling hashes
+     * in the proof, hashing left/right according to position, and compares
+     * the final computed hash with the stored merkle_root.
      *
      * @return bool True if proof is valid, false otherwise
      */
     public function verifyMerkleProof(): bool
     {
-        // Stub: Will be implemented in PR-5 (Merkle proof verification)
         if (! $this->merkle_root || ! $this->merkle_proof) {
             return false; // No Merkle data available
         }
 
-        // TODO: Implement Merkle proof verification algorithm
-        // - Iterate through proof siblings
-        // - Hash left/right according to position
-        // - Compare final hash with merkle_root
+        // Start with leaf hash (this log's event_hash)
+        $currentHash = $this->event_hash;
 
-        return true; // Placeholder
+        // Iterate through proof siblings, hashing up the tree
+        foreach ($this->merkle_proof as $sibling) {
+            if (! is_array($sibling)) {
+                return false; // Invalid proof format
+            }
+
+            $siblingHash = $sibling['hash'] ?? null;
+            $position = $sibling['position'] ?? null;
+
+            if (! is_string($siblingHash) || ! is_string($position)) {
+                return false; // Invalid proof format
+            }
+
+            // Hash with sibling according to position
+            if ($position === 'left') {
+                // Sibling is on left: hash(sibling + current)
+                $currentHash = hash('sha256', $siblingHash.$currentHash);
+            } else {
+                // Sibling is on right: hash(current + sibling)
+                $currentHash = hash('sha256', $currentHash.$siblingHash);
+            }
+        }
+
+        // Compare computed root with stored root
+        return $currentHash === $this->merkle_root;
     }
 
     /**
