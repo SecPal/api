@@ -156,7 +156,19 @@ class Activity extends SpatieActivity
     {
         static::creating(function (Activity $activity) {
             // Priority 1: Try to get tenant_id from subject model (for auto-logging via LogsActivity trait)
-            if ($activity->subject_type && $activity->subject_id) {
+            // First try to get the subject from the relation (if it's been set by Spatie)
+            $subjectModel = null;
+            try {
+                // Try to get the loaded relation first (avoids DB query)
+                if ($activity->relationLoaded('subject')) {
+                    $subjectModel = $activity->getRelation('subject');
+                }
+            } catch (\Exception $e) {
+                // Relation not set, will try DB query below
+            }
+
+            // If relation not loaded, try to query the database
+            if (! $subjectModel && $activity->subject_type && $activity->subject_id) {
                 /** @var class-string<\Illuminate\Database\Eloquent\Model> $subjectType */
                 $subjectType = $activity->subject_type;
                 if (class_exists($subjectType)) {
@@ -164,14 +176,15 @@ class Activity extends SpatieActivity
                     $subjectModel = method_exists($subjectType, 'withTrashed')
                         ? $subjectType::withTrashed()->find($activity->subject_id) /** @phpstan-ignore method.nonObject */
                         : $subjectType::find($activity->subject_id);
+                }
+            }
 
-                    if ($subjectModel instanceof \Illuminate\Database\Eloquent\Model) {
-                        /** @var mixed $subjectTenantId */
-                        $subjectTenantId = $subjectModel->getAttribute('tenant_id');
-                        if (is_int($subjectTenantId)) {
-                            $activity->tenant_id = $subjectTenantId;
-                        }
-                    }
+            // Now extract tenant_id from the subject model
+            if ($subjectModel instanceof \Illuminate\Database\Eloquent\Model) {
+                /** @var mixed $subjectTenantId */
+                $subjectTenantId = $subjectModel->getAttribute('tenant_id');
+                if (is_int($subjectTenantId)) {
+                    $activity->tenant_id = $subjectTenantId;
                 }
             }
 
