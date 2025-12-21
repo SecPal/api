@@ -135,6 +135,8 @@ class Activity extends SpatieActivity
         'authentication' => 2,
         'rbac_changes' => 2,
         'scope_changes' => 2,
+        'customer_changes' => 2,
+        'site_management' => 2,
 
         // Level 3: Legal-Critical (7 years)
         'hr_access' => 3,
@@ -153,10 +155,42 @@ class Activity extends SpatieActivity
     protected static function booted(): void
     {
         static::creating(function (Activity $activity) {
-            // Auto-inject tenant_id from authenticated user
-            if (auth()->check() && auth()->user() !== null && ! $activity->tenant_id) {
+            // Priority 1: Try to get tenant_id from subject model (for auto-logging via LogsActivity trait)
+            // First try to get the subject from the relation (if it's been set by Spatie)
+            $subjectModel = null;
+            // Try to get the loaded relation first (avoids DB query)
+            if ($activity->relationLoaded('subject')) {
+                $subjectModel = $activity->getRelation('subject');
+            }
+            // If relation not loaded, will try DB query below
+
+            // If relation not loaded, try to query the database
+            if (! $subjectModel && $activity->subject_type && $activity->subject_id) {
+                /** @var class-string<\Illuminate\Database\Eloquent\Model> $subjectType */
+                $subjectType = $activity->subject_type;
+                if (class_exists($subjectType)) {
+                    // Use withTrashed() to find soft-deleted models (e.g., during 'deleted' event)
+                    $subjectModel = method_exists($subjectType, 'withTrashed')
+                        ? $subjectType::withTrashed()->find($activity->subject_id) /** @phpstan-ignore method.nonObject */
+                        : $subjectType::find($activity->subject_id);
+                }
+            }
+
+            // Now extract tenant_id from the subject model
+            if ($subjectModel instanceof \Illuminate\Database\Eloquent\Model) {
+                /** @var mixed $subjectTenantId */
+                $subjectTenantId = $subjectModel->getAttribute('tenant_id');
+                if (is_int($subjectTenantId)) {
+                    $activity->tenant_id = $subjectTenantId;
+                }
+            }
+
+            // Priority 2: Fall back to authenticated user if tenant_id still not set
+            /** @var \Illuminate\Contracts\Auth\Guard|\Illuminate\Contracts\Auth\StatefulGuard $guard */
+            $guard = auth();
+            if (! $activity->tenant_id && $guard->check() && $guard->user() !== null) {
                 /** @var User $user */
-                $user = auth()->user();
+                $user = $guard->user();
                 $activity->tenant_id = $user->tenant_id;
             }
 

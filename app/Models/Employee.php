@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
  * Employee model for HR management.
@@ -89,7 +91,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Employee extends Model
 {
     /** @use HasFactory<\Database\Factories\EmployeeFactory> */
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasUuids, LogsActivity, SoftDeletes;
 
     /** Status constants */
     public const STATUS_APPLICANT = 'applicant';
@@ -214,6 +216,33 @@ class Employee extends Model
             'onboarding_started_at' => 'datetime',
             'onboarding_completed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Configure activity logging.
+     *
+     * Logs employee changes (Level 1: employee_changes).
+     * Tracks: employee_number, status, email, phone, contract dates, user account status.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'employee_number',
+                'status',
+                'email',
+                'phone',
+                'contract_type',
+                'hire_date',
+                'contract_start_date',
+                'termination_date',
+                'last_working_day',
+                'user_account_active',
+                'organizational_unit_id',
+            ])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('employee_changes');
     }
 
     // === RELATIONSHIPS ===

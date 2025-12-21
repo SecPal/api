@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
  * Customer model representing external customer organizations.
@@ -52,7 +54,7 @@ use Illuminate\Support\Facades\DB;
 class Customer extends Model
 {
     /** @use HasFactory<\Database\Factories\CustomerFactory> */
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasUuids, LogsActivity, SoftDeletes;
 
     /**
      * The table associated with the model.
@@ -94,6 +96,27 @@ class Customer extends Model
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Configure activity logging.
+     *
+     * Logs customer changes (Level 2: customer_changes).
+     * Tracks: customer_number, name, billing_address, contact, is_active.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'customer_number',
+                'name',
+                'billing_address',
+                'contact',
+                'is_active',
+            ])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('customer_changes');
     }
 
     /**
