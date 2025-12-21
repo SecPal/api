@@ -311,7 +311,9 @@ class SiteTest extends TestCase
 
     public function test_site_can_be_soft_deleted(): void
     {
-        $site = Site::factory()->create();
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
         $siteId = $site->id;
 
         $site->delete();

@@ -194,7 +194,9 @@ class CustomerTest extends TestCase
 
     public function test_customer_can_be_soft_deleted(): void
     {
-        $customer = Customer::factory()->create();
+        $customer = Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
         $customerId = $customer->id;
 
         $customer->delete();
