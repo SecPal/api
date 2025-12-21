@@ -135,6 +135,8 @@ class Activity extends SpatieActivity
         'authentication' => 2,
         'rbac_changes' => 2,
         'scope_changes' => 2,
+        'customer_changes' => 2,
+        'site_management' => 2,
 
         // Level 3: Legal-Critical (7 years)
         'hr_access' => 3,
@@ -153,8 +155,25 @@ class Activity extends SpatieActivity
     protected static function booted(): void
     {
         static::creating(function (Activity $activity) {
-            // Auto-inject tenant_id from authenticated user
-            if (auth()->check() && auth()->user() !== null && ! $activity->tenant_id) {
+            // Priority 1: Try to get tenant_id from subject model (for auto-logging via LogsActivity trait)
+            if ($activity->subject_type && $activity->subject_id) {
+                /** @var class-string $subjectType */
+                $subjectType = $activity->subject_type;
+                if (class_exists($subjectType)) {
+                    /** @var \Illuminate\Database\Eloquent\Model|null $subjectModel */
+                    $subjectModel = $subjectType::find($activity->subject_id);
+                    if ($subjectModel instanceof \Illuminate\Database\Eloquent\Model) {
+                        /** @var mixed $subjectTenantId */
+                        $subjectTenantId = $subjectModel->getAttribute('tenant_id');
+                        if (is_int($subjectTenantId)) {
+                            $activity->tenant_id = $subjectTenantId;
+                        }
+                    }
+                }
+            }
+
+            // Priority 2: Fall back to authenticated user if tenant_id still not set
+            if (! $activity->tenant_id && auth()->check() && auth()->user() !== null) {
                 /** @var User $user */
                 $user = auth()->user();
                 $activity->tenant_id = $user->tenant_id;

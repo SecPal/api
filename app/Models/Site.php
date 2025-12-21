@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
  * Site model representing physical locations where services are provided.
@@ -66,7 +68,7 @@ use Illuminate\Support\Facades\DB;
 class Site extends Model
 {
     /** @use HasFactory<\Database\Factories\SiteFactory> */
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasFactory, HasUuids, LogsActivity, SoftDeletes;
 
     /**
      * The table associated with the model.
@@ -116,6 +118,32 @@ class Site extends Model
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Configure activity logging.
+     *
+     * Logs site changes (Level 2: site_management).
+     * Tracks: site_number, name, type, address, contact, is_active, valid_from, valid_until.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'site_number',
+                'name',
+                'type',
+                'address',
+                'contact',
+                'access_instructions',
+                'is_active',
+                'valid_from',
+                'valid_until',
+                'organizational_unit_id',
+            ])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('site_management');
     }
 
     /**
