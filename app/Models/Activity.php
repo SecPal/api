@@ -189,9 +189,11 @@ class Activity extends SpatieActivity
             }
 
             // Priority 2: Fall back to authenticated user if tenant_id still not set
-            if (! $activity->tenant_id && auth()->check() && auth()->user() !== null) {
+            /** @var \Illuminate\Contracts\Auth\Guard|\Illuminate\Contracts\Auth\StatefulGuard $guard */
+            $guard = auth();
+            if (! $activity->tenant_id && $guard->check() && $guard->user() !== null) {
                 /** @var User $user */
-                $user = auth()->user();
+                $user = $guard->user();
                 $activity->tenant_id = $user->tenant_id;
             }
 
