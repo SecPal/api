@@ -46,8 +46,8 @@ return new class extends Migration
             // 📝 Spatie Activity Log Core Fields
             $table->string('log_name')->nullable();
             $table->text('description');
-            $table->nullableMorphs('subject', 'subject');
-            $table->nullableMorphs('causer', 'causer');
+            $table->nullableUuidMorphs('subject', 'subject');
+            $table->nullableUuidMorphs('causer', 'causer');
             $table->json('properties')->nullable();
             $table->uuid('batch_uuid')->nullable();
 
