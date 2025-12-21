@@ -37,7 +37,9 @@ return new class extends Migration
             $table->id();
 
             // 🔐 Tenant + Organizational Scope Isolation
-            $table->unsignedBigInteger('tenant_id');
+            $table->foreignId('tenant_id')
+                ->constrained('tenant_keys')
+                ->cascadeOnDelete();
             $table->foreignUuid('organizational_unit_id')->nullable()
                 ->constrained('organizational_units')->nullOnDelete();
 
@@ -59,7 +61,7 @@ return new class extends Migration
 
             // 🌳 Merkle Tree (batch verification)
             $table->string('merkle_root', 64)->nullable();
-            $table->unsignedBigInteger('merkle_batch_id')->nullable()->index();
+            $table->uuid('merkle_batch_id')->nullable()->index();
             $table->json('merkle_proof')->nullable();
 
             // ⏱️ OpenTimestamp (Bitcoin anchoring)

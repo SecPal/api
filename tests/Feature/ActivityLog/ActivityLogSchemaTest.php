@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Tests\Feature\ActivityLog;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -77,6 +78,10 @@ final class ActivityLogSchemaTest extends TestCase
             'merkle_batch_id',
             'merkle_proof',
         ]))->toBeTrue();
+
+        // Validate merkle_batch_id is uuid type
+        $columns = DB::select('SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ? AND column_name = ?', ['activity_log', 'merkle_batch_id']);
+        expect($columns[0]->data_type)->toBe('uuid');
     }
 
     /**
@@ -134,6 +139,10 @@ final class ActivityLogSchemaTest extends TestCase
             'merkle_root',
             'merkle_batch_id',
         ]))->toBeTrue();
+
+        // Validate merkle_batch_id is uuid type in archive
+        $columns = DB::select('SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ? AND column_name = ?', ['activity_log_archive', 'merkle_batch_id']);
+        expect($columns[0]->data_type)->toBe('uuid');
     }
 
     /**

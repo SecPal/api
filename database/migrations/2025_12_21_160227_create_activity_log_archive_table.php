@@ -36,21 +36,26 @@ return new class extends Migration
             $table->uuid('id')->primary();
 
             // 🔐 Tenant Isolation (required for scoped access)
-            $table->unsignedBigInteger('tenant_id')->index();
+            $table->foreignId('tenant_id')
+                ->constrained('tenant_keys')
+                ->cascadeOnDelete();
 
             // 📝 Minimal Metadata (log type only)
-            $table->string('log_name');
+            $table->string('log_name')->nullable();
 
             // ⏰ Timestamp (for retention policy enforcement)
-            $table->timestamp('created_at');
+            $table->timestamp('created_at')->index();
 
             // 🔗 Hash Chain (for integrity verification)
-            $table->string('event_hash', 64);
+            $table->string('event_hash', 64)->nullable();
             $table->string('previous_hash', 64)->nullable();
 
             // 🌳 Merkle Tree (for batch verification)
             $table->string('merkle_root', 64)->nullable();
-            $table->unsignedBigInteger('merkle_batch_id')->nullable();
+            $table->uuid('merkle_batch_id')->nullable();
+
+            // Performance: Composite index for tenant-scoped time-range queries
+            $table->index(['tenant_id', 'created_at']);
 
             // NO properties, subject, causer, description (GDPR compliance!)
             // NO timestamps() - immutable archive, only created_at needed
