@@ -104,6 +104,7 @@ class BuildMerkleTreeBatch implements ShouldQueue
             ->whereNull('merkle_root')
             ->whereIn('log_name', $logNames)
             ->orderBy('created_at')
+            ->orderBy('id') // Secondary sort for deterministic order
             ->get();
 
         if ($logs->isEmpty()) {
