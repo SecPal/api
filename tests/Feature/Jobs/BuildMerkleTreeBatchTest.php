@@ -11,7 +11,10 @@ use App\Jobs\BuildMerkleTreeBatch;
 use App\Models\Activity;
 use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->tenant = TenantKey::factory()->create();
