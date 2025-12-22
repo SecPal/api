@@ -25,4 +25,4 @@ Schedule::command('employees:send-contract-ending-notifications')->dailyAt('08:0
 
 // Schedule: Build Merkle trees for Level 2+3 activity logs hourly
 // See ADR-010 Phase 2: Merkle Tree Building
-Schedule::job(new \App\Jobs\BuildMerkleTreeBatch)->hourly()->name('merkle-tree-batch');
+Schedule::job(\App\Jobs\BuildMerkleTreeBatch::class)->hourly()->name('merkle-tree-batch');

@@ -77,6 +77,12 @@ test('merkle tree handles odd number of leaves correctly', function () {
 
     // Verify Merkle root is deterministic (duplicate last leaf)
     expect($logs->pluck('merkle_root')->unique())->toHaveCount(1);
+
+    // Verify Merkle proofs are valid (critical for odd-leaf case)
+    $logs->each(function ($log) {
+        $log->refresh();
+        expect($log->verifyMerkleProof())->toBeTrue();
+    });
 });
 
 test('merkle proof verifies correctly after batching', function () {

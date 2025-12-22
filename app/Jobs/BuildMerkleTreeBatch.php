@@ -27,7 +27,7 @@ use Illuminate\Support\Str;
  * - Stores merkle_root, merkle_batch_id, merkle_proof
  * - Dispatches OpenTimestamp submission for Level 3
  *
- * Scheduled hourly for Level 2, daily for Level 3 (configurable).
+ * Scheduled hourly for Level 2+3 activity logs (configurable via console schedule).
  *
  * @see ADR-010 Section 4: Merkle Tree Building
  * @see Issue #389 PR-4: Implement BuildMerkleTreeBatch job
@@ -143,7 +143,7 @@ class BuildMerkleTreeBatch implements ShouldQueue
                 $tenantId,
                 $batchId,
                 $tree['root']
-            ))->onQueue('opentimestamp');
+            ));
         }
     }
 
@@ -226,8 +226,12 @@ class BuildMerkleTreeBatch implements ShouldQueue
                     }
                 }
 
-                // Merge leaf indices for next level
-                $nextMapping[] = array_merge($leftLeafIndices, $rightLeafIndices);
+                // Merge leaf indices for next level, avoiding duplicates when the right child is duplicated
+                if (isset($currentLevel[$i + 1])) {
+                    $nextMapping[] = array_merge($leftLeafIndices, $rightLeafIndices);
+                } else {
+                    $nextMapping[] = $leftLeafIndices;
+                }
             }
 
             $currentLevel = $nextLevel;
