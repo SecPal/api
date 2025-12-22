@@ -336,7 +336,7 @@ test('merkle proof verifies with valid proof via batch job', function () {
     ]));
 
     // Build Merkle tree via job
-    $job = new \App\Jobs\BuildMerkleTreeBatch();
+    $job = new \App\Jobs\BuildMerkleTreeBatch;
     $job->handle();
 
     // Verify proofs work
