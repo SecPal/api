@@ -203,6 +203,20 @@ class Activity extends SpatieActivity
                 }
             }
 
+            // Validate organizational_unit_id belongs to same tenant (Issue #402)
+            if ($activity->organizational_unit_id !== null) {
+                /** @var OrganizationalUnit|null $orgUnit */
+                $orgUnit = OrganizationalUnit::find($activity->organizational_unit_id);
+
+                if ($orgUnit === null) {
+                    throw new \InvalidArgumentException('Organizational unit does not exist.');
+                }
+
+                if ($orgUnit->tenant_id !== $activity->tenant_id) {
+                    throw new \InvalidArgumentException('Organizational unit does not belong to activity tenant.');
+                }
+            }
+
             // Capture request metadata
             if (! $activity->ip_address && request()->ip()) {
                 $activity->ip_address = request()->ip();
@@ -242,6 +256,9 @@ class Activity extends SpatieActivity
      *
      * Calculates SHA256 hash of current log data concatenated with
      * previous log's event_hash. Genesis logs have null previous_hash.
+     *
+     * Uses pessimistic locking to prevent race conditions when multiple
+     * logs are created concurrently (Issue #402).
      */
     protected function buildHashChain(): void
     {
@@ -251,8 +268,10 @@ class Activity extends SpatieActivity
         }
 
         // Find previous log in tenant's chain (including soft-deleted)
+        // Use lockForUpdate() to prevent race conditions (Issue #402)
         $query = static::withTrashed()
-            ->where('tenant_id', $this->tenant_id);
+            ->where('tenant_id', $this->tenant_id)
+            ->lockForUpdate(); // Pessimistic locking for concurrency safety
 
         // Exclude current record if it already exists
         if ($this->exists && $this->getKey() !== null) {

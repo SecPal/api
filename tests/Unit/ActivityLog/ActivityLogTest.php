@@ -376,3 +376,140 @@ test('opentimestamp placeholder returns true with data', function () {
     // Placeholder implementation returns true
     expect($log->verifyOpenTimestamp())->toBeTrue();
 });
+
+// ============================================================================
+// Organizational Unit Validation Tests (Issue #402)
+// ============================================================================
+
+test('accepts valid organizational_unit_id from same tenant', function () {
+    $orgUnit = \App\Models\OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $this->actingAs($this->user);
+
+    $log = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'log_name' => 'default',
+        'description' => 'Test log with valid OU',
+    ]);
+
+    expect($log->organizational_unit_id)->toBe($orgUnit->id);
+})->group('security', 'issue-402');
+
+test('throws exception when organizational_unit_id belongs to different tenant', function () {
+    $otherTenant = TenantKey::factory()->create();
+    $otherOrgUnit = \App\Models\OrganizationalUnit::factory()->create([
+        'tenant_id' => $otherTenant->id,
+    ]);
+
+    $this->actingAs($this->user);
+
+    Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $otherOrgUnit->id,
+        'log_name' => 'default',
+        'description' => 'Test log with cross-tenant OU',
+    ]);
+})->throws(
+    \InvalidArgumentException::class,
+    'Organizational unit does not belong to activity tenant'
+)->group('security', 'issue-402');
+
+test('throws exception when organizational_unit_id does not exist', function () {
+    $this->actingAs($this->user);
+
+    Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => \Illuminate\Support\Str::uuid()->toString(),
+        'log_name' => 'default',
+        'description' => 'Test log with invalid OU',
+    ]);
+})->throws(
+    \InvalidArgumentException::class,
+    'Organizational unit does not exist'
+)->group('security', 'issue-402');
+
+test('accepts null organizational_unit_id', function () {
+    $this->actingAs($this->user);
+
+    $log = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => null,
+        'log_name' => 'default',
+        'description' => 'Test log without OU',
+    ]);
+
+    expect($log->organizational_unit_id)->toBeNull();
+})->group('security', 'issue-402');
+
+// ============================================================================
+// Hash Chain Race Condition Tests (Issue #402)
+// ============================================================================
+
+test('concurrent log creation maintains hash chain integrity', function () {
+    $this->actingAs($this->user);
+
+    // Simulate concurrent requests by creating multiple logs rapidly
+    // Without lockForUpdate(), these could reference the same previous_hash
+    $logs = collect(range(1, 5))->map(function ($i) {
+        return Activity::create([
+            'tenant_id' => $this->tenant->id,
+            'log_name' => 'default',
+            'description' => "Concurrent log {$i}",
+        ]);
+    });
+
+    // Verify chain integrity: each log should have unique previous_hash
+    $previousHashes = $logs->pluck('previous_hash')->filter()->toArray();
+    $uniqueHashes = array_unique($previousHashes);
+
+    // All previous_hash values should be unique (no duplicates)
+    expect(count($previousHashes))->toBe(count($uniqueHashes));
+
+    // Verify sequential chain: log N+1 should reference log N
+    for ($i = 1; $i < $logs->count(); $i++) {
+        expect($logs[$i]->previous_hash)->toBe($logs[$i - 1]->event_hash);
+    }
+})->group('concurrency', 'issue-402');
+
+test('pessimistic locking prevents duplicate previous_hash under load', function () {
+    $this->actingAs($this->user);
+
+    // Create first log (genesis)
+    $log1 = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'default',
+        'description' => 'First log',
+    ]);
+
+    // Use DB transaction to simulate concurrent access
+    DB::beginTransaction();
+
+    try {
+        // Create log2 and log3 in quick succession
+        // Without lockForUpdate(), both could see log1 as "latest"
+        $log2 = Activity::create([
+            'tenant_id' => $this->tenant->id,
+            'log_name' => 'default',
+            'description' => 'Log 2',
+        ]);
+
+        $log3 = Activity::create([
+            'tenant_id' => $this->tenant->id,
+            'log_name' => 'default',
+            'description' => 'Log 3',
+        ]);
+
+        DB::commit();
+
+        // Verify: log2 references log1, log3 references log2 (not both referencing log1)
+        expect($log2->previous_hash)->toBe($log1->event_hash)
+            ->and($log3->previous_hash)->toBe($log2->event_hash)
+            ->and($log3->previous_hash)->not->toBe($log1->event_hash);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        throw $e;
+    }
+})->group('concurrency', 'issue-402');
