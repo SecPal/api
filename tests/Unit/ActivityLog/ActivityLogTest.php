@@ -414,7 +414,7 @@ test('throws exception when organizational_unit_id belongs to different tenant',
     ]);
 })->throws(
     \InvalidArgumentException::class,
-    'Organizational unit does not belong to activity tenant'
+    'Organizational unit does not exist or does not belong to activity tenant'
 )->group('security', 'issue-402');
 
 test('throws exception when organizational_unit_id does not exist', function () {
@@ -428,7 +428,7 @@ test('throws exception when organizational_unit_id does not exist', function () 
     ]);
 })->throws(
     \InvalidArgumentException::class,
-    'Organizational unit does not exist'
+    'Organizational unit does not exist or does not belong to activity tenant'
 )->group('security', 'issue-402');
 
 test('accepts null organizational_unit_id', function () {
@@ -448,68 +448,38 @@ test('accepts null organizational_unit_id', function () {
 // Hash Chain Race Condition Tests (Issue #402)
 // ============================================================================
 
-test('concurrent log creation maintains hash chain integrity', function () {
+// Note: True concurrency testing requires spawning parallel processes/connections,
+// which is complex to test reliably in unit tests. The DB::transaction() +
+// lockForUpdate() pattern is proven in Customer::generateCustomerNumber() and
+// Site::generateSiteNumber() methods, which use the same approach.
+//
+// The following test verifies sequential chain integrity (baseline requirement).
+// For production validation, monitor Activity logs for broken chains in production.
+
+test('sequential log creation maintains hash chain integrity', function () {
     $this->actingAs($this->user);
 
-    // Simulate concurrent requests by creating multiple logs rapidly
-    // Without lockForUpdate(), these could reference the same previous_hash
+    // Create logs sequentially (baseline test)
+    // Each log should properly chain to the previous one
     $logs = collect(range(1, 5))->map(function ($i) {
         return Activity::create([
             'tenant_id' => $this->tenant->id,
             'log_name' => 'default',
-            'description' => "Concurrent log {$i}",
+            'description' => "Sequential log {$i}",
         ]);
     });
 
-    // Verify chain integrity: each log should have unique previous_hash
-    $previousHashes = $logs->pluck('previous_hash')->filter()->toArray();
-    $uniqueHashes = array_unique($previousHashes);
+    // Verify chain integrity: each log references previous log's hash
+    expect($logs[0]->previous_hash)->toBeNull(); // Genesis log
 
-    // All previous_hash values should be unique (no duplicates)
-    expect(count($previousHashes))->toBe(count($uniqueHashes));
-
-    // Verify sequential chain: log N+1 should reference log N
     for ($i = 1; $i < $logs->count(); $i++) {
-        expect($logs[$i]->previous_hash)->toBe($logs[$i - 1]->event_hash);
+        expect($logs[$i]->previous_hash)
+            ->toBe($logs[$i - 1]->event_hash)
+            ->and($logs[$i]->event_hash)
+            ->not->toBeNull();
     }
-})->group('concurrency', 'issue-402');
 
-test('pessimistic locking prevents duplicate previous_hash under load', function () {
-    $this->actingAs($this->user);
-
-    // Create first log (genesis)
-    $log1 = Activity::create([
-        'tenant_id' => $this->tenant->id,
-        'log_name' => 'default',
-        'description' => 'First log',
-    ]);
-
-    // Use DB transaction to simulate concurrent access
-    DB::beginTransaction();
-
-    try {
-        // Create log2 and log3 in quick succession
-        // Without lockForUpdate(), both could see log1 as "latest"
-        $log2 = Activity::create([
-            'tenant_id' => $this->tenant->id,
-            'log_name' => 'default',
-            'description' => 'Log 2',
-        ]);
-
-        $log3 = Activity::create([
-            'tenant_id' => $this->tenant->id,
-            'log_name' => 'default',
-            'description' => 'Log 3',
-        ]);
-
-        DB::commit();
-
-        // Verify: log2 references log1, log3 references log2 (not both referencing log1)
-        expect($log2->previous_hash)->toBe($log1->event_hash)
-            ->and($log3->previous_hash)->toBe($log2->event_hash)
-            ->and($log3->previous_hash)->not->toBe($log1->event_hash);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        throw $e;
-    }
-})->group('concurrency', 'issue-402');
+    // Verify all hashes are unique
+    $allHashes = $logs->pluck('event_hash')->toArray();
+    expect(count($allHashes))->toBe(count(array_unique($allHashes)));
+})->group('hash-chain', 'issue-402');

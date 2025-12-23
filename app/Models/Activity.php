@@ -11,6 +11,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity as SpatieActivity;
 
 /**
@@ -205,15 +206,15 @@ class Activity extends SpatieActivity
 
             // Validate organizational_unit_id belongs to same tenant (Issue #402)
             if ($activity->organizational_unit_id !== null) {
-                /** @var OrganizationalUnit|null $orgUnit */
-                $orgUnit = OrganizationalUnit::find($activity->organizational_unit_id);
+                $ouExists = OrganizationalUnit::query()
+                    ->where('id', $activity->organizational_unit_id)
+                    ->where('tenant_id', $activity->tenant_id)
+                    ->exists();
 
-                if ($orgUnit === null) {
-                    throw new \InvalidArgumentException('Organizational unit does not exist.');
-                }
-
-                if ($orgUnit->tenant_id !== $activity->tenant_id) {
-                    throw new \InvalidArgumentException('Organizational unit does not belong to activity tenant.');
+                if (! $ouExists) {
+                    throw new \InvalidArgumentException(
+                        'Organizational unit does not exist or does not belong to activity tenant.'
+                    );
                 }
             }
 
@@ -257,8 +258,11 @@ class Activity extends SpatieActivity
      * Calculates SHA256 hash of current log data concatenated with
      * previous log's event_hash. Genesis logs have null previous_hash.
      *
-     * Uses pessimistic locking to prevent race conditions when multiple
-     * logs are created concurrently (Issue #402).
+     * Uses PostgreSQL row-level locking within a transaction to prevent
+     * race conditions when multiple logs are created concurrently (Issue #402).
+     *
+     * Pattern follows Customer::generateCustomerNumber() and Site::generateSiteNumber()
+     * which use DB::transaction() + lockForUpdate() for atomic operations.
      */
     protected function buildHashChain(): void
     {
@@ -267,42 +271,46 @@ class Activity extends SpatieActivity
             throw new \RuntimeException('Cannot build hash chain: tenant_id is required.');
         }
 
-        // Find previous log in tenant's chain (including soft-deleted)
-        // Use lockForUpdate() to prevent race conditions (Issue #402)
-        $query = static::withTrashed()
-            ->where('tenant_id', $this->tenant_id)
-            ->lockForUpdate(); // Pessimistic locking for concurrency safety
+        // Use transaction to ensure lockForUpdate() works correctly
+        // Without transaction, pessimistic lock has no effect
+        DB::transaction(function (): void {
+            // Find previous log in tenant's chain (including soft-deleted)
+            // lockForUpdate() prevents concurrent transactions from seeing same "previous log"
+            $query = static::withTrashed()
+                ->where('tenant_id', $this->tenant_id)
+                ->lockForUpdate(); // Row-level lock (SELECT ... FOR UPDATE)
 
-        // Exclude current record if it already exists
-        if ($this->exists && $this->getKey() !== null) {
-            $query->whereKeyNot($this->getKey());
-        }
+            // Exclude current record if it already exists
+            if ($this->exists && $this->getKey() !== null) {
+                $query->whereKeyNot($this->getKey());
+            }
 
-        /** @var Activity|null $previousLog */
-        $previousLog = $query
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->first();
+            /** @var Activity|null $previousLog */
+            $previousLog = $query
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->first();
 
-        $this->previous_hash = $previousLog?->event_hash;
+            $this->previous_hash = $previousLog?->event_hash;
 
-        // Calculate event hash: SHA256(previous_hash + log_data)
-        try {
-            $logData = json_encode([
-                'tenant_id' => $this->tenant_id,
-                'log_name' => $this->log_name,
-                'description' => $this->description,
-                'subject_type' => $this->subject_type,
-                'subject_id' => $this->subject_id,
-                'causer_type' => $this->causer_type,
-                'causer_id' => $this->causer_id,
-                'properties' => $this->properties,
-            ], JSON_THROW_ON_ERROR);
+            // Calculate event hash: SHA256(previous_hash + log_data)
+            try {
+                $logData = json_encode([
+                    'tenant_id' => $this->tenant_id,
+                    'log_name' => $this->log_name,
+                    'description' => $this->description,
+                    'subject_type' => $this->subject_type,
+                    'subject_id' => $this->subject_id,
+                    'causer_type' => $this->causer_type,
+                    'causer_id' => $this->causer_id,
+                    'properties' => $this->properties,
+                ], JSON_THROW_ON_ERROR);
 
-            $this->event_hash = hash('sha256', ($this->previous_hash ?? '').$logData);
-        } catch (\JsonException $exception) {
-            throw new \RuntimeException('Failed to encode activity log data for hashing.', 0, $exception);
-        }
+                $this->event_hash = hash('sha256', ($this->previous_hash ?? '').$logData);
+            } catch (\JsonException $exception) {
+                throw new \RuntimeException('Failed to encode activity log data for hashing.', 0, $exception);
+            }
+        });
     }
 
     /**
