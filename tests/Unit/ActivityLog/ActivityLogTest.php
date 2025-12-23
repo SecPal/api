@@ -362,18 +362,32 @@ test('opentimestamp returns false without data', function () {
     expect($log->verifyOpenTimestamp())->toBeFalse();
 });
 
-test('opentimestamp placeholder returns true with data', function () {
+test('opentimestamp verification works with valid proof', function () {
     $this->actingAs($this->user);
+
+    // Create a valid-looking OTS proof (simplified for testing)
+    // Real OTS proofs have complex binary structure with Bitcoin attestation
+    $merkleRoot = hash('sha256', 'test-root');
+    $validProof = hex2bin('0588960d73d7190103'.bin2hex($merkleRoot));
 
     $log = Activity::create([
         'tenant_id' => $this->tenant->id,
         'log_name' => 'hr_access',
         'description' => 'Test log',
-        'ots_proof' => 'STUB_PROOF',
+        'merkle_root' => $merkleRoot,
+        'ots_proof' => $validProof,
         'ots_confirmed_at' => now(),
     ]);
 
-    // Placeholder implementation returns true
+    // Mock OpenTimestampService for unit test
+    $mockService = Mockery::mock(\App\Services\OpenTimestampService::class);
+    $mockService->shouldReceive('verify')
+        ->once()
+        ->with($validProof, $merkleRoot)
+        ->andReturn(true);
+
+    app()->instance(\App\Services\OpenTimestampService::class, $mockService);
+
     expect($log->verifyOpenTimestamp())->toBeTrue();
 });
 

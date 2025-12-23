@@ -26,3 +26,8 @@ Schedule::command('employees:send-contract-ending-notifications')->dailyAt('08:0
 // Schedule: Build Merkle trees for Level 2+3 activity logs hourly
 // See ADR-010 Phase 2: Merkle Tree Building
 Schedule::job(\App\Jobs\BuildMerkleTreeBatch::class)->hourly()->name('merkle-tree-batch');
+
+// Schedule: Upgrade pending OpenTimestamp proofs hourly
+// See ADR-010 Phase 3: OpenTimestamp Integration
+// Checks for Bitcoin block confirmations and upgrades pending proofs
+Schedule::job(\App\Jobs\UpgradeOpenTimestampProofs::class)->hourly()->name('ots-proof-upgrade');

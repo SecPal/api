@@ -61,11 +61,11 @@ return new class extends Migration
 
             // 🌳 Merkle Tree (batch verification)
             $table->string('merkle_root', 64)->nullable();
-            $table->uuid('merkle_batch_id')->nullable()->index();
+            $table->bigInteger('merkle_batch_id')->nullable()->index();
             $table->json('merkle_proof')->nullable();
 
             // ⏱️ OpenTimestamp (Bitcoin anchoring)
-            $table->binary('ots_proof')->nullable();
+            $table->text('ots_proof')->nullable();
             $table->timestamp('ots_submitted_at')->nullable();
             $table->timestamp('ots_confirmed_at')->nullable();
 

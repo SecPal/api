@@ -52,7 +52,7 @@ return new class extends Migration
 
             // 🌳 Merkle Tree (for batch verification)
             $table->string('merkle_root', 64)->nullable();
-            $table->uuid('merkle_batch_id')->nullable();
+            $table->bigInteger('merkle_batch_id')->nullable();
 
             // Performance: Composite index for tenant-scoped time-range queries
             $table->index(['tenant_id', 'created_at']);

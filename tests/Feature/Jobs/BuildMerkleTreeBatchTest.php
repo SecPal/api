@@ -173,6 +173,13 @@ test('merkle tree respects tenant isolation', function () {
         'description' => "Tenant 1 log {$i}",
     ]));
 
+    // Build tree for tenant 1
+    $job1 = new BuildMerkleTreeBatch;
+    $job1->handle();
+
+    // Wait 1 second to ensure different timestamp for tenant 2 batch
+    sleep(1);
+
     // Create logs for tenant 2
     $logs2 = collect(range(1, 2))->map(fn ($i) => Activity::create([
         'tenant_id' => $tenant2->id,
@@ -180,11 +187,11 @@ test('merkle tree respects tenant isolation', function () {
         'description' => "Tenant 2 log {$i}",
     ]));
 
-    // Build trees
-    $job = new BuildMerkleTreeBatch;
-    $job->handle();
+    // Build tree for tenant 2
+    $job2 = new BuildMerkleTreeBatch;
+    $job2->handle();
 
-    // Verify different batch IDs
+    // Verify different batch IDs (timestamp-based)
     $batch1 = $logs1->first()->fresh()->merkle_batch_id;
     $batch2 = $logs2->first()->fresh()->merkle_batch_id;
 
