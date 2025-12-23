@@ -19,12 +19,13 @@ uses(TestCase::class, RefreshDatabase::class);
 /**
  * Merkle Proof Performance Tests (Issue #390)
  *
- * Validates that verifyMerkleProof() performance is acceptable:
- * - < 1ms per verification for 1000-leaf Merkle tree
+ * Validates that verifyMerkleProof() performance is acceptable for the
+ * scenarios covered by these tests:
+ * - < 2ms per verification for a 100-leaf Merkle tree (including DB overhead)
  *
- * Performance baseline:
- * - Small trees (4 leaves): ~0.1ms per verification
- * - Large trees (1000 leaves): < 1ms per verification (target)
+ * Performance baseline (as exercised here):
+ * - Small trees (4 leaves): < 5ms per verification (threshold enforced in CI)
+ * - Medium trees (100 leaves): < 2ms per verification (threshold enforced below)
  *
  * @see App\Models\Activity::verifyMerkleProof()
  * @see Issue #390 PR-5: Add Merkle proof storage & verification methods
@@ -38,7 +39,7 @@ beforeEach(function () {
 // Performance Tests
 // ============================================================================
 
-test('merkle proof verification takes less than 1ms for 100-leaf tree', function () {
+test('merkle proof verification takes less than 2ms for 100-leaf tree', function () {
     $this->actingAs($this->user);
 
     // Create 100 Level 2 logs (reasonably large Merkle tree)
