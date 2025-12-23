@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Activity Logging (Forensic Audit Trail) - Merkle Proof Verification Tests** (Issue #390, Epic #385)
+  - Added comprehensive unit tests for tampering detection in [tests/Unit/ActivityLog/MerkleProofTest.php](tests/Unit/ActivityLog/MerkleProofTest.php)
+    - Detects tampered log event hash (modified after batching)
+    - Detects manipulated sibling hashes in proof chain
+    - Validates invalid proof format handling
+    - Validates missing hash/position field validation
+  - Added performance tests in [tests/Performance/MerkleProofPerformanceTest.php](tests/Performance/MerkleProofPerformanceTest.php)
+    - 100-leaf tree verification: ~1.4ms per log including DB overhead
+    - 4-leaf tree verification: ~1.2ms per log including DB overhead
+    - Pure algorithm performance: <0.1ms (DB refresh() adds ~1.3ms overhead)
+  - All 7 new tests passing with ≥95% coverage
+  - verifyMerkleProof() method fully covered and validated
+
 - **🎉 MAJOR: Production-Ready Multi-Tenant Architecture** (Epic #357)
   - User-based tenant resolution via `users.tenant_id` foreign key relationship
   - Every user belongs to exactly ONE tenant (database-enforced with NOT NULL constraint)
