@@ -376,3 +376,123 @@ test('opentimestamp placeholder returns true with data', function () {
     // Placeholder implementation returns true
     expect($log->verifyOpenTimestamp())->toBeTrue();
 });
+
+// ============================================================================
+// Organizational Unit Validation Tests (Issue #402)
+// ============================================================================
+
+test('accepts valid organizational_unit_id from same tenant', function () {
+    $orgUnit = \App\Models\OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $this->actingAs($this->user);
+
+    $log = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'log_name' => 'default',
+        'description' => 'Test log with valid OU',
+    ]);
+
+    expect($log->organizational_unit_id)->toBe($orgUnit->id);
+})->group('security', 'issue-402');
+
+test('throws exception when organizational_unit_id belongs to different tenant', function () {
+    $otherTenant = TenantKey::factory()->create();
+    $otherOrgUnit = \App\Models\OrganizationalUnit::factory()->create([
+        'tenant_id' => $otherTenant->id,
+    ]);
+
+    $this->actingAs($this->user);
+
+    try {
+        Activity::create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $otherOrgUnit->id,
+            'log_name' => 'default',
+            'description' => 'Test log with cross-tenant OU',
+        ]);
+        $this->fail('Expected InvalidArgumentException was not thrown');
+    } catch (\InvalidArgumentException $e) {
+        expect($e->getMessage())->toMatch(
+            "/Organizational unit '.*' belongs to tenant '.*' but activity log belongs to tenant '.*'/"
+        );
+        // Verify specific IDs are in the message
+        expect($e->getMessage())->toContain($otherOrgUnit->id)
+            ->toContain($otherTenant->id)
+            ->toContain($this->tenant->id);
+    }
+})->group('security', 'issue-402');
+
+test('throws exception when organizational_unit_id does not exist', function () {
+    $this->actingAs($this->user);
+
+    $nonExistentOuId = \Illuminate\Support\Str::uuid()->toString();
+
+    expect(fn () => Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $nonExistentOuId,
+        'log_name' => 'default',
+        'description' => 'Test log with invalid OU',
+    ]))->toThrow(
+        \InvalidArgumentException::class,
+        "Organizational unit '{$nonExistentOuId}' does not exist"
+    );
+})->group('security', 'issue-402');
+
+test('accepts null organizational_unit_id', function () {
+    $this->actingAs($this->user);
+
+    $log = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => null,
+        'log_name' => 'default',
+        'description' => 'Test log without OU',
+    ]);
+
+    expect($log->organizational_unit_id)->toBeNull();
+})->group('security', 'issue-402');
+
+// ============================================================================
+// Hash Chain Race Condition Tests (Issue #402)
+// ============================================================================
+
+// Note: True concurrency testing requires spawning parallel processes/connections,
+// which is complex to test reliably in unit tests. In contrast to the
+// Customer::generateCustomerNumber() and Site::generateSiteNumber() helpers
+// (which wrap the entire operation, including the INSERT, in a transaction
+// with lockForUpdate()), the Activity hash-chain logic runs in a "creating"
+// model hook before the INSERT executes, so a race window still exists.
+//
+// The following test verifies sequential chain integrity (baseline requirement).
+// For production validation, monitor Activity logs for broken chains.
+// Epic #408 will refactor to queue-based sequential processing (100% race-free).
+
+test('sequential log creation maintains hash chain integrity', function () {
+    $this->actingAs($this->user);
+
+    // Create logs sequentially (baseline test)
+    // Each log should properly chain to the previous one
+    $logs = collect(range(1, 5))->map(function ($i) {
+        return Activity::create([
+            'tenant_id' => $this->tenant->id,
+            'log_name' => 'default',
+            'description' => "Sequential log {$i}",
+        ]);
+    });
+
+    // Verify chain integrity: each log references previous log's hash
+    expect($logs[0]->previous_hash)->toBeNull(); // Genesis log
+
+    for ($i = 1; $i < $logs->count(); $i++) {
+        expect($logs[$i]->previous_hash)
+            ->toBe($logs[$i - 1]->event_hash)
+            ->and($logs[$i]->event_hash)
+            ->not->toBeNull();
+    }
+
+    // Verify all hashes are unique
+    $allHashes = $logs->pluck('event_hash')->toArray();
+    expect(count($allHashes))->toBe(count(array_unique($allHashes)));
+})->group('hash-chain', 'issue-402');
