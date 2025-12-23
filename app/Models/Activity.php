@@ -206,16 +206,7 @@ class Activity extends SpatieActivity
 
             // Validate organizational_unit_id belongs to same tenant (Issue #402)
             if ($activity->organizational_unit_id !== null) {
-                $ouExists = OrganizationalUnit::query()
-                    ->where('id', $activity->organizational_unit_id)
-                    ->where('tenant_id', $activity->tenant_id)
-                    ->exists();
-
-                if (! $ouExists) {
-                    throw new \InvalidArgumentException(
-                        'Organizational unit does not exist or does not belong to activity tenant'
-                    );
-                }
+                $activity->validateOrganizationalUnit();
             }
 
             // Capture request metadata
@@ -253,16 +244,69 @@ class Activity extends SpatieActivity
     }
 
     /**
+     * Validate that organizational unit belongs to same tenant.
+     *
+     * Extracted to dedicated method for better separation of concerns
+     * and testability (Copilot Review #2644220004).
+     *
+     * Caches tenant_id to avoid repeated property access (Issue #402).
+     *
+     * Provides detailed error messages with IDs for debugging.
+     *
+     * @throws \InvalidArgumentException If tenant_id is not set or OU validation fails
+     */
+    protected function validateOrganizationalUnit(): void
+    {
+        // Cache tenant_id to avoid repeated property access (Issue #402)
+        $tenantId = $this->tenant_id;
+
+        if ($tenantId === null) {
+            throw new \InvalidArgumentException(
+                'Activity tenant_id must be set before validating organizational_unit_id'
+            );
+        }
+
+        $organizationalUnit = OrganizationalUnit::query()
+            ->select(['id', 'tenant_id'])
+            ->find($this->organizational_unit_id);
+
+        if ($organizationalUnit === null) {
+            throw new \InvalidArgumentException(
+                sprintf(
+                    "Organizational unit '%s' does not exist",
+                    $this->organizational_unit_id
+                )
+            );
+        }
+
+        if ((int) $organizationalUnit->tenant_id !== (int) $tenantId) {
+            throw new \InvalidArgumentException(
+                sprintf(
+                    "Organizational unit '%s' belongs to tenant '%s' but activity log belongs to tenant '%s'",
+                    $this->organizational_unit_id,
+                    (string) $organizationalUnit->tenant_id,
+                    (string) $tenantId
+                )
+            );
+        }
+    }
+
+    /**
      * Build hash chain by linking to previous log.
      *
      * Calculates SHA256 hash of current log data concatenated with
      * previous log's event_hash. Genesis logs have null previous_hash.
      *
-     * Uses PostgreSQL row-level locking within a transaction to prevent
-     * race conditions when multiple logs are created concurrently (Issue #402).
+     * Uses PostgreSQL row-level locking within a transaction to reduce
+     * race conditions when multiple logs are created concurrently (Issue #402)
+     * by applying DB::transaction() + lockForUpdate() around the lookup of
+     * the previous activity for the same tenant / organizational unit.
      *
-     * Pattern follows Customer::generateCustomerNumber() and Site::generateSiteNumber()
-     * which use DB::transaction() + lockForUpdate() for atomic operations.
+     * Unlike Customer::generateCustomerNumber() and Site::generateSiteNumber(),
+     * which are static and control when they run, this method executes from a
+     * 'creating' Eloquent event hook before the INSERT. As a result, it cannot
+     * provide fully atomic sequencing, and the race window described below
+     * still exists even though row-level locking is used.
      *
      * KNOWN LIMITATION (Copilot Review #2644159834):
      * This implementation has a theoretical race condition window because:

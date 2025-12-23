@@ -406,30 +406,40 @@ test('throws exception when organizational_unit_id belongs to different tenant',
 
     $this->actingAs($this->user);
 
-    Activity::create([
-        'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $otherOrgUnit->id,
-        'log_name' => 'default',
-        'description' => 'Test log with cross-tenant OU',
-    ]);
-})->throws(
-    \InvalidArgumentException::class,
-    'Organizational unit does not exist or does not belong to activity tenant'
-)->group('security', 'issue-402');
+    try {
+        Activity::create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $otherOrgUnit->id,
+            'log_name' => 'default',
+            'description' => 'Test log with cross-tenant OU',
+        ]);
+        $this->fail('Expected InvalidArgumentException was not thrown');
+    } catch (\InvalidArgumentException $e) {
+        expect($e->getMessage())->toMatch(
+            "/Organizational unit '.*' belongs to tenant '.*' but activity log belongs to tenant '.*'/"
+        );
+        // Verify specific IDs are in the message
+        expect($e->getMessage())->toContain($otherOrgUnit->id)
+            ->toContain($otherTenant->id)
+            ->toContain($this->tenant->id);
+    }
+})->group('security', 'issue-402');
 
 test('throws exception when organizational_unit_id does not exist', function () {
     $this->actingAs($this->user);
 
-    Activity::create([
+    $nonExistentOuId = \Illuminate\Support\Str::uuid()->toString();
+
+    expect(fn() => Activity::create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => \Illuminate\Support\Str::uuid()->toString(),
+        'organizational_unit_id' => $nonExistentOuId,
         'log_name' => 'default',
         'description' => 'Test log with invalid OU',
-    ]);
-})->throws(
-    \InvalidArgumentException::class,
-    'Organizational unit does not exist or does not belong to activity tenant'
-)->group('security', 'issue-402');
+    ]))->toThrow(
+        \InvalidArgumentException::class,
+        "Organizational unit '{$nonExistentOuId}' does not exist"
+    );
+})->group('security', 'issue-402');
 
 test('accepts null organizational_unit_id', function () {
     $this->actingAs($this->user);
@@ -449,12 +459,15 @@ test('accepts null organizational_unit_id', function () {
 // ============================================================================
 
 // Note: True concurrency testing requires spawning parallel processes/connections,
-// which is complex to test reliably in unit tests. The DB::transaction() +
-// lockForUpdate() pattern is proven in Customer::generateCustomerNumber() and
-// Site::generateSiteNumber() methods, which use the same approach.
+// which is complex to test reliably in unit tests. In contrast to the
+// Customer::generateCustomerNumber() and Site::generateSiteNumber() helpers
+// (which wrap the entire operation, including the INSERT, in a transaction
+// with lockForUpdate()), the Activity hash-chain logic runs in a "creating"
+// model hook before the INSERT executes, so a race window still exists.
 //
 // The following test verifies sequential chain integrity (baseline requirement).
-// For production validation, monitor Activity logs for broken chains in production.
+// For production validation, monitor Activity logs for broken chains.
+// Epic #408 will refactor to queue-based sequential processing (100% race-free).
 
 test('sequential log creation maintains hash chain integrity', function () {
     $this->actingAs($this->user);
