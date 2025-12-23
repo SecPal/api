@@ -47,7 +47,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | How often to check for pending proof upgrades (seconds).
-    | Scheduled via app/Console/Kernel.php.
+    | Scheduled via routes/console.php.
     |
     */
 

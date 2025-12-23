@@ -130,7 +130,13 @@ class Activity extends SpatieActivity
             return null;
         }
 
-        return base64_decode($value, true) ?: null;
+        $decoded = base64_decode($value, true);
+
+        if ($decoded === false) {
+            return null;
+        }
+
+        return $decoded;
     }
 
     /**

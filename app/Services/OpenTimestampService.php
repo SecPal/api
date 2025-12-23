@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -89,33 +90,44 @@ class OpenTimestampService
             'User-Agent' => 'SecPal-Laravel-OTS/1.0',
         ]);
 
-        foreach ($this->calendarUrls as $calendarUrl) {
-            try {
-                $response = $http->post("{$calendarUrl}/timestamp/{$digest}");
+        // Use HTTP pool for parallel calendar submissions
+        $responses = Http::pool(fn (Pool $pool) => array_map(
+            fn ($calendarUrl) => $pool
+                ->timeout($this->timeout)
+                ->post("{$calendarUrl}/timestamp/{$digest}"),
+            $this->calendarUrls
+        ));
 
-                if ($response->successful()) {
-                    $responses[] = $response->body();
-                    Log::debug('OpenTimestamp: Calendar responded', ['calendar' => $calendarUrl]);
-                } else {
-                    Log::warning('OpenTimestamp: Calendar failed', [
-                        'calendar' => $calendarUrl,
-                        'status' => $response->status(),
-                    ]);
-                }
-            } catch (\Exception $e) {
+        $successfulResponses = [];
+        foreach ($responses as $index => $response) {
+            $calendarUrl = $this->calendarUrls[$index];
+
+            if ($response instanceof \Exception) {
                 Log::warning('OpenTimestamp: Calendar error', [
                     'calendar' => $calendarUrl,
-                    'error' => $e->getMessage(),
+                    'error' => $response->getMessage(),
+                ]);
+
+                continue;
+            }
+
+            if ($response->successful()) {
+                $successfulResponses[] = $response->body();
+                Log::debug('OpenTimestamp: Calendar responded', ['calendar' => $calendarUrl]);
+            } else {
+                Log::warning('OpenTimestamp: Calendar failed', [
+                    'calendar' => $calendarUrl,
+                    'status' => $response->status(),
                 ]);
             }
         }
 
         // Require minimum responses
-        if (count($responses) < self::MIN_CALENDAR_RESPONSES) {
+        if (count($successfulResponses) < self::MIN_CALENDAR_RESPONSES) {
             throw new RuntimeException(
                 sprintf(
                     'Failed to submit timestamp: only %d of %d calendars responded (minimum: %d)',
-                    count($responses),
+                    count($successfulResponses),
                     count($this->calendarUrls),
                     self::MIN_CALENDAR_RESPONSES
                 )
@@ -123,7 +135,7 @@ class OpenTimestampService
         }
 
         // Merge responses into single proof
-        $proof = $this->mergeProofs($responses, $digestBytes);
+        $proof = $this->mergeProofs($successfulResponses, $digestBytes);
 
         Log::info('OpenTimestamp: Submission successful', [
             'digest' => $digest,
@@ -196,48 +208,27 @@ class OpenTimestampService
     /**
      * Verify OTS proof against message digest.
      *
-     * Validates proof structure and Bitcoin attestation.
+     * SECURITY WARNING: This method is disabled due to insecure implementation.
+     * The previous heuristic implementation could be bypassed by crafting binary
+     * data with matching prefix/subsequence, undermining tamper-evident guarantees.
+     *
+     * TODO: Implement secure OTS verification:
+     * - Full proof structure parsing with operation tree traversal
+     * - Cryptographic validation of attestation linkage
+     * - Cross-check against calendar/Bitcoin data
+     * OR: Delegate to vetted OTS library/service
      *
      * @param  string  $proof  Binary OTS proof
      * @param  string  $digest  SHA256 hash (64 hex characters)
-     * @return bool True if proof is valid and confirmed
+     * @return bool Always returns false until secure implementation available
      */
     public function verify(string $proof, string $digest): bool
     {
-        try {
-            // Basic structure validation
-            if (strlen($proof) < 20) {
-                return false;
-            }
+        Log::warning('OpenTimestamp: Local proof verification disabled due to insecure implementation', [
+            'digest' => $digest,
+        ]);
 
-            // Extract and verify commitment
-            $commitment = $this->extractCommitment($proof);
-            if ($commitment === null) {
-                return false;
-            }
-
-            // Verify commitment matches digest
-            $expectedCommitment = hex2bin($digest);
-            if ($commitment !== $expectedCommitment) {
-                return false;
-            }
-
-            // Check for Bitcoin attestation
-            if (! $this->hasAttestation($proof, 'bitcoin')) {
-                return false;
-            }
-
-            Log::debug('OpenTimestamp: Proof verified', ['digest' => $digest]);
-
-            return true;
-        } catch (\Exception $e) {
-            Log::warning('OpenTimestamp: Verification error', [
-                'digest' => $digest,
-                'error' => $e->getMessage(),
-            ]);
-
-            return false;
-        }
+        return false;
     }
 
     /**
@@ -248,6 +239,10 @@ class OpenTimestampService
      */
     private function mergeProofs(array $proofs, string $digest): string
     {
+        if ($proofs === []) {
+            throw new RuntimeException('OpenTimestamp: No proofs provided for merging');
+        }
+
         // For now, return first proof
         // TODO: Implement proper proof merging (combine attestations)
         return $proofs[0];
@@ -257,24 +252,32 @@ class OpenTimestampService
      * Extract commitment (message digest) from OTS proof.
      *
      * Parses binary proof structure to find original commitment.
-     * NOTE: This is a simplified implementation that assumes the first 32 bytes
-     * after any header are the commitment. A full OTS parser would properly
-     * traverse the operation tree.
+     * NOTE: This is still a simplified implementation:
+     * - If the standard "OpenTimestamps proof\0" header is present, skip it
+     *   and extract the next 32 bytes as the commitment
+     * - Otherwise, use the first 32 bytes (legacy behavior for existing tests)
+     * A full OTS parser would properly traverse the operation tree.
      *
      * @param  string  $proof  Binary OTS proof
      * @return string|null Commitment bytes, or null if parsing fails
      */
     private function extractCommitment(string $proof): ?string
     {
-        // Simplified extraction - returns first 32 bytes as commitment
-        // This works for our test cases but is not a complete OTS parser
-        if (strlen($proof) < 32) {
+        // Check for standard OpenTimestamps header
+        $offset = 0;
+        $header = "OpenTimestamps proof\x00";
+
+        if (str_starts_with($proof, $header)) {
+            $offset = strlen($header);
+        }
+
+        if (strlen($proof) < $offset + 32) {
             return null;
         }
 
-        // For now, just return first 32 bytes
+        // For now, just return first 32 bytes after header
         // TODO: Implement full OTS proof parser to extract actual commitment
-        return substr($proof, 0, 32);
+        return substr($proof, $offset, 32);
     }
 
     /**
@@ -286,9 +289,9 @@ class OpenTimestampService
     private function hasAttestation(string $proof, string $type): bool
     {
         // Bitcoin attestation: OpCode 0x05 0x88 0x96 0x0d 0x73 0xd7 0x19 0x01 0x03
-        // Simplified check - looks for Bitcoin attestation signature
+        // Simplified check - looks for full 9-byte Bitcoin attestation signature
         if ($type === 'bitcoin') {
-            return str_contains($proof, "\x05\x88\x96\x0d\x73\xd7\x19\x01");
+            return str_contains($proof, "\x05\x88\x96\x0d\x73\xd7\x19\x01\x03");
         }
 
         // Pending attestation: OpCode 0x83

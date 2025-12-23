@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Log;
  * Queries pending proofs and attempts to upgrade them when Bitcoin blocks confirm.
  * Updates ots_confirmed_at when proof is successfully upgraded.
  *
- * Scheduled hourly via app/Console/Kernel.php.
+ * Scheduled hourly via routes/console.php.
  *
  * @see ADR-010 Section 6: OpenTimestamp Integration
  * @see Issue #391 PR-6: Integrate OpenTimestamp PHP library
@@ -83,6 +83,8 @@ class UpgradeOpenTimestampProofs implements ShouldQueue
         $upgraded = 0;
         $failed = 0;
         $stillPending = 0;
+        $confirmedAt = now();
+        $toConfirm = [];
 
         foreach ($pendingLogs as $log) {
             try {
@@ -94,12 +96,8 @@ class UpgradeOpenTimestampProofs implements ShouldQueue
                 $upgradedProof = $otsService->upgrade($log->ots_proof);
 
                 if ($upgradedProof !== null) {
-                    // Proof upgraded successfully
-                    $log->update([
-                        'ots_proof' => $upgradedProof,
-                        'ots_confirmed_at' => now(),
-                    ]);
-
+                    // Collect for bulk update
+                    $toConfirm[$log->id] = $upgradedProof;
                     $upgraded++;
 
                     Log::debug('UpgradeOpenTimestampProofs: Proof upgraded', [
@@ -120,6 +118,19 @@ class UpgradeOpenTimestampProofs implements ShouldQueue
                 ]);
 
                 // Continue processing other logs (don't fail entire job)
+            }
+        }
+
+        // Bulk update all confirmed proofs
+        if ($toConfirm !== []) {
+            foreach ($toConfirm as $logId => $upgradedProof) {
+                // Base64 encode proof for storage (matches Activity accessor/mutator)
+                $encodedProof = base64_encode($upgradedProof);
+
+                Activity::where('id', $logId)->update([
+                    'ots_proof' => $encodedProof,
+                    'ots_confirmed_at' => $confirmedAt,
+                ]);
             }
         }
 

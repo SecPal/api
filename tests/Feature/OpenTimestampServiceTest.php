@@ -127,9 +127,9 @@ class OpenTimestampServiceTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function test_verify_returns_true_for_valid_confirmed_proof(): void
+    public function test_verify_returns_false_for_disabled_implementation(): void
     {
-        // Arrange: Create proof that starts with merkle root bytes
+        // Arrange: Create proof that would have passed old implementation
         $merkleRoot = hash('sha256', 'test-root');
         $merkleRootBytes = hex2bin($merkleRoot);
 
@@ -139,8 +139,8 @@ class OpenTimestampServiceTest extends TestCase
         // Act: Verify
         $result = $this->service->verify($confirmedProof, $merkleRoot);
 
-        // Assert: Should pass (has Bitcoin attestation + commitment matches)
-        $this->assertTrue($result);
+        // Assert: Should return false (implementation disabled due to security concerns)
+        $this->assertFalse($result, 'verify() should return false until secure implementation available');
     }
 
     public function test_verify_checks_for_bitcoin_attestation(): void

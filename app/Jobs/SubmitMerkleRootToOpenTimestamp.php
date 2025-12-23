@@ -112,15 +112,17 @@ class SubmitMerkleRootToOpenTimestamp implements ShouldQueue
             throw $e; // Re-throw to trigger job retry
         }
 
-        // Update all logs in batch with pending proof
+        // Update all logs in batch with pending proof (bulk update for performance)
         $submittedAt = now();
+        $logIds = $logs->pluck('id')->all();
 
-        foreach ($logs as $log) {
-            $log->update([
-                'ots_proof' => $proof,
-                'ots_submitted_at' => $submittedAt,
-            ]);
-        }
+        // Base64 encode proof for storage (matches Activity accessor/mutator)
+        $encodedProof = base64_encode($proof);
+
+        Activity::whereIn('id', $logIds)->update([
+            'ots_proof' => $encodedProof,
+            'ots_submitted_at' => $submittedAt,
+        ]);
 
         Log::info('SubmitMerkleRootToOpenTimestamp: Completed', [
             'tenant_id' => $this->tenantId,

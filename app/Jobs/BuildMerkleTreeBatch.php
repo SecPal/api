@@ -110,8 +110,8 @@ class BuildMerkleTreeBatch implements ShouldQueue
             return; // No logs to batch
         }
 
-        // Generate unique batch ID (timestamp-based for ordering)
-        $batchId = (int) now()->timestamp;
+        // Generate unique batch ID (microsecond-precision timestamp for ordering)
+        $batchId = (int) now()->getPreciseTimestamp(3);
 
         // Build Merkle tree
         $tree = $this->buildTree($logs);
