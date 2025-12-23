@@ -213,7 +213,7 @@ class Activity extends SpatieActivity
 
                 if (! $ouExists) {
                     throw new \InvalidArgumentException(
-                        'Organizational unit does not exist or does not belong to activity tenant.'
+                        'Organizational unit does not exist or does not belong to activity tenant'
                     );
                 }
             }
@@ -263,6 +263,19 @@ class Activity extends SpatieActivity
      *
      * Pattern follows Customer::generateCustomerNumber() and Site::generateSiteNumber()
      * which use DB::transaction() + lockForUpdate() for atomic operations.
+     *
+     * KNOWN LIMITATION (Copilot Review #2644159834):
+     * This implementation has a theoretical race condition window because:
+     * 1. buildHashChain() runs in 'creating' event hook (BEFORE INSERT)
+     * 2. Transaction in this method commits BEFORE the actual INSERT
+     * 3. Two concurrent creates can read same previous_hash → broken chain
+     *
+     * Mitigation: lockForUpdate() reduces window to microseconds.
+     * Impact: Low in practice (< 10 activities/sec per tenant typical)
+     * Future: Epic #408 will refactor to queue-based sequential processing
+     *
+     * @see Epic #408 Queue-based hash chain building (100% race-free)
+     * @see Issue #402 Original security & locking implementation
      */
     protected function buildHashChain(): void
     {
