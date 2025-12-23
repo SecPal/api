@@ -430,7 +430,7 @@ test('throws exception when organizational_unit_id does not exist', function () 
 
     $nonExistentOuId = \Illuminate\Support\Str::uuid()->toString();
 
-    expect(fn() => Activity::create([
+    expect(fn () => Activity::create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $nonExistentOuId,
         'log_name' => 'default',
