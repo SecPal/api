@@ -9,25 +9,25 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Models\Activity;
+use App\Services\OpenTimestampService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Submit Merkle root to OpenTimestamp calendar servers (STUB).
+ * Submit Merkle root to OpenTimestamp calendar servers.
  *
- * This is a placeholder job for Issue #391 (PR-6: OpenTimestamp Integration).
- * It is referenced by BuildMerkleTreeBatch but not yet implemented.
+ * Creates pending proof that will be upgraded when Bitcoin block confirms.
+ * Updates all Level 3 activity logs in the batch with the pending proof.
  *
- * Full implementation will:
- * - Submit merkle_root to OTS calendar servers
- * - Store pending OTS proof in database
- * - Update ots_submitted_at timestamp
+ * Dispatched by BuildMerkleTreeBatch job after Merkle tree is built.
  *
+ * @see ADR-010 Section 6: OpenTimestamp Integration
  * @see Issue #391 PR-6: Integrate OpenTimestamp PHP library
- * @see ADR-010 Phase 3: OpenTimestamp Integration
  */
 class SubmitMerkleRootToOpenTimestamp implements ShouldQueue
 {
@@ -37,30 +37,95 @@ class SubmitMerkleRootToOpenTimestamp implements ShouldQueue
     use SerializesModels;
 
     /**
+     * The number of times the job may be attempted.
+     */
+    public int $tries = 3;
+
+    /**
+     * The number of seconds the job can run before timing out.
+     */
+    public int $timeout = 30;
+
+    /**
      * Create a new job instance.
      *
      * @param  int  $tenantId  Tenant ID
-     * @param  string  $batchId  Merkle batch UUID
-     * @param  string  $merkleRoot  Merkle root hash
+     * @param  int  $batchId  Merkle batch ID
+     * @param  string  $merkleRoot  Merkle root hash (64 hex characters)
      */
     public function __construct(
         public int $tenantId,
-        public string $batchId,
+        public int $batchId,
         public string $merkleRoot
     ) {
         $this->onQueue('opentimestamp');
     }
 
     /**
-     * Execute the job (STUB).
+     * Execute the job.
      *
-     * Will be implemented in Issue #391.
+     * Submits Merkle root to OpenTimestamp calendars and stores pending proof.
+     *
+     * @throws \RuntimeException if submission fails
      */
-    public function handle(): void
+    public function handle(OpenTimestampService $otsService): void
     {
-        // STUB: Will be implemented in PR-6
-        // - Install opentimestamps/php-opentimestamps
-        // - Submit merkleRoot to OTS calendar
-        // - Store pending proof in activity_log
+        Log::info('SubmitMerkleRootToOpenTimestamp: Starting', [
+            'tenant_id' => $this->tenantId,
+            'batch_id' => $this->batchId,
+            'merkle_root' => $this->merkleRoot,
+        ]);
+
+        // Find all logs in this batch
+        $logs = Activity::where('tenant_id', $this->tenantId)
+            ->where('merkle_batch_id', $this->batchId)
+            ->where('merkle_root', $this->merkleRoot)
+            ->whereNull('ots_submitted_at')
+            ->get();
+
+        if ($logs->isEmpty()) {
+            Log::info('SubmitMerkleRootToOpenTimestamp: No logs to process', [
+                'tenant_id' => $this->tenantId,
+                'batch_id' => $this->batchId,
+            ]);
+
+            return;
+        }
+
+        // Submit Merkle root to calendars
+        try {
+            $proof = $otsService->submit($this->merkleRoot);
+
+            Log::info('SubmitMerkleRootToOpenTimestamp: Submission successful', [
+                'tenant_id' => $this->tenantId,
+                'batch_id' => $this->batchId,
+                'log_count' => $logs->count(),
+                'proof_size' => strlen($proof),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('SubmitMerkleRootToOpenTimestamp: Submission failed', [
+                'tenant_id' => $this->tenantId,
+                'batch_id' => $this->batchId,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e; // Re-throw to trigger job retry
+        }
+
+        // Update all logs in batch with pending proof
+        $submittedAt = now();
+
+        foreach ($logs as $log) {
+            $log->update([
+                'ots_proof' => $proof,
+                'ots_submitted_at' => $submittedAt,
+            ]);
+        }
+
+        Log::info('SubmitMerkleRootToOpenTimestamp: Completed', [
+            'tenant_id' => $this->tenantId,
+            'batch_id' => $this->batchId,
+            'logs_updated' => $logs->count(),
+        ]);
     }
 }

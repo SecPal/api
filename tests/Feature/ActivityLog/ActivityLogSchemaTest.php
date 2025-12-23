@@ -79,9 +79,9 @@ final class ActivityLogSchemaTest extends TestCase
             'merkle_proof',
         ]))->toBeTrue();
 
-        // Validate merkle_batch_id is uuid type
+        // Validate merkle_batch_id is bigint type (timestamp-based)
         $columns = DB::select('SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ? AND column_name = ?', ['activity_log', 'merkle_batch_id']);
-        expect($columns[0]->data_type)->toBe('uuid');
+        expect($columns[0]->data_type)->toBe('bigint');
     }
 
     /**
@@ -140,9 +140,9 @@ final class ActivityLogSchemaTest extends TestCase
             'merkle_batch_id',
         ]))->toBeTrue();
 
-        // Validate merkle_batch_id is uuid type in archive
+        // Validate merkle_batch_id is bigint type in archive (timestamp-based)
         $columns = DB::select('SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ? AND column_name = ?', ['activity_log_archive', 'merkle_batch_id']);
-        expect($columns[0]->data_type)->toBe('uuid');
+        expect($columns[0]->data_type)->toBe('bigint');
     }
 
     /**

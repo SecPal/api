@@ -16,7 +16,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 /**
  * Build Merkle tree batches for Level 2+3 activity logs.
@@ -111,8 +110,8 @@ class BuildMerkleTreeBatch implements ShouldQueue
             return; // No logs to batch
         }
 
-        // Generate unique batch ID
-        $batchId = (string) Str::uuid();
+        // Generate unique batch ID (timestamp-based for ordering)
+        $batchId = (int) now()->timestamp;
 
         // Build Merkle tree
         $tree = $this->buildTree($logs);

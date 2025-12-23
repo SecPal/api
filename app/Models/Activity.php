@@ -117,6 +117,42 @@ class Activity extends SpatieActivity
     ];
 
     /**
+     * Get the OTS proof attribute.
+     *
+     * OTS proofs are stored as base64-encoded text in PostgreSQL.
+     * This accessor converts them back to binary strings automatically.
+     *
+     * @param  string|null  $value
+     */
+    public function getOtsProofAttribute($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return base64_decode($value, true) ?: null;
+    }
+
+    /**
+     * Set the OTS proof attribute.
+     *
+     * OTS proofs are binary data, but PostgreSQL binary columns are problematic.
+     * This mutator encodes binary data as base64 before storage.
+     *
+     * @param  string|null  $value
+     */
+    public function setOtsProofAttribute($value): void
+    {
+        if ($value === null) {
+            $this->attributes['ots_proof'] = null;
+
+            return;
+        }
+
+        $this->attributes['ots_proof'] = base64_encode($value);
+    }
+
+    /**
      * 3-Tier Security Levels (BewachV § 21 Abs. 4 compliance).
      *
      * Level 1: Basic (3 years retention)
@@ -481,24 +517,36 @@ class Activity extends SpatieActivity
      * Verify OpenTimestamp proof for this log's Merkle root.
      *
      * Validates that the Merkle root is anchored to Bitcoin blockchain
-     * via OpenTimestamp. Stub implementation - full logic will be
-     * implemented in PR-6.
+     * via OpenTimestamp. Uses OpenTimestampService to verify proof structure
+     * and Bitcoin attestation.
      *
-     * @return bool True if OTS proof is valid, false otherwise
+     * @return bool True if OTS proof is valid and Bitcoin-confirmed, false otherwise
+     *
+     * @see ADR-010 Section 6: OpenTimestamp Integration
+     * @see Issue #391 PR-6: Integrate OpenTimestamp PHP library
      */
     public function verifyOpenTimestamp(): bool
     {
-        // Stub: Will be implemented in PR-6 (OpenTimestamp integration)
-        if (! $this->ots_proof || ! $this->ots_confirmed_at) {
-            return false; // No OTS data available
+        // Require confirmed proof
+        if (! $this->ots_proof || ! $this->ots_confirmed_at || ! $this->merkle_root) {
+            return false; // No OTS data available or not yet confirmed
         }
 
-        // TODO: Implement OpenTimestamp proof verification
-        // - Load OTS proof from database
-        // - Verify Bitcoin block attestation
-        // - Check timestamp matches ots_confirmed_at
+        try {
+            /** @var \App\Services\OpenTimestampService $otsService */
+            $otsService = app(\App\Services\OpenTimestampService::class);
 
-        return true; // Placeholder
+            return $otsService->verify($this->ots_proof, $this->merkle_root);
+        } catch (\Exception $e) {
+            // Log error but return false (don't expose exception)
+            \Illuminate\Support\Facades\Log::warning('OpenTimestamp verification failed', [
+                'activity_id' => $this->id,
+                'tenant_id' => $this->tenant_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /**
