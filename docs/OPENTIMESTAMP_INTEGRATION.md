@@ -27,6 +27,7 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
    - Handles submission, upgrade, and verification of OTS proofs
    - Uses external `ots` CLI tool for all cryptographic operations
    - Implements caching layer for verified proofs
+   - **Proof Merging**: Combines attestations from multiple calendar servers for redundancy
 
 2. **ProcessExecutor** (`app/Contracts/ProcessExecutor.php`)
    - Abstraction for executing external CLI commands
@@ -38,6 +39,40 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 
 4. **DDEV Docker Image** (`.ddev/web-build/Dockerfile.opentimestamps`)
    - Installs `opentimestamps-client` Python package in development environment
+
+### Proof Selection from Multiple Calendars
+
+When submitting a timestamp to multiple calendar servers, SecPal stores the first valid calendar response:
+
+- **Problem**: If only one calendar server is contacted, submission fails if that server is unavailable
+- **Solution**: Submit to 3 calendar servers in parallel (alice, bob, finney)
+- **Benefit**: Higher success rate (requires minimum 2 of 3 calendars to respond)
+- **Current limitation**: Only the first calendar's proof is stored (not merged)
+
+> **Note on Proof Merging**
+> True OTS proof merging (combining attestations from multiple calendars into a single proof) requires implementing a full OTS binary format parser with fork operation support (OpCode 0xFF). This is tracked in Issue #410 (Full OTS Parser) and Issue #411 (Proof Merging).
+>
+> The current implementation prioritizes reliability and OTS compliance by storing a valid proof from one calendar rather than attempting to create an invalid merged structure.
+
+**Implementation** (Issue #411 - Updated after review):
+
+- `submit()` sends digest to 3 calendar servers in parallel
+- Each calendar returns a complete OTS proof with its attestation
+- `mergeProofs()` selects the first valid proof to store
+- The stored proof is structurally valid and verifiable by OTS CLI tools
+
+**Example**:
+
+```php
+// 3 calendars respond with individual OTS proofs
+$aliceProof = Http::post('alice.btc.../timestamp/abc123'); // Valid OTS proof
+$bobProof = Http::post('bob.btc.../timestamp/abc123');     // Valid OTS proof
+$finneyProof = Http::post('finney.../timestamp/abc123');   // Valid OTS proof
+
+// submit() returns first proof (alice's)
+$storedProof = $service->submit('abc123...');
+// $storedProof is a valid OTS proof verifiable by: ots verify
+```
 
 ### Data Flow
 

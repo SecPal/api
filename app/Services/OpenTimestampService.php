@@ -120,6 +120,7 @@ class OpenTimestampService
                 continue;
             }
 
+            /** @var \Illuminate\Http\Client\Response $response */
             if ($response->successful()) {
                 $successfulResponses[] = $response->body();
                 Log::debug('OpenTimestamp: Calendar responded', ['calendar' => $calendarUrl]);
@@ -188,6 +189,7 @@ class OpenTimestampService
             try {
                 $response = $http->get("{$calendarUrl}/timestamp/{$commitmentHex}");
 
+                /** @var \Illuminate\Http\Client\Response $response */
                 if ($response->successful()) {
                     $upgradedProof = $response->body();
 
@@ -313,10 +315,30 @@ class OpenTimestampService
     }
 
     /**
-     * Merge multiple calendar proofs into single proof.
+     * Select proof from multiple calendar responses.
      *
-     * @param  array<string>  $proofs  Binary calendar responses
-     * @param  string  $digest  Original digest bytes
+     * IMPORTANT: This method does NOT perform true OTS proof merging.
+     *
+     * Proper OTS proof merging requires:
+     * - Full OTS binary format parsing (Issue #410)
+     * - Creating fork operations (OpCode 0xFF) with proper length encoding
+     * - Reconstructing a valid operation tree structure
+     * - Ensuring the merged proof is verifiable by OTS CLI tools
+     *
+     * Current behavior: Returns the first valid proof from responding calendars.
+     * This ensures we always store a structurally valid OTS proof that can be
+     * verified by external tools (ots CLI, ots-python, etc.).
+     *
+     * Future enhancement (Issue #411): Implement proper OTS-compliant proof merging
+     * to combine attestations from multiple calendars for redundancy.
+     *
+     * @param  array<string>  $proofs  Binary calendar responses (each is a complete OTS proof)
+     * @param  string  $digest  Original digest bytes (unused, kept for API compatibility)
+     * @return string First valid OTS proof
+     *
+     * @throws RuntimeException if no proofs provided
+     *
+     * @see https://github.com/opentimestamps/python-opentimestamps for OTS format spec
      */
     private function mergeProofs(array $proofs, string $digest): string
     {
@@ -324,8 +346,15 @@ class OpenTimestampService
             throw new RuntimeException('OpenTimestamp: No proofs provided for merging');
         }
 
-        // For now, return first proof
-        // TODO: Implement proper proof merging (combine attestations)
+        // Return first proof to ensure we always emit a valid OTS proof
+        // rather than constructing an invalid merged structure
+        if (count($proofs) > 1) {
+            Log::info('OpenTimestamp: Multiple calendar proofs received, using first proof', [
+                'proof_count' => count($proofs),
+                'selected_proof_size' => strlen($proofs[0]),
+            ]);
+        }
+
         return $proofs[0];
     }
 
