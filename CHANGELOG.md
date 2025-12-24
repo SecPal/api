@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- **OpenTimestamp Proof Verification - Secure Implementation** (Issue #412, PR #TBD)
+- **OpenTimestamp Proof Verification - Secure Implementation** (Issue #415, PR #417)
   - **IMPLEMENTED** secure CLI-based verification using official `ots verify` tool
   - Replaces vulnerable "hybrid approach" that was reverted in PR #413
   - Uses vetted OpenTimestamps CLI client for cryptographically sound verification
@@ -70,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Installation: `pip install opentimestamps-client`
     - CLI reference: <https://github.com/opentimestamps/opentimestamps-client>
   - **Impact:** Level 3 audit trail verification now FULLY FUNCTIONAL and secure
+  - **Note:** Completes security fix from Issue #412 (revert) → Issue #415 (secure implementation)
 
 - **OpenTimestamp Proof Verification - Security Fix** (Issue #412, PR #413)
   - **REVERTED** unsecure "hybrid approach" implementation after Copilot security review
