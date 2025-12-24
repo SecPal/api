@@ -30,7 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - ✅ Blockchain cross-verification included
     - ✅ Fail-safe behavior when ots CLI not installed
   - Testing:
-    - 43 tests passing (128 assertions)
+    - 17 OpenTimestamp verification tests added (41 assertions)
+    - Entire test suite: 43 tests passing (128 assertions)
     - Comprehensive unit tests with mocked ProcessExecutor
     - Feature tests cover submit, upgrade, verify workflows
     - Activity model integration tests updated

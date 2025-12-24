@@ -61,7 +61,7 @@ class OpenTimestampServiceTest extends TestCase
         $this->service->verify($proof, $invalidDigest);
     }
 
-    public function test_verify_returns_false_for_disabled_implementation(): void
+    public function test_verify_returns_false_when_cli_not_available(): void
     {
         // Arrange: ots CLI not available
         $merkleRoot = hash('sha256', 'test-root');

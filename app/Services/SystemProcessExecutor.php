@@ -48,6 +48,12 @@ class SystemProcessExecutor implements ProcessExecutor
                 'stdout' => '',
                 'stderr' => 'Process timed out after '.$timeout.' seconds',
             ];
+        } catch (\Throwable $e) {
+            return [
+                'exitCode' => -1,
+                'stdout' => '',
+                'stderr' => 'Process failed: '.$e->getMessage(),
+            ];
         }
     }
 
