@@ -11,7 +11,6 @@ use App\Services\OpenTimestampService;
 use App\Services\SystemProcessExecutor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -31,7 +30,7 @@ final class OpenTimestampServiceIntegrationTest extends TestCase
         parent::setUp();
 
         $this->service = new OpenTimestampService(
-            new SystemProcessExecutor()
+            new SystemProcessExecutor
         );
 
         // Clear cache before each test
@@ -43,7 +42,7 @@ final class OpenTimestampServiceIntegrationTest extends TestCase
      */
     public function test_ots_cli_is_available(): void
     {
-        $executor = new SystemProcessExecutor();
+        $executor = new SystemProcessExecutor;
         $this->assertTrue(
             $executor->commandExists('ots'),
             'ots CLI tool must be installed (opentimestamps-client package)'
@@ -86,10 +85,10 @@ final class OpenTimestampServiceIntegrationTest extends TestCase
         // Use a pre-generated pending proof (not yet Bitcoin-anchored)
         // This is a real OTS proof structure, just not anchored to Bitcoin yet
         $pendingProof = base64_encode(
-            hex2bin('004f70656e54696d657374616d7073000050726f6f6600bf09e8e884e89294010811c70929' .
+            hex2bin('004f70656e54696d657374616d7073000050726f6f6600bf09e8e884e89294010811c70929'.
                    '8fc1c149afbf4c8996fb9242')
         );
-        $digest = '11c709298fc1c149afbf4c8996fb9242' .
+        $digest = '11c709298fc1c149afbf4c8996fb9242'.
                   '7ae245e4649b934ca495991b7852b855'; // SHA256 digest embedded in proof
 
         // Attempt verification - should fail because not yet Bitcoin-anchored
@@ -121,10 +120,10 @@ final class OpenTimestampServiceIntegrationTest extends TestCase
     {
         // Use a pre-generated pending proof
         $pendingProof = base64_encode(
-            hex2bin('004f70656e54696d657374616d7073000050726f6f6600bf09e8e884e89294010811c70929' .
+            hex2bin('004f70656e54696d657374616d7073000050726f6f6600bf09e8e884e89294010811c70929'.
                    '8fc1c149afbf4c8996fb9242')
         );
-        $digest = '11c709298fc1c149afbf4c8996fb9242' .
+        $digest = '11c709298fc1c149afbf4c8996fb9242'.
                   '7ae245e4649b934ca495991b7852b855';
 
         // First verification - should hit CLI and return false (pending)
@@ -171,10 +170,10 @@ final class OpenTimestampServiceIntegrationTest extends TestCase
     {
         // Use a pre-generated proof with known digest
         $proof = base64_encode(
-            hex2bin('004f70656e54696d657374616d7073000050726f6f6600bf09e8e884e89294010811c70929' .
+            hex2bin('004f70656e54696d657374616d7073000050726f6f6600bf09e8e884e89294010811c70929'.
                    '8fc1c149afbf4c8996fb9242')
         );
-        $correctDigest = '11c709298fc1c149afbf4c8996fb9242' .
+        $correctDigest = '11c709298fc1c149afbf4c8996fb9242'.
                          '7ae245e4649b934ca495991b7852b855';
 
         // Try to verify with different digest
