@@ -24,18 +24,15 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 ### Components
 
 1. **OpenTimestampService** (`app/Services/OpenTimestampService.php`)
-
    - Handles submission, upgrade, and verification of OTS proofs
    - Uses external `ots` CLI tool for all cryptographic operations
    - Implements caching layer for verified proofs
 
 2. **ProcessExecutor** (`app/Contracts/ProcessExecutor.php`)
-
    - Abstraction for executing external CLI commands
    - Enables testable, mocked CLI interactions
 
 3. **Jobs**
-
    - `SubmitMerkleRootToOpenTimestamp`: Submits batch merkle roots to calendars
    - `UpgradeOpenTimestampProofs`: Polls for Bitcoin-anchored proofs
 
@@ -278,17 +275,14 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
 **Possible Causes**:
 
 1. **Pending Proof (Most Common)**
-
    - Proof not yet Bitcoin-anchored (~1 hour after submission)
    - Wait and retry `upgrade()`, then `verify()`
 
 2. **CLI Timeout**
-
    - Network latency to Bitcoin nodes
    - Increase `OTS_CLI_TIMEOUT` in config
 
 3. **Digest Mismatch**
-
    - Ensure digest is SHA256 hex string (64 characters)
    - Case-insensitive (normalized to lowercase)
 
@@ -310,7 +304,6 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
    ```
 
 2. **Firewall Rules**
-
    - Ensure outbound HTTPS (443) allowed to calendar servers
 
 3. **Calendar Server Down**
@@ -331,7 +324,6 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
    ```
 
 2. **Database Query Optimization**
-
    - Index on `activity_log.opentimestamp_merkle_root`
    - Index on `activity_log.opentimestamp_proof_confirmed`
 
