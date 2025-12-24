@@ -93,9 +93,20 @@ if [ -f composer.json ]; then
 
     # Only install dependencies if DDEV not available (DDEV manages its own vendor/)
     if [ -z "$CMD_PREFIX" ]; then
-      # OPTIMIZATION: Skip install if vendor is up-to-date (massive time saver)
+      # OPTIMIZATION: Skip install if vendor is up-to-date with composer.lock (massive time saver)
       # Force install via: PREFLIGHT_FORCE_INSTALL=1 git push
-      if [ "${PREFLIGHT_FORCE_INSTALL:-0}" = "1" ] || [ ! -d vendor ] || [ composer.lock -nt vendor ]; then
+      NEEDS_INSTALL=0
+      if [ "${PREFLIGHT_FORCE_INSTALL:-0}" = "1" ] || [ ! -d vendor ]; then
+        NEEDS_INSTALL=1
+      elif [ -f composer.lock ] && [ composer.lock -nt vendor ]; then
+        # composer.lock modified after vendor/ - reinstall needed
+        NEEDS_INSTALL=1
+      elif [ ! -f composer.lock ] && [ -f composer.json ] && [ composer.json -nt vendor ]; then
+        # No lock file but composer.json newer than vendor/ - reinstall needed
+        NEEDS_INSTALL=1
+      fi
+
+      if [ "$NEEDS_INSTALL" -eq 1 ]; then
         composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
       else
         echo "ℹ️  Skipping composer install (dependencies up-to-date, force via PREFLIGHT_FORCE_INSTALL=1)" >&2
