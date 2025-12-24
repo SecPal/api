@@ -139,8 +139,9 @@ class OpenTimestampServiceTest extends TestCase
         // Act: Verify
         $result = $this->service->verify($confirmedProof, $merkleRoot);
 
-        // Assert: Should now return true (implementation enabled in issue #412)
-        $this->assertTrue($result, 'verify() should now return true for valid proofs after #412 implementation');
+        // Assert: Should return false (implementation disabled for security)
+        // Previous "hybrid approach" was vulnerable to trivial proof forgery (PR #413 review)
+        $this->assertFalse($result, 'verify() should return false until secure implementation available (Issue #412)');
     }
 
     public function test_verify_checks_for_bitcoin_attestation(): void

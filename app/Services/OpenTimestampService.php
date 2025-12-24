@@ -208,17 +208,38 @@ class OpenTimestampService
     /**
      * Verify OTS proof against message digest.
      *
-     * Implements hybrid verification approach:
-     * 1. Basic proof structure validation (PHP)
-     * 2. Commitment extraction and matching
-     * 3. Bitcoin attestation presence check
-     * 4. Optional: External service verification (cached)
+     * SECURITY: Local proof verification is INTENTIONALLY DISABLED.
      *
-     * @param  string  $proof  Binary OTS proof
+     * The previous "hybrid approach" implementation (PR #413) was vulnerable to
+     * trivial proof forgery attacks. An attacker could construct arbitrary bytes
+     * matching our heuristic checks without any blockchain anchoring:
+     *
+     *   $fakeProof = "OpenTimestamps proof\0" . $digest_bytes . $padding . $magic_bytes;
+     *
+     * Critical security flaws in the hybrid approach:
+     * 1. extractCommitment() blindly extracts first 32 bytes (no operation tree parsing)
+     * 2. hasAttestation() only checks substring match (no cryptographic validation)
+     * 3. No Bitcoin blockchain cross-verification (block height, Merkle proof)
+     * 4. No operation chain validation (SHA256 operations not verified)
+     *
+     * These issues were identified in Copilot security review (PR #413, Comment #5).
+     *
+     * CORRECT IMPLEMENTATION requires:
+     * - Full OTS proof parser (operation tree traversal)
+     * - Cryptographic validation of operation chain
+     * - Bitcoin blockchain attestation verification (block height + Merkle proof)
+     * - OR delegation to vetted OTS verification service/library
+     *
+     * Until secure implementation is available, verification FAILS CLOSED for security.
+     *
+     * @param  string  $proof  Binary OTS proof (currently ignored)
      * @param  string  $digest  SHA256 hash (64 hex characters)
-     * @return bool True if proof is valid and matches digest
+     * @return bool Always returns false until secure implementation available
      *
      * @throws \InvalidArgumentException if digest format is invalid
+     *
+     * @see Issue #412 for secure implementation requirements
+     * @see https://github.com/opentimestamps/opentimestamps-client for reference implementation
      */
     public function verify(string $proof, string $digest): bool
     {
@@ -227,70 +248,14 @@ class OpenTimestampService
             throw new \InvalidArgumentException('Digest must be 64-character hex SHA256 hash');
         }
 
-        // Normalize digest to lowercase for consistent comparison (bin2hex returns lowercase)
-        $digest = strtolower($digest);
+        Log::warning('OpenTimestamp: Local proof verification is disabled due to security concerns', [
+            'digest' => $digest,
+            'proof_size' => strlen($proof),
+            'reason' => 'Hybrid approach vulnerable to trivial proof forgery (see PR #413 Copilot review)',
+            'issue' => '#412',
+        ]);
 
-        // Reject empty or too short proofs
-        if (strlen($proof) < 32) {
-            Log::debug('OpenTimestamp: Proof too short', ['proof_length' => strlen($proof)]);
-
-            return false;
-        }
-
-        // Check cache first before expensive verification operations
-        $cacheKey = 'ots_verified_'.hash('sha256', $proof.$digest);
-
-        /** @var bool $result */
-        $result = \Illuminate\Support\Facades\Cache::remember(
-            $cacheKey,
-            now()->addDays(30), // Cache for 30 days
-            function () use ($proof, $digest): bool {
-                try {
-                    // Step 1: Extract commitment from proof
-                    $commitment = $this->extractCommitment($proof);
-
-                    if ($commitment === null) {
-                        Log::debug('OpenTimestamp: Cannot extract commitment from proof');
-
-                        return false;
-                    }
-
-                    // Step 2: Verify commitment matches provided digest
-                    $commitmentHex = bin2hex($commitment);
-                    if ($commitmentHex !== $digest) {
-                        Log::debug('OpenTimestamp: Commitment mismatch', [
-                            'expected' => $digest,
-                            'actual' => $commitmentHex,
-                        ]);
-
-                        return false;
-                    }
-
-                    // Step 3: Check for Bitcoin attestation (proof must be confirmed)
-                    if (! $this->hasAttestation($proof, 'bitcoin')) {
-                        Log::debug('OpenTimestamp: No Bitcoin attestation found (proof still pending)');
-
-                        return false;
-                    }
-
-                    Log::info('OpenTimestamp: Proof verification successful', [
-                        'digest' => $digest,
-                        'proof_size' => strlen($proof),
-                    ]);
-
-                    return true;
-                } catch (\Exception $e) {
-                    Log::warning('OpenTimestamp: Verification failed', [
-                        'digest' => $digest,
-                        'error' => $e->getMessage(),
-                    ]);
-
-                    return false;
-                }
-            }
-        );
-
-        return $result;
+        return false;
     }
 
     /**

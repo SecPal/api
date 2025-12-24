@@ -18,9 +18,14 @@ use Tests\TestCase;
 /**
  * Unit tests for OpenTimestamp proof verification.
  *
- * Tests the verify() method implementation with various proof formats.
+ * NOTE: verify() method is currently DISABLED due to security concerns.
+ * All tests expect false return value until secure implementation is available.
+ *
+ * The previous "hybrid approach" implementation was vulnerable to trivial
+ * proof forgery attacks (see PR #413 Copilot review, Comment #5).
  *
  * @see App\Services\OpenTimestampService::verify()
+ * @see Issue #412 for secure implementation requirements
  */
 class OpenTimestampServiceTest extends TestCase
 {
@@ -51,7 +56,21 @@ class OpenTimestampServiceTest extends TestCase
         $this->service->verify($proof, $invalidDigest);
     }
 
-    public function test_verify_rejects_empty_proof(): void
+    public function test_verify_returns_false_for_disabled_implementation(): void
+    {
+        // Arrange: Even with valid proof structure, verify() returns false (disabled)
+        $merkleRoot = hash('sha256', 'test-root');
+        $merkleRootBytes = hex2bin($merkleRoot);
+        $proof = $this->buildValidOtsProof($merkleRootBytes);
+
+        // Act
+        $result = $this->service->verify($proof, $merkleRoot);
+
+        // Assert: Always false until secure implementation available
+        $this->assertFalse($result, 'verify() should return false (disabled for security)');
+    }
+
+    public function test_verify_returns_false_for_empty_proof(): void
     {
         $merkleRoot = hash('sha256', 'test-root');
 
@@ -60,7 +79,7 @@ class OpenTimestampServiceTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function test_verify_rejects_malformed_proof_structure(): void
+    public function test_verify_returns_false_for_malformed_proof(): void
     {
         $merkleRoot = hash('sha256', 'test-root');
         $malformedProof = 'random-binary-data-without-structure';
@@ -70,104 +89,75 @@ class OpenTimestampServiceTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function test_verify_accepts_valid_confirmed_proof(): void
-    {
-        // Arrange: Create valid OTS proof structure
-        $merkleRoot = hash('sha256', 'test-root');
-        $merkleRootBytes = hex2bin($merkleRoot);
-
-        // Minimal valid OTS proof: header + commitment + operations + Bitcoin attestation
-        $proof = $this->buildValidOtsProof($merkleRootBytes);
-
-        // Act
-        $result = $this->service->verify($proof, $merkleRoot);
-
-        // Assert
-        $this->assertTrue($result);
-    }
-
-    public function test_verify_rejects_proof_with_wrong_commitment(): void
+    public function test_verify_returns_false_for_proof_with_wrong_commitment(): void
     {
         // Arrange: Proof for different merkle root
         $merkleRoot = hash('sha256', 'test-root');
         $differentRoot = hash('sha256', 'different-root');
         $differentRootBytes = hex2bin($differentRoot);
-
         $proof = $this->buildValidOtsProof($differentRootBytes);
 
         // Act
         $result = $this->service->verify($proof, $merkleRoot);
 
-        // Assert: Should fail because commitment doesn't match
+        // Assert: Returns false (implementation disabled)
         $this->assertFalse($result);
     }
 
-    public function test_verify_rejects_pending_proof_without_bitcoin_attestation(): void
+    public function test_verify_returns_false_for_pending_proof(): void
     {
         // Arrange: Pending proof (no Bitcoin attestation yet)
         $merkleRoot = hash('sha256', 'test-root');
         $merkleRootBytes = hex2bin($merkleRoot);
-
         $pendingProof = $this->buildPendingOtsProof($merkleRootBytes);
 
         // Act
         $result = $this->service->verify($pendingProof, $merkleRoot);
 
-        // Assert: Should fail because no Bitcoin attestation
+        // Assert: Returns false (implementation disabled)
         $this->assertFalse($result);
     }
 
-    public function test_verify_uses_cache_for_verified_proofs(): void
+    public function test_verify_returns_false_for_any_proof(): void
     {
-        // Arrange
+        // Arrange: Test that verification is consistently disabled for any input
         $merkleRoot = hash('sha256', 'test-root');
         $merkleRootBytes = hex2bin($merkleRoot);
         $proof = $this->buildValidOtsProof($merkleRootBytes);
 
-        // Set up cache spy before any verification calls
-        Cache::spy();
-
-        // Act: First verification (should verify and cache)
+        // Act: Multiple calls with same proof
         $result1 = $this->service->verify($proof, $merkleRoot);
-
-        // Act: Second verification (should hit cache)
         $result2 = $this->service->verify($proof, $merkleRoot);
 
-        // Assert: Both return true
-        $this->assertTrue($result1);
-        $this->assertTrue($result2);
-
-        // Verify cache was used for both calls
-        Cache::shouldHaveReceived('remember')->twice();
+        // Assert: Always false, no caching of "verified" state
+        $this->assertFalse($result1);
+        $this->assertFalse($result2);
     }
 
     public function test_verify_handles_malformed_proof_gracefully(): void
     {
-        // Arrange: Proof that will throw exception during processing
+        // Arrange: Proof that could throw exception during processing
         $merkleRoot = hash('sha256', 'test-root');
-        $malformedProof = 'x'; // Too short, will fail early
+        $malformedProof = 'x'; // Very short
 
-        // Act
+        // Act: Should not throw exception, just return false
         $result = $this->service->verify($malformedProof, $merkleRoot);
 
-        // Assert: Should gracefully return false
+        // Assert: Gracefully returns false
         $this->assertFalse($result);
     }
 
-    public function test_verify_handles_proof_without_header(): void
+    public function test_verify_handles_uppercase_digest(): void
     {
-        // Arrange: Proof without OpenTimestamp header but with valid structure
-        $merkleRoot = hash('sha256', 'test-root');
-        $merkleRootBytes = hex2bin($merkleRoot);
-
-        // Legacy format: just commitment + attestation (no header)
-        $legacyProof = $merkleRootBytes."\x05\x88\x96\x0d\x73\xd7\x19\x01\x03";
+        // Arrange: Test that uppercase digest doesn't cause issues
+        $merkleRoot = strtoupper(hash('sha256', 'test-root'));
+        $proof = 'some-proof-data';
 
         // Act
-        $result = $this->service->verify($legacyProof, $merkleRoot);
+        $result = $this->service->verify($proof, $merkleRoot);
 
-        // Assert: Should still verify successfully
-        $this->assertTrue($result);
+        // Assert: Returns false (implementation disabled)
+        $this->assertFalse($result);
     }
 
     /**
