@@ -295,13 +295,17 @@ Before pushing, the preflight script runs:
 - All pre-commit checks
 - Laravel Pint code style check
 - PHPStan static analysis
-- PEST tests with ≥80% coverage
+- ⚡ Tests **skipped by default** (run in CI)
 - PR size check (600 lines)
 
 To run manually:
 
 ```bash
+# Fast mode (no tests, ~30s)
 ./scripts/preflight.sh
+
+# With tests (~5 min)
+PREFLIGHT_RUN_TESTS=1 ./scripts/preflight.sh
 ```
 
 To bypass (not recommended):
@@ -317,11 +321,13 @@ Before each commit/PR, ensure:
 - ✅ KEK file exists at `storage/keys/kek.key` with permissions `0600`
 - ✅ `.env` has `KEK_PATH` set correctly
 - ✅ Database connection is configured and migrations ran
-- ✅ `./vendor/bin/pint` passes (PSR-12)
-- ✅ `./vendor/bin/phpstan analyse` passes (level max)
-- ✅ `./vendor/bin/pest --coverage --min=80` passes
+- ✅ `./vendor/bin/pint` passes (PSR-12) - **auto-checked**
+- ✅ `./vendor/bin/phpstan analyse` passes (level max) - **auto-checked**
+- ✅ Tests pass: `ddev exec php artisan test --parallel` - **runs in CI**
 - ✅ No hardcoded secrets in code
-- ✅ REUSE compliance (all files have license headers)
+- ✅ REUSE compliance (all files have license headers) - **auto-checked**
+
+💡 **Tip:** Items marked "auto-checked" run in pre-push hook. Tests run in CI only (for speed).
 
 ## Project Structure
 
