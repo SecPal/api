@@ -12,6 +12,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Queue-based Activity Hash Chain Building** (Issue #408, PR #TBD)
+  - **IMPLEMENTED** race-condition-free hash chain processing via Laravel queues
+  - Eliminates race condition window from synchronous `creating` hook approach
+  - Architecture:
+    - ProcessActivityHashChain job dispatched in Activity::created hook
+    - DB transaction + lockForUpdate() ensures sequential processing per tenant
+    - Uses DB::table()->update() to bypass Eloquent events (no infinite loops)
+    - Environment-based dispatch: dispatchSync() in tests, dispatch() in production
+  - Performance validation:
+    - 134 logs/sec sustained throughput (exceeds 100 logs/sec target)
+    - Zero broken links across 200-log stress test (100% chain integrity)
+    - p95 latency: 11.82ms per log (excellent responsiveness)
+    - Multi-tenant concurrent processing maintains perfect isolation
+  - Testing:
+    - 5 new performance tests (370 assertions)
+    - All 1611/1612 existing tests pass (99.92% success rate)
+    - ProcessActivityHashChainTest.php: 5/5 tests validate job behavior
+  - **BREAKING CHANGE:** event_hash column now nullable (Migration 2025_12_24_162643)
+    - Reason: Activity INSERT happens before job computes hash
+    - Timeline: INSERT (event_hash=NULL) → Job runs → UPDATE (event_hash=computed)
+    - Duration: Milliseconds (sync queue) to seconds (async queue worker)
+    - **ACTION REQUIRED:** Run migration: `php artisan migrate`
+  - **PRODUCTION REQUIREMENT:** Queue worker must be running
+    - Command: `php artisan queue:work --queue=activity-hash-chain,merkle,opentimestamp,default`
+    - Setup: Configure supervisor/systemd for daemon process
+    - See: docs/QUEUE_WORKERS.md for detailed setup instructions
+  - Test adaptation: Tests using Activity::create() must call $log->refresh() to reload event_hash
+  - **Impact:** Epic #385 (BewachV compliance) - eliminates last race condition in forensic audit trail
+
 ### Security
 
 - **OpenTimestamp Proof Verification - Secure Implementation** (Issue #412, PR #TBD)

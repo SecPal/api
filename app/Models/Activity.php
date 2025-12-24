@@ -12,6 +12,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Models\Activity as SpatieActivity;
 
 /**
@@ -19,10 +20,17 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  *
  * Features:
  * - Automatic tenant/org scope injection
- * - Hash chain building (sequential tamper detection)
+ * - Hash chain building (queue-based, race-condition-free) - Issue #408
  * - Merkle tree batching (hierarchical verification)
  * - OpenTimestamp integration (blockchain anchoring)
  * - 3-tier security levels (BewachV § 21 Abs. 4 retention)
+ *
+ * Hash Chain Architecture (Issue #408):
+ * - Activity INSERT happens first (event_hash=NULL initially)
+ * - ProcessActivityHashChain job dispatched in `created` event
+ * - Job uses DB transaction + lockForUpdate() for race-free processing
+ * - event_hash updated via DB::table()->update() (bypasses Eloquent events)
+ * - Tests MUST call $activity->refresh() to reload updated event_hash
  *
  * @property int $id
  * @property int $tenant_id
@@ -38,7 +46,7 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  * @property string|null $ip_address
  * @property string|null $user_agent
  * @property string|null $previous_hash
- * @property string $event_hash
+ * @property string|null $event_hash - Nullable during initial creation (updated by job)
  * @property string|null $merkle_root
  * @property string|null $merkle_batch_id
  * @property array<string, mixed>|null $merkle_proof
@@ -54,6 +62,7 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  *
  * @see ADR-010 Activity Logging & Audit Trail Strategy
  * @see Issue #387 PR-2: Implement custom Activity model with hash chain
+ * @see Issue #408 PR-3: Queue-based activity hash chain building (race-condition-free)
  */
 class Activity extends SpatieActivity
 {
@@ -260,8 +269,52 @@ class Activity extends SpatieActivity
                 $activity->user_agent = request()->userAgent();
             }
 
-            // Build hash chain
-            $activity->buildHashChain();
+            // NOTE: Hash chain building moved to 'created' hook (Issue #408)
+            // Reason: Queue-based processing requires Activity ID (from INSERT)
+            // buildHashChain() is now handled by ProcessActivityHashChain job
+        });
+
+        static::created(function (Activity $activity) {
+            // Dispatch queue job for hash chain building (Issue #408)
+            // Queue ensures sequential processing per tenant (eliminates race condition)
+            if ($activity->tenant_id === null) {
+                Log::warning('Activity created without tenant_id - skipping hash chain', [
+                    'activity_id' => $activity->id,
+                ]);
+
+                return;
+            }
+
+            // Prepare activity data for job (extract relevant attributes)
+            $activityData = [
+                'id' => $activity->id,
+                'tenant_id' => $activity->tenant_id,
+                'organizational_unit_id' => $activity->organizational_unit_id,
+                'log_name' => $activity->log_name,
+                'description' => $activity->description,
+                'subject_type' => $activity->subject_type,
+                'subject_id' => $activity->subject_id,
+                'causer_type' => $activity->causer_type,
+                'causer_id' => $activity->causer_id,
+                'properties' => $activity->properties,
+                'event' => $activity->event,
+                'batch_uuid' => $activity->batch_uuid,
+            ];
+
+            // Dispatch queue job for hash chain building
+            // Testing: dispatchSync() executes job immediately (required for tests)
+            // Production: dispatch() queues job for async processing by queue worker
+            // Result: Tests get immediate hash, production gets race-free async processing
+            //
+            // Use config('app.env') instead of app()->environment() because phpunit.xml
+            // sets APP_ENV=testing which is read by config(), not the Application instance
+            $isTestContext = config('app.env') === 'testing';
+
+            if ($isTestContext) {
+                \App\Jobs\ProcessActivityHashChain::dispatchSync($activity->tenant_id, $activityData);
+            } else {
+                \App\Jobs\ProcessActivityHashChain::dispatch($activity->tenant_id, $activityData);
+            }
         });
     }
 

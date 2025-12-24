@@ -250,14 +250,16 @@ test('job handles tenant with no unbatched logs', function () {
 // ============================================================================
 
 test('level 3 logs schedule opentimestamp submission', function () {
-    Queue::fake();
-
-    // Create Level 3 log
+    // Create Level 3 log (ProcessActivityHashChain runs via dispatchSync)
     $log = Activity::create([
         'tenant_id' => $this->tenant->id,
         'log_name' => 'hr_access', // Level 3
         'description' => 'Accessed salary data',
     ]);
+    $log->refresh();
+
+    // NOW fake queue (after hash chain is built)
+    Queue::fake();
 
     // Build tree
     $job = new BuildMerkleTreeBatch;
@@ -274,14 +276,16 @@ test('level 3 logs schedule opentimestamp submission', function () {
 });
 
 test('level 2 logs do not schedule opentimestamp', function () {
-    Queue::fake();
-
-    // Create Level 2 log
+    // Create Level 2 log (ProcessActivityHashChain runs via dispatchSync)
     $log = Activity::create([
         'tenant_id' => $this->tenant->id,
         'log_name' => 'authentication', // Level 2
         'description' => 'Login',
     ]);
+    $log->refresh();
+
+    // NOW fake queue (after hash chain is built)
+    Queue::fake();
 
     // Build tree
     $job = new BuildMerkleTreeBatch;
