@@ -186,16 +186,49 @@ $isValid = $service->verify($confirmedProof, $digest);
 
 ### Jobs
 
+**SubmitMerkleRootToOpenTimestamp** (automatic after Merkle tree build):
+
+- **Purpose**: Submit Merkle roots to OpenTimestamp calendar servers
+- **Trigger**: Dispatched by BuildMerkleTreeBatch job
+- **Queue**: `opentimestamp`
+- **Retry Logic**: 3 attempts with exponential backoff (1s, 2s, 4s)
+- **Timeout**: 30 seconds per attempt
+- **Failure Behavior**: Re-throws exception to trigger queue retry
+- **Result**: Stores pending proof (calendar attestations) in Activity logs
+
+**UpgradeOpenTimestampProofs** (scheduled hourly):
+
+- **Purpose**: Upgrade pending proofs to Bitcoin-confirmed proofs
+- **Trigger**: Scheduled via `routes/console.php` (hourly)
+- **Queue**: `opentimestamp`
+- **Batch Processing**:
+  - Processes maximum 100 proofs per run (prevents long-running jobs)
+  - Skips recently submitted proofs (<1 hour old) to reduce calendar load
+  - Processes oldest proofs first (FIFO fairness)
+- **Retry Logic**: 1 attempt (no retry - runs again hourly)
+- **Timeout**: 600 seconds (10 minutes for batch)
+- **Failure Behavior**: Logs warning, continues processing remaining proofs
+- **Result**: Updates confirmed proofs with Bitcoin attestation, sets ots_confirmed_at
+
+**Monitoring Metrics** (logged at completion):
+
+- `processed`: Number of proofs processed in this run
+- `upgraded`: Number successfully upgraded to Bitcoin-confirmed
+- `still_pending`: Number still pending (Bitcoin not confirmed yet)
+- `failed`: Number of upgrade errors
+- `success_rate`: Percentage of successful upgrades
+
+Example manual dispatch (normally automatic):
+
 ```php
-// Dispatch jobs manually (normally automatic)
 use App\Jobs\SubmitMerkleRootToOpenTimestamp;
 use App\Jobs\UpgradeOpenTimestampProofs;
 
-// Submit merkle root
-SubmitMerkleRootToOpenTimestamp::dispatch($batchId)->onQueue('opentimestamp');
+// Submit merkle root (after BuildMerkleTreeBatch job)
+SubmitMerkleRootToOpenTimestamp::dispatch($tenantId, $batchId, $merkleRoot);
 
-// Upgrade pending proofs
-UpgradeOpenTimestampProofs::dispatch()->onQueue('opentimestamp');
+// Upgrade pending proofs (normally scheduled hourly)
+UpgradeOpenTimestampProofs::dispatch();
 ```
 
 ### Caching

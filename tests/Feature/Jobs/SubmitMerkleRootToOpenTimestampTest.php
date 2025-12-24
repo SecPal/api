@@ -60,6 +60,7 @@ class SubmitMerkleRootToOpenTimestampTest extends TestCase
         ]));
 
         // Mock OpenTimestamp service
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockProof = hex2bin('0004f0'.bin2hex('pending-proof'));
 
@@ -116,6 +117,7 @@ class SubmitMerkleRootToOpenTimestampTest extends TestCase
         ]));
 
         // Mock service
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('submit')
             ->with($merkleRoot1)
@@ -145,6 +147,7 @@ class SubmitMerkleRootToOpenTimestampTest extends TestCase
         ]);
 
         // Mock service - submission fails
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('submit')
             ->andThrow(new \RuntimeException('Calendar servers unavailable'));
@@ -179,6 +182,7 @@ class SubmitMerkleRootToOpenTimestampTest extends TestCase
         $batchId = 9999;
         $merkleRoot = hash('sha256', 'root');
 
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldNotReceive('submit');
 
@@ -207,6 +211,7 @@ class SubmitMerkleRootToOpenTimestampTest extends TestCase
         // Mock service - returns binary proof
         $binaryProof = "\x00\x04\xf0".random_bytes(50);
 
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('submit')
             ->andReturn($binaryProof);
@@ -220,5 +225,29 @@ class SubmitMerkleRootToOpenTimestampTest extends TestCase
         assert($log instanceof Activity);
         $this->assertNotNull($log->ots_proof);
         $this->assertEquals($binaryProof, $log->ots_proof);
+    }
+
+    public function test_job_uses_exponential_backoff_on_retry(): void
+    {
+        // Arrange: Create log with Merkle root
+        $batchId = now()->timestamp;
+        $merkleRoot = hash('sha256', 'test-backoff');
+
+        Activity::create([
+            'tenant_id' => $this->tenant->id,
+            'log_name' => 'contract_change',
+            'description' => 'Test exponential backoff',
+            'merkle_batch_id' => $batchId,
+            'merkle_root' => $merkleRoot,
+        ]);
+
+        // Create job instance
+        $job = new SubmitMerkleRootToOpenTimestamp($this->tenant->id, $batchId, $merkleRoot);
+
+        // Assert: Job has exponential backoff configured
+        // backoff() method should return [1, 2, 4] for exponential delays
+        $this->assertEquals([1, 2, 4], $job->backoff());
+        $this->assertEquals(3, $job->tries);
+        $this->assertEquals(30, $job->timeout);
     }
 }

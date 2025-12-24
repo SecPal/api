@@ -62,11 +62,47 @@ class SubmitMerkleRootToOpenTimestamp implements ShouldQueue
     }
 
     /**
+     * Calculate the backoff delays for retries.
+     *
+     * Uses exponential backoff: 1s, 2s, 4s between retry attempts.
+     * This prevents overwhelming calendar servers during temporary outages.
+     *
+     * @return array<int, int> Array of delay times in seconds [1, 2, 4]
+     */
+    public function backoff(): array
+    {
+        return [1, 2, 4];
+    }
+
+    /**
      * Execute the job.
      *
-     * Submits Merkle root to OpenTimestamp calendars and stores pending proof.
+     * OpenTimestamp Workflow:
+     * -----------------------
+     * 1. Submit Merkle root to multiple calendar servers (CalendarAsyncSubmit)
+     * 2. Calendars aggregate submissions and create pending timestamp
+     * 3. Store pending OTS proof (contains calendar attestations)
+     * 4. Later, UpgradeOpenTimestampProofs job checks if Bitcoin block confirmed
+     * 5. When confirmed, proof is upgraded with Bitcoin attestation
      *
-     * @throws \RuntimeException if submission fails
+     * Pending proofs (magic bytes 0x04f0...):
+     *   - Contain calendar server attestations
+     *   - Not yet anchored to Bitcoin blockchain
+     *   - Can be upgraded after ~10-60 minutes
+     *
+     * Confirmed proofs (magic bytes 0x05889...):
+     *   - Contain Bitcoin block attestation
+     *   - Immutable blockchain anchor
+     *   - Can be verified independently forever
+     *
+     * This job creates PENDING proofs. The UpgradeOpenTimestampProofs job
+     * (scheduled hourly) converts pending → confirmed when Bitcoin confirms.
+     *
+     * @see \App\Jobs\UpgradeOpenTimestampProofs for proof upgrade
+     * @see \App\Services\OpenTimestampService::submit() for calendar submission
+     * @see ADR-010 Section 6: OpenTimestamp Integration
+     *
+     * @throws \RuntimeException if submission fails (triggers retry with backoff)
      */
     public function handle(OpenTimestampService $otsService): void
     {
@@ -74,6 +110,7 @@ class SubmitMerkleRootToOpenTimestamp implements ShouldQueue
             'tenant_id' => $this->tenantId,
             'batch_id' => $this->batchId,
             'merkle_root' => $this->merkleRoot,
+            'attempt' => $this->attempts(),
         ]);
 
         // Find all logs in this batch
