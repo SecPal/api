@@ -9,9 +9,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Mockery;
 use Tests\TestCase;
 
 /**
@@ -27,9 +29,17 @@ class OpenTimestampServiceTest extends TestCase
 
     private OpenTimestampService $service;
 
+    /** @var Mockery\MockInterface&ProcessExecutor */
+    private $mockExecutor;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Mock ProcessExecutor to avoid CLI dependency
+        $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
+        $this->app->instance(ProcessExecutor::class, $this->mockExecutor);
+
         $this->service = app(OpenTimestampService::class);
     }
 
@@ -121,27 +131,49 @@ class OpenTimestampServiceTest extends TestCase
         $invalidProof = 'invalid-proof-data';
         $merkleRoot = hash('sha256', 'test');
 
+        // Mock: CLI returns failure
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->once()
+            ->andReturn([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'Error: Invalid proof',
+            ]);
+
         // Act & Assert
         $result = $this->service->verify($invalidProof, $merkleRoot);
 
         $this->assertFalse($result);
     }
 
-    public function test_verify_returns_false_for_disabled_implementation(): void
+    public function test_verify_returns_false_when_cli_not_available(): void
     {
-        // Arrange: Create proof with valid structure and Bitcoin attestation
+        // Arrange: ots CLI not installed
         $merkleRoot = hash('sha256', 'test-root');
         $merkleRootBytes = hex2bin($merkleRoot);
 
         // Create proof: merkle root (32 bytes) + Bitcoin attestation signature
         $confirmedProof = $merkleRootBytes."\x05\x88\x96\x0d\x73\xd7\x19\x01\x03\xe3\x93\x10";
 
+        // Mock: CLI not available
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(false);
+
         // Act: Verify
         $result = $this->service->verify($confirmedProof, $merkleRoot);
 
-        // Assert: Should return false (implementation disabled for security)
-        // Previous "hybrid approach" was vulnerable to trivial proof forgery (PR #413 review)
-        $this->assertFalse($result, 'verify() should return false until secure implementation available (Issue #412)');
+        // Assert: Should return false when CLI not installed
+        $this->assertFalse($result, 'verify() should return false when ots CLI not installed');
     }
 
     public function test_verify_checks_for_bitcoin_attestation(): void
@@ -149,6 +181,22 @@ class OpenTimestampServiceTest extends TestCase
         // Arrange: Proof without Bitcoin attestation (still pending)
         $merkleRoot = hash('sha256', 'test-root');
         $pendingProof = $this->createPendingProof();
+
+        // Mock: CLI returns "not yet confirmed" error
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->once()
+            ->andReturn([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'Pending attestation, not yet confirmed',
+            ]);
 
         // Act & Assert: Should return false (no Bitcoin attestation)
         $result = $this->service->verify($pendingProof, $merkleRoot);

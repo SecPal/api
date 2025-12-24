@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Contracts\ProcessExecutor;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -44,8 +45,15 @@ class OpenTimestampService
      */
     private int $timeout;
 
-    public function __construct()
+    /**
+     * @var ProcessExecutor CLI process executor
+     */
+    private ProcessExecutor $processExecutor;
+
+    public function __construct(ProcessExecutor $processExecutor)
     {
+        $this->processExecutor = $processExecutor;
+
         /** @var array<string> $urls */
         $urls = config('opentimestamp.calendar_urls', [
             'https://alice.btc.calendar.opentimestamps.org',
@@ -206,40 +214,31 @@ class OpenTimestampService
     }
 
     /**
-     * Verify OTS proof against message digest.
+     * Verify OTS proof against message digest using OpenTimestamps CLI.
      *
-     * SECURITY: Local proof verification is INTENTIONALLY DISABLED.
+     * SECURITY: Delegates verification to official `ots verify` CLI tool.
      *
-     * The previous "hybrid approach" implementation (PR #413) was vulnerable to
-     * trivial proof forgery attacks. An attacker could construct arbitrary bytes
-     * matching our heuristic checks without any blockchain anchoring:
+     * This implementation uses the vetted OpenTimestamps client for cryptographically
+     * sound verification, avoiding the security flaws of the previous "hybrid approach"
+     * (see PR #413 review for details on proof forgery vulnerabilities).
      *
-     *   $fakeProof = "OpenTimestamps proof\0" . $digest_bytes . $padding . $magic_bytes;
-     *
-     * Critical security flaws in the hybrid approach:
-     * 1. extractCommitment() blindly extracts first 32 bytes (no operation tree parsing)
-     * 2. hasAttestation() only checks substring match (no cryptographic validation)
-     * 3. No Bitcoin blockchain cross-verification (block height, Merkle proof)
-     * 4. No operation chain validation (SHA256 operations not verified)
-     *
-     * These issues were identified in Copilot security review (PR #413, Comment #5).
-     *
-     * CORRECT IMPLEMENTATION requires:
-     * - Full OTS proof parser (operation tree traversal)
+     * The official OTS CLI performs:
+     * - Full operation tree parsing
      * - Cryptographic validation of operation chain
      * - Bitcoin blockchain attestation verification (block height + Merkle proof)
-     * - OR delegation to vetted OTS verification service/library
+     * - Cross-check with actual Bitcoin transaction data
      *
-     * Until secure implementation is available, verification FAILS CLOSED for security.
+     * Installation: pip install opentimestamps-client
+     * Docs: https://github.com/opentimestamps/opentimestamps-client
      *
-     * @param  string  $proof  Binary OTS proof (currently ignored)
+     * @param  string  $proof  Binary OTS proof
      * @param  string  $digest  SHA256 hash (64 hex characters)
-     * @return bool Always returns false until secure implementation available
+     * @return bool True if proof is cryptographically valid, false otherwise
      *
      * @throws \InvalidArgumentException if digest format is invalid
      *
      * @see Issue #412 for secure implementation requirements
-     * @see https://github.com/opentimestamps/opentimestamps-client for reference implementation
+     * @see https://github.com/opentimestamps/opentimestamps-client
      */
     public function verify(string $proof, string $digest): bool
     {
@@ -248,11 +247,48 @@ class OpenTimestampService
             throw new \InvalidArgumentException('Digest must be 64-character hex SHA256 hash');
         }
 
-        Log::warning('OpenTimestamp: Local proof verification is disabled due to security concerns', [
+        // Normalize digest to lowercase (OTS CLI expects lowercase)
+        $digest = strtolower($digest);
+
+        // Check if ots CLI is installed
+        if (! $this->processExecutor->commandExists('ots')) {
+            Log::error('OpenTimestamp: ots CLI not installed', [
+                'digest' => $digest,
+                'message' => 'Install with: pip install opentimestamps-client',
+            ]);
+
+            return false;
+        }
+
+        Log::debug('OpenTimestamp: Verifying proof with CLI', [
             'digest' => $digest,
             'proof_size' => strlen($proof),
-            'reason' => 'Hybrid approach vulnerable to trivial proof forgery (see PR #413 Copilot review)',
-            'issue' => '#412',
+        ]);
+
+        // Execute: ots verify --digest <hash>
+        // Proof is provided via stdin
+        $result = $this->processExecutor->execute(
+            ['ots', 'verify', '--digest', $digest],
+            $proof,
+            10 // 10 second timeout
+        );
+
+        // Check exit code (0 = success, non-zero = failure)
+        if ($result['exitCode'] === 0) {
+            Log::info('OpenTimestamp: Proof verification successful', [
+                'digest' => $digest,
+                'output' => trim($result['stdout']),
+            ]);
+
+            return true;
+        }
+
+        // Verification failed
+        Log::warning('OpenTimestamp: Proof verification failed', [
+            'digest' => $digest,
+            'exit_code' => $result['exitCode'],
+            'stdout' => trim($result['stdout']),
+            'stderr' => trim($result['stderr']),
         ]);
 
         return false;

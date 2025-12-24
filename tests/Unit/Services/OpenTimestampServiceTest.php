@@ -9,18 +9,17 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services;
 
+use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
 use InvalidArgumentException;
+use Mockery;
 use Tests\TestCase;
 
 /**
  * Unit tests for OpenTimestamp proof verification.
  *
- * NOTE: verify() method is currently DISABLED due to security concerns.
- * All tests expect false return value until secure implementation is available.
- *
- * The previous "hybrid approach" implementation was vulnerable to trivial
- * proof forgery attacks (see PR #413 Copilot review, Comment #5).
+ * Tests CLI-based verification with mocked ProcessExecutor.
+ * For detailed CLI verification tests, see OpenTimestampCliVerificationTest.
  *
  * @see App\Services\OpenTimestampService::verify()
  * @see Issue #412 for secure implementation requirements
@@ -29,9 +28,17 @@ class OpenTimestampServiceTest extends TestCase
 {
     private OpenTimestampService $service;
 
+    /** @var Mockery\MockInterface&ProcessExecutor */
+    private $mockExecutor;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Mock ProcessExecutor to avoid CLI dependency
+        $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
+        $this->app->instance(ProcessExecutor::class, $this->mockExecutor);
+
         $this->service = app(OpenTimestampService::class);
     }
 
@@ -54,23 +61,44 @@ class OpenTimestampServiceTest extends TestCase
         $this->service->verify($proof, $invalidDigest);
     }
 
-    public function test_verify_returns_false_for_disabled_implementation(): void
+    public function test_verify_returns_false_when_cli_not_available(): void
     {
-        // Arrange: Even with valid proof structure, verify() returns false (disabled)
+        // Arrange: ots CLI not available
         $merkleRoot = hash('sha256', 'test-root');
         $merkleRootBytes = hex2bin($merkleRoot);
         $proof = $this->buildValidOtsProof($merkleRootBytes);
 
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(false);
+
         // Act
         $result = $this->service->verify($proof, $merkleRoot);
 
-        // Assert: Always false until secure implementation available
-        $this->assertFalse($result, 'verify() should return false (disabled for security)');
+        // Assert: Returns false when CLI not available
+        $this->assertFalse($result, 'verify() should return false when ots CLI not available');
     }
 
     public function test_verify_returns_false_for_empty_proof(): void
     {
         $merkleRoot = hash('sha256', 'test-root');
+
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->once()
+            ->andReturn([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'Error: Empty proof',
+            ]);
 
         $result = $this->service->verify('', $merkleRoot);
 
@@ -81,6 +109,21 @@ class OpenTimestampServiceTest extends TestCase
     {
         $merkleRoot = hash('sha256', 'test-root');
         $malformedProof = 'random-binary-data-without-structure';
+
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->once()
+            ->andReturn([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'Error: Invalid proof format',
+            ]);
 
         $result = $this->service->verify($malformedProof, $merkleRoot);
 
@@ -95,10 +138,25 @@ class OpenTimestampServiceTest extends TestCase
         $differentRootBytes = hex2bin($differentRoot);
         $proof = $this->buildValidOtsProof($differentRootBytes);
 
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->once()
+            ->andReturn([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'Error: Digest mismatch',
+            ]);
+
         // Act
         $result = $this->service->verify($proof, $merkleRoot);
 
-        // Assert: Returns false (implementation disabled)
+        // Assert: Returns false
         $this->assertFalse($result);
     }
 
@@ -109,27 +167,58 @@ class OpenTimestampServiceTest extends TestCase
         $merkleRootBytes = hex2bin($merkleRoot);
         $pendingProof = $this->buildPendingOtsProof($merkleRootBytes);
 
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->once()
+            ->andReturn([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'Pending attestation, not yet confirmed',
+            ]);
+
         // Act
         $result = $this->service->verify($pendingProof, $merkleRoot);
 
-        // Assert: Returns false (implementation disabled)
+        // Assert: Returns false (not yet confirmed)
         $this->assertFalse($result);
     }
 
     public function test_verify_returns_false_for_any_proof(): void
     {
-        // Arrange: Test that verification is consistently disabled for any input
+        // Arrange: Test that verification works consistently
         $merkleRoot = hash('sha256', 'test-root');
         $merkleRootBytes = hex2bin($merkleRoot);
         $proof = $this->buildValidOtsProof($merkleRootBytes);
+
+        // Mock: CLI returns success both times
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->twice()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->twice()
+            ->andReturn([
+                'exitCode' => 0,
+                'stdout' => 'Success!',
+                'stderr' => '',
+            ]);
 
         // Act: Multiple calls with same proof
         $result1 = $this->service->verify($proof, $merkleRoot);
         $result2 = $this->service->verify($proof, $merkleRoot);
 
-        // Assert: Always false, no caching of "verified" state
-        $this->assertFalse($result1);
-        $this->assertFalse($result2);
+        // Assert: Both return true (no state issues)
+        $this->assertTrue($result1);
+        $this->assertTrue($result2);
     }
 
     public function test_verify_handles_malformed_proof_gracefully(): void
@@ -137,6 +226,21 @@ class OpenTimestampServiceTest extends TestCase
         // Arrange: Proof that could throw exception during processing
         $merkleRoot = hash('sha256', 'test-root');
         $malformedProof = 'x'; // Very short
+
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->once()
+            ->andReturn([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'Error: Invalid proof',
+            ]);
 
         // Act: Should not throw exception, just return false
         $result = $this->service->verify($malformedProof, $merkleRoot);
@@ -147,15 +251,34 @@ class OpenTimestampServiceTest extends TestCase
 
     public function test_verify_handles_uppercase_digest(): void
     {
-        // Arrange: Test that uppercase digest doesn't cause issues
+        // Arrange: Test that uppercase digest is normalized
         $merkleRoot = strtoupper(hash('sha256', 'test-root'));
         $proof = 'some-proof-data';
+
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->once()
+            ->withArgs(function ($command) use ($merkleRoot) {
+                // Verify lowercase normalization
+                return $command[3] === strtolower($merkleRoot);
+            })
+            ->andReturn([
+                'exitCode' => 0,
+                'stdout' => 'Success!',
+                'stderr' => '',
+            ]);
 
         // Act
         $result = $this->service->verify($proof, $merkleRoot);
 
-        // Assert: Returns false (implementation disabled)
-        $this->assertFalse($result);
+        // Assert: Returns true with normalized digest
+        $this->assertTrue($result);
     }
 
     /**
