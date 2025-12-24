@@ -93,7 +93,24 @@ if [ -f composer.json ]; then
 
     # Only install dependencies if DDEV not available (DDEV manages its own vendor/)
     if [ -z "$CMD_PREFIX" ]; then
-      composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+      # OPTIMIZATION: Skip install if vendor is up-to-date with composer.lock (massive time saver)
+      # Force install via: PREFLIGHT_FORCE_INSTALL=1 git push
+      NEEDS_INSTALL=0
+      if [ "${PREFLIGHT_FORCE_INSTALL:-0}" = "1" ] || [ ! -d vendor ]; then
+        NEEDS_INSTALL=1
+      elif [ -f composer.lock ] && [ composer.lock -nt vendor ]; then
+        # composer.lock modified after vendor/ - reinstall needed
+        NEEDS_INSTALL=1
+      elif [ ! -f composer.lock ] && [ -f composer.json ] && [ composer.json -nt vendor ]; then
+        # No lock file but composer.json newer than vendor/ - reinstall needed
+        NEEDS_INSTALL=1
+      fi
+
+      if [ "$NEEDS_INSTALL" -eq 1 ]; then
+        composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+      else
+        echo "ℹ️  Skipping composer install (dependencies up-to-date, force via PREFLIGHT_FORCE_INSTALL=1)" >&2
+      fi
     fi
     # Run Laravel Pint code style check if available (blocking: aligns with gates)
     # Workflow: check → fix if needed → verify (per SELF_REVIEW_CHECKLIST.md)
@@ -115,28 +132,36 @@ if [ -f composer.json ]; then
       fi
     fi
     # Run tests (Laravel Artisan → Pest → PHPUnit)
-    # Tests may fail locally without database - only warn, don't block
-    TEST_EXIT=0
-    if [ -f artisan ]; then
-      ${CMD_PREFIX} php artisan test --parallel || TEST_EXIT=$?
-    elif [ -x ./vendor/bin/pest ]; then
-      ${CMD_PREFIX} ./vendor/bin/pest --parallel || TEST_EXIT=$?
-    elif [ -x ./vendor/bin/phpunit ]; then
-      ${CMD_PREFIX} ./vendor/bin/phpunit || TEST_EXIT=$?
-    fi
-
-    if [ "$TEST_EXIT" -ne 0 ]; then
-      echo "" >&2
-      if [ -z "$CMD_PREFIX" ]; then
-        echo "⚠️  Tests failed - this may be expected if database is unavailable" >&2
-        echo "CI will run tests in proper environment with database" >&2
-        echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec php artisan test" >&2
-      else
-        echo "❌ Tests failed in DDEV environment - this should not happen!" >&2
-        echo "Please fix the failing tests before pushing." >&2
-        exit 1
+    # OPTIMIZATION: Tests are SKIPPED by default in pre-push hook for speed
+    # Enable via: PREFLIGHT_RUN_TESTS=1 git push
+    # Tests always run in CI, so local skip is safe
+    if [ "${PREFLIGHT_RUN_TESTS:-0}" = "1" ]; then
+      echo "→ Running tests (enabled via PREFLIGHT_RUN_TESTS=1)..."
+      TEST_EXIT=0
+      if [ -f artisan ]; then
+        ${CMD_PREFIX} php artisan test --parallel || TEST_EXIT=$?
+      elif [ -x ./vendor/bin/pest ]; then
+        ${CMD_PREFIX} ./vendor/bin/pest --parallel || TEST_EXIT=$?
+      elif [ -x ./vendor/bin/phpunit ]; then
+        ${CMD_PREFIX} ./vendor/bin/phpunit || TEST_EXIT=$?
       fi
-      echo "" >&2
+
+      if [ "$TEST_EXIT" -ne 0 ]; then
+        echo "" >&2
+        if [ -z "$CMD_PREFIX" ]; then
+          echo "⚠️  Tests failed - this may be expected if database is unavailable" >&2
+          echo "CI will run tests in proper environment with database" >&2
+          echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec php artisan test" >&2
+        else
+          echo "❌ Tests failed in DDEV environment - this should not happen!" >&2
+          echo "Please fix the failing tests before pushing." >&2
+          exit 1
+        fi
+        echo "" >&2
+      fi
+    else
+      echo "ℹ️  Skipping tests in pre-push hook (enable via PREFLIGHT_RUN_TESTS=1)" >&2
+      echo "   Tests will run in CI pipeline" >&2
     fi
   fi
 fi

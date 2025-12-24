@@ -89,10 +89,30 @@ This script runs automatically before every `git push` via the pre-push hook.
 - Markdown linting
 - Workflow linting (actionlint)
 - REUSE compliance
-- PHP linting and tests (if applicable)
+- PHP linting (Pint, PHPStan) - always runs
+- Tests (Pest/PHPUnit) - **skipped by default for speed** ⚡
 - Node.js linting and tests (if applicable)
 - OpenAPI validation (if applicable)
 - PR size (< 600 lines recommended, excluding lock files and license files)
+
+**⚡ Performance Optimization:**
+
+Tests are **skipped by default** in the pre-push hook for faster workflow (tests take ~5 minutes).
+Dependency installation is **also skipped** if `vendor` exists (saves time).
+Tests **always run in CI**, so local skip is safe.
+
+To enable tests locally when needed:
+
+```bash
+# Run with tests (useful before major PR)
+PREFLIGHT_RUN_TESTS=1 git push
+
+# Force dependency reinstall
+PREFLIGHT_FORCE_INSTALL=1 git push
+
+# Or run tests separately
+ddev exec php artisan test --parallel
+```
 
 **Excluded from PR size calculation:**
 
