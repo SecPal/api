@@ -11,6 +11,7 @@ namespace App\Services;
 
 use App\Contracts\ProcessExecutor;
 use Illuminate\Http\Client\Pool;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -228,6 +229,9 @@ class OpenTimestampService
      * - Bitcoin blockchain attestation verification (block height + Merkle proof)
      * - Cross-check with actual Bitcoin transaction data
      *
+     * CACHING: Successful verifications are cached forever (proofs are immutable once
+     * Bitcoin-anchored). Failed verifications are NOT cached (proof may be upgraded later).
+     *
      * Installation: pip install opentimestamps-client
      * Docs: https://github.com/opentimestamps/opentimestamps-client
      *
@@ -237,7 +241,7 @@ class OpenTimestampService
      *
      * @throws \InvalidArgumentException if digest format is invalid
      *
-     * @see Issue #412 for secure implementation requirements
+     * @see Issue #415 for secure implementation requirements
      * @see https://github.com/opentimestamps/opentimestamps-client
      */
     public function verify(string $proof, string $digest): bool
@@ -249,6 +253,16 @@ class OpenTimestampService
 
         // Normalize digest to lowercase (OTS CLI expects lowercase)
         $digest = strtolower($digest);
+
+        // Check cache first (immutable once verified)
+        $cacheKey = "ots:verified:{$digest}";
+        if (Cache::has($cacheKey)) {
+            Log::debug('OpenTimestamp: Cache hit for verified proof', [
+                'digest' => $digest,
+            ]);
+
+            return (bool) Cache::get($cacheKey);
+        }
 
         // Check if ots CLI is installed
         if (! $this->processExecutor->commandExists('ots')) {
@@ -280,10 +294,14 @@ class OpenTimestampService
                 'output' => trim($result['stdout']),
             ]);
 
+            // Cache positive result forever (proofs are immutable once Bitcoin-anchored)
+            Cache::forever($cacheKey, true);
+
             return true;
         }
 
         // Verification failed
+        // NOTE: Do NOT cache failures - proof may be upgraded later
         Log::warning('OpenTimestamp: Proof verification failed', [
             'digest' => $digest,
             'exit_code' => $result['exitCode'],

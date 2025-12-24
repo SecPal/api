@@ -196,16 +196,16 @@ class OpenTimestampServiceTest extends TestCase
         $merkleRootBytes = hex2bin($merkleRoot);
         $proof = $this->buildValidOtsProof($merkleRootBytes);
 
-        // Mock: CLI returns success both times
+        // Mock: CLI returns success for first call
         $this->mockExecutor
             ->shouldReceive('commandExists')
             ->with('ots')
-            ->twice()
+            ->once() // Only called once due to caching
             ->andReturn(true);
 
         $this->mockExecutor
             ->shouldReceive('execute')
-            ->twice()
+            ->once() // Only executed once, second call uses cache
             ->andReturn([
                 'exitCode' => 0,
                 'stdout' => 'Success!',
@@ -216,7 +216,8 @@ class OpenTimestampServiceTest extends TestCase
         $result1 = $this->service->verify($proof, $merkleRoot);
         $result2 = $this->service->verify($proof, $merkleRoot);
 
-        // Assert: Both return true (no state issues)
+        // Assert: Both return true
+        // Second call returns true from cache (not from CLI execution)
         $this->assertTrue($result1);
         $this->assertTrue($result2);
     }

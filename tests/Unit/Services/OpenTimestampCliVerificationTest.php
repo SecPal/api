@@ -237,6 +237,71 @@ class OpenTimestampCliVerificationTest extends TestCase
         $this->assertFalse($result);
     }
 
+    public function test_verify_caches_successful_verification(): void
+    {
+        // Arrange
+        $merkleRoot = hash('sha256', 'test-root');
+        $proof = $this->buildValidOtsProof();
+
+        // Mock: First call succeeds
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->once()
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->once()
+            ->andReturn([
+                'exitCode' => 0,
+                'stdout' => 'Success! Bitcoin attests data existed',
+                'stderr' => '',
+            ]);
+
+        // Act: First verification
+        $result1 = $this->service->verify($proof, $merkleRoot);
+        $this->assertTrue($result1);
+
+        // Act: Second verification should use cache (no CLI call)
+        $result2 = $this->service->verify($proof, $merkleRoot);
+        $this->assertTrue($result2);
+
+        // Assert: Cache was used (no second CLI call expected)
+        // Mockery will automatically fail if CLI is called twice
+    }
+
+    public function test_verify_does_not_cache_failed_verification(): void
+    {
+        // Arrange
+        $merkleRoot = hash('sha256', 'test-root');
+        $invalidProof = 'invalid-proof';
+
+        // Mock: Both calls should fail
+        $this->mockExecutor
+            ->shouldReceive('commandExists')
+            ->with('ots')
+            ->twice()  // Should be called twice (no caching)
+            ->andReturn(true);
+
+        $this->mockExecutor
+            ->shouldReceive('execute')
+            ->twice()  // Should be called twice
+            ->andReturn([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'Invalid proof',
+            ]);
+
+        // Act: First verification
+        $result1 = $this->service->verify($invalidProof, $merkleRoot);
+        $this->assertFalse($result1);
+
+        // Act: Second verification should NOT use cache (proof may be upgraded later)
+        $result2 = $this->service->verify($invalidProof, $merkleRoot);
+        $this->assertFalse($result2);
+    }
+
     /**
      * Build a realistic OTS proof structure for testing.
      *
