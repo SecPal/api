@@ -313,7 +313,8 @@ class Activity extends SpatieActivity
             if ($isTestContext) {
                 \App\Jobs\ProcessActivityHashChain::dispatchSync($activity->tenant_id, $activityData);
             } else {
-                \App\Jobs\ProcessActivityHashChain::dispatch($activity->tenant_id, $activityData);
+                \App\Jobs\ProcessActivityHashChain::dispatch($activity->tenant_id, $activityData)
+                    ->onQueue('activity-hash-chain');
             }
         });
     }

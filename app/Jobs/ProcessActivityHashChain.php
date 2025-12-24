@@ -122,6 +122,9 @@ class ProcessActivityHashChain implements ShouldQueue
         $activityId = $this->activityData['id'];
 
         // Build hash chain and update activity within transaction
+        // NOTE: lockForUpdate() ensures atomicity per job, but NOT per-tenant serialization.
+        // Queue worker MUST use single worker for activity-hash-chain queue to prevent
+        // concurrent jobs from processing same tenant (see docs/QUEUE_WORKERS.md).
         DB::transaction(function () use ($activityId): void {
             // Find previous log in tenant's chain (including soft-deleted)
             // Exclude current activity from lookup

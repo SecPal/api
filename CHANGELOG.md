@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Queue-based Activity Hash Chain Building** (Issue #408, PR #TBD)
+- **Queue-based Activity Hash Chain Building** (Issue #408, PR #419)
   - **IMPLEMENTED** race-condition-free hash chain processing via Laravel queues
   - Eliminates race condition window from synchronous `creating` hook approach
   - Architecture:

@@ -93,11 +93,15 @@ autorestart=true
 stopasgroup=true
 killasgroup=true
 user=www-data
-numprocs=2
+numprocs=1
 redirect_stderr=true
 stdout_logfile=/var/www/secpal/storage/logs/queue-worker.log
 stopwaitsecs=3600
 ```
+
+**⚠️ CRITICAL**: `numprocs=1` ensures single worker for hash chain integrity.
+Multiple workers on `activity-hash-chain` queue can cause race conditions.
+For higher throughput, use dedicated workers for other queues (see Performance Tuning section).
 
 **Start queue worker:**
 
@@ -208,21 +212,41 @@ php artisan queue:forget 42  # Forget specific job ID
 
 ### Performance Tuning
 
+#### ⚠️ CRITICAL: Hash Chain Serialization
+
+The `activity-hash-chain` queue **MUST** use a single worker to ensure sequential
+processing per tenant. Multiple workers can cause race conditions leading to broken
+hash chains (multiple genesis logs, incorrect previous_hash linkages).
+
 **Multiple workers (high load):**
 
 ```ini
-# Supervisor: numprocs=4 (4 parallel workers)
-# Systemd: Create 4 separate service files
+# Supervisor: Use separate workers for different queues
+# Worker 1: Hash chain (single worker - REQUIRED)
+[program:secpal-queue-hash-chain]
+command=php /var/www/secpal/api/artisan queue:work --queue=activity-hash-chain --sleep=3 --tries=3
+numprocs=1  # MUST be 1
+user=www-data
+redirect_stderr=true
+stdout_logfile=/var/www/secpal/storage/logs/queue-hash-chain.log
+
+# Worker 2: Other queues (can scale)
+[program:secpal-queue-other]
+command=php /var/www/secpal/api/artisan queue:work --queue=merkle,opentimestamp,default --sleep=3 --tries=3
+numprocs=4  # Can scale for throughput
+user=www-data
+redirect_stderr=true
+stdout_logfile=/var/www/secpal/storage/logs/queue-other.log
 ```
 
-**Dedicated queue workers:**
+**Dedicated queue workers (RECOMMENDED):**
 
 ```bash
-# Worker 1: Critical forensic queues only
-php artisan queue:work --queue=activity-hash-chain,merkle
+# Worker 1: Hash chain ONLY (single worker for serialization)
+php artisan queue:work --queue=activity-hash-chain
 
-# Worker 2: Non-critical queues
-php artisan queue:work --queue=opentimestamp,default
+# Workers 2-N: Other queues (multiple workers for throughput)
+php artisan queue:work --queue=merkle,opentimestamp,default
 ```
 
 **Memory management:**
@@ -358,7 +382,7 @@ ddev exec vendor/bin/pest tests/Performance/ActivityHashChainConcurrencyTest.php
 
 ## References
 
-- [Laravel Queues Documentation](https://laravel.com/docs/11.x/queues)
+- [Laravel Queues Documentation](https://laravel.com/docs/12.x/queues)
 - [Supervisor Documentation](http://supervisord.org/)
 - [Systemd Service Documentation](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
 - Issue #408: Queue-based activity hash chain building
