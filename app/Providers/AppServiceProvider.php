@@ -5,6 +5,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\ProcessExecutor;
 use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
@@ -42,6 +43,7 @@ use App\Policies\SecretPolicy;
 use App\Policies\SecretSharePolicy;
 use App\Policies\SiteAssignmentPolicy;
 use App\Policies\SitePolicy;
+use App\Services\SystemProcessExecutor;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -56,7 +58,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Bind ProcessExecutor interface to SystemProcessExecutor
+        $this->app->bind(ProcessExecutor::class, SystemProcessExecutor::class);
     }
 
     /**

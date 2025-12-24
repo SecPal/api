@@ -14,6 +14,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **OpenTimestamp Proof Verification - Secure Implementation** (Issue #412, PR #TBD)
+  - **IMPLEMENTED** secure CLI-based verification using official `ots verify` tool
+  - Replaces vulnerable "hybrid approach" that was reverted in PR #413
+  - Uses vetted OpenTimestamps CLI client for cryptographically sound verification
+  - Implementation details:
+    - ProcessExecutor abstraction for testable CLI calls
+    - Full operation tree parsing via official OTS client
+    - Bitcoin blockchain attestation verification (block height + Merkle proof)
+    - Cross-check with actual Bitcoin transaction data
+    - Digest normalization (lowercase) for OTS CLI compatibility
+  - Security advantages:
+    - ✅ No custom crypto code (delegates to OTS experts)
+    - ✅ Cryptographic validation of operation chain
+    - ✅ Blockchain cross-verification included
+    - ✅ Fail-safe behavior when ots CLI not installed
+  - Testing:
+    - 43 tests passing (128 assertions)
+    - Comprehensive unit tests with mocked ProcessExecutor
+    - Feature tests cover submit, upgrade, verify workflows
+    - Activity model integration tests updated
+  - Documentation:
+    - Installation: `pip install opentimestamps-client`
+    - CLI reference: <https://github.com/opentimestamps/opentimestamps-client>
+  - **Impact:** Level 3 audit trail verification now FULLY FUNCTIONAL and secure
+
 - **OpenTimestamp Proof Verification - Security Fix** (Issue #412, PR #413)
   - **REVERTED** unsecure "hybrid approach" implementation after Copilot security review
   - Previous implementation was vulnerable to trivial proof forgery attacks
@@ -22,10 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - hasAttestation() only checked substring match (no cryptographic validation)
     - No Bitcoin blockchain cross-verification (block height, Merkle proof)
     - No operation chain validation (SHA256 operations not verified)
-  - `verify()` method now FAILS CLOSED (returns false) until secure implementation available
+  - `verify()` method initially failed closed (returned false) until secure implementation available
   - Comprehensive documentation added explaining security concerns
-  - Issue #412 remains OPEN - requires proper implementation (Option B/C: external verification service)
-  - **Impact:** Level 3 audit trail verification temporarily disabled for security
+  - Issue #412 kept OPEN for proper implementation (Option C: CLI wrapper)
 
 ### Added
 

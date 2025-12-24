@@ -379,14 +379,27 @@ test('opentimestamp verification works with valid proof', function () {
         'ots_confirmed_at' => now(),
     ]);
 
-    // Mock OpenTimestampService for unit test
-    $mockService = Mockery::mock(\App\Services\OpenTimestampService::class);
-    $mockService->shouldReceive('verify')
+    // Mock ProcessExecutor to simulate successful CLI verification
+    $mockExecutor = Mockery::mock(\App\Contracts\ProcessExecutor::class);
+    $mockExecutor->shouldReceive('commandExists')
+        ->with('ots')
         ->once()
-        ->with($validProof, $merkleRoot)
         ->andReturn(true);
 
-    app()->instance(\App\Services\OpenTimestampService::class, $mockService);
+    $mockExecutor->shouldReceive('execute')
+        ->once()
+        ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot, $validProof) {
+            return $command === ['ots', 'verify', '--digest', $merkleRoot]
+                && $stdin === $validProof
+                && $timeout === 10;
+        })
+        ->andReturn([
+            'exitCode' => 0,
+            'stdout' => 'Success! Bitcoin attests data existed as of 2025-12-24',
+            'stderr' => '',
+        ]);
+
+    app()->instance(\App\Contracts\ProcessExecutor::class, $mockExecutor);
 
     expect($log->verifyOpenTimestamp())->toBeTrue();
 });
