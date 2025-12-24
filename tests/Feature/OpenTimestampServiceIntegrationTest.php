@@ -20,7 +20,6 @@ use Tests\TestCase;
  */
 final class OpenTimestampServiceIntegrationTest extends TestCase
 {
-
     private OpenTimestampService $service;
 
     protected function setUp(): void
