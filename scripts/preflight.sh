@@ -95,10 +95,10 @@ if [ -f composer.json ]; then
     if [ -z "$CMD_PREFIX" ]; then
       # OPTIMIZATION: Skip install if vendor is up-to-date (massive time saver)
       # Force install via: PREFLIGHT_FORCE_INSTALL=1 git push
-      if [ "${PREFLIGHT_FORCE_INSTALL:-0}" = "1" ] || [ ! -d vendor ]; then
+      if [ "${PREFLIGHT_FORCE_INSTALL:-0}" = "1" ] || [ ! -d vendor ] || [ composer.lock -nt vendor ]; then
         composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
       else
-        echo "ℹ️  Skipping composer install (vendor exists, force via PREFLIGHT_FORCE_INSTALL=1)" >&2
+        echo "ℹ️  Skipping composer install (dependencies up-to-date, force via PREFLIGHT_FORCE_INSTALL=1)" >&2
       fi
     fi
     # Run Laravel Pint code style check if available (blocking: aligns with gates)
