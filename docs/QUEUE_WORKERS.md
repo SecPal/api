@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2025 SecPal Contributors
-SPDX-License-Identifier: CC-BY-4.0
+SPDX-License-Identifier: CC0-1.0
 -->
 
 # Queue Worker Setup Guide
