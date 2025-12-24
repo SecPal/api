@@ -10,8 +10,6 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use App\Services\OpenTimestampService;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use Tests\TestCase;
 
