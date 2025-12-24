@@ -139,19 +139,19 @@ class UpgradeOpenTimestampProofsTest extends TestCase
 
     public function test_job_handles_proof_not_yet_ready_for_upgrade(): void
     {
-        // Arrange: Create pending proof
+        // Arrange: Create pending proof (>1h old so it's eligible for upgrade)
         $pendingProof = 'pending-proof';
 
         Activity::create([
             'tenant_id' => $this->tenant->id,
             'log_name' => 'guard_book_event',
-            'description' => 'Recent pending proof',
+            'description' => 'Pending proof not ready',
             'ots_proof' => $pendingProof,
-            'ots_submitted_at' => now()->subMinutes(30), // Recent submission
+            'ots_submitted_at' => now()->subHours(2), // Old enough to be checked
             'ots_confirmed_at' => null,
         ]);
 
-        // Mock service - upgrade not yet available
+        // Mock service - upgrade not yet available (Bitcoin not confirmed)
         /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('upgrade')
