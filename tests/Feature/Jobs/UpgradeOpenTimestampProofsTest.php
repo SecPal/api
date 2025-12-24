@@ -58,6 +58,7 @@ class UpgradeOpenTimestampProofsTest extends TestCase
         ]));
 
         // Mock service - proof is now confirmed
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('upgrade')
             ->times(3)
@@ -94,6 +95,7 @@ class UpgradeOpenTimestampProofsTest extends TestCase
             'ots_confirmed_at' => null,
         ]));
 
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldNotReceive('upgrade');
 
@@ -121,6 +123,7 @@ class UpgradeOpenTimestampProofsTest extends TestCase
             'ots_confirmed_at' => now()->subDays(1),
         ]);
 
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldNotReceive('upgrade');
 
@@ -149,6 +152,7 @@ class UpgradeOpenTimestampProofsTest extends TestCase
         ]);
 
         // Mock service - upgrade not yet available
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('upgrade')
             ->once()
@@ -189,6 +193,7 @@ class UpgradeOpenTimestampProofsTest extends TestCase
             'ots_confirmed_at' => null,
         ]);
 
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('upgrade')
             ->twice()
@@ -215,6 +220,7 @@ class UpgradeOpenTimestampProofsTest extends TestCase
         ]);
 
         // Mock service - upgrade throws exception
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('upgrade')
             ->andThrow(new \RuntimeException('Calendar server timeout'));
@@ -242,6 +248,7 @@ class UpgradeOpenTimestampProofsTest extends TestCase
             'ots_confirmed_at' => null,
         ]));
 
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
         $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('upgrade')
             ->times(100)
@@ -253,5 +260,80 @@ class UpgradeOpenTimestampProofsTest extends TestCase
 
         // Assert: All logs processed
         $this->assertEquals(100, Activity::whereNotNull('ots_confirmed_at')->count());
+    }
+
+    public function test_job_respects_batch_limit_of_100_proofs(): void
+    {
+        // Arrange: Create 150 pending proofs
+        $pendingProof = hex2bin('0004f0'.bin2hex('pending'));
+        $confirmedProof = hex2bin('0588960d73d7190103'.bin2hex('confirmed'));
+
+        foreach (range(1, 150) as $i) {
+            Activity::create([
+                'tenant_id' => $this->tenant->id,
+                'log_name' => 'contract_change',
+                'description' => "Test batch limit {$i}",
+                'ots_proof' => $pendingProof,
+                'ots_submitted_at' => now()->subHours(3), // >1 hour old
+                'ots_confirmed_at' => null,
+            ]);
+        }
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */ $mockService = $this->mock(OpenTimestampService::class);
+        $mockService->shouldReceive('upgrade')
+            ->times(100) // Only 100 should be processed
+            ->andReturn($confirmedProof);
+
+        // Act: Run job
+        $job = new UpgradeOpenTimestampProofs;
+        $job->handle($mockService);
+
+        // Assert: Only 100 logs upgraded
+        $this->assertEquals(100, Activity::whereNotNull('ots_confirmed_at')->count());
+        $this->assertEquals(50, Activity::whereNull('ots_confirmed_at')->count());
+    }
+
+    public function test_job_skips_recently_submitted_proofs(): void
+    {
+        // Arrange: Create proofs with different submission times
+        $pendingProof = hex2bin('0004f0'.bin2hex('pending'));
+
+        // Old proof (>1 hour) - should be processed
+        Activity::create([
+            'tenant_id' => $this->tenant->id,
+            'log_name' => 'contract_change',
+            'description' => 'Old proof',
+            'ots_proof' => $pendingProof,
+            'ots_submitted_at' => now()->subHours(2),
+            'ots_confirmed_at' => null,
+        ]);
+
+        // Recent proof (<1 hour) - should be skipped
+        Activity::create([
+            'tenant_id' => $this->tenant->id,
+            'log_name' => 'contract_change',
+            'description' => 'Recent proof',
+            'ots_proof' => $pendingProof,
+            'ots_submitted_at' => now()->subMinutes(30),
+            'ots_confirmed_at' => null,
+        ]);
+
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+        $mockService = $this->mock(OpenTimestampService::class);
+        $mockService->shouldReceive('upgrade')
+            ->once() // Only old proof processed
+            ->andReturn(hex2bin('0588960d73d7190103'));
+
+        // Act: Run job
+        $job = new UpgradeOpenTimestampProofs;
+        $job->handle($mockService);
+
+        // Assert: Only old proof upgraded, recent skipped
+        $this->assertEquals(1, Activity::whereNotNull('ots_confirmed_at')->count());
+        $this->assertEquals(1, Activity::whereNull('ots_confirmed_at')->count());
+
+        // Verify recent proof still pending
+        $recentLog = Activity::where('description', 'Recent proof')->first();
+        assert($recentLog instanceof Activity);
+        $this->assertNull($recentLog->ots_confirmed_at);
     }
 }
