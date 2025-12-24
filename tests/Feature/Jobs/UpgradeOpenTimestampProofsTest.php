@@ -278,7 +278,9 @@ class UpgradeOpenTimestampProofsTest extends TestCase
                 'ots_confirmed_at' => null,
             ]);
         }
-        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */ $mockService = $this->mock(OpenTimestampService::class);
+
+        /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+        $mockService = $this->mock(OpenTimestampService::class);
         $mockService->shouldReceive('upgrade')
             ->times(100) // Only 100 should be processed
             ->andReturn($confirmedProof);
