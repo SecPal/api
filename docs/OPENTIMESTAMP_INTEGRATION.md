@@ -147,9 +147,9 @@ OTS_CALENDAR_URLS=https://alice.btc.calendar.opentimestamps.org,https://bob.btc.
 # Default: 2 (security vs. availability trade-off)
 OTS_MIN_CALENDAR_RESPONSES=2
 
-# CLI timeout in seconds
-# Default: 30 (network-dependent)
-OTS_CLI_TIMEOUT=30
+# Note: CLI timeout is currently hardcoded at 10 seconds in OpenTimestampService
+# and is not configurable via environment variable.
+# HTTP request timeout (OPENTIMESTAMP_TIMEOUT) is separate and defaults to 30s.
 ```
 
 ### Queue Configuration

@@ -9,7 +9,6 @@ namespace Tests\Feature;
 
 use App\Services\OpenTimestampService;
 use App\Services\SystemProcessExecutor;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
@@ -21,7 +20,6 @@ use Tests\TestCase;
  */
 final class OpenTimestampServiceIntegrationTest extends TestCase
 {
-    use RefreshDatabase;
 
     private OpenTimestampService $service;
 
@@ -154,7 +152,7 @@ final class OpenTimestampServiceIntegrationTest extends TestCase
         $invalidProof = base64_encode(str_repeat("\x00", 1000));
         $digest = hash('sha256', 'timeout test');
 
-        // This should complete within the 30s timeout and return false
+        // This should complete within the 10s timeout and return false
         $result = $this->service->verify($invalidProof, $digest);
 
         $this->assertFalse($result, 'Invalid proof should be rejected even on timeout');
