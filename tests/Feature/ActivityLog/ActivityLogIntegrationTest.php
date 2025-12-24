@@ -37,6 +37,9 @@ test('activity log creates proper hash chain with direct model usage', function 
         'user_agent' => 'TestBrowser',
     ]);
 
+    // Refresh model after dispatchSync() updated DB
+    $log1->refresh();
+
     expect($log1->exists)->toBeTrue()
         ->and($log1->description)->toBe('First log')
         ->and($log1->tenant_id)->toBe($this->tenant->id)
@@ -52,6 +55,9 @@ test('activity log creates proper hash chain with direct model usage', function 
         'ip_address' => '127.0.0.1',
         'user_agent' => 'TestBrowser',
     ]);
+
+    // Refresh model after dispatchSync() updated DB
+    $log2->refresh();
 
     expect($log2->previous_hash)->toBe($log1->event_hash)
         ->and($log2->event_hash)->not->toBe($log1->event_hash);

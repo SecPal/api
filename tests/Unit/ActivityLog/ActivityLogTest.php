@@ -35,6 +35,9 @@ test('genesis log has null previous hash', function () {
         'description' => 'First log',
     ]);
 
+    // Refresh model after dispatchSync() updated DB directly
+    $log->refresh();
+
     expect($log->previous_hash)->toBeNull()
         ->and($log->event_hash)->not->toBeNull()
         ->and($log->event_hash)->toHaveLength(64); // SHA256 = 64 hex chars
@@ -55,6 +58,10 @@ test('second log links to first via hash chain', function () {
         'description' => 'Second log',
     ]);
 
+    // Refresh both models after dispatchSync() updated DB
+    $log1->refresh();
+    $log2->refresh();
+
     expect($log2->previous_hash)->toBe($log1->event_hash)
         ->and($log2->event_hash)->not->toBe($log1->event_hash);
 });
@@ -68,6 +75,9 @@ test('hash chain is deterministic', function () {
         'description' => 'User login',
         'properties' => ['ip' => '192.168.1.1'],
     ]);
+
+    // Refresh model after dispatchSync() updated DB
+    $log->refresh();
 
     // Recalculate hash manually
     $logData = json_encode([
@@ -105,6 +115,10 @@ test('hash chain respects tenant isolation', function () {
         'log_name' => 'default',
         'description' => 'Tenant 2 log',
     ]);
+
+    // Refresh both models after dispatchSync() updated DB
+    $log1->refresh();
+    $log2->refresh();
 
     expect($log1->previous_hash)->toBeNull() // Tenant 1 genesis
         ->and($log2->previous_hash)->toBeNull() // Tenant 2 genesis
@@ -508,6 +522,9 @@ test('sequential log creation maintains hash chain integrity', function () {
             'description' => "Sequential log {$i}",
         ]);
     });
+
+    // Refresh all models after dispatchSync() updated DB
+    $logs = $logs->map(fn ($log) => $log->refresh());
 
     // Verify chain integrity: each log references previous log's hash
     expect($logs[0]->previous_hash)->toBeNull(); // Genesis log
