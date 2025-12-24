@@ -227,6 +227,9 @@ class OpenTimestampService
             throw new \InvalidArgumentException('Digest must be 64-character hex SHA256 hash');
         }
 
+        // Normalize digest to lowercase for consistent comparison (bin2hex returns lowercase)
+        $digest = strtolower($digest);
+
         // Reject empty or too short proofs
         if (strlen($proof) < 32) {
             Log::debug('OpenTimestamp: Proof too short', ['proof_length' => strlen($proof)]);
@@ -234,60 +237,60 @@ class OpenTimestampService
             return false;
         }
 
-        try {
-            // Step 1: Extract commitment from proof
-            $commitment = $this->extractCommitment($proof);
+        // Check cache first before expensive verification operations
+        $cacheKey = 'ots_verified_'.hash('sha256', $proof.$digest);
 
-            if ($commitment === null) {
-                Log::debug('OpenTimestamp: Cannot extract commitment from proof');
+        /** @var bool $result */
+        $result = \Illuminate\Support\Facades\Cache::remember(
+            $cacheKey,
+            now()->addDays(30), // Cache for 30 days
+            function () use ($proof, $digest): bool {
+                try {
+                    // Step 1: Extract commitment from proof
+                    $commitment = $this->extractCommitment($proof);
 
-                return false;
-            }
+                    if ($commitment === null) {
+                        Log::debug('OpenTimestamp: Cannot extract commitment from proof');
 
-            // Step 2: Verify commitment matches provided digest
-            $commitmentHex = bin2hex($commitment);
-            if ($commitmentHex !== $digest) {
-                Log::debug('OpenTimestamp: Commitment mismatch', [
-                    'expected' => $digest,
-                    'actual' => $commitmentHex,
-                ]);
+                        return false;
+                    }
 
-                return false;
-            }
+                    // Step 2: Verify commitment matches provided digest
+                    $commitmentHex = bin2hex($commitment);
+                    if ($commitmentHex !== $digest) {
+                        Log::debug('OpenTimestamp: Commitment mismatch', [
+                            'expected' => $digest,
+                            'actual' => $commitmentHex,
+                        ]);
 
-            // Step 3: Check for Bitcoin attestation (proof must be confirmed)
-            if (! $this->hasAttestation($proof, 'bitcoin')) {
-                Log::debug('OpenTimestamp: No Bitcoin attestation found (proof still pending)');
+                        return false;
+                    }
 
-                return false;
-            }
+                    // Step 3: Check for Bitcoin attestation (proof must be confirmed)
+                    if (! $this->hasAttestation($proof, 'bitcoin')) {
+                        Log::debug('OpenTimestamp: No Bitcoin attestation found (proof still pending)');
 
-            // Step 4: Cache verified proofs (avoid redundant verification)
-            $cacheKey = 'ots_verified_'.hash('sha256', $proof.$digest);
+                        return false;
+                    }
 
-            /** @var bool $cached */
-            $cached = \Illuminate\Support\Facades\Cache::remember(
-                $cacheKey,
-                now()->addDays(30), // Cache for 30 days
-                function () use ($proof, $digest): bool {
                     Log::info('OpenTimestamp: Proof verification successful', [
                         'digest' => $digest,
                         'proof_size' => strlen($proof),
                     ]);
 
                     return true;
+                } catch (\Exception $e) {
+                    Log::warning('OpenTimestamp: Verification failed', [
+                        'digest' => $digest,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    return false;
                 }
-            );
+            }
+        );
 
-            return $cached;
-        } catch (\Exception $e) {
-            Log::warning('OpenTimestamp: Verification failed', [
-                'digest' => $digest,
-                'error' => $e->getMessage(),
-            ]);
-
-            return false;
-        }
+        return $result;
     }
 
     /**

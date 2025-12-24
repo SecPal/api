@@ -79,11 +79,6 @@ class OpenTimestampServiceTest extends TestCase
         // Minimal valid OTS proof: header + commitment + operations + Bitcoin attestation
         $proof = $this->buildValidOtsProof($merkleRootBytes);
 
-        // Mock external verification service
-        Http::fake([
-            '*/verify' => Http::response(['valid' => true, 'bitcoin_block' => 428648], 200),
-        ]);
-
         // Act
         $result = $this->service->verify($proof, $merkleRoot);
 
@@ -129,11 +124,11 @@ class OpenTimestampServiceTest extends TestCase
         $merkleRootBytes = hex2bin($merkleRoot);
         $proof = $this->buildValidOtsProof($merkleRootBytes);
 
+        // Set up cache spy before any verification calls
+        Cache::spy();
+
         // Act: First verification (should verify and cache)
         $result1 = $this->service->verify($proof, $merkleRoot);
-
-        // Clear any logs between calls
-        Cache::spy();
 
         // Act: Second verification (should hit cache)
         $result2 = $this->service->verify($proof, $merkleRoot);
@@ -142,8 +137,8 @@ class OpenTimestampServiceTest extends TestCase
         $this->assertTrue($result1);
         $this->assertTrue($result2);
 
-        // Verify cache was checked on second call
-        Cache::shouldHaveReceived('remember')->once();
+        // Verify cache was used for both calls
+        Cache::shouldHaveReceived('remember')->twice();
     }
 
     public function test_verify_handles_malformed_proof_gracefully(): void
