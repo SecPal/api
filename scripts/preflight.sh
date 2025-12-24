@@ -93,7 +93,13 @@ if [ -f composer.json ]; then
 
     # Only install dependencies if DDEV not available (DDEV manages its own vendor/)
     if [ -z "$CMD_PREFIX" ]; then
-      composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+      # OPTIMIZATION: Skip install if vendor is up-to-date (massive time saver)
+      # Force install via: PREFLIGHT_FORCE_INSTALL=1 git push
+      if [ "${PREFLIGHT_FORCE_INSTALL:-0}" = "1" ] || [ ! -d vendor ]; then
+        composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+      else
+        echo "ℹ️  Skipping composer install (vendor exists, force via PREFLIGHT_FORCE_INSTALL=1)" >&2
+      fi
     fi
     # Run Laravel Pint code style check if available (blocking: aligns with gates)
     # Workflow: check → fix if needed → verify (per SELF_REVIEW_CHECKLIST.md)

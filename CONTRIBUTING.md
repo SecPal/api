@@ -98,6 +98,7 @@ This script runs automatically before every `git push` via the pre-push hook.
 **⚡ Performance Optimization:**
 
 Tests are **skipped by default** in the pre-push hook for faster workflow (tests take ~5 minutes).
+Dependency installation is **also skipped** if `vendor` exists (saves time).
 Tests **always run in CI**, so local skip is safe.
 
 To enable tests locally when needed:
@@ -105,6 +106,9 @@ To enable tests locally when needed:
 ```bash
 # Run with tests (useful before major PR)
 PREFLIGHT_RUN_TESTS=1 git push
+
+# Force dependency reinstall
+PREFLIGHT_FORCE_INSTALL=1 git push
 
 # Or run tests separately
 ddev exec php artisan test --parallel
