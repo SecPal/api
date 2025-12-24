@@ -129,7 +129,7 @@ class OpenTimestampServiceTest extends TestCase
 
     public function test_verify_returns_false_for_disabled_implementation(): void
     {
-        // Arrange: Create proof that would have passed old implementation
+        // Arrange: Create proof with valid structure and Bitcoin attestation
         $merkleRoot = hash('sha256', 'test-root');
         $merkleRootBytes = hex2bin($merkleRoot);
 
@@ -139,8 +139,9 @@ class OpenTimestampServiceTest extends TestCase
         // Act: Verify
         $result = $this->service->verify($confirmedProof, $merkleRoot);
 
-        // Assert: Should return false (implementation disabled due to security concerns)
-        $this->assertFalse($result, 'verify() should return false until secure implementation available');
+        // Assert: Should return false (implementation disabled for security)
+        // Previous "hybrid approach" was vulnerable to trivial proof forgery (PR #413 review)
+        $this->assertFalse($result, 'verify() should return false until secure implementation available (Issue #412)');
     }
 
     public function test_verify_checks_for_bitcoin_attestation(): void

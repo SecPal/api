@@ -208,24 +208,51 @@ class OpenTimestampService
     /**
      * Verify OTS proof against message digest.
      *
-     * SECURITY WARNING: This method is disabled due to insecure implementation.
-     * The previous heuristic implementation could be bypassed by crafting binary
-     * data with matching prefix/subsequence, undermining tamper-evident guarantees.
+     * SECURITY: Local proof verification is INTENTIONALLY DISABLED.
      *
-     * TODO: Implement secure OTS verification:
-     * - Full proof structure parsing with operation tree traversal
-     * - Cryptographic validation of attestation linkage
-     * - Cross-check against calendar/Bitcoin data
-     * OR: Delegate to vetted OTS library/service
+     * The previous "hybrid approach" implementation (PR #413) was vulnerable to
+     * trivial proof forgery attacks. An attacker could construct arbitrary bytes
+     * matching our heuristic checks without any blockchain anchoring:
      *
-     * @param  string  $proof  Binary OTS proof
+     *   $fakeProof = "OpenTimestamps proof\0" . $digest_bytes . $padding . $magic_bytes;
+     *
+     * Critical security flaws in the hybrid approach:
+     * 1. extractCommitment() blindly extracts first 32 bytes (no operation tree parsing)
+     * 2. hasAttestation() only checks substring match (no cryptographic validation)
+     * 3. No Bitcoin blockchain cross-verification (block height, Merkle proof)
+     * 4. No operation chain validation (SHA256 operations not verified)
+     *
+     * These issues were identified in Copilot security review (PR #413, Comment #5).
+     *
+     * CORRECT IMPLEMENTATION requires:
+     * - Full OTS proof parser (operation tree traversal)
+     * - Cryptographic validation of operation chain
+     * - Bitcoin blockchain attestation verification (block height + Merkle proof)
+     * - OR delegation to vetted OTS verification service/library
+     *
+     * Until secure implementation is available, verification FAILS CLOSED for security.
+     *
+     * @param  string  $proof  Binary OTS proof (currently ignored)
      * @param  string  $digest  SHA256 hash (64 hex characters)
      * @return bool Always returns false until secure implementation available
+     *
+     * @throws \InvalidArgumentException if digest format is invalid
+     *
+     * @see Issue #412 for secure implementation requirements
+     * @see https://github.com/opentimestamps/opentimestamps-client for reference implementation
      */
     public function verify(string $proof, string $digest): bool
     {
-        Log::warning('OpenTimestamp: Local proof verification disabled due to insecure implementation', [
+        // Validate digest format
+        if (strlen($digest) !== 64 || ! ctype_xdigit($digest)) {
+            throw new \InvalidArgumentException('Digest must be 64-character hex SHA256 hash');
+        }
+
+        Log::warning('OpenTimestamp: Local proof verification is disabled due to security concerns', [
             'digest' => $digest,
+            'proof_size' => strlen($proof),
+            'reason' => 'Hybrid approach vulnerable to trivial proof forgery (see PR #413 Copilot review)',
+            'issue' => '#412',
         ]);
 
         return false;

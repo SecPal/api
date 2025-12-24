@@ -12,14 +12,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **OpenTimestamp Proof Verification - Security Fix** (Issue #412, PR #413)
+  - **REVERTED** unsecure "hybrid approach" implementation after Copilot security review
+  - Previous implementation was vulnerable to trivial proof forgery attacks
+  - Security flaws identified:
+    - extractCommitment() blindly extracted first 32 bytes (no operation tree parsing)
+    - hasAttestation() only checked substring match (no cryptographic validation)
+    - No Bitcoin blockchain cross-verification (block height, Merkle proof)
+    - No operation chain validation (SHA256 operations not verified)
+  - `verify()` method now FAILS CLOSED (returns false) until secure implementation available
+  - Comprehensive documentation added explaining security concerns
+  - Issue #412 remains OPEN - requires proper implementation (Option B/C: external verification service)
+  - **Impact:** Level 3 audit trail verification temporarily disabled for security
+
 ### Added
 
 - **Activity Logging (Forensic Audit Trail) - Merkle Proof Verification Tests** (Issue #390, Epic #385)
-  - Added comprehensive unit tests for tampering detection in [tests/Unit/ActivityLog/MerkleProofTest.php](tests/Unit/ActivityLog/MerkleProofTest.php)
-    - Detects tampered log event hash (modified after batching)
-    - Detects manipulated sibling hashes in proof chain
-    - Validates invalid proof format handling
-    - Validates missing hash/position field validation
+  - Detects tampered log event hash (modified after batching)
+  - Detects manipulated sibling hashes in proof chain
+  - Validates invalid proof format handling
+  - Validates missing hash/position field validation
   - Added performance tests in [tests/Performance/MerkleProofPerformanceTest.php](tests/Performance/MerkleProofPerformanceTest.php)
     - 100-leaf tree verification: ~1.4ms per log including DB overhead
     - 4-leaf tree verification: ~1.2ms per log including DB overhead
