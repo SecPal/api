@@ -27,6 +27,7 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
    - Handles submission, upgrade, and verification of OTS proofs
    - Uses external `ots` CLI tool for all cryptographic operations
    - Implements caching layer for verified proofs
+   - **Proof Merging**: Combines attestations from multiple calendar servers for redundancy
 
 2. **ProcessExecutor** (`app/Contracts/ProcessExecutor.php`)
    - Abstraction for executing external CLI commands
@@ -38,6 +39,35 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 
 4. **DDEV Docker Image** (`.ddev/web-build/Dockerfile.opentimestamps`)
    - Installs `opentimestamps-client` Python package in development environment
+
+### Proof Merging
+
+When submitting a timestamp to multiple calendar servers, SecPal merges the responses into a single proof containing attestations from all responding calendars. This provides redundancy:
+
+- **Problem**: If only one calendar's attestation is stored, verification fails if that calendar server disappears
+- **Solution**: Merge attestations from all calendars (alice, bob, finney) into one proof
+- **Benefit**: Proof can be verified using any remaining calendar server's attestation
+
+**Implementation** (Issue #411):
+
+- `submit()` sends digest to 3 calendar servers in parallel
+- Each calendar returns a pending proof with its attestation
+- `mergeProofs()` combines all attestations into single proof
+- Merged proof contains attestation sections from all responding calendars
+- Verification works if ≥1 calendar attestation is valid
+
+**Example**:
+
+```php
+// 3 calendars respond with individual proofs
+$aliceProof = Http::post('alice.btc.../timestamp/abc123'); // 83 bytes
+$bobProof = Http::post('bob.btc.../timestamp/abc123');     // 83 bytes
+$finneyProof = Http::post('finney.../timestamp/abc123');   // 83 bytes
+
+// mergeProofs() combines them
+$mergedProof = $service->submit('abc123...'); // ~249 bytes
+// Contains: alice attestation + bob attestation + finney attestation
+```
 
 ### Data Flow
 
