@@ -315,27 +315,30 @@ class OpenTimestampService
     }
 
     /**
-     * Merge multiple calendar proofs into single proof.
+     * Select proof from multiple calendar responses.
      *
-     * Combines attestations from multiple calendar servers into a single proof
-     * for redundancy. Uses fork operations (OpCode 0xFF) to branch the operation
-     * tree and include all calendar attestations.
+     * IMPORTANT: This method does NOT perform true OTS proof merging.
      *
-     * This ensures that if one calendar server disappears in the future, the proof
-     * can still be verified using attestations from the remaining calendars.
+     * Proper OTS proof merging requires:
+     * - Full OTS binary format parsing (Issue #410)
+     * - Creating fork operations (OpCode 0xFF) with proper length encoding
+     * - Reconstructing a valid operation tree structure
+     * - Ensuring the merged proof is verifiable by OTS CLI tools
      *
-     * OTS Proof Structure After Merging:
-     * - Digest (32 bytes)
-     * - Fork operations branching to each calendar's attestation
-     * - Each branch contains the calendar's operation tree and pending attestation
+     * Current behavior: Returns the first valid proof from responding calendars.
+     * This ensures we always store a structurally valid OTS proof that can be
+     * verified by external tools (ots CLI, ots-python, etc.).
      *
-     * @param  array<string>  $proofs  Binary calendar responses
-     * @param  string  $digest  Original digest bytes
-     * @return string Merged binary OTS proof containing all attestations
+     * Future enhancement (Issue #411): Implement proper OTS-compliant proof merging
+     * to combine attestations from multiple calendars for redundancy.
+     *
+     * @param  array<string>  $proofs  Binary calendar responses (each is a complete OTS proof)
+     * @param  string  $digest  Original digest bytes (unused, kept for API compatibility)
+     * @return string First valid OTS proof
      *
      * @throws RuntimeException if no proofs provided
      *
-     * @see https://github.com/opentimestamps/opentimestamps-server/blob/master/doc/merkle-mountain-range.md
+     * @see https://github.com/opentimestamps/python-opentimestamps for OTS format spec
      */
     private function mergeProofs(array $proofs, string $digest): string
     {
@@ -343,83 +346,16 @@ class OpenTimestampService
             throw new RuntimeException('OpenTimestamp: No proofs provided for merging');
         }
 
-        // Single proof - no merging needed
-        if (count($proofs) === 1) {
-            return $proofs[0];
-        }
-
-        // Start with the digest
-        $mergedProof = $digest;
-
-        // Extract attestations from each proof
-        $attestations = [];
-        foreach ($proofs as $proof) {
-            $attestation = $this->extractAttestationFromProof($proof, strlen($digest));
-            if ($attestation !== null) {
-                $attestations[] = $attestation;
-            }
-        }
-
-        // No valid attestations found - return first proof as fallback
-        if ($attestations === []) {
-            Log::warning('OpenTimestamp: No attestations extracted from proofs, using first proof');
-
-            return $proofs[0];
-        }
-
-        // Append all attestations to the merged proof
-        // OTS allows multiple attestations to be appended sequentially
-        // Each attestation is independent and can be verified separately
-        foreach ($attestations as $attestation) {
-            $mergedProof .= $attestation;
-        }
-
-        Log::debug('OpenTimestamp: Merged proofs', [
-            'proof_count' => count($proofs),
-            'attestation_count' => count($attestations),
-            'merged_size' => strlen($mergedProof),
-        ]);
-
-        return $mergedProof;
-    }
-
-    /**
-     * Extract attestation section from OTS proof.
-     *
-     * Parses the proof and extracts everything after the digest (operations + attestations).
-     * This simplified implementation assumes:
-     * - Digest is at the beginning of the proof
-     * - Everything after the digest is the operation tree + attestations
-     *
-     * A full OTS parser would properly traverse the operation tree, but for calendar
-     * responses (which are simple pending attestations), this approach works.
-     *
-     * @param  string  $proof  Binary OTS proof
-     * @param  int  $digestOffset  Byte offset where attestation section starts
-     * @return string|null Attestation section (operations + attestation), or null if invalid
-     */
-    private function extractAttestationFromProof(string $proof, int $digestOffset): ?string
-    {
-        // Skip the digest bytes to get to the attestation section
-        if (strlen($proof) <= $digestOffset) {
-            Log::debug('OpenTimestamp: Proof too short to extract attestation', [
-                'proof_size' => strlen($proof),
-                'digest_offset' => $digestOffset,
+        // Return first proof to ensure we always emit a valid OTS proof
+        // rather than constructing an invalid merged structure
+        if (count($proofs) > 1) {
+            Log::info('OpenTimestamp: Multiple calendar proofs received, using first proof', [
+                'proof_count' => count($proofs),
+                'selected_proof_size' => strlen($proofs[0]),
             ]);
-
-            return null;
         }
 
-        $attestation = substr($proof, $digestOffset);
-
-        // Validate that attestation section is not empty
-        if ($attestation === '') {
-            Log::debug('OpenTimestamp: Empty attestation section');
-
-            return null;
-        }
-
-        return $attestation;
+        return $proofs[0];
     }
 
     /**
