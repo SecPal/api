@@ -8,7 +8,6 @@ use App\Models\LeadershipLevel;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
-use App\Models\UserInternalOrganizationalScope;
 use App\Policies\EmployeePolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;

@@ -574,6 +574,44 @@ class Employee extends Model
     }
 
     /**
+     * Scope: Employees within leadership rank range.
+     *
+     * Filters employees based on min/max_viewable_rank from organizational scope.
+     * Implements ADR-009 hierarchical access control.
+     *
+     * CRITICAL SEMANTICS (null/0):
+     * - max_viewable_rank = NULL or 0 → ONLY employees with leadership_level_id = NULL (non-leadership)
+     * - max_viewable_rank = 255 → All leadership levels (FE1-FE255)
+     * - To see ALL employees: Need TWO scopes (one for non-leadership, one for leadership)
+     *
+     * @param  Builder<self>  $query
+     * @param  int|null  $minRank  Minimum leadership rank (inclusive, NULL = no minimum)
+     * @param  int|null  $maxRank  Maximum leadership rank (inclusive, NULL/0 = ONLY non-leadership!)
+     *
+     * @see https://github.com/SecPal/api/issues/425
+     */
+    public function scopeWithinRankRange(Builder $query, ?int $minRank, ?int $maxRank): void
+    {
+        // CRITICAL: NULL or 0 in max = ONLY non-leadership employees!
+        if ($maxRank === null || $maxRank === 0) {
+            $query->whereNull('leadership_level_id');
+
+            return;
+        }
+
+        // Show employees within rank range (LEADERSHIP ONLY)
+        $query->whereHas('leadershipLevel', function ($q) use ($minRank, $maxRank) {
+            if (! is_null($minRank)) {
+                $q->where('rank', '>=', $minRank);
+            }
+
+            if (! is_null($maxRank) && $maxRank > 0) { // @phpstan-ignore function.impossibleType
+                $q->where('rank', '<=', $maxRank);
+            }
+        });
+    }
+
+    /**
      * Scope: Employees with user accounts.
      *
      * @param  Builder<self>  $query

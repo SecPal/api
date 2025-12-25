@@ -38,9 +38,10 @@ class EmployeePolicy
     /**
      * Determine if user can view a specific employee.
      *
-     * Employee can view own profile.
+     * Employee can view own profile (if allow_self_access = true in scope).
      * Users with employee.read permission can view employees.
      * Scope-based access: Users with organizational scopes are restricted to their scope.
+     * Leadership Level filtering: Users can only view employees within their viewable rank range.
      */
     public function view(User $user, Employee $employee): bool
     {
@@ -49,9 +50,22 @@ class EmployeePolicy
             return false;
         }
 
-        // Employee can view own profile
+        // Self-access control (NEW - ADR-009)
+        // Check if viewing own employee record
         if ($user->id === $employee->user_id) {
-            return true;
+            // Requires permission AND allow_self_access = true in scope
+            if (! $user->can('employee.read')) {
+                return false;
+            }
+
+            // Check if user has scope with allow_self_access = true for this unit
+            $scope = $user->organizationalScopes()
+                ->where('organizational_unit_id', $employee->organizational_unit_id)
+                ->where('allow_self_access', true)
+                ->first();
+
+            // If no scope with allow_self_access, deny access to own data
+            return $scope !== null;
         }
 
         // Users with employee.read permission can view
@@ -63,12 +77,66 @@ class EmployeePolicy
         $hasScopes = $user->organizationalScopes()->exists();
 
         if ($hasScopes && $employee->organizationalUnit !== null) {
-            // Managers: Check organizational scope
-            return $user->hasAccessToUnit($employee->organizationalUnit);
+            // Managers: Check organizational scope AND leadership rank filtering
+            // Get all scopes for this organizational unit (may have multiple for different rank ranges)
+            $scopes = $user->organizationalScopes()
+                ->where('organizational_unit_id', $employee->organizational_unit_id)
+                ->get();
+
+            if ($scopes->isEmpty()) {
+                return false; // No scope for this unit
+            }
+
+            // Check if employee's leadership level is within ANY of the user's viewable ranges
+            $employeeRank = $employee->leadershipLevel?->rank;
+
+            foreach ($scopes as $scope) {
+                // Check rank filtering
+                if ($this->isWithinViewableRankRange($employeeRank, $scope->min_viewable_rank, $scope->max_viewable_rank)) {
+                    return true; // Employee visible in at least one scope
+                }
+            }
+
+            return false; // Employee not visible in any scope
         }
 
         // Admin/HR (no scopes): Can view all
         return ! $hasScopes;
+    }
+
+    /**
+     * Check if employee's rank is within user's viewable rank range.
+     *
+     * CRITICAL SEMANTICS:
+     * - max_viewable_rank = NULL or 0 → ONLY employees with rank = NULL (non-leadership)
+     * - max_viewable_rank = 255 → All leadership levels (FE1-FE255)
+     *
+     * @param  int|null  $employeeRank  Employee's leadership rank (NULL for non-leadership)
+     * @param  int|null  $minViewableRank  Minimum viewable rank (NULL = no minimum)
+     * @param  int|null  $maxViewableRank  Maximum viewable rank (NULL/0 = ONLY non-leadership)
+     */
+    private function isWithinViewableRankRange(?int $employeeRank, ?int $minViewableRank, ?int $maxViewableRank): bool
+    {
+        // Case 1: max_viewable_rank = NULL or 0 → ONLY non-leadership employees
+        if ($maxViewableRank === null || $maxViewableRank === 0) {
+            return $employeeRank === null; // Only non-leadership visible
+        }
+
+        // Case 2: Employee has NO leadership level (Guard)
+        if ($employeeRank === null) {
+            return false; // Non-leadership NOT visible in leadership-only scope
+        }
+
+        // Case 3: Check if employee's rank is within range
+        if (! is_null($minViewableRank) && $employeeRank < $minViewableRank) {
+            return false; // Below minimum
+        }
+
+        if (! is_null($maxViewableRank) && $employeeRank > $maxViewableRank) { // @phpstan-ignore function.impossibleType
+            return false; // Above maximum
+        }
+
+        return true; // Within range
     }
 
     /**
@@ -84,8 +152,9 @@ class EmployeePolicy
     /**
      * Determine if user can update an employee.
      *
-     * Employee can update own profile (limited fields).
+     * Employee can update own profile (limited fields) if allow_self_access = true.
      * Users with employee.update permission can update all employees.
+     * Leadership Level filtering: Users with scopes can only edit employees within their viewable rank range.
      */
     public function update(User $user, Employee $employee): bool
     {
@@ -94,14 +163,59 @@ class EmployeePolicy
             return false;
         }
 
+        // Self-access control (NEW - ADR-009)
         // Employee can update own profile (limited fields)
         // Note: Field-level restrictions handled in controller/request validation
         if ($user->id === $employee->user_id) {
-            return true;
+            // Requires permission AND allow_self_access = true in scope
+            if (! $user->can('employee.update')) {
+                return false;
+            }
+
+            // Check if user has scope with allow_self_access = true for this unit
+            $scope = $user->organizationalScopes()
+                ->where('organizational_unit_id', $employee->organizational_unit_id)
+                ->where('allow_self_access', true)
+                ->first();
+
+            // If no scope with allow_self_access, deny access to own data
+            return $scope !== null;
         }
 
         // Users with employee.write or employee.update permission can update
-        return $user->can('employee.write') || $user->can('employee.update');
+        if (! $user->can('employee.write') && ! $user->can('employee.update')) {
+            return false;
+        }
+
+        // Check if user has organizational scopes (Manager role)
+        $hasScopes = $user->organizationalScopes()->exists();
+
+        if ($hasScopes && $employee->organizationalUnit !== null) {
+            // Managers: Check organizational scope AND leadership rank filtering
+            // Get all scopes for this organizational unit (may have multiple for different rank ranges)
+            $scopes = $user->organizationalScopes()
+                ->where('organizational_unit_id', $employee->organizational_unit_id)
+                ->get();
+
+            if ($scopes->isEmpty()) {
+                return false; // No scope for this unit
+            }
+
+            // Check if employee's leadership level is within ANY of the user's viewable ranges
+            $employeeRank = $employee->leadershipLevel?->rank;
+
+            foreach ($scopes as $scope) {
+                // Check rank filtering
+                if ($this->isWithinViewableRankRange($employeeRank, $scope->min_viewable_rank, $scope->max_viewable_rank)) {
+                    return true; // Employee editable in at least one scope
+                }
+            }
+
+            return false; // Employee not editable in any scope
+        }
+
+        // Admin/HR (no scopes): Can update all
+        return ! $hasScopes;
     }
 
     /**
