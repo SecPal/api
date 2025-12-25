@@ -45,6 +45,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 final class LeadershipLevel extends Model
 {
+    /** @use HasFactory<\Database\Factories\LeadershipLevelFactory> */
     use HasFactory;
     use HasUuids;
     use SoftDeletes;
@@ -93,7 +94,7 @@ final class LeadershipLevel extends Model
     /**
      * Get the tenant that owns this leadership level.
      *
-     * @return BelongsTo<TenantKey, LeadershipLevel>
+     * @return BelongsTo<TenantKey, $this>
      */
     public function tenant(): BelongsTo
     {
@@ -103,7 +104,7 @@ final class LeadershipLevel extends Model
     /**
      * Get all employees assigned to this leadership level.
      *
-     * @return HasMany<Employee, LeadershipLevel>
+     * @return HasMany<Employee, $this>
      */
     public function employees(): HasMany
     {
