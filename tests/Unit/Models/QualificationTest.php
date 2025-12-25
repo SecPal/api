@@ -3,81 +3,63 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-namespace Tests\Unit\Models;
-
 use App\Models\Employee;
 use App\Models\Qualification;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 
-class QualificationTest extends TestCase
-{
-    use RefreshDatabase;
+uses(RefreshDatabase::class);
 
-    protected TenantKey $tenant;
+beforeEach(function () {
+    TenantKey::setKekPath(getTestKekPath());
+    TenantKey::generateKek();
+    $keys = TenantKey::generateEnvelopeKeys();
+    $this->tenant = TenantKey::create($keys);
+});
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+afterEach(function () {
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
+});
 
-        TenantKey::setKekPath(getTestKekPath());
-        TenantKey::generateKek();
-        $keys = TenantKey::generateEnvelopeKeys();
-        $this->tenant = TenantKey::create($keys);
-    }
+test('qualification can be created with factory', function () {
+    $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    protected function tearDown(): void
-    {
-        cleanupTestKekFile();
-        TenantKey::setKekPath(null);
-        parent::tearDown();
-    }
+    expect($qualification->id)->not->toBeNull()
+        ->and($qualification->tenant_id)->toBe($this->tenant->id)
+        ->and($qualification->name)->not->toBeNull();
+});
 
-    public function test_qualification_can_be_created_with_factory(): void
-    {
-        $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
+test('qualification has tenant relationship', function () {
+    $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
 
-        $this->assertNotNull($qualification->id);
-        $this->assertSame($this->tenant->id, $qualification->tenant_id);
-        $this->assertNotNull($qualification->name);
-    }
+    expect($qualification->tenant)->toBeInstanceOf(TenantKey::class)
+        ->and($qualification->tenant->id)->toBe($this->tenant->id);
+});
 
-    public function test_qualification_has_tenant_relationship(): void
-    {
-        $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
+test('qualification has employees relationship', function () {
+    $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
+    $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
 
-        $this->assertInstanceOf(TenantKey::class, $qualification->tenant);
-        $this->assertSame($this->tenant->id, $qualification->tenant->id);
-    }
+    $qualification->employees()->attach($employee->id, [
+        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'obtained_date' => now(),
+    ]);
 
-    public function test_qualification_has_employees_relationship(): void
-    {
-        $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
-        $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
+    expect($qualification->employees)->toHaveCount(1)
+        ->and($qualification->employees->first())->toBeInstanceOf(Employee::class);
+});
 
-        $qualification->employees()->attach($employee->id, [
-            'id' => (string) \Illuminate\Support\Str::uuid(),
-            'obtained_date' => now(),
-        ]);
+test('system qualification has null tenant id', function () {
+    $systemQual = Qualification::factory()->system()->create();
 
-        $this->assertCount(1, $qualification->employees);
-        $this->assertInstanceOf(Employee::class, $qualification->employees->first());
-    }
+    expect($systemQual->tenant_id)->toBeNull()
+        ->and($systemQual->is_system_qualification)->toBeTrue();
+});
 
-    public function test_system_qualification_has_null_tenant_id(): void
-    {
-        $systemQual = Qualification::factory()->system()->create();
+test('bewachv qualification has correct category', function () {
+    $bewachvQual = Qualification::factory()->bewachv()->create(['tenant_id' => $this->tenant->id]);
 
-        $this->assertNull($systemQual->tenant_id);
-        $this->assertTrue($systemQual->is_system_qualification);
-    }
-
-    public function test_bewachv_qualification_has_correct_category(): void
-    {
-        $bewachvQual = Qualification::factory()->bewachv()->create(['tenant_id' => $this->tenant->id]);
-
-        $this->assertSame('bewachv_34a', $bewachvQual->category);
-        $this->assertTrue($bewachvQual->requires_renewal);
-    }
-}
+    expect($bewachvQual->category)->toBe('bewachv_34a')
+        ->and($bewachvQual->requires_renewal)->toBeTrue();
+});

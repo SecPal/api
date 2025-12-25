@@ -12,9 +12,8 @@ use App\Models\Activity;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 
-uses(TestCase::class, RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
 /**
  * Merkle Proof Performance Tests (Issue #390)

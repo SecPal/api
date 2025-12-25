@@ -3,329 +3,293 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-namespace Tests\Unit\Models;
-
 use App\Models\Customer;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 
 /**
  * Unit tests for Site model.
  *
  * @covers \App\Models\Site
  */
-class SiteTest extends TestCase
-{
-    use RefreshDatabase;
+uses(RefreshDatabase::class)->group('unit', 'models', 'site');
 
-    protected TenantKey $tenant;
+beforeEach(function () {
+    TenantKey::setKekPath(getTestKekPath());
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        TenantKey::setKekPath(getTestKekPath());
-
-        // Ensure KEK exists
-        if (! file_exists(TenantKey::getKekPath())) {
-            TenantKey::generateKek();
-        }
-
-        // Create tenant for testing
-        if (! TenantKey::first()) {
-            $keys = TenantKey::generateEnvelopeKeys();
-            $this->tenant = TenantKey::create($keys);
-        } else {
-            $this->tenant = TenantKey::first();
-        }
+    // Ensure KEK exists
+    if (! file_exists(TenantKey::getKekPath())) {
+        TenantKey::generateKek();
     }
 
-    protected function tearDown(): void
-    {
-        cleanupTestKekFile();
-        TenantKey::setKekPath(null);
-        parent::tearDown();
+    // Create tenant for testing
+    if (! TenantKey::first()) {
+        $keys = TenantKey::generateEnvelopeKeys();
+        $this->tenant = TenantKey::create($keys);
+    } else {
+        $this->tenant = TenantKey::first();
     }
+});
 
-    public function test_site_can_be_created_with_factory(): void
-    {
-        $site = Site::factory()->create();
+afterEach(function () {
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
+});
 
-        $this->assertNotNull($site->id);
-        $this->assertNotNull($site->site_number);
-        $this->assertNotNull($site->name);
-        $this->assertIsArray($site->address);
-        $this->assertTrue($site->is_active);
-    }
+test('site can be created with factory', function () {
+    $site = Site::factory()->create();
 
-    public function test_site_number_is_auto_generated_with_correct_format(): void
-    {
-        $site = Site::factory()->create();
+    expect($site->id)->not->toBeNull();
+    expect($site->site_number)->not->toBeNull();
+    expect($site->name)->not->toBeNull();
+    expect($site->address)->toBeArray();
+    expect($site->is_active)->toBeTrue();
+});
 
-        // Format: OBJ-YYYY-NNNN
-        $pattern = '/^OBJ-\d{4}-\d{4}$/';
-        $this->assertMatchesRegularExpression($pattern, $site->site_number);
-    }
+test('site number is auto generated with correct format', function () {
+    $site = Site::factory()->create();
 
-    public function test_generate_site_number_starts_at_0001_for_new_year(): void
-    {
-        $year = now()->year;
-        $number = Site::generateSiteNumber($this->tenant->id);
+    // Format: OBJ-YYYY-NNNN
+    $pattern = '/^OBJ-\d{4}-\d{4}$/';
+    expect($site->site_number)->toMatch($pattern);
+});
 
-        $expected = sprintf('OBJ-%d-0001', $year);
-        $this->assertSame($expected, $number);
-    }
+test('generate site number starts at 0001 for new year', function () {
+    $year = now()->year;
+    $number = Site::generateSiteNumber($this->tenant->id);
 
-    public function test_generate_site_number_increments_correctly(): void
-    {
-        // Create first site
-        Site::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'site_number' => Site::generateSiteNumber($this->tenant->id),
-        ]);
+    $expected = sprintf('OBJ-%d-0001', $year);
+    expect($number)->toBe($expected);
+});
 
-        // Generate next number
-        $nextNumber = Site::generateSiteNumber($this->tenant->id);
+test('generate site number increments correctly', function () {
+    // Create first site
+    Site::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'site_number' => Site::generateSiteNumber($this->tenant->id),
+    ]);
 
-        $year = now()->year;
-        $expected = sprintf('OBJ-%d-0002', $year);
-        $this->assertSame($expected, $nextNumber);
-    }
+    // Generate next number
+    $nextNumber = Site::generateSiteNumber($this->tenant->id);
 
-    public function test_generate_site_number_handles_soft_deleted_records(): void
-    {
-        // Create and soft delete a site
-        $site = Site::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'site_number' => Site::generateSiteNumber($this->tenant->id),
-        ]);
-        $site->delete();
+    $year = now()->year;
+    $expected = sprintf('OBJ-%d-0002', $year);
+    expect($nextNumber)->toBe($expected);
+});
 
-        // Next number should skip the deleted one
-        $nextNumber = Site::generateSiteNumber($this->tenant->id);
+test('generate site number handles soft deleted records', function () {
+    // Create and soft delete a site
+    $site = Site::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'site_number' => Site::generateSiteNumber($this->tenant->id),
+    ]);
+    $site->delete();
 
-        $year = now()->year;
-        $expected = sprintf('OBJ-%d-0002', $year);
-        $this->assertSame($expected, $nextNumber);
-    }
+    // Next number should skip the deleted one
+    $nextNumber = Site::generateSiteNumber($this->tenant->id);
 
-    public function test_scope_active_returns_only_active_sites(): void
-    {
-        Site::factory()->create(['is_active' => true]);
-        Site::factory()->create(['is_active' => true]);
-        Site::factory()->create(['is_active' => false]);
+    $year = now()->year;
+    $expected = sprintf('OBJ-%d-0002', $year);
+    expect($nextNumber)->toBe($expected);
+});
 
-        $activeSites = Site::active()->get();
+test('scope active returns only active sites', function () {
+    Site::factory()->create(['is_active' => true]);
+    Site::factory()->create(['is_active' => true]);
+    Site::factory()->create(['is_active' => false]);
 
-        $this->assertCount(2, $activeSites);
-        $this->assertTrue($activeSites->every(fn ($site) => $site->is_active));
-    }
+    $activeSites = Site::active()->get();
 
-    public function test_scope_permanent_returns_only_permanent_sites(): void
-    {
-        Site::factory()->permanent()->create();
-        Site::factory()->permanent()->create();
-        Site::factory()->temporary()->create();
+    expect($activeSites)->toHaveCount(2);
+    expect($activeSites->every(fn ($site) => $site->is_active))->toBeTrue();
+});
 
-        $permanentSites = Site::permanent()->get();
+test('scope permanent returns only permanent sites', function () {
+    Site::factory()->permanent()->create();
+    Site::factory()->permanent()->create();
+    Site::factory()->temporary()->create();
 
-        $this->assertCount(2, $permanentSites);
-        $this->assertTrue($permanentSites->every(fn ($site) => $site->type === 'permanent'));
-    }
+    $permanentSites = Site::permanent()->get();
 
-    public function test_scope_temporary_returns_only_temporary_sites(): void
-    {
-        Site::factory()->temporary()->create();
-        Site::factory()->temporary()->create();
-        Site::factory()->permanent()->create();
+    expect($permanentSites)->toHaveCount(2);
+    expect($permanentSites->every(fn ($site) => $site->type === 'permanent'))->toBeTrue();
+});
 
-        $temporarySites = Site::temporary()->get();
+test('scope temporary returns only temporary sites', function () {
+    Site::factory()->temporary()->create();
+    Site::factory()->temporary()->create();
+    Site::factory()->permanent()->create();
 
-        $this->assertCount(2, $temporarySites);
-        $this->assertTrue($temporarySites->every(fn ($site) => $site->type === 'temporary'));
-    }
+    $temporarySites = Site::temporary()->get();
 
-    public function test_scope_currently_valid_filters_by_validity_period(): void
-    {
-        // Create valid sites
-        Site::factory()->create([
-            'valid_from' => now()->subDays(10),
-            'valid_until' => now()->addDays(10),
-        ]);
+    expect($temporarySites)->toHaveCount(2);
+    expect($temporarySites->every(fn ($site) => $site->type === 'temporary'))->toBeTrue();
+});
 
-        Site::factory()->create([
-            'valid_from' => null,
-            'valid_until' => null,
-        ]);
+test('scope currently valid filters by validity period', function () {
+    // Create valid sites
+    Site::factory()->create([
+        'valid_from' => now()->subDays(10),
+        'valid_until' => now()->addDays(10),
+    ]);
 
-        // Create expired site
-        Site::factory()->create([
-            'valid_from' => now()->subMonths(6),
-            'valid_until' => now()->subDays(10),
-        ]);
+    Site::factory()->create([
+        'valid_from' => null,
+        'valid_until' => null,
+    ]);
 
-        // Create future site
-        Site::factory()->create([
-            'valid_from' => now()->addDays(10),
-            'valid_until' => now()->addMonths(6),
-        ]);
+    // Create expired site
+    Site::factory()->create([
+        'valid_from' => now()->subMonths(6),
+        'valid_until' => now()->subDays(10),
+    ]);
 
-        $currentlyValid = Site::currentlyValid()->get();
+    // Create future site
+    Site::factory()->create([
+        'valid_from' => now()->addDays(10),
+        'valid_until' => now()->addMonths(6),
+    ]);
 
-        $this->assertCount(2, $currentlyValid);
-    }
+    $currentlyValid = Site::currentlyValid()->get();
 
-    public function test_scope_for_organizational_unit_filters_correctly(): void
-    {
-        $orgUnit1 = OrganizationalUnit::factory()->create();
-        $orgUnit2 = OrganizationalUnit::factory()->create();
+    expect($currentlyValid)->toHaveCount(2);
+});
 
-        Site::factory()->forOrganizationalUnit($orgUnit1)->create();
-        Site::factory()->forOrganizationalUnit($orgUnit2)->create();
+test('scope for organizational unit filters correctly', function () {
+    $orgUnit1 = OrganizationalUnit::factory()->create();
+    $orgUnit2 = OrganizationalUnit::factory()->create();
 
-        $sites = Site::forOrganizationalUnit($orgUnit1->id)->get();
+    Site::factory()->forOrganizationalUnit($orgUnit1)->create();
+    Site::factory()->forOrganizationalUnit($orgUnit2)->create();
 
-        $this->assertCount(1, $sites);
-        $this->assertEquals($orgUnit1->id, $sites->first()->organizational_unit_id);
-    }
+    $sites = Site::forOrganizationalUnit($orgUnit1->id)->get();
 
-    public function test_site_has_tenant_relationship(): void
-    {
-        $site = Site::factory()->create(['tenant_id' => $this->tenant->id]);
+    expect($sites)->toHaveCount(1);
+    expect($sites->first()->organizational_unit_id)->toBe($orgUnit1->id);
+});
 
-        $this->assertInstanceOf(TenantKey::class, $site->tenant);
-        $this->assertEquals($this->tenant->id, $site->tenant->id);
-    }
+test('site has tenant relationship', function () {
+    $site = Site::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    public function test_site_has_customer_relationship(): void
-    {
-        $customer = Customer::factory()->create();
-        $site = Site::factory()->forCustomer($customer)->create();
+    expect($site->tenant)->toBeInstanceOf(TenantKey::class);
+    expect($site->tenant->id)->toBe($this->tenant->id);
+});
 
-        $this->assertInstanceOf(Customer::class, $site->customer);
-        $this->assertEquals($customer->id, $site->customer->id);
-    }
+test('site has customer relationship', function () {
+    $customer = Customer::factory()->create();
+    $site = Site::factory()->forCustomer($customer)->create();
 
-    public function test_site_has_organizational_unit_relationship(): void
-    {
-        $orgUnit = OrganizationalUnit::factory()->create();
-        $site = Site::factory()->forOrganizationalUnit($orgUnit)->create();
+    expect($site->customer)->toBeInstanceOf(Customer::class);
+    expect($site->customer->id)->toBe($customer->id);
+});
 
-        $this->assertInstanceOf(OrganizationalUnit::class, $site->organizationalUnit);
-        $this->assertEquals($orgUnit->id, $site->organizationalUnit->id);
-    }
+test('site has organizational unit relationship', function () {
+    $orgUnit = OrganizationalUnit::factory()->create();
+    $site = Site::factory()->forOrganizationalUnit($orgUnit)->create();
 
-    public function test_site_has_assignments_relationship(): void
-    {
-        $site = Site::factory()->create();
+    expect($site->organizationalUnit)->toBeInstanceOf(OrganizationalUnit::class);
+    expect($site->organizationalUnit->id)->toBe($orgUnit->id);
+});
 
-        $this->assertInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class, $site->assignments());
-        $this->assertInstanceOf(\Illuminate\Database\Eloquent\Collection::class, $site->assignments);
-    }
+test('site has assignments relationship', function () {
+    $site = Site::factory()->create();
 
-    public function test_site_has_cost_centers_relationship(): void
-    {
-        $site = Site::factory()->create();
+    expect($site->assignments())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class);
+    expect($site->assignments)->toBeInstanceOf(\Illuminate\Database\Eloquent\Collection::class);
+});
 
-        $this->assertInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class, $site->costCenters());
-        $this->assertInstanceOf(\Illuminate\Database\Eloquent\Collection::class, $site->costCenters);
-    }
+test('site has cost centers relationship', function () {
+    $site = Site::factory()->create();
 
-    public function test_full_address_accessor_formats_address_correctly(): void
-    {
-        $site = Site::factory()->create([
-            'address' => [
-                'street' => 'Teststr. 123',
-                'city' => 'Berlin',
-                'postal_code' => '10115',
-                'country' => 'DE',
-            ],
-        ]);
+    expect($site->costCenters())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class);
+    expect($site->costCenters)->toBeInstanceOf(\Illuminate\Database\Eloquent\Collection::class);
+});
 
-        $expected = 'Teststr. 123, 10115, Berlin';
-        $this->assertEquals($expected, $site->full_address);
-    }
+test('full address accessor formats address correctly', function () {
+    $site = Site::factory()->create([
+        'address' => [
+            'street' => 'Teststr. 123',
+            'city' => 'Berlin',
+            'postal_code' => '10115',
+            'country' => 'DE',
+        ],
+    ]);
 
-    public function test_full_address_accessor_handles_missing_fields(): void
-    {
-        $site = Site::factory()->create([
-            'address' => [
-                'street' => 'Teststr. 123',
-                'city' => 'Berlin',
-                // postal_code missing
-                'country' => 'DE',
-            ],
-        ]);
+    $expected = 'Teststr. 123, 10115, Berlin';
+    expect($site->full_address)->toBe($expected);
+});
 
-        $expected = 'Teststr. 123, Berlin';
-        $this->assertEquals($expected, $site->full_address);
-    }
+test('full address accessor handles missing fields', function () {
+    $site = Site::factory()->create([
+        'address' => [
+            'street' => 'Teststr. 123',
+            'city' => 'Berlin',
+            // postal_code missing
+            'country' => 'DE',
+        ],
+    ]);
 
-    public function test_is_expired_accessor_returns_true_for_expired_sites(): void
-    {
-        $site = Site::factory()->expired()->create();
+    $expected = 'Teststr. 123, Berlin';
+    expect($site->full_address)->toBe($expected);
+});
 
-        $this->assertTrue($site->is_expired);
-    }
+test('is expired accessor returns true for expired sites', function () {
+    $site = Site::factory()->expired()->create();
 
-    public function test_is_expired_accessor_returns_false_for_valid_sites(): void
-    {
-        $site = Site::factory()->create([
-            'valid_from' => now()->subDays(10),
-            'valid_until' => now()->addDays(10),
-        ]);
+    expect($site->is_expired)->toBeTrue();
+});
 
-        $this->assertFalse($site->is_expired);
-    }
+test('is expired accessor returns false for valid sites', function () {
+    $site = Site::factory()->create([
+        'valid_from' => now()->subDays(10),
+        'valid_until' => now()->addDays(10),
+    ]);
 
-    public function test_is_expired_accessor_returns_false_for_sites_without_validity(): void
-    {
-        $site = Site::factory()->create([
-            'valid_from' => null,
-            'valid_until' => null,
-        ]);
+    expect($site->is_expired)->toBeFalse();
+});
 
-        $this->assertFalse($site->is_expired);
-    }
+test('is expired accessor returns false for sites without validity', function () {
+    $site = Site::factory()->create([
+        'valid_from' => null,
+        'valid_until' => null,
+    ]);
 
-    public function test_site_address_is_cast_to_array(): void
-    {
-        $site = Site::factory()->create([
-            'address' => [
-                'street' => 'Teststr. 123',
-                'city' => 'Berlin',
-                'postal_code' => '10115',
-                'country' => 'DE',
-                'lat' => 52.5200,
-                'lng' => 13.4050,
-            ],
-        ]);
+    expect($site->is_expired)->toBeFalse();
+});
 
-        $this->assertIsArray($site->address);
-        $this->assertEquals('Teststr. 123', $site->address['street']);
-        $this->assertEquals(52.5200, $site->address['lat']);
-    }
+test('site address is cast to array', function () {
+    $site = Site::factory()->create([
+        'address' => [
+            'street' => 'Teststr. 123',
+            'city' => 'Berlin',
+            'postal_code' => '10115',
+            'country' => 'DE',
+            'lat' => 52.5200,
+            'lng' => 13.4050,
+        ],
+    ]);
 
-    public function test_site_can_be_soft_deleted(): void
-    {
-        $site = Site::factory()->create([
-            'tenant_id' => $this->tenant->id,
-        ]);
-        $siteId = $site->id;
+    expect($site->address)->toBeArray();
+    expect($site->address['street'])->toBe('Teststr. 123');
+    expect($site->address['lat'])->toBe(52.5200);
+});
 
-        $site->delete();
+test('site can be soft deleted', function () {
+    $site = Site::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+    $siteId = $site->id;
 
-        $this->assertSoftDeleted('sites', ['id' => $siteId]);
-        $this->assertNotNull($site->fresh()?->deleted_at);
-    }
+    $site->delete();
 
-    public function test_site_can_be_inactive(): void
-    {
-        $site = Site::factory()->inactive()->create();
+    $this->assertSoftDeleted('sites', ['id' => $siteId]);
+    expect($site->fresh()?->deleted_at)->not->toBeNull();
+});
 
-        $this->assertFalse($site->is_active);
-    }
-}
+test('site can be inactive', function () {
+    $site = Site::factory()->inactive()->create();
+
+    expect($site->is_active)->toBeFalse();
+});

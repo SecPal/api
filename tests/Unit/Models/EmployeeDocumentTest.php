@@ -3,83 +3,66 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-namespace Tests\Unit\Models;
-
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 
-class EmployeeDocumentTest extends TestCase
-{
-    use RefreshDatabase;
+uses(RefreshDatabase::class);
 
-    protected TenantKey $tenant;
+beforeEach(function () {
+    TenantKey::setKekPath(getTestKekPath());
+    TenantKey::generateKek();
+    $keys = TenantKey::generateEnvelopeKeys();
+    $this->tenant = TenantKey::create($keys);
+});
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+afterEach(function () {
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
+});
 
-        TenantKey::setKekPath(getTestKekPath());
-        TenantKey::generateKek();
-        $keys = TenantKey::generateEnvelopeKeys();
-        $this->tenant = TenantKey::create($keys);
-    }
+test('employee document can be created with factory', function () {
+    $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
+    $document = EmployeeDocument::factory()->create(['employee_id' => $employee->id]);
 
-    protected function tearDown(): void
-    {
-        cleanupTestKekFile();
-        TenantKey::setKekPath(null);
-        parent::tearDown();
-    }
+    expect($document->id)->not->toBeNull()
+        ->and($document->employee_id)->toBe($employee->id)
+        ->and($document->document_type)->not->toBeNull();
+});
 
-    public function test_employee_document_can_be_created_with_factory(): void
-    {
-        $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
-        $document = EmployeeDocument::factory()->create(['employee_id' => $employee->id]);
+test('employee document has employee relationship', function () {
+    $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
+    $document = EmployeeDocument::factory()->create(['employee_id' => $employee->id]);
 
-        $this->assertNotNull($document->id);
-        $this->assertSame($employee->id, $document->employee_id);
-        $this->assertNotNull($document->document_type);
-    }
+    expect($document->employee)->toBeInstanceOf(Employee::class)
+        ->and($document->employee->id)->toBe($employee->id);
+});
 
-    public function test_employee_document_has_employee_relationship(): void
-    {
-        $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
-        $document = EmployeeDocument::factory()->create(['employee_id' => $employee->id]);
+test('employee document has uploader relationship', function () {
+    $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
+    $uploader = User::factory()->create();
+    $document = EmployeeDocument::factory()->create([
+        'employee_id' => $employee->id,
+        'uploaded_by' => $uploader->id,
+    ]);
 
-        $this->assertInstanceOf(Employee::class, $document->employee);
-        $this->assertSame($employee->id, $document->employee->id);
-    }
+    expect($document->uploader)->toBeInstanceOf(User::class)
+        ->and($document->uploader->id)->toBe($uploader->id);
+});
 
-    public function test_employee_document_has_uploader_relationship(): void
-    {
-        $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
-        $uploader = User::factory()->create();
-        $document = EmployeeDocument::factory()->create([
-            'employee_id' => $employee->id,
-            'uploaded_by' => $uploader->id,
-        ]);
+test('employee document visibility flag works', function () {
+    $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
+    $visibleDoc = EmployeeDocument::factory()->create([
+        'employee_id' => $employee->id,
+        'visible_to_employee' => true,
+    ]);
+    $hiddenDoc = EmployeeDocument::factory()->create([
+        'employee_id' => $employee->id,
+        'visible_to_employee' => false,
+    ]);
 
-        $this->assertInstanceOf(User::class, $document->uploader);
-        $this->assertSame($uploader->id, $document->uploader->id);
-    }
-
-    public function test_employee_document_visibility_flag_works(): void
-    {
-        $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
-        $visibleDoc = EmployeeDocument::factory()->create([
-            'employee_id' => $employee->id,
-            'visible_to_employee' => true,
-        ]);
-        $hiddenDoc = EmployeeDocument::factory()->create([
-            'employee_id' => $employee->id,
-            'visible_to_employee' => false,
-        ]);
-
-        $this->assertTrue($visibleDoc->visible_to_employee);
-        $this->assertFalse($hiddenDoc->visible_to_employee);
-    }
-}
+    expect($visibleDoc->visible_to_employee)->toBeTrue()
+        ->and($hiddenDoc->visible_to_employee)->toBeFalse();
+});

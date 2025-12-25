@@ -5,175 +5,120 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Http\Middleware;
-
 use App\Http\Middleware\ForceJsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use PHPUnit\Framework\Attributes\CoversClass;
-use Tests\TestCase;
 
-#[CoversClass(ForceJsonResponse::class)]
-final class ForceJsonResponseTest extends TestCase
-{
-    private ForceJsonResponse $middleware;
+beforeEach(function () {
+    $this->middleware = new ForceJsonResponse;
+});
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->middleware = new ForceJsonResponse;
-    }
+test('adds accept json header when missing', function () {
+    $request = Request::create('/api/test', 'GET');
 
-    /**
-     * Test that middleware adds Accept: application/json header when not present.
-     */
-    public function test_adds_accept_json_header_when_missing(): void
-    {
-        $request = Request::create('/api/test', 'GET');
+    $this->middleware->handle($request, function ($req) {
+        expect($req->header('Accept'))->toBe('application/json');
 
-        $this->middleware->handle($request, function ($req) {
-            $this->assertSame('application/json', $req->header('Accept'));
+        return new Response('test');
+    });
+});
 
-            return new Response('test');
-        });
-    }
+test('preserves existing accept json header', function () {
+    $request = Request::create('/api/test', 'GET');
+    $request->headers->set('Accept', 'application/json');
 
-    /**
-     * Test that middleware preserves existing Accept header if already set to application/json.
-     */
-    public function test_preserves_existing_accept_json_header(): void
-    {
-        $request = Request::create('/api/test', 'GET');
-        $request->headers->set('Accept', 'application/json');
+    $this->middleware->handle($request, function ($req) {
+        expect($req->header('Accept'))->toBe('application/json');
 
-        $this->middleware->handle($request, function ($req) {
-            $this->assertSame('application/json', $req->header('Accept'));
+        return new Response('test');
+    });
+});
 
-            return new Response('test');
-        });
-    }
+test('overrides non json accept headers', function () {
+    $request = Request::create('/api/test', 'GET');
+    $request->headers->set('Accept', 'text/html');
 
-    /**
-     * Test that middleware overrides non-JSON Accept headers.
-     */
-    public function test_overrides_non_json_accept_headers(): void
-    {
-        $request = Request::create('/api/test', 'GET');
-        $request->headers->set('Accept', 'text/html');
+    $this->middleware->handle($request, function ($req) {
+        expect($req->header('Accept'))->toBe('application/json');
 
-        $this->middleware->handle($request, function ($req) {
-            $this->assertSame('application/json', $req->header('Accept'));
+        return new Response('test');
+    });
+});
 
-            return new Response('test');
-        });
-    }
+test('overrides multiple accept headers', function () {
+    $request = Request::create('/api/test', 'GET');
+    $request->headers->set('Accept', 'text/html, application/xml, application/json');
 
-    /**
-     * Test that middleware handles multiple Accept header values.
-     */
-    public function test_overrides_multiple_accept_headers(): void
-    {
-        $request = Request::create('/api/test', 'GET');
-        $request->headers->set('Accept', 'text/html, application/xml, application/json');
+    $this->middleware->handle($request, function ($req) {
+        expect($req->header('Accept'))->toBe('application/json');
 
-        $this->middleware->handle($request, function ($req) {
-            $this->assertSame('application/json', $req->header('Accept'));
+        return new Response('test');
+    });
+});
 
-            return new Response('test');
-        });
-    }
+test('works in request pipeline', function () {
+    $request = Request::create('/api/test', 'GET');
+    $expectedResponse = new Response('test response');
 
-    /**
-     * Test that middleware works correctly in the request pipeline.
-     */
-    public function test_works_in_request_pipeline(): void
-    {
-        $request = Request::create('/api/test', 'GET');
-        $expectedResponse = new Response('test response');
+    $response = $this->middleware->handle($request, function ($req) use ($expectedResponse) {
+        return $expectedResponse;
+    });
 
-        $response = $this->middleware->handle($request, function ($req) use ($expectedResponse) {
-            return $expectedResponse;
-        });
+    expect($response)->toBe($expectedResponse);
+});
 
-        $this->assertSame($expectedResponse, $response);
-    }
+test('preserves other headers', function () {
+    $request = Request::create('/api/test', 'GET');
+    $request->headers->set('Authorization', 'Bearer token123');
+    $request->headers->set('X-Custom-Header', 'custom-value');
 
-    /**
-     * Test that middleware preserves other headers.
-     */
-    public function test_preserves_other_headers(): void
-    {
-        $request = Request::create('/api/test', 'GET');
-        $request->headers->set('Authorization', 'Bearer token123');
-        $request->headers->set('X-Custom-Header', 'custom-value');
+    $this->middleware->handle($request, function ($req) {
+        expect($req->header('Authorization'))->toBe('Bearer token123')
+            ->and($req->header('X-Custom-Header'))->toBe('custom-value')
+            ->and($req->header('Accept'))->toBe('application/json');
 
-        $this->middleware->handle($request, function ($req) {
-            $this->assertSame('Bearer token123', $req->header('Authorization'));
-            $this->assertSame('custom-value', $req->header('X-Custom-Header'));
-            $this->assertSame('application/json', $req->header('Accept'));
+        return new Response('test');
+    });
+});
 
-            return new Response('test');
-        });
-    }
+test('works with post requests', function () {
+    $request = Request::create('/api/test', 'POST', ['key' => 'value']);
 
-    /**
-     * Test that middleware works with POST requests.
-     */
-    public function test_works_with_post_requests(): void
-    {
-        $request = Request::create('/api/test', 'POST', ['key' => 'value']);
+    $this->middleware->handle($request, function ($req) {
+        expect($req->header('Accept'))->toBe('application/json')
+            ->and($req->input('key'))->toBe('value');
 
-        $this->middleware->handle($request, function ($req) {
-            $this->assertSame('application/json', $req->header('Accept'));
-            $this->assertSame('value', $req->input('key'));
+        return new Response('test');
+    });
+});
 
-            return new Response('test');
-        });
-    }
+test('works with put requests', function () {
+    $request = Request::create('/api/test', 'PUT', ['key' => 'value']);
 
-    /**
-     * Test that middleware works with PUT requests.
-     */
-    public function test_works_with_put_requests(): void
-    {
-        $request = Request::create('/api/test', 'PUT', ['key' => 'value']);
+    $this->middleware->handle($request, function ($req) {
+        expect($req->header('Accept'))->toBe('application/json');
 
-        $this->middleware->handle($request, function ($req) {
-            $this->assertSame('application/json', $req->header('Accept'));
+        return new Response('test');
+    });
+});
 
-            return new Response('test');
-        });
-    }
+test('works with delete requests', function () {
+    $request = Request::create('/api/test', 'DELETE');
 
-    /**
-     * Test that middleware works with DELETE requests.
-     */
-    public function test_works_with_delete_requests(): void
-    {
-        $request = Request::create('/api/test', 'DELETE');
+    $this->middleware->handle($request, function ($req) {
+        expect($req->header('Accept'))->toBe('application/json');
 
-        $this->middleware->handle($request, function ($req) {
-            $this->assertSame('application/json', $req->header('Accept'));
+        return new Response('test');
+    });
+});
 
-            return new Response('test');
-        });
-    }
+test('ensures json response for validation errors', function () {
+    $request = Request::create('/api/employees', 'POST');
+    $request->headers->remove('Accept');
 
-    /**
-     * Test that middleware ensures JSON responses for validation errors.
-     */
-    public function test_ensures_json_response_for_validation_errors(): void
-    {
-        $request = Request::create('/api/employees', 'POST');
-        // Simulate a request without Accept header (like from frontend before fix)
-        $request->headers->remove('Accept');
+    $this->middleware->handle($request, function ($req) {
+        expect($req->header('Accept'))->toBe('application/json');
 
-        $this->middleware->handle($request, function ($req) {
-            // Verify that after middleware, the request will trigger JSON response
-            $this->assertSame('application/json', $req->header('Accept'));
-
-            // This would prevent Laravel from returning HTML error pages
-            return new Response('success');
-        });
-    }
-}
+        return new Response('success');
+    });
+});
