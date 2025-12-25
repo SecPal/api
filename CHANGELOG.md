@@ -14,6 +14,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Leadership Levels Database Infrastructure** (Issue #423, Epic #399)
+  - **IMPLEMENTED** database migrations for tenant-configurable leadership hierarchies per ADR-009
+  - Architecture:
+    - `leadership_levels` table: Tenant-specific level definitions (rank, name, description, color)
+    - `employees.leadership_level_id`: Foreign key linking employees to their leadership level
+    - `user_internal_organizational_scopes` rank filters: min/max viewable rank for hierarchical access control
+  - Database Schema:
+    - Rank system: 1 = highest authority (CEO), ascending numbers = lower organizational levels
+    - Tenant isolation: Unique constraints on (tenant_id, rank) and (tenant_id, name)
+    - Soft deletes supported for leadership_levels
+    - ON DELETE SET NULL for employee assignments (preserves history when level deleted)
+  - Seeder & Factory:
+    - Default 6-level hierarchy (C-Level, Senior Management, Middle Management, Team Leads, Senior Staff, Staff)
+    - Seeder is idempotent - safe to run multiple times
+    - Factory with fluent methods: rank(), named(), colored(), inactive()
+  - Testing:
+    - 16 comprehensive migration tests (100% schema validation)
+    - Factory and Seeder tests ready (awaiting LeadershipLevel model from Issue #424)
+  - Quality Gates: ✅ Pint compliant, ✅ PHPStan Level 9, ✅ REUSE 3.3 compliant
+  - **Next Steps:** Issue #424 (LeadershipLevel Model), #425 (API Endpoints), #426 (Frontend)
+  - **Impact:** Epic #399 (Leadership-Based Access Control) - foundational infrastructure for hierarchical employee visibility
+
 - **Queue-based Activity Hash Chain Building** (Issue #408, PR #419)
   - **IMPLEMENTED** race-condition-free hash chain processing via Laravel queues
   - Eliminates race condition window from synchronous `creating` hook approach
