@@ -154,7 +154,10 @@ final class LeadershipLevel extends Model
     {
         // Return cached count if available (from withCount)
         if (array_key_exists('employees_count', $this->attributes)) {
-            return (int) $this->attributes['employees_count'];
+            /** @var int|string|null $value */
+            $value = $this->attributes['employees_count'];
+
+            return (int) $value;
         }
 
         // Return count from loaded relation if available
