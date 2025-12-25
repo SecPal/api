@@ -45,10 +45,9 @@ final class LeadershipLevelFactory extends Factory
     public function definition(): array
     {
         return [
-            'id' => Str::uuid()->toString(),
             'tenant_id' => TenantKey::factory(),
-            'rank' => fake()->numberBetween(1, 10),
-            'name' => fake()->unique()->jobTitle(),
+            'rank' => fake()->unique()->numberBetween(1, 255),
+            'name' => sprintf('%s (%s)', fake()->jobTitle(), Str::random(8)),
             'description' => fake()->optional(0.7)->sentence(),
             'color' => fake()->optional(0.5)->hexColor(),
             'is_active' => true,

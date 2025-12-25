@@ -192,15 +192,31 @@ describe('Leadership Levels Migrations', function () {
     });
 
     describe('migration rollback', function () {
-        it('can rollback leadership_levels table', function (): void {
-            // Table should exist after migrations
-            expect(Schema::hasTable('leadership_levels'))->toBeTrue();
+        it('can rollback all leadership levels migrations', function (): void {
+            // Arrange: Verify tables exist before rollback
+            expect(Schema::hasTable('leadership_levels'))->toBeTrue()
+                ->and(Schema::hasColumn('employees', 'leadership_level_id'))->toBeTrue()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'min_viewable_rank'))->toBeTrue();
 
-            // Rollback the specific migration
-            $this->artisan('migrate:rollback', ['--step' => 3]);
+            // Act: Rollback the 3 leadership levels migrations in reverse order
+            // Migration 3: Remove rank filters from user_internal_organizational_scopes
+            $this->artisan('migrate:rollback', ['--step' => 1]);
+            expect(Schema::hasColumn('user_internal_organizational_scopes', 'min_viewable_rank'))->toBeFalse()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'max_viewable_rank'))->toBeFalse();
 
-            // Table should be gone
+            // Migration 2: Remove leadership_level_id from employees
+            $this->artisan('migrate:rollback', ['--step' => 1]);
+            expect(Schema::hasColumn('employees', 'leadership_level_id'))->toBeFalse();
+
+            // Migration 1: Drop leadership_levels table
+            $this->artisan('migrate:rollback', ['--step' => 1]);
             expect(Schema::hasTable('leadership_levels'))->toBeFalse();
+
+            // Assert: Verify all changes were completely rolled back
+            expect(Schema::hasTable('leadership_levels'))->toBeFalse()
+                ->and(Schema::hasColumn('employees', 'leadership_level_id'))->toBeFalse()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'min_viewable_rank'))->toBeFalse()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'max_viewable_rank'))->toBeFalse();
 
             // Re-run migrations for subsequent tests
             $this->artisan('migrate');

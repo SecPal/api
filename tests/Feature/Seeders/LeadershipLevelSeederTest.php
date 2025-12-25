@@ -28,7 +28,7 @@ test('seeder creates default leadership levels for tenant', function (): void {
 
     $tenant = TenantKey::factory()->create();
 
-    $this->artisan(LeadershipLevelSeeder::class)->assertSuccessful();
+    $this->artisan('db:seed', ['--class' => LeadershipLevelSeeder::class])->assertSuccessful();
 
     // Verify 6 default levels were created
     expect(LeadershipLevel::where('tenant_id', $tenant->id)->count())->toBe(6);
@@ -50,11 +50,11 @@ test('seeder is idempotent and skips tenants with existing levels', function ():
     $tenant = TenantKey::factory()->create();
 
     // Run seeder first time
-    $this->artisan(LeadershipLevelSeeder::class)->assertSuccessful();
+    $this->artisan('db:seed', ['--class' => LeadershipLevelSeeder::class])->assertSuccessful();
     $firstCount = LeadershipLevel::where('tenant_id', $tenant->id)->count();
 
     // Run seeder second time
-    $this->artisan(LeadershipLevelSeeder::class)->assertSuccessful();
+    $this->artisan('db:seed', ['--class' => LeadershipLevelSeeder::class])->assertSuccessful();
     $secondCount = LeadershipLevel::where('tenant_id', $tenant->id)->count();
 
     expect($secondCount)->toBe($firstCount);
@@ -66,7 +66,7 @@ test('seeder creates levels for multiple tenants', function (): void {
     $tenant1 = TenantKey::factory()->create();
     $tenant2 = TenantKey::factory()->create();
 
-    $this->artisan(LeadershipLevelSeeder::class)->assertSuccessful();
+    $this->artisan('db:seed', ['--class' => LeadershipLevelSeeder::class])->assertSuccessful();
 
     expect(LeadershipLevel::where('tenant_id', $tenant1->id)->count())->toBe(6);
     expect(LeadershipLevel::where('tenant_id', $tenant2->id)->count())->toBe(6);
@@ -77,7 +77,7 @@ test('seeder creates unique ranks per tenant', function (): void {
 
     $tenant = TenantKey::factory()->create();
 
-    $this->artisan(LeadershipLevelSeeder::class)->assertSuccessful();
+    $this->artisan('db:seed', ['--class' => LeadershipLevelSeeder::class])->assertSuccessful();
 
     $ranks = LeadershipLevel::where('tenant_id', $tenant->id)
         ->pluck('rank')
@@ -93,7 +93,7 @@ test('seeder respects tenant isolation', function (): void {
     $tenant1 = TenantKey::factory()->create();
     $tenant2 = TenantKey::factory()->create();
 
-    $this->artisan(LeadershipLevelSeeder::class)->assertSuccessful();
+    $this->artisan('db:seed', ['--class' => LeadershipLevelSeeder::class])->assertSuccessful();
 
     // Tenant 1 should not see tenant 2's levels
     $tenant1Levels = LeadershipLevel::where('tenant_id', $tenant1->id)->get();
