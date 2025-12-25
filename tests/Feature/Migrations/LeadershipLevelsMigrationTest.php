@@ -193,12 +193,29 @@ describe('Leadership Levels Migrations', function () {
 
     describe('migration rollback', function () {
         it('can rollback all leadership levels migrations', function (): void {
-            // Arrange: Verify tables exist before rollback
+            // Arrange: Verify tables/columns exist before rollback
             expect(Schema::hasTable('leadership_levels'))->toBeTrue()
                 ->and(Schema::hasColumn('employees', 'leadership_level_id'))->toBeTrue()
-                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'min_viewable_rank'))->toBeTrue();
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'min_viewable_rank'))->toBeTrue()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'min_assignable_rank'))->toBeTrue();
 
-            // Act: Rollback the 3 leadership levels migrations in reverse order
+            // Act: Rollback the 5 leadership levels migrations in reverse order
+            // Migration 5: Remove assignable rank columns and allow_self_access
+            $this->artisan('migrate:rollback', ['--step' => 1]);
+            expect(Schema::hasColumn('user_internal_organizational_scopes', 'min_assignable_rank'))->toBeFalse()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'max_assignable_rank'))->toBeFalse()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'allow_self_access'))->toBeFalse();
+
+            // Migration 4: Restore unique constraint
+            $this->artisan('migrate:rollback', ['--step' => 1]);
+            $indexes = Schema::getIndexes('user_internal_organizational_scopes');
+            $hasUniqueConstraint = collect($indexes)->contains(function ($index) {
+                return $index['unique']
+                    && in_array('user_id', $index['columns'])
+                    && in_array('organizational_unit_id', $index['columns']);
+            });
+            expect($hasUniqueConstraint)->toBeTrue('Unique constraint should be restored after rollback');
+
             // Migration 3: Remove rank filters from user_internal_organizational_scopes
             $this->artisan('migrate:rollback', ['--step' => 1]);
             expect(Schema::hasColumn('user_internal_organizational_scopes', 'min_viewable_rank'))->toBeFalse()
@@ -216,7 +233,10 @@ describe('Leadership Levels Migrations', function () {
             expect(Schema::hasTable('leadership_levels'))->toBeFalse()
                 ->and(Schema::hasColumn('employees', 'leadership_level_id'))->toBeFalse()
                 ->and(Schema::hasColumn('user_internal_organizational_scopes', 'min_viewable_rank'))->toBeFalse()
-                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'max_viewable_rank'))->toBeFalse();
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'max_viewable_rank'))->toBeFalse()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'min_assignable_rank'))->toBeFalse()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'max_assignable_rank'))->toBeFalse()
+                ->and(Schema::hasColumn('user_internal_organizational_scopes', 'allow_self_access'))->toBeFalse();
 
             // Re-run migrations for subsequent tests
             $this->artisan('migrate');

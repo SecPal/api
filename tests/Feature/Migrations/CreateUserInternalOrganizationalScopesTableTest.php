@@ -36,7 +36,9 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
         expect(Schema::hasColumn('user_internal_organizational_scopes', 'updated_at'))->toBeTrue();
     });
 
-    test('has unique constraint on user_id and organizational_unit_id', function (): void {
+    test('allows multiple scopes per user-unit combination', function (): void {
+        // Per ADR-009: The unique constraint was removed to support "all employees" access
+        // (non-leadership + leadership scopes for the same user/unit)
         $indexes = Schema::getIndexes('user_internal_organizational_scopes');
 
         $hasUniqueConstraint = collect($indexes)->contains(function ($index) {
@@ -45,7 +47,7 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
                 && in_array('organizational_unit_id', $index['columns']);
         });
 
-        expect($hasUniqueConstraint)->toBeTrue();
+        expect($hasUniqueConstraint)->toBeFalse('Unique constraint should NOT exist per ADR-009');
     });
 
     test('has indexes for efficient queries', function (): void {
@@ -282,7 +284,9 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
             ->exists())->toBeFalse();
     });
 
-    test('unique constraint prevents duplicate user-unit assignments', function (): void {
+    test('allows multiple scopes for same user-unit with different rank filters', function (): void {
+        // Per ADR-009: Multiple scopes per user/unit are needed for "all employees" access
+        // Example: One scope for non-leadership + one scope for leadership employees
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
         $user = User::factory()->create();
@@ -298,28 +302,40 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
             'updated_at' => now(),
         ]);
 
-        // First assignment should succeed
+        // First scope: Non-leadership employees (max_viewable_rank = 0)
         DB::table('user_internal_organizational_scopes')->insert([
             'id' => Str::uuid()->toString(),
             'user_id' => $user->id,
             'organizational_unit_id' => $unitId,
             'access_level' => 'read',
             'include_descendants' => false,
+            'min_viewable_rank' => null,
+            'max_viewable_rank' => 0,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        // Second assignment with same user-unit should fail
+        // Second scope: Leadership employees (min=1, max=255)
         DB::table('user_internal_organizational_scopes')->insert([
             'id' => Str::uuid()->toString(),
             'user_id' => $user->id,
             'organizational_unit_id' => $unitId,
-            'access_level' => 'admin',
-            'include_descendants' => true,
+            'access_level' => 'read',
+            'include_descendants' => false,
+            'min_viewable_rank' => 1,
+            'max_viewable_rank' => 255,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-    })->throws(PDOException::class);
+
+        // Assert: Both scopes exist
+        $count = DB::table('user_internal_organizational_scopes')
+            ->where('user_id', $user->id)
+            ->where('organizational_unit_id', $unitId)
+            ->count();
+
+        expect($count)->toBe(2, 'Two scopes per user/unit should be allowed');
+    });
 
     test('same user can have scopes for different organizational units', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
