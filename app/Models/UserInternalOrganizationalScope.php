@@ -30,6 +30,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $organizational_unit_id UUID of the organizational unit
  * @property string $access_level Enum: none, read, write, manage, admin
  * @property bool $include_descendants Whether access extends to all descendants
+ * @property int|null $min_viewable_rank Minimum leadership rank user can view (NULL = no minimum)
+ * @property int|null $max_viewable_rank Maximum leadership rank user can view (NULL/0 = ONLY non-leadership employees)
+ * @property int|null $min_assignable_rank Minimum leadership rank user can assign/remove (NULL = no minimum)
+ * @property int|null $max_assignable_rank Maximum leadership rank user can assign/remove (NULL/0 = cannot assign/remove ANY leadership)
+ * @property bool $allow_self_access Allow user to view/edit own employee HR data (default: false for security)
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property-read User $user The user who has this scope
@@ -57,6 +62,11 @@ class UserInternalOrganizationalScope extends Model
         'organizational_unit_id',
         'access_level',
         'include_descendants',
+        'min_viewable_rank',
+        'max_viewable_rank',
+        'min_assignable_rank',
+        'max_assignable_rank',
+        'allow_self_access',
     ];
 
     /**
@@ -91,6 +101,11 @@ class UserInternalOrganizationalScope extends Model
     {
         return [
             'include_descendants' => 'boolean',
+            'min_viewable_rank' => 'integer',
+            'max_viewable_rank' => 'integer',
+            'min_assignable_rank' => 'integer',
+            'max_assignable_rank' => 'integer',
+            'allow_self_access' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

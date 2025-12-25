@@ -69,6 +69,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property ?\Illuminate\Support\Carbon $onboarding_started_at
  * @property ?\Illuminate\Support\Carbon $onboarding_completed_at
  * @property string|null $organizational_unit_id
+ * @property string|null $leadership_level_id UUID of leadership level (NULL for non-leadership employees)
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
@@ -83,6 +84,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property-read TenantKey $tenant
  * @property-read User|null $user
  * @property-read OrganizationalUnit|null $organizationalUnit
+ * @property-read LeadershipLevel|null $leadershipLevel Leadership level (NULL for non-leadership employees)
  * @property-read Collection<int, EmployeeQualification> $employeeQualifications
  * @property-read Collection<int, Qualification> $qualifications
  * @property-read Collection<int, EmployeeDocument> $documents
@@ -163,6 +165,7 @@ class Employee extends Model
         'onboarding_started_at',
         'onboarding_completed_at',
         'organizational_unit_id',
+        'leadership_level_id',
     ];
 
     /**
@@ -275,6 +278,29 @@ class Employee extends Model
     public function organizationalUnit(): BelongsTo
     {
         return $this->belongsTo(OrganizationalUnit::class);
+    }
+
+    /**
+     * Get the leadership level assigned to this employee.
+     *
+     * NULL for non-leadership employees (e.g., Guards, regular staff).
+     * Leadership levels enable hierarchical access control (ADR-009).
+     *
+     * @return BelongsTo<LeadershipLevel, $this>
+     */
+    public function leadershipLevel(): BelongsTo
+    {
+        return $this->belongsTo(LeadershipLevel::class, 'leadership_level_id');
+    }
+
+    /**
+     * Check if employee has a leadership level assigned.
+     *
+     * @return bool True if employee has leadership role, false otherwise (e.g., Guard)
+     */
+    public function hasLeadershipLevel(): bool
+    {
+        return $this->leadership_level_id !== null;
     }
 
     /**
