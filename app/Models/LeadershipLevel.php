@@ -47,6 +47,7 @@ final class LeadershipLevel extends Model
 {
     /** @use HasFactory<\Database\Factories\LeadershipLevelFactory> */
     use HasFactory;
+
     use HasUuids;
     use SoftDeletes;
 
