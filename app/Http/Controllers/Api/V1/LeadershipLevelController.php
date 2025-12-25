@@ -62,7 +62,7 @@ class LeadershipLevelController extends Controller
 
         /** @var \App\Models\User $user */
         $user = Auth::guard('sanctum')->user();
-        $tenantId = $user->current_tenant_id;
+        $tenantId = $user->tenant_id;
 
         $query = LeadershipLevel::where('tenant_id', $tenantId);
 
@@ -108,7 +108,7 @@ class LeadershipLevelController extends Controller
 
         /** @var \App\Models\User $user */
         $user = Auth::guard('sanctum')->user();
-        $tenantId = $user->current_tenant_id;
+        $tenantId = $user->tenant_id;
 
         /** @var array<string, mixed> $validated */
         $validated = $request->validated();
@@ -304,7 +304,7 @@ class LeadershipLevelController extends Controller
 
         /** @var \App\Models\User $user */
         $user = Auth::guard('sanctum')->user();
-        $tenantId = $user->current_tenant_id;
+        $tenantId = $user->tenant_id;
 
         $levels = LeadershipLevel::where('tenant_id', $tenantId)
             ->where('is_active', false)
@@ -347,7 +347,7 @@ class LeadershipLevelController extends Controller
 
         /** @var \App\Models\User $user */
         $user = Auth::guard('sanctum')->user();
-        $tenantId = $user->current_tenant_id;
+        $tenantId = $user->tenant_id;
 
         $searchTerm = $request->input('q');
 
@@ -393,7 +393,7 @@ class LeadershipLevelController extends Controller
 
         /** @var \App\Models\User $user */
         $user = Auth::guard('sanctum')->user();
-        $tenantId = $user->current_tenant_id;
+        $tenantId = $user->tenant_id;
 
         $levels = LeadershipLevel::where('tenant_id', $tenantId)
             ->where('is_active', true)

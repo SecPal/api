@@ -53,7 +53,7 @@ class StoreLeadershipLevelRequest extends FormRequest
     {
         /** @var \App\Models\User|null $user */
         $user = Auth::guard('sanctum')->user();
-        $tenantId = $user?->current_tenant_id;
+        $tenantId = $user?->tenant_id;
 
         return [
             'rank' => [

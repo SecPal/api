@@ -46,7 +46,7 @@ class UpdateLeadershipLevelRequest extends FormRequest
     {
         /** @var \App\Models\User|null $user */
         $user = Auth::guard('sanctum')->user();
-        $tenantId = $user?->current_tenant_id;
+        $tenantId = $user?->tenant_id;
 
         /** @var \App\Models\LeadershipLevel $leadershipLevel */
         $leadershipLevel = $this->route('leadership_level');
