@@ -460,7 +460,8 @@ describe('GET /v1/leadership-levels/{leadershipLevel}', function () {
 
         // Should return 403 due to Policy tenant check
         $response->assertStatus(403);
-    });});
+    });
+});
 
 // ========================================================================
 // PATCH /v1/leadership-levels/{leadershipLevel} (update)
