@@ -3,106 +3,89 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-namespace Tests\Unit\Models;
-
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\TestCase;
 
-class TenantKeyTest extends TestCase
-{
-    use RefreshDatabase;
+uses(RefreshDatabase::class);
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+beforeEach(function (): void {
+    TenantKey::setKekPath(getTestKekPath());
+});
 
-        TenantKey::setKekPath(getTestKekPath());
-    }
+afterEach(function (): void {
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
+});
 
-    protected function tearDown(): void
-    {
-        cleanupTestKekFile();
-        TenantKey::setKekPath(null);
-        parent::tearDown();
-    }
+test('tenant key can be created with factory', function (): void {
+    $tenantKey = TenantKey::factory()->create();
 
-    public function test_tenant_key_can_be_created_with_factory(): void
-    {
-        $tenantKey = TenantKey::factory()->create();
+    expect($tenantKey->id)->not->toBeNull()
+        ->and($tenantKey->dek_wrapped)->not->toBeNull()
+        ->and($tenantKey->dek_nonce)->not->toBeNull()
+        ->and($tenantKey->idx_wrapped)->not->toBeNull()
+        ->and($tenantKey->idx_nonce)->not->toBeNull()
+        ->and($tenantKey->key_version)->toBe(1)
+        ->and($tenantKey->created_at)->not->toBeNull();
+});
 
-        $this->assertNotNull($tenantKey->id);
-        $this->assertNotNull($tenantKey->dek_wrapped);
-        $this->assertNotNull($tenantKey->dek_nonce);
-        $this->assertNotNull($tenantKey->idx_wrapped);
-        $this->assertNotNull($tenantKey->idx_nonce);
-        $this->assertSame(1, $tenantKey->key_version);
-        $this->assertNotNull($tenantKey->created_at);
-    }
+test('tenant key factory generates valid envelope keys', function (): void {
+    $tenantKey = TenantKey::factory()->create();
 
-    public function test_tenant_key_factory_generates_valid_envelope_keys(): void
-    {
-        $tenantKey = TenantKey::factory()->create();
+    // Verify that keys can be unwrapped successfully
+    $dek = $tenantKey->unwrapDek();
+    expect(strlen($dek))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+    sodium_memzero($dek);
 
-        // Verify that keys can be unwrapped successfully
-        $dek = $tenantKey->unwrapDek();
-        $this->assertSame(SODIUM_CRYPTO_SECRETBOX_KEYBYTES, strlen($dek));
-        sodium_memzero($dek);
+    $idxKey = $tenantKey->unwrapIdxKey();
+    expect(strlen($idxKey))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+    sodium_memzero($idxKey);
+});
 
-        $idxKey = $tenantKey->unwrapIdxKey();
-        $this->assertSame(SODIUM_CRYPTO_SECRETBOX_KEYBYTES, strlen($idxKey));
-        sodium_memzero($idxKey);
-    }
+test('tenant key factory can create with specific version', function (): void {
+    $tenantKey = TenantKey::factory()->version(5)->create();
 
-    public function test_tenant_key_factory_can_create_with_specific_version(): void
-    {
-        $tenantKey = TenantKey::factory()->version(5)->create();
+    expect($tenantKey->key_version)->toBe(5);
+});
 
-        $this->assertSame(5, $tenantKey->key_version);
-    }
+test('tenant key factory creates unique keys for each instance', function (): void {
+    $tenantKey1 = TenantKey::factory()->create();
+    $tenantKey2 = TenantKey::factory()->create();
 
-    public function test_tenant_key_factory_creates_unique_keys_for_each_instance(): void
-    {
-        $tenantKey1 = TenantKey::factory()->create();
-        $tenantKey2 = TenantKey::factory()->create();
+    expect($tenantKey1->dek_wrapped)->not->toEqual($tenantKey2->dek_wrapped)
+        ->and($tenantKey1->dek_nonce)->not->toEqual($tenantKey2->dek_nonce)
+        ->and($tenantKey1->idx_wrapped)->not->toEqual($tenantKey2->idx_wrapped)
+        ->and($tenantKey1->idx_nonce)->not->toEqual($tenantKey2->idx_nonce);
+});
 
-        $this->assertNotEquals($tenantKey1->dek_wrapped, $tenantKey2->dek_wrapped);
-        $this->assertNotEquals($tenantKey1->dek_nonce, $tenantKey2->dek_nonce);
-        $this->assertNotEquals($tenantKey1->idx_wrapped, $tenantKey2->idx_wrapped);
-        $this->assertNotEquals($tenantKey1->idx_nonce, $tenantKey2->idx_nonce);
-    }
+test('tenant key factory keys are functional for encryption', function (): void {
+    $tenantKey = TenantKey::factory()->create();
 
-    public function test_tenant_key_factory_keys_are_functional_for_encryption(): void
-    {
-        $tenantKey = TenantKey::factory()->create();
+    $plaintext = 'Sensitive Data';
+    $encrypted = $tenantKey->encrypt($plaintext);
 
-        $plaintext = 'Sensitive Data';
-        $encrypted = $tenantKey->encrypt($plaintext);
+    expect($encrypted)->toHaveKey('ciphertext')
+        ->toHaveKey('nonce')
+        ->and($encrypted['ciphertext'])->not->toEqual($plaintext);
 
-        $this->assertArrayHasKey('ciphertext', $encrypted);
-        $this->assertArrayHasKey('nonce', $encrypted);
-        $this->assertNotEquals($plaintext, $encrypted['ciphertext']);
+    $decrypted = $tenantKey->decrypt($encrypted['ciphertext'], $encrypted['nonce']);
+    expect($decrypted)->toBe($plaintext);
+});
 
-        $decrypted = $tenantKey->decrypt($encrypted['ciphertext'], $encrypted['nonce']);
-        $this->assertSame($plaintext, $decrypted);
-    }
+test('tenant key factory keys are functional for blind index', function (): void {
+    $tenantKey = TenantKey::factory()->create();
 
-    public function test_tenant_key_factory_keys_are_functional_for_blind_index(): void
-    {
-        $tenantKey = TenantKey::factory()->create();
+    $plaintext = 'searchable-value';
+    $index = $tenantKey->generateBlindIndex($plaintext);
 
-        $plaintext = 'searchable-value';
-        $index = $tenantKey->generateBlindIndex($plaintext);
+    expect($index)->not->toBeNull()
+        ->and(strlen($index))->toBe(32); // HMAC-SHA256 produces 32 bytes
 
-        $this->assertNotNull($index);
-        $this->assertSame(32, strlen($index)); // HMAC-SHA256 produces 32 bytes
+    // Same plaintext should produce same index
+    $index2 = $tenantKey->generateBlindIndex($plaintext);
+    expect($index)->toBe($index2);
 
-        // Same plaintext should produce same index
-        $index2 = $tenantKey->generateBlindIndex($plaintext);
-        $this->assertSame($index, $index2);
-
-        // Different plaintext should produce different index
-        $index3 = $tenantKey->generateBlindIndex('different-value');
-        $this->assertNotSame($index, $index3);
-    }
-}
+    // Different plaintext should produce different index
+    $index3 = $tenantKey->generateBlindIndex('different-value');
+    expect($index)->not->toBe($index3);
+});
