@@ -50,6 +50,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\Models\Role;
 
@@ -72,6 +73,12 @@ class AppServiceProvider extends ServiceProvider
         Person::observe(PersonObserver::class);
         Secret::observe(SecretObserver::class);
         Employee::observe(EmployeeObserver::class);
+
+        // Configure route model binding for soft-deleted LeadershipLevel models
+        // This allows restore and forceDelete routes to work with trashed models
+        Route::bind('leadershipLevel', function (string $value) {
+            return LeadershipLevel::withTrashed()->findOrFail($value);
+        });
 
         // Define rate limiters (using cache, not Redis)
         RateLimiter::for('api', function (Request $request) {

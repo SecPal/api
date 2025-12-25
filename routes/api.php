@@ -282,8 +282,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/leadership-levels/inactive', [LeadershipLevelController::class, 'inactive']);
             Route::get('/leadership-levels/search', [LeadershipLevelController::class, 'search']);
             Route::get('/leadership-levels/available', [LeadershipLevelController::class, 'available']);
-            Route::post('/leadership-levels/{id}/restore', [LeadershipLevelController::class, 'restore']);
-            Route::delete('/leadership-levels/{id}/force', [LeadershipLevelController::class, 'forceDelete']);
+            Route::post('/leadership-levels/{leadershipLevel}/restore', [LeadershipLevelController::class, 'restore']);
+            Route::delete('/leadership-levels/{leadershipLevel}/force', [LeadershipLevelController::class, 'forceDelete']);
 
             // Standard REST resource routes
             Route::get('/leadership-levels', [LeadershipLevelController::class, 'index']);

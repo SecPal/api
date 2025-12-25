@@ -446,7 +446,21 @@ describe('GET /v1/leadership-levels/{leadershipLevel}', function () {
 
         $response->assertStatus(404);
     });
-});
+    test('returns 403 when trying to view level from different tenant', function (): void {
+        $this->user->givePermissionTo('leadership_level.view');
+
+        // Create leadership level for different tenant
+        $otherTenant = TenantKey::factory()->create();
+        $otherLevel = LeadershipLevel::factory()->create(['tenant_id' => $otherTenant->id]);
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer {$this->token}",
+            'X-Tenant-ID' => (string) $this->tenant->id,
+        ])->getJson("/v1/leadership-levels/{$otherLevel->id}");
+
+        // Should return 403 due to Policy tenant check
+        $response->assertStatus(403);
+    });});
 
 // ========================================================================
 // PATCH /v1/leadership-levels/{leadershipLevel} (update)
@@ -546,6 +560,22 @@ describe('PATCH /v1/leadership-levels/{leadershipLevel}', function () {
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['rank']);
     });
+
+    test('returns 403 when trying to update level from different tenant', function (): void {
+        $this->user->givePermissionTo('leadership_level.update');
+
+        // Create leadership level for different tenant
+        $otherTenant = TenantKey::factory()->create();
+        $otherLevel = LeadershipLevel::factory()->create(['tenant_id' => $otherTenant->id]);
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer {$this->token}",
+            'X-Tenant-ID' => (string) $this->tenant->id,
+        ])->patchJson("/v1/leadership-levels/{$otherLevel->id}", ['name' => 'Hacked']);
+
+        // Should return 403 due to Policy tenant check
+        $response->assertStatus(403);
+    });
 });
 
 // ========================================================================
@@ -588,6 +618,22 @@ describe('DELETE /v1/leadership-levels/{leadershipLevel}', function () {
         $this->assertSoftDeleted('leadership_levels', [
             'id' => $level->id,
         ]);
+    });
+
+    test('returns 403 when trying to delete level from different tenant', function (): void {
+        $this->user->givePermissionTo('leadership_level.delete');
+
+        // Create leadership level for different tenant
+        $otherTenant = TenantKey::factory()->create();
+        $otherLevel = LeadershipLevel::factory()->create(['tenant_id' => $otherTenant->id]);
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer {$this->token}",
+            'X-Tenant-ID' => (string) $this->tenant->id,
+        ])->deleteJson("/v1/leadership-levels/{$otherLevel->id}");
+
+        // Should return 403 due to Policy tenant check
+        $response->assertStatus(403);
     });
 });
 

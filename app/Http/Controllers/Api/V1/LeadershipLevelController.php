@@ -226,18 +226,17 @@ class LeadershipLevelController extends Controller
      * POST /api/v1/leadership-levels/{leadershipLevel}/restore
      *
      * Restores a previously soft-deleted leadership level.
+     * Route model binding with withTrashed() in boot() method handles soft-deleted models.
      *
      * Authorization: Requires 'leadership_level.update' permission.
      * User's own leadership level is irrelevant (pure permission check).
+     * Tenant isolation enforced by Policy.
      *
-     * @param  string  $id  The UUID of the leadership level to restore
+     * @param  LeadershipLevel  $leadershipLevel  The soft-deleted leadership level to restore
      * @return JsonResponse Restored leadership level
      */
-    public function restore(string $id): JsonResponse
+    public function restore(LeadershipLevel $leadershipLevel): JsonResponse
     {
-        /** @var LeadershipLevel $leadershipLevel */
-        $leadershipLevel = LeadershipLevel::onlyTrashed()->findOrFail($id);
-
         $this->authorize('restore', $leadershipLevel);
 
         $leadershipLevel->restore();
@@ -258,18 +257,17 @@ class LeadershipLevelController extends Controller
      *
      * Permanently removes a leadership level from database.
      * This is irreversible and should be used with caution.
+     * Route model binding with withTrashed() in boot() method handles soft-deleted models.
      *
      * Authorization: Requires 'leadership_level.delete' permission.
      * User's own leadership level is irrelevant (pure permission check).
+     * Tenant isolation enforced by Policy.
      *
-     * @param  string  $id  The UUID of the leadership level to force delete
+     * @param  LeadershipLevel  $leadershipLevel  The leadership level to permanently delete
      * @return JsonResponse No content on success
      */
-    public function forceDelete(string $id): JsonResponse
+    public function forceDelete(LeadershipLevel $leadershipLevel): JsonResponse
     {
-        /** @var LeadershipLevel $leadershipLevel */
-        $leadershipLevel = LeadershipLevel::withTrashed()->findOrFail($id);
-
         $this->authorize('forceDelete', $leadershipLevel);
 
         // Business rule: Cannot force delete if employees are assigned
@@ -351,11 +349,12 @@ class LeadershipLevelController extends Controller
 
         /** @var string|null $searchTerm */
         $searchTerm = $request->input('q');
+        $likePattern = "%{$searchTerm}%";
 
         $query = LeadershipLevel::where('tenant_id', $tenantId)
-            ->where(function ($q) use ($searchTerm) {
-                $q->where('name', 'ILIKE', "%{$searchTerm}%")
-                    ->orWhere('description', 'ILIKE', "%{$searchTerm}%");
+            ->where(function ($q) use ($likePattern) {
+                $q->where('name', 'ILIKE', $likePattern)
+                    ->orWhere('description', 'ILIKE', $likePattern);
             });
 
         // Filter by is_active if provided

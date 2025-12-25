@@ -51,13 +51,19 @@ class LeadershipLevelPolicy
      * Determine whether the user can view the leadership level.
      *
      * Pure permission check. User's own leadership level is irrelevant.
+     * Enforces tenant isolation: user can only view levels from their own tenant.
      *
      * @param  User  $user  The authenticated user
      * @param  LeadershipLevel  $leadershipLevel  The leadership level to view
-     * @return bool True if user has 'leadership_level.view' permission
+     * @return bool True if user has permission and level belongs to user's tenant
      */
     public function view(User $user, LeadershipLevel $leadershipLevel): bool
     {
+        // Tenant isolation: user can only view levels from their own tenant
+        if ($leadershipLevel->tenant_id !== $user->tenant_id) {
+            return false;
+        }
+
         return $user->can('leadership_level.view');
     }
 
@@ -78,46 +84,65 @@ class LeadershipLevelPolicy
      * Determine whether the user can update the leadership level.
      *
      * Pure permission check. User's own leadership level is irrelevant.
+     * Enforces tenant isolation: user can only update levels from their own tenant.
      *
      * @param  User  $user  The authenticated user
      * @param  LeadershipLevel  $leadershipLevel  The leadership level to update
-     * @return bool True if user has 'leadership_level.update' permission
+     * @return bool True if user has permission and level belongs to user's tenant
      */
     public function update(User $user, LeadershipLevel $leadershipLevel): bool
     {
+        // Tenant isolation: user can only update levels from their own tenant
+        if ($leadershipLevel->tenant_id !== $user->tenant_id) {
+            return false;
+        }
+
         return $user->can('leadership_level.update');
     }
 
     /**
      * Determine whether the user can delete the leadership level.
      *
-     * Combines permission check with business rule validation:
-     * - User must have 'leadership_level.delete' permission
-     * - Leadership level must not have employees assigned (business rule)
-     *
-     * User's own leadership level is irrelevant.
+     * Pure permission check. User's own leadership level is irrelevant.
+     * Enforces tenant isolation: user can only delete levels from their own tenant.
+     * Business rule: Cannot delete if employees are assigned.
      *
      * @param  User  $user  The authenticated user
      * @param  LeadershipLevel  $leadershipLevel  The leadership level to delete
-     * @return bool True if user has permission AND level can be deleted
+     * @return bool True if user has permission, level belongs to user's tenant, and no employees assigned
      */
     public function delete(User $user, LeadershipLevel $leadershipLevel): bool
     {
-        return $user->can('leadership_level.delete')
-            && $leadershipLevel->canBeDeleted();
+        // Tenant isolation: user can only delete levels from their own tenant
+        if ($leadershipLevel->tenant_id !== $user->tenant_id) {
+            return false;
+        }
+
+        // Business rule: Cannot delete if employees are assigned
+        if (! $leadershipLevel->canBeDeleted()) {
+            return false;
+        }
+
+        return $user->can('leadership_level.delete');
     }
 
     /**
      * Determine whether the user can restore a soft-deleted leadership level.
      *
      * Pure permission check. User's own leadership level is irrelevant.
+     * Enforces tenant isolation: user can only restore levels from their own tenant.
      *
      * @param  User  $user  The authenticated user
      * @param  LeadershipLevel  $leadershipLevel  The leadership level to restore
-     * @return bool True if user has 'leadership_level.update' permission
+     * @return bool True if user has permission and level belongs to user's tenant
      */
     public function restore(User $user, LeadershipLevel $leadershipLevel): bool
     {
+        // Tenant isolation: user can only restore levels from their own tenant
+        if ($leadershipLevel->tenant_id !== $user->tenant_id) {
+            return false;
+        }
+
         return $user->can('leadership_level.update');
     }
 

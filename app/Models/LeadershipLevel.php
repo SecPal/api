@@ -146,9 +146,29 @@ final class LeadershipLevel extends Model
 
     /**
      * Get the count of employees assigned to this leadership level.
+     *
+     * This accessor checks for cached count or loaded relation to avoid N+1 queries.
+     * When used in collections, prefer withCount('employees') on the query builder.
      */
     public function getEmployeesCountAttribute(): int
     {
-        return $this->employees()->count();
+        // Return cached count if available (from withCount)
+        if (array_key_exists('employees_count', $this->attributes)) {
+            return (int) $this->attributes['employees_count'];
+        }
+
+        // Return count from loaded relation if available
+        if ($this->relationLoaded('employees')) {
+            $count = $this->employees->count();
+            $this->attributes['employees_count'] = $count;
+
+            return $count;
+        }
+
+        // Last resort: query database and cache result
+        $count = $this->employees()->count();
+        $this->attributes['employees_count'] = $count;
+
+        return $count;
     }
 }
