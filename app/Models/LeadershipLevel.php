@@ -59,7 +59,7 @@ final class LeadershipLevel extends Model
     /**
      * The attributes that are mass assignable.
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $fillable = [
         'tenant_id',
@@ -86,12 +86,14 @@ final class LeadershipLevel extends Model
     /**
      * The attributes that should be hidden for serialization.
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $hidden = [];
 
     /**
      * Get the tenant that owns this leadership level.
+     *
+     * @return BelongsTo<TenantKey, LeadershipLevel>
      */
     public function tenant(): BelongsTo
     {
@@ -100,6 +102,8 @@ final class LeadershipLevel extends Model
 
     /**
      * Get all employees assigned to this leadership level.
+     *
+     * @return HasMany<Employee, LeadershipLevel>
      */
     public function employees(): HasMany
     {

@@ -58,8 +58,8 @@ class LeadershipLevelResource extends JsonResource
             'color' => $this->color,
             'is_active' => $this->is_active,
             'employees_count' => $this->employees_count,
-            'created_at' => $this->created_at?->toIso8601String(),
-            'updated_at' => $this->updated_at?->toIso8601String(),
+            'created_at' => $this->created_at->toIso8601String(),
+            'updated_at' => $this->updated_at->toIso8601String(),
             'deleted_at' => $this->deleted_at?->toIso8601String(),
         ];
     }

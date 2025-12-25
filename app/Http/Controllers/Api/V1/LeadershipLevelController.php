@@ -349,6 +349,7 @@ class LeadershipLevelController extends Controller
         $user = Auth::guard('sanctum')->user();
         $tenantId = $user->tenant_id;
 
+        /** @var string|null $searchTerm */
         $searchTerm = $request->input('q');
 
         $query = LeadershipLevel::where('tenant_id', $tenantId)
