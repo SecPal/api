@@ -74,13 +74,18 @@ class EmployeePolicy
         }
 
         // Check if user has organizational scopes (Manager role)
-        // Optimization: Fetch scopes once instead of exists() + get()
-        $scopes = $user->organizationalScopes()
-            ->where('organizational_unit_id', $employee->organizational_unit_id)
-            ->get();
+        // Optimization: Fetch all user's scopes once, filter in-memory (avoids 2 queries: exists + get)
+        $allScopes = $user->organizationalScopes()->get();
 
-        if ($scopes->isNotEmpty() && $employee->organizationalUnit !== null) {
+        if ($allScopes->isNotEmpty() && $employee->organizationalUnit !== null) {
             // Managers: Check organizational scope AND leadership rank filtering
+            // Filter scopes for THIS specific organizational unit
+            $scopes = $allScopes->where('organizational_unit_id', $employee->organizational_unit_id);
+
+            if ($scopes->isEmpty()) {
+                return false; // Manager has scopes, but not for this unit
+            }
+
             // Performance: Eager load leadershipLevel to avoid N+1 queries when checking multiple employees
             $employee->loadMissing('leadershipLevel');
             $employeeRank = $employee->leadershipLevel?->rank;
@@ -95,8 +100,8 @@ class EmployeePolicy
             return false; // Employee not visible in any scope
         }
 
-        // Admin/HR (no scopes): Can view all
-        return $scopes->isEmpty();
+        // Admin/HR (no scopes at all): Can view all
+        return $allScopes->isEmpty();
     }
 
     /**
@@ -183,13 +188,18 @@ class EmployeePolicy
         }
 
         // Check if user has organizational scopes (Manager role)
-        // Optimization: Fetch scopes once instead of exists() + get()
-        $scopes = $user->organizationalScopes()
-            ->where('organizational_unit_id', $employee->organizational_unit_id)
-            ->get();
+        // Optimization: Fetch all user's scopes once, filter in-memory (avoids 2 queries: exists + get)
+        $allScopes = $user->organizationalScopes()->get();
 
-        if ($scopes->isNotEmpty() && $employee->organizationalUnit !== null) {
+        if ($allScopes->isNotEmpty() && $employee->organizationalUnit !== null) {
             // Managers: Check organizational scope AND leadership rank filtering
+            // Filter scopes for THIS specific organizational unit
+            $scopes = $allScopes->where('organizational_unit_id', $employee->organizational_unit_id);
+
+            if ($scopes->isEmpty()) {
+                return false; // Manager has scopes, but not for this unit
+            }
+
             // Performance: Eager load leadershipLevel to avoid N+1 queries when checking multiple employees
             $employee->loadMissing('leadershipLevel');
             $employeeRank = $employee->leadershipLevel?->rank;
@@ -204,8 +214,8 @@ class EmployeePolicy
             return false; // Employee not editable in any scope
         }
 
-        // Admin/HR (no scopes): Can update all
-        return $scopes->isEmpty();
+        // Admin/HR (no scopes at all): Can update all
+        return $allScopes->isEmpty();
     }
 
     /**
