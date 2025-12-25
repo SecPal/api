@@ -48,21 +48,6 @@ parameters:
         -
             message: '#Method App\\Models\\Person::tenantKey\(\) should return .* but returns .*#'
             path: app/Models/Person.php
-
-        # Temporary: LeadershipLevel model not yet implemented (Issue #424)
-        # Remove these ignores when Issue #424 (LeadershipLevel Model) is complete
-        -
-            message: '#^Class App\\Models\\LeadershipLevel not found\.$#'
-            path: database/factories/LeadershipLevelFactory.php
-        -
-            message: '#^PHPDoc tag @extends has invalid type App\\Models\\LeadershipLevel\.$#'
-            path: database/factories/LeadershipLevelFactory.php
-        -
-            message: '#^Type App\\Models\\LeadershipLevel in generic type .* is not subtype of template type TModel .*$#'
-            path: database/factories/LeadershipLevelFactory.php
-        -
-            message: '#^Property Database\\Factories\\LeadershipLevelFactory::\$model has unknown class App\\Models\\LeadershipLevel as its type\.$#'
-            path: database/factories/LeadershipLevelFactory.php
         -
             message: '#Method App\\Models\\RoleAssignmentLog::(user|role|assignedBy)\(\) should return .* but returns .*#'
             path: app/Models/RoleAssignmentLog.php

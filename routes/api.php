@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
 use App\Http\Controllers\Api\V1\EmployeeQualificationController;
+use App\Http\Controllers\Api\V1\LeadershipLevelController;
 use App\Http\Controllers\Api\V1\OnboardingController;
 use App\Http\Controllers\Api\V1\OrganizationalScopeController;
 use App\Http\Controllers\Api\V1\OrganizationalUnitController;
@@ -273,6 +274,23 @@ Route::prefix('v1')->group(function () {
             Route::get('/qualifications/{qualification}', [QualificationController::class, 'show']);
             Route::patch('/qualifications/{qualification}', [QualificationController::class, 'update']);
             Route::delete('/qualifications/{qualification}', [QualificationController::class, 'destroy']);
+        });
+
+        // Leadership Levels (Epic #399, Issue #424)
+        Route::middleware('tenant.inject')->group(function () {
+            // Custom routes (must be before resource routes to avoid conflicts)
+            Route::get('/leadership-levels/inactive', [LeadershipLevelController::class, 'inactive']);
+            Route::get('/leadership-levels/search', [LeadershipLevelController::class, 'search']);
+            Route::get('/leadership-levels/available', [LeadershipLevelController::class, 'available']);
+            Route::post('/leadership-levels/{leadershipLevel}/restore', [LeadershipLevelController::class, 'restore']);
+            Route::delete('/leadership-levels/{leadershipLevel}/force', [LeadershipLevelController::class, 'forceDelete']);
+
+            // Standard REST resource routes
+            Route::get('/leadership-levels', [LeadershipLevelController::class, 'index']);
+            Route::post('/leadership-levels', [LeadershipLevelController::class, 'store']);
+            Route::get('/leadership-levels/{leadershipLevel}', [LeadershipLevelController::class, 'show']);
+            Route::patch('/leadership-levels/{leadershipLevel}', [LeadershipLevelController::class, 'update']);
+            Route::delete('/leadership-levels/{leadershipLevel}', [LeadershipLevelController::class, 'destroy']);
         });
 
         // Employee Qualifications (assignments)
