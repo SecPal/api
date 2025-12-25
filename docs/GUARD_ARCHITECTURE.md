@@ -600,6 +600,307 @@ Route::middleware('auth:sanctum')->group(function () {
 
 ---
 
+## Leadership Levels & Hierarchical Access Control
+
+> **Added:** 2025-12-26 (Issue #425, Epic #399 - ADR-009)
+
+SecPal implements hierarchical access control through **Leadership Levels** (Führungsebenen) to restrict which employees users can view and manage based on their organizational responsibilities.
+
+### Architecture Overview
+
+Leadership Levels extend SecPal's three-layer permission model:
+
+1. **Layer 1 - Base Permission**: Required permission (e.g., `employee.read`)
+2. **Layer 2 - Organizational Scope**: Which organizational units accessible
+3. **Layer 3 - Leadership Rank Filters**: Which leadership levels visible **(NEW)**
+
+### Key Concepts
+
+#### Leadership Levels
+
+Leadership levels represent hierarchical positions within the organization:
+
+- **Rank**: Numeric hierarchy (1 = highest, e.g., CEO)
+- **Examples**:
+  - FE1: Geschäftsführer (CEO)
+  - FE5: Niederlassungsleiter (Branch Director)
+  - FE10: Objektleiter (Site Manager)
+  - Guards: Employees with `leadership_level_id = NULL`
+
+#### User's Own Leadership Level Has NO Influence
+
+A user's own `leadership_level_id` (if they are an employee) does **NOT** affect what they can do:
+
+- FE5 user with scope `min=1, max=3` can see FE1-FE3 employees (even though FE5 > FE3)
+- FE1 user without permission cannot see anyone
+- Guard (NULL FE) with scope `min=1, max=255` can see all leadership levels
+
+#### Rank Filter Columns
+
+User organizational scopes contain four rank filter columns:
+
+- **`min_viewable_rank`**: Minimum leadership rank user can view (NULL = no minimum)
+- **`max_viewable_rank`**: Maximum leadership rank user can view (NULL/0 = ONLY non-leadership)
+- **`min_assignable_rank`**: Minimum leadership rank user can assign/remove (for future use)
+- **`max_assignable_rank`**: Maximum leadership rank user can assign/remove (for future use)
+
+#### Critical Semantics
+
+**NULL/0 in `max_viewable_rank` = ONLY non-leadership employees**
+
+This is **NOT** "all employees". To see both leadership and non-leadership employees, users need **TWO scopes**:
+
+```php
+// Scope 1: Non-leadership employees (Guards)
+UserInternalOrganizationalScope::create([
+    'user_id' => $user->id,
+    'organizational_unit_id' => $unit->id,
+    'min_viewable_rank' => null,
+    'max_viewable_rank' => 0, // NULL or 0 = ONLY non-leadership
+]);
+
+// Scope 2: Leadership employees (FE1-FE10)
+UserInternalOrganizationalScope::create([
+    'user_id' => $user->id,
+    'organizational_unit_id' => $unit->id,
+    'min_viewable_rank' => 1,
+    'max_viewable_rank' => 255, // All leadership levels
+]);
+```
+
+### Real-World Examples
+
+#### Example 1: HR Manager (All Employees)
+
+HR Manager needs to see ALL employees (both leadership and non-leadership) in a branch:
+
+```php
+// Scope 1: Guards
+UserInternalOrganizationalScope::create([
+    'organizational_unit_id' => $branch->id,
+    'min_viewable_rank' => null,
+    'max_viewable_rank' => 0, // ONLY non-leadership
+]);
+
+// Scope 2: All Leadership
+UserInternalOrganizationalScope::create([
+    'organizational_unit_id' => $branch->id,
+    'min_viewable_rank' => 1,
+    'max_viewable_rank' => 255, // All leadership (FE1-FE255)
+]);
+```
+
+#### Example 2: Branch Director (Leadership Only)
+
+Branch Director (FE5) can only see other FE5+ employees (peers and subordinates), NOT Guards:
+
+```php
+UserInternalOrganizationalScope::create([
+    'organizational_unit_id' => $branch->id,
+    'min_viewable_rank' => 5, // FE5 and higher
+    'max_viewable_rank' => 255, // All lower ranks
+]);
+// Guards are NOT visible (no scope with max=0)
+```
+
+#### Example 3: Guard Supervisor (Guards Only)
+
+Guard Supervisor can only see Guards (non-leadership employees):
+
+```php
+UserInternalOrganizationalScope::create([
+    'organizational_unit_id' => $branch->id,
+    'min_viewable_rank' => null,
+    'max_viewable_rank' => 0, // ONLY non-leadership
+]);
+// Leadership employees are NOT visible
+```
+
+### Implementation Details
+
+#### Employee Policy Integration
+
+Rank filtering is implemented in `EmployeePolicy`:
+
+```php
+// app/Policies/EmployeePolicy.php
+public function view(User $user, Employee $employee): bool
+{
+    // ... permission and tenant checks ...
+
+    // Get user's scopes for employee's org unit
+    $scopes = $user->organizationalScopes()
+        ->where('organizational_unit_id', $employee->organizational_unit_id)
+        ->get();
+
+    if ($scopes->isEmpty()) {
+        return false; // No scope for this unit
+    }
+
+    // Check if employee visible in ANY scope (OR logic)
+    $employeeRank = $employee->leadershipLevel?->rank;
+
+    foreach ($scopes as $scope) {
+        if ($this->isWithinViewableRankRange($employeeRank, $scope->min_viewable_rank, $scope->max_viewable_rank)) {
+            return true; // Visible in at least one scope
+        }
+    }
+
+    return false; // Not visible in any scope
+}
+```
+
+#### Rank Range Check Logic
+
+```php
+private function isWithinViewableRankRange(?int $employeeRank, ?int $minViewableRank, ?int $maxViewableRank): bool
+{
+    // Case 1: max = NULL or 0 → ONLY non-leadership employees
+    if ($maxViewableRank === null || $maxViewableRank === 0) {
+        return $employeeRank === null;
+    }
+
+    // Case 2: Employee has NO leadership level (Guard)
+    if ($employeeRank === null) {
+        return false; // Not visible in leadership-only scope
+    }
+
+    // Case 3: Check if employee's rank is within range
+    if (! is_null($minViewableRank) && $employeeRank < $minViewableRank) {
+        return false; // Below minimum
+    }
+
+    if (! is_null($maxViewableRank) && $employeeRank > $maxViewableRank) { // @phpstan-ignore function.impossibleType
+        return false; // Above maximum
+    }
+
+    return true; // Within range
+}
+```
+
+#### Query Scope for Rank Filtering
+
+```php
+// app/Models/Employee.php
+public function scopeWithinRankRange(Builder $query, ?int $minRank, ?int $maxRank): void
+{
+    // CRITICAL: NULL or 0 in max = ONLY non-leadership employees!
+    if ($maxRank === null || $maxRank === 0) {
+        $query->whereNull('leadership_level_id');
+        return;
+    }
+
+    // Show employees within rank range (LEADERSHIP ONLY)
+    $query->whereHas('leadershipLevel', function ($q) use ($minRank, $maxRank) {
+        if (! is_null($minRank)) {
+            $q->where('rank', '>=', $minRank);
+        }
+
+        if (! is_null($maxRank) && $maxRank > 0) { // @phpstan-ignore function.impossibleType
+            $q->where('rank', '<=', $maxRank);
+        }
+    });
+}
+```
+
+### Self-Access Control
+
+**Default Behavior**: Users CANNOT view/edit their own employee HR data
+
+This prevents:
+
+- Self-manipulation of salary
+- Self-assignment of leadership levels
+- Unauthorized access to sensitive personal data
+
+**Enabling Self-Access**:
+
+Set `allow_self_access = true` in user's organizational scope:
+
+```php
+UserInternalOrganizationalScope::create([
+    'user_id' => $user->id,
+    'organizational_unit_id' => $unit->id,
+    'allow_self_access' => true, // Allow viewing/editing own data
+]);
+```
+
+**Use Cases for `allow_self_access = true`**:
+
+- Employee self-service portals
+- Personal document upload
+- Contact information updates (limited fields)
+
+**Implementation**:
+
+```php
+// app/Policies/EmployeePolicy.php
+public function view(User $user, Employee $employee): bool
+{
+    // Check if viewing own employee record
+    if ($user->id === $employee->user_id) {
+        // Requires permission AND allow_self_access = true
+        if (! $user->can('employee.read')) {
+            return false;
+        }
+
+        $scope = $user->organizationalScopes()
+            ->where('organizational_unit_id', $employee->organizational_unit_id)
+            ->where('allow_self_access', true)
+            ->first();
+
+        return $scope !== null; // Allow only if allow_self_access = true
+    }
+
+    // ... rest of policy logic ...
+}
+```
+
+### Security Considerations
+
+#### Permission Escalation Prevention
+
+To **remove** a leadership level from an employee, user must have permission to **assign** that level:
+
+- Prevents lower-ranked users from removing higher-ranked leadership levels
+- Future implementation: Use `min_assignable_rank` and `max_assignable_rank`
+
+#### Multiple Scopes (OR Logic)
+
+Users can have multiple scopes per organizational unit. Access is granted if **ANY** scope permits:
+
+```php
+// User has TWO scopes:
+// Scope 1: min=1, max=5
+// Scope 2: min=10, max=15
+
+// Employee with FE3: Visible (matches Scope 1)
+// Employee with FE12: Visible (matches Scope 2)
+// Employee with FE7: NOT visible (no matching scope)
+```
+
+This is **additive** and security-safe - multiple scopes expand access, never restrict.
+
+### Testing
+
+Comprehensive tests in `tests/Feature/Policies/EmployeePolicyLeadershipLevelTest.php`:
+
+- **Self-Access Control**: 4 tests
+- **User's Own Level Irrelevance**: 3 tests
+- **NULL/0 Semantics**: 3 tests
+- **Rank Range Filtering**: 2 tests
+- **Total**: 12 tests, all passing ✓
+
+### Related Issues
+
+- **Epic #399**: Leadership Levels System (ADR-009)
+- **Issue #423**: Database Foundation
+- **Issue #424**: Backend API & Policies
+- **Issue #425**: Employee Policy Integration **(CURRENT)**
+- **Issue #426**: Frontend UI & E2E Tests (pending)
+
+---
+
 ## Related Documentation
 
 ### Security & Encryption

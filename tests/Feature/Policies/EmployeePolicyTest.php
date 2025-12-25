@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Models\UserInternalOrganizationalScope;
 use App\Policies\EmployeePolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -58,9 +59,25 @@ test('users without employee.read permission cannot view any employees', functio
 });
 
 test('employee can view own profile', function (): void {
-    $user = User::factory()->create();
+    // NOTE: Self-access control (ADR-009) requires allow_self_access = true in scope
+    // This test was updated to reflect the new architecture where self-access is DISABLED by default
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
+
+    $orgUnit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
+
+    // Create scope with allow_self_access = true
+    UserInternalOrganizationalScope::create([
+        'user_id' => $user->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'allow_self_access' => true, // Required for self-access
     ]);
 
     expect($this->policy->view($user, $employee))->toBeTrue();
@@ -132,9 +149,25 @@ test('only users with employee.write or employee.create permission can create em
 });
 
 test('employee can update own profile', function (): void {
-    $user = User::factory()->create();
+    // NOTE: Self-access control (ADR-009) requires allow_self_access = true in scope
+    // This test was updated to reflect the new architecture where self-access is DISABLED by default
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.update');
+
+    $orgUnit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
+
+    // Create scope with allow_self_access = true
+    UserInternalOrganizationalScope::create([
+        'user_id' => $user->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'allow_self_access' => true, // Required for self-access
     ]);
 
     expect($this->policy->update($user, $employee))->toBeTrue();
