@@ -127,6 +127,13 @@ class RolesAndPermissionsSeeder extends Seeder
                 'read',
                 'write',
             ],
+            // Epic #399: Leadership Levels System (Issue #424)
+            'leadership_level' => [
+                'view',
+                'create',
+                'update',
+                'delete',
+            ],
             'onboarding' => [
                 'read',
                 'write',
@@ -220,6 +227,8 @@ class RolesAndPermissionsSeeder extends Seeder
                     'employee_qualification.*',
                     'employee_document.*',
                     'qualification.*',
+                    // Epic #399: Leadership Levels System (Issue #424)
+                    'leadership_level.*',
                     'onboarding.*',
                     'onboarding_template.*',
                     'reports.*',

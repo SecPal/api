@@ -12,6 +12,7 @@ use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeQualification;
+use App\Models\LeadershipLevel;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OrganizationalUnit;
@@ -32,6 +33,7 @@ use App\Policies\CustomerPolicy;
 use App\Policies\EmployeeDocumentPolicy;
 use App\Policies\EmployeePolicy;
 use App\Policies\EmployeeQualificationPolicy;
+use App\Policies\LeadershipLevelPolicy;
 use App\Policies\OnboardingFormSubmissionPolicy;
 use App\Policies\OnboardingFormTemplatePolicy;
 use App\Policies\OrganizationalUnitPolicy;
@@ -129,6 +131,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(EmployeeQualification::class, EmployeeQualificationPolicy::class);
         Gate::policy(OnboardingFormTemplate::class, OnboardingFormTemplatePolicy::class);
         Gate::policy(OnboardingFormSubmission::class, OnboardingFormSubmissionPolicy::class);
+
+        // Register policies for Leadership Levels System (Epic #399, Issue #424)
+        Gate::policy(LeadershipLevel::class, LeadershipLevelPolicy::class);
 
         // Register gates for user permission management
         $this->registerUserPermissionGates();
