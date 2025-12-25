@@ -36,7 +36,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
- *
  * @property-read TenantKey $tenant The tenant this level belongs to
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Employee> $employees Employees assigned to this level
  *
@@ -133,8 +132,6 @@ final class LeadershipLevel extends Model
      * Check if this leadership level can be deleted.
      *
      * A leadership level can only be deleted if no employees are assigned to it.
-     *
-     * @return bool
      */
     public function canBeDeleted(): bool
     {
@@ -143,8 +140,6 @@ final class LeadershipLevel extends Model
 
     /**
      * Get the count of employees assigned to this leadership level.
-     *
-     * @return int
      */
     public function getEmployeesCountAttribute(): int
     {

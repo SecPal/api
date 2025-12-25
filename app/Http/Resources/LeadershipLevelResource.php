@@ -44,7 +44,7 @@ class LeadershipLevelResource extends JsonResource
      * - Relationships (employees_count)
      * - Timestamps (created_at, updated_at, deleted_at for soft deletes)
      *
-     * @param Request $request The incoming request
+     * @param  Request  $request  The incoming request
      * @return array<string, mixed> The transformed resource
      */
     public function toArray(Request $request): array

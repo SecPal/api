@@ -308,7 +308,7 @@ describe('POST /v1/leadership-levels', function () {
         LeadershipLevel::factory()->create([
             'tenant_id' => $this->tenant->id,
             'rank' => 1,
-            'name' => 'CEO',
+            'name' => 'Chief Executive Officer',
         ]);
 
         $response = $this->withHeaders([
@@ -329,7 +329,7 @@ describe('POST /v1/leadership-levels', function () {
         LeadershipLevel::factory()->create([
             'tenant_id' => $this->tenant->id,
             'rank' => 1,
-            'name' => 'CEO',
+            'name' => 'Chief Executive Officer',
         ]);
 
         $response = $this->withHeaders([
@@ -337,7 +337,7 @@ describe('POST /v1/leadership-levels', function () {
             'X-Tenant-ID' => (string) $this->tenant->id,
         ])->postJson('/v1/leadership-levels', [
             'rank' => 2,
-            'name' => 'CEO',
+            'name' => 'Chief Executive Officer',
         ]);
 
         $response->assertStatus(422)
@@ -367,7 +367,7 @@ describe('POST /v1/leadership-levels', function () {
         LeadershipLevel::factory()->create([
             'tenant_id' => $this->tenant->id,
             'rank' => 1,
-            'name' => 'Tenant 1 CEO',
+            'name' => 'Tenant 1 Chief Executive',
         ]);
 
         // Create second tenant and level
@@ -383,7 +383,7 @@ describe('POST /v1/leadership-levels', function () {
             'X-Tenant-ID' => (string) $otherTenant->id,
         ])->postJson('/v1/leadership-levels', [
             'rank' => 1,
-            'name' => 'Tenant 2 CEO',
+            'name' => 'Tenant 2 Chief Executive',
         ]);
 
         $response->assertStatus(201);
@@ -527,13 +527,13 @@ describe('PATCH /v1/leadership-levels/{leadershipLevel}', function () {
         LeadershipLevel::factory()->create([
             'tenant_id' => $this->tenant->id,
             'rank' => 1,
-            'name' => 'CEO',
+            'name' => 'Chief Executive Officer',
         ]);
 
         $level = LeadershipLevel::factory()->create([
             'tenant_id' => $this->tenant->id,
             'rank' => 2,
-            'name' => 'Manager',
+            'name' => 'Regional Manager',
         ]);
 
         $response = $this->withHeaders([

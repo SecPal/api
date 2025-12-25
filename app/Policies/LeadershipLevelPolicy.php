@@ -39,7 +39,7 @@ class LeadershipLevelPolicy
      *
      * Pure permission check. User's own leadership level is irrelevant.
      *
-     * @param User $user The authenticated user
+     * @param  User  $user  The authenticated user
      * @return bool True if user has 'leadership_level.view' permission
      */
     public function viewAny(User $user): bool
@@ -52,8 +52,8 @@ class LeadershipLevelPolicy
      *
      * Pure permission check. User's own leadership level is irrelevant.
      *
-     * @param User $user The authenticated user
-     * @param LeadershipLevel $leadershipLevel The leadership level to view
+     * @param  User  $user  The authenticated user
+     * @param  LeadershipLevel  $leadershipLevel  The leadership level to view
      * @return bool True if user has 'leadership_level.view' permission
      */
     public function view(User $user, LeadershipLevel $leadershipLevel): bool
@@ -66,7 +66,7 @@ class LeadershipLevelPolicy
      *
      * Pure permission check. User's own leadership level is irrelevant.
      *
-     * @param User $user The authenticated user
+     * @param  User  $user  The authenticated user
      * @return bool True if user has 'leadership_level.create' permission
      */
     public function create(User $user): bool
@@ -79,8 +79,8 @@ class LeadershipLevelPolicy
      *
      * Pure permission check. User's own leadership level is irrelevant.
      *
-     * @param User $user The authenticated user
-     * @param LeadershipLevel $leadershipLevel The leadership level to update
+     * @param  User  $user  The authenticated user
+     * @param  LeadershipLevel  $leadershipLevel  The leadership level to update
      * @return bool True if user has 'leadership_level.update' permission
      */
     public function update(User $user, LeadershipLevel $leadershipLevel): bool
@@ -97,8 +97,8 @@ class LeadershipLevelPolicy
      *
      * User's own leadership level is irrelevant.
      *
-     * @param User $user The authenticated user
-     * @param LeadershipLevel $leadershipLevel The leadership level to delete
+     * @param  User  $user  The authenticated user
+     * @param  LeadershipLevel  $leadershipLevel  The leadership level to delete
      * @return bool True if user has permission AND level can be deleted
      */
     public function delete(User $user, LeadershipLevel $leadershipLevel): bool
@@ -112,8 +112,8 @@ class LeadershipLevelPolicy
      *
      * Pure permission check. User's own leadership level is irrelevant.
      *
-     * @param User $user The authenticated user
-     * @param LeadershipLevel $leadershipLevel The leadership level to restore
+     * @param  User  $user  The authenticated user
+     * @param  LeadershipLevel  $leadershipLevel  The leadership level to restore
      * @return bool True if user has 'leadership_level.update' permission
      */
     public function restore(User $user, LeadershipLevel $leadershipLevel): bool
@@ -127,8 +127,8 @@ class LeadershipLevelPolicy
      * Pure permission check. User's own leadership level is irrelevant.
      * Force delete typically requires elevated permissions (e.g., admin).
      *
-     * @param User $user The authenticated user
-     * @param LeadershipLevel $leadershipLevel The leadership level to force delete
+     * @param  User  $user  The authenticated user
+     * @param  LeadershipLevel  $leadershipLevel  The leadership level to force delete
      * @return bool True if user has 'leadership_level.delete' permission
      */
     public function forceDelete(User $user, LeadershipLevel $leadershipLevel): bool

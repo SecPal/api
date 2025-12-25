@@ -48,9 +48,9 @@ class UpdateLeadershipLevelRequest extends FormRequest
         $user = Auth::guard('sanctum')->user();
         $tenantId = $user?->tenant_id;
 
-        /** @var \App\Models\LeadershipLevel $leadershipLevel */
+        /** @var \App\Models\LeadershipLevel|null $leadershipLevel */
         $leadershipLevel = $this->route('leadership_level');
-        $leadershipLevelId = $leadershipLevel->id;
+        $leadershipLevelId = $leadershipLevel?->id;
 
         return [
             'rank' => [

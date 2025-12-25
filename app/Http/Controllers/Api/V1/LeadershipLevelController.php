@@ -53,7 +53,7 @@ class LeadershipLevelController extends Controller
      * Authorization: Requires 'leadership_level.view' permission.
      * User's own leadership level is irrelevant (pure permission check).
      *
-     * @param Request $request The incoming request
+     * @param  Request  $request  The incoming request
      * @return JsonResponse Leadership levels collection
      */
     public function index(Request $request): JsonResponse
@@ -99,7 +99,7 @@ class LeadershipLevelController extends Controller
      * Authorization: Requires 'leadership_level.create' permission.
      * User's own leadership level is irrelevant (pure permission check).
      *
-     * @param StoreLeadershipLevelRequest $request The validated request
+     * @param  StoreLeadershipLevelRequest  $request  The validated request
      * @return JsonResponse Created leadership level
      */
     public function store(StoreLeadershipLevelRequest $request): JsonResponse
@@ -138,7 +138,7 @@ class LeadershipLevelController extends Controller
      * Authorization: Requires 'leadership_level.view' permission.
      * User's own leadership level is irrelevant (pure permission check).
      *
-     * @param LeadershipLevel $leadershipLevel The leadership level to display
+     * @param  LeadershipLevel  $leadershipLevel  The leadership level to display
      * @return JsonResponse Leadership level details
      */
     public function show(LeadershipLevel $leadershipLevel): JsonResponse
@@ -165,8 +165,8 @@ class LeadershipLevelController extends Controller
      * Authorization: Requires 'leadership_level.update' permission.
      * User's own leadership level is irrelevant (pure permission check).
      *
-     * @param UpdateLeadershipLevelRequest $request The validated request
-     * @param LeadershipLevel $leadershipLevel The leadership level to update
+     * @param  UpdateLeadershipLevelRequest  $request  The validated request
+     * @param  LeadershipLevel  $leadershipLevel  The leadership level to update
      * @return JsonResponse Updated leadership level
      */
     public function update(
@@ -200,7 +200,7 @@ class LeadershipLevelController extends Controller
      * AND business rule: no employees must be assigned.
      * User's own leadership level is irrelevant (pure permission check).
      *
-     * @param LeadershipLevel $leadershipLevel The leadership level to delete
+     * @param  LeadershipLevel  $leadershipLevel  The leadership level to delete
      * @return JsonResponse No content on success, error on failure
      */
     public function destroy(LeadershipLevel $leadershipLevel): JsonResponse
@@ -230,7 +230,7 @@ class LeadershipLevelController extends Controller
      * Authorization: Requires 'leadership_level.update' permission.
      * User's own leadership level is irrelevant (pure permission check).
      *
-     * @param string $id The UUID of the leadership level to restore
+     * @param  string  $id  The UUID of the leadership level to restore
      * @return JsonResponse Restored leadership level
      */
     public function restore(string $id): JsonResponse
@@ -262,7 +262,7 @@ class LeadershipLevelController extends Controller
      * Authorization: Requires 'leadership_level.delete' permission.
      * User's own leadership level is irrelevant (pure permission check).
      *
-     * @param string $id The UUID of the leadership level to force delete
+     * @param  string  $id  The UUID of the leadership level to force delete
      * @return JsonResponse No content on success
      */
     public function forceDelete(string $id): JsonResponse
@@ -333,7 +333,7 @@ class LeadershipLevelController extends Controller
      * Authorization: Requires 'leadership_level.view' permission.
      * User's own leadership level is irrelevant (pure permission check).
      *
-     * @param Request $request The incoming request with search query
+     * @param  Request  $request  The incoming request with search query
      * @return JsonResponse Matching leadership levels
      */
     public function search(Request $request): JsonResponse
