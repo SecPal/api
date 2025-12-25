@@ -11,6 +11,7 @@ use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
  * Unit tests for User model access methods (Epic #210).
@@ -23,7 +24,7 @@ use App\Models\UserInternalOrganizationalScope;
  * @covers \App\Models\User::getAccessibleCustomers
  * @covers \App\Models\User::getAccessibleSites
  */
-uses()->group('unit', 'models', 'user', 'access');
+uses(RefreshDatabase::class)->group('unit', 'models', 'user', 'access');
 
 beforeEach(function () {
     TenantKey::setKekPath(getTestKekPath());

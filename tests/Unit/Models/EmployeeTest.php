@@ -9,8 +9,9 @@ use App\Models\OrganizationalUnit;
 use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses()->group('unit', 'models', 'employee');
+uses(RefreshDatabase::class)->group('unit', 'models', 'employee');
 
 beforeEach(function () {
     // Disable EmployeeObserver for unit tests - we test the model in isolation

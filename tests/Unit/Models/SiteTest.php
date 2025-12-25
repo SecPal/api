@@ -7,13 +7,14 @@ use App\Models\Customer;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\TenantKey;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
  * Unit tests for Site model.
  *
  * @covers \App\Models\Site
  */
-uses()->group('unit', 'models', 'site');
+uses(RefreshDatabase::class)->group('unit', 'models', 'site');
 
 beforeEach(function () {
     TenantKey::setKekPath(getTestKekPath());

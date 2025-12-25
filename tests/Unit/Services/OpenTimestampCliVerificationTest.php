@@ -34,7 +34,7 @@ beforeEach(function () {
 test('verify returns true for valid proof when cli succeeds', function () {
     // Arrange: Valid proof data
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = $this->buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForCliVerification();
 
     // Mock: CLI returns success (exit code 0)
     $this->mockExecutor
@@ -96,7 +96,7 @@ test('verify returns false for invalid proof when cli fails', function () {
 test('verify returns false when ots cli not installed', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = $this->buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForCliVerification();
 
     // Mock: ots command not found
     $this->mockExecutor
@@ -115,7 +115,7 @@ test('verify returns false when ots cli not installed', function () {
 test('verify returns false when cli times out', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = $this->buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForCliVerification();
 
     // Mock: CLI times out
     $this->mockExecutor
@@ -161,7 +161,7 @@ test('verify rejects non hex digest', function () {
 test('verify normalizes uppercase digest to lowercase', function () {
     // Arrange: Uppercase digest
     $merkleRoot = strtoupper(hash('sha256', 'test-root'));
-    $proof = $this->buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForCliVerification();
 
     // Mock: CLI should receive lowercase digest
     $this->mockExecutor
@@ -221,7 +221,7 @@ test('verify handles empty proof gracefully', function () {
 test('verify caches successful verification', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = $this->buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForCliVerification();
 
     // Mock: First call succeeds
     $this->mockExecutor
