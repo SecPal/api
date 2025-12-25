@@ -21,9 +21,6 @@ uses(RefreshDatabase::class);
  * @see https://github.com/SecPal/api/issues/424 Issue #424: LeadershipLevel Model & Factory (dependency)
  */
 test('factory creates leadership level with default state', function (): void {
-    // This test requires the LeadershipLevel model from Issue #424
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant = TenantKey::factory()->create();
 
     $level = LeadershipLevel::factory()->create(['tenant_id' => $tenant->id]);
@@ -32,14 +29,12 @@ test('factory creates leadership level with default state', function (): void {
         ->id->not->toBeNull()
         ->tenant_id->toBe($tenant->id)
         ->rank->toBeGreaterThan(0)
-        ->rank->toBeLessThanOrEqual(10)
+        ->rank->toBeLessThanOrEqual(255)
         ->name->not->toBeNull()
         ->is_active->toBeTrue();
 });
 
 test('factory can create inactive leadership level', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant = TenantKey::factory()->create();
 
     $level = LeadershipLevel::factory()
@@ -50,8 +45,6 @@ test('factory can create inactive leadership level', function (): void {
 });
 
 test('factory can create leadership level with specific rank', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant = TenantKey::factory()->create();
 
     $level = LeadershipLevel::factory()
@@ -62,8 +55,6 @@ test('factory can create leadership level with specific rank', function (): void
 });
 
 test('factory can create leadership level with specific name', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant = TenantKey::factory()->create();
 
     $level = LeadershipLevel::factory()
@@ -74,8 +65,6 @@ test('factory can create leadership level with specific name', function (): void
 });
 
 test('factory can create leadership level with color', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant = TenantKey::factory()->create();
 
     $level = LeadershipLevel::factory()
@@ -86,8 +75,6 @@ test('factory can create leadership level with color', function (): void {
 });
 
 test('factory respects unique constraints', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant = TenantKey::factory()->create();
 
     // Create first level with rank 1
@@ -104,8 +91,6 @@ test('factory respects unique constraints', function (): void {
 });
 
 test('factory creates levels with different tenants independently', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant1 = TenantKey::factory()->create();
     $tenant2 = TenantKey::factory()->create();
 

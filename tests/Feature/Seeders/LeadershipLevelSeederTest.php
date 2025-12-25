@@ -22,10 +22,6 @@ uses(RefreshDatabase::class);
  * @see https://github.com/SecPal/api/issues/424 Issue #424: LeadershipLevel Model & Factory (dependency)
  */
 test('seeder creates default leadership levels for tenant', function (): void {
-    // This test requires the LeadershipLevel model from Issue #424
-    // Skip until #424 is implemented
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant = TenantKey::factory()->create();
 
     $this->artisan('db:seed', ['--class' => LeadershipLevelSeeder::class])->assertSuccessful();
@@ -45,8 +41,6 @@ test('seeder creates default leadership levels for tenant', function (): void {
 });
 
 test('seeder is idempotent and skips tenants with existing levels', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant = TenantKey::factory()->create();
 
     // Run seeder first time
@@ -61,8 +55,6 @@ test('seeder is idempotent and skips tenants with existing levels', function ():
 });
 
 test('seeder creates levels for multiple tenants', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant1 = TenantKey::factory()->create();
     $tenant2 = TenantKey::factory()->create();
 
@@ -73,8 +65,6 @@ test('seeder creates levels for multiple tenants', function (): void {
 });
 
 test('seeder creates unique ranks per tenant', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant = TenantKey::factory()->create();
 
     $this->artisan('db:seed', ['--class' => LeadershipLevelSeeder::class])->assertSuccessful();
@@ -88,8 +78,6 @@ test('seeder creates unique ranks per tenant', function (): void {
 });
 
 test('seeder respects tenant isolation', function (): void {
-    $this->markTestSkipped('Requires LeadershipLevel model from Issue #424');
-
     $tenant1 = TenantKey::factory()->create();
     $tenant2 = TenantKey::factory()->create();
 
