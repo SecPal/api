@@ -134,6 +134,11 @@ class RolesAndPermissionsSeeder extends Seeder
                 'update',
                 'delete',
             ],
+            // Epic #385: Activity Logging & Audit Trail (Issue #396)
+            'activity_log' => [
+                'read',
+                'read_all', // Access to global logs (no organizational unit)
+            ],
             'onboarding' => [
                 'read',
                 'write',

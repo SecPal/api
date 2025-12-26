@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +67,8 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  */
 class Activity extends SpatieActivity
 {
+    /** @use HasFactory<\Database\Factories\ActivityFactory> */
+    use HasFactory;
     use SoftDeletes;
 
     /**
