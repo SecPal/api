@@ -425,6 +425,73 @@ test('view allows activity when user has multiple scopes and one matches rank', 
     expect($this->policy->view($user, $activity))->toBeTrue();
 });
 
+test('view allows activity caused by leadership when scope has no rank restrictions (null min/max)', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
+
+    // Create FE3 employee
+    $fe3Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'leadership_level_id' => $this->leadershipLevels[1]->id, // FE3
+    ]);
+    $fe3User = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $fe3Employee->user_id = $fe3User->id;
+    $fe3Employee->save();
+
+    // User scope: No rank restrictions (NULL = all ranks visible)
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'access_level' => 'read',
+        'include_descendants' => false,
+        'min_viewable_rank' => null, // No minimum filter
+        'max_viewable_rank' => null, // No maximum filter
+    ]);
+
+    // Activity caused by FE3
+    $activity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $fe3User->id,
+    ]);
+
+    expect($this->policy->view($user, $activity))->toBeTrue();
+});
+
+test('view allows activity caused by guard when scope has no rank restrictions (null min/max)', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
+
+    // Create guard employee (no leadership level)
+    $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'leadership_level_id' => null, // Guard
+    ]);
+    $guardUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $guardEmployee->user_id = $guardUser->id;
+    $guardEmployee->save();
+
+    // User scope: No rank restrictions (NULL = all ranks, but guards need explicit min=0)
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'access_level' => 'read',
+        'include_descendants' => false,
+        'min_viewable_rank' => null, // No minimum filter
+        'max_viewable_rank' => null, // No maximum filter
+    ]);
+
+    // Activity caused by guard
+    $activity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $guardUser->id,
+    ]);
+
+    // Guards require explicit min=0, so this should be FALSE
+    expect($this->policy->view($user, $activity))->toBeFalse();
+});
+
 // ============================================================================
 // view() EDGE CASES
 // ============================================================================
