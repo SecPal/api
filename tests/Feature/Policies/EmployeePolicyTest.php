@@ -113,6 +113,11 @@ test('users with employee.read permission can view employees in own organization
         'organizational_unit_id' => $orgUnit->id,
         'include_descendants' => false,
         'access_level' => 'write',
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 255,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 255,
+        'allow_self_access' => true,
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
