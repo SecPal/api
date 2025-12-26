@@ -69,6 +69,7 @@ class Activity extends SpatieActivity
 {
     /** @use HasFactory<\Database\Factories\ActivityFactory> */
     use HasFactory;
+
     use SoftDeletes;
 
     /**
