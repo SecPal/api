@@ -310,4 +310,106 @@ describe('OrganizationalScopeController', function () {
                 ]);
         });
     });
+
+    describe('rank range validation - Guards/Leadership separation', function () {
+        it('rejects scope creation with min=0 and max>0 for viewing ranks', function (): void {
+            Sanctum::actingAs($this->adminUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => $this->targetUser->id,
+                'access_level' => 'read',
+                'include_descendants' => true,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 5,
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['min_viewable_rank']);
+        });
+
+        it('rejects scope creation with min=0 and max>0 for assignable ranks', function (): void {
+            Sanctum::actingAs($this->adminUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => $this->targetUser->id,
+                'access_level' => 'write',
+                'include_descendants' => true,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 3,
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['min_assignable_rank']);
+        });
+
+        it('accepts scope creation with min=0 and max=0 for Guards only', function (): void {
+            Sanctum::actingAs($this->adminUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => $this->targetUser->id,
+                'access_level' => 'read',
+                'include_descendants' => true,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+            ]);
+
+            $response->assertCreated()
+                ->assertJsonPath('data.min_viewable_rank', 0)
+                ->assertJsonPath('data.max_viewable_rank', 0);
+        });
+
+        it('accepts scope creation with min=1 and max=5 for Leadership only', function (): void {
+            Sanctum::actingAs($this->adminUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => $this->targetUser->id,
+                'access_level' => 'read',
+                'include_descendants' => true,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+            ]);
+
+            $response->assertCreated()
+                ->assertJsonPath('data.min_viewable_rank', 1)
+                ->assertJsonPath('data.max_viewable_rank', 5);
+        });
+
+        it('rejects scope update with min=0 and max>0 for viewing ranks', function (): void {
+            $scope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'read',
+                'include_descendants' => false,
+            ]);
+
+            Sanctum::actingAs($this->adminUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 10,
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['min_viewable_rank']);
+        });
+
+        it('rejects scope update with min=0 and max>0 for assignable ranks', function (): void {
+            $scope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'write',
+                'include_descendants' => false,
+            ]);
+
+            Sanctum::actingAs($this->adminUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 8,
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['min_assignable_rank']);
+        });
+    });
 });

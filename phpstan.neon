@@ -51,3 +51,10 @@ parameters:
         -
             message: '#Method App\\Models\\RoleAssignmentLog::(user|role|assignedBy)\(\) should return .* but returns .*#'
             path: app/Models/RoleAssignmentLog.php
+
+        # Laravel validation closure $fail callback - known PHPStan limitation
+        # Custom validation rules with closure functions trigger false positives
+        -
+            message: "#Trying to invoke mixed but it's not a callable#"
+            path: app/Http/Requests/*
+            identifier: callable.nonCallable

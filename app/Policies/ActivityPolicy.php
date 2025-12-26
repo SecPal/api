@@ -130,16 +130,16 @@ class ActivityPolicy
      * - Leadership ranks: 1-255 (FE1 to FE255)
      * - Rank 0 is used in scopes to represent "Guards access"
      *
-     * BEST PRACTICE: Use separate scopes for Guards vs Leadership
+     * VALIDATED SEPARATION: Guards and Leadership MUST use separate scopes
      * - Scope 1: min=0, max=0 → Guards access
      * - Scope 2: min=X, max=Y → Leadership ranks X to Y
+     * - Mixing min=0 with max>0 is PREVENTED by validation
      *
      * Rank Range Interpretations (single scope):
      * - min=0, max=0 → Only Guards visible
      * - min=1, max=Y → Leadership ranks 1 to Y (Guards NOT visible)
      * - min=X, max=255 → Leadership from rank X to 255
      * - min=null, max=null → All leadership ranks (Guards still need explicit min=0)
-     * - min=0, max=X → Guards + Leadership up to rank X (possible but NOT recommended - use separate scopes)
      *
      * @param  int|null  $causerRank  Causer's leadership rank (NULL for Guards, 1-255 for FE1-FE255)
      * @param  int|null  $minViewableRank  Minimum viewable rank (0 = includes Guards, 1-255 for FE1-FE255, null = no lower bound)
