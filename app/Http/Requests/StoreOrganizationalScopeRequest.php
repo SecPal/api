@@ -55,10 +55,62 @@ class StoreOrganizationalScopeRequest extends FormRequest
             ],
             'include_descendants' => ['boolean'],
             // Leadership-based access control fields (ADR-009)
-            'min_viewable_rank' => ['nullable', 'integer', 'min:0', 'max:255', 'lte:max_viewable_rank'],
-            'max_viewable_rank' => ['nullable', 'integer', 'min:0', 'max:255', 'gte:min_viewable_rank'],
-            'min_assignable_rank' => ['nullable', 'integer', 'min:0', 'max:255', 'lte:max_assignable_rank'],
-            'max_assignable_rank' => ['nullable', 'integer', 'min:0', 'max:255', 'gte:min_assignable_rank'],
+            'min_viewable_rank' => [
+                'nullable',
+                'integer',
+                'min:0',
+                'max:255',
+                'lte:max_viewable_rank',
+                function ($attribute, $value, $fail) {
+                    $maxRank = $this->input('max_viewable_rank');
+                    // Prevent mixing Guards (min=0) with Leadership (max>0)
+                    if ($value === 0 && $maxRank !== null && $maxRank > 0) {
+                        $fail('Guards (min=0) and Leadership (max>0) must use separate scopes. Use min=0, max=0 for Guards only.');
+                    }
+                },
+            ],
+            'max_viewable_rank' => [
+                'nullable',
+                'integer',
+                'min:0',
+                'max:255',
+                'gte:min_viewable_rank',
+                function ($attribute, $value, $fail) {
+                    $minRank = $this->input('min_viewable_rank');
+                    // Prevent mixing Guards (min=0) with Leadership (max>0)
+                    if ($minRank === 0 && $value !== null && $value > 0) {
+                        $fail('Guards (min=0) and Leadership (max>0) must use separate scopes. Use min=0, max=0 for Guards only.');
+                    }
+                },
+            ],
+            'min_assignable_rank' => [
+                'nullable',
+                'integer',
+                'min:0',
+                'max:255',
+                'lte:max_assignable_rank',
+                function ($attribute, $value, $fail) {
+                    $maxRank = $this->input('max_assignable_rank');
+                    // Prevent mixing Guards (min=0) with Leadership (max>0)
+                    if ($value === 0 && $maxRank !== null && $maxRank > 0) {
+                        $fail('Guards (min=0) and Leadership (max>0) must use separate scopes. Use min=0, max=0 for Guards only.');
+                    }
+                },
+            ],
+            'max_assignable_rank' => [
+                'nullable',
+                'integer',
+                'min:0',
+                'max:255',
+                'gte:min_assignable_rank',
+                function ($attribute, $value, $fail) {
+                    $minRank = $this->input('min_assignable_rank');
+                    // Prevent mixing Guards (min=0) with Leadership (max>0)
+                    if ($minRank === 0 && $value !== null && $value > 0) {
+                        $fail('Guards (min=0) and Leadership (max>0) must use separate scopes. Use min=0, max=0 for Guards only.');
+                    }
+                },
+            ],
             'allow_self_access' => ['boolean'],
         ];
     }

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +67,9 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  */
 class Activity extends SpatieActivity
 {
+    /** @use HasFactory<\Database\Factories\ActivityFactory> */
+    use HasFactory;
+
     use SoftDeletes;
 
     /**
@@ -222,9 +226,13 @@ class Activity extends SpatieActivity
                 $subjectType = $activity->subject_type;
                 if (class_exists($subjectType)) {
                     // Use withTrashed() to find soft-deleted models (e.g., during 'deleted' event)
-                    $subjectModel = method_exists($subjectType, 'withTrashed')
-                        ? $subjectType::withTrashed()->find($activity->subject_id) /** @phpstan-ignore method.nonObject */
-                        : $subjectType::find($activity->subject_id);
+                    if (method_exists($subjectType, 'withTrashed')) {
+                        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+                        $query = $subjectType::withTrashed();
+                        $subjectModel = $query->find($activity->subject_id);
+                    } else {
+                        $subjectModel = $subjectType::find($activity->subject_id);
+                    }
                 }
             }
 
