@@ -222,9 +222,13 @@ class Activity extends SpatieActivity
                 $subjectType = $activity->subject_type;
                 if (class_exists($subjectType)) {
                     // Use withTrashed() to find soft-deleted models (e.g., during 'deleted' event)
-                    $subjectModel = method_exists($subjectType, 'withTrashed')
-                        ? $subjectType::withTrashed()->find($activity->subject_id) /** @phpstan-ignore method.nonObject */
-                        : $subjectType::find($activity->subject_id);
+                    if (method_exists($subjectType, 'withTrashed')) {
+                        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+                        $query = $subjectType::withTrashed();
+                        $subjectModel = $query->find($activity->subject_id);
+                    } else {
+                        $subjectModel = $subjectType::find($activity->subject_id);
+                    }
                 }
             }
 
