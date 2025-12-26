@@ -44,6 +44,9 @@ beforeEach(function (): void {
         'organizational_unit_id' => $organizationalUnit->id,
     ]);
 
+    // Give organizational scope for testing
+    giveOrganizationalScope($this->user, $organizationalUnit);
+
     $this->qualification = Qualification::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);

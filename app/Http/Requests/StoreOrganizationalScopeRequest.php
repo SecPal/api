@@ -54,6 +54,12 @@ class StoreOrganizationalScopeRequest extends FormRequest
                 Rule::in(self::VALID_ACCESS_LEVELS),
             ],
             'include_descendants' => ['boolean'],
+            // Leadership-based access control fields (ADR-009)
+            'min_viewable_rank' => ['nullable', 'integer', 'min:0', 'max:255', 'lte:max_viewable_rank'],
+            'max_viewable_rank' => ['nullable', 'integer', 'min:0', 'max:255', 'gte:min_viewable_rank'],
+            'min_assignable_rank' => ['nullable', 'integer', 'min:0', 'max:255', 'lte:max_assignable_rank'],
+            'max_assignable_rank' => ['nullable', 'integer', 'min:0', 'max:255', 'gte:min_assignable_rank'],
+            'allow_self_access' => ['boolean'],
         ];
     }
 

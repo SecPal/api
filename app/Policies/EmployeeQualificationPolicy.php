@@ -60,12 +60,12 @@ class EmployeeQualificationPolicy
         $hasScopes = $user->organizationalScopes()->exists();
 
         if ($hasScopes && $employee->organizationalUnit !== null) {
-            // Managers: Check organizational scope
+            // Check organizational scope
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        // Admin/HR (no scopes): Can view all
-        return ! $hasScopes;
+        // No scopes = no access
+        return false;
     }
 
     /**
@@ -99,12 +99,12 @@ class EmployeeQualificationPolicy
         $hasScopes = $user->organizationalScopes()->exists();
 
         if ($hasScopes && $employee->organizationalUnit !== null) {
-            // Managers: Check organizational scope
+            // Check organizational scope
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        // Admin/HR (no scopes): Can update all
-        return ! $hasScopes;
+        // No scopes = no access
+        return false;
     }
 
     /**
@@ -127,11 +127,11 @@ class EmployeeQualificationPolicy
         $hasScopes = $user->organizationalScopes()->exists();
 
         if ($hasScopes && $employee->organizationalUnit !== null) {
-            // Managers: Check organizational scope
+            // Check organizational scope
             return $user->hasAccessToUnit($employee->organizationalUnit);
         }
 
-        // Admin/HR (no scopes): Can delete all
-        return ! $hasScopes;
+        // No scopes = no access
+        return false;
     }
 }

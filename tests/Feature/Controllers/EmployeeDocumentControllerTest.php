@@ -45,6 +45,9 @@ beforeEach(function (): void {
         'organizational_unit_id' => $organizationalUnit->id,
     ]);
 
+    // Give organizational scope for testing
+    giveOrganizationalScope($this->user, $organizationalUnit);
+
     Storage::fake('local');
 });
 

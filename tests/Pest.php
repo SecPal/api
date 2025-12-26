@@ -73,6 +73,33 @@ function givePermissionWithTenant(\App\Models\User $user, int $tenantId, string 
 }
 
 /**
+ * Give user an organizational scope for testing.
+ * Creates a scope with manage access (min=0, max=255) by default.
+ */
+function giveOrganizationalScope(
+    \App\Models\User $user,
+    \App\Models\OrganizationalUnit $organizationalUnit,
+    ?int $minViewableRank = 0,
+    ?int $maxViewableRank = 255,
+    ?int $minAssignableRank = 0,
+    ?int $maxAssignableRank = 255,
+    bool $allowSelfAccess = true,
+    string $accessLevel = 'manage'
+): \App\Models\UserInternalOrganizationalScope {
+    return \App\Models\UserInternalOrganizationalScope::create([
+        'user_id' => $user->id,
+        'organizational_unit_id' => $organizationalUnit->id,
+        'access_level' => $accessLevel,
+        'include_descendants' => true,
+        'min_viewable_rank' => $minViewableRank,
+        'max_viewable_rank' => $maxViewableRank,
+        'min_assignable_rank' => $minAssignableRank,
+        'max_assignable_rank' => $maxAssignableRank,
+        'allow_self_access' => $allowSelfAccess,
+    ]);
+}
+
+/**
  * Assign role to user with temporal attributes, bypassing relationship constraints.
  * Directly inserts into model_has_roles with tenant_id support.
  */

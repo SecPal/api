@@ -44,6 +44,12 @@ class OrganizationalScopeController extends Controller
             'organizational_unit_id' => $scope->organizational_unit_id,
             'access_level' => $scope->access_level,
             'include_descendants' => $scope->include_descendants,
+            // Leadership-based access control fields (ADR-009)
+            'min_viewable_rank' => $scope->min_viewable_rank,
+            'max_viewable_rank' => $scope->max_viewable_rank,
+            'min_assignable_rank' => $scope->min_assignable_rank,
+            'max_assignable_rank' => $scope->max_assignable_rank,
+            'allow_self_access' => $scope->allow_self_access,
             'created_at' => $scope->created_at->toIso8601String(),
             'updated_at' => $scope->updated_at->toIso8601String(),
         ];
@@ -92,7 +98,7 @@ class OrganizationalScopeController extends Controller
     {
         $this->authorize('manageScopes', $organizational_unit);
 
-        /** @var array{user_id: string, access_level: string, include_descendants?: bool} $validated */
+        /** @var array{user_id: string, access_level: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();
 
         $scope = UserInternalOrganizationalScope::create([
@@ -100,6 +106,11 @@ class OrganizationalScopeController extends Controller
             'organizational_unit_id' => $organizational_unit->id,
             'access_level' => $validated['access_level'],
             'include_descendants' => $validated['include_descendants'] ?? true,
+            'min_viewable_rank' => $validated['min_viewable_rank'] ?? null,
+            'max_viewable_rank' => $validated['max_viewable_rank'] ?? null,
+            'min_assignable_rank' => $validated['min_assignable_rank'] ?? null,
+            'max_assignable_rank' => $validated['max_assignable_rank'] ?? null,
+            'allow_self_access' => $validated['allow_self_access'] ?? false,
         ]);
 
         return response()->json([
@@ -130,7 +141,7 @@ class OrganizationalScopeController extends Controller
 
         $this->authorize('manageScopes', $organizational_unit);
 
-        /** @var array{access_level?: string, include_descendants?: bool} $validated */
+        /** @var array{access_level?: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();
 
         if (isset($validated['access_level'])) {
@@ -139,6 +150,27 @@ class OrganizationalScopeController extends Controller
 
         if (isset($validated['include_descendants'])) {
             $scopeModel->include_descendants = $validated['include_descendants'];
+        }
+
+        // Leadership-based access control fields (ADR-009)
+        if (array_key_exists('min_viewable_rank', $validated)) {
+            $scopeModel->min_viewable_rank = $validated['min_viewable_rank'];
+        }
+
+        if (array_key_exists('max_viewable_rank', $validated)) {
+            $scopeModel->max_viewable_rank = $validated['max_viewable_rank'];
+        }
+
+        if (array_key_exists('min_assignable_rank', $validated)) {
+            $scopeModel->min_assignable_rank = $validated['min_assignable_rank'];
+        }
+
+        if (array_key_exists('max_assignable_rank', $validated)) {
+            $scopeModel->max_assignable_rank = $validated['max_assignable_rank'];
+        }
+
+        if (isset($validated['allow_self_access'])) {
+            $scopeModel->allow_self_access = $validated['allow_self_access'];
         }
 
         $scopeModel->save();

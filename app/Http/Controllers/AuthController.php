@@ -178,6 +178,9 @@ class AuthController extends Controller
      *
      * The hasOrganizationalScopes flag is used by the frontend to determine
      * whether to show organization/customer management navigation items.
+     *
+     * Note: Admin users have maximum organizational scopes (0-255) granting
+     * access to all leadership levels and non-leadership employees.
      */
     public function me(Request $request): JsonResponse
     {
@@ -320,6 +323,9 @@ class AuthController extends Controller
      *
      * The hasOrganizationalScopes flag is used by the frontend to determine
      * whether to show organization/customer management navigation items.
+     *
+     * Note: Admin users have maximum organizational scopes (0-255) granting
+     * access to all leadership levels and non-leadership employees.
      *
      * @return array{id: string, name: string, email: string, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool}
      */

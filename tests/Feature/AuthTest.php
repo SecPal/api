@@ -611,3 +611,65 @@ describe('Unauthenticated Request Handling', function () {
             ->assertJson(['message' => 'Unauthenticated.']);
     });
 });
+
+describe('Organizational Scopes Authorization', function () {
+    test('hasOrganizationalScopes is false when user has no scopes', function () {
+        $user = User::factory()->create([
+            'email' => 'noscope@example.com',
+            'password' => bcrypt('password123'),
+        ]);
+
+        $response = $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ])->postJson('/v1/auth/login', [
+            'email' => 'noscope@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'user' => [
+                    'hasOrganizationalScopes' => false,
+                ],
+            ]);
+    });
+
+    test('hasOrganizationalScopes is true when user has scopes', function () {
+        $tenant = \App\Models\TenantKey::factory()->create();
+        $orgUnit = \App\Models\OrganizationalUnit::factory()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        $user = User::factory()->create([
+            'email' => 'withscope@example.com',
+            'password' => bcrypt('password123'),
+            'tenant_id' => $tenant->id,
+        ]);
+
+        // Create organizational scope
+        $user->organizationalScopes()->create([
+            'organizational_unit_id' => $orgUnit->id,
+            'access_level' => 'write',
+            'include_descendants' => false,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 255,
+            'allow_self_access' => true,
+        ]);
+
+        $response = $this->withHeaders([
+            'Origin' => 'http://localhost:5173',
+            'Referer' => 'http://localhost:5173/',
+        ])->postJson('/v1/auth/login', [
+            'email' => 'withscope@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'user' => [
+                    'hasOrganizationalScopes' => true,
+                ],
+            ]);
+    });
+});

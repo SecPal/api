@@ -80,9 +80,14 @@ test('employee cannot view own documents marked not visible to employee', functi
 });
 
 test('users with employee_document.read permission can view all documents regardless of visibility flag', function (): void {
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.read');
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    giveOrganizationalScope($user, $orgUnit);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
     $document = EmployeeDocument::factory()->for($employee)->create([
         'visible_to_employee' => false,
     ]);

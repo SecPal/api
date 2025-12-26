@@ -271,7 +271,7 @@ test('scope with max_viewable_rank=0 shows ONLY non-leadership employees', funct
         'organizational_unit_id' => $this->orgUnit->id,
         'access_level' => 'write',
         'include_descendants' => false,
-        'min_viewable_rank' => null,
+        'min_viewable_rank' => 0, // Guards (ADR-009: min=0 for Guards)
         'max_viewable_rank' => 0, // CRITICAL: ONLY non-leadership!
         'allow_self_access' => true,
     ]);
@@ -335,7 +335,7 @@ test('user with TWO scopes can see both non-leadership and leadership', function
         'organizational_unit_id' => $this->orgUnit->id,
         'access_level' => 'write',
         'include_descendants' => false,
-        'min_viewable_rank' => null,
+        'min_viewable_rank' => 0, // Guards (ADR-009: min=0 for Guards)
         'max_viewable_rank' => 0, // Non-leadership
         'allow_self_access' => true,
     ]);
@@ -438,4 +438,69 @@ test('guards NOT visible if user only has scope with min=1 max=255', function ()
 
     // SHOULD FAIL: Guard not visible (scope is leadership-only)
     expect($this->policy->view($user, $guardEmployee))->toBeFalse();
+});
+test('guards ARE visible if user has scope with min=0 max=0', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
+
+    // Scope with min=0 max=0 (guards only!)
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'allow_self_access' => true,
+    ]);
+
+    // Create Guard (no FE)
+    $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'leadership_level_id' => null,
+    ]);
+
+    // SHOULD PASS: Guard visible with scope 0-0
+    expect($this->policy->view($user, $guardEmployee))->toBeTrue();
+});
+
+test('user with TWO scopes (0-0 and 1-255) can see both guards and leadership', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
+
+    // Scope 1: Guards (min=0 max=0)
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'allow_self_access' => true,
+    ]);
+
+    // Scope 2: All Leadership (min=1 max=255)
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 255,
+        'allow_self_access' => true,
+    ]);
+
+    // Create Guard (no FE)
+    $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'leadership_level_id' => null,
+    ]);
+
+    // Create Leadership FE50
+    $leadershipLevel = LeadershipLevel::factory()->create(['rank' => 50]);
+    $leadershipEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'leadership_level_id' => $leadershipLevel->id,
+    ]);
+
+    // SHOULD PASS: Both visible
+    expect($this->policy->view($user, $guardEmployee))->toBeTrue();
+    expect($this->policy->view($user, $leadershipEmployee))->toBeTrue();
 });

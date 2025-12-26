@@ -77,9 +77,14 @@ test('employee cannot view other employees qualifications', function (): void {
 });
 
 test('users with employee_qualification.read permission can view all employee qualifications', function (): void {
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.read');
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    giveOrganizationalScope($user, $orgUnit);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
     $qualification = Qualification::factory()->create();
     $employeeQualification = EmployeeQualification::factory()->create([
         'employee_id' => $employee->id,
