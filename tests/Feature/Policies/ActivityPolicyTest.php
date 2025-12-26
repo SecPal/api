@@ -65,6 +65,22 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
+/**
+ * Helper function to create an employee with associated user in one call.
+ * Reduces repetitive code pattern throughout tests.
+ */
+function createEmployeeWithUser(TenantKey $tenant, OrganizationalUnit $orgUnit, ?LeadershipLevel $leadershipLevel = null): array
+{
+    $user = User::factory()->create(['tenant_id' => $tenant->id]);
+    $employee = Employee::factory()->for($tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'leadership_level_id' => $leadershipLevel?->id,
+        'user_id' => $user->id,
+    ]);
+
+    return ['user' => $user, 'employee' => $employee];
+}
+
 // ============================================================================
 // viewAny() TESTS
 // ============================================================================
@@ -170,15 +186,7 @@ test('view allows activity caused by guard (no leadership level) when scope incl
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create guard employee (no leadership level)
-    $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => null, // Guard
-    ]);
-    $guardUser = User::factory()->create([
-        'tenant_id' => $this->tenant->id,
-    ]);
-    $guardEmployee->user_id = $guardUser->id;
-    $guardEmployee->save();
+    ['user' => $guardUser, 'employee' => $guardEmployee] = createEmployeeWithUser($this->tenant, $this->orgUnit, null);
 
     // User scope: Guards only (min=0, max=0)
     $user->organizationalScopes()->create([
@@ -205,13 +213,7 @@ test('view denies activity caused by guard when scope excludes guards (min=1)', 
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create guard employee
-    $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => null,
-    ]);
-    $guardUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
-    $guardEmployee->user_id = $guardUser->id;
-    $guardEmployee->save();
+    ['user' => $guardUser, 'employee' => $guardEmployee] = createEmployeeWithUser($this->tenant, $this->orgUnit, null);
 
     // User scope: Leadership only (min=1, max=255)
     $user->organizationalScopes()->create([
@@ -238,13 +240,7 @@ test('view allows activity caused by leadership within viewable rank range', fun
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create FE3 employee
-    $fe3Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[1]->id, // FE3
-    ]);
-    $fe3User = User::factory()->create(['tenant_id' => $this->tenant->id]);
-    $fe3Employee->user_id = $fe3User->id;
-    $fe3Employee->save();
+    ['user' => $fe3User, 'employee' => $fe3Employee] = createEmployeeWithUser($this->tenant, $this->orgUnit, $this->leadershipLevels[1]);
 
     // User scope: FE1-FE5
     $user->organizationalScopes()->create([
@@ -271,13 +267,7 @@ test('view denies activity caused by leadership below min_viewable_rank', functi
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create FE1 employee (CEO)
-    $fe1Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[0]->id, // FE1
-    ]);
-    $fe1User = User::factory()->create(['tenant_id' => $this->tenant->id]);
-    $fe1Employee->user_id = $fe1User->id;
-    $fe1Employee->save();
+    ['user' => $fe1User, 'employee' => $fe1Employee] = createEmployeeWithUser($this->tenant, $this->orgUnit, $this->leadershipLevels[0]);
 
     // User scope: FE3-FE5 only (lower management)
     $user->organizationalScopes()->create([
@@ -304,13 +294,7 @@ test('view denies activity caused by leadership above max_viewable_rank', functi
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create FE5 employee
-    $fe5Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[2]->id, // FE5
-    ]);
-    $fe5User = User::factory()->create(['tenant_id' => $this->tenant->id]);
-    $fe5Employee->user_id = $fe5User->id;
-    $fe5Employee->save();
+    ['user' => $fe5User, 'employee' => $fe5Employee] = createEmployeeWithUser($this->tenant, $this->orgUnit, $this->leadershipLevels[2]);
 
     // User scope: FE1-FE3 only (upper management)
     $user->organizationalScopes()->create([
@@ -471,13 +455,15 @@ test('view allows activity caused by guard when scope has no rank restrictions (
     $guardEmployee->user_id = $guardUser->id;
     $guardEmployee->save();
 
-    // User scope: No rank restrictions (NULL = all ranks, but guards need explicit min=0)
+    // User scope: No leadership rank restrictions (NULL = no rank filter)
+    // CRITICAL: Guards (rank=null) still require explicit min_viewable_rank=0
+    // NULL min/max only applies to leadership ranks (1-255), not guards
     $user->organizationalScopes()->create([
         'organizational_unit_id' => $this->orgUnit->id,
         'access_level' => 'read',
         'include_descendants' => false,
-        'min_viewable_rank' => null, // No minimum filter
-        'max_viewable_rank' => null, // No maximum filter
+        'min_viewable_rank' => null, // No minimum leadership rank filter (does not include guards)
+        'max_viewable_rank' => null, // No maximum leadership rank filter
     ]);
 
     // Activity caused by guard
@@ -488,7 +474,8 @@ test('view allows activity caused by guard when scope has no rank restrictions (
         'causer_id' => $guardUser->id,
     ]);
 
-    // Guards require explicit min=0, so this should be FALSE
+    // Guards require explicit min_viewable_rank=0, so this should be FALSE
+    // NULL min does NOT grant guard access (by design in ADR-009)
     expect($this->policy->view($user, $activity))->toBeFalse();
 });
 

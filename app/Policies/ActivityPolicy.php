@@ -93,18 +93,13 @@ class ActivityPolicy
         // Leadership level filtering (NEW - Issue #396)
         // Only applies if activity was caused by a User
         if ($activity->causer_type === User::class && $activity->causer_id !== null) {
-            // Eager load causer's employee record with leadership level
-            $causerUser = User::find($activity->causer_id);
-
-            if ($causerUser === null) {
-                return false; // Causer not found
-            }
-
-            // Find causer's employee record in the activity's organizational unit
-            $causerEmployee = Employee::where('user_id', $causerUser->id)
+            // Find causer's employee record with leadership level (single query with join)
+            $causerEmployee = Employee::where('user_id', $activity->causer_id)
                 ->where('organizational_unit_id', $activity->organizational_unit_id)
                 ->with('leadershipLevel')
                 ->first();
+
+            // If employee not found, the user may not exist or may not be an employee in this org unit
 
             if ($causerEmployee === null) {
                 return false; // Causer has no employee record in this org unit
@@ -160,6 +155,10 @@ class ActivityPolicy
         }
 
         // Check if leadership rank within specified range
+        // NOTE: NULL semantics for min/max:
+        // - minViewableRank=null means no lower bound (all leadership ranks >= 1 allowed)
+        // - maxViewableRank=null means no upper bound (all leadership ranks <= 255 allowed)
+        // - Both null = unrestricted leadership access (but guards still require explicit min=0)
         if ($minViewableRank !== null && $causerRank < $minViewableRank) {
             return false; // Below minimum
         }
