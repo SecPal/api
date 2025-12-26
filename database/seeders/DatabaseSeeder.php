@@ -63,6 +63,11 @@ class DatabaseSeeder extends Seeder
                 'organizational_unit_id' => $orgUnit->id,
                 'min_viewable_rank' => 0,
                 'max_viewable_rank' => 0,
+            ],
+            [
+                'access_level' => 'manage',
+                'include_descendants' => true,
+                'allow_self_access' => true,
             ]
         );
 
@@ -73,6 +78,11 @@ class DatabaseSeeder extends Seeder
                 'organizational_unit_id' => $orgUnit->id,
                 'min_viewable_rank' => 1,
                 'max_viewable_rank' => 255,
+            ],
+            [
+                'access_level' => 'manage',
+                'include_descendants' => true,
+                'allow_self_access' => true,
             ]
         );
 
