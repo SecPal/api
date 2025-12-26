@@ -81,7 +81,7 @@ test('users with employee_qualification.read permission can view all employee qu
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.read');
     giveOrganizationalScope($user, $orgUnit);
-    
+
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $orgUnit->id,
     ]);
