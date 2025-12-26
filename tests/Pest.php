@@ -74,7 +74,7 @@ function givePermissionWithTenant(\App\Models\User $user, int $tenantId, string 
 
 /**
  * Give user an organizational scope for testing.
- * Creates a scope with admin access (min=0, max=255) by default.
+ * Creates a scope with manage access (min=0, max=255) by default.
  */
 function giveOrganizationalScope(
     \App\Models\User $user,
@@ -84,7 +84,7 @@ function giveOrganizationalScope(
     ?int $minAssignableRank = 0,
     ?int $maxAssignableRank = 255,
     bool $allowSelfAccess = true,
-    string $accessLevel = 'admin'
+    string $accessLevel = 'manage'
 ): \App\Models\UserInternalOrganizationalScope {
     return \App\Models\UserInternalOrganizationalScope::create([
         'user_id' => $user->id,
