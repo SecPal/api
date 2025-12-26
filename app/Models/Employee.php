@@ -69,7 +69,8 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property ?\Illuminate\Support\Carbon $onboarding_started_at
  * @property ?\Illuminate\Support\Carbon $onboarding_completed_at
  * @property string|null $organizational_unit_id
- * @property string|null $leadership_level_id UUID of leadership level (NULL for non-leadership employees)
+ * @property string|null $position Job title/role (e.g., 'Objektleiter Flughafen Berlin')
+ * @property int $management_level Management level: 0=non-management, 1=CEO/highest, 2-255=lower levels
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property ?\Illuminate\Support\Carbon $deleted_at
@@ -84,7 +85,6 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property-read TenantKey $tenant
  * @property-read User|null $user
  * @property-read OrganizationalUnit|null $organizationalUnit
- * @property-read LeadershipLevel|null $leadershipLevel Leadership level (NULL for non-leadership employees)
  * @property-read Collection<int, EmployeeQualification> $employeeQualifications
  * @property-read Collection<int, Qualification> $qualifications
  * @property-read Collection<int, EmployeeDocument> $documents
@@ -165,7 +165,8 @@ class Employee extends Model
         'onboarding_started_at',
         'onboarding_completed_at',
         'organizational_unit_id',
-        'leadership_level_id',
+        'position',
+        'management_level',
     ];
 
     /**
@@ -281,26 +282,13 @@ class Employee extends Model
     }
 
     /**
-     * Get the leadership level assigned to this employee.
+     * Check if employee has a management level assigned.
      *
-     * NULL for non-leadership employees (e.g., Guards, regular staff).
-     * Leadership levels enable hierarchical access control (ADR-009).
-     *
-     * @return BelongsTo<LeadershipLevel, $this>
+     * @return bool True if employee has management role (1-255), false for non-management (0)
      */
-    public function leadershipLevel(): BelongsTo
+    public function hasManagementLevel(): bool
     {
-        return $this->belongsTo(LeadershipLevel::class, 'leadership_level_id');
-    }
-
-    /**
-     * Check if employee has a leadership level assigned.
-     *
-     * @return bool True if employee has leadership role, false otherwise (e.g., Guard)
-     */
-    public function hasLeadershipLevel(): bool
-    {
-        return $this->leadership_level_id !== null;
+        return $this->management_level > 0;
     }
 
     /**
@@ -585,30 +573,30 @@ class Employee extends Model
      * - To see ALL employees: Need TWO scopes (one for non-leadership, one for leadership)
      *
      * @param  Builder<self>  $query
-     * @param  int|null  $minRank  Minimum leadership rank (inclusive, NULL = no minimum)
-     * @param  int|null  $maxRank  Maximum leadership rank (inclusive, NULL/0 = ONLY non-leadership!)
+     * @param  int|null  $minLevel  Minimum management level (inclusive, NULL = no minimum)
+     * @param  int|null  $maxLevel  Maximum management level (inclusive, NULL/0 = ONLY non-management!)
      *
      * @see https://github.com/SecPal/api/issues/425
      */
-    public function scopeWithinRankRange(Builder $query, ?int $minRank, ?int $maxRank): void
+    public function scopeWithinLevelRange(Builder $query, ?int $minLevel, ?int $maxLevel): void
     {
-        // CRITICAL: NULL or 0 in max = ONLY non-leadership employees!
-        if ($maxRank === null || $maxRank === 0) {
-            $query->whereNull('leadership_level_id');
+        // CRITICAL: NULL or 0 in max = ONLY non-management employees!
+        if ($maxLevel === null || $maxLevel === 0) {
+            $query->whereNull('management_level');
 
             return;
         }
 
-        // Show employees within rank range (LEADERSHIP ONLY)
-        $query->whereHas('leadershipLevel', function ($q) use ($minRank, $maxRank) {
-            if (! is_null($minRank)) {
-                $q->where('rank', '>=', $minRank);
-            }
+        // Show employees within level range (MANAGEMENT ONLY)
+        $query->whereNotNull('management_level');
 
-            if (! is_null($maxRank) && $maxRank > 0) { // @phpstan-ignore function.impossibleType
-                $q->where('rank', '<=', $maxRank);
-            }
-        });
+        if (! is_null($minLevel)) {
+            $query->where('management_level', '>=', $minLevel);
+        }
+
+        if (! is_null($maxLevel) && $maxLevel > 0) { // @phpstan-ignore function.impossibleType
+            $query->where('management_level', '<=', $maxLevel);
+        }
     }
 
     /**

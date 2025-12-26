@@ -100,6 +100,8 @@ class EmployeeResource extends JsonResource
 
             // Organizational
             'organizational_unit_id' => $this->organizational_unit_id,
+            'position' => $this->position,
+            'management_level' => $this->management_level,
 
             // Relationships (optional, load when needed)
             'user' => new UserResource($this->whenLoaded('user')),

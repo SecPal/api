@@ -91,9 +91,8 @@ class EmployeePolicy
                 return false; // Manager has scopes, but not for this unit
             }
 
-            // Performance: Eager load leadershipLevel to avoid N+1 queries when checking multiple employees
-            $employee->loadMissing('leadershipLevel');
-            $employeeRank = $employee->leadershipLevel?->rank;
+            // Get employee's management level (simple integer field)
+            $employeeRank = $employee->management_level;
 
             foreach ($scopes as $scope) {
                 // Check rank filtering
@@ -111,43 +110,40 @@ class EmployeePolicy
     }
 
     /**
-     * Check if employee's rank is within user's viewable rank range.
+     * Check if employee's management level is within user's viewable range.
      *
      * CRITICAL SEMANTICS (ADR-009):
-     * - Guards have leadership_level_id = NULL (no rank)
-     * - Leadership ranks: 1-255 (FE1 to FE255)
-     * - Rank 0 is used in scopes to represent "Guards access"
+     * - Non-management employees have management_level = 0
+     * - Management levels: 1-255 (1=CEO/highest, 255=lowest)
      *
-     * Rank Range Interpretations (for scopes):
-     * - min=0, max=0 → Only Guards visible (no leadership access)
-     * - min=0, max=X → Guards + Leadership up to rank X (if X >= 1)
-     * - min=1, max=Y → Leadership ranks 1 to Y (Guards NOT visible)
-     * - min=X, max=255 → Leadership from rank X to 255
+     * Two separate scope systems (cannot be mixed):
+     * - 0/0: ONLY non-management employees (Guards)
+     * - 1-255: Management levels (e.g., 1/5 = ML1-ML5, 1/255 = all management)
+     * - Invalid: 0/5 (cannot mix non-management with management levels)
      *
-     * @param  int|null  $employeeRank  Employee's leadership rank (NULL for Guards, 1-255 for FE1-FE255)
-     * @param  int|null  $minViewableRank  Minimum viewable rank (0 = includes Guards, 1-255 for FE1-FE255)
-     * @param  int|null  $maxViewableRank  Maximum viewable rank (0 = Guards only, 1-255 for FE1-FE255)
+     * @param  int  $employeeLevel  Employee's management level (0=non-management, 1-255=management)
+     * @param  int|null  $minViewableLevel  Minimum viewable level (0=non-management only, 1-255=management)
+     * @param  int|null  $maxViewableLevel  Maximum viewable level (0=non-management only, 1-255=management)
      */
-    private function isWithinViewableRankRange(?int $employeeRank, ?int $minViewableRank, ?int $maxViewableRank): bool
+    private function isWithinViewableRankRange(int $employeeLevel, ?int $minViewableLevel, ?int $maxViewableLevel): bool
     {
-        // Case 1: Employee is Guard (no leadership level, rank = NULL)
-        if ($employeeRank === null) {
-            // Guards visible if scope includes rank 0 (min=0)
-            return $minViewableRank === 0;
+        // Case 1: Scope 0/0 = ONLY non-management employees
+        if ($maxViewableLevel === 0) {
+            return $employeeLevel === 0; // Only non-management visible
         }
 
-        // Case 2: Employee has leadership level (rank 1-255)
-        // Guards-only scope (min=0, max=0) cannot see leadership
-        if ($maxViewableRank === 0) {
-            return false; // This scope is for Guards only
+        // Case 2: Employee is non-management (level = 0)
+        if ($employeeLevel === 0) {
+            return false; // Non-management not visible in management scopes (1-255)
         }
 
-        // Check if leadership rank within specified range
-        if ($minViewableRank !== null && $employeeRank < $minViewableRank) {
+        // Case 3: Management level scopes (1-255)
+        // Check if management level within specified range
+        if ($minViewableLevel !== null && $employeeLevel < $minViewableLevel) {
             return false; // Below minimum
         }
 
-        if ($maxViewableRank !== null && $employeeRank > $maxViewableRank) {
+        if ($maxViewableLevel !== null && $employeeLevel > $maxViewableLevel) {
             return false; // Above maximum
         }
 
@@ -215,9 +211,8 @@ class EmployeePolicy
                 return false; // Manager has scopes, but not for this unit
             }
 
-            // Performance: Eager load leadershipLevel to avoid N+1 queries when checking multiple employees
-            $employee->loadMissing('leadershipLevel');
-            $employeeRank = $employee->leadershipLevel?->rank;
+            // Get employee's management level (simple integer field)
+            $employeeRank = $employee->management_level;
 
             foreach ($scopes as $scope) {
                 // Check rank filtering

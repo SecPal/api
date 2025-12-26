@@ -94,7 +94,24 @@ test('users with employee.read permission can view all employees', function (): 
     $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
-    giveOrganizationalScope($user, $orgUnit);
+
+    // Need TWO scopes: 0-0 for Guards + 1-255 for Leadership (ADR-009)
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0, // Guards only
+        'allow_self_access' => true,
+    ]);
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 255, // Leadership only
+        'allow_self_access' => true,
+    ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $orgUnit->id,
@@ -108,15 +125,21 @@ test('users with employee.read permission can view employees in own organization
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
 
-    // Add organizational scope
+    // Need TWO scopes to see all employees: 0-0 for Guards + 1-255 for Leadership
     $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit->id,
         'include_descendants' => false,
         'access_level' => 'write',
         'min_viewable_rank' => 0,
-        'max_viewable_rank' => 255,
-        'min_assignable_rank' => 0,
-        'max_assignable_rank' => 255,
+        'max_viewable_rank' => 0, // Guards only
+        'allow_self_access' => true,
+    ]);
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'include_descendants' => false,
+        'access_level' => 'write',
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 255, // Leadership only
         'allow_self_access' => true,
     ]);
 
@@ -187,7 +210,24 @@ test('users with employee.write permission can update all employees', function (
     $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
-    giveOrganizationalScope($user, $orgUnit);
+
+    // Need TWO scopes to update all employees: 0-0 for Guards + 1-255 for Leadership
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0, // Guards only
+        'allow_self_access' => true,
+    ]);
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 255, // Leadership only
+        'allow_self_access' => true,
+    ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $orgUnit->id,

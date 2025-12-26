@@ -12,7 +12,6 @@ use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeQualification;
-use App\Models\LeadershipLevel;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OrganizationalUnit;
@@ -33,7 +32,6 @@ use App\Policies\CustomerPolicy;
 use App\Policies\EmployeeDocumentPolicy;
 use App\Policies\EmployeePolicy;
 use App\Policies\EmployeeQualificationPolicy;
-use App\Policies\LeadershipLevelPolicy;
 use App\Policies\OnboardingFormSubmissionPolicy;
 use App\Policies\OnboardingFormTemplatePolicy;
 use App\Policies\OrganizationalUnitPolicy;
@@ -50,7 +48,6 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\Models\Role;
 
@@ -73,12 +70,6 @@ class AppServiceProvider extends ServiceProvider
         Person::observe(PersonObserver::class);
         Secret::observe(SecretObserver::class);
         Employee::observe(EmployeeObserver::class);
-
-        // Configure route model binding for soft-deleted LeadershipLevel models
-        // This allows restore and forceDelete routes to work with trashed models
-        Route::bind('leadershipLevel', function (string $value) {
-            return LeadershipLevel::withTrashed()->findOrFail($value);
-        });
 
         // Define rate limiters (using cache, not Redis)
         RateLimiter::for('api', function (Request $request) {
@@ -138,9 +129,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(EmployeeQualification::class, EmployeeQualificationPolicy::class);
         Gate::policy(OnboardingFormTemplate::class, OnboardingFormTemplatePolicy::class);
         Gate::policy(OnboardingFormSubmission::class, OnboardingFormSubmissionPolicy::class);
-
-        // Register policies for Leadership Levels System (Epic #399, Issue #424)
-        Gate::policy(LeadershipLevel::class, LeadershipLevelPolicy::class);
 
         // Register gates for user permission management
         $this->registerUserPermissionGates();

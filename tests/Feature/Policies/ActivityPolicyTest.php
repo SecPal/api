@@ -5,7 +5,6 @@
 
 use App\Models\Activity;
 use App\Models\Employee;
-use App\Models\LeadershipLevel;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -37,25 +36,6 @@ beforeEach(function (): void {
     $this->orgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
-
-    // Create leadership levels (German security industry standard)
-    $this->leadershipLevels = collect([
-        LeadershipLevel::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'rank' => 1,
-            'name' => 'Geschäftsführer',
-        ]),
-        LeadershipLevel::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'rank' => 3,
-            'name' => 'Niederlassungsleiter',
-        ]),
-        LeadershipLevel::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'rank' => 5,
-            'name' => 'Objektleiter',
-        ]),
-    ]);
 });
 
 afterEach(function (): void {
@@ -69,12 +49,12 @@ afterEach(function (): void {
  * Helper function to create an employee with associated user in one call.
  * Reduces repetitive code pattern throughout tests.
  */
-function createEmployeeWithUser(TenantKey $tenant, OrganizationalUnit $orgUnit, ?LeadershipLevel $leadershipLevel = null): array
+function createEmployeeWithUser(TenantKey $tenant, OrganizationalUnit $orgUnit, ?int $leadershipRank = null): array
 {
     $user = User::factory()->create(['tenant_id' => $tenant->id]);
     $employee = Employee::factory()->for($tenant, 'tenant')->create([
         'organizational_unit_id' => $orgUnit->id,
-        'leadership_level_id' => $leadershipLevel?->id,
+        'management_level' => $leadershipRank,
         'user_id' => $user->id,
     ]);
 
@@ -186,7 +166,7 @@ test('view allows activity caused by guard (no leadership level) when scope incl
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create guard employee (no leadership level)
-    ['user' => $guardUser, 'employee' => $guardEmployee] = createEmployeeWithUser($this->tenant, $this->orgUnit, null);
+    ['user' => $guardUser, 'employee' => $guardEmployee] = createEmployeeWithUser($this->tenant, $this->orgUnit, 0);
 
     // User scope: Guards only (min=0, max=0)
     $user->organizationalScopes()->create([
@@ -213,7 +193,7 @@ test('view denies activity caused by guard when scope excludes guards (min=1)', 
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create guard employee
-    ['user' => $guardUser, 'employee' => $guardEmployee] = createEmployeeWithUser($this->tenant, $this->orgUnit, null);
+    ['user' => $guardUser, 'employee' => $guardEmployee] = createEmployeeWithUser($this->tenant, $this->orgUnit, 0);
 
     // User scope: Leadership only (min=1, max=255)
     $user->organizationalScopes()->create([
@@ -240,7 +220,7 @@ test('view allows activity caused by leadership within viewable rank range', fun
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create FE3 employee
-    ['user' => $fe3User, 'employee' => $fe3Employee] = createEmployeeWithUser($this->tenant, $this->orgUnit, $this->leadershipLevels[1]);
+    ['user' => $fe3User, 'employee' => $fe3Employee] = createEmployeeWithUser($this->tenant, $this->orgUnit, 3);
 
     // User scope: FE1-FE5
     $user->organizationalScopes()->create([
@@ -267,7 +247,7 @@ test('view denies activity caused by leadership below min_viewable_rank', functi
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create FE1 employee (CEO)
-    ['user' => $fe1User, 'employee' => $fe1Employee] = createEmployeeWithUser($this->tenant, $this->orgUnit, $this->leadershipLevels[0]);
+    ['user' => $fe1User, 'employee' => $fe1Employee] = createEmployeeWithUser($this->tenant, $this->orgUnit, 1);
 
     // User scope: FE3-FE5 only (lower management)
     $user->organizationalScopes()->create([
@@ -294,7 +274,7 @@ test('view denies activity caused by leadership above max_viewable_rank', functi
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
     // Create FE5 employee
-    ['user' => $fe5User, 'employee' => $fe5Employee] = createEmployeeWithUser($this->tenant, $this->orgUnit, $this->leadershipLevels[2]);
+    ['user' => $fe5User, 'employee' => $fe5Employee] = createEmployeeWithUser($this->tenant, $this->orgUnit, 5);
 
     // User scope: FE1-FE3 only (upper management)
     $user->organizationalScopes()->create([
@@ -374,7 +354,7 @@ test('view allows activity when user has multiple scopes and one matches rank', 
     // Create FE3 employee
     $fe3Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[1]->id, // FE3
+        'management_level' => 3, // FE3
     ]);
     $fe3User = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $fe3Employee->user_id = $fe3User->id;
@@ -416,7 +396,7 @@ test('view allows activity caused by leadership when scope has no rank restricti
     // Create FE3 employee
     $fe3Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[1]->id, // FE3
+        'management_level' => 3, // FE3
     ]);
     $fe3User = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $fe3Employee->user_id = $fe3User->id;
@@ -449,7 +429,7 @@ test('view allows activity caused by guard when scope has no rank restrictions (
     // Create guard employee (no leadership level)
     $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => null, // Guard
+        'management_level' => 0, // Guard
     ]);
     $guardUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $guardEmployee->user_id = $guardUser->id;
@@ -530,7 +510,7 @@ test('view denies activity when causer employee is from different organizational
     // Causer from different org unit
     $otherEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $otherOrgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[0]->id,
+        'management_level' => 1,
     ]);
     $otherUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $otherEmployee->user_id = $otherUser->id;

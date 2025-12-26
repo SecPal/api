@@ -54,6 +54,8 @@ class StoreEmployeeRequest extends FormRequest
                 Employee::STATUS_ON_LEAVE,
                 Employee::STATUS_TERMINATED,
             ])],
+            'position' => ['nullable', 'string', 'max:255'],
+            'management_level' => ['required', 'integer', 'min:0', 'max:255'],
             'hire_date' => ['nullable', 'date'],
             'contract_start_date' => ['nullable', 'date'],
             'termination_date' => ['nullable', 'date', 'after_or_equal:contract_start_date'],

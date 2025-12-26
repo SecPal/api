@@ -57,6 +57,7 @@ class EmployeeFactory extends Factory
             'contract_type' => fake()->randomElement(['full_time', 'part_time', 'minijob', 'freelance']),
             'status' => Employee::STATUS_ACTIVE,
             'onboarding_completed_at' => fake()->dateTimeBetween('-6 months', 'now'),
+            'management_level' => 0, // Default: non-management (0=Guards, 1-255=Management)
             // Don't set user_id by default - let tests control this
             // or use withUser() state
         ];

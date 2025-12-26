@@ -202,6 +202,7 @@ describe('POST /v1/employees', function () {
             'weekly_hours' => 40,
             'hourly_rate' => 15.50,
             'organizational_unit_id' => $this->organizationalUnit->id,
+            'management_level' => 0,
         ]);
 
         $response->assertStatus(403);
@@ -241,6 +242,7 @@ describe('POST /v1/employees', function () {
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
+                'management_level' => 0,
             ]);
 
         $response->assertStatus(201)
@@ -278,6 +280,7 @@ describe('POST /v1/employees', function () {
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
+                'management_level' => 0,
             ]);
 
         $response->assertStatus(201);
@@ -305,6 +308,7 @@ describe('POST /v1/employees', function () {
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
+                'management_level' => 0,
             ]);
 
         $response2 = $this->withToken($this->token)
@@ -322,6 +326,7 @@ describe('POST /v1/employees', function () {
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
+                'management_level' => 0,
             ]);
 
         $number1 = $response1->json('data.employee_number');
@@ -357,11 +362,30 @@ describe('GET /v1/employees/{employee}', function () {
 
     test('returns employee with relationships', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-        giveOrganizationalScope($this->user, $this->organizationalUnit);
+
+        // Need TWO scopes: 0-0 for Guards + 1-255 for Leadership (ADR-009)
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0, // Guards only
+            'allow_self_access' => true,
+        ]);
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 1,
+            'max_viewable_rank' => 255, // Leadership only
+            'allow_self_access' => true,
+        ]);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,
+            'position' => 'Test Position',
+            'management_level' => 3,
         ]);
 
         $response = $this->withToken($this->token)
@@ -376,8 +400,16 @@ describe('GET /v1/employees/{employee}', function () {
                     'last_name',
                     'email',
                     'status',
+                    'position',
+                    'management_level',
                     'user',
                     'organizational_unit',
+                ],
+            ])
+            ->assertJson([
+                'data' => [
+                    'position' => 'Test Position',
+                    'management_level' => 3,
                 ],
             ]);
     });
@@ -413,7 +445,25 @@ describe('PATCH /v1/employees/{employee}', function () {
 
     test('updates employee with valid data', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-        giveOrganizationalScope($this->user, $this->organizationalUnit);
+
+        // Need TWO scopes: 0-0 for Guards + 1-255 for Leadership (ADR-009)
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0, // Guards only
+            'allow_self_access' => true,
+        ]);
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 1,
+            'max_viewable_rank' => 255, // Leadership only
+            'allow_self_access' => true,
+        ]);
+
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,
@@ -670,6 +720,7 @@ test('manager can create employee in unit within their scope', function (): void
         'contract_start_date' => now()->toDateString(),
         'position' => 'Security Guard',
         'organizational_unit_id' => $unitA->id,
+        'management_level' => 0,
     ]);
 
     $response->assertStatus(201);
@@ -723,6 +774,7 @@ test('admin without organizational scopes can create employee in any unit', func
         'contract_start_date' => now()->toDateString(),
         'position' => 'Security Guard',
         'organizational_unit_id' => $unitA->id,
+        'management_level' => 0,
     ]);
 
     $response->assertStatus(201);
@@ -754,6 +806,7 @@ test('manager with include_descendants=true can create employee in child unit', 
         'contract_start_date' => now()->toDateString(),
         'position' => 'Security Guard',
         'organizational_unit_id' => $child->id,
+        'management_level' => 0,
     ]);
 
     $response->assertStatus(201);
