@@ -271,7 +271,7 @@ test('scope with max_viewable_rank=0 shows ONLY non-leadership employees', funct
         'organizational_unit_id' => $this->orgUnit->id,
         'access_level' => 'write',
         'include_descendants' => false,
-        'min_viewable_rank' => null,
+        'min_viewable_rank' => 0, // Guards (ADR-009: min=0 for Guards)
         'max_viewable_rank' => 0, // CRITICAL: ONLY non-leadership!
         'allow_self_access' => true,
     ]);
@@ -335,7 +335,7 @@ test('user with TWO scopes can see both non-leadership and leadership', function
         'organizational_unit_id' => $this->orgUnit->id,
         'access_level' => 'write',
         'include_descendants' => false,
-        'min_viewable_rank' => null,
+        'min_viewable_rank' => 0, // Guards (ADR-009: min=0 for Guards)
         'max_viewable_rank' => 0, // Non-leadership
         'allow_self_access' => true,
     ]);
