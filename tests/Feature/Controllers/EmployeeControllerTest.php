@@ -357,6 +357,7 @@ describe('GET /v1/employees/{employee}', function () {
 
     test('returns employee with relationships', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+        giveOrganizationalScope($this->user, $this->organizationalUnit);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -411,8 +412,7 @@ describe('PATCH /v1/employees/{employee}', function () {
     });
 
     test('updates employee with valid data', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');        giveOrganizationalScope($this->user, $this->organizationalUnit);
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,

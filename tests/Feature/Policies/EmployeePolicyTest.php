@@ -91,9 +91,14 @@ test('employee cannot view other employees', function (): void {
 });
 
 test('users with employee.read permission can view all employees', function (): void {
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    giveOrganizationalScope($user, $orgUnit);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
 
     expect($this->policy->view($user, $employee))->toBeTrue();
 });
@@ -174,9 +179,14 @@ test('employee can update own profile', function (): void {
 });
 
 test('users with employee.write permission can update all employees', function (): void {
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    giveOrganizationalScope($user, $orgUnit);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
 
     expect($this->policy->update($user, $employee))->toBeTrue();
 });

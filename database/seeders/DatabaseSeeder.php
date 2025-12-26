@@ -5,10 +5,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
-use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\PermissionRegistrar;

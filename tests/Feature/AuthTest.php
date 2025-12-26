@@ -671,4 +671,5 @@ describe('Organizational Scopes Authorization', function () {
                     'hasOrganizationalScopes' => true,
                 ],
             ]);
-    });});
+    });
+});

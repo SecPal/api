@@ -76,11 +76,14 @@ test('employee cannot view other employees submissions', function (): void {
 });
 
 test('users with onboarding.read can view all submissions regardless of scope', function (): void {
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $userWithPermission = User::factory()->create();
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
+    giveOrganizationalScope($userWithPermission, $orgUnit);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'status' => 'pre_contract',
+        'organizational_unit_id' => $orgUnit->id,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
