@@ -14,6 +14,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **ActivityPolicy with Leadership Level Filtering** (Issue #396, Epic #385)
+  - **IMPLEMENTED** authorization policy for hierarchical activity log access
+  - Architecture:
+    - `view()` method enforces tenant isolation + organizational scope + leadership filtering
+    - `viewAny()` method requires `activity_log.read` permission
+    - Leadership filtering applies to activity CAUSER's rank (not subject)
+  - Authorization Logic:
+    1. Tenant isolation (always first - defense in depth)
+    2. Permission check (`activity_log.read` required)
+    3. Global activities (no org unit): Allowed if permission granted
+    4. Organizational scope check: Must have scope for activity's org unit
+    5. Leadership filtering: Can only view logs from subordinates (or system)
+  - Rank Filter Semantics (ADR-009):
+    - Guards (no leadership): Require `min_viewable_rank=0` in scope
+    - Leadership ranks 1-255: Filtered by scope's min/max range
+    - System activities (no causer): Always visible (no rank filtering)
+    - **VALIDATED SEPARATION**: Guards (min=0) and Leadership (max>0) MUST use separate scopes
+  - **Validation Rules** (prevents scope misconfiguration):
+    - Backend: Custom validation in `StoreOrganizationalScopeRequest` and `UpdateOrganizationalScopeRequest`
+    - Frontend: `validateRankRange()` in `leadershipLevelUtils.ts`
+    - Error: "Guards (min=0) and Leadership (max>0) must use separate scopes"
+    - Allowed: `min=0, max=0` (Guards only) or `min=X, max=Y` (Leadership only)
+  - Testing:
+    - 19 ActivityPolicy tests (100% coverage)
+    - 6 validation tests (create + update for viewing + assignment ranks)
+    - All scenarios: Guards, Leadership, multi-scope, system activities, NULL filters
+  - Quality Gates: ✅ PHPStan Level 9, ✅ Pint compliant, ✅ All 21 tests passing
+  - **Impact:** Completes Epic #385 Phase 4 (ActivityPolicy), enables BewachV § 21 Abs. 4 compliance
+
 - **Leadership Levels Database Infrastructure** (Issue #423, Epic #399)
   - **IMPLEMENTED** database migrations for tenant-configurable leadership hierarchies per ADR-009
   - Architecture:
