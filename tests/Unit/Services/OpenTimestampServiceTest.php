@@ -10,7 +10,6 @@ declare(strict_types=1);
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
 use InvalidArgumentException;
-use Mockery;
 
 /**
  * Unit tests for OpenTimestamp proof verification.

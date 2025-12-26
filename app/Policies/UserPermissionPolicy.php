@@ -14,9 +14,9 @@ use App\Models\User;
  * Authorization policy for direct permission assignment to users.
  *
  * Rules:
- * - viewPermissions: User can view own, Admin can view all
- * - assignPermission: Admin only
- * - revokePermission: Admin only
+ * - viewPermissions: User can view own, or needs 'permissions.read' permission
+ * - assignPermission: Requires 'permissions.assign_direct' permission
+ * - revokePermission: Requires 'permissions.revoke_direct' permission
  */
 class UserPermissionPolicy
 {
@@ -24,7 +24,7 @@ class UserPermissionPolicy
      * Determine whether the user can view permissions of the target user.
      *
      * Users can view their own permissions.
-     * Admins can view any user's permissions.
+     * Users with 'permissions.read' can view any user's permissions.
      */
     public function viewPermissions(User $currentUser, User $targetUser): bool
     {
@@ -33,27 +33,27 @@ class UserPermissionPolicy
             return true;
         }
 
-        // Admin can view any user's permissions
-        return $currentUser->hasRole('Admin');
+        // Check permission
+        return $currentUser->can('permissions.read');
     }
 
     /**
      * Determine whether the user can assign permissions to the target user.
      *
-     * Only Admins can assign direct permissions.
+     * Requires 'permissions.assign_direct' permission.
      */
     public function assignPermission(User $currentUser, User $targetUser): bool
     {
-        return $currentUser->hasRole('Admin');
+        return $currentUser->can('permissions.assign_direct');
     }
 
     /**
      * Determine whether the user can revoke permissions from the target user.
      *
-     * Only Admins can revoke direct permissions.
+     * Requires 'permissions.revoke_direct' permission.
      */
     public function revokePermission(User $currentUser, User $targetUser): bool
     {
-        return $currentUser->hasRole('Admin');
+        return $currentUser->can('permissions.revoke_direct');
     }
 }

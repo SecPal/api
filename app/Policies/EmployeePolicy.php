@@ -38,10 +38,15 @@ class EmployeePolicy
     /**
      * Determine if user can view a specific employee.
      *
-     * Employee can view own profile (if allow_self_access = true in scope).
-     * Users with employee.read permission can view employees.
-     * Scope-based access: Users with organizational scopes are restricted to their scope.
-     * Leadership Level filtering: Users can only view employees within their viewable rank range.
+     * AUTHORIZATION LOGIC (ADR-009):
+     * 1. Tenant isolation check (always first)
+     * 2. Self-access: User can view own profile IF allow_self_access=true in scope
+     * 3. Permission check: Requires employee.read permission
+     * 4. Organizational scope check: ALL users MUST have scopes to access organizational data
+     * 5. Rank filtering: Employee must be within user's viewable rank range
+     *
+     * IMPORTANT: There is NO "Admin without scopes" - all users accessing
+     * organizational features must have defined scopes (with appropriate rank ranges).
      */
     public function view(User $user, Employee $employee): bool
     {
@@ -100,39 +105,49 @@ class EmployeePolicy
             return false; // Employee not visible in any scope
         }
 
-        // Admin/HR (no scopes at all): Can view all
-        return $allScopes->isEmpty();
+        // No scopes = no access to organizational data
+        // All users accessing employees MUST have organizational scopes
+        return false;
     }
 
     /**
      * Check if employee's rank is within user's viewable rank range.
      *
-     * CRITICAL SEMANTICS:
-     * - max_viewable_rank = NULL or 0 → ONLY employees with rank = NULL (non-leadership)
-     * - max_viewable_rank = 255 → All leadership levels (FE1-FE255)
+     * CRITICAL SEMANTICS (ADR-009):
+     * - Guards have leadership_level_id = NULL (no rank)
+     * - Leadership ranks: 1-255 (FE1 to FE255)
+     * - Rank 0 is used in scopes to represent "Guards access"
      *
-     * @param  int|null  $employeeRank  Employee's leadership rank (NULL for non-leadership)
-     * @param  int|null  $minViewableRank  Minimum viewable rank (NULL = no minimum)
-     * @param  int|null  $maxViewableRank  Maximum viewable rank (NULL/0 = ONLY non-leadership)
+     * Rank Range Interpretations (for scopes):
+     * - min=0, max=0 → Only Guards visible (no leadership access)
+     * - min=0, max=X → Guards + Leadership up to rank X (if X >= 1)
+     * - min=1, max=Y → Leadership ranks 1 to Y (Guards NOT visible)
+     * - min=X, max=255 → Leadership from rank X to 255
+     *
+     * @param  int|null  $employeeRank  Employee's leadership rank (NULL for Guards, 1-255 for FE1-FE255)
+     * @param  int|null  $minViewableRank  Minimum viewable rank (0 = includes Guards, 1-255 for FE1-FE255)
+     * @param  int|null  $maxViewableRank  Maximum viewable rank (0 = Guards only, 1-255 for FE1-FE255)
      */
     private function isWithinViewableRankRange(?int $employeeRank, ?int $minViewableRank, ?int $maxViewableRank): bool
     {
-        // Case 1: max_viewable_rank = NULL or 0 → ONLY non-leadership employees
-        if ($maxViewableRank === null || $maxViewableRank === 0) {
-            return $employeeRank === null; // Only non-leadership visible
-        }
-
-        // Case 2: Employee has NO leadership level (Guard)
+        // Case 1: Employee is Guard (no leadership level, rank = NULL)
         if ($employeeRank === null) {
-            return false; // Non-leadership NOT visible in leadership-only scope
+            // Guards visible if scope includes rank 0 (min=0)
+            return $minViewableRank === 0;
         }
 
-        // Case 3: Check if employee's rank is within range
-        if (! is_null($minViewableRank) && $employeeRank < $minViewableRank) {
+        // Case 2: Employee has leadership level (rank 1-255)
+        // Guards-only scope (min=0, max=0) cannot see leadership
+        if ($maxViewableRank === 0) {
+            return false; // This scope is for Guards only
+        }
+
+        // Check if leadership rank within specified range
+        if ($minViewableRank !== null && $employeeRank < $minViewableRank) {
             return false; // Below minimum
         }
 
-        if (! is_null($maxViewableRank) && $employeeRank > $maxViewableRank) { // @phpstan-ignore function.impossibleType
+        if ($maxViewableRank !== null && $employeeRank > $maxViewableRank) {
             return false; // Above maximum
         }
 
@@ -214,8 +229,9 @@ class EmployeePolicy
             return false; // Employee not editable in any scope
         }
 
-        // Admin/HR (no scopes at all): Can update all
-        return $allScopes->isEmpty();
+        // No scopes = no access to organizational data
+        // All users accessing employees MUST have organizational scopes
+        return false;
     }
 
     /**

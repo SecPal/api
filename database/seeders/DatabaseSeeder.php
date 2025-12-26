@@ -50,21 +50,34 @@ class DatabaseSeeder extends Seeder
             $testUser->assignRole('Admin');
         }
 
-        // Assign organizational scope to test user (admin access to holding = access to everything)
-        $holding = OrganizationalUnit::where('name', 'SecPal Holding')->first();
-        if ($holding) {
-            UserInternalOrganizationalScope::firstOrCreate(
-                [
-                    'user_id' => $testUser->id,
-                    'organizational_unit_id' => $holding->id,
-                ],
-                [
-                    'access_level' => 'admin',
-                    'include_descendants' => true,
-                ]
-            );
-        }
+        // Admin gets TWO organizational scopes for full access:
+        // 1. Scope 0-0 for Guards (non-leadership employees, rank = NULL)
+        // 2. Scope 1-255 for all Leadership levels (FE1 to FE255)
+        $orgUnit = \App\Models\OrganizationalUnit::firstOrCreate(
+            ['name' => 'Headquarters', 'tenant_id' => $tenantId],
+            ['type' => 'holding']
+        );
 
-        $this->command->info('Test user created with Admin role and full organizational access.');
+        // Scope for Guards (non-leadership)
+        \App\Models\UserInternalOrganizationalScope::updateOrCreate(
+            [
+                'user_id' => $testUser->id,
+                'organizational_unit_id' => $orgUnit->id,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+            ]
+        );
+
+        // Scope for all Leadership levels
+        \App\Models\UserInternalOrganizationalScope::updateOrCreate(
+            [
+                'user_id' => $testUser->id,
+                'organizational_unit_id' => $orgUnit->id,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 255,
+            ]
+        );
+
+        $this->command->info('Test user created with Admin role and organizational scopes (0-0 for Guards, 1-255 for Leadership).');
     }
 }
