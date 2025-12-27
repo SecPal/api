@@ -173,6 +173,44 @@ describe('GET /v1/activity-logs', function () {
         expect($response->json('data')[0]['description'])->toBe('Accessible activity');
     });
 
+    test('excludes global activities for users with organizational scopes', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+
+        $orgUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        // Give user scope to orgUnit
+        UserInternalOrganizationalScope::factory()->create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'access_level' => 'read',
+            'min_viewable_rank' => null,
+            'max_viewable_rank' => null,
+        ]);
+
+        // Create a global activity (no organizational_unit_id)
+        Activity::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => null,
+            'description' => 'Global activity',
+        ]);
+
+        // Create a scoped activity
+        Activity::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'description' => 'Scoped activity',
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+
+        $response->assertOk();
+        // Users WITH scopes should see ONLY scoped activities, NOT global ones
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data')[0]['description'])->toBe('Scoped activity');
+    });
+
     test('filters by leadership level - only shows subordinates activities', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
 

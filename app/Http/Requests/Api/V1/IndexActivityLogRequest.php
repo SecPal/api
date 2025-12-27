@@ -6,6 +6,7 @@
 namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Request validation for activity log index filtering.
@@ -52,8 +53,12 @@ class IndexActivityLogRequest extends FormRequest
             // Search in description (case-insensitive)
             'search' => ['nullable', 'string', 'max:255'],
 
-            // Organizational unit filtering
-            'organizational_unit_id' => ['nullable', 'uuid', 'exists:organizational_units,id'],
+            // Organizational unit filtering (tenant-scoped)
+            'organizational_unit_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists('organizational_units', 'id')->where('tenant_id', $this->user()?->tenant_id),
+            ],
 
             // Causer filtering
             'causer_type' => ['nullable', 'string', 'max:255'],

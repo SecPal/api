@@ -148,9 +148,9 @@ class ActivityLogController extends Controller
      * Apply scoped filtering based on organizational scopes and leadership levels.
      *
      * CRITICAL AUTHORIZATION LOGIC (ADR-010 + ADR-009):
-     * 1. Include global activities (no organizational_unit_id)
-     * 2. Filter by user's organizational scopes
-     * 3. Apply leadership level filtering (only subordinates' activities)
+     * 1. Users without organizational scopes: see all tenant activities, including global ones (no organizational_unit_id).
+     * 2. Users with organizational scopes: see only activities within their scoped organizational units (global activities are excluded).
+     * 3. Apply leadership level filtering on the scoped result (only subordinates' activities).
      *
      * @param  \Illuminate\Database\Eloquent\Builder<Activity>  $query
      * @param  \App\Models\User  $user
@@ -273,6 +273,8 @@ class ActivityLogController extends Controller
         // Search in description (case-insensitive)
         if ($request->has('search')) {
             $search = $request->string('search')->toString();
+            // Escape LIKE wildcards to prevent unintended pattern matching
+            $search = str_replace(['%', '_'], ['\\%', '\\_'], $search);
             $query->where('description', 'ilike', "%{$search}%");
         }
 

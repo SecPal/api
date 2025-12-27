@@ -107,6 +107,9 @@ class ActivityResource extends JsonResource
             'organizational_unit' => new OrganizationalUnitResource($this->whenLoaded('organizationalUnit')),
 
             // Verification data (only included when explicitly requested)
+            // WARNING: Verification methods perform cryptographic operations.
+            // Use include_verification=1 sparingly, especially with large result sets,
+            // as it calls 3 verification methods per activity (chain, merkle, OTS).
             'verification' => $this->when(
                 $request->boolean('include_verification'),
                 function () {
