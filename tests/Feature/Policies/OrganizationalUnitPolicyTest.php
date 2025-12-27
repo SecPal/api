@@ -10,6 +10,14 @@ use App\Models\UserInternalOrganizationalScope;
 use App\Policies\OrganizationalUnitPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $user
+ * @property OrganizationalUnitPolicy $policy
+ * @property OrganizationalUnit $company
+ * @property OrganizationalUnit $region
+ * @property OrganizationalUnit $branch
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

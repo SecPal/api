@@ -12,6 +12,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+/**
+ * @property \App\Models\TenantKey $tenant
+ */
 beforeEach(function () {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();

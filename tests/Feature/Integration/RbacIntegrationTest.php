@@ -13,6 +13,11 @@ use Spatie\Permission\PermissionRegistrar;
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\travelTo;
 
+/**
+ * @property TenantKey $tenant
+ * @property PermissionRegistrar $registrar
+ * @property User $admin
+ */
 uses(RefreshDatabase::class)->group('integration', 'rbac');
 
 beforeEach(function (): void {

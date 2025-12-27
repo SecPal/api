@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 
+/**
+ * @property \App\Models\TenantKey $tenant
+ * @property \App\Models\User $user
+ */
 beforeEach(function () {
     $this->tenant = TenantKey::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);

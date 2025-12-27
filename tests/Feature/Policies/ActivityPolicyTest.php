@@ -17,6 +17,12 @@ use Spatie\Permission\PermissionRegistrar;
 // ParaTest may still run these in parallel locally, but CI runs them properly
 uses(RefreshDatabase::class)->group('serial');
 
+/**
+ * @property TenantKey $tenant
+ * @property PermissionRegistrar $registrar
+ * @property ActivityPolicy $policy
+ * @property OrganizationalUnit $orgUnit
+ */
 beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();

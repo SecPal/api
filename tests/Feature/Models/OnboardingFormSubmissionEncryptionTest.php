@@ -10,6 +10,9 @@ use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @property TenantKey $tenant
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

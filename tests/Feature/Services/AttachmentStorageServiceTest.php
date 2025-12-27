@@ -13,6 +13,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $user
+ * @property AttachmentStorageService $service
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

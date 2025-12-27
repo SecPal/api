@@ -14,6 +14,14 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * @property TenantKey $tenant
+ * @property PermissionRegistrar $registrar
+ * @property User $user
+ * @property mixed $token
+ * @property User $targetUser
+ * @property Role $role
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

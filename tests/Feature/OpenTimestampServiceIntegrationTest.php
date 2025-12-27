@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\Cache;
  * These tests use the real ots CLI tool (not mocked) to verify
  * that the integration works end-to-end in the DDEV environment.
  */
+/**
+ * @property OpenTimestampService $service
+ */
 uses()->group('feature');
 
 beforeEach(function () {

@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
+/**
+ * @property \App\Models\TenantKey $tenant
+ * @property \App\Models\User $user
+ * @property \App\Models\Secret $secret
+ */
 beforeEach(function (): void {
     Storage::fake('local');
 

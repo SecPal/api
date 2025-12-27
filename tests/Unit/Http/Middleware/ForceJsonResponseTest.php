@@ -9,6 +9,9 @@ use App\Http\Middleware\ForceJsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
+/**
+ * @property ForceJsonResponse $middleware
+ */
 beforeEach(function () {
     $this->middleware = new ForceJsonResponse;
 });
