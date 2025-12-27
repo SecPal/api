@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\Log;
 /**
  * @property TenantKey $tenant
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

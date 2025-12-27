@@ -16,7 +16,6 @@ require_once __DIR__.'/../TestConstants.php';
 /**
  * @property TenantKey $tenant
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

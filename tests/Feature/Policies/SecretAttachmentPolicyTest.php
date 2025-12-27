@@ -19,7 +19,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * @property Secret $secret
  * @property SecretAttachment $attachment
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

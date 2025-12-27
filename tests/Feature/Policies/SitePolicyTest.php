@@ -20,7 +20,6 @@ use Spatie\Permission\PermissionRegistrar;
  * @property PermissionRegistrar $registrar
  * @property SitePolicy $policy
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

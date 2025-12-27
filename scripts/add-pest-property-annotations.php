@@ -14,8 +14,7 @@ declare(strict_types=1);
  * This script scans all Pest test files, identifies properties set in beforeEach closures,
  * and adds corresponding @property annotations to help IDEs understand the dynamic properties.
  */
-
-$testDir = __DIR__ . '/../tests';
+$testDir = __DIR__.'/../tests';
 
 function scanPestFiles(string $dir): array
 {
@@ -78,10 +77,10 @@ function inferPropertyType(string $content, string $property): string
 {
     // Look for type hints in property assignments
     $patterns = [
-        "/\\\$this->" . preg_quote($property, '/') . "\s*=\s*([A-Z][a-zA-Z0-9_\\\\]+)::(?:factory|create|make)/",
-        "/\\\$this->" . preg_quote($property, '/') . "\s*=\s*app\(([A-Z][a-zA-Z0-9_\\\\]+)::class\)/",
-        "/\\\$this->" . preg_quote($property, '/') . "\s*=\s*new\s+([A-Z][a-zA-Z0-9_\\\\]+)/",
-        "/\\\$this->" . preg_quote($property, '/') . "\s*=\s*Mockery::mock\(([A-Z][a-zA-Z0-9_\\\\]+)::class\)/",
+        '/\\$this->'.preg_quote($property, '/')."\s*=\s*([A-Z][a-zA-Z0-9_\\\\]+)::(?:factory|create|make)/",
+        '/\\$this->'.preg_quote($property, '/')."\s*=\s*app\(([A-Z][a-zA-Z0-9_\\\\]+)::class\)/",
+        '/\\$this->'.preg_quote($property, '/')."\s*=\s*new\s+([A-Z][a-zA-Z0-9_\\\\]+)/",
+        '/\\$this->'.preg_quote($property, '/')."\s*=\s*Mockery::mock\(([A-Z][a-zA-Z0-9_\\\\]+)::class\)/",
     ];
 
     foreach ($patterns as $pattern) {
@@ -118,7 +117,7 @@ function addPropertyAnnotations(string $filePath): bool
     $content = file_get_contents($filePath);
 
     if (hasExistingDocBlock($content)) {
-        echo "  ⊖ Skipping (already has @property annotations): " . basename($filePath) . "\n";
+        echo '  ⊖ Skipping (already has @property annotations): '.basename($filePath)."\n";
 
         return false;
     }
@@ -130,13 +129,13 @@ function addPropertyAnnotations(string $filePath): bool
     }
 
     // Build PHPDoc block
-    $docLines = ["/**"];
+    $docLines = ['/**'];
     foreach ($properties as $property) {
         $type = inferPropertyType($content, $property);
         $docLines[] = " * @property {$type} \${$property}";
     }
-    $docLines[] = " */";
-    $docBlock = implode("\n", $docLines) . "\n";
+    $docLines[] = ' */';
+    $docBlock = implode("\n", $docLines)."\n";
 
     // Find insertion point (after SPDX headers and declare statement)
     $lines = explode("\n", $content);
@@ -150,7 +149,7 @@ function addPropertyAnnotations(string $filePath): bool
     }
 
     if ($insertIndex === 0) {
-        echo "  ⚠ Could not find insertion point: " . basename($filePath) . "\n";
+        echo '  ⚠ Could not find insertion point: '.basename($filePath)."\n";
 
         return false;
     }
@@ -161,7 +160,7 @@ function addPropertyAnnotations(string $filePath): bool
 
     file_put_contents($filePath, $newContent);
 
-    echo "  ✓ Added @property annotations (" . count($properties) . "): " . basename($filePath) . "\n";
+    echo '  ✓ Added @property annotations ('.count($properties).'): '.basename($filePath)."\n";
 
     return true;
 }
@@ -169,7 +168,7 @@ function addPropertyAnnotations(string $filePath): bool
 // Main execution
 echo "🔍 Scanning Pest test files...\n";
 $files = scanPestFiles($testDir);
-echo "Found " . count($files) . " test files\n\n";
+echo 'Found '.count($files)." test files\n\n";
 
 $modified = 0;
 $skipped = 0;

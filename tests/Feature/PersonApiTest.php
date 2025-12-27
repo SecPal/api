@@ -17,7 +17,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * @property User $user
  * @property mixed $token
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

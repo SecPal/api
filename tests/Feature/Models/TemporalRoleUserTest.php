@@ -19,7 +19,6 @@ use Spatie\Permission\PermissionRegistrar;
  * @property Role $managerRole
  * @property Role $guardRole
  */
-
 uses(RefreshDatabase::class);
 
 describe('TemporalRoleUser Pivot Model', function () {

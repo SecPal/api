@@ -18,7 +18,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * @property OrganizationalUnit $organizationalUnit
  * @property Site $site
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

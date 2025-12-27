@@ -18,7 +18,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * @property SecretPolicy $policy
  * @property Secret $secret
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

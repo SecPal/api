@@ -17,7 +17,6 @@ use Spatie\Permission\Models\Role;
 /**
  * @property TenantKey $tenant
  */
-
 uses(RefreshDatabase::class)->group('integration', 'secret-sharing');
 
 beforeEach(function (): void {

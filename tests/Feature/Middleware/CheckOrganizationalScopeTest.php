@@ -20,7 +20,6 @@ use Illuminate\Http\Response;
  * @property OrganizationalUnit $region
  * @property OrganizationalUnit $branch
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

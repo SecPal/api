@@ -18,7 +18,6 @@ use Spatie\Permission\PermissionRegistrar;
  * @property EmployeePolicy $policy
  * @property OrganizationalUnit $orgUnit
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

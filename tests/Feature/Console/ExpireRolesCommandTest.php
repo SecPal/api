@@ -22,7 +22,6 @@ use Spatie\Permission\PermissionRegistrar;
  * @property User $admin
  * @property Role $role
  */
-
 uses(RefreshDatabase::class);
 
 describe('roles:expire Command', function () {

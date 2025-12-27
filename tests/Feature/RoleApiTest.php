@@ -22,7 +22,6 @@ use Spatie\Permission\PermissionRegistrar;
  * @property User $targetUser
  * @property Role $role
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

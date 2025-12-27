@@ -22,7 +22,6 @@ use Spatie\Permission\PermissionRegistrar;
  * @property User $user2
  * @property mixed $token2
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

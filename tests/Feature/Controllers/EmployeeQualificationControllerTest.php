@@ -24,7 +24,6 @@ use Spatie\Permission\PermissionRegistrar;
  * @property Employee $employee
  * @property Qualification $qualification
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

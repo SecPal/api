@@ -17,7 +17,6 @@ use function Pest\Laravel\actingAs;
  * @property TenantKey $tenant
  * @property User $user
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

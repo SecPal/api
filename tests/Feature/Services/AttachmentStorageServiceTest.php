@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\Storage;
  * @property User $user
  * @property AttachmentStorageService $service
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

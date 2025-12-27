@@ -13,7 +13,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * @property TenantKey $tenant
  * @property User $user
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

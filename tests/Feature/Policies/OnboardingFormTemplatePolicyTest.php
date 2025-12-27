@@ -16,7 +16,6 @@ use Spatie\Permission\PermissionRegistrar;
  * @property PermissionRegistrar $registrar
  * @property OnboardingFormTemplatePolicy $policy
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

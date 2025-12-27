@@ -16,7 +16,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * @property Customer $customer
  * @property User $user
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

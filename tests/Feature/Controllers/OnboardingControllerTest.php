@@ -22,7 +22,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * @property Employee $employee
  * @property OnboardingFormTemplate $template
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\Cache;
 /**
  * @property OpenTimestampService $service
  */
-
 uses()->group('feature');
 
 beforeEach(function () {

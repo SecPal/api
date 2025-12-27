@@ -15,7 +15,6 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  * @property TenantKey $tenant
  * @property EnsureNotPreContract $middleware
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

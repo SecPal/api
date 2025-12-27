@@ -17,7 +17,6 @@ use Spatie\Permission\Models\Role;
  * @property User $sharedUser
  * @property mixed $secret
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

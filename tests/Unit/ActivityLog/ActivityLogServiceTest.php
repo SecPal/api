@@ -15,7 +15,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * @property User $user
  * @property ActivityLogService $service
  */
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

@@ -18,7 +18,6 @@ use function Pest\Laravel\travelTo;
  * @property PermissionRegistrar $registrar
  * @property User $admin
  */
-
 uses(RefreshDatabase::class)->group('integration', 'rbac');
 
 beforeEach(function (): void {
