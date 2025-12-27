@@ -5,8 +5,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Activity Logging User Guide
 
-**Version:** 1.0  
-**Last Updated:** December 27, 2025  
+**Version:** 1.0
+**Last Updated:** December 27, 2025
 **Target Audience:** End Users, Employees
 
 ---
@@ -44,8 +44,8 @@ All logs are **tamper-proof** using cryptographic hashing and blockchain-anchore
 
 ## Viewing Activity Logs
 
-> **⚠️ NOTE:** The web-based Activity Log viewer is not yet implemented (Issue #394).  
-> This guide describes the **planned user interface** for when the feature is released.  
+> **⚠️ NOTE:** The web-based Activity Log viewer is not yet implemented (Issue #394).
+> This guide describes the **planned user interface** for when the feature is released.
 > Currently, administrators can query logs directly via Laravel Tinker or database queries (see Admin Guide).
 
 ### Accessing Your Personal Logs (Planned)
@@ -83,22 +83,24 @@ When the Activity Log viewer is released, users will be able to filter logs:
 
 ### Planned Filters
 
-| Filter | Description | Example |
-|--------|-------------|---------|
-| **Date Range** | Show logs between two dates | Last 7 days, Last month, Custom |
-| **Event Type** | Filter by log category | Authentication, RBAC Changes, Employee Changes |
-| **Actor** | Show actions by specific user | "Manager: John Doe" |
-| **Subject** | Show actions on specific entity | "Employee: Jane Smith" |
-| **Verification Status** | Show only verified logs | ✅ Verified, ⏳ Pending, ❌ Unverified |
+| Filter                  | Description                     | Example                                        |
+| ----------------------- | ------------------------------- | ---------------------------------------------- |
+| **Date Range**          | Show logs between two dates     | Last 7 days, Last month, Custom                |
+| **Event Type**          | Filter by log category          | Authentication, RBAC Changes, Employee Changes |
+| **Actor**               | Show actions by specific user   | "Manager: John Doe"                            |
+| **Subject**             | Show actions on specific entity | "Employee: Jane Smith"                         |
+| **Verification Status** | Show only verified logs         | ✅ Verified, ⏳ Pending, ❌ Unverified         |
 
 ### Example Use Cases (Planned)
 
 **Use Case 1: Check who changed my shift schedule**
+
 - Filter: **Subject** = "My Name"
 - Filter: **Event Type** = "Shift Management"
 - Date Range: Last 30 days
 
 **Use Case 2: Review recent login attempts**
+
 - Filter: **Event Type** = "Authentication"
 - Filter: **Subject** = "My Username"
 - Date Range: Last 7 days
@@ -112,16 +114,19 @@ SecPal categorizes activity logs into **3 security levels** based on retention a
 ### Level 1: Standard Activity Logs (1 Year Retention)
 
 **Log Types:**
+
 - `default` - General system activities
 - `employee_changes` - Employee profile updates (non-sensitive fields)
 - `shift_management` - Shift assignments, schedule changes
 
 **Retention:**
+
 - Stored for **1 year**
 - Soft-deleted after 1 year (recoverable for audit)
 - Hard-deleted after **2 years** (permanent removal)
 
 **Verification:**
+
 - Hash chain (tamper detection)
 - No Merkle tree or Bitcoin anchoring
 
@@ -130,17 +135,20 @@ SecPal categorizes activity logs into **3 security levels** based on retention a
 ### Level 2: Security-Critical Logs (3 Years Retention)
 
 **Log Types:**
+
 - `authentication` - Login, logout, failed login attempts
 - `rbac_changes` - Role assignments, permission grants/revokes
 - `scope_changes` - Organizational scope modifications
 - `security` - Security-related events
 
 **Retention:**
+
 - Stored for **3 years**
 - Archived after 3 years (hash-only, personal data removed)
 - Hard-deleted after **5 years total**
 
 **Verification:**
+
 - Hash chain (tamper detection)
 - Merkle tree (hourly batching)
 - No Bitcoin anchoring
@@ -150,16 +158,19 @@ SecPal categorizes activity logs into **3 security levels** based on retention a
 ### Level 3: Legal-Critical Logs (7 Years Permanent Retention)
 
 **Log Types:**
+
 - `hr_access` - Access to sensitive HR data (salary, contracts, disciplinary records)
 - `breaking_glass` - Emergency access usage
 - `works_council_access` - Works Council data access (BetrVG compliance)
 - `contract_change` - Customer contract modifications
 
 **Retention:**
+
 - **Permanent** (7 years minimum, no automatic deletion)
 - Full cryptographic verification trail
 
 **Verification:**
+
 - Hash chain (tamper detection)
 - Merkle tree (daily batching)
 - **Bitcoin anchoring** via OpenTimestamp (legally admissible proof)
@@ -175,6 +186,7 @@ SecPal categorizes activity logs into **3 security levels** based on retention a
 You can request a copy of all activity logs related to your account:
 
 **How to request:**
+
 1. Navigate to **Settings** → **Privacy** → **Data Export**
 2. Select **Activity Logs** export
 3. Receive JSON/CSV file within 30 days
@@ -186,11 +198,13 @@ You can request a copy of all activity logs related to your account:
 If you believe an activity log is **inaccurate**, you can request correction:
 
 **Important:**
+
 - Activity logs are **immutable by design** (tamper-proof)
 - You CANNOT edit or delete historical logs
 - You CAN add a **comment/annotation** to clarify or dispute a log entry
 
 **How to dispute a log:**
+
 1. Contact your manager or data protection officer
 2. Provide log ID and explanation
 3. A clarification comment will be appended to the log entry
@@ -201,18 +215,20 @@ If you believe an activity log is **inaccurate**, you can request correction:
 
 **Personal data** in activity logs is automatically deleted according to retention policies:
 
-| Security Level | Retention Period | What's Deleted | What's Retained |
-|----------------|------------------|----------------|-----------------|
-| **Level 1** | 1 year → 2 years | All log content | Nothing (hard delete) |
-| **Level 2** | 3 years → 5 years | Personal data | Cryptographic hashes only |
-| **Level 3** | 3 years (BewachV) | Personal data after 3y | Cryptographic hashes for verification |
+| Security Level | Retention Period  | What's Deleted         | What's Retained                       |
+| -------------- | ----------------- | ---------------------- | ------------------------------------- |
+| **Level 1**    | 1 year → 2 years  | All log content        | Nothing (hard delete)                 |
+| **Level 2**    | 3 years → 5 years | Personal data          | Cryptographic hashes only             |
+| **Level 3**    | 3 years (BewachV) | Personal data after 3y | Cryptographic hashes for verification |
 
 **Important:**
+
 - Cryptographic hashes (Level 2+3) are **NOT considered personal data** (GDPR Recital 26)
 - Hashes enable **tamper verification** without revealing personal information
 - Level 3 logs: Personal data deleted after 3 years (BewachV §21 Abs. 4), hashes retained for legal verification
 
 **How to request early deletion:**
+
 - Only possible for Level 1 logs in special cases (e.g., data breach, identity theft)
 - Contact data protection officer with justification
 
@@ -223,11 +239,13 @@ If you believe an activity log is **inaccurate**, you can request correction:
 You can export your activity logs in machine-readable format:
 
 **Supported Formats:**
+
 - **JSON** (recommended for technical users, includes all metadata)
 - **CSV** (for spreadsheet import)
 - **PDF** (human-readable summary)
 
 **What's included:**
+
 - Timestamp, event type, description
 - Actor (who performed the action)
 - Subject (what was affected)
@@ -245,6 +263,7 @@ SecPal implements **automated data minimization**:
 3. **Level 3 logs:** Retained for legal minimum (7 years)
 
 **Why we retain cryptographic hashes:**
+
 - **Legal compliance:** BewachV §21 requires tamper-proof records
 - **Accountability:** GDPR Article 5(2) requires proof of compliance
 - **Verification:** Enables court proceedings without storing personal data
@@ -255,18 +274,20 @@ SecPal implements **automated data minimization**:
 
 ### General Questions
 
-**Q: Can I delete my activity logs?**  
+**Q: Can I delete my activity logs?**
 **A:** No. Activity logs are **immutable** and required for legal compliance (BewachV §21, GDPR Article 30). However, personal data is automatically deleted according to retention policies. Only cryptographic hashes are retained long-term.
 
-**Q: Who can see my activity logs?**  
+**Q: Who can see my activity logs?**
 **A:**
+
 - **You** can see logs related to YOUR account
 - **Your manager** can see logs within their organizational scope
 - **Admins** with appropriate permissions can see broader logs
 - **No one** can see inheritance-blocked logs from other organizational units
 
-**Q: How do I know if a log was tampered with?**  
+**Q: How do I know if a log was tampered with?**
 **A:** Look for the verification status icon:
+
 - ✅ **Verified:** Hash chain + Merkle tree + Bitcoin anchoring passed
 - ⏳ **Pending:** Bitcoin confirmation pending (up to 24 hours)
 - ❌ **Unverified:** Tampering detected or integrity check failed
@@ -275,36 +296,39 @@ SecPal implements **automated data minimization**:
 
 ### Technical Questions
 
-**Q: What is a "hash chain"?**  
+**Q: What is a "hash chain"?**
 **A:** A hash chain links each log entry to the previous one using cryptographic hashing (SHA256). If anyone tries to modify a log entry, the chain breaks, and tampering is immediately detected. Think of it like a blockchain for audit logs.
 
-**Q: What is "OpenTimestamp"?**  
+**Q: What is "OpenTimestamp"?**
 **A:** OpenTimestamp is a service that anchors cryptographic proofs to the Bitcoin blockchain. This provides **immutable proof** that a log existed at a specific time. This is especially important for Level 3 logs (legal proceedings, court admissibility).
 
-**Q: Why are some logs marked as "orphaned genesis"?**  
+**Q: Why are some logs marked as "orphaned genesis"?**
 **A:** When older logs are deleted due to retention policies, the **next remaining log** in the chain is marked as "orphaned genesis." This means:
+
 - The predecessor was **legitimately deleted** (not tampered with)
 - The hash chain continues **correctly** from this point forward
 - This is **by design** and does NOT indicate tampering
 
-**Q: Can I export logs with OpenTimestamp proofs?**  
+**Q: Can I export logs with OpenTimestamp proofs?**
 **A:** Yes. When you export activity logs, OpenTimestamp proofs are included in the export file. You can independently verify these proofs using the official OpenTimestamp tools (see Legal Verification Guide).
 
 ---
 
 ### Troubleshooting
 
-**Q: I see a log I don't recognize. What should I do?**  
-**A:** 
+**Q: I see a log I don't recognize. What should I do?**
+**A:**
+
 1. Check the **Actor** field - was it performed by a manager or admin?
 2. Check the **Description** - does it reference an automated system process?
 3. If still unclear, contact your manager or IT support
 
-**Q: Why can't I see logs older than 1/3 years?**  
+**Q: Why can't I see logs older than 1/3 years?**
 **A:** Logs are automatically deleted according to retention policies (GDPR Article 5, BewachV § 21). Level 1 logs are deleted after 2 years, Level 2 after 5 years, Level 3 after 3 years. Cryptographic hashes are retained for verification purposes (GDPR-compliant as no personal data).
 
-**Q: What if I notice suspicious activity in my logs?**  
+**Q: What if I notice suspicious activity in my logs?**
 **A:**
+
 1. **Immediately** report to your manager or IT security team
 2. **Do not** log out or change passwords yet (preserve evidence)
 3. Provide the **Log ID** and timestamp of suspicious entries
@@ -322,6 +346,7 @@ SecPal implements **automated data minimization**:
 ---
 
 **Support Contact:**
+
 - **Email:** support@secpal.app
 - **Documentation:** https://docs.secpal.app/activity-logging
 - **Data Protection Officer:** dpo@secpal.app

@@ -5,8 +5,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Activity Logging Admin Guide
 
-**Version:** 1.0  
-**Last Updated:** December 27, 2025  
+**Version:** 1.0
+**Last Updated:** December 27, 2025
 **Target Audience:** System Administrators, Operations Teams
 
 ---
@@ -130,11 +130,11 @@ MERKLE_TREE_BATCH_SIZE=1000
 
 ### Retention Strategy Overview
 
-| Level | Log Types | Soft Delete | Hard Delete | Personal Data Deleted | Hashes Retained |
-|-------|-----------|-------------|-------------|-----------------------|-----------------|
-| **1** | Standard Operations | After 1 year | After 2 years | After 2 years | None |
-| **2** | Security-Critical | N/A (archived) | After 5 years | After 3 years (archived) | Until 5 years |
-| **3** | Legal-Critical | N/A | After 3 years | After 3 years | Permanent (hash-only archives) |
+| Level | Log Types           | Soft Delete    | Hard Delete   | Personal Data Deleted    | Hashes Retained                |
+| ----- | ------------------- | -------------- | ------------- | ------------------------ | ------------------------------ |
+| **1** | Standard Operations | After 1 year   | After 2 years | After 2 years            | None                           |
+| **2** | Security-Critical   | N/A (archived) | After 5 years | After 3 years (archived) | Until 5 years                  |
+| **3** | Legal-Critical      | N/A            | After 3 years | After 3 years            | Permanent (hash-only archives) |
 
 ### Detailed Retention Flow
 
@@ -150,6 +150,7 @@ graph LR
 ```
 
 **Timeline Example:**
+
 - **March 15, 2023:** Log created (`employee_changes`)
 - **December 31, 2024:** Soft deleted (end of following calendar year)
 - **December 31, 2025:** Hard deleted (2 years total)
@@ -171,6 +172,7 @@ graph LR
 ```
 
 **Timeline Example:**
+
 - **January 10, 2023:** Log created (`authentication` - failed login)
 - **December 31, 2026:** Archived (end of 3rd following year)
   - Personal data deleted: `properties`, `subject`, `causer`
@@ -178,6 +180,7 @@ graph LR
 - **December 31, 2028:** Archive hard deleted (5 years total)
 
 **GDPR Compliance:**
+
 - Personal data removed after 3 years (Article 5(1)(e) - Storage Limitation)
 - Cryptographic hashes retained 2 additional years for verification
 - Hashes are NOT personal data (GDPR Recital 26)
@@ -194,12 +197,14 @@ graph LR
 ```
 
 **Timeline Example:**
+
 - **July 5, 2023:** Log created (`hr_access` - salary data access)
 - **December 31, 2026:** Retention period ends (BewachV § 21 Abs. 4)
 - **January 1, 2027:** Personal data deleted, hash-only archive created
 - **Permanent:** Cryptographic hashes retained for verification (GDPR Article 5(1)(e) compliant)
 
 **Legal Justification:**
+
 - **BewachV § 21 Abs. 4:** Security industry records 3 years minimum
 - **GDPR Article 5(1)(e):** Storage limitation - personal data deleted after retention period
 - **GDPR Recital 26:** Hashes are NOT personal data if properly anonymized
@@ -231,6 +236,7 @@ Schedule::command('activity:apply-retention')
 ```
 
 **When it runs:**
+
 - **Daily at 02:00 AM** (server timezone)
 - **Non-blocking:** Uses database chunking (1000 records per batch)
 - **Logged:** All actions logged to `storage/logs/laravel.log`
@@ -242,11 +248,13 @@ Schedule::command('activity:apply-retention')
 ### 1. Apply Retention Policies
 
 **Command:**
+
 ```bash
 php artisan activity:apply-retention
 ```
 
 **Options:**
+
 ```bash
 # Dry run (preview only, no changes)
 php artisan activity:apply-retention --dry-run
@@ -260,6 +268,7 @@ php artisan activity:apply-retention -v
 ```
 
 **Example Output:**
+
 ```
 Starting retention policy application...
 Dry run: NO
@@ -283,6 +292,7 @@ Retention policies applied successfully.
 ```
 
 **Dry Run Output:**
+
 ```
 Dry run: YES
 Would soft-delete: 1,234 Level 1 logs
@@ -298,15 +308,18 @@ No changes made.
 ### 2. Build Merkle Tree Batch
 
 **Command:**
+
 ```bash
 php artisan activity:build-merkle-batch
 ```
 
 **Purpose:**
+
 - Manually trigger Merkle tree building for Level 2+3 logs
 - Normally runs automatically (hourly via scheduler)
 
 **Example Output:**
+
 ```
 Building Merkle tree batch...
 Processing tenant #1: 234 unbatched logs
@@ -319,15 +332,18 @@ Merkle tree batch #1735318800 complete.
 ### 3. Submit OpenTimestamp Proofs
 
 **Command:**
+
 ```bash
 php artisan activity:submit-opentimestamp
 ```
 
 **Purpose:**
+
 - Submit Merkle roots to OpenTimestamp calendar servers
 - Normally runs automatically (hourly via scheduler)
 
 **Example Output:**
+
 ```
 Submitting OpenTimestamp proofs...
 Batch #1735318800 submitted to alice.btc.calendar.opentimestamps.org
@@ -339,15 +355,18 @@ Bitcoin confirmation pending (estimate: 10-20 minutes)
 ### 4. Upgrade OpenTimestamp Proofs
 
 **Command:**
+
 ```bash
 php artisan activity:upgrade-opentimestamp
 ```
 
 **Purpose:**
+
 - Check for Bitcoin block confirmations
 - Upgrade pending proofs to complete proofs
 
 **Example Output:**
+
 ```
 Upgrading OpenTimestamp proofs...
 ✓ Batch #1735318800 confirmed (block #815234)
@@ -359,11 +378,13 @@ Upgrading OpenTimestamp proofs...
 ### 5. Verify Log Integrity
 
 **Command:**
+
 ```bash
 php artisan activity:verify-integrity
 ```
 
 **Options:**
+
 ```bash
 # Verify specific log ID
 php artisan activity:verify-integrity --id=12345
@@ -379,6 +400,7 @@ php artisan activity:verify-integrity --all
 ```
 
 **Example Output:**
+
 ```
 Verifying activity log integrity...
 
@@ -399,6 +421,7 @@ See log IDs: 12345, 67890
 ```
 
 **Tampering Detected?**
+
 1. **Isolate affected logs:** Do NOT modify or delete
 2. **Export evidence:** `php artisan activity:export-log --id=12345`
 3. **Notify security team:** Include log IDs and timestamps
@@ -426,11 +449,13 @@ $log->event_hash = hash('sha256', json_encode([
 ```
 
 **Verification:**
+
 ```php
 $log->verifyChain(); // Returns true if integrity intact
 ```
 
 **Failure indicators:**
+
 - `previous_hash` does not match predecessor's `event_hash`
 - Recalculated `event_hash` differs from stored value
 - Predecessor log missing (and NOT marked as orphaned genesis)
@@ -455,11 +480,13 @@ Hourly batches of Level 2+3 logs are aggregated into a Merkle tree:
 Each log stores its Merkle proof (sibling hashes) to verify membership in the tree.
 
 **Verification:**
+
 ```php
 $log->verifyMerkleProof(); // Returns true if proof matches root
 ```
 
 **Failure indicators:**
+
 - Recalculated Merkle root differs from stored `merkle_root`
 - Proof path contains invalid hashes
 - Batch ID mismatch
@@ -472,6 +499,7 @@ $log->verifyMerkleProof(); // Returns true if proof matches root
 Merkle roots for Level 3 logs are submitted to OpenTimestamp calendar servers, which anchor them to the Bitcoin blockchain.
 
 **Verification (CLI):**
+
 ```bash
 # Extract OTS proof
 php artisan activity:export-ots-proof --id=12345 --output=proof.ots
@@ -481,11 +509,13 @@ ots verify proof.ots
 ```
 
 **Expected Output:**
+
 ```
 Success! Bitcoin block 815234 attests data existed as of 2023-12-27 14:30:00 UTC
 ```
 
 **Failure indicators:**
+
 - `ots verify` returns "Pending" (Bitcoin confirmation not yet received)
 - `ots verify` returns "Bad attestation" (tampering or proof corruption)
 - Proof file corrupted or missing
@@ -501,6 +531,7 @@ Success! Bitcoin block 815234 attests data existed as of 2023-12-27 14:30:00 UTC
 **Cause:** Concurrent retention jobs or long-running transactions
 
 **Solution:**
+
 ```bash
 # Stop scheduler temporarily
 php artisan schedule:interrupt
@@ -526,6 +557,7 @@ php artisan schedule:run
 **Cause:** Too many unbatched logs (> 10,000)
 
 **Solution:**
+
 ```bash
 # Check unbatched log count
 php artisan tinker
@@ -546,6 +578,7 @@ php artisan activity:build-merkle-batch --limit=1000
 **Cause:** Bitcoin network congestion or calendar server offline
 
 **Solution:**
+
 ```bash
 # Check calendar server status
 curl https://alice.btc.calendar.opentimestamps.org/
@@ -570,6 +603,7 @@ php artisan activity:submit-opentimestamp --retry
 **Cause:** Manual database modifications or failed retention job
 
 **Solution:**
+
 ```bash
 # Check orphaned genesis logs
 php artisan tinker
@@ -603,6 +637,7 @@ CREATE INDEX idx_activity_log_deleted_at ON activity_log(deleted_at);
 ```
 
 **Verify indexes:**
+
 ```bash
 php artisan tinker
 >>> \DB::select("SELECT indexname FROM pg_indexes WHERE tablename = 'activity_log';");
@@ -636,6 +671,7 @@ php artisan tinker
 ```
 
 **If > 10 GB:**
+
 1. Ensure retention policies running daily
 2. Archive Level 2 logs earlier (config change)
 3. Consider table partitioning (PostgreSQL 12+)
@@ -711,6 +747,7 @@ tail -f storage/logs/laravel.log | grep SubmitOpenTimestamp
 ---
 
 **Support Contact:**
+
 - **Email:** support@secpal.app
 - **Documentation:** https://docs.secpal.app/activity-logging
 - **Emergency:** +49 (0) 123-456-789 (24/7 hotline)
