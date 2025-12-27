@@ -27,6 +27,11 @@ Homestead.yaml
 Thumbs.db
 build/
 
+# IDE Helper files (generated)
+_ide_helper.php
+_ide_helper_models.php
+.phpstorm.meta.php
+
 # Preflight bypass files (local override)
 .preflight-allow-large-pr
 
