@@ -156,14 +156,18 @@ describe('InjectTenantId Middleware', function () {
     test('middleware removes tenant_id from request body and query', function () {
         // Test that middleware explicitly removes tenant_id from both sources
         $middleware = new InjectTenantId;
-        $request = Request::create('/test?tenant_id=999', 'POST', ['tenant_id' => 888]);
+        // Use UUIDs that will never match auto-increment IDs
+        $fakeBodyTenantId = 'aaaaaaaa-bbbb-cccc-dddd-111111111111';
+        $fakeQueryTenantId = 'aaaaaaaa-bbbb-cccc-dddd-999999999999';
+        $request = Request::create("/test?tenant_id={$fakeQueryTenantId}", 'POST', ['tenant_id' => $fakeBodyTenantId]);
         $request->setUserResolver(fn () => $this->user);
 
-        $middleware->handle($request, function ($req) {
+        $middleware->handle($request, function ($req) use ($fakeBodyTenantId, $fakeQueryTenantId) {
             // Verify middleware injected correct tenant_id
             expect($req->input('tenant_id'))->toBe($this->user->tenant_id);
-            expect($req->input('tenant_id'))->not->toBe(888);
-            expect($req->input('tenant_id'))->not->toBe(999);
+            // Verify client-provided values were removed
+            expect($req->input('tenant_id'))->not->toBe($fakeBodyTenantId);
+            expect($req->input('tenant_id'))->not->toBe($fakeQueryTenantId);
 
             return response()->json(['ok' => true]);
         });
