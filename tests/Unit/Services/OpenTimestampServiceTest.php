@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
-use InvalidArgumentException;
 
 /**
  * Unit tests for OpenTimestamp proof verification.
