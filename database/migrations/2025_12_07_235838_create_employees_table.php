@@ -114,7 +114,7 @@ return new class extends Migration
             // 0 = non-management employee (no management level)
             // 1-255 = management levels (1=highest/CEO, ascending=lower levels)
             // Two separate scope systems: 0/0=non-management, 1-255=management (cannot mix!)
-            $table->unsignedTinyInteger('management_level')->default(0)->nullable(false)
+            $table->unsignedTinyInteger('management_level')->default(0)
                 ->comment('Management level: 0=non-management, 1=CEO/highest, 2-255=lower levels');
 
             $table->timestamps();

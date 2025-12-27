@@ -562,14 +562,14 @@ class Employee extends Model
     }
 
     /**
-     * Scope: Employees within leadership rank range.
+     * Scope: Employees within management level range.
      *
-     * Filters employees based on min/max_viewable_rank from organizational scope.
+     * Filters employees based on minLevel/maxLevel from organizational scope.
      * Implements ADR-009 hierarchical access control.
      *
      * CRITICAL SEMANTICS (null/0):
-     * - max_viewable_rank = NULL or 0 → ONLY employees with management_level = 0 (non-management/Guards)
-     * - max_viewable_rank = 255 → All management levels (ML1-ML255)
+     * - maxLevel = NULL or 0 → ONLY employees with management_level = 0 (non-management/Guards)
+     * - maxLevel = 255 → All management levels (ML1-ML255)
      * - To see ALL employees: Need TWO scopes (one for management_level=0, one for management_level>0)
      *
      * @param  Builder<self>  $query
