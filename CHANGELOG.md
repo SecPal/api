@@ -14,6 +14,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Activity Logging Comprehensive Documentation** (Issue #397, Epic #385)
+  - **User Guide**: `docs/ACTIVITY_LOGGING_USER_GUIDE.md`
+    - How to view and filter activity logs
+    - Understanding 3-tier security levels (Level 1/2/3)
+    - GDPR rights explained (access, rectification, erasure, portability)
+    - Data minimization and retention policies
+    - FAQ covering common scenarios
+  - **Admin Guide**: `docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md`
+    - Configuration reference (`config/activitylog.php`)
+    - 3-tier retention strategy (1y/3y/3y with hash archives)
+    - BewachV § 21 Abs. 4 compliance (3 years minimum)
+    - Manual commands (`apply-retention`, `verify-integrity`, `build-merkle-batch`)
+    - Troubleshooting common issues (deadlocks, timeouts, orphaned genesis)
+    - Performance optimization and monitoring
+    - Extended retention guidance (HGB/AO compliance)
+  - **Legal Verification Guide**: `docs/ACTIVITY_LOGGING_LEGAL_GUIDE.md`
+    - Legal admissibility under German ZPO §371, §371a
+    - Step-by-step verification procedures (hash chain, Merkle tree, OpenTimestamp)
+    - Court presentation formats (PDF, JSON, blockchain certificate)
+    - Chain of custody documentation
+    - Expert witness guidance
+  - **Code Documentation**:
+    - All public methods in `Activity.php` have comprehensive PHPDoc
+    - Detailed docblocks in `ActivityArchive.php` (GDPR/BewachV compliance notes)
+    - Command documentation in `ApplyRetentionPolicies.php`
+  - **Quality:** ✅ Markdown linting passes, ✅ REUSE compliant, ✅ Cross-referenced with ADR-010
+  - **Impact:** Completes Epic #385 Phase 6 (Documentation), enables legal compliance and audits
+
 - **ActivityPolicy with Leadership Level Filtering** (Issue #396, Epic #385)
   - **IMPLEMENTED** authorization policy for hierarchical activity log access
   - Architecture:
