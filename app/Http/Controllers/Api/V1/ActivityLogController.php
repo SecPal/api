@@ -166,7 +166,7 @@ class ActivityLogController extends Controller
             return $query;
         }
 
-        // User has scopes - only show scoped activities (NOT global activities)
+// User has scopes - show only scoped activities
         // Collect accessible organizational unit IDs
         $accessibleUnitIds = $scopes->pluck('organizational_unit_id')->unique()->toArray();
 
@@ -183,10 +183,10 @@ class ActivityLogController extends Controller
             ];
         }
 
-        // Apply filtering: Only scoped activities (activities in accessible units)
+        // Apply filtering: activities in accessible organizational units only
         $query->whereIn('organizational_unit_id', $accessibleUnitIds);
 
-        // Leadership level filtering (only for User causers)
+        // Leadership level filtering (only for User causers with Employee records)
         $query->where(function ($leadershipQuery) use ($rankRangesByUnit) {
             // Activities without User causer (system-generated) - always visible
             $leadershipQuery->where(function ($nonUserQuery) {
@@ -194,7 +194,19 @@ class ActivityLogController extends Controller
                     ->orWhereNull('causer_type');
             });
 
-            // OR activities with User causer within viewable rank range
+            // OR activities with User causer but no Employee record (system users/admins) - always visible
+            $leadershipQuery->orWhere(function ($systemUserQuery) {
+                $systemUserQuery->where('causer_type', \App\Models\User::class)
+                    ->whereNotNull('causer_id')
+                    ->whereNotExists(function ($employeeCheckQuery): void {
+                        /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
+                        $employeeCheckQuery->select(\Illuminate\Support\Facades\DB::raw(1))
+                            ->from('employees')
+                            ->whereColumn('employees.user_id', 'activity_log.causer_id');
+                    });
+            });
+
+            // OR activities with User causer WITH Employee record - apply rank filtering
             $leadershipQuery->orWhere(function ($userCauserQuery) use ($rankRangesByUnit) {
                 $userCauserQuery->where('causer_type', \App\Models\User::class)
                     ->whereNotNull('causer_id');

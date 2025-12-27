@@ -12,6 +12,7 @@ use App\Http\Requests\TokenRequest;
 use App\Http\Requests\UpdateUserLanguageRequest;
 use App\Mail\PasswordResetMail;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,6 +28,13 @@ class AuthController extends Controller
      * Password reset token expiry time in minutes.
      */
     private const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
+
+    /**
+     * Activity log service for authentication events.
+     */
+    public function __construct(
+        private ActivityLogService $activityLogService
+    ) {}
 
     /**
      * SPA Login - Authenticate user and start session (for web SPA).
@@ -52,6 +60,12 @@ class AuthController extends Controller
         // Use web guard explicitly for session-based auth
         // remember=true for PWA - maintains long-lived session via remember_token cookie
         if (! Auth::guard('web')->attempt($credentials, remember: true)) {
+            // Log failed login attempt (service will find tenant_id by email)
+            $this->activityLogService->logLoginFailed(
+                $credentials['email'],
+                'invalid_credentials'
+            );
+
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);
@@ -61,6 +75,9 @@ class AuthController extends Controller
 
         /** @var User $user */
         $user = Auth::guard('web')->user();
+
+        // Log successful login
+        $this->activityLogService->logLoginSuccess($user);
 
         return response()->json([
             'user' => $this->buildUserAuthorizationData($user),
@@ -80,6 +97,11 @@ class AuthController extends Controller
     {
         /** @var User|null $user */
         $user = Auth::guard('web')->user();
+
+        // Log logout before clearing session
+        if ($user) {
+            $this->activityLogService->logLogout($user);
+        }
 
         // Clear remember token to prevent automatic session restoration
         if ($user) {
@@ -114,6 +136,12 @@ class AuthController extends Controller
         $user = User::where('email', $validated['email'])->first();
 
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
+            // Log failed token generation attempt (service will find tenant_id by email)
+            $this->activityLogService->logLoginFailed(
+                $validated['email'],
+                'invalid_credentials'
+            );
+
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);
@@ -121,6 +149,9 @@ class AuthController extends Controller
 
         $deviceName = $validated['device_name'] ?? 'api-client';
         $token = $user->createToken($deviceName);
+
+        // Log successful token generation (API login)
+        $this->activityLogService->logLoginSuccess($user);
 
         return response()->json([
             'token' => $token->plainTextToken,
@@ -139,6 +170,9 @@ class AuthController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+
+        // Log logout before revoking token
+        $this->activityLogService->logLogout($user);
 
         /** @var \Laravel\Sanctum\PersonalAccessToken|null $token */
         $token = $user->currentAccessToken();
