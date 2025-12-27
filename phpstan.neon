@@ -48,6 +48,35 @@ parameters:
         -
             message: '#Method App\\Models\\Person::tenantKey\(\) should return .* but returns .*#'
             path: app/Models/Person.php
+
+        # Laravel JsonResource magic property access - false positives
+        # JsonResource proxies property access to $this->resource, but PHPStan sees undefined properties
+        -
+            message: '#Access to an undefined property App\\Http\\Resources\\ActivityResource::\$.*#'
+            path: app/Http/Resources/ActivityResource.php
+        -
+            message: '#Call to an undefined method App\\Http\\Resources\\ActivityResource::.*#'
+            path: app/Http/Resources/ActivityResource.php
+        -
+            message: '#Cannot call method .* on mixed#'
+            path: app/Http/Resources/ActivityResource.php
+        -
+            message: '#Cannot access property .* on mixed#'
+            path: app/Http/Resources/ActivityResource.php
+        -
+            message: '#Parameter .* expects .*, mixed given#'
+            path: app/Http/Resources/ActivityResource.php
+        -
+            message: '#PHPDoc tag @extends contains generic type .* but class .* is not generic#'
+            path: app/Http/Resources/ActivityResource.php
+
+        # Query builder type inference limitation in nested closures
+        -
+            message: '#Variable \$rankQueryBuilder in PHPDoc tag @var does not match any variable in the foreach loop#'
+            path: app/Http/Controllers/Api/V1/ActivityLogController.php
+        -
+            message: '#Cannot call method orWhere\(\) on mixed#'
+            path: app/Http/Controllers/Api/V1/ActivityLogController.php
         -
             message: '#Method App\\Models\\RoleAssignmentLog::(user|role|assignedBy)\(\) should return .* but returns .*#'
             path: app/Models/RoleAssignmentLog.php

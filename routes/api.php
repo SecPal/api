@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CustomerAssignmentController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -305,6 +306,18 @@ Route::prefix('v1')->group(function () {
             // HR admin endpoints
             Route::post('/admin/onboarding/submissions/{submission}/approve', [OnboardingController::class, 'approveSubmission']);
             Route::post('/admin/onboarding/submissions/{submission}/reject', [OnboardingController::class, 'rejectSubmission']);
+        });
+
+        // ==========================================================================
+        // Activity Logs REST API (Issue #394 - Epic #385 Phase 6)
+        // All routes use tenant.inject middleware for automatic tenant_id injection
+        // Authorization handled by ActivityPolicy (defense-in-depth)
+        // Features: Scoped filtering, leadership level filtering, verification
+        // ==========================================================================
+        Route::middleware('tenant.inject')->group(function () {
+            Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+            Route::get('/activity-logs/{activity}', [ActivityLogController::class, 'show']);
+            Route::get('/activity-logs/{activity}/verify', [ActivityLogController::class, 'verify']);
         });
     });
 });

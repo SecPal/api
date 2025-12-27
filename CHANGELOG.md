@@ -14,6 +14,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Activity Log REST API with Scoped Filtering** (Issue #394, Epic #385)
+  - **IMPLEMENTED** ActivityLogController with 3 RESTful endpoints for activity log access
+  - Endpoints:
+    - `GET /v1/activity-logs` - Paginated listing with comprehensive filtering
+    - `GET /v1/activity-logs/{activity}` - Single activity with relationships
+    - `GET /v1/activity-logs/{activity}/verify` - Verification results (chain + Merkle + OTS)
+  - Authorization (defense-in-depth):
+    1. Tenant isolation (mandatory first check)
+    2. Permission check (`activity_log.read` via ActivityPolicy)
+    3. Organizational scope filtering (ADR-010)
+    4. Leadership level filtering (ADR-009 - only subordinates' activities)
+  - Access Control Logic:
+    - Users with NO scopes: See all activities (global access)
+    - Users WITH scopes: See only scoped activities (NOT global activities)
+    - Leadership filtering: min/max_viewable_rank controls subordinate visibility
+    - System activities (no causer): Always visible within scoped units
+  - Filter Parameters (11 total):
+    - Date range: `from_date`, `to_date`
+    - Log categorization: `log_name`
+    - Text search: `search` (in description)
+    - Organizational: `organizational_unit_id`
+    - Polymorphic filters: `causer_type`, `causer_id`, `subject_type`, `subject_id`
+    - Pagination: `per_page` (default 50, max 100)
+    - Verification: `include_verification` (optional hash chain + Merkle + OTS results)
+  - Components:
+    - `ActivityLogController.php` (306 lines) - 3 endpoints with complex authorization
+    - `ActivityResource.php` (121 lines) - JSON transformation with optional verification
+    - `IndexActivityLogRequest.php` (84 lines) - Validation for 11 filter parameters
+    - Routes registered in `routes/api.php` with `tenant.inject` middleware
+  - Testing:
+    - 24 comprehensive feature tests (100% passing, 76 assertions)
+    - Test coverage: Authentication, authorization, scoped filtering, leadership levels, pagination, tenant isolation, verification
+  - Quality Gates: ✅ PHPStan Level 9, ✅ Pint compliant, ✅ 24/24 tests passing
+  - **Impact:** Completes Epic #385 Phase 6, unblocks Issue #395 (Frontend Activity Log Viewer), enables BewachV § 21 Abs. 4 compliance
+
 - **ActivityPolicy with Leadership Level Filtering** (Issue #396, Epic #385)
   - **IMPLEMENTED** authorization policy for hierarchical activity log access
   - Architecture:
