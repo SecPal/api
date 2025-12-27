@@ -57,6 +57,8 @@ class UpdateEmployeeRequest extends FormRequest
                 Employee::STATUS_ON_LEAVE,
                 Employee::STATUS_TERMINATED,
             ])],
+            'position' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'management_level' => ['sometimes', 'required', 'integer', 'min:0', 'max:255'],
             'hire_date' => ['sometimes', 'nullable', 'date'],
             'contract_start_date' => ['sometimes', 'nullable', 'date'],
             'termination_date' => ['sometimes', 'nullable', 'date', 'after_or_equal:contract_start_date'],

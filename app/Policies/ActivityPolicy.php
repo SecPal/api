@@ -93,10 +93,9 @@ class ActivityPolicy
         // Leadership level filtering (NEW - Issue #396)
         // Only applies if activity was caused by a User
         if ($activity->causer_type === User::class && $activity->causer_id !== null) {
-            // Find causer's employee record with leadership level (single query with join)
+            // Find causer's employee record
             $causerEmployee = Employee::where('user_id', $activity->causer_id)
                 ->where('organizational_unit_id', $activity->organizational_unit_id)
-                ->with('leadershipLevel')
                 ->first();
 
             // If employee not found, the user may not exist or may not be an employee in this org unit
@@ -105,7 +104,7 @@ class ActivityPolicy
                 return false; // Causer has no employee record in this org unit
             }
 
-            $causerRank = $causerEmployee->leadershipLevel?->rank;
+            $causerRank = $causerEmployee->management_level;
 
             // Check if causer's rank is within user's viewable range in ANY scope
             foreach ($scopes as $scope) {
@@ -123,52 +122,44 @@ class ActivityPolicy
     }
 
     /**
-     * Check if causer's rank is within user's viewable rank range.
+     * Check if causer's management level is within user's viewable range.
      *
      * CRITICAL SEMANTICS (ADR-009):
-     * - Guards have leadership_level_id = NULL (no rank)
-     * - Leadership ranks: 1-255 (FE1 to FE255)
-     * - Rank 0 is used in scopes to represent "Guards access"
+     * - Non-management employees have management_level = 0
+     * - Management levels: 1-255 (1=CEO/highest, 255=lowest)
      *
-     * VALIDATED SEPARATION: Guards and Leadership MUST use separate scopes
-     * - Scope 1: min=0, max=0 → Guards access
-     * - Scope 2: min=X, max=Y → Leadership ranks X to Y
-     * - Mixing min=0 with max>0 is PREVENTED by validation
+     * Two separate scope systems (cannot be mixed):
+     * - 0/0: ONLY non-management employees (Guards)
+     * - 1-255: Management levels (e.g., 1/5 = ML1-ML5, 1/255 = all management)
+     * - Invalid: 0/5 (cannot mix non-management with management levels)
      *
-     * Rank Range Interpretations (single scope):
-     * - min=0, max=0 → Only Guards visible
-     * - min=1, max=Y → Leadership ranks 1 to Y (Guards NOT visible)
-     * - min=X, max=255 → Leadership from rank X to 255
-     * - min=null, max=null → All leadership ranks (Guards still need explicit min=0)
-     *
-     * @param  int|null  $causerRank  Causer's leadership rank (NULL for Guards, 1-255 for FE1-FE255)
-     * @param  int|null  $minViewableRank  Minimum viewable rank (0 = includes Guards, 1-255 for FE1-FE255, null = no lower bound)
-     * @param  int|null  $maxViewableRank  Maximum viewable rank (0 = Guards only, 1-255 for FE1-FE255, null = no upper bound)
+     * @param  int  $causerLevel  Causer's management level (0=non-management, 1-255=management)
+     * @param  int|null  $minViewableLevel  Minimum viewable level (0=non-management only, 1-255=management, null=no lower bound)
+     * @param  int|null  $maxViewableLevel  Maximum viewable level (0=non-management only, 1-255=management, null=no upper bound)
      */
-    private function isWithinViewableRankRange(?int $causerRank, ?int $minViewableRank, ?int $maxViewableRank): bool
+    private function isWithinViewableRankRange(int $causerLevel, ?int $minViewableLevel, ?int $maxViewableLevel): bool
     {
-        // Case 1: Causer is Guard (no leadership level, rank = NULL)
-        if ($causerRank === null) {
-            // Guards visible if scope includes rank 0 (min=0)
-            return $minViewableRank === 0;
+        // Case 1: Scope 0/0 = ONLY non-management employees
+        if ($maxViewableLevel === 0) {
+            return $causerLevel === 0; // Only non-management visible
         }
 
-        // Case 2: Causer has leadership level (rank 1-255)
-        // Guards-only scope (min=0, max=0) cannot see leadership
-        if ($maxViewableRank === 0) {
-            return false; // This scope is for Guards only
+        // Case 2: Causer is non-management (level = 0)
+        if ($causerLevel === 0) {
+            return false; // Non-management not visible in management scopes (1-255)
         }
 
-        // Check if leadership rank within specified range
+        // Case 3: Management level scopes (1-255)
+        // Check if management level within specified range
         // NOTE: NULL semantics for min/max:
-        // - minViewableRank=null means no lower bound (all leadership ranks >= 1 allowed)
-        // - maxViewableRank=null means no upper bound (all leadership ranks <= 255 allowed)
-        // - Both null = unrestricted leadership access (but guards still require explicit min=0)
-        if ($minViewableRank !== null && $causerRank < $minViewableRank) {
+        // - minViewableLevel=null means no lower bound (all management levels >= 1 allowed)
+        // - maxViewableLevel=null means no upper bound (all management levels <= 255 allowed)
+        // - Both null = unrestricted management access (but non-management still require explicit 0/0 scope)
+        if ($minViewableLevel !== null && $causerLevel < $minViewableLevel) {
             return false; // Below minimum
         }
 
-        if ($maxViewableRank !== null && $causerRank > $maxViewableRank) {
+        if ($maxViewableLevel !== null && $causerLevel > $maxViewableLevel) {
             return false; // Above maximum
         }
 

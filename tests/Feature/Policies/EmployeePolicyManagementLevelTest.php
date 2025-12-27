@@ -4,7 +4,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
-use App\Models\LeadershipLevel;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -35,34 +34,8 @@ beforeEach(function (): void {
         'tenant_id' => $this->tenant->id,
     ]);
 
-    // Create leadership levels (German security industry standard)
-    $this->leadershipLevels = collect([
-        LeadershipLevel::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'rank' => 1,
-            'name' => 'Geschäftsführer',
-        ]),
-        LeadershipLevel::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'rank' => 2,
-            'name' => 'Regionaler Geschäftsführer',
-        ]),
-        LeadershipLevel::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'rank' => 3,
-            'name' => 'Niederlassungsleiter',
-        ]),
-        LeadershipLevel::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'rank' => 4,
-            'name' => 'Bereichsleiter',
-        ]),
-        LeadershipLevel::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'rank' => 5,
-            'name' => 'Objektleiter',
-        ]),
-    ]);
+    // Leadership ranks (1-5 for testing, 1=CEO, 5=lowest in test hierarchy)
+    // No LeadershipLevel entities needed - just use integers
 });
 
 afterEach(function (): void {
@@ -84,7 +57,7 @@ test('user with allow_self_access=false cannot view own employee record', functi
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[4]->id, // FE5
+        'management_level' => 5, // FE5
     ]);
 
     // Create scope with allow_self_access = false (default)
@@ -107,7 +80,7 @@ test('user with allow_self_access=true can view own employee record', function (
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[4]->id, // FE5
+        'management_level' => 5, // FE5
     ]);
 
     // Create scope with allow_self_access = true (HR Manager)
@@ -170,7 +143,7 @@ test('user with allow_self_access=true can edit own employee record', function (
 
 // ============================================================================
 // USER'S OWN LEVEL IRRELEVANCE TESTS
-// Issue #425: User's own leadership_level_id does NOT affect viewing permissions
+// Issue #425: User's own management_level does NOT affect viewing permissions
 // ============================================================================
 
 test('user with FE5 and scope min=1 max=3 can see FE1-3 employees', function (): void {
@@ -194,7 +167,7 @@ test('user with FE5 and scope min=1 max=3 can see FE1-3 employees', function ():
     // Create FE1 employee (Geschäftsführer - CEO)
     $ceoEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[0]->id, // FE1
+        'management_level' => 1, // FE1
     ]);
 
     // SHOULD PASS: User's own FE5 does NOT matter, scope says FE1-3 visible
@@ -222,7 +195,7 @@ test('user with FE1 and scope min=5 max=255 can see FE5+ employees', function ()
     // Create FE5 employee (Objektleiter - Site Manager)
     $siteManagerEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[4]->id, // FE5
+        'management_level' => 5, // FE5
     ]);
 
     // SHOULD PASS: User's own FE1 does NOT matter, scope says FE5+ visible
@@ -250,7 +223,7 @@ test('user with null FE and scope min=1 max=255 can see all leadership', functio
     // Create FE1 employee (Geschäftsführer)
     $ceoEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[0]->id, // FE1
+        'management_level' => 1, // FE1
     ]);
 
     // SHOULD PASS: User's own null FE does NOT matter, scope says all leadership visible
@@ -279,13 +252,13 @@ test('scope with max_viewable_rank=0 shows ONLY non-leadership employees', funct
     // Create non-leadership employee (Guard)
     $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => null, // NO FE
+        'management_level' => 0, // NO FE (Guards)
     ]);
 
     // Create leadership employee (FE5)
     $leadershipEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[4]->id, // FE5
+        'management_level' => 5, // FE5
     ]);
 
     // SHOULD PASS: Guard visible (max=0 means ONLY non-leadership)
@@ -312,13 +285,13 @@ test('scope with max_viewable_rank=255 shows all leadership levels', function ()
     // Create FE1 employee
     $fe1Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[0]->id, // FE1
+        'management_level' => 1, // FE1
     ]);
 
     // Create FE5 employee
     $fe5Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[4]->id, // FE5
+        'management_level' => 5, // FE5
     ]);
 
     // SHOULD PASS: All leadership visible
@@ -353,13 +326,13 @@ test('user with TWO scopes can see both non-leadership and leadership', function
     // Create non-leadership employee (Guard)
     $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => null,
+        'management_level' => 0,
     ]);
 
     // Create leadership employee (FE5)
     $leadershipEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[4]->id, // FE5
+        'management_level' => 5, // FE5
     ]);
 
     // SHOULD PASS: Both visible due to TWO scopes
@@ -388,19 +361,19 @@ test('scope with min=4 max=6 shows only FE4-FE6', function (): void {
     // Create FE3 employee (outside range)
     $fe3Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[2]->id, // FE3
+        'management_level' => 3, // FE3
     ]);
 
     // Create FE4 employee (in range)
     $fe4Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[3]->id, // FE4
+        'management_level' => 4, // FE4
     ]);
 
     // Create FE5 employee (in range)
     $fe5Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $this->leadershipLevels[4]->id, // FE5
+        'management_level' => 5, // FE5
     ]);
 
     // SHOULD FAIL: FE3 outside range (min=4)
@@ -430,10 +403,10 @@ test('guards NOT visible if user only has scope with min=1 max=255', function ()
         'allow_self_access' => true,
     ]);
 
-    // Create Guard (no FE)
+    // Create non-leadership employee (Guard)
     $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => null,
+        'management_level' => 0,
     ]);
 
     // SHOULD FAIL: Guard not visible (scope is leadership-only)
@@ -456,7 +429,7 @@ test('guards ARE visible if user has scope with min=0 max=0', function (): void 
     // Create Guard (no FE)
     $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => null,
+        'management_level' => 0,
     ]);
 
     // SHOULD PASS: Guard visible with scope 0-0
@@ -490,14 +463,13 @@ test('user with TWO scopes (0-0 and 1-255) can see both guards and leadership', 
     // Create Guard (no FE)
     $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => null,
+        'management_level' => 0,
     ]);
 
     // Create Leadership FE50
-    $leadershipLevel = LeadershipLevel::factory()->create(['rank' => 50]);
     $leadershipEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $this->orgUnit->id,
-        'leadership_level_id' => $leadershipLevel->id,
+        'management_level' => 50,
     ]);
 
     // SHOULD PASS: Both visible

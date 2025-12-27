@@ -108,6 +108,14 @@ return new class extends Migration
 
             // Organizational Assignment
             $table->foreignUuid('organizational_unit_id')->nullable()->constrained('organizational_units');
+            $table->string('position', 255)->nullable(); // Job title/role (e.g., "Objektleiter Flughafen Berlin")
+
+            // Management Level (Führungsebene)
+            // 0 = non-management employee (no management level)
+            // 1-255 = management levels (1=highest/CEO, ascending=lower levels)
+            // Two separate scope systems: 0/0=non-management, 1-255=management (cannot mix!)
+            $table->unsignedTinyInteger('management_level')->default(0)
+                ->comment('Management level: 0=non-management, 1=CEO/highest, 2-255=lower levels');
 
             $table->timestamps();
             $table->softDeletes();
@@ -120,6 +128,8 @@ return new class extends Migration
             $table->index('email');
             $table->index('employee_number');
             $table->index('termination_date');
+            $table->index(['tenant_id', 'position']);
+            $table->index(['tenant_id', 'management_level']); // For hierarchical queries
             // Blind index indexes for encrypted field searches (following pattern from person/secrets tables)
             $table->index(['tenant_id', 'first_name_idx']);
             $table->index(['tenant_id', 'last_name_idx']);
