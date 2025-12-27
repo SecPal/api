@@ -50,7 +50,7 @@ return new class extends Migration
 
             // 🌳 Merkle Tree Metadata
             $table->string('merkle_root', 64)->nullable();
-            $table->integer('merkle_batch_id')->nullable();
+            $table->bigInteger('merkle_batch_id')->nullable();
         });
     }
 
@@ -72,7 +72,7 @@ return new class extends Migration
             $table->string('event_hash', 64)->nullable();
             $table->string('previous_hash', 64)->nullable();
             $table->string('merkle_root', 64)->nullable();
-            $table->integer('merkle_batch_id')->nullable();
+            $table->bigInteger('merkle_batch_id')->nullable();
         });
     }
 };
