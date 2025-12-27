@@ -32,6 +32,29 @@ function scanPestFiles(string $dir): array
     return $files;
 }
 
+function extractUseStatements(string $content): array
+{
+    $useStatements = [];
+
+    // Extract all use statements: use Full\Namespace\ClassName [as Alias];
+    if (preg_match_all('/^use\s+([^;]+);/m', $content, $matches)) {
+        foreach ($matches[1] as $useStatement) {
+            // Handle "as" aliases
+            if (preg_match('/^(.+)\s+as\s+(\w+)$/i', trim($useStatement), $aliasMatch)) {
+                $fullClass = trim($aliasMatch[1]);
+                $alias = trim($aliasMatch[2]);
+                $useStatements[basename(str_replace('\\', '/', $fullClass))] = $alias;
+            } else {
+                $fullClass = trim($useStatement);
+                $className = basename(str_replace('\\', '/', $fullClass));
+                $useStatements[$className] = $className;
+            }
+        }
+    }
+
+    return $useStatements;
+}
+
 function extractBeforeEachProperties(string $content): array
 {
     $properties = [];
@@ -73,7 +96,7 @@ function extractBeforeEachProperties(string $content): array
     return $properties;
 }
 
-function inferPropertyType(string $content, string $property): string
+function inferPropertyType(string $content, string $property, array $useStatements): string
 {
     // Look for type hints in property assignments
     $patterns = [
@@ -85,7 +108,15 @@ function inferPropertyType(string $content, string $property): string
 
     foreach ($patterns as $pattern) {
         if (preg_match($pattern, $content, $matches)) {
-            return ltrim($matches[1], '\\');
+            $fullClassName = ltrim($matches[1], '\\');
+            $shortClassName = basename(str_replace('\\', '/', $fullClassName));
+
+            // Use imported class name if available
+            if (isset($useStatements[$shortClassName])) {
+                return $useStatements[$shortClassName];
+            }
+
+            return $fullClassName;
         }
     }
 
@@ -122,6 +153,7 @@ function addPropertyAnnotations(string $filePath): bool
         return false;
     }
 
+    $useStatements = extractUseStatements($content);
     $properties = extractBeforeEachProperties($content);
 
     if (empty($properties)) {
@@ -131,7 +163,7 @@ function addPropertyAnnotations(string $filePath): bool
     // Build PHPDoc block
     $docLines = ['/**'];
     foreach ($properties as $property) {
-        $type = inferPropertyType($content, $property);
+        $type = inferPropertyType($content, $property, $useStatements);
         $docLines[] = " * @property {$type} \${$property}";
     }
     $docLines[] = ' */';

@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
- * @property App\Http\Middleware\ForceJsonResponse $middleware
+ * @property ForceJsonResponse $middleware
  */
 beforeEach(function () {
     $this->middleware = new ForceJsonResponse;
