@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Route;
 
 use function Pest\Laravel\actingAs;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $user
+ */
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

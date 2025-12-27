@@ -14,6 +14,11 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $user
+ */
+
 uses(RefreshDatabase::class);
 
 /**

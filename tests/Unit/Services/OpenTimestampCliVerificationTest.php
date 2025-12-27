@@ -21,6 +21,10 @@ use App\Services\OpenTimestampService;
  */
 uses()->group('unit', 'services', 'opentimestamp', 'verification');
 
+/**
+ * @property \App\Contracts\ProcessExecutor&\Mockery\MockInterface $mockExecutor
+ * @property \App\Services\OpenTimestampService $service
+ */
 beforeEach(function () {
     // Mock ProcessExecutor to avoid CLI dependency in tests
     $this->mockExecutor = Mockery::mock(ProcessExecutor::class);

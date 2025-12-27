@@ -11,6 +11,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * @property TenantKey $tenant
+ * @property PermissionRegistrar $registrar
+ * @property OnboardingFormTemplatePolicy $policy
+ */
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

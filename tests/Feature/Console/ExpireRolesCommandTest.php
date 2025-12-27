@@ -15,9 +15,24 @@ use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * @property TenantKey $tenant
+ * @property PermissionRegistrar $registrar
+ * @property User $user
+ * @property User $admin
+ * @property Role $role
+ */
+
 uses(RefreshDatabase::class);
 
 describe('roles:expire Command', function () {
+    /**
+     * @property \App\Models\TenantKey $tenant
+     * @property \Spatie\Permission\PermissionRegistrar $registrar
+     * @property \App\Models\User $user
+     * @property \App\Models\User $admin
+     * @property \Spatie\Permission\Models\Role $role
+     */
     beforeEach(function () {
         // Use process-specific KEK file for parallel test isolation
         TenantKey::setKekPath(getTestKekPath());

@@ -29,6 +29,11 @@ uses(RefreshDatabase::class);
  * @see App\Models\Activity::verifyMerkleProof()
  * @see Issue #390 PR-5: Add Merkle proof storage & verification methods
  */
+
+/**
+ * @property \App\Models\TenantKey $tenant
+ * @property \App\Models\User $user
+ */
 beforeEach(function () {
     $this->tenant = TenantKey::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);

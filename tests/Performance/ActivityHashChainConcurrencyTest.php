@@ -35,6 +35,11 @@ uses(RefreshDatabase::class);
  * @group issue-408
  * @group hash-chain
  */
+
+/**
+ * @property \App\Models\TenantKey $tenant
+ * @property \App\Models\User $user
+ */
 beforeEach(function () {
     $this->tenant = TenantKey::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);

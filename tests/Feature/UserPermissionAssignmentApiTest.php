@@ -10,6 +10,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * @property TenantKey $tenant
+ * @property PermissionRegistrar $registrar
+ */
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

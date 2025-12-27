@@ -11,6 +11,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
+/**
+ * @property TenantKey $tenant
+ * @property EnsurePreContract $middleware
+ */
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

@@ -17,6 +17,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Models\Role;
 
+/**
+ * @property TenantKey $tenant
+ * @property OrganizationalUnit $orgUnit
+ */
+
 uses(RefreshDatabase::class);
 
 beforeEach(function () {

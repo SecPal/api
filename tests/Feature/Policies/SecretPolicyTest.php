@@ -11,6 +11,14 @@ use App\Models\User;
 use App\Policies\SecretPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $owner
+ * @property User $otherUser
+ * @property SecretPolicy $policy
+ * @property Secret $secret
+ */
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

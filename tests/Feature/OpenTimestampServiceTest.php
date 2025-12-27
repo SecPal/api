@@ -18,6 +18,11 @@ use Illuminate\Support\Facades\Http;
  *
  * @see App\Services\OpenTimestampService
  */
+/**
+ * @property ProcessExecutor $mockExecutor
+ * @property OpenTimestampService $service
+ */
+
 uses()->group('feature');
 
 beforeEach(function () {

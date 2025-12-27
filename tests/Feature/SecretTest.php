@@ -13,6 +13,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+/**
+ * @property \App\Models\TenantKey $tenant
+ * @property \App\Models\User $user
+ */
 beforeEach(function (): void {
     // Use process-specific KEK file for parallel test isolation
     TenantKey::setKekPath(getTestKekPath());

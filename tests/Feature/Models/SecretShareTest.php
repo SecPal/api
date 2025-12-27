@@ -11,6 +11,13 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $owner
+ * @property User $sharedUser
+ * @property mixed $secret
+ */
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

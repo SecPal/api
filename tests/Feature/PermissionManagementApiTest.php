@@ -13,6 +13,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * @property TenantKey $tenant
+ * @property PermissionRegistrar $registrar
+ * @property User $user
+ * @property mixed $token
+ */
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
