@@ -7,6 +7,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * @see ADR-010 Activity Logging & Audit Trail Strategy
  */
-uses()->group('feature');
+uses(RefreshDatabase::class)->group('feature');
 
 /**
  * Test that activity_log table exists after migrations.
