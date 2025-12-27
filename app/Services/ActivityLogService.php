@@ -70,8 +70,20 @@ class ActivityLogService
         // Try to find user by email to get their tenant_id
         $user = User::where('email', $email)->first();
 
-        // Determine tenant_id: user's tenant > provided fallback > default to 1
-        $targetTenantId = $user !== null ? $user->tenant_id : ($tenantId ?? 1);
+        // Determine tenant_id: user's tenant > provided fallback > first existing tenant > skip logging
+        if ($user !== null) {
+            $targetTenantId = $user->tenant_id;
+        } elseif ($tenantId !== null) {
+            $targetTenantId = $tenantId;
+        } else {
+            // Fallback: use first tenant key ID if available
+            $firstTenant = \App\Models\TenantKey::first();
+            if ($firstTenant === null) {
+                // No tenant exists - skip activity logging (e.g. in tests without tenant setup)
+                return null;
+            }
+            $targetTenantId = $firstTenant->id;
+        }
 
         // Determine organizational_unit_id based on email
         $organizationalUnitId = null;

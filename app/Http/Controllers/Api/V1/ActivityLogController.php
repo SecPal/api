@@ -166,7 +166,7 @@ class ActivityLogController extends Controller
             return $query;
         }
 
-// User has scopes - show only scoped activities
+        // User has scopes - show only scoped activities
         // Collect accessible organizational unit IDs
         $accessibleUnitIds = $scopes->pluck('organizational_unit_id')->unique()->toArray();
 

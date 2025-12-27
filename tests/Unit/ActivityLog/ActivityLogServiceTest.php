@@ -46,7 +46,7 @@ test('logLoginFailed creates authentication log without causer', function (): vo
     // so Activity's booted() hook will auto-inject the authenticated user's ID as causer.
     // This is acceptable since the test verifies the core logging functionality.
 
-    $activity = $this->service->logLoginFailed('test@example.com', 'Invalid password');
+    $activity = $this->service->logLoginFailed('test@example.com', 'Invalid password', $this->tenant->id);
 
     expect($activity)->toBeInstanceOf(Activity::class)
         ->and($activity->log_name)->toBe('authentication')

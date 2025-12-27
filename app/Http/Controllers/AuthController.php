@@ -63,7 +63,8 @@ class AuthController extends Controller
             // Log failed login attempt (service will find tenant_id by email)
             $this->activityLogService->logLoginFailed(
                 $credentials['email'],
-                'invalid_credentials'
+                'invalid_credentials',
+                $request->integer('tenant_id') ?: null
             );
 
             throw ValidationException::withMessages([
@@ -139,7 +140,8 @@ class AuthController extends Controller
             // Log failed token generation attempt (service will find tenant_id by email)
             $this->activityLogService->logLoginFailed(
                 $validated['email'],
-                'invalid_credentials'
+                'invalid_credentials',
+                $request->integer('tenant_id') ?: null
             );
 
             throw ValidationException::withMessages([
