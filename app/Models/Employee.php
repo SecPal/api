@@ -568,9 +568,9 @@ class Employee extends Model
      * Implements ADR-009 hierarchical access control.
      *
      * CRITICAL SEMANTICS (null/0):
-     * - max_viewable_rank = NULL or 0 → ONLY employees with leadership_level_id = NULL (non-leadership)
-     * - max_viewable_rank = 255 → All leadership levels (FE1-FE255)
-     * - To see ALL employees: Need TWO scopes (one for non-leadership, one for leadership)
+     * - max_viewable_rank = NULL or 0 → ONLY employees with management_level = 0 (non-management/Guards)
+     * - max_viewable_rank = 255 → All management levels (ML1-ML255)
+     * - To see ALL employees: Need TWO scopes (one for management_level=0, one for management_level>0)
      *
      * @param  Builder<self>  $query
      * @param  int|null  $minLevel  Minimum management level (inclusive, NULL = no minimum)
@@ -582,13 +582,13 @@ class Employee extends Model
     {
         // CRITICAL: NULL or 0 in max = ONLY non-management employees!
         if ($maxLevel === null || $maxLevel === 0) {
-            $query->whereNull('management_level');
+            $query->where('management_level', 0);
 
             return;
         }
 
         // Show employees within level range (MANAGEMENT ONLY)
-        $query->whereNotNull('management_level');
+        $query->where('management_level', '>', 0);
 
         if (! is_null($minLevel)) {
             $query->where('management_level', '>=', $minLevel);

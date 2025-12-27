@@ -325,11 +325,11 @@ test('scopeWithinLevelRange filters only non-management when maxLevel is null', 
     // Create employees: 2 non-management, 2 management
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'management_level' => null,
+        'management_level' => 0,
     ]);
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'management_level' => null,
+        'management_level' => 0,
     ]);
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -342,16 +342,16 @@ test('scopeWithinLevelRange filters only non-management when maxLevel is null', 
 
     // maxLevel = NULL should return ONLY non-management employees
     $result = Employee::withinLevelRange(null, null)->get();
-    
+
     expect($result)->toHaveCount(2);
-    expect($result->every(fn ($e) => $e->management_level === null))->toBeTrue();
+    expect($result->every(fn ($e) => $e->management_level === 0))->toBeTrue();
 });
 
 test('scopeWithinLevelRange filters only non-management when maxLevel is 0', function () {
     // Create employees: 1 non-management, 2 management
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'management_level' => null,
+        'management_level' => 0,
     ]);
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -364,16 +364,16 @@ test('scopeWithinLevelRange filters only non-management when maxLevel is 0', fun
 
     // maxLevel = 0 should return ONLY non-management employees
     $result = Employee::withinLevelRange(null, 0)->get();
-    
+
     expect($result)->toHaveCount(1);
-    expect($result->first()->management_level)->toBeNull();
+    expect($result->first()->management_level)->toBe(0);
 });
 
 test('scopeWithinLevelRange filters management within range when both min and max provided', function () {
     // Create employees with various management levels
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'management_level' => null, // Non-management
+        'management_level' => 0, // Non-management
     ]);
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -394,7 +394,7 @@ test('scopeWithinLevelRange filters management within range when both min and ma
 
     // Should return only employees with management_level between 5 and 10
     $result = Employee::withinLevelRange(5, 10)->get();
-    
+
     expect($result)->toHaveCount(2);
     expect($result->every(fn ($e) => $e->management_level >= 5 && $e->management_level <= 10))->toBeTrue();
 });
@@ -403,7 +403,7 @@ test('scopeWithinLevelRange filters management up to max when only maxLevel prov
     // Create employees with various management levels
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'management_level' => null, // Non-management
+        'management_level' => 0, // Non-management
     ]);
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -420,16 +420,16 @@ test('scopeWithinLevelRange filters management up to max when only maxLevel prov
 
     // minLevel = null, maxLevel = 8 → should return management employees with level <= 8
     $result = Employee::withinLevelRange(null, 8)->get();
-    
+
     expect($result)->toHaveCount(2);
-    expect($result->every(fn ($e) => $e->management_level !== null && $e->management_level <= 8))->toBeTrue();
+    expect($result->every(fn ($e) => $e->management_level !== 0 && $e->management_level <= 8))->toBeTrue();
 });
 
 test('scopeWithinLevelRange filters management from min when minLevel provided with high maxLevel', function () {
     // Create employees with various management levels
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'management_level' => null, // Non-management
+        'management_level' => 0, // Non-management
     ]);
     Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -450,7 +450,7 @@ test('scopeWithinLevelRange filters management from min when minLevel provided w
 
     // minLevel = 5, maxLevel = 255 → should return management employees with level >= 5
     $result = Employee::withinLevelRange(5, 255)->get();
-    
+
     expect($result)->toHaveCount(3);
-    expect($result->every(fn ($e) => $e->management_level !== null && $e->management_level >= 5))->toBeTrue();
+    expect($result->every(fn ($e) => $e->management_level !== 0 && $e->management_level >= 5))->toBeTrue();
 });
