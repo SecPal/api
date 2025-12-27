@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\Artisan;
 
 uses(RefreshDatabase::class);
 
+/**
+ * @property \App\Models\TenantKey $tenant
+ * @property \App\Models\OrganizationalUnit $orgUnit
+ */
 beforeEach(function () {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();

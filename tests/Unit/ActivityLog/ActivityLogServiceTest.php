@@ -10,6 +10,11 @@ use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $user
+ * @property ActivityLogService $service
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

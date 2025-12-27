@@ -12,6 +12,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * @property TenantKey $tenant
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

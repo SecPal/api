@@ -12,6 +12,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * @property TenantKey $tenant
+ * @property PermissionRegistrar $registrar
+ * @property User $user
+ * @property Role $managerRole
+ * @property Role $guardRole
+ */
 uses(RefreshDatabase::class);
 
 describe('TemporalRoleUser Pivot Model', function () {

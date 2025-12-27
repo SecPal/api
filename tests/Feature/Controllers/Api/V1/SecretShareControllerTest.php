@@ -18,6 +18,12 @@ use function Pest\Laravel\postJson;
 
 uses(RefreshDatabase::class);
 
+/**
+ * @property \App\Models\TenantKey $tenant
+ * @property \App\Models\User $owner
+ * @property \App\Models\Secret $secret
+ * @property \App\Models\User $otherUser
+ */
 beforeEach(function () {
     // Use process-specific KEK file for parallel test isolation
     TenantKey::setKekPath(getTestKekPath());

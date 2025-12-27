@@ -10,6 +10,16 @@ use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $adminUser
+ * @property User $regularUser
+ * @property User $targetUser
+ * @property OrganizationalUnit $holding
+ * @property OrganizationalUnit $company
+ * @property OrganizationalUnit $region
+ * @property OrganizationalUnit $branch
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

@@ -12,6 +12,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+/**
+ * @property \App\Models\TenantKey $tenant
+ * @property string $originalDekWrapped
+ * @property \App\Models\Person $person
+ */
 beforeEach(function (): void {
     // Use process-specific KEK file for parallel test isolation
     TenantKey::setKekPath(getTestKekPath());

@@ -12,6 +12,12 @@ use App\Models\Site;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+/**
+ * @property TenantKey $tenant
+ * @property Customer $customer
+ * @property OrganizationalUnit $organizationalUnit
+ * @property Site $site
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

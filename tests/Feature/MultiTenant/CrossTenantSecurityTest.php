@@ -14,6 +14,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * @property TenantKey $tenant1
+ * @property TenantKey $tenant2
+ * @property User $user1
+ * @property mixed $token1
+ * @property User $user2
+ * @property mixed $token2
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

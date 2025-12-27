@@ -26,6 +26,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  */
 uses(RefreshDatabase::class)->group('unit', 'models', 'user', 'access');
 
+/**
+ * @property \App\Models\TenantKey $tenant
+ * @property \App\Models\User $user
+ */
 beforeEach(function () {
     TenantKey::setKekPath(getTestKekPath());
 

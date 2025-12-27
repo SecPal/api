@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
-use InvalidArgumentException;
 
 /**
  * Unit tests for OpenTimestamp proof verification.
@@ -22,6 +21,10 @@ use InvalidArgumentException;
  */
 uses()->group('unit');
 
+/**
+ * @property \App\Contracts\ProcessExecutor&\Mockery\MockInterface $mockExecutor
+ * @property \App\Services\OpenTimestampService $service
+ */
 beforeEach(function () {
     // Mock ProcessExecutor to avoid CLI dependency
     $this->mockExecutor = Mockery::mock(ProcessExecutor::class);

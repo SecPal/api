@@ -12,6 +12,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $user
+ * @property CheckOrganizationalScope $middleware
+ * @property OrganizationalUnit $company
+ * @property OrganizationalUnit $region
+ * @property OrganizationalUnit $branch
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

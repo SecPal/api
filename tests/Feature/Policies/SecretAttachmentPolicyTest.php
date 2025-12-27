@@ -11,6 +11,14 @@ use App\Models\User;
 use App\Policies\SecretAttachmentPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $owner
+ * @property User $otherUser
+ * @property SecretAttachmentPolicy $policy
+ * @property Secret $secret
+ * @property SecretAttachment $attachment
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

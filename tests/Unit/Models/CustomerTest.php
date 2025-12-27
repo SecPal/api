@@ -7,6 +7,9 @@ use App\Models\Customer;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+/**
+ * @property TenantKey $tenant
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

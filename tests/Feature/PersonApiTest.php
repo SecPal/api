@@ -12,6 +12,11 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+/**
+ * @property TenantKey $tenant
+ * @property User $user
+ * @property mixed $token
+ */
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

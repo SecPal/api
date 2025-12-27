@@ -13,6 +13,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class)->group('unit', 'models', 'employee');
 
+/**
+ * @property \App\Models\TenantKey $tenant
+ */
 beforeEach(function () {
     // Disable EmployeeObserver for unit tests - we test the model in isolation
     Employee::unsetEventDispatcher();
