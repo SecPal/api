@@ -37,25 +37,16 @@ beforeEach(function () {
 });
 
 test('submit creates pending proof', function () {
-    // Arrange: Mock calendar server response
-    Http::fake([
-        '*/timestamp/*' => Http::response(hex2bin(
-            // Minimal OTS proof (pending attestation)
-            '00'. // OpSHA256
-                '04f0'. // OpPrepend calendar commitment
-                bin2hex('alice.btc.calendar.opentimestamps.org')
-        ), 200),
-    ]);
-
+    // Arrange: Mock ots stamp command execution
     $merkleRoot = hash('sha256', 'test-merkle-root');
     $merkleBytes = hex2bin($merkleRoot);
 
-    // Mock ots stamp command execution
     $mockProof = hex2bin(
         '00'. // OpSHA256
             '04f0'. // OpPrepend
             bin2hex('alice.btc.calendar.opentimestamps.org')
     );
+    
     $this->mockExecutor->shouldReceive('execute')
         ->with(['ots', 'stamp', '-'], $merkleBytes, 15)
         ->once()
@@ -68,30 +59,26 @@ test('submit creates pending proof', function () {
     expect($proof)->not->toBeEmpty();
     expect($proof)->toBeString();
     expect(strlen($proof))->toBeGreaterThan(20); // Minimal proof size
-
-    // Verify HTTP requests were made
-    Http::assertSentCount(3); // 3 calendar servers
 });
 
 test('submit fails if insufficient calendars respond', function () {
-    // Arrange: Mock calendar servers - only 1 responds
-    Http::fake([
-        'alice.btc.calendar.opentimestamps.org/*' => Http::response('proof1', 200),
-        'bob.btc.calendar.opentimestamps.org/*' => Http::response('', 500),
-        'finney.calendar.eternitywall.com/*' => Http::response('', 500),
-    ]);
-
+    // Arrange: ots stamp will fail if calendars don't respond
     $merkleRoot = hash('sha256', 'test-merkle-root');
     $merkleBytes = hex2bin($merkleRoot);
 
-    // Mock ots stamp command - should throw exception before being called
+    // Mock ots stamp command - returns error exit code when insufficient calendars respond
     $this->mockExecutor->shouldReceive('execute')
         ->with(['ots', 'stamp', '-'], $merkleBytes, 15)
-        ->never(); // Should not be called due to insufficient calendars
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'only 1 of 3 calendars responded'
+        ]);
 
     // Act & Assert: Should throw exception
     expect(fn () => $this->service->submit($merkleRoot))
-        ->toThrow(\RuntimeException::class, 'Failed to submit timestamp: only 1 of 3 calendars responded');
+        ->toThrow(\RuntimeException::class, 'only 1 of 3 calendars responded');
 });
 
 test('upgrade returns null if not yet confirmed', function () {
