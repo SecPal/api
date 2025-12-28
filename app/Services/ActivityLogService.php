@@ -34,8 +34,9 @@ class ActivityLogService
     public function logLoginSuccess(User $user): ?Activity
     {
         // Get user's primary organizational unit (first scope's org unit)
+        $user->loadMissing('organizationalScopes');
         /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
-        $firstScope = $user->organizationalScopes()->first();
+        $firstScope = $user->organizationalScopes->first();
         $primaryOrgUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
 
         return activity('authentication')
@@ -46,7 +47,6 @@ class ActivityLogService
                 'event' => 'login_success',
                 'user_id' => $user->id,
                 'user_email' => $user->email,
-                'organizational_unit_id' => $primaryOrgUnitId,
             ])
             ->tap(function ($activity) use ($primaryOrgUnitId) {
                 /** @var \App\Models\Activity $activity */
@@ -97,8 +97,9 @@ class ActivityLogService
                 $organizationalUnitId = $employee->organizational_unit_id;
             } else {
                 // Use user's primary organizational unit (first scope)
+                $user->loadMissing('organizationalScopes');
                 /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
-                $firstScope = $user->organizationalScopes()->first();
+                $firstScope = $user->organizationalScopes->first();
                 $organizationalUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
             }
         } else {
@@ -124,7 +125,7 @@ class ActivityLogService
                 'email' => $email,
                 'reason' => $reason,
                 'user_exists' => $user !== null,
-                'employee_email' => $organizationalUnitId !== null,
+                'has_organizational_unit' => $organizationalUnitId !== null,
             ],
             'ip_address' => request()->ip(),
             'user_agent' => request()->userAgent(),
@@ -142,8 +143,9 @@ class ActivityLogService
     public function logLogout(User $user): ?Activity
     {
         // Get user's primary organizational unit (first scope's org unit)
+        $user->loadMissing('organizationalScopes');
         /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
-        $firstScope = $user->organizationalScopes()->first();
+        $firstScope = $user->organizationalScopes->first();
         $primaryOrgUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
 
         return activity('authentication')
@@ -154,7 +156,6 @@ class ActivityLogService
                 'event' => 'logout',
                 'user_id' => $user->id,
                 'user_email' => $user->email,
-                'organizational_unit_id' => $primaryOrgUnitId,
             ])
             ->tap(function ($activity) use ($primaryOrgUnitId) {
                 /** @var \App\Models\Activity $activity */
