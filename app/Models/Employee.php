@@ -247,6 +247,8 @@ class Employee extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'employee_number',
+                'email',
+                'phone',
                 'status',
                 'position',
                 'management_level',
