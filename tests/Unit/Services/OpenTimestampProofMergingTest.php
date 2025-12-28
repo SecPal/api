@@ -71,7 +71,7 @@ class OpenTimestampProofMergingTest extends TestCase
         $this->mockExecutor->shouldReceive('execute')
             ->with(['ots', 'stamp', '-'], $digestBytes, 15)
             ->once()
-            ->andReturn($aliceProof);
+            ->andReturn(['exitCode' => 0, 'stdout' => $aliceProof, 'stderr' => '']);
 
         Http::fake([
             'alice.btc.calendar.opentimestamps.org/*' => Http::response($aliceProof, 200),
@@ -108,7 +108,7 @@ class OpenTimestampProofMergingTest extends TestCase
         $this->mockExecutor->shouldReceive('execute')
             ->with(['ots', 'stamp', '-'], $digestBytes, 15)
             ->once()
-            ->andReturn($proof1);
+            ->andReturn(['exitCode' => 0, 'stdout' => $proof1, 'stderr' => '']);
 
         Http::fake([
             'alice.btc.calendar.opentimestamps.org/*' => Http::response($proof1, 200),
@@ -146,7 +146,7 @@ class OpenTimestampProofMergingTest extends TestCase
         $this->mockExecutor->shouldReceive('execute')
             ->with(['ots', 'stamp', '-'], $digestBytes, 15)
             ->once()
-            ->andReturn($proof1);
+            ->andReturn(['exitCode' => 0, 'stdout' => $proof1, 'stderr' => '']);
 
         Http::fake([
             'alice.btc.calendar.opentimestamps.org/*' => Http::response($proof1, 200),
@@ -184,7 +184,7 @@ class OpenTimestampProofMergingTest extends TestCase
         $this->mockExecutor->shouldReceive('execute')
             ->with(['ots', 'stamp', '-'], $digestBytes, 15)
             ->once()
-            ->andReturn($aliceProof);
+            ->andReturn(['exitCode' => 0, 'stdout' => $aliceProof, 'stderr' => '']);
 
         Http::fake([
             'alice.btc.calendar.opentimestamps.org/*' => Http::response($aliceProof, 200),

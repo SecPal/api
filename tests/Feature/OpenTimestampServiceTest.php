@@ -59,7 +59,7 @@ test('submit creates pending proof', function () {
     $this->mockExecutor->shouldReceive('execute')
         ->with(['ots', 'stamp', '-'], $merkleBytes, 15)
         ->once()
-        ->andReturn($mockProof);
+        ->andReturn(['exitCode' => 0, 'stdout' => $mockProof, 'stderr' => '']);
 
     // Act: Submit timestamp
     $proof = $this->service->submit($merkleRoot);
