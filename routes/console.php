@@ -25,7 +25,12 @@ Schedule::command('employees:send-contract-ending-notifications')->dailyAt('08:0
 
 // Schedule: Build Merkle trees for Level 2+3 activity logs hourly
 // See ADR-010 Phase 2: Merkle Tree Building
-Schedule::job(\App\Jobs\BuildMerkleTreeBatch::class)->hourly()->name('merkle-tree-batch');
+// NOTE: In local development, runs every minute for faster feedback
+// In production, should run hourly to batch logs efficiently
+$merkleSchedule = app()->environment('local')
+    ? Schedule::job(\App\Jobs\BuildMerkleTreeBatch::class)->everyMinute()
+    : Schedule::job(\App\Jobs\BuildMerkleTreeBatch::class)->hourly();
+$merkleSchedule->name('merkle-tree-batch');
 
 // Schedule: Upgrade pending OpenTimestamp proofs hourly
 // See ADR-010 Phase 3: OpenTimestamp Integration

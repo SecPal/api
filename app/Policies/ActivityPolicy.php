@@ -93,15 +93,34 @@ class ActivityPolicy
         // Leadership level filtering (NEW - Issue #396)
         // Only applies if activity was caused by a User
         if ($activity->causer_type === User::class && $activity->causer_id !== null) {
-            // Find causer's employee record
+            // CRITICAL: Users can always view their OWN activities
+            // This is essential for:
+            // - Login events (authentication log)
+            // - Admin/system users without Employee records
+            // - Self-service transparency
+            if ($activity->causer_id === $user->id) {
+                return true; // User can view their own activities
+            }
+
+            // Find causer's employee record IN THIS SPECIFIC organizational unit
             $causerEmployee = Employee::where('user_id', $activity->causer_id)
                 ->where('organizational_unit_id', $activity->organizational_unit_id)
                 ->first();
 
-            // If employee not found, the user may not exist or may not be an employee in this org unit
-
+            // If employee not found in THIS org unit, check if they have an employee record ANYWHERE
             if ($causerEmployee === null) {
-                return false; // Causer has no employee record in this org unit
+                // Check if causer has employee record in ANY organizational unit
+                $hasEmployeeRecordAnywhere = Employee::where('user_id', $activity->causer_id)->exists();
+
+                if ($hasEmployeeRecordAnywhere) {
+                    // Causer is an employee but in a DIFFERENT org unit
+                    // This activity should NOT be visible (cross-org unit isolation)
+                    return false;
+                }
+
+                // Causer has NO employee record at all (admin/system user)
+                // Allow viewing if user has scope for this org unit
+                return true;
             }
 
             $causerRank = $causerEmployee->management_level;
