@@ -200,6 +200,9 @@ test('genesis log chain verification passes', function () {
         'description' => 'Genesis log',
     ]);
 
+    // Refresh to load event_hash computed by dispatchSync
+    $log->refresh();
+
     expect($log->verifyChain())->toBeTrue();
 });
 
@@ -217,6 +220,10 @@ test('valid chain verification passes', function () {
         'log_name' => 'default',
         'description' => 'Second log',
     ]);
+
+    // Refresh to load event_hash computed by dispatchSync
+    $log1->refresh();
+    $log2->refresh();
 
     expect($log1->verifyChain())->toBeTrue()
         ->and($log2->verifyChain())->toBeTrue();
@@ -270,6 +277,9 @@ test('orphaned genesis log verification passes', function () {
         'orphaned_at' => now(),
     ]);
 
+    // Refresh to load updated fields
+    $log2->refresh();
+
     expect($log2->verifyChain())->toBeTrue();
 });
 
@@ -317,6 +327,9 @@ test('soft deleted logs still maintain chain integrity', function () {
 
     // Soft delete log2
     $log2->delete();
+
+    // Refresh to load event_hash computed by dispatchSync
+    $log3->refresh();
 
     // log3 should still verify (finds soft-deleted log2)
     expect($log3->verifyChain())->toBeTrue();

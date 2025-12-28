@@ -41,6 +41,10 @@ class OpenTimestampProofMergingTest extends TestCase
 
         // Mock ProcessExecutor to avoid CLI dependency
         $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
+        $this->mockExecutor->shouldReceive('commandExists')
+            ->with('ots')
+            ->andReturn(true)
+            ->byDefault();
         $this->app->instance(ProcessExecutor::class, $this->mockExecutor);
 
         $this->service = app(OpenTimestampService::class);

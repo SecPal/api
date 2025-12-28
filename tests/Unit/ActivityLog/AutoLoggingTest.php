@@ -42,7 +42,7 @@ test('employee creation triggers activity log with security level 1', function (
         ->and($activity->subject_type)->toBe(Employee::class)
         ->and($activity->subject_id)->toBe($employee->id)
         ->and($activity->tenant_id)->toBe($this->tenant->id)
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(1);
+        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2); // Level 2: DSGVO-relevant
 });
 
 test('employee update only logs dirty fields', function (): void {
