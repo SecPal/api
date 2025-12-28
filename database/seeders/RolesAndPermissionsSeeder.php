@@ -234,6 +234,8 @@ class RolesAndPermissionsSeeder extends Seeder
                     'qualification.*',
                     // Epic #399: Leadership Levels System (Issue #424)
                     'leadership_level.*',
+                    // Epic #385: Activity Logging & Audit Trail (Issue #396)
+                    'activity_log.*',
                     'onboarding.*',
                     'onboarding_template.*',
                     'reports.*',
@@ -278,6 +280,8 @@ class RolesAndPermissionsSeeder extends Seeder
                     'employee_document.read',
                     'employee_document.write',
                     'qualification.read',
+                    // Epic #385: Activity Logging & Audit Trail (Issue #396)
+                    'activity_log.read',
                     'onboarding.read',
                     'onboarding.write',
                 ],
