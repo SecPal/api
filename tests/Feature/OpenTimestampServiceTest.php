@@ -48,6 +48,18 @@ test('submit creates pending proof', function () {
     ]);
 
     $merkleRoot = hash('sha256', 'test-merkle-root');
+    $merkleBytes = hex2bin($merkleRoot);
+
+    // Mock ots stamp command execution
+    $mockProof = hex2bin(
+        '00'. // OpSHA256
+            '04f0'. // OpPrepend
+            bin2hex('alice.btc.calendar.opentimestamps.org')
+    );
+    $this->mockExecutor->shouldReceive('execute')
+        ->with(['ots', 'stamp', '-'], $merkleBytes, 15)
+        ->once()
+        ->andReturn($mockProof);
 
     // Act: Submit timestamp
     $proof = $this->service->submit($merkleRoot);
@@ -70,6 +82,12 @@ test('submit fails if insufficient calendars respond', function () {
     ]);
 
     $merkleRoot = hash('sha256', 'test-merkle-root');
+    $merkleBytes = hex2bin($merkleRoot);
+
+    // Mock ots stamp command - should throw exception before being called
+    $this->mockExecutor->shouldReceive('execute')
+        ->with(['ots', 'stamp', '-'], $merkleBytes, 15)
+        ->never(); // Should not be called due to insufficient calendars
 
     // Act & Assert: Should throw exception
     expect(fn () => $this->service->submit($merkleRoot))

@@ -58,11 +58,12 @@ test('employee update only logs dirty fields', function (): void {
     // Update only email
     $employee->update(['email' => 'new@example.com']);
 
-    // Find the Spatie activity log (has 'attributes' key), not the GDPR-compliant log (has 'changed_fields')
+    // Find the Spatie activity log (has 'attributes' key but NOT 'changed_fields')
+    // The GDPR log has 'changed_fields', Spatie's LogsActivity has 'attributes'
     $activity = Activity::where('log_name', 'employee_changes')
         ->where('description', 'updated')
         ->get()
-        ->first(fn ($log) => isset($log->properties['attributes']));
+        ->first(fn ($log) => isset($log->properties['attributes']) && ! isset($log->properties['changed_fields']));
 
     expect($activity)->not->toBeNull()
         ->and($activity->properties)->toHaveKey('attributes')
