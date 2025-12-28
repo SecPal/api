@@ -58,9 +58,11 @@ test('employee update only logs dirty fields', function (): void {
     // Update only email
     $employee->update(['email' => 'new@example.com']);
 
+    // Find the Spatie activity log (has 'attributes' key), not the GDPR-compliant log (has 'changed_fields')
     $activity = Activity::where('log_name', 'employee_changes')
         ->where('description', 'updated')
-        ->first();
+        ->get()
+        ->first(fn($log) => isset($log->properties['attributes']));
 
     expect($activity)->not->toBeNull()
         ->and($activity->properties)->toHaveKey('attributes')
@@ -82,7 +84,7 @@ test('employee deletion triggers soft delete activity log', function (): void {
 
     expect($activity)->not->toBeNull()
         ->and($activity->subject_id)->toBe($employee->id)
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(1);
+        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2); // Level 2: DSGVO-relevant
 });
 
 test('customer creation triggers activity log with security level 2', function (): void {
