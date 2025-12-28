@@ -62,7 +62,7 @@ test('employee update only logs dirty fields', function (): void {
     $activity = Activity::where('log_name', 'employee_changes')
         ->where('description', 'updated')
         ->get()
-        ->first(fn($log) => isset($log->properties['attributes']));
+        ->first(fn ($log) => isset($log->properties['attributes']));
 
     expect($activity)->not->toBeNull()
         ->and($activity->properties)->toHaveKey('attributes')
