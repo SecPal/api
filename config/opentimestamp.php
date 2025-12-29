@@ -55,4 +55,16 @@ return [
 
     'upgrade_interval' => env('OPENTIMESTAMP_UPGRADE_INTERVAL', 3600), // 1 hour
 
+    /*
+    |--------------------------------------------------------------------------
+    | Merkle Tree Build Frequency
+    |--------------------------------------------------------------------------
+    |
+    | How often to build Merkle trees for Level 2+3 activity logs.
+    | 'minute' for local development, 'hour' for production batching.
+    |
+    */
+
+    'merkle_schedule_frequency' => env('MERKLE_SCHEDULE_FREQUENCY', env('APP_ENV') === 'local' ? 'minute' : 'hour'),
+
 ];

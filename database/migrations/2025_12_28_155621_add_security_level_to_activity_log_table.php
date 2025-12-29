@@ -15,9 +15,9 @@ use Illuminate\Support\Facades\Schema;
  * Add security_level column to activity_log table.
  *
  * Security levels:
- * - Level 1 (Basic): Hash Chain only, 1-2 year retention
- * - Level 2 (Enhanced): Hash Chain + Merkle Tree, 3-5 year retention
- * - Level 3 (Maximum): Hash Chain + Merkle Tree + OpenTimestamp, 7-10 year retention
+ * - Level 1 (Basic): Hash Chain only, 3 year retention
+ * - Level 2 (Enhanced): Hash Chain + Merkle Tree, 5 year retention
+ * - Level 3 (Maximum): Hash Chain + Merkle Tree + OpenTimestamp, 7 year retention
  */
 return new class extends Migration
 {

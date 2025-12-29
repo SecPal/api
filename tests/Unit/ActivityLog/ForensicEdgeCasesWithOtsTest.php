@@ -194,8 +194,9 @@ test('ots edge case 3: batch incomplete but OTS valid (C+|L+|M-|O+)', function (
 
     // Verify: C❌ L❌ M❌ but O✅!
     // OTS is still valid because merkle_root in DB didn't change
+    // Link ❌ because forceDelete() removes records permanently (withTrashed won't find them)
     expect($remaining->verifyChain())->toBeFalse('Chain broken - predecessor deleted')
-        ->and($remaining->verifyChainLink())->toBeFalse('Illegitimate genesis detected')
+        ->and($remaining->verifyChainLink())->toBeFalse('Illegitimate genesis - predecessor force deleted')
         ->and($remaining->verifyMerkleProof())->toBeFalse('Batch incomplete: 2 of 5')
         ->and($remaining->verifyOpenTimestamp())->toBeTrue('OTS still valid - root unchanged! ✅');
 });
@@ -415,7 +416,7 @@ test('ots edge case 7: both leaf and root manipulated (C-|L+|M-|O-)', function (
 // CATASTROPHIC (C-|L-|M-|O-)
 // ============================================================================
 
-test('ots edge case 8: catastrophic - all 4 verifications fail (C-|L-|M-|O-)', function () {
+test('ots edge case 8: severe - 3 of 4 verifications fail (C-|L+|M-|O-)', function () {
     $this->actingAs($this->user);
 
     $logs = collect();
@@ -461,9 +462,12 @@ test('ots edge case 8: catastrophic - all 4 verifications fail (C-|L-|M-|O-)', f
 
     $log2 = $logs[2]->fresh();
 
-    // Verify: ALL 4 FAIL
+    // Verify: 3 of 4 FAIL (only Chain Link passes - critical limitation!)
+    // LIMITATION: Setting previous_hash=null + deleting predecessors makes this appear as legitimate genesis
+    // verifyChainLink() returns TRUE because it can't find earlier logs (they're force-deleted)
+    // This is why Merkle+OTS layers are critical - they catch this manipulation
     expect($log2->verifyChain())->toBeFalse('Chain Data ❌')
-        ->and($log2->verifyChainLink())->toBeTrue('Chain Link ✅ (limitation - predecessor deleted)')
+        ->and($log2->verifyChainLink())->toBeTrue('Chain Link ✅ (LIMITATION: appears as legitimate genesis after deletion)')
         ->and($log2->verifyMerkleProof())->toBeFalse('Merkle Tree ❌')
         ->and($log2->verifyOpenTimestamp())->toBeFalse('OpenTimestamp ❌');
 });

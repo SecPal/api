@@ -23,11 +23,12 @@ Schedule::command('employees:update-qualifications')->dailyAt('07:00');
 // Schedule: Send contract ending soon notifications daily at 08:00
 Schedule::command('employees:send-contract-ending-notifications')->dailyAt('08:00');
 
-// Schedule: Build Merkle trees for Level 2+3 activity logs hourly
+// Schedule: Build Merkle trees for Level 2+3 activity logs
 // See ADR-010 Phase 2: Merkle Tree Building
-// NOTE: In local development, runs every minute for faster feedback
-// In production, should run hourly to batch logs efficiently
-$merkleSchedule = app()->environment('local')
+// Frequency configured via MERKLE_SCHEDULE_FREQUENCY env var
+// Default: every minute (local), hourly (production)
+$merkleFrequency = config('opentimestamp.merkle_schedule_frequency', 'hour');
+$merkleSchedule = $merkleFrequency === 'minute'
     ? Schedule::job(\App\Jobs\BuildMerkleTreeBatch::class)->everyMinute()
     : Schedule::job(\App\Jobs\BuildMerkleTreeBatch::class)->hourly();
 $merkleSchedule->name('merkle-tree-batch');

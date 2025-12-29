@@ -119,7 +119,12 @@ class ActivityPolicy
                 }
 
                 // Causer has NO employee record at all (admin/system user)
-                // Allow viewing if user has scope for this org unit
+                // System user activities require special permission for security
+                if (! $user->can('activity_log.read_system')) {
+                    return false;
+                }
+
+                // Allow viewing if user has scope for this org unit AND read_system permission
                 return true;
             }
 

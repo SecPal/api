@@ -136,11 +136,11 @@ test('edge case 2: deleted activities from batch detected', function () {
 
     $remaining = $logs[3]->fresh();
 
-    // Verify: Chain ❌ (predecessor deleted), Link ❌ (illegitimate genesis detected via withTrashed), Merkle ❌ (batch incomplete)
-    // Note: verifyChainLink() uses withTrashed() so it CAN detect illegitimate genesis even after soft delete!
-    // This is GOOD - soft deleted logs still provide forensic evidence
+    // Verify: Chain ❌ (predecessor deleted), Link ❌ (illegitimate genesis detected), Merkle ❌ (batch incomplete)
+    // Note: forceDelete() permanently removes records - withTrashed() cannot find them
+    // This correctly detects the illegitimate genesis after force deletion
     expect($remaining->verifyChain())->toBeFalse('Chain broken - predecessor deleted')
-        ->and($remaining->verifyChainLink())->toBeFalse('Illegitimate genesis detected via soft-deleted predecessor')
+        ->and($remaining->verifyChainLink())->toBeFalse('Illegitimate genesis - predecessor force deleted')
         ->and($remaining->verifyMerkleProof())->toBeFalse('Batch count mismatch: 2 of 5 remain');
 });
 
