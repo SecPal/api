@@ -46,7 +46,7 @@ test('submit creates pending proof', function () {
             '04f0'. // OpPrepend
             bin2hex('alice.btc.calendar.opentimestamps.org')
     );
-    
+
     $this->mockExecutor->shouldReceive('execute')
         ->with(['ots', 'stamp', '-'], $merkleBytes, 15)
         ->once()
@@ -73,7 +73,7 @@ test('submit fails if insufficient calendars respond', function () {
         ->andReturn([
             'exitCode' => 1,
             'stdout' => '',
-            'stderr' => 'only 1 of 3 calendars responded'
+            'stderr' => 'only 1 of 3 calendars responded',
         ]);
 
     // Act & Assert: Should throw exception
