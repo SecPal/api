@@ -104,11 +104,21 @@ class OpenTimestampService
             );
 
             if ($result['exitCode'] !== 0) {
+                // Sanitize and truncate stderr for log safety (calendar errors might contain HTML/special chars)
+                $stderr = trim((string) ($result['stderr'] ?? ''));
+                if ($stderr === '') {
+                    $stderr = 'No error details available';
+                } else {
+                    // Truncate to 500 chars for log readability, escape % for sprintf
+                    $stderr = substr($stderr, 0, 500);
+                    $stderr = str_replace('%', '%%', $stderr);
+                }
+
                 throw new RuntimeException(
                     sprintf(
                         'OTS stamp failed with exit code %d: %s',
                         $result['exitCode'],
-                        $result['stderr']
+                        $stderr
                     )
                 );
             }

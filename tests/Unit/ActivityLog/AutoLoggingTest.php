@@ -19,7 +19,9 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     $this->tenant = TenantKey::factory()->create();
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
     $this->actingAs($this->user);
 
     // Set tenant context
@@ -58,17 +60,16 @@ test('employee update only logs dirty fields', function (): void {
     // Update only email
     $employee->update(['email' => 'new@example.com']);
 
-    // Find the Spatie activity log (has 'attributes' key but NOT 'changed_fields')
-    // The GDPR log has 'changed_fields', Spatie's LogsActivity has 'attributes'
+    // Email/phone are logged via GDPR observer (changed_fields), not Spatie auto-logging (attributes)
+    // Find the GDPR activity log (has 'changed_fields' key)
     $activity = Activity::where('log_name', 'employee_changes')
-        ->where('description', 'updated')
-        ->get()
-        ->first(fn ($log) => isset($log->properties['attributes']) && ! isset($log->properties['changed_fields']));
+        ->where('description', 'Sensitive data changed (GDPR-compliant: no values stored)')
+        ->first();
 
     expect($activity)->not->toBeNull()
-        ->and($activity->properties)->toHaveKey('attributes')
-        ->and($activity->properties['attributes'])->toHaveKey('email')
-        ->and($activity->properties['attributes'])->not->toHaveKey('phone');
+        ->and($activity->properties)->toHaveKey('changed_fields')
+        ->and($activity->properties['changed_fields'])->toContain('email')
+        ->and($activity->properties['changed_fields'])->not->toContain('phone');
 });
 
 test('employee deletion triggers soft delete activity log', function (): void {

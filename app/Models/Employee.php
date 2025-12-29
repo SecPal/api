@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -247,8 +248,7 @@ class Employee extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'employee_number',
-                'email',
-                'phone',
+                // email and phone are logged via GDPR-compliant manual observer (see booted() method)
                 'status',
                 'position',
                 'management_level',
@@ -312,10 +312,10 @@ class Employee extends Model
             }
 
             // Log if any sensitive fields changed
-            if (! empty($changedFields)) {
+            if (! empty($changedFields) && Auth::check()) {
                 activity('employee_changes')
                     ->performedOn($employee)
-                    ->causedBy(\Illuminate\Support\Facades\Auth::user())
+                    ->causedBy(Auth::user())
                     ->withProperties([
                         'changed_fields' => $changedFields,
                         'field_count' => count($changedFields),
