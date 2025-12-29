@@ -41,6 +41,7 @@ class ActivityResource extends JsonResource
             // Core activity data
             'log_name' => $this->log_name,
             'description' => $this->description,
+            'security_level' => $this->security_level,
 
             // Subject (what was changed)
             'subject_type' => $this->subject_type,
@@ -109,12 +110,13 @@ class ActivityResource extends JsonResource
             // Verification data (only included when explicitly requested)
             // WARNING: Verification methods perform cryptographic operations.
             // Use include_verification=1 sparingly, especially with large result sets,
-            // as it calls 3 verification methods per activity (chain, merkle, OTS).
+            // as it calls 4 verification methods per activity (chain, chain_link, merkle, OTS).
             'verification' => $this->when(
                 $request->boolean('include_verification'),
                 function () {
                     return [
                         'chain_valid' => $this->verifyChain(),
+                        'chain_link_valid' => $this->verifyChainLink(),
                         'merkle_valid' => $this->verifyMerkleProof(),
                         'ots_valid' => $this->verifyOpenTimestamp(),
                     ];

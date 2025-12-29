@@ -58,6 +58,7 @@ class EmployeeFactory extends Factory
             'status' => Employee::STATUS_ACTIVE,
             'onboarding_completed_at' => fake()->dateTimeBetween('-6 months', 'now'),
             'management_level' => 0, // Default: non-management (0=Guards, 1-255=Management)
+            'user_account_active' => false, // Explicit default to prevent dirty flag on updates
             // Don't set user_id by default - let tests control this
             // or use withUser() state
         ];

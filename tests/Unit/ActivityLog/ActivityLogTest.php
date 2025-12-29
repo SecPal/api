@@ -173,8 +173,8 @@ test('user agent auto-captured from request', function () {
 
 test('security level determination works correctly', function () {
     expect(Activity::getSecurityLevel('default'))->toBe(1)
-        ->and(Activity::getSecurityLevel('employee_changes'))->toBe(1)
         ->and(Activity::getSecurityLevel('shift_management'))->toBe(1)
+        ->and(Activity::getSecurityLevel('employee_changes'))->toBe(2) // DSGVO-relevant
         ->and(Activity::getSecurityLevel('authentication'))->toBe(2)
         ->and(Activity::getSecurityLevel('security'))->toBe(2)
         ->and(Activity::getSecurityLevel('rbac_changes'))->toBe(2)
@@ -185,10 +185,6 @@ test('security level determination works correctly', function () {
 
 test('unknown log types default to level 1', function () {
     expect(Activity::getSecurityLevel('unknown_log_type'))->toBe(1);
-});
-
-test('deprecated emergency access log type returns level 3', function () {
-    expect(Activity::getSecurityLevel('emergency_access'))->toBe(3);
 });
 
 // ============================================================================
@@ -203,6 +199,9 @@ test('genesis log chain verification passes', function () {
         'log_name' => 'default',
         'description' => 'Genesis log',
     ]);
+
+    // Refresh to load event_hash computed by dispatchSync
+    $log->refresh();
 
     expect($log->verifyChain())->toBeTrue();
 });
@@ -221,6 +220,10 @@ test('valid chain verification passes', function () {
         'log_name' => 'default',
         'description' => 'Second log',
     ]);
+
+    // Refresh to load event_hash computed by dispatchSync
+    $log1->refresh();
+    $log2->refresh();
 
     expect($log1->verifyChain())->toBeTrue()
         ->and($log2->verifyChain())->toBeTrue();
@@ -274,6 +277,9 @@ test('orphaned genesis log verification passes', function () {
         'orphaned_at' => now(),
     ]);
 
+    // Refresh to load updated fields
+    $log2->refresh();
+
     expect($log2->verifyChain())->toBeTrue();
 });
 
@@ -322,6 +328,9 @@ test('soft deleted logs still maintain chain integrity', function () {
     // Soft delete log2
     $log2->delete();
 
+    // Refresh to load event_hash computed by dispatchSync
+    $log3->refresh();
+
     // log3 should still verify (finds soft-deleted log2)
     expect($log3->verifyChain())->toBeTrue();
 });
@@ -330,7 +339,7 @@ test('soft deleted logs still maintain chain integrity', function () {
 // Merkle Proof Tests (Stub Verification)
 // ============================================================================
 
-test('merkle proof returns false without data', function () {
+test('merkle proof returns null without merkle data', function () {
     $this->actingAs($this->user);
 
     $log = Activity::create([
@@ -339,7 +348,7 @@ test('merkle proof returns false without data', function () {
         'description' => 'Test log',
     ]);
 
-    expect($log->verifyMerkleProof())->toBeFalse();
+    expect($log->verifyMerkleProof())->toBeNull();
 });
 
 test('merkle proof verifies with valid proof via batch job', function () {
@@ -367,7 +376,7 @@ test('merkle proof verifies with valid proof via batch job', function () {
 // OpenTimestamp Tests (Stub Verification)
 // ============================================================================
 
-test('opentimestamp returns false without data', function () {
+test('opentimestamp returns null without data', function () {
     $this->actingAs($this->user);
 
     $log = Activity::create([
@@ -376,7 +385,7 @@ test('opentimestamp returns false without data', function () {
         'description' => 'Test log',
     ]);
 
-    expect($log->verifyOpenTimestamp())->toBeFalse();
+    expect($log->verifyOpenTimestamp())->toBeNull();
 });
 
 test('opentimestamp verification works with valid proof', function () {

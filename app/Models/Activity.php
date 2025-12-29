@@ -101,6 +101,7 @@ class Activity extends SpatieActivity
         'event_hash',
         'merkle_root',
         'merkle_batch_id',
+        'merkle_batch_count',
         'merkle_proof',
         'ots_proof',
         'ots_submitted_at',
@@ -183,7 +184,6 @@ class Activity extends SpatieActivity
     protected static array $securityLevels = [
         // Level 1: Standard Operations (3 years)
         'default' => 1,
-        'employee_changes' => 1,
         'shift_management' => 1,
 
         // Level 2: Security-Critical (5 years)
@@ -193,6 +193,7 @@ class Activity extends SpatieActivity
         'scope_changes' => 2,
         'customer_changes' => 2,
         'site_management' => 2,
+        'employee_changes' => 2, // Personenbezogene Daten - DSGVO-relevant
 
         // Level 3: Legal-Critical (7 years)
         'hr_access' => 3,
@@ -200,9 +201,6 @@ class Activity extends SpatieActivity
         'works_council_access' => 3,
         'guard_book_event' => 3,
         'sensitive_access' => 3,
-
-        // Deprecated (kept for backward compatibility)
-        'emergency_access' => 3, // Use 'hr_access' or 'sensitive_access' instead
     ];
 
     /**
@@ -266,6 +264,11 @@ class Activity extends SpatieActivity
             // Validate organizational_unit_id belongs to same tenant (Issue #402)
             if ($activity->organizational_unit_id !== null) {
                 $activity->validateOrganizationalUnit();
+            }
+
+            // Set security_level based on log_name (if not already set)
+            if (! $activity->security_level && $activity->log_name) {
+                $activity->security_level = self::getSecurityLevel($activity->log_name);
             }
 
             // Capture request metadata
@@ -480,10 +483,15 @@ class Activity extends SpatieActivity
      * Checks if current log's event_hash correctly links to previous log.
      * Accepts orphaned genesis logs (when predecessor was deleted).
      *
-     * @return bool True if chain is valid, false if tampered
+     * @return bool|null True if chain is valid, false if tampered, null if not yet processed
      */
-    public function verifyChain(): bool
+    public function verifyChain(): ?bool
     {
+        // Activity not yet processed by hash chain job
+        if ($this->event_hash === null) {
+            return null;
+        }
+
         // Validate tenant_id is set
         if ($this->tenant_id === null) {
             return false; // Cannot verify chain without tenant_id
@@ -494,11 +502,26 @@ class Activity extends SpatieActivity
             return true;
         }
 
-        // Genesis log (first log in tenant's chain)
+        // Recalculate event_hash and verify (for both genesis and chained logs)
+        $logData = json_encode([
+            'tenant_id' => $this->tenant_id,
+            'log_name' => $this->log_name,
+            'description' => $this->description,
+            'subject_type' => $this->subject_type,
+            'subject_id' => $this->subject_id,
+            'causer_type' => $this->causer_type,
+            'causer_id' => $this->causer_id,
+            'properties' => $this->properties,
+        ], JSON_THROW_ON_ERROR);
+
+        $calculatedHash = hash('sha256', ($this->previous_hash ?? '').$logData);
+
+        // For genesis logs (previous_hash === null), only verify own data
         if ($this->previous_hash === null) {
-            return true;
+            return $calculatedHash === $this->event_hash;
         }
 
+        // For chained logs, verify predecessor exists AND own data is correct
         // Find previous log (check active, soft-deleted, and archived logs)
         /** @var Activity|null $previousLog */
         $previousLog = static::withTrashed()
@@ -518,21 +541,82 @@ class Activity extends SpatieActivity
             }
         }
 
-        // Recalculate event_hash and verify
-        $logData = json_encode([
-            'tenant_id' => $this->tenant_id,
-            'log_name' => $this->log_name,
-            'description' => $this->description,
-            'subject_type' => $this->subject_type,
-            'subject_id' => $this->subject_id,
-            'causer_type' => $this->causer_type,
-            'causer_id' => $this->causer_id,
-            'properties' => $this->properties,
-        ], JSON_THROW_ON_ERROR);
-
-        $calculatedHash = hash('sha256', ($this->previous_hash ?? '').$logData);
-
         return $calculatedHash === $this->event_hash;
+    }
+
+    /**
+     * Verify chain link integrity (does previous_hash point to valid predecessor?).
+     *
+     * This checks if the chain link between this activity and its predecessor is intact.
+     * Returns false if:
+     * - previous_hash exists but no predecessor with that event_hash exists
+     * - previous_hash points to a predecessor whose event_hash has been modified
+     *
+     * @return bool|null True if link is valid, false if broken, null if not yet processed
+     */
+    public function verifyChainLink(): ?bool
+    {
+        // Activity not yet processed by hash chain job
+        if ($this->event_hash === null) {
+            return null;
+        }
+
+        // Orphaned genesis logs are valid (predecessor was legitimately deleted)
+        if ($this->is_orphaned_genesis) {
+            return true;
+        }
+
+        // Genesis log check: If previous_hash is NULL, verify it's a LEGITIMATE genesis
+        if ($this->previous_hash === null) {
+            // Check if there's an earlier activity with same log_name and tenant_id
+            $earlierActivity = static::withTrashed()
+                ->where('tenant_id', $this->tenant_id)
+                ->where('log_name', $this->log_name)
+                ->where('id', '<', $this->id)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            // If an earlier activity exists, this genesis is ILLEGITIMATE (chain was broken!)
+            if ($earlierActivity) {
+                return false; // This should NOT be a genesis log!
+            }
+
+            // Also check archive for earlier activities
+            $archivedEarlier = ActivityArchive::where('tenant_id', $this->tenant_id)
+                ->where('log_name', $this->log_name)
+                ->where('id', '<', $this->id)
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if ($archivedEarlier) {
+                return false; // This should NOT be a genesis log!
+            }
+
+            // No earlier activity found - this is a legitimate genesis log
+            return true;
+        }
+
+        // Find previous log by event_hash (check active, soft-deleted, and archived logs)
+        /** @var Activity|null $previousLog */
+        $previousLog = static::withTrashed()
+            ->where('tenant_id', $this->tenant_id)
+            ->where('event_hash', $this->previous_hash)
+            ->first();
+
+        // If not in activity_log, check archive
+        if (! $previousLog) {
+            /** @var ActivityArchive|null $archivedLog */
+            $archivedLog = ActivityArchive::where('tenant_id', $this->tenant_id)
+                ->where('event_hash', $this->previous_hash)
+                ->first();
+
+            if (! $archivedLog) {
+                return false; // Previous log missing or hash modified (chain link broken!)
+            }
+        }
+
+        // Chain link is intact if predecessor exists with matching event_hash
+        return true;
     }
 
     /**
@@ -543,16 +627,36 @@ class Activity extends SpatieActivity
      * in the proof, hashing left/right according to position, and compares
      * the final computed hash with the stored merkle_root.
      *
-     * @return bool True if proof is valid, false otherwise
+     * Additionally checks batch integrity: if merkle_batch_count is set,
+     * verifies that the actual number of activities in the batch matches
+     * the expected count. If activities are missing, the batch is incomplete
+     * and considered invalid (forensic security: detects deleted activities).
+     *
+     * @return bool|null True if proof is valid, false if invalid, null if not yet processed
      */
-    public function verifyMerkleProof(): bool
+    public function verifyMerkleProof(): ?bool
     {
-        if (! $this->merkle_root || ! $this->merkle_proof) {
-            return false; // No Merkle data available
+        if (! $this->merkle_root || $this->merkle_proof === null) {
+            return null; // Merkle tree not yet built (pending)
+        }
+
+        // Check batch integrity: detect if activities were deleted from batch
+        if ($this->merkle_batch_count !== null && $this->merkle_batch_id !== null) {
+            $actualCount = static::where('merkle_batch_id', $this->merkle_batch_id)->count();
+
+            if ($actualCount < $this->merkle_batch_count) {
+                // Activities missing from batch - forensic integrity violated!
+                return false;
+            }
         }
 
         // Start with leaf hash (this log's event_hash)
         $currentHash = $this->event_hash;
+
+        // Single-leaf tree: empty proof means this is the only leaf, root = leaf
+        if (is_array($this->merkle_proof) && count($this->merkle_proof) === 0) {
+            return $currentHash === $this->merkle_root;
+        }
 
         // Iterate through proof siblings, hashing up the tree
         foreach ($this->merkle_proof as $sibling) {
@@ -588,16 +692,16 @@ class Activity extends SpatieActivity
      * via OpenTimestamp. Uses OpenTimestampService to verify proof structure
      * and Bitcoin attestation.
      *
-     * @return bool True if OTS proof is valid and Bitcoin-confirmed, false otherwise
+     * @return bool|null True if OTS proof is valid and Bitcoin-confirmed, false if invalid, null if not yet confirmed
      *
      * @see ADR-010 Section 6: OpenTimestamp Integration
      * @see Issue #391 PR-6: Integrate OpenTimestamp PHP library
      */
-    public function verifyOpenTimestamp(): bool
+    public function verifyOpenTimestamp(): ?bool
     {
         // Require confirmed proof
         if (! $this->ots_proof || ! $this->ots_confirmed_at || ! $this->merkle_root) {
-            return false; // No OTS data available or not yet confirmed
+            return null; // OTS not yet confirmed (pending) or not applicable
         }
 
         try {

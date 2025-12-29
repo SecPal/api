@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Auth;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -225,17 +226,32 @@ class Employee extends Model
     /**
      * Configure activity logging.
      *
-     * Logs employee changes (Level 1: employee_changes).
-     * Tracks: employee_number, status, email, phone, contract dates, user account status.
+     * Logs employee changes (Level 2: employee_changes).
+     *
+     * DSGVO-KONFORME LOGGING-STRATEGIE:
+     *
+     * MIT Werten geloggt (rechtlich/compliance notwendig):
+     * - employee_number, status, position, management_level
+     * - contract_type, hire_date, contract_start_date, termination_date, last_working_day
+     * - user_account_active, organizational_unit_id
+     *
+     * OHNE Werte geloggt (personenbezogene Daten - DSGVO Art. 5 Abs. 1 lit. c):
+     * - first_name, last_name (via booted() Event)
+     * - email, phone (via booted() Event)
+     * - Alle verschlüsselten Felder (date_of_birth, address, hourly_rate, tax_id, ssn)
+     *
+     * Grund: Unveränderlicher Audit Log verhindert "Recht auf Vergessenwerden" (Art. 17 DSGVO).
+     * Wir dokumentieren DASS sich etwas änderte, NICHT die Werte selbst.
      */
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
             ->logOnly([
                 'employee_number',
+                // email and phone are logged via GDPR-compliant manual observer (see booted() method)
                 'status',
-                'email',
-                'phone',
+                'position',
+                'management_level',
                 'contract_type',
                 'hire_date',
                 'contract_start_date',
@@ -244,9 +260,70 @@ class Employee extends Model
                 'user_account_active',
                 'organizational_unit_id',
             ])
+            ->dontLogIfAttributesChangedOnly(['updated_at'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
             ->useLogName('employee_changes');
+    }
+
+    /**
+     * The "booted" method of the model.
+     *
+     * Registers event listeners for DSGVO-compliant logging of sensitive personal data.
+     * Documents THAT a change occurred without storing the actual values.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (Employee $employee) {
+            // Track which sensitive fields changed
+            $changedFields = [];
+
+            // Name changes (encrypted fields)
+            if ($employee->isDirty('first_name_enc')) {
+                $changedFields[] = 'first_name';
+            }
+            if ($employee->isDirty('last_name_enc')) {
+                $changedFields[] = 'last_name';
+            }
+
+            // Contact information (personal data)
+            if ($employee->isDirty('email')) {
+                $changedFields[] = 'email';
+            }
+            if ($employee->isDirty('phone')) {
+                $changedFields[] = 'phone';
+            }
+
+            // Highly sensitive encrypted data
+            if ($employee->isDirty('date_of_birth_enc')) {
+                $changedFields[] = 'date_of_birth';
+            }
+            if ($employee->isDirty('address_encrypted')) {
+                $changedFields[] = 'address';
+            }
+            if ($employee->isDirty('hourly_rate_enc')) {
+                $changedFields[] = 'hourly_rate';
+            }
+            if ($employee->isDirty('tax_id_enc')) {
+                $changedFields[] = 'tax_id';
+            }
+            if ($employee->isDirty('social_security_number_enc')) {
+                $changedFields[] = 'social_security_number';
+            }
+
+            // Log if any sensitive fields changed
+            if (! empty($changedFields) && Auth::check()) {
+                activity('employee_changes')
+                    ->performedOn($employee)
+                    ->causedBy(Auth::user())
+                    ->withProperties([
+                        'changed_fields' => $changedFields,
+                        'field_count' => count($changedFields),
+                        'note' => 'Sensitive personal data changed - values not logged for GDPR compliance (Art. 5 Abs. 1 lit. c - Data Minimization)',
+                    ])
+                    ->log('Sensitive data changed (GDPR-compliant: no values stored)');
+            }
+        });
     }
 
     // === RELATIONSHIPS ===

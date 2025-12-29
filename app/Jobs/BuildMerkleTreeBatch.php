@@ -98,10 +98,12 @@ class BuildMerkleTreeBatch implements ShouldQueue
      */
     protected function buildTreeForTenant(int $tenantId, array $logNames): void
     {
-        // Query unbatched logs for this tenant
+        // Query unbatched logs for this tenant that have valid event_hash
+        // CRITICAL: Only process logs with hash chain already built
         $logs = Activity::where('tenant_id', $tenantId)
             ->whereNull('merkle_root')
             ->whereIn('log_name', $logNames)
+            ->whereNotNull('event_hash') // Skip logs without hash chain
             ->orderBy('created_at')
             ->orderBy('id') // Secondary sort for deterministic order
             ->get();
@@ -116,10 +118,14 @@ class BuildMerkleTreeBatch implements ShouldQueue
         // Build Merkle tree
         $tree = $this->buildTree($logs);
 
+        // Store the batch count for forensic integrity checking
+        $batchCount = $logs->count();
+
         // Update logs with Merkle data
         foreach ($logs as $index => $log) {
             $log->update([
                 'merkle_batch_id' => $batchId,
+                'merkle_batch_count' => $batchCount,
                 'merkle_root' => $tree['root'],
                 'merkle_proof' => $tree['proofs'][$index],
             ]);

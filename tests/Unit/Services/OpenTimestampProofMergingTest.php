@@ -41,6 +41,10 @@ class OpenTimestampProofMergingTest extends TestCase
 
         // Mock ProcessExecutor to avoid CLI dependency
         $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
+        $this->mockExecutor->shouldReceive('commandExists')
+            ->with('ots')
+            ->andReturn(true)
+            ->byDefault();
         $this->app->instance(ProcessExecutor::class, $this->mockExecutor);
 
         $this->service = app(OpenTimestampService::class);
@@ -62,6 +66,12 @@ class OpenTimestampProofMergingTest extends TestCase
         $aliceProof = $this->buildCalendarProof($digestBytes, 'https://alice.btc.calendar.opentimestamps.org');
         $bobProof = $this->buildCalendarProof($digestBytes, 'https://bob.btc.calendar.opentimestamps.org');
         $finneyProof = $this->buildCalendarProof($digestBytes, 'https://finney.calendar.eternitywall.com');
+
+        // Mock ots stamp command execution
+        $this->mockExecutor->shouldReceive('execute')
+            ->with(['ots', 'stamp', '-'], $digestBytes, 15)
+            ->once()
+            ->andReturn(['exitCode' => 0, 'stdout' => $aliceProof, 'stderr' => '']);
 
         Http::fake([
             'alice.btc.calendar.opentimestamps.org/*' => Http::response($aliceProof, 200),
@@ -93,6 +103,12 @@ class OpenTimestampProofMergingTest extends TestCase
         $proof1 = $this->buildCalendarProof($digestBytes, 'https://alice.btc.calendar.opentimestamps.org');
         $proof2 = $this->buildCalendarProof($digestBytes, 'https://bob.btc.calendar.opentimestamps.org');
         $proof3 = $this->buildCalendarProof($digestBytes, 'https://finney.calendar.eternitywall.com');
+
+        // Mock ots stamp command execution
+        $this->mockExecutor->shouldReceive('execute')
+            ->with(['ots', 'stamp', '-'], $digestBytes, 15)
+            ->once()
+            ->andReturn(['exitCode' => 0, 'stdout' => $proof1, 'stderr' => '']);
 
         Http::fake([
             'alice.btc.calendar.opentimestamps.org/*' => Http::response($proof1, 200),
@@ -126,6 +142,12 @@ class OpenTimestampProofMergingTest extends TestCase
         $proof1 = $this->buildCalendarProof($digestBytes, 'https://alice.btc.calendar.opentimestamps.org');
         $proof2 = $this->buildCalendarProof($digestBytes, 'https://bob.btc.calendar.opentimestamps.org');
 
+        // Mock ots stamp command execution
+        $this->mockExecutor->shouldReceive('execute')
+            ->with(['ots', 'stamp', '-'], $digestBytes, 15)
+            ->once()
+            ->andReturn(['exitCode' => 0, 'stdout' => $proof1, 'stderr' => '']);
+
         Http::fake([
             'alice.btc.calendar.opentimestamps.org/*' => Http::response($proof1, 200),
             'bob.btc.calendar.opentimestamps.org/*' => Http::response($proof2, 200),
@@ -157,6 +179,12 @@ class OpenTimestampProofMergingTest extends TestCase
 
         $aliceProof = $this->buildCalendarProof($digestBytes, 'https://alice.btc.calendar.opentimestamps.org');
         $bobProof = $this->buildCalendarProof($digestBytes, 'https://bob.btc.calendar.opentimestamps.org');
+
+        // Mock ots stamp command execution
+        $this->mockExecutor->shouldReceive('execute')
+            ->with(['ots', 'stamp', '-'], $digestBytes, 15)
+            ->once()
+            ->andReturn(['exitCode' => 0, 'stdout' => $aliceProof, 'stderr' => '']);
 
         Http::fake([
             'alice.btc.calendar.opentimestamps.org/*' => Http::response($aliceProof, 200),

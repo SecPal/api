@@ -138,6 +138,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'activity_log' => [
                 'read',
                 'read_all', // Access to global logs (no organizational unit)
+                'read_system', // View activities from admin/system users (Issue #440)
             ],
             'onboarding' => [
                 'read',
@@ -282,6 +283,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     'qualification.read',
                     // Epic #385: Activity Logging & Audit Trail (Issue #396)
                     'activity_log.read',
+                    'activity_log.read_system', // View activities from admin/system users (Issue #440)
                     'onboarding.read',
                     'onboarding.write',
                 ],

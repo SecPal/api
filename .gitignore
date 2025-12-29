@@ -41,3 +41,27 @@ _ide_helper_models.php
 storage/testing/
 .pr-body.md
 
+# Temporary helper/demo scripts (development/debugging only)
+/add-realistic-ots-data.php
+/analyze-*.php
+/break-merkle-for-ui.php
+/check-*.php
+/create-*.php
+/debug-*.php
+/demo-*.php
+/edge-case-summary.php
+/explain-*.php
+/final-merkle-demo.php
+/find-by-batch.php
+/fix-*.php
+/manipulate-*.php
+/quick-test.php
+/remove-*.php
+/show-*.php
+/submit-ots-manually.php
+/test-*.php
+/ui-*.php
+/verify-edge-cases.php
+/visualize-merkle-tree.php
+
+.preflight-allow-large-pr*

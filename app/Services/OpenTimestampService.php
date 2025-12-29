@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Contracts\ProcessExecutor;
-use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -31,11 +30,6 @@ use RuntimeException;
  */
 class OpenTimestampService
 {
-    /**
-     * Minimum calendar responses required for successful submission.
-     */
-    private const MIN_CALENDAR_RESPONSES = 2;
-
     /**
      * @var array<string> Calendar server URLs
      */
@@ -72,11 +66,12 @@ class OpenTimestampService
      * Submit message digest to OpenTimestamp calendars.
      *
      * Creates pending proof that will be upgraded when Bitcoin block confirms.
+     * Uses `ots stamp` CLI command for reliable calendar server interaction.
      *
      * @param  string  $digest  SHA256 hash (64 hex characters)
      * @return string Binary OTS proof (pending attestation)
      *
-     * @throws RuntimeException if insufficient calendars respond
+     * @throws RuntimeException if submission fails
      */
     public function submit(string $digest): string
     {
@@ -84,76 +79,75 @@ class OpenTimestampService
             throw new \InvalidArgumentException('Digest must be 64-character hex SHA256 hash');
         }
 
+        // Check if ots CLI is installed
+        if (! $this->processExecutor->commandExists('ots')) {
+            throw new RuntimeException(
+                'OpenTimestamp CLI not installed. Install with: pip install opentimestamps-client'
+            );
+        }
+
+        Log::info('OpenTimestamp: Submitting digest via CLI', ['digest' => $digest]);
+
+        // Use ots CLI to stamp the hash
+        // ots stamp reads from stdin and writes proof to stdout
         $digestBytes = hex2bin($digest);
         if ($digestBytes === false) {
             throw new \InvalidArgumentException('Invalid hex digest');
         }
 
-        Log::info('OpenTimestamp: Submitting digest', ['digest' => $digest]);
+        try {
+            // Execute: echo <bytes> | ots stamp -
+            $result = $this->processExecutor->execute(
+                ['ots', 'stamp', '-'],
+                $digestBytes,
+                15 // 15 second timeout for calendar submissions
+            );
 
-        // Submit to all calendars in parallel
-        $responses = [];
-        $http = Http::timeout($this->timeout)->withHeaders([
-            'Accept' => 'application/octet-stream',
-            'Content-Type' => 'application/octet-stream',
-            'User-Agent' => 'SecPal-Laravel-OTS/1.0',
-        ]);
+            if ($result['exitCode'] !== 0) {
+                // Sanitize and truncate stderr for log safety (calendar errors might contain HTML/special chars)
+                $stderr = trim((string) ($result['stderr'] ?? ''));
+                if ($stderr === '') {
+                    $stderr = 'No error details available';
+                } else {
+                    // Truncate to 500 chars for log readability, escape % for sprintf
+                    $stderr = substr($stderr, 0, 500);
+                    $stderr = str_replace('%', '%%', $stderr);
+                }
 
-        // Use HTTP pool for parallel calendar submissions
-        $responses = Http::pool(fn (Pool $pool) => array_map(
-            fn ($calendarUrl) => $pool
-                ->timeout($this->timeout)
-                ->post("{$calendarUrl}/timestamp/{$digest}"),
-            $this->calendarUrls
-        ));
-
-        $successfulResponses = [];
-        foreach ($responses as $index => $response) {
-            $calendarUrl = $this->calendarUrls[$index];
-
-            if ($response instanceof \Exception) {
-                Log::warning('OpenTimestamp: Calendar error', [
-                    'calendar' => $calendarUrl,
-                    'error' => $response->getMessage(),
-                ]);
-
-                continue;
+                throw new RuntimeException(
+                    sprintf(
+                        'OTS stamp failed with exit code %d: %s',
+                        $result['exitCode'],
+                        $stderr
+                    )
+                );
             }
 
-            /** @var \Illuminate\Http\Client\Response $response */
-            if ($response->successful()) {
-                $successfulResponses[] = $response->body();
-                Log::debug('OpenTimestamp: Calendar responded', ['calendar' => $calendarUrl]);
-            } else {
-                Log::warning('OpenTimestamp: Calendar failed', [
-                    'calendar' => $calendarUrl,
-                    'status' => $response->status(),
-                ]);
-            }
-        }
+            $proof = $result['stdout'];
 
-        // Require minimum responses
-        if (count($successfulResponses) < self::MIN_CALENDAR_RESPONSES) {
+            if (empty($proof)) {
+                throw new RuntimeException('OTS stamp returned empty proof');
+            }
+
+            Log::info('OpenTimestamp: Submission successful', [
+                'digest' => $digest,
+                'proof_size' => strlen($proof),
+            ]);
+
+            return $proof;
+
+        } catch (\Exception $e) {
+            Log::error('OpenTimestamp: Submission failed', [
+                'digest' => $digest,
+                'error' => $e->getMessage(),
+            ]);
+
             throw new RuntimeException(
-                sprintf(
-                    'Failed to submit timestamp: only %d of %d calendars responded (minimum: %d)',
-                    count($successfulResponses),
-                    count($this->calendarUrls),
-                    self::MIN_CALENDAR_RESPONSES
-                )
+                'Failed to submit timestamp: '.$e->getMessage(),
+                0,
+                $e
             );
         }
-
-        // Merge responses into single proof
-        $proof = $this->mergeProofs($successfulResponses, $digestBytes);
-
-        Log::info('OpenTimestamp: Submission successful', [
-            'digest' => $digest,
-            'calendars' => count($responses),
-            'proof_size' => strlen($proof),
-        ]);
-
-        return $proof;
     }
 
     /**
@@ -312,50 +306,6 @@ class OpenTimestampService
         ]);
 
         return false;
-    }
-
-    /**
-     * Select proof from multiple calendar responses.
-     *
-     * IMPORTANT: This method does NOT perform true OTS proof merging.
-     *
-     * Proper OTS proof merging requires:
-     * - Full OTS binary format parsing (Issue #410)
-     * - Creating fork operations (OpCode 0xFF) with proper length encoding
-     * - Reconstructing a valid operation tree structure
-     * - Ensuring the merged proof is verifiable by OTS CLI tools
-     *
-     * Current behavior: Returns the first valid proof from responding calendars.
-     * This ensures we always store a structurally valid OTS proof that can be
-     * verified by external tools (ots CLI, ots-python, etc.).
-     *
-     * Future enhancement (Issue #411): Implement proper OTS-compliant proof merging
-     * to combine attestations from multiple calendars for redundancy.
-     *
-     * @param  array<string>  $proofs  Binary calendar responses (each is a complete OTS proof)
-     * @param  string  $digest  Original digest bytes (unused, kept for API compatibility)
-     * @return string First valid OTS proof
-     *
-     * @throws RuntimeException if no proofs provided
-     *
-     * @see https://github.com/opentimestamps/python-opentimestamps for OTS format spec
-     */
-    private function mergeProofs(array $proofs, string $digest): string
-    {
-        if ($proofs === []) {
-            throw new RuntimeException('OpenTimestamp: No proofs provided for merging');
-        }
-
-        // Return first proof to ensure we always emit a valid OTS proof
-        // rather than constructing an invalid merged structure
-        if (count($proofs) > 1) {
-            Log::info('OpenTimestamp: Multiple calendar proofs received, using first proof', [
-                'proof_count' => count($proofs),
-                'selected_proof_size' => strlen($proofs[0]),
-            ]);
-        }
-
-        return $proofs[0];
     }
 
     /**
