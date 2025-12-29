@@ -497,6 +497,7 @@ test('view allows activity when user views their OWN activity without employee r
 test('view allows activity when OTHER user without employee record caused it (system users)', function (): void {
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
+    givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read_system');
 
     // User scope: FE1-FE5
     $user->organizationalScopes()->create([
@@ -511,7 +512,7 @@ test('view allows activity when OTHER user without employee record caused it (sy
     $causerUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     // Activity caused by user without employee record
-    // This should be ALLOWED - users with scope can see system user activities
+    // This should be ALLOWED - users with activity_log.read_system permission can see system user activities
     $activity = Activity::factory()->create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,
@@ -520,6 +521,35 @@ test('view allows activity when OTHER user without employee record caused it (sy
     ]);
 
     expect($this->policy->view($user, $activity))->toBeTrue();
+});
+
+test('view denies activity when OTHER user without employee record caused it and viewer lacks read_system permission', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
+    // Note: NOT giving activity_log.read_system permission
+
+    // User scope: FE1-FE5
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $this->orgUnit->id,
+        'access_level' => 'read',
+        'include_descendants' => false,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 5,
+    ]);
+
+    // Causer without employee record (system user)
+    $causerUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    // Activity caused by system user
+    // This should be DENIED - user lacks activity_log.read_system permission
+    $activity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $causerUser->id,
+    ]);
+
+    expect($this->policy->view($user, $activity))->toBeFalse();
 });
 
 test('view denies activity when causer employee is from different organizational unit', function (): void {
