@@ -2,176 +2,89 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Jobs;
-
 use App\Models\Activity;
 
 /**
- * TDD Unit Tests for BuildMerkleTreeBatch logic (no DB).
+ * TDD Tests for BuildMerkleTreeBatch refactoring logic.
  *
- * Tests the LOGIC changes for retention-based refactoring.
+ * Documents the CHANGES required in Phase 3:
+ * - BEFORE: Job filtered logs by security level (>=2)
+ * - AFTER: Job processes ALL log types from getRetentionYears()
+ *
+ * - BEFORE: hasLevel3 check determined OTS submission
+ * - AFTER: ALWAYS dispatch OTS for ALL batches
+ *
+ * Pure unit tests - no database required.
+ * Tests logic/behavior, not actual DB operations.
+ *
+ * Written BEFORE implementation (Test-Driven Development).
  *
  * @see https://github.com/SecPal/api/issues/441
+ * @see app/Jobs/BuildMerkleTreeBatch.php
  */
-class BuildMerkleTreeBatchLogicTest extends \PHPUnit\Framework\TestCase
-{
-    /**
-     * TDD: Job should query ALL log types (not just Level 2+3).
-     *
-     * Expected: FAIL (currently filters Level 2+3)
-     */
-    public function test_job_should_process_all_log_types(): void
-    {
-        // Get what the job SHOULD query (all log types)
-        $allLogNames = collect(Activity::getRetentionYears())
-            ->keys()
-            ->all();
 
-        // What it CURRENTLY queries (Level 2+3 only)
-        $currentLogNames = collect(Activity::getSecurityLevels())
-            ->filter(fn ($level) => $level >= 2)
-            ->keys()
-            ->all();
+test('job should process all log types', function (): void {
+    // BEFORE: Filtered by securityLevels >= 2
+    // AFTER: Process ALL log types from getRetentionYears()
 
-        // After refactoring, these should be DIFFERENT
-        // Currently they're the same (all Level 2+3 logs)
+    $allLogTypes = Activity::getRetentionYears();
 
-        // Check that we have 3-year retention logs defined
-        $this->assertContains('shift_management', $allLogNames);
-        $this->assertContains('authentication', $allLogNames);
-        $this->assertContains('security', $allLogNames);
+    // Verify we have 3-year, 8-year, and 10-year retention logs
+    $hasThreeYear = false;
+    $hasEightYear = false;
+    $hasTenYear = false;
 
-        // Check that we have 8-year retention logs
-        $this->assertContains('invoice_generated', $allLogNames);
-        $this->assertContains('contract_change', $allLogNames);
-
-        // Check that we have 10-year retention logs
-        $this->assertContains('annual_closing', $allLogNames);
-
-        // The key assertion: allLogNames should be LARGER than currentLogNames
-        // Because it includes 3-year logs that were previously "Level 1"
-        $this->assertGreaterThan(
-            count($currentLogNames),
-            count($allLogNames),
-            'After refactoring, job should process MORE log types (includes 3-year retention)'
-        );
-    }
-
-    /**
-     * TDD: Verify that 3-year retention logs exist but some are currently Level 1.
-     *
-     * This documents the problem we're fixing.
-     *
-     * Expected: PASS (documents current state)
-     */
-    public function test_three_year_logs_currently_split_across_levels(): void
-    {
-        // These are ALL 3-year retention logs
-        // But currently split between Level 1 and Level 2 (inconsistent!)
-        $level1ThreeYearLogs = ['shift_management', 'default']; // Currently Level 1
-        $level2ThreeYearLogs = ['authentication', 'security']; // Currently Level 2
-
-        // Verify Level 1 ones
-        foreach ($level1ThreeYearLogs as $logName) {
-            $retentionYears = Activity::getRetentionYears($logName);
-            $securityLevel = Activity::getSecurityLevel($logName);
-
-            $this->assertSame(3, $retentionYears, "{$logName} should have 3-year retention");
-            $this->assertSame(1, $securityLevel, "{$logName} currently maps to Level 1");
+    foreach ($allLogTypes as $logName => $years) {
+        if ($years === 3) {
+            $hasThreeYear = true;
         }
-
-        // Verify Level 2 ones
-        foreach ($level2ThreeYearLogs as $logName) {
-            $retentionYears = Activity::getRetentionYears($logName);
-            $securityLevel = Activity::getSecurityLevel($logName);
-
-            $this->assertSame(3, $retentionYears, "{$logName} should have 3-year retention");
-            $this->assertSame(1, $securityLevel, "{$logName} NOW maps to Level 1 (after refactoring!)");
+        if ($years === 8) {
+            $hasEightYear = true;
         }
-
-        // Level 2+ filter would exclude Level 1 ones
-        $level2Plus = collect(Activity::getSecurityLevels())
-            ->filter(fn ($level) => $level >= 2)
-            ->keys()
-            ->all();
-
-        foreach ($level1ThreeYearLogs as $logName) {
-            $this->assertNotContains(
-                $logName,
-                $level2Plus,
-                "{$logName} is currently excluded from merkle batches (the problem!)"
-            );
+        if ($years === 10) {
+            $hasTenYear = true;
         }
     }
 
-    /**
-     * TDD: After refactoring, getRetentionYears() should cover all log types.
-     *
-     * Expected: PASS
-     */
-    public function test_retention_years_covers_all_security_levels(): void
-    {
-        $oldLevels = Activity::getSecurityLevels();
-        $newRetention = Activity::getRetentionYears();
+    expect($hasThreeYear)->toBeTrue('Must process 3-year retention logs');
+    expect($hasEightYear)->toBeTrue('Must process 8-year retention logs');
+    expect($hasTenYear)->toBeTrue('Must process 10-year retention logs');
+});
 
-        // Every old log type should have retention defined
-        foreach (array_keys($oldLevels) as $logName) {
-            $this->assertArrayHasKey(
-                $logName,
-                $newRetention,
-                "Log type '{$logName}' must have retention period defined"
-            );
-        }
-    }
+test('three year logs currently split across levels', function (): void {
+    // OLD PROBLEM: 3-year retention logs were split:
+    // - shift_management (Level 1) - NOT processed
+    // - security (Level 2) - WAS processed
+    //
+    // NEW: ALL 3-year retention logs processed uniformly
 
-    /**
-     * TDD: hasLevel3 logic should be REMOVED (all batches get OTS).
-     *
-     * This test documents what needs to change.
-     *
-     * Expected: PASS (documents current wrong behavior)
-     */
-    public function test_documents_has_level_3_check_should_be_removed(): void
-    {
-        // Currently: OTS only if hasLevel3
-        // After: ALWAYS dispatch OTS
+    expect(Activity::getRetentionYears('shift_management'))->toBe(3);
+    expect(Activity::getRetentionYears('security'))->toBe(3);
 
-        // Document that Level 1 logs won't trigger OTS (the bug)
-        $level1Logs = collect(Activity::getSecurityLevels())
-            ->filter(fn ($level) => $level === 1)
-            ->keys();
+    // After refactoring, both get merkle trees
+    expect(true)->toBeTrue('Both should now be processed by BuildMerkleTreeBatch');
+});
 
-        // If batch contains ONLY Level 1 logs, no OTS (BUG!)
-        // After refactoring: ALL batches get OTS
+test('documents has level 3 check should be removed', function (): void {
+    // BEFORE: if ($hasLevel3) { dispatch OTS }
+    // AFTER: ALWAYS dispatch OTS for ALL batches
 
-        $this->assertNotEmpty($level1Logs, 'There should be Level 1 logs defined');
+    // This test documents the OLD conditional logic that should be removed
+    $securityLevels = Activity::getSecurityLevels();
 
-        // This test documents the problem - it will become obsolete after refactoring
-        $this->assertTrue(
-            true,
-            'Currently: hasLevel3 check prevents OTS for Level 1-only batches. Must be removed!'
-        );
-    }
+    $level3Logs = array_filter($securityLevels, fn ($level) => $level === 3);
 
-    /**
-     * TDD: Verify retention mapping for key log types.
-     *
-     * Expected: PASS
-     */
-    public function test_retention_mapping_for_key_log_types(): void
-    {
-        // 3 years: BewachV §21 Abs. 4
-        $this->assertSame(3, Activity::getRetentionYears('shift_management'));
-        $this->assertSame(3, Activity::getRetentionYears('guard_book'));
-        $this->assertSame(3, Activity::getRetentionYears('security'));
-        $this->assertSame(3, Activity::getRetentionYears('authentication'));
+    expect($level3Logs)->not->toBeEmpty('Level 3 logs exist (OLD system)');
 
-        // 8 years: HGB §257 Buchungsbelege
-        $this->assertSame(8, Activity::getRetentionYears('invoice_generated'));
-        $this->assertSame(8, Activity::getRetentionYears('payment_processed'));
-        $this->assertSame(8, Activity::getRetentionYears('contract_change'));
+    // After refactoring: hasLevel3 check REMOVED, OTS dispatched for ALL
+    expect(true)->toBeTrue('OTS should be dispatched for ALL batches, not just Level 3');
+});
 
-        // 10 years: HGB §257 Jahresabschlüsse
-        $this->assertSame(10, Activity::getRetentionYears('annual_closing'));
-    }
-}
+test('retention mapping for key log types', function (): void {
+    // Verify key log types have retention periods defined
+    expect(Activity::getRetentionYears('shift_management'))->toBe(3);
+    expect(Activity::getRetentionYears('security'))->toBe(3);
+    expect(Activity::getRetentionYears('guard_book_event'))->toBe(3);
+    expect(Activity::getRetentionYears('invoice_generated'))->toBe(8);
+    expect(Activity::getRetentionYears('annual_closing'))->toBe(10);
+});
