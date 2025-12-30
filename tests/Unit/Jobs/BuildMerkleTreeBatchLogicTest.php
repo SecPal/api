@@ -65,19 +65,17 @@ test('three year logs currently split across levels', function (): void {
     expect(true)->toBeTrue('Both should now be processed by BuildMerkleTreeBatch');
 });
 
-test('documents has level 3 check should be removed', function (): void {
+test('documents OTS is now dispatched for ALL batches', function (): void {
     // BEFORE: if ($hasLevel3) { dispatch OTS }
     // AFTER: ALWAYS dispatch OTS for ALL batches
 
-    // This test documents the OLD conditional logic that should be removed
-    $securityLevels = Activity::getSecurityLevels();
+    // After refactoring: ALL logs get OTS (no filtering)
+    expect(Activity::getRetentionYears('shift_management'))->toBe(3); // 3 years
+    expect(Activity::getRetentionYears('invoice_generated'))->toBe(8); // 8 years
+    expect(Activity::getRetentionYears('annual_closing'))->toBe(10); // 10 years
 
-    $level3Logs = array_filter($securityLevels, fn ($level) => $level === 3);
-
-    expect($level3Logs)->not->toBeEmpty('Level 3 logs exist (OLD system)');
-
-    // After refactoring: hasLevel3 check REMOVED, OTS dispatched for ALL
-    expect(true)->toBeTrue('OTS should be dispatched for ALL batches, not just Level 3');
+    // All of these will get OpenTimestamp proofs
+    expect(true)->toBeTrue('OTS should be dispatched for ALL batches, regardless of retention period');
 });
 
 test('retention mapping for key log types', function (): void {

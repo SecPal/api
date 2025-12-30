@@ -24,7 +24,7 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  * - Hash chain building (queue-based, race-condition-free) - Issue #408
  * - Merkle tree batching (hierarchical verification)
  * - OpenTimestamp integration (blockchain anchoring)
- * - 3-tier security levels (BewachV § 21 Abs. 4 retention)
+ * - Legal retention periods (BewachV § 21 Abs. 4, HGB § 257, AO § 147)
  *
  * Hash Chain Architecture (Issue #408):
  * - Activity INSERT happens first (event_hash=NULL initially)
@@ -173,37 +173,6 @@ class Activity extends SpatieActivity
     }
 
     /**
-     * 3-Tier Security Levels (BewachV § 21 Abs. 4 compliance).
-     *
-     * Level 1: Basic (3 years retention)
-     * Level 2: Enhanced (5 years retention)
-     * Level 3: Maximum (7 years retention)
-     *
-     * @var array<string, int>
-     */
-    protected static array $securityLevels = [
-        // Level 1: Standard Operations (3 years)
-        'default' => 1,
-        'shift_management' => 1,
-
-        // Level 2: Security-Critical (5 years)
-        'security' => 2,
-        'authentication' => 2,
-        'rbac_changes' => 2,
-        'scope_changes' => 2,
-        'customer_changes' => 2,
-        'site_management' => 2,
-        'employee_changes' => 2, // Personenbezogene Daten - DSGVO-relevant
-
-        // Level 3: Legal-Critical (7 years)
-        'hr_access' => 3,
-        'contract_change' => 3,
-        'works_council_access' => 3,
-        'guard_book_event' => 3,
-        'sensitive_access' => 3,
-    ];
-
-    /**
      * Retention periods per log type (legal compliance).
      *
      * All logs have identical security measures:
@@ -311,11 +280,6 @@ class Activity extends SpatieActivity
                 $activity->validateOrganizationalUnit();
             }
 
-            // Set security_level based on log_name (if not already set)
-            if (! $activity->security_level && $activity->log_name) {
-                $activity->security_level = self::getSecurityLevel($activity->log_name);
-            }
-
             // Capture request metadata
             if (! $activity->ip_address && request()->ip()) {
                 $activity->ip_address = request()->ip();
@@ -373,43 +337,6 @@ class Activity extends SpatieActivity
                     ->onQueue('activity-hash-chain');
             }
         });
-    }
-
-    /**
-     * Get security level for log type.
-     *
-     * @deprecated Use getRetentionYears() instead. Will be removed in v2.0.
-     *
-     * This method provides backward compatibility by mapping retention years
-     * to the old "security level" system. However, this terminology is misleading
-     * because ALL logs have identical security measures (Hash + Merkle + OTS).
-     *
-     * The only difference is retention duration based on legal requirements.
-     *
-     * @param string $logName Log type name
-     * @return int Security level (1, 2, or 3)
-     */
-    public static function getSecurityLevel(string $logName): int
-    {
-        // Map retention years to old security levels for backward compatibility
-        $retentionYears = self::getRetentionYears($logName);
-
-        return match ($retentionYears) {
-            3 => 1,  // 3 years → Level 1
-            8 => 2,  // 8 years → Level 2
-            10 => 3, // 10 years → Level 3
-            default => 1,
-        };
-    }
-
-    /**
-     * Get all configured security levels.
-     *
-     * @return array<string, int> Mapping of log_name => security_level
-     */
-    public static function getSecurityLevels(): array
-    {
-        return self::$securityLevels;
     }
 
     /**
