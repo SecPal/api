@@ -35,7 +35,7 @@ class BuildMerkleTreeBatchLogicTest extends \PHPUnit\Framework\TestCase
 
         // After refactoring, these should be DIFFERENT
         // Currently they're the same (all Level 2+3 logs)
-        
+
         // Check that we have 3-year retention logs defined
         $this->assertContains('shift_management', $allLogNames);
         $this->assertContains('authentication', $allLogNames);

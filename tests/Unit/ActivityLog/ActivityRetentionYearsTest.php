@@ -121,7 +121,7 @@ class ActivityRetentionYearsTest extends TestCase
     public function test_retention_years_property_has_legal_references(): void
     {
         $reflection = new \ReflectionClass(Activity::class);
-        
+
         // Check if property exists
         $this->assertTrue(
             $reflection->hasProperty('retentionYears'),
