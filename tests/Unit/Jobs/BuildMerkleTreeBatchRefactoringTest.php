@@ -34,7 +34,9 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
     use RefreshDatabase;
 
     protected Tenant $tenant;
+
     protected User $user;
+
     protected Customer $customer;
 
     protected function setUp(): void
@@ -74,7 +76,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
         $this->assertNull($log10Years->fresh()->merkle_root);
 
         // Run batch job
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle();
 
         // ALL should have merkle_root now
@@ -99,7 +101,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
         $log2 = activity('invoice_generated')->performedOn($this->customer)->log('Log 2');
         $log3 = activity('security')->performedOn($this->customer)->log('Log 3');
 
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle();
 
         $log1->refresh();
@@ -141,7 +143,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
         activity('authentication')->performedOn($this->customer)->log('Login');
         activity('security')->performedOn($this->customer)->log('Access granted');
 
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle();
 
         // OTS should be dispatched even for "low retention" logs
@@ -162,7 +164,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
 
         activity('shift_management')->performedOn($this->customer)->log('Test log');
 
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle();
 
         Queue::assertPushed(SubmitMerkleRootToOpenTimestamp::class, function ($job) {
@@ -188,7 +190,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
             activity('annual_closing')->performedOn($this->customer)->log('10y'), // 10 years
         ];
 
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle();
 
         // ALL should be processed
@@ -196,7 +198,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
             $log->refresh();
             $this->assertNotNull(
                 $log->merkle_root,
-                "Log '{$log->description}' (retention: " . Activity::getRetentionYears($log->log_name) . " years) should have merkle_root"
+                "Log '{$log->description}' (retention: ".Activity::getRetentionYears($log->log_name).' years) should have merkle_root'
             );
         }
     }
@@ -214,7 +216,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
         activity('shift_management')->performedOn($this->customer)->log('Log 2');
         activity('shift_management')->performedOn($this->customer)->log('Log 3');
 
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle();
 
         $log = Activity::where('tenant_id', $this->tenant->id)->first();
@@ -246,7 +248,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
             activity('shift_management')->performedOn($this->customer)->log("Log {$i}");
         }
 
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle();
 
         $logs = Activity::where('tenant_id', $this->tenant->id)->get();
@@ -275,7 +277,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
         $this->actingAs($user2);
         activity('shift_management')->performedOn($customer2)->log('Tenant 2 Log');
 
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle();
 
         $log1 = Activity::where('tenant_id', $this->tenant->id)->first();
@@ -298,7 +300,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
         $log1 = activity('shift_management')->performedOn($this->customer)->log('Log 1');
 
         // First run
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle();
 
         $log1->refresh();
@@ -309,7 +311,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
         activity('shift_management')->performedOn($this->customer)->log('Log 2');
 
         // Second run
-        $job2 = new BuildMerkleTreeBatch();
+        $job2 = new BuildMerkleTreeBatch;
         $job2->handle();
 
         $log1->refresh();
@@ -328,7 +330,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
     {
         // Don't create any logs
 
-        $job = new BuildMerkleTreeBatch();
+        $job = new BuildMerkleTreeBatch;
         $job->handle(); // Should not throw
 
         $this->assertTrue(true, 'Job should handle empty tenants without errors');

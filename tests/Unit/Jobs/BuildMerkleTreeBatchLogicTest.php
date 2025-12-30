@@ -25,7 +25,6 @@ use App\Models\Activity;
  * @see https://github.com/SecPal/api/issues/441
  * @see app/Jobs/BuildMerkleTreeBatch.php
  */
-
 test('job should process all log types', function (): void {
     // BEFORE: Filtered by securityLevels >= 2
     // AFTER: Process ALL log types from getRetentionYears()

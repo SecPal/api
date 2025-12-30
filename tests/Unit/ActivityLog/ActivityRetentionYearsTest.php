@@ -21,7 +21,6 @@ use App\Models\Activity;
  *
  * @see https://github.com/SecPal/api/issues/441
  */
-
 test('returns 3 years for operational logs', function (): void {
     expect(Activity::getRetentionYears('shift_management'))->toBe(3);
     expect(Activity::getRetentionYears('employee_changes'))->toBe(3);
