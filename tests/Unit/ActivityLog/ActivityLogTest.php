@@ -168,23 +168,23 @@ test('user agent auto-captured from request', function () {
 });
 
 // ============================================================================
-// Security Level Tests
+// Retention Period Tests
 // ============================================================================
 
-test('security level determination works correctly', function () {
-    expect(Activity::getSecurityLevel('default'))->toBe(1)
-        ->and(Activity::getSecurityLevel('shift_management'))->toBe(1)
-        ->and(Activity::getSecurityLevel('employee_changes'))->toBe(2) // DSGVO-relevant
-        ->and(Activity::getSecurityLevel('authentication'))->toBe(2)
-        ->and(Activity::getSecurityLevel('security'))->toBe(2)
-        ->and(Activity::getSecurityLevel('rbac_changes'))->toBe(2)
-        ->and(Activity::getSecurityLevel('hr_access'))->toBe(3)
-        ->and(Activity::getSecurityLevel('contract_change'))->toBe(3)
-        ->and(Activity::getSecurityLevel('guard_book_event'))->toBe(3);
+test('retention period determination works correctly', function () {
+    expect(Activity::getRetentionYears('default'))->toBe(3)
+        ->and(Activity::getRetentionYears('shift_management'))->toBe(3)
+        ->and(Activity::getRetentionYears('employee_changes'))->toBe(3) // DSGVO-relevant
+        ->and(Activity::getRetentionYears('authentication'))->toBe(3)
+        ->and(Activity::getRetentionYears('security'))->toBe(3)
+        ->and(Activity::getRetentionYears('rbac_changes'))->toBe(3)
+        ->and(Activity::getRetentionYears('hr_access'))->toBe(3)
+        ->and(Activity::getRetentionYears('contract_change'))->toBe(8) // HGB §257
+        ->and(Activity::getRetentionYears('guard_book_event'))->toBe(3); // BewachV §21
 });
 
-test('unknown log types default to level 1', function () {
-    expect(Activity::getSecurityLevel('unknown_log_type'))->toBe(1);
+test('unknown log types default to 3 years', function () {
+    expect(Activity::getRetentionYears('unknown_log_type'))->toBe(3);
 });
 
 // ============================================================================

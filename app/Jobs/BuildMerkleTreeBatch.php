@@ -68,7 +68,13 @@ class BuildMerkleTreeBatch implements ShouldQueue
     public function handle(): void
     {
         // Get ALL log names (retention-based, not level-based)
-        $allLogNames = collect(Activity::getRetentionYears())
+        $retentionYears = Activity::getRetentionYears();
+        
+        if (! is_array($retentionYears)) {
+            return; // Invalid return type
+        }
+        
+        $allLogNames = collect($retentionYears)
             ->keys()
             ->all();
 

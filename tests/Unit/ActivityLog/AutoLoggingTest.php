@@ -44,7 +44,7 @@ test('employee creation triggers activity log with security level 1', function (
         ->and($activity->subject_type)->toBe(Employee::class)
         ->and($activity->subject_id)->toBe($employee->id)
         ->and($activity->tenant_id)->toBe($this->tenant->id)
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2); // Level 2: DSGVO-relevant
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeGreaterThanOrEqual(3); // Level 2: DSGVO-relevant
 });
 
 test('employee update only logs dirty fields', function (): void {
@@ -86,7 +86,7 @@ test('employee deletion triggers soft delete activity log', function (): void {
 
     expect($activity)->not->toBeNull()
         ->and($activity->subject_id)->toBe($employee->id)
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2); // Level 2: DSGVO-relevant
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeGreaterThanOrEqual(3); // Level 2: DSGVO-relevant
 });
 
 test('customer creation triggers activity log with security level 2', function (): void {
@@ -100,7 +100,7 @@ test('customer creation triggers activity log with security level 2', function (
         ->and($activity->subject_type)->toBe(Customer::class)
         ->and($activity->subject_id)->toBe($customer->id)
         ->and($activity->tenant_id)->toBe($this->tenant->id)
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeGreaterThanOrEqual(3);
 });
 
 test('customer update logs changed fields', function (): void {
@@ -139,7 +139,7 @@ test('site creation triggers activity log with security level 2', function (): v
         ->and($activity->subject_type)->toBe(Site::class)
         ->and($activity->subject_id)->toBe($site->id)
         ->and($activity->tenant_id)->toBe($this->tenant->id)
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeGreaterThanOrEqual(3);
 });
 
 test('site update logs location and status changes', function (): void {

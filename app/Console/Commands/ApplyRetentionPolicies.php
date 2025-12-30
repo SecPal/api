@@ -74,7 +74,13 @@ class ApplyRetentionPolicies extends Command
 
         try {
             // Process all retention periods (3, 8, 10 years)
-            foreach (Activity::getRetentionYears() as $logName => $retentionYears) {
+            $allRetentionYears = Activity::getRetentionYears();
+            
+            if (! is_array($allRetentionYears)) {
+                throw new \RuntimeException('Activity::getRetentionYears() must return an array');
+            }
+            
+            foreach ($allRetentionYears as $logName => $retentionYears) {
                 $this->info('');
                 $this->info("=== Processing '{$logName}' ({$retentionYears} years retention) ===");
 
