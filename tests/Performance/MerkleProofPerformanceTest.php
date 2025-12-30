@@ -46,12 +46,12 @@ beforeEach(function () {
 test('merkle proof verification takes less than 2ms for 100-leaf tree', function () {
     $this->actingAs($this->user);
 
-    // Create 100 Level 2 logs (reasonably large Merkle tree)
+    // Create 100 logs (reasonably large Merkle tree)
     // Note: 1000 logs would take too long in CI/CD pipeline
     $logCount = 100;
     $logs = collect(range(1, $logCount))->map(fn ($i) => Activity::create([
         'tenant_id' => $this->tenant->id,
-        'log_name' => 'authentication', // Level 2
+        'log_name' => 'authentication', // 3 years retention
         'description' => "Performance test log {$i}",
     ]));
 
@@ -90,7 +90,7 @@ test('merkle proof verification is efficient for small trees', function () {
     // Create 4 logs (small tree)
     $logs = collect(range(1, 4))->map(fn ($i) => Activity::create([
         'tenant_id' => $this->tenant->id,
-        'log_name' => 'security', // Level 2
+        'log_name' => 'security', // 3 years retention
         'description' => "Small tree log {$i}",
     ]));
 

@@ -45,14 +45,14 @@ class SubmitMerkleRootToOpenTimestampTest extends TestCase
 
     public function test_job_submits_merkle_root_and_stores_proof(): void
     {
-        // Arrange: Create Level 3 logs with Merkle root
+        // Arrange: Create logs with Merkle root
         $batchId = now()->timestamp;
         $merkleRoot = hash('sha256', 'test-merkle-root');
 
         $logs = collect(range(1, 5))->map(fn ($i) => Activity::create([
             'tenant_id' => $this->tenant->id,
-            'log_name' => 'hr_access', // Level 3
-            'description' => "Test HR access log {$i}",
+            'log_name' => 'authentication', // 3 years retention
+            'description' => "Test activity log {$i}",
             'merkle_batch_id' => $batchId,
             'merkle_root' => $merkleRoot,
             'ots_proof' => null,

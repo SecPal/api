@@ -31,10 +31,10 @@ beforeEach(function () {
 // ============================================================================
 
 test('merkle tree builds correctly with 4 logs', function () {
-    // Create 4 Level 2 logs (require Merkle tree)
+    // Create 4 logs
     $logs = collect(range(1, 4))->map(fn ($i) => Activity::create([
         'tenant_id' => $this->tenant->id,
-        'log_name' => 'authentication', // Level 2
+        'log_name' => 'authentication', // 3 years retention
         'description' => "Test log {$i}",
     ]));
 
@@ -60,10 +60,10 @@ test('merkle tree builds correctly with 4 logs', function () {
 });
 
 test('merkle tree handles odd number of leaves correctly', function () {
-    // Create 3 Level 2 logs (odd number)
+    // Create 3 logs (odd number)
     $logs = collect(range(1, 3))->map(fn ($i) => Activity::create([
         'tenant_id' => $this->tenant->id,
-        'log_name' => 'rbac_changes', // Level 2
+        'log_name' => 'rbac_changes', // 3 years retention
         'description' => "Test log {$i}",
     ]));
 
@@ -93,7 +93,7 @@ test('merkle proof verifies correctly after batching', function () {
     // Create 4 logs
     $logs = collect(range(1, 4))->map(fn ($i) => Activity::create([
         'tenant_id' => $this->tenant->id,
-        'log_name' => 'security', // Level 2
+        'log_name' => 'security', // 3 years retention
         'description' => "Test log {$i}",
     ]));
 
@@ -143,26 +143,8 @@ test('merkle root is deterministic for same input', function () {
 // ============================================================================
 // Level 1 Logs (Should NOT Get Merkle Tree)
 // ============================================================================
-
-test('level 1 logs do not get merkle tree', function () {
-    // Create Level 1 log
-    $log = Activity::create([
-        'tenant_id' => $this->tenant->id,
-        'log_name' => 'default', // Level 1
-        'description' => 'Standard activity',
-    ]);
-
-    // Execute job
-    $job = new BuildMerkleTreeBatch;
-    $job->handle();
-
-    // Verify NO Merkle data
-    $log->refresh();
-    expect($log->merkle_root)->toBeNull();
-    expect($log->merkle_batch_id)->toBeNull();
-    expect($log->merkle_proof)->toBeNull();
-});
-
+// NOTE: After retention refactoring (Issue #441), ALL log types get merkle trees.
+// The old 'level 1 logs do not get merkle tree' test is obsolete.
 // ============================================================================
 // Multi-Tenant Isolation
 // ============================================================================
@@ -250,15 +232,16 @@ test('job handles tenant with no unbatched logs', function () {
 });
 
 // ============================================================================
-// Level 3 Logs Trigger OpenTimestamp Dispatch (Checked via Queue)
+// ALL Logs Trigger OpenTimestamp Dispatch (Checked via Queue)
+// After retention refactoring (Issue #441): ALL logs get OTS, not just "Level 3"
 // ============================================================================
 
-test('level 3 logs schedule opentimestamp submission', function () {
-    // Create Level 3 log (ProcessActivityHashChain runs via dispatchSync)
+test('all logs schedule opentimestamp submission', function () {
+    // Create log (ProcessActivityHashChain runs via dispatchSync)
     $log = Activity::create([
         'tenant_id' => $this->tenant->id,
-        'log_name' => 'hr_access', // Level 3
-        'description' => 'Accessed salary data',
+        'log_name' => 'authentication', // 3 years retention
+        'description' => 'User login',
     ]);
     $log->refresh();
 
@@ -279,14 +262,26 @@ test('level 3 logs schedule opentimestamp submission', function () {
     });
 });
 
-test('level 2 logs do not schedule opentimestamp', function () {
-    // Create Level 2 log (ProcessActivityHashChain runs via dispatchSync)
-    $log = Activity::create([
+test('multiple log types all get opentimestamp', function () {
+    // Create logs with DIFFERENT retention periods (3, 8, 10 years)
+    $log1 = Activity::create([
         'tenant_id' => $this->tenant->id,
-        'log_name' => 'authentication', // Level 2
+        'log_name' => 'authentication', // 3 years
         'description' => 'Login',
     ]);
-    $log->refresh();
+    $log2 = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'invoice_generated', // 8 years
+        'description' => 'Invoice created',
+    ]);
+    $log3 = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'annual_closing', // 10 years
+        'description' => 'Annual report',
+    ]);
+    $log1->refresh();
+    $log2->refresh();
+    $log3->refresh();
 
     // NOW fake queue (after hash chain is built)
     Queue::fake();
@@ -295,6 +290,6 @@ test('level 2 logs do not schedule opentimestamp', function () {
     $job = new BuildMerkleTreeBatch;
     $job->handle();
 
-    // Verify NO OTS job dispatched
-    Queue::assertNotPushed(\App\Jobs\SubmitMerkleRootToOpenTimestamp::class);
+    // Verify OTS job dispatched for ALL logs (not filtered by level anymore)
+    Queue::assertPushed(\App\Jobs\SubmitMerkleRootToOpenTimestamp::class);
 });
