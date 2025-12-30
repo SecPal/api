@@ -29,7 +29,7 @@ beforeEach(function (): void {
     ]);
 });
 
-test('logLoginSuccess creates authentication log with security level 2', function (): void {
+test('logLoginSuccess creates authentication log with 8-year retention', function (): void {
     $activity = $this->service->logLoginSuccess($this->user);
 
     expect($activity)->toBeInstanceOf(Activity::class)
@@ -145,7 +145,7 @@ test('logScopeChange creates scope_changes log', function (): void {
         ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8]);
 });
 
-test('logHRAccess creates hr_access log with security level 3', function (): void {
+test('logHRAccess creates hr_access log with 10-year retention', function (): void {
     $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $activity = $this->service->logHRAccess(
@@ -166,7 +166,7 @@ test('logHRAccess creates hr_access log with security level 3', function (): voi
         ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8, 10]);
 });
 
-test('logSensitiveAccess creates sensitive_access log with security level 3', function (): void {
+test('logSensitiveAccess creates sensitive_access log with 10-year retention', function (): void {
     $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $activity = $this->service->logSensitiveAccess(

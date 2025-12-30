@@ -30,7 +30,7 @@ beforeEach(function (): void {
     ]);
 });
 
-test('employee creation triggers activity log with security level 1', function (): void {
+test('employee creation triggers activity log with 3-year retention', function (): void {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'email' => 'john.doe@example.com',
@@ -89,7 +89,7 @@ test('employee deletion triggers soft delete activity log', function (): void {
         ->and(Activity::getRetentionYears($activity->log_name))->toBeGreaterThanOrEqual(3); // Level 2: DSGVO-relevant
 });
 
-test('customer creation triggers activity log with security level 2', function (): void {
+test('customer creation triggers activity log with 8-year retention', function (): void {
     $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $activity = Activity::where('log_name', 'customer_changes')
@@ -124,7 +124,7 @@ test('customer update logs changed fields', function (): void {
         ->and($activity->properties['attributes']['name'])->toBe('New Name');
 });
 
-test('site creation triggers activity log with security level 2', function (): void {
+test('site creation triggers activity log with 8-year retention', function (): void {
     $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
     $site = Site::factory()->create([
         'tenant_id' => $this->tenant->id,
