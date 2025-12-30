@@ -59,24 +59,26 @@ class BuildMerkleTreeBatch implements ShouldQueue
     /**
      * Execute the job.
      *
-     * Finds all tenants with unbatched Level 2+3 logs and builds
-     * Merkle trees for each tenant.
+     * Finds all tenants with unbatched logs and builds Merkle trees.
+     *
+     * After refactoring: ALL log types get merkle tree + OTS
+     * (not just Level 2+3). Retention period only affects deletion,
+     * not cryptographic protection.
      */
     public function handle(): void
     {
-        // Get Level 2+3 log names
-        $level2And3LogNames = collect(Activity::getSecurityLevels())
-            ->filter(fn ($level) => $level >= 2)
+        // Get ALL log names (retention-based, not level-based)
+        $allLogNames = collect(Activity::getRetentionYears())
             ->keys()
             ->all();
 
-        if (empty($level2And3LogNames)) {
-            return; // No Level 2+3 log types configured
+        if (empty($allLogNames)) {
+            return; // No log types configured
         }
 
         // Find tenants with unbatched logs
         $tenantIds = Activity::whereNull('merkle_root')
-            ->whereIn('log_name', $level2And3LogNames)
+            ->whereIn('log_name', $allLogNames)
             ->distinct('tenant_id')
             ->pluck('tenant_id');
 
@@ -86,7 +88,7 @@ class BuildMerkleTreeBatch implements ShouldQueue
                 continue; // Skip invalid tenant IDs
             }
 
-            $this->buildTreeForTenant($tenantId, $level2And3LogNames);
+            $this->buildTreeForTenant($tenantId, $allLogNames);
         }
     }
 
@@ -94,7 +96,7 @@ class BuildMerkleTreeBatch implements ShouldQueue
      * Build Merkle tree for a specific tenant.
      *
      * @param  int  $tenantId  Tenant ID
-     * @param  array<string>  $logNames  Level 2+3 log names
+     * @param  array<string>  $logNames  All log names to batch
      */
     protected function buildTreeForTenant(int $tenantId, array $logNames): void
     {
@@ -131,25 +133,14 @@ class BuildMerkleTreeBatch implements ShouldQueue
             ]);
         }
 
-        // Dispatch OpenTimestamp submission if any Level 3 logs exist
-        $hasLevel3 = $logs->contains(function ($log) {
-            $logName = $log->log_name;
-            if (! is_string($logName)) {
-                return false;
-            }
-
-            $level = Activity::getSecurityLevel($logName);
-
-            return $level === 3;
-        });
-
-        if ($hasLevel3) {
-            dispatch(new SubmitMerkleRootToOpenTimestamp(
-                $tenantId,
-                $batchId,
-                $tree['root']
-            ));
-        }
+        // Dispatch OpenTimestamp submission for ALL batches
+        // All logs get identical security (Hash + Merkle + OTS),
+        // regardless of retention period
+        dispatch(new SubmitMerkleRootToOpenTimestamp(
+            $tenantId,
+            $batchId,
+            $tree['root']
+        ));
     }
 
     /**
