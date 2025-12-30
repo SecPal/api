@@ -147,10 +147,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
         $job->handle();
 
         // OTS should be dispatched even for "low retention" logs
-        Queue::assertPushed(
-            SubmitMerkleRootToOpenTimestamp::class,
-            'OTS should be dispatched for ALL batches, regardless of retention period'
-        );
+        Queue::assertPushed(SubmitMerkleRootToOpenTimestamp::class);
     }
 
     /**
@@ -223,12 +220,10 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
         $log->refresh();
 
         $this->assertNotNull($log->merkle_proof);
-
-        $proof = json_decode($log->merkle_proof, true);
-        $this->assertIsArray($proof);
+        $this->assertIsArray($log->merkle_proof);
 
         // Proof should contain sibling hashes
-        foreach ($proof as $sibling) {
+        foreach ($log->merkle_proof as $sibling) {
             $this->assertArrayHasKey('hash', $sibling);
             $this->assertArrayHasKey('position', $sibling);
             $this->assertIsString($sibling['hash']);
@@ -253,9 +248,10 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
 
         $logs = Activity::where('tenant_id', $this->tenant->id)->get();
 
-        // All should have merkle_batch_count = 5
+        // All logs should have same batch count (test creates 6 logs above)
+        $expectedCount = $logs->count();
         foreach ($logs as $log) {
-            $this->assertSame(5, $log->merkle_batch_count);
+            $this->assertSame($expectedCount, $log->merkle_batch_count);
         }
     }
 
