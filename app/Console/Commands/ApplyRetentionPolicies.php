@@ -126,7 +126,7 @@ class ApplyRetentionPolicies extends Command
      *
      * @return array<string, int> Statistics for this tenant
      */
-    protected function processTenant(string $tenantId): array
+    protected function processTenant(int|string $tenantId): array
     {
         $statistics = [
             'retention_3_deleted' => 0,
@@ -159,13 +159,13 @@ class ApplyRetentionPolicies extends Command
      * - Created 2022-03-15 + 3 years → delete from 2026-01-01
      * - Keep until end of Nth following calendar year
      *
-     * @param  string  $tenantId  The tenant_id to process (ISOLATION)
+     * @param  int|string  $tenantId  The tenant_id to process (ISOLATION)
      * @param  string  $logName  The log_name to process
      * @param  int  $retentionYears  Number of years to retain (3, 8, or 10)
      * @param  array<string, int>  $statistics  Statistics array (passed by reference)
      * @return int Number of logs deleted
      */
-    protected function handleRetentionForLogType(string $tenantId, string $logName, int $retentionYears, array &$statistics): int
+    protected function handleRetentionForLogType(int|string $tenantId, string $logName, int $retentionYears, array &$statistics): int
     {
         // Calculate cutoff date: created_at + N years, end of calendar year, +1 day, midnight
         // Example: 2022-03-15 + 3y = 2025-03-15 → endOfYear() = 2025-12-31 → +1d = 2026-01-01 00:00:00

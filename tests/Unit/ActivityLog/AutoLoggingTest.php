@@ -94,6 +94,8 @@ test('customer creation triggers activity log with 8-year retention', function (
 
     $activity = Activity::where('log_name', 'customer_changes')
         ->where('description', 'created')
+        ->where('subject_type', Customer::class)
+        ->where('subject_id', $customer->id)
         ->first();
 
     expect($activity)->not->toBeNull()

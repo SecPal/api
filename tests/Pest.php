@@ -70,6 +70,9 @@ function givePermissionWithTenant(\App\Models\User $user, int $tenantId, string 
     $registrar->setPermissionsTeamId($tenantId);
     $user->givePermissionTo($permission);
     $registrar->setPermissionsTeamId(null);
+
+    // Clear permission cache to prevent stale data in random-order tests
+    $registrar->forgetCachedPermissions();
 }
 
 /**

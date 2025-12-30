@@ -158,6 +158,9 @@ class UserPermissionController extends Controller
 
         $user->revokePermissionTo($permission);
 
+        // Clear permission cache
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
         return response()->json([
             'message' => __('Permission revoked successfully'),
         ]);

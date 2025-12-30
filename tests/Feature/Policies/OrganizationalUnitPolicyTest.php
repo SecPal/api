@@ -26,7 +26,9 @@ beforeEach(function (): void {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
     $this->policy = new OrganizationalUnitPolicy;
 
     // Create organizational hierarchy: Company -> Region -> Branch

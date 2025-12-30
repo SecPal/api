@@ -68,24 +68,26 @@ describe('InjectTenantId Middleware', function () {
 
     test('middleware removes client-provided tenant_id (security fix)', function () {
         // Attempt to spoof tenant_id - middleware should ignore it
+        $maliciousTenantId = $this->user->tenant_id + 9999; // Ensure it's different
         $response = actingAs($this->user, 'sanctum')
-            ->postJson('/test/inject-tenant', ['tenant_id' => 999]);
+            ->postJson('/test/inject-tenant', ['tenant_id' => $maliciousTenantId]);
 
         $response->assertOk();
-        // Should use user's tenant_id, NOT client-provided 999
+        // Should use user's tenant_id, NOT client-provided value
         expect($response->json('tenant_id'))->toBe($this->user->tenant_id);
-        expect($response->json('tenant_id'))->not->toBe(999);
+        expect($response->json('tenant_id'))->not->toBe($maliciousTenantId);
     });
 
     test('middleware removes tenant_id from query string (security fix)', function () {
         // Attempt to spoof tenant_id via query string
+        $maliciousTenantId = $this->user->tenant_id + 9999; // Ensure it's different
         $response = actingAs($this->user, 'sanctum')
-            ->postJson('/test/inject-tenant?tenant_id=999');
+            ->postJson("/test/inject-tenant?tenant_id={$maliciousTenantId}");
 
         $response->assertOk();
         // Should use user's tenant_id, NOT query string value
         expect($response->json('tenant_id'))->toBe($this->user->tenant_id);
-        expect($response->json('tenant_id'))->not->toBe(999);
+        expect($response->json('tenant_id'))->not->toBe($maliciousTenantId);
     });
 
     test('multiple users from different tenants get their own tenant_id', function () {
