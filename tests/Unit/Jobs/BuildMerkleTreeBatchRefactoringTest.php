@@ -11,7 +11,7 @@ use App\Jobs\BuildMerkleTreeBatch;
 use App\Jobs\SubmitMerkleRootToOpenTimestamp;
 use App\Models\Activity;
 use App\Models\Customer;
-use App\Models\Tenant;
+use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -33,7 +33,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected Tenant $tenant;
+    protected TenantKey $tenant;
 
     protected User $user;
 
@@ -43,9 +43,9 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
     {
         parent::setUp();
 
-        $this->tenant = Tenant::factory()->create();
-        $this->customer = Customer::factory()->for($this->tenant)->create();
-        $this->user = User::factory()->for($this->tenant)->create();
+        $this->tenant = TenantKey::factory()->create();
+        $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
         $this->actingAs($this->user);
     }
@@ -266,9 +266,9 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
      */
     public function test_multiple_tenants_get_separate_batches(): void
     {
-        $tenant2 = Tenant::factory()->create();
-        $customer2 = Customer::factory()->for($tenant2)->create();
-        $user2 = User::factory()->for($tenant2)->create();
+        $tenant2 = TenantKey::factory()->create();
+        $customer2 = Customer::factory()->create(['tenant_id' => $tenant2->id]);
+        $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);
 
         // Tenant 1 logs
         activity('shift_management')->performedOn($this->customer)->log('Tenant 1 Log');
