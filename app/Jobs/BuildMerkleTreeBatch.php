@@ -62,9 +62,8 @@ class BuildMerkleTreeBatch implements ShouldQueue
      *
      * Finds all tenants with unbatched logs and builds Merkle trees.
      *
-     * After refactoring: ALL log types get merkle tree + OTS
-     * (not just Level 2+3). Retention period only affects deletion,
-     * not cryptographic protection.
+     * ALL log types receive merkle tree + OTS protection.
+     * Retention period only affects deletion timing, not cryptographic protection.
      */
     public function handle(): void
     {
