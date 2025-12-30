@@ -204,6 +204,51 @@ class Activity extends SpatieActivity
     ];
 
     /**
+     * Retention periods per log type (legal compliance).
+     *
+     * All logs have identical security measures:
+     * - Hash Chain: Sequential integrity verification
+     * - Merkle Tree: Batch verification (hourly)
+     * - OpenTimestamp: Bitcoin blockchain anchoring
+     *
+     * Retention duration based solely on legal requirements:
+     *
+     * Legal References:
+     * - BewachV §21 Abs. 4: 3 years minimum for Bewachungsgewerbe
+     *   Retained until end of Nth following calendar year
+     * - HGB §257 Abs. 4: 8 years for Buchungsbelege (changed from 10 in 2015),
+     *   10 years for Jahresabschlüsse
+     * - AO §147 Abs. 3: 8 years for tax-relevant documents
+     *
+     * @var array<string, int> Mapping of log_name to retention years
+     */
+    protected static array $retentionYears = [
+        // 3 Years: BewachV §21 Abs. 4 - Bewachungsgewerbe
+        'default' => 3,
+        'shift_management' => 3,
+        'guard_book' => 3,
+        'security' => 3,
+        'authentication' => 3,
+        'rbac_changes' => 3,
+        'scope_changes' => 3,
+        'customer_changes' => 3,
+        'site_management' => 3,
+        'employee_changes' => 3,
+        'hr_access' => 3,
+        'works_council_access' => 3,
+        'sensitive_access' => 3,
+        'guard_book_event' => 3,
+
+        // 8 Years: HGB §257 & AO §147 - Buchungsbelege
+        'invoice_generated' => 8,
+        'payment_processed' => 8,
+        'contract_change' => 8,
+
+        // 10 Years: HGB §257 - Jahresabschlüsse
+        'annual_closing' => 10,
+    ];
+
+    /**
      * Bootstrap the model.
      */
     protected static function booted(): void
@@ -333,11 +378,28 @@ class Activity extends SpatieActivity
     /**
      * Get security level for log type.
      *
+     * @deprecated Use getRetentionYears() instead. Will be removed in v2.0.
+     *
+     * This method provides backward compatibility by mapping retention years
+     * to the old "security level" system. However, this terminology is misleading
+     * because ALL logs have identical security measures (Hash + Merkle + OTS).
+     *
+     * The only difference is retention duration based on legal requirements.
+     *
+     * @param string $logName Log type name
      * @return int Security level (1, 2, or 3)
      */
     public static function getSecurityLevel(string $logName): int
     {
-        return self::$securityLevels[$logName] ?? 1;
+        // Map retention years to old security levels for backward compatibility
+        $retentionYears = self::getRetentionYears($logName);
+
+        return match ($retentionYears) {
+            3 => 1,  // 3 years → Level 1
+            8 => 2,  // 8 years → Level 2
+            10 => 3, // 10 years → Level 3
+            default => 1,
+        };
     }
 
     /**
@@ -348,6 +410,28 @@ class Activity extends SpatieActivity
     public static function getSecurityLevels(): array
     {
         return self::$securityLevels;
+    }
+
+    /**
+     * Get retention period in years for a log type.
+     *
+     * All logs have identical security measures (Hash Chain + Merkle Tree + OTS).
+     * This method returns the legal retention period based on applicable law.
+     *
+     * @param string|null $logName The log type name. If null, returns all retention periods.
+     * @return int|array<string, int> Retention period in years, or array of all periods
+     *
+     * @see BewachV §21 Abs. 4 - 3 years for Bewachungsgewerbe
+     * @see HGB §257 Abs. 4 - 8/10 years for commercial records
+     * @see AO §147 Abs. 3 - 8 years for tax-relevant documents
+     */
+    public static function getRetentionYears(?string $logName = null): int|array
+    {
+        if ($logName === null) {
+            return self::$retentionYears;
+        }
+
+        return self::$retentionYears[$logName] ?? 3;
     }
 
     /**
