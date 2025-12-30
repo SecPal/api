@@ -101,7 +101,7 @@ class Customer extends Model
     /**
      * Configure activity logging.
      *
-     * Logs customer changes (Level 2: customer_changes).
+     * Logs customer changes (8-year retention: customer_changes).
      * Tracks: customer_number, name, billing_address, contact, is_active.
      */
     public function getActivitylogOptions(): LogOptions

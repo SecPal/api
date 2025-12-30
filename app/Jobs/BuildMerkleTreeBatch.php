@@ -18,18 +18,19 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
 
 /**
- * Build Merkle tree batches for Level 2+3 activity logs.
+ * Build Merkle tree batches for ALL activity logs (retention-based model).
  *
  * This job:
- * - Finds unbatched Level 2+3 logs per tenant
+ * - Finds unbatched logs per tenant (all log types)
  * - Builds Merkle tree from event hashes
  * - Stores merkle_root, merkle_batch_id, merkle_proof
- * - Dispatches OpenTimestamp submission for Level 3
+ * - Dispatches OpenTimestamp submission for ALL batches
  *
- * Scheduled hourly for Level 2+3 activity logs (configurable via console schedule).
+ * Scheduled hourly for all activity logs (configurable via console schedule).
  *
  * @see ADR-010 Section 4: Merkle Tree Building
  * @see Issue #389 PR-4: Implement BuildMerkleTreeBatch job
+ * @see Issue #441: Retention refactoring - ALL logs now get Merkle + OTS
  */
 class BuildMerkleTreeBatch implements ShouldQueue
 {

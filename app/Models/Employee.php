@@ -226,7 +226,7 @@ class Employee extends Model
     /**
      * Configure activity logging.
      *
-     * Logs employee changes (Level 2: employee_changes).
+     * Logs employee changes (3-year retention: employee_changes).
      *
      * DSGVO-KONFORME LOGGING-STRATEGIE:
      *
