@@ -36,7 +36,9 @@ beforeEach(function (): void {
     // Run seeder to ensure predefined roles exist
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
     // Create test customer and site
