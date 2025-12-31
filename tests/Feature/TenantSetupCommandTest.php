@@ -57,7 +57,7 @@ describe('tenant:setup Command', function () {
     test('fails when KEK file is missing', function (): void {
         // Ensure no KEK exists
         expect(file_exists(TenantKey::getKekPath()))->toBeFalse();
-        
+
         $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
@@ -94,7 +94,7 @@ describe('tenant:setup Command', function () {
 
         // Change permissions to insecure (readable by group/others)
         chmod(TenantKey::getKekPath(), 0644);
-        
+
         $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
@@ -175,7 +175,7 @@ describe('tenant:setup Command', function () {
         $kekPath = TenantKey::getKekPath();
         file_put_contents($kekPath, 'invalid-kek-too-short');
         chmod($kekPath, 0600);
-        
+
         $countBefore = TenantKey::count();
 
         // Command will fail when trying to load corrupted KEK
