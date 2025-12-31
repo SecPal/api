@@ -10,9 +10,12 @@ use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 
-uses(RefreshDatabase::class)->group('serial');
+uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    // Increment counter to ensure unique KEK file for this test
+    incrementTestKekCounter();
+
     cleanupTestKekFile();
     TenantKey::setKekPath(getTestKekPath());
 });

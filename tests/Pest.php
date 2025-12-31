@@ -42,11 +42,31 @@ pest()->extend(Tests\TestCase::class)
 
 /**
  * Get process-specific KEK path for parallel test execution.
+ * Returns a consistent path within a single test, but unique across different tests.
+ * This prevents KEK file conflicts when tests run in parallel via Paratest.
  * Centralized helper to avoid duplication across test files.
  */
 function getTestKekPath(): string
 {
-    return storage_path('app/keys/kek-test-'.getmypid().'.key');
+    global $__test_kek_counter;
+    if (! isset($__test_kek_counter)) {
+        $__test_kek_counter = 0;
+    }
+
+    return storage_path('app/keys/kek-test-'.getmypid().'-'.$__test_kek_counter.'.key');
+}
+
+/**
+ * Increment the KEK counter for the next test.
+ * Should be called in beforeEach() hooks to ensure each test gets a unique KEK file.
+ */
+function incrementTestKekCounter(): void
+{
+    global $__test_kek_counter;
+    if (! isset($__test_kek_counter)) {
+        $__test_kek_counter = 0;
+    }
+    $__test_kek_counter++;
 }
 
 /**

@@ -10,7 +10,7 @@ use App\Models\Person;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(RefreshDatabase::class)->group('serial');
+uses(RefreshDatabase::class);
 
 /**
  * @property \App\Models\TenantKey $tenant
@@ -18,6 +18,9 @@ uses(RefreshDatabase::class)->group('serial');
  * @property \App\Models\Person $person
  */
 beforeEach(function (): void {
+    // Increment counter to ensure unique KEK file for this test
+    incrementTestKekCounter();
+
     // Use process-specific KEK file for parallel test isolation
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
