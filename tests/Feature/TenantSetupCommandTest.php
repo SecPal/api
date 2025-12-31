@@ -10,7 +10,7 @@ use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 
-uses(RefreshDatabase::class);
+uses(RefreshDatabase::class)->group('serial');
 
 beforeEach(function (): void {
     cleanupTestKekFile();

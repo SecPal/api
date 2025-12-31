@@ -10,7 +10,7 @@ use App\Models\Person;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(RefreshDatabase::class);
+uses(RefreshDatabase::class)->group('serial');
 
 /**
  * @property \App\Models\TenantKey $tenant
