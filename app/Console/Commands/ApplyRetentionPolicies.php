@@ -126,7 +126,7 @@ class ApplyRetentionPolicies extends Command
      *
      * @return array<string, int> Statistics for this tenant
      */
-    protected function processTenant(int|string $tenantId): array
+    protected function processTenant(int $tenantId): array
     {
         $statistics = [
             'retention_3_deleted' => 0,
@@ -142,8 +142,16 @@ class ApplyRetentionPolicies extends Command
             throw new \RuntimeException('Activity::getRetentionYears() must return an array');
         }
 
-        foreach ($allRetentionYears as $logName => $retentionYears) {
-            $deleted = $this->handleRetentionForLogType($tenantId, $logName, $retentionYears, $statistics);
+        // Group log types by retention period to optimize queries
+        // Before: N×M queries (100 tenants × 17 log types = 1700 queries)
+        // After: N×3 queries (100 tenants × 3 retention periods = 300 queries)
+        $logTypesByRetention = [];
+        foreach ($allRetentionYears as $logName => $years) {
+            $logTypesByRetention[$years][] = $logName;
+        }
+
+        foreach ($logTypesByRetention as $retentionYears => $logNames) {
+            $deleted = $this->handleRetentionForLogTypes($tenantId, $logNames, $retentionYears, $statistics);
 
             $key = "retention_{$retentionYears}_deleted";
             $statistics[$key] = ($statistics[$key] ?? 0) + $deleted;
@@ -153,48 +161,58 @@ class ApplyRetentionPolicies extends Command
     }
 
     /**
-     * Handle retention policy for a specific log type within a tenant.
+     * Handle retention policy for multiple log types within a tenant (batched for performance).
      *
      * Implements calendar year retention per BewachV §21 Abs. 4:
      * - Created 2022-03-15 + 3 years → delete from 2026-01-01
      * - Keep until end of Nth following calendar year
      *
-     * @param  int|string  $tenantId  The tenant_id to process (ISOLATION)
-     * @param  string  $logName  The log_name to process
+     * @param  int  $tenantId  The tenant_id to process (ISOLATION)
+     * @param  array<string>  $logNames  Array of log_names to process (all with same retention)
      * @param  int  $retentionYears  Number of years to retain (3, 8, or 10)
      * @param  array<string, int>  $statistics  Statistics array (passed by reference)
      * @return int Number of logs deleted
      */
-    protected function handleRetentionForLogType(int|string $tenantId, string $logName, int $retentionYears, array &$statistics): int
+    protected function handleRetentionForLogTypes(int $tenantId, array $logNames, int $retentionYears, array &$statistics): int
     {
         // Calculate cutoff date: created_at + N years, end of calendar year, +1 day, midnight
         // Example: 2022-03-15 + 3y = 2025-03-15 → endOfYear() = 2025-12-31 → +1d = 2026-01-01 00:00:00
         $cutoffDate = now()->subYears($retentionYears)->endOfYear()->addDay()->startOfDay();
 
+        // Use whereIn for batch processing (Performance: 1 query vs N queries)
         $query = Activity::where('tenant_id', $tenantId)
-            ->where('log_name', $logName)
+            ->whereIn('log_name', $logNames)
             ->where('created_at', '<', $cutoffDate)
             ->whereNull('deleted_at');
 
         $count = (int) $query->count();
 
         if ($this->option('dry-run')) {
-            $this->line("Would delete {$count} '{$logName}' logs older than {$cutoffDate->format('Y-m-d')}");
+            $logNamesStr = implode(', ', array_map(fn ($n) => "'{$n}'", $logNames));
+            $this->line("Would delete {$count} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
 
             return $count;
         }
 
         $orphaned = 0;
 
-        $query->chunk(100, function ($logs) use (&$orphaned, $tenantId) {
-            foreach ($logs as $log) {
-                // Mark next log as orphaned genesis if it exists (tenant-isolated)
-                $nextLog = Activity::where('tenant_id', $tenantId)
-                    ->where('previous_hash', $log->event_hash)
-                    ->whereNull('deleted_at')
-                    ->first();
+        // Batch orphaned genesis lookup to avoid N+1 queries
+        // Collect all event_hashes first, then do single lookup
+        $logsToDelete = $query->get();
+        $eventHashes = $logsToDelete->pluck('event_hash')->toArray();
 
-                if ($nextLog !== null) {
+        if (! empty($eventHashes)) {
+            // Single query to find all logs that will become orphaned
+            $logsToOrphan = Activity::where('tenant_id', $tenantId)
+                ->whereIn('previous_hash', $eventHashes)
+                ->whereNull('deleted_at')
+                ->get()
+                ->keyBy('previous_hash');
+
+            foreach ($logsToDelete as $log) {
+                // Check if this log has a successor that will become orphaned
+                if (isset($logsToOrphan[$log->event_hash])) {
+                    $nextLog = $logsToOrphan[$log->event_hash];
                     $nextLog->update([
                         'previous_hash' => null,
                         'is_orphaned_genesis' => true,
@@ -206,11 +224,12 @@ class ApplyRetentionPolicies extends Command
 
                 $log->forceDelete();
             }
-        });
+        }
 
         $statistics['orphaned_created'] += $orphaned;
 
-        $this->info("✓ Deleted {$count} '{$logName}' logs older than {$cutoffDate->format('Y-m-d')}");
+        $logNamesStr = implode(', ', array_map(fn ($n) => "'{$n}'", $logNames));
+        $this->info("✓ Deleted {$count} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
         if ($orphaned > 0) {
             $this->info("  → Created {$orphaned} orphaned genesis markers");
         }

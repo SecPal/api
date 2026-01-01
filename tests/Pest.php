@@ -41,6 +41,30 @@ pest()->extend(Tests\TestCase::class)
 */
 
 /**
+ * KEK path counter helper class for parallel test isolation.
+ * Uses static property instead of global variable for better encapsulation.
+ */
+class TestKekCounter
+{
+    private static int $counter = 0;
+
+    public static function get(): int
+    {
+        return self::$counter;
+    }
+
+    public static function increment(): void
+    {
+        self::$counter++;
+    }
+
+    public static function reset(): void
+    {
+        self::$counter = 0;
+    }
+}
+
+/**
  * Get process-specific KEK path for parallel test execution.
  * Returns a consistent path within a single test, but unique across different tests.
  * This prevents KEK file conflicts when tests run in parallel via Paratest.
@@ -48,12 +72,7 @@ pest()->extend(Tests\TestCase::class)
  */
 function getTestKekPath(): string
 {
-    global $__test_kek_counter;
-    if (! isset($__test_kek_counter)) {
-        $__test_kek_counter = 0;
-    }
-
-    return storage_path('app/keys/kek-test-'.getmypid().'-'.$__test_kek_counter.'.key');
+    return storage_path('app/keys/kek-test-'.getmypid().'-'.TestKekCounter::get().'.key');
 }
 
 /**
@@ -62,11 +81,7 @@ function getTestKekPath(): string
  */
 function incrementTestKekCounter(): void
 {
-    global $__test_kek_counter;
-    if (! isset($__test_kek_counter)) {
-        $__test_kek_counter = 0;
-    }
-    $__test_kek_counter++;
+    TestKekCounter::increment();
 }
 
 /**
