@@ -85,7 +85,7 @@ jobs:
           DB_USERNAME: db
           DB_PASSWORD: db
           XDEBUG_MODE: coverage
-        run: php artisan test --coverage-clover coverage.xml
+        run: php artisan test --parallel --coverage-clover coverage.xml
 
       - name: Validate setup command works
         env:

@@ -105,4 +105,4 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: testing
           DB_PASSWORD: testing
-        run: php artisan test
+        run: php artisan test --parallel
