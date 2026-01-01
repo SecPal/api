@@ -10,10 +10,13 @@ declare(strict_types=1);
 use App\Models\Activity;
 use App\Models\Customer;
 use App\Models\TenantKey;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\Wormhole;
 use Illuminate\Support\Facades\Artisan;
 
 use function Pest\Laravel\travel;
+
+uses(RefreshDatabase::class);
 
 /**
  * Critical Security Test: ApplyRetentionPolicies MUST maintain tenant isolation.
