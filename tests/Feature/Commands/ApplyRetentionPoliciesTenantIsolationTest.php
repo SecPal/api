@@ -119,6 +119,11 @@ describe('ApplyRetentionPolicies → Tenant Isolation', function () {
         activity('shift_management')->performedOn($this->customer2)->log('Tenant 2 - Genesis');
         activity('shift_management')->performedOn($this->customer2)->log('Tenant 2 - Second');
 
+        // BUGFIX: Ensure all hash chain jobs completed (parallel execution timing issue)
+        // In parallel tests, ProcessActivityHashChain jobs might not have finished
+        // even with sync queue. Sleep ensures DB writes are visible across transactions.
+        usleep(100000); // 100ms should be enough for sync queue to complete
+
         // Apply retention (should delete Tenant 1 old log + auto-created "created", create orphaned genesis)
         Artisan::call('activity:apply-retention');
 
