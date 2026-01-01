@@ -99,10 +99,7 @@ jobs:
         env:
           # Test-only APP_KEY - not used in production
           APP_KEY: base64:ZXUevbvUHFMlVnuwTiO0s7pQ1i584bpMKALKwTMNYh4=
-          DB_CONNECTION: pgsql
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_DATABASE: testing
-          DB_USERNAME: testing
-          DB_PASSWORD: testing
+          # Use SQLite for parallel testing - each worker gets its own file
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
         run: php artisan test --parallel

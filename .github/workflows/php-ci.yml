@@ -78,12 +78,9 @@ jobs:
         env:
           # Test-only APP_KEY - not used in production
           APP_KEY: base64:ZXUevbvUHFMlVnuwTiO0s7pQ1i584bpMKALKwTMNYh4=
-          DB_CONNECTION: pgsql
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_DATABASE: db
-          DB_USERNAME: db
-          DB_PASSWORD: db
+          # Use SQLite for parallel testing - each worker gets its own file
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
           XDEBUG_MODE: coverage
         run: php artisan test --parallel --coverage-clover coverage.xml
 
