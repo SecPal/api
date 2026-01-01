@@ -92,6 +92,8 @@ class ApplyRetentionPolicies extends Command
         try {
             // Process each tenant independently
             foreach ($tenantIds as $tenantId) {
+                // Cast to int for type safety (pluck returns string)
+                $tenantId = (int) $tenantId;
                 $this->info("=== Tenant: {$tenantId} ===");
 
                 $tenantStats = $this->processTenant($tenantId);
