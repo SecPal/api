@@ -123,7 +123,7 @@ class Site extends Model
     /**
      * Configure activity logging.
      *
-     * Logs site changes (Level 2: site_management).
+     * Logs site changes (8-year retention: site_management).
      * Tracks: site_number, name, type, address, contact, is_active, valid_from, valid_until.
      */
     public function getActivitylogOptions(): LogOptions

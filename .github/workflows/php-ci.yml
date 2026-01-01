@@ -74,6 +74,15 @@ jobs:
           pip3 install --break-system-packages opentimestamps-client
           ots --version
 
+      - name: Create parallel test databases
+        env:
+          PGPASSWORD: db
+        run: |
+          # Create databases for parallel test workers (up to 8 workers)
+          for i in {1..8}; do
+            psql -h localhost -U db -d db -c "CREATE DATABASE db_$i;" || true
+          done
+
       - name: Run tests with coverage
         env:
           # Test-only APP_KEY - not used in production
@@ -85,7 +94,7 @@ jobs:
           DB_USERNAME: db
           DB_PASSWORD: db
           XDEBUG_MODE: coverage
-        run: php artisan test --coverage-clover coverage.xml
+        run: php artisan test --parallel --coverage-clover coverage.xml
 
       - name: Validate setup command works
         env:

@@ -25,7 +25,9 @@ beforeEach(function (): void {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
     Permission::create(['name' => 'qualification.read', 'guard_name' => 'sanctum']);

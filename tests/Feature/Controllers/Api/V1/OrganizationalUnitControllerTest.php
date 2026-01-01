@@ -42,7 +42,9 @@ beforeEach(function () {
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
     // Create authenticated user with admin role
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
     $this->user->assignRole('Admin');
 
     actingAs($this->user, 'sanctum');

@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Artisan;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    // Increment counter to ensure unique KEK file for this test
+    incrementTestKekCounter();
+
     cleanupTestKekFile();
     TenantKey::setKekPath(getTestKekPath());
 });
@@ -32,8 +35,8 @@ describe('tenant:setup Command', function () {
         // Generate KEK first
         TenantKey::generateKek();
 
-        // Ensure no tenant keys exist
-        expect(TenantKey::count())->toBe(0);
+        // Store count before command
+        $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
             ->expectsOutput('SecPal Tenant Key Setup')
@@ -46,7 +49,7 @@ describe('tenant:setup Command', function () {
             ->assertExitCode(0);
 
         // Verify tenant key was created
-        expect(TenantKey::count())->toBe(1);
+        expect(TenantKey::count())->toBe($countBefore + 1);
 
         $tenantKey = TenantKey::first();
         expect($tenantKey->dek_wrapped)->not->toBeEmpty();
@@ -58,6 +61,8 @@ describe('tenant:setup Command', function () {
         // Ensure no KEK exists
         expect(file_exists(TenantKey::getKekPath()))->toBeFalse();
 
+        $countBefore = TenantKey::count();
+
         $this->artisan('tenant:setup')
             ->expectsOutput('SecPal Tenant Key Setup')
             ->expectsOutputToContain('KEK file not found')
@@ -65,7 +70,7 @@ describe('tenant:setup Command', function () {
             ->assertExitCode(1);
 
         // Verify no tenant key was created
-        expect(TenantKey::count())->toBe(0);
+        expect(TenantKey::count())->toBe($countBefore);
     });
 
     test('aborts when tenant key already exists', function (): void {
@@ -74,7 +79,7 @@ describe('tenant:setup Command', function () {
         $keys = TenantKey::generateEnvelopeKeys();
         TenantKey::create($keys);
 
-        expect(TenantKey::count())->toBe(1);
+        $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
             ->expectsOutput('SecPal Tenant Key Setup')
@@ -83,7 +88,7 @@ describe('tenant:setup Command', function () {
             ->assertExitCode(0);
 
         // Verify count didn't change
-        expect(TenantKey::count())->toBe(1);
+        expect(TenantKey::count())->toBe($countBefore);
     });
 
     test('warns if KEK file has insecure permissions', function (): void {
@@ -93,13 +98,15 @@ describe('tenant:setup Command', function () {
         // Change permissions to insecure (readable by group/others)
         chmod(TenantKey::getKekPath(), 0644);
 
+        $countBefore = TenantKey::count();
+
         $this->artisan('tenant:setup')
             ->expectsOutputToContain('KEK file has insecure permissions')
             ->expectsOutputToContain('Recommended: 0600')
             ->assertExitCode(0);
 
         // Should still create tenant despite warning
-        expect(TenantKey::count())->toBe(1);
+        expect(TenantKey::count())->toBe($countBefore + 1);
     });
 
     test('generated keys can be unwrapped successfully', function (): void {
@@ -107,7 +114,7 @@ describe('tenant:setup Command', function () {
 
         $this->artisan('tenant:setup')->assertExitCode(0);
 
-        $tenantKey = TenantKey::first();
+        $tenantKey = TenantKey::latest()->first();
 
         // Verify keys can be unwrapped
         $dek = $tenantKey->unwrapDek();
@@ -130,7 +137,7 @@ describe('tenant:setup Command', function () {
         })->assertExitCode(0);
 
         // Verify no raw key material in output
-        $tenantKey = TenantKey::first();
+        $tenantKey = TenantKey::latest()->first();
         $dek = $tenantKey->unwrapDek();
 
         expect($output)->not->toContain(bin2hex($dek));
@@ -144,7 +151,7 @@ describe('tenant:setup Command', function () {
 
         $this->artisan('tenant:setup')->assertExitCode(0);
 
-        $tenantKey = TenantKey::first();
+        $tenantKey = TenantKey::latest()->first();
 
         // Verify all required fields are present
         expect($tenantKey)->toHaveKeys([
@@ -172,13 +179,15 @@ describe('tenant:setup Command', function () {
         file_put_contents($kekPath, 'invalid-kek-too-short');
         chmod($kekPath, 0600);
 
+        $countBefore = TenantKey::count();
+
         // Command will fail when trying to load corrupted KEK
         $this->artisan('tenant:setup')
             ->expectsOutputToContain('Failed')
             ->assertExitCode(1);
 
         // Verify no tenant key was created
-        expect(TenantKey::count())->toBe(0);
+        expect(TenantKey::count())->toBe($countBefore);
     });
 
     test('handles multiple tenant keys existence check', function (): void {
@@ -188,14 +197,14 @@ describe('tenant:setup Command', function () {
         TenantKey::create(TenantKey::generateEnvelopeKeys());
         TenantKey::create(TenantKey::generateEnvelopeKeys());
 
-        expect(TenantKey::count())->toBe(2);
+        $countBefore = TenantKey::count();
 
         $this->artisan('tenant:setup')
             ->expectsOutputToContain('Tenant key already exists')
             ->assertExitCode(0);
 
         // Verify count didn't change
-        expect(TenantKey::count())->toBe(2);
+        expect(TenantKey::count())->toBe($countBefore);
     });
 
     test('validates KEK path is accessible', function (): void {

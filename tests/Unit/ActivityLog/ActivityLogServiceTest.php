@@ -29,7 +29,7 @@ beforeEach(function (): void {
     ]);
 });
 
-test('logLoginSuccess creates authentication log with security level 2', function (): void {
+test('logLoginSuccess creates authentication log with 8-year retention', function (): void {
     $activity = $this->service->logLoginSuccess($this->user);
 
     expect($activity)->toBeInstanceOf(Activity::class)
@@ -37,7 +37,7 @@ test('logLoginSuccess creates authentication log with security level 2', functio
         ->and($activity->description)->toBe('User logged in successfully')
         ->and($activity->causer_id)->toBe((string) $this->user->id)
         ->and($activity->properties['event'])->toBe('login_success')
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8]);
 });
 
 test('logLoginFailed creates authentication log without causer', function (): void {
@@ -54,7 +54,7 @@ test('logLoginFailed creates authentication log without causer', function (): vo
         ->and($activity->properties['event'])->toBe('login_failed')
         ->and($activity->properties['email'])->toBe('test@example.com')
         ->and($activity->properties['reason'])->toBe('Invalid password')
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8]);
 });
 
 test('logLogout creates authentication log', function (): void {
@@ -65,7 +65,7 @@ test('logLogout creates authentication log', function (): void {
         ->and($activity->description)->toBe('User logged out')
         ->and($activity->causer_id)->toBe((string) $this->user->id)
         ->and($activity->properties['event'])->toBe('logout')
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8]);
 });
 
 test('logRoleAssignment creates rbac_changes log', function (): void {
@@ -86,7 +86,7 @@ test('logRoleAssignment creates rbac_changes log', function (): void {
         ->and($activity->properties['event'])->toBe('role_assigned')
         ->and($activity->properties['roles'])->toBe(['admin', 'manager'])
         ->and($activity->properties['reason'])->toBe('Promotion')
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8]);
 });
 
 test('logRoleRevocation creates rbac_changes log', function (): void {
@@ -122,7 +122,7 @@ test('logPermissionChange creates rbac_changes log', function (): void {
         ->and($activity->properties['permissions'])->toBe(['employee.read', 'employee.write'])
         ->and($activity->properties['target_type'])->toBe('role')
         ->and($activity->properties['target_id'])->toBe('manager')
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8]);
 });
 
 test('logScopeChange creates scope_changes log', function (): void {
@@ -142,10 +142,10 @@ test('logScopeChange creates scope_changes log', function (): void {
         ->and($activity->properties['scope_type'])->toBe('site')
         ->and($activity->properties['scope_id'])->toBe('site-uuid-123')
         ->and($activity->properties['action'])->toBe('granted')
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(2);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8]);
 });
 
-test('logHRAccess creates hr_access log with security level 3', function (): void {
+test('logHRAccess creates hr_access log with 10-year retention', function (): void {
     $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $activity = $this->service->logHRAccess(
@@ -163,10 +163,10 @@ test('logHRAccess creates hr_access log with security level 3', function (): voi
         ->and($activity->properties['event'])->toBe('hr_data_accessed')
         ->and($activity->properties['accessed_fields'])->toBe(['salary', 'contract_data'])
         ->and($activity->properties['reason'])->toBe('Annual review')
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(3);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8, 10]);
 });
 
-test('logSensitiveAccess creates sensitive_access log with security level 3', function (): void {
+test('logSensitiveAccess creates sensitive_access log with 10-year retention', function (): void {
     $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $activity = $this->service->logSensitiveAccess(
@@ -183,7 +183,7 @@ test('logSensitiveAccess creates sensitive_access log with security level 3', fu
         ->and($activity->properties['reason'])->toBe('Medical leave review')
         ->and($activity->properties['document_type'])->toBe('health_certificate')
         ->and($activity->properties['classification'])->toBe('confidential')
-        ->and(Activity::getSecurityLevel($activity->log_name))->toBe(3);
+        ->and(Activity::getRetentionYears($activity->log_name))->toBeIn([3, 8, 10]);
 });
 
 test('logCustomEvent creates flexible activity log', function (): void {

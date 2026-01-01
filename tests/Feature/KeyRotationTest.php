@@ -18,6 +18,9 @@ uses(RefreshDatabase::class);
  * @property \App\Models\Person $person
  */
 beforeEach(function (): void {
+    // Increment counter to ensure unique KEK file for this test
+    incrementTestKekCounter();
+
     // Use process-specific KEK file for parallel test isolation
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
@@ -43,12 +46,14 @@ afterEach(function (): void {
 
 describe('keys:generate-tenant Command', function () {
     test('generates new tenant with envelope keys', function (): void {
+        $countBefore = TenantKey::count();
+
         $this->artisan('keys:generate-tenant')
             ->expectsOutput('Generating new tenant envelope keys...')
             ->assertExitCode(0);
 
         // Should have created a new tenant
-        expect(TenantKey::count())->toBe(2);
+        expect(TenantKey::count())->toBe($countBefore + 1);
 
         $newTenant = TenantKey::latest()->first();
         expect($newTenant->dek_wrapped)->not->toBeEmpty();

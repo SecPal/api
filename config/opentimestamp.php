@@ -60,7 +60,7 @@ return [
     | Merkle Tree Build Frequency
     |--------------------------------------------------------------------------
     |
-    | How often to build Merkle trees for Level 2+3 activity logs.
+    | How often to build Merkle trees for ALL activity logs.
     | 'minute' for local development, 'hour' for production batching.
     |
     */

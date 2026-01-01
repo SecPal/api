@@ -32,7 +32,9 @@ beforeEach(function () {
     $this->tenant = TenantKey::create($keys);
 
     // Create authenticated user
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
     actingAs($this->user, 'sanctum');
 });
 

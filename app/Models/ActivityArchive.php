@@ -28,7 +28,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * - Data minimization principle applied
  *
  * BewachV §21 Abs. 4 Compliance:
- * - Level 2 logs: Archived after 3 years, deleted after 5 years total
+ * - 8-year retention logs: Archived after retention period ends
  * - Hash chain continuity preserved across deletion boundaries
  *
  * Immutability:

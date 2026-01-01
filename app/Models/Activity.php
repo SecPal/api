@@ -24,7 +24,7 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  * - Hash chain building (queue-based, race-condition-free) - Issue #408
  * - Merkle tree batching (hierarchical verification)
  * - OpenTimestamp integration (blockchain anchoring)
- * - 3-tier security levels (BewachV § 21 Abs. 4 retention)
+ * - Legal retention periods (BewachV § 21 Abs. 4, HGB § 257, AO § 147)
  *
  * Hash Chain Architecture (Issue #408):
  * - Activity INSERT happens first (event_hash=NULL initially)
@@ -173,34 +173,48 @@ class Activity extends SpatieActivity
     }
 
     /**
-     * 3-Tier Security Levels (BewachV § 21 Abs. 4 compliance).
+     * Retention periods per log type (legal compliance).
      *
-     * Level 1: Basic (3 years retention)
-     * Level 2: Enhanced (5 years retention)
-     * Level 3: Maximum (7 years retention)
+     * All logs have identical security measures:
+     * - Hash Chain: Sequential integrity verification
+     * - Merkle Tree: Batch verification (hourly)
+     * - OpenTimestamp: Bitcoin blockchain anchoring
      *
-     * @var array<string, int>
+     * Retention duration based solely on legal requirements:
+     *
+     * Legal References:
+     * - BewachV §21 Abs. 4: 3 years minimum for Bewachungsgewerbe
+     *   Retained until end of Nth following calendar year
+     * - HGB §257 Abs. 4: 8 years for Buchungsbelege (changed from 10 in 2015),
+     *   10 years for Jahresabschlüsse
+     * - AO §147 Abs. 3: 8 years for tax-relevant documents
+     *
+     * @var array<string, int> Mapping of log_name to retention years
      */
-    protected static array $securityLevels = [
-        // Level 1: Standard Operations (3 years)
-        'default' => 1,
-        'shift_management' => 1,
-
-        // Level 2: Security-Critical (5 years)
-        'security' => 2,
-        'authentication' => 2,
-        'rbac_changes' => 2,
-        'scope_changes' => 2,
-        'customer_changes' => 2,
-        'site_management' => 2,
-        'employee_changes' => 2, // Personenbezogene Daten - DSGVO-relevant
-
-        // Level 3: Legal-Critical (7 years)
+    protected static array $retentionYears = [
+        // 3 Years: BewachV §21 Abs. 4 - Bewachungsgewerbe
+        'default' => 3,
+        'shift_management' => 3,
+        'guard_book' => 3,
+        'security' => 3,
+        'authentication' => 3,
+        'rbac_changes' => 3,
+        'scope_changes' => 3,
+        'customer_changes' => 3,
+        'site_management' => 3,
+        'employee_changes' => 3,
         'hr_access' => 3,
-        'contract_change' => 3,
         'works_council_access' => 3,
-        'guard_book_event' => 3,
         'sensitive_access' => 3,
+        'guard_book_event' => 3,
+
+        // 8 Years: HGB §257 & AO §147 - Buchungsbelege
+        'invoice_generated' => 8,
+        'payment_processed' => 8,
+        'contract_change' => 8,
+
+        // 10 Years: HGB §257 - Jahresabschlüsse
+        'annual_closing' => 10,
     ];
 
     /**
@@ -266,11 +280,6 @@ class Activity extends SpatieActivity
                 $activity->validateOrganizationalUnit();
             }
 
-            // Set security_level based on log_name (if not already set)
-            if (! $activity->security_level && $activity->log_name) {
-                $activity->security_level = self::getSecurityLevel($activity->log_name);
-            }
-
             // Capture request metadata
             if (! $activity->ip_address && request()->ip()) {
                 $activity->ip_address = request()->ip();
@@ -331,23 +340,25 @@ class Activity extends SpatieActivity
     }
 
     /**
-     * Get security level for log type.
+     * Get retention period in years for a log type.
      *
-     * @return int Security level (1, 2, or 3)
+     * All logs have identical security measures (Hash Chain + Merkle Tree + OTS).
+     * This method returns the legal retention period based on applicable law.
+     *
+     * @param  string|null  $logName  The log type name. If null, returns all retention periods.
+     * @return int|array<string, int> Retention period in years, or array of all periods
+     *
+     * @see BewachV §21 Abs. 4 - 3 years for Bewachungsgewerbe
+     * @see HGB §257 Abs. 4 - 8/10 years for commercial records
+     * @see AO §147 Abs. 3 - 8 years for tax-relevant documents
      */
-    public static function getSecurityLevel(string $logName): int
+    public static function getRetentionYears(?string $logName = null): int|array
     {
-        return self::$securityLevels[$logName] ?? 1;
-    }
+        if ($logName === null) {
+            return self::$retentionYears;
+        }
 
-    /**
-     * Get all configured security levels.
-     *
-     * @return array<string, int> Mapping of log_name => security_level
-     */
-    public static function getSecurityLevels(): array
-    {
-        return self::$securityLevels;
+        return self::$retentionYears[$logName] ?? 3;
     }
 
     /**

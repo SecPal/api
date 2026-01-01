@@ -41,12 +41,47 @@ pest()->extend(Tests\TestCase::class)
 */
 
 /**
+ * KEK path counter helper class for parallel test isolation.
+ * Uses static property instead of global variable for better encapsulation.
+ */
+class TestKekCounter
+{
+    private static int $counter = 0;
+
+    public static function get(): int
+    {
+        return self::$counter;
+    }
+
+    public static function increment(): void
+    {
+        self::$counter++;
+    }
+
+    public static function reset(): void
+    {
+        self::$counter = 0;
+    }
+}
+
+/**
  * Get process-specific KEK path for parallel test execution.
+ * Returns a consistent path within a single test, but unique across different tests.
+ * This prevents KEK file conflicts when tests run in parallel via Paratest.
  * Centralized helper to avoid duplication across test files.
  */
 function getTestKekPath(): string
 {
-    return storage_path('app/keys/kek-test-'.getmypid().'.key');
+    return storage_path('app/keys/kek-test-'.getmypid().'-'.TestKekCounter::get().'.key');
+}
+
+/**
+ * Increment the KEK counter for the next test.
+ * Should be called in beforeEach() hooks to ensure each test gets a unique KEK file.
+ */
+function incrementTestKekCounter(): void
+{
+    TestKekCounter::increment();
 }
 
 /**
@@ -70,6 +105,9 @@ function givePermissionWithTenant(\App\Models\User $user, int $tenantId, string 
     $registrar->setPermissionsTeamId($tenantId);
     $user->givePermissionTo($permission);
     $registrar->setPermissionsTeamId(null);
+
+    // Clear permission cache to prevent stale data in random-order tests
+    $registrar->forgetCachedPermissions();
 }
 
 /**

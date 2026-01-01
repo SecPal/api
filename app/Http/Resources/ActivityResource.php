@@ -41,7 +41,6 @@ class ActivityResource extends JsonResource
             // Core activity data
             'log_name' => $this->log_name,
             'description' => $this->description,
-            'security_level' => $this->security_level,
 
             // Subject (what was changed)
             'subject_type' => $this->subject_type,

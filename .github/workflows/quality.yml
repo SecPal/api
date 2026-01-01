@@ -95,6 +95,15 @@ jobs:
           pip3 install --break-system-packages opentimestamps-client
           ots --version
 
+      - name: Create parallel test databases
+        env:
+          PGPASSWORD: testing
+        run: |
+          # Create databases for parallel test workers (up to 8 workers)
+          for i in {1..8}; do
+            psql -h localhost -U testing -d testing -c "CREATE DATABASE testing_$i;" || true
+          done
+
       - name: Run Tests
         env:
           # Test-only APP_KEY - not used in production
@@ -105,4 +114,4 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: testing
           DB_PASSWORD: testing
-        run: ./vendor/bin/pest
+        run: php artisan test --parallel

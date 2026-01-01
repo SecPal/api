@@ -22,12 +22,13 @@ use Illuminate\Support\Facades\Log;
  * Submit Merkle root to OpenTimestamp calendar servers.
  *
  * Creates pending proof that will be upgraded when Bitcoin block confirms.
- * Updates all Level 3 activity logs in the batch with the pending proof.
+ * Updates ALL activity logs in the batch with the pending proof.
  *
  * Dispatched by BuildMerkleTreeBatch job after Merkle tree is built.
  *
  * @see ADR-010 Section 6: OpenTimestamp Integration
  * @see Issue #391 PR-6: Integrate OpenTimestamp PHP library
+ * @see Issue #441: Retention refactoring - ALL logs now get OTS
  */
 class SubmitMerkleRootToOpenTimestamp implements ShouldQueue
 {

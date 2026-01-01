@@ -18,18 +18,19 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
 
 /**
- * Build Merkle tree batches for Level 2+3 activity logs.
+ * Build Merkle tree batches for ALL activity logs (retention-based model).
  *
  * This job:
- * - Finds unbatched Level 2+3 logs per tenant
+ * - Finds unbatched logs per tenant (all log types)
  * - Builds Merkle tree from event hashes
  * - Stores merkle_root, merkle_batch_id, merkle_proof
- * - Dispatches OpenTimestamp submission for Level 3
+ * - Dispatches OpenTimestamp submission for ALL batches
  *
- * Scheduled hourly for Level 2+3 activity logs (configurable via console schedule).
+ * Scheduled hourly for all activity logs (configurable via console schedule).
  *
  * @see ADR-010 Section 4: Merkle Tree Building
  * @see Issue #389 PR-4: Implement BuildMerkleTreeBatch job
+ * @see Issue #441: Retention refactoring - ALL logs now get Merkle + OTS
  */
 class BuildMerkleTreeBatch implements ShouldQueue
 {
@@ -59,24 +60,31 @@ class BuildMerkleTreeBatch implements ShouldQueue
     /**
      * Execute the job.
      *
-     * Finds all tenants with unbatched Level 2+3 logs and builds
-     * Merkle trees for each tenant.
+     * Finds all tenants with unbatched logs and builds Merkle trees.
+     *
+     * ALL log types receive merkle tree + OTS protection.
+     * Retention period only affects deletion timing, not cryptographic protection.
      */
     public function handle(): void
     {
-        // Get Level 2+3 log names
-        $level2And3LogNames = collect(Activity::getSecurityLevels())
-            ->filter(fn ($level) => $level >= 2)
+        // Get ALL log names (retention-based, not level-based)
+        $retentionYears = Activity::getRetentionYears();
+
+        if (! is_array($retentionYears)) {
+            return; // Invalid return type
+        }
+
+        $allLogNames = collect($retentionYears)
             ->keys()
             ->all();
 
-        if (empty($level2And3LogNames)) {
-            return; // No Level 2+3 log types configured
+        if (empty($allLogNames)) {
+            return; // No log types configured
         }
 
         // Find tenants with unbatched logs
         $tenantIds = Activity::whereNull('merkle_root')
-            ->whereIn('log_name', $level2And3LogNames)
+            ->whereIn('log_name', $allLogNames)
             ->distinct('tenant_id')
             ->pluck('tenant_id');
 
@@ -86,7 +94,7 @@ class BuildMerkleTreeBatch implements ShouldQueue
                 continue; // Skip invalid tenant IDs
             }
 
-            $this->buildTreeForTenant($tenantId, $level2And3LogNames);
+            $this->buildTreeForTenant($tenantId, $allLogNames);
         }
     }
 
@@ -94,7 +102,7 @@ class BuildMerkleTreeBatch implements ShouldQueue
      * Build Merkle tree for a specific tenant.
      *
      * @param  int  $tenantId  Tenant ID
-     * @param  array<string>  $logNames  Level 2+3 log names
+     * @param  array<string>  $logNames  All log names to batch
      */
     protected function buildTreeForTenant(int $tenantId, array $logNames): void
     {
@@ -131,25 +139,14 @@ class BuildMerkleTreeBatch implements ShouldQueue
             ]);
         }
 
-        // Dispatch OpenTimestamp submission if any Level 3 logs exist
-        $hasLevel3 = $logs->contains(function ($log) {
-            $logName = $log->log_name;
-            if (! is_string($logName)) {
-                return false;
-            }
-
-            $level = Activity::getSecurityLevel($logName);
-
-            return $level === 3;
-        });
-
-        if ($hasLevel3) {
-            dispatch(new SubmitMerkleRootToOpenTimestamp(
-                $tenantId,
-                $batchId,
-                $tree['root']
-            ));
-        }
+        // Dispatch OpenTimestamp submission for ALL batches
+        // All logs get identical security (Hash + Merkle + OTS),
+        // regardless of retention period
+        dispatch(new SubmitMerkleRootToOpenTimestamp(
+            $tenantId,
+            $batchId,
+            $tree['root']
+        ));
     }
 
     /**

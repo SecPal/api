@@ -67,7 +67,7 @@ test('activity log creates proper hash chain with direct model usage', function 
         ->and($log2->event_hash)->not->toBe($log1->event_hash);
 });
 
-test('activity log with named log type gets correct security level', function () {
+test('activity log with named log type gets correct retention period', function () {
     $log = Activity::create([
         'log_name' => 'authentication',
         'description' => 'User login',
@@ -76,7 +76,7 @@ test('activity log with named log type gets correct security level', function ()
         'user_agent' => 'TestBrowser',
     ]);
 
-    expect(Activity::getSecurityLevel('authentication'))->toBe(2)
+    expect(Activity::getRetentionYears('authentication'))->toBe(3)
         ->and($log->exists)->toBeTrue()
         ->and($log->log_name)->toBe('authentication');
 });

@@ -22,6 +22,11 @@ beforeEach(function () {
     $this->tenant = TenantKey::create($keys);
 });
 
+afterEach(function () {
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
+});
+
 test('onboarding form submission can be created with factory', function () {
     $submission = OnboardingFormSubmission::factory()->create();
 
