@@ -10,7 +10,9 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\Activity;
+use App\Models\ActivityArchive;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -57,7 +59,7 @@ class ApplyRetentionPolicies extends Command
      *
      * @var string
      */
-    protected $description = 'Apply calendar year retention policies (3/8/10 years per BewachV/HGB/AO)';
+    protected $description = 'Apply calendar year retention policies: archive hashes + hard delete (GDPR Art. 17)';
 
     /**
      * Execute the console command.
@@ -83,9 +85,9 @@ class ApplyRetentionPolicies extends Command
         $this->info('');
 
         $globalStatistics = [
-            'retention_3_deleted' => 0,
-            'retention_8_deleted' => 0,
-            'retention_10_deleted' => 0,
+            'retention_3_archived' => 0,
+            'retention_8_archived' => 0,
+            'retention_10_archived' => 0,
             'orphaned_created' => 0,
         ];
 
@@ -131,9 +133,9 @@ class ApplyRetentionPolicies extends Command
     protected function processTenant(int $tenantId): array
     {
         $statistics = [
-            'retention_3_deleted' => 0,
-            'retention_8_deleted' => 0,
-            'retention_10_deleted' => 0,
+            'retention_3_archived' => 0,
+            'retention_8_archived' => 0,
+            'retention_10_archived' => 0,
             'orphaned_created' => 0,
         ];
 
@@ -153,27 +155,32 @@ class ApplyRetentionPolicies extends Command
         }
 
         foreach ($logTypesByRetention as $retentionYears => $logNames) {
-            $deleted = $this->handleRetentionForLogTypes($tenantId, $logNames, $retentionYears, $statistics);
+            $archived = $this->handleRetentionForLogTypes($tenantId, $logNames, $retentionYears, $statistics);
 
-            $key = "retention_{$retentionYears}_deleted";
-            $statistics[$key] = ($statistics[$key] ?? 0) + $deleted;
+            $key = "retention_{$retentionYears}_archived";
+            $statistics[$key] = ($statistics[$key] ?? 0) + $archived;
         }
 
         return $statistics;
     }
 
     /**
-     * Handle retention policy for multiple log types within a tenant (batched for performance).
+     * Handle retention policy: Archive hashes + hard delete (GDPR Art. 17 compliant).
      *
      * Implements calendar year retention per BewachV §21 Abs. 4:
      * - Created 2022-03-15 + 3 years → delete from 2026-01-01
      * - Keep until end of Nth following calendar year
      *
+     * GDPR Art. 17 "unverzüglich" compliance:
+     * - Direct archive + hard delete (no soft delete grace period)
+     * - Personal data immediately deleted
+     * - Only cryptographic hashes retained in archive
+     *
      * @param  int  $tenantId  The tenant_id to process (ISOLATION)
      * @param  array<string>  $logNames  Array of log_names to process (all with same retention)
      * @param  int  $retentionYears  Number of years to retain (3, 8, or 10)
      * @param  array<string, int>  $statistics  Statistics array (passed by reference)
-     * @return int Number of logs deleted
+     * @return int Number of logs archived and hard deleted
      */
     protected function handleRetentionForLogTypes(int $tenantId, array $logNames, int $retentionYears, array &$statistics): int
     {
@@ -182,56 +189,73 @@ class ApplyRetentionPolicies extends Command
         $cutoffDate = now()->subYears($retentionYears)->endOfYear()->addDay()->startOfDay();
 
         // Use whereIn for batch processing (Performance: 1 query vs N queries)
-        $query = Activity::where('tenant_id', $tenantId)
+        // withTrashed() to also process already soft-deleted logs (legacy cleanup)
+        $query = Activity::withTrashed()
+            ->where('tenant_id', $tenantId)
             ->whereIn('log_name', $logNames)
-            ->where('created_at', '<', $cutoffDate)
-            ->whereNull('deleted_at');
+            ->where('created_at', '<', $cutoffDate);
 
         $count = (int) $query->count();
 
         if ($this->option('dry-run')) {
             $logNamesStr = implode(', ', array_map(fn ($n) => "'{$n}'", $logNames));
-            $this->line("Would delete {$count} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
+            $this->line("Would archive and hard delete {$count} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
 
             return $count;
         }
 
+        if ($count === 0) {
+            return 0;
+        }
+
         $orphaned = 0;
 
-        // Batch orphaned genesis lookup to avoid N+1 queries
-        // Collect all event_hashes first, then do single lookup
-        $logsToDelete = $query->get();
-        $eventHashes = $logsToDelete->pluck('event_hash')->toArray();
+        // Batch process: fetch all logs, orphan successors, archive + hard delete
+        $logsToArchive = $query->get();
+        $eventHashes = $logsToArchive->pluck('event_hash')->toArray();
 
-        if (! empty($eventHashes)) {
-            // Single query to find all logs that will become orphaned
-            $logsToOrphan = Activity::where('tenant_id', $tenantId)
-                ->whereIn('previous_hash', $eventHashes)
-                ->whereNull('deleted_at')
-                ->get()
-                ->keyBy('previous_hash');
+        // Single query to find all logs that will become orphaned
+        $logsToOrphan = Activity::where('tenant_id', $tenantId)
+            ->whereIn('previous_hash', $eventHashes)
+            ->get()
+            ->keyBy('previous_hash');
 
-            foreach ($logsToDelete as $log) {
-                // Check if this log has a successor that will become orphaned
+        // Use transaction for atomic archive + delete
+        DB::transaction(function () use ($logsToArchive, $logsToOrphan, &$orphaned) {
+            foreach ($logsToArchive as $log) {
+                // Step 1: Archive hashes only (GDPR Art. 5(1)(e) - data minimization)
+                ActivityArchive::create([
+                    'id' => $log->id,
+                    'tenant_id' => $log->tenant_id,
+                    'log_name' => $log->log_name,
+                    'created_at' => $log->created_at,
+                    'event_hash' => $log->event_hash,
+                    'previous_hash' => $log->previous_hash,
+                    'merkle_root' => $log->merkle_root,
+                    'merkle_batch_id' => $log->merkle_batch_id,
+                ]);
+
+                // Step 2: Mark successor as orphaned genesis (if exists)
                 if (isset($logsToOrphan[$log->event_hash])) {
                     $nextLog = $logsToOrphan[$log->event_hash];
                     $nextLog->update([
                         'previous_hash' => null,
                         'is_orphaned_genesis' => true,
-                        'orphaned_reason' => "Predecessor deleted (retention: {$log->log_name}, {$log->created_at->format('Y-m-d')})",
+                        'orphaned_reason' => "Predecessor archived (retention: {$log->log_name}, {$log->created_at->format('Y-m-d')})",
                         'orphaned_at' => now(),
                     ]);
                     $orphaned++;
                 }
 
+                // Step 3: Hard delete (personal data removed per GDPR Art. 17)
                 $log->forceDelete();
             }
-        }
+        });
 
         $statistics['orphaned_created'] += $orphaned;
 
         $logNamesStr = implode(', ', array_map(fn ($n) => "'{$n}'", $logNames));
-        $this->info("✓ Deleted {$count} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
+        $this->info("✓ Archived + deleted {$count} logs ({$logNamesStr}) older than {$cutoffDate->format('Y-m-d')}");
         if ($orphaned > 0) {
             $this->info("  → Created {$orphaned} orphaned genesis markers");
         }
@@ -251,11 +275,11 @@ class ApplyRetentionPolicies extends Command
         $this->table(
             ['Metric', 'Count'],
             [
-                ['3-year retention: Deleted', $statistics['retention_3_deleted'] ?? 0],
-                ['8-year retention: Deleted', $statistics['retention_8_deleted'] ?? 0],
-                ['10-year retention: Deleted', $statistics['retention_10_deleted'] ?? 0],
+                ['3-year retention: Archived + Deleted', $statistics['retention_3_archived'] ?? 0],
+                ['8-year retention: Archived + Deleted', $statistics['retention_8_archived'] ?? 0],
+                ['10-year retention: Archived + Deleted', $statistics['retention_10_archived'] ?? 0],
                 ['Orphaned genesis created', $statistics['orphaned_created']],
-                ['Total actions', array_sum($statistics)],
+                ['Total processed', array_sum($statistics)],
             ]
         );
     }
