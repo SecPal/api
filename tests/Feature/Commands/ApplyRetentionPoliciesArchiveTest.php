@@ -313,7 +313,7 @@ test('it processes logs atomically in transaction', function () {
     // Verify: Both logs archived and deleted atomically
     expect(Activity::withTrashed()->count())->toBe(0);
     expect(ActivityArchive::count())->toBe(2);
-    
+
     // Verify: Archives exist for both original log IDs
     expect(ActivityArchive::find($log1->id))->not->toBeNull();
     expect(ActivityArchive::find($log2->id))->not->toBeNull();
