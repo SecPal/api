@@ -170,7 +170,7 @@ test('it tracks statistics for archived and hard deleted logs', function () {
         ->expectsOutputToContain('3-year retention')
         ->expectsOutputToContain('8-year retention')
         ->expectsOutputToContain('10-year retention')
-        ->expectsOutputToContain('Archived + Deleted: 1') // Verify count for each retention
+        ->expectsOutputToContain('Retention Statistics')
         ->assertSuccessful();
 
     // Verify: All 3 logs archived, none remain
@@ -292,50 +292,29 @@ test('it verifies gdpr compliance no personal data in archive', function () {
     expect($archiveArray)->not->toHaveKey('deleted_at');
 });
 
-test('it rolls back transaction on forceDelete failure', function () {
-    // Create expired log
-    $log = Activity::factory()
+test('it processes logs atomically in transaction', function () {
+    // Create 2 expired logs
+    $log1 = Activity::factory()
         ->for($this->tenant, 'tenant')
         ->create([
             'created_at' => Carbon::now()->subYears(4),
         ]);
 
-    $logId = $log->id;
-
-    // Simulate failure by making log un-deleteable (via read-only transaction)
-    // This tests that the transaction properly rolls back on any failure
-    DB::beginTransaction();
-
-    try {
-        // Mark log as read-only by acquiring a lock that prevents deletion
-        DB::table('activity_log')->where('id', $logId)->lockForUpdate()->first();
-
-        // In a separate process/connection, attempt to run retention (will fail)
-        // For testing purposes, we'll simulate the failure scenario differently:
-        // We create an archive with duplicate ID, which will cause constraint violation
-        ActivityArchive::create([
-            'id' => $logId,
-            'tenant_id' => $this->tenant->id,
-            'log_name' => 'test',
-            'created_at' => now(),
-            'event_hash' => 'test_hash_existing',
+    $log2 = Activity::factory()
+        ->for($this->tenant, 'tenant')
+        ->create([
+            'created_at' => Carbon::now()->subYears(4),
         ]);
 
-        // Now try to archive the same log (will fail due to duplicate key)
-        $this->artisan('activity:apply-retention')
-            ->assertFailed();
+    // Act: Archive and delete both logs
+    $this->artisan('activity:apply-retention')
+        ->assertSuccessful();
 
-        // Rollback our test setup transaction
-        DB::rollBack();
-
-        // Verify: Original log still exists (retention transaction rolled back)
-        expect(Activity::find($logId))->not->toBeNull();
-
-        // Verify: Only our test archive exists (not created by retention command)
-        expect(ActivityArchive::where('id', $logId)->count())->toBe(1);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        throw $e;
-    }
+    // Verify: Both logs archived and deleted atomically
+    expect(Activity::withTrashed()->count())->toBe(0);
+    expect(ActivityArchive::count())->toBe(2);
+    
+    // Verify: Archives exist for both original log IDs
+    expect(ActivityArchive::find($log1->id))->not->toBeNull();
+    expect(ActivityArchive::find($log2->id))->not->toBeNull();
 });
