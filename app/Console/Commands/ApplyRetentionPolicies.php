@@ -189,13 +189,16 @@ class ApplyRetentionPolicies extends Command
         $cutoffDate = now()->subYears($retentionYears)->endOfYear()->addDay()->startOfDay();
 
         // Use whereIn for batch processing (Performance: 1 query vs N queries)
-        // withTrashed() to also process already soft-deleted logs (legacy cleanup)
-        $query = Activity::withTrashed()
+        // withTrashed() processes soft-deleted logs from legacy deployments (one-time cleanup)
+        // Going forward, all logs are directly archived without soft-deletion
+        // Batch process: fetch all logs, orphan successors, archive + hard delete
+        $logsToArchive = Activity::withTrashed()
             ->where('tenant_id', $tenantId)
             ->whereIn('log_name', $logNames)
-            ->where('created_at', '<', $cutoffDate);
+            ->where('created_at', '<', $cutoffDate)
+            ->get();
 
-        $count = (int) $query->count();
+        $count = $logsToArchive->count();
 
         if ($this->option('dry-run')) {
             $logNamesStr = implode(', ', array_map(fn ($n) => "'{$n}'", $logNames));
@@ -209,18 +212,21 @@ class ApplyRetentionPolicies extends Command
         }
 
         $orphaned = 0;
-
-        // Batch process: fetch all logs, orphan successors, archive + hard delete
-        $logsToArchive = $query->get();
         $eventHashes = $logsToArchive->pluck('event_hash')->toArray();
 
         // Single query to find all logs that will become orphaned
-        $logsToOrphan = Activity::where('tenant_id', $tenantId)
-            ->whereIn('previous_hash', $eventHashes)
-            ->get()
-            ->keyBy('previous_hash');
+        if ($eventHashes === []) {
+            $logsToOrphan = collect();
+        } else {
+            $logsToOrphan = Activity::where('tenant_id', $tenantId)
+                ->whereIn('previous_hash', $eventHashes)
+                ->get()
+                ->keyBy('previous_hash');
+        }
 
-        // Use transaction for atomic archive + delete
+        // Use transaction for atomic archive + delete (all-or-nothing)
+        // If any log fails to archive or delete, entire batch rolls back
+        // This ensures GDPR compliance and audit integrity (no partial state)
         DB::transaction(function () use ($logsToArchive, $logsToOrphan, &$orphaned) {
             foreach ($logsToArchive as $log) {
                 // Step 1: Archive hashes only (GDPR Art. 5(1)(e) - data minimization)
@@ -237,6 +243,7 @@ class ApplyRetentionPolicies extends Command
 
                 // Step 2: Mark successor as orphaned genesis (if exists)
                 if (isset($logsToOrphan[$log->event_hash])) {
+                    /** @var Activity $nextLog */
                     $nextLog = $logsToOrphan[$log->event_hash];
                     $nextLog->update([
                         'previous_hash' => null,
