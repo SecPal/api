@@ -319,23 +319,23 @@ class Activity extends SpatieActivity
                 'properties' => $activity->properties,
                 'event' => $activity->event,
                 'batch_uuid' => $activity->batch_uuid,
+                'created_at' => $activity->created_at->toIso8601String(), // Include timestamp for hash uniqueness
             ];
 
             // Dispatch queue job for hash chain building
             // Testing: dispatchSync() executes job immediately (required for tests)
-            // Production: dispatch() queues job for async processing by queue worker
-            // Result: Tests get immediate hash, production gets race-free async processing
+            // Production: dispatchSync() with advisory lock ensures sequential processing
             //
-            // Use config('app.env') instead of app()->environment() because phpunit.xml
-            // sets APP_ENV=testing which is read by config(), not the Application instance
-            $isTestContext = config('app.env') === 'testing';
-
-            if ($isTestContext) {
-                \App\Jobs\ProcessActivityHashChain::dispatchSync($activity->tenant_id, $activityData);
-            } else {
-                \App\Jobs\ProcessActivityHashChain::dispatch($activity->tenant_id, $activityData)
-                    ->onQueue('activity-hash-chain');
-            }
+            // IMPORTANT: We use dispatchSync() instead of dispatch() because:
+            // 1. Advisory lock in ProcessActivityHashChain ensures atomicity
+            // 2. Multiple activities created in one request (e.g., Spatie + GDPR log)
+            //    must be processed sequentially, not queued for later
+            // 3. Queue workers would process jobs async, but we need sync processing
+            //    within the same request to maintain proper hash chain
+            //
+            // The advisory lock (pg_advisory_xact_lock) ensures that even with dispatchSync,
+            // multiple jobs for the same tenant wait for each other.
+            \App\Jobs\ProcessActivityHashChain::dispatchSync($activity->tenant_id, $activityData);
         });
     }
 
@@ -479,6 +479,7 @@ class Activity extends SpatieActivity
                     'causer_type' => $this->causer_type,
                     'causer_id' => $this->causer_id,
                     'properties' => $this->properties,
+                    'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
                 ], JSON_THROW_ON_ERROR);
 
                 $this->event_hash = hash('sha256', ($this->previous_hash ?? '').$logData);
@@ -523,6 +524,7 @@ class Activity extends SpatieActivity
             'causer_type' => $this->causer_type,
             'causer_id' => $this->causer_id,
             'properties' => $this->properties,
+            'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
         ], JSON_THROW_ON_ERROR);
 
         $calculatedHash = hash('sha256', ($this->previous_hash ?? '').$logData);

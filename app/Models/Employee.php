@@ -108,6 +108,14 @@ class Employee extends Model
     public const STATUS_TERMINATED = 'terminated';
 
     /**
+     * Temporary storage for GDPR changed fields during model lifecycle.
+     * Maps spl_object_id (as string) to array of changed field names.
+     *
+     * @var array<int|string, string[]>
+     */
+    private static array $gdprChangedFields = [];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -267,22 +275,58 @@ class Employee extends Model
     }
 
     /**
+     * Check if a field's decrypted value actually changed (not just re-encrypted with new nonce).
+     *
+     * IMPORTANT: Encrypted fields (_enc) are ALWAYS marked as dirty due to new nonce generation.
+     * This method compares DECRYPTED values to detect actual changes.
+     *
+     * @param  string  $field  The field name to check (e.g., 'first_name', not 'first_name_enc')
+     * @return bool True if the decrypted value actually changed
+     */
+    protected function hasActuallyChanged(string $field): bool
+    {
+        // Get original (from DB before changes) - will be decrypted by accessor
+        $original = $this->getOriginal($field);
+        // Get current (in-memory, potentially modified)
+        $current = $this->getAttribute($field);
+
+        // Both null = no change
+        if ($original === null && $current === null) {
+            return false;
+        }
+
+        // One is null, other isn't = changed
+        if ($original === null || $current === null) {
+            return true;
+        }
+
+        // Compare decrypted values
+        return $original !== $current;
+    }
+
+    /**
      * The "booted" method of the model.
      *
      * Registers event listeners for DSGVO-compliant logging of sensitive personal data.
      * Documents THAT a change occurred without storing the actual values.
+     *
+     * IMPORTANT: Encrypted fields (_enc) are ALWAYS marked as dirty due to new nonce generation.
+     * We must compare DECRYPTED values to detect actual changes, not the encrypted columns.
+     *
+     * Uses 'updating' event to capture changed fields, then 'updated' event to log them.
+     * This ensures the Spatie LogsActivity trait's log is created first, then our GDPR log,
+     * maintaining proper sequential order for the hash chain.
      */
     protected static function booted(): void
     {
+        // Track changed sensitive fields during 'updating' (before save)
         static::updating(function (Employee $employee) {
-            // Track which sensitive fields changed
             $changedFields = [];
-
-            // Name changes (encrypted fields)
-            if ($employee->isDirty('first_name_enc')) {
+            // Name changes (check decrypted values via accessors: first_name, last_name)
+            if ($employee->isDirty('first_name_enc') && $employee->hasActuallyChanged('first_name')) {
                 $changedFields[] = 'first_name';
             }
-            if ($employee->isDirty('last_name_enc')) {
+            if ($employee->isDirty('last_name_enc') && $employee->hasActuallyChanged('last_name')) {
                 $changedFields[] = 'last_name';
             }
 
@@ -294,22 +338,33 @@ class Employee extends Model
                 $changedFields[] = 'phone';
             }
 
-            // Highly sensitive encrypted data
-            if ($employee->isDirty('date_of_birth_enc')) {
+            // Highly sensitive encrypted data (check decrypted values)
+            if ($employee->isDirty('date_of_birth_enc') && $employee->hasActuallyChanged('date_of_birth')) {
                 $changedFields[] = 'date_of_birth';
             }
-            if ($employee->isDirty('address_encrypted')) {
+            if ($employee->isDirty('address_encrypted') && $employee->hasActuallyChanged('address')) {
                 $changedFields[] = 'address';
             }
-            if ($employee->isDirty('hourly_rate_enc')) {
+            if ($employee->isDirty('hourly_rate_enc') && $employee->hasActuallyChanged('hourly_rate')) {
                 $changedFields[] = 'hourly_rate';
             }
-            if ($employee->isDirty('tax_id_enc')) {
+            if ($employee->isDirty('tax_id_enc') && $employee->hasActuallyChanged('tax_id')) {
                 $changedFields[] = 'tax_id';
             }
-            if ($employee->isDirty('social_security_number_enc')) {
+            if ($employee->isDirty('social_security_number_enc') && $employee->hasActuallyChanged('social_security_number')) {
                 $changedFields[] = 'social_security_number';
             }
+
+            // Store in static array for use in 'updated' event
+            // Use spl_object_id() instead of $employee->id for robust tracking (works even with unsaved models)
+            $key = (string) spl_object_id($employee);
+            self::$gdprChangedFields[$key] = $changedFields;
+        });
+
+        // Create GDPR log AFTER save (after Spatie LogsActivity has created its log)
+        static::updated(function (Employee $employee) {
+            $key = (string) spl_object_id($employee);
+            $changedFields = self::$gdprChangedFields[$key] ?? [];
 
             // Log if any sensitive fields changed
             if (! empty($changedFields) && Auth::check()) {
@@ -323,6 +378,16 @@ class Employee extends Model
                     ])
                     ->log('Sensitive data changed (GDPR-compliant: no values stored)');
             }
+
+            // Clean up temporary storage
+            unset(self::$gdprChangedFields[$key]);
+        });
+
+        // Fallback cleanup to prevent memory leaks in long-running processes
+        // (queue workers, Horizon) if 'updated' event doesn't fire
+        static::saved(function (Employee $employee) {
+            $key = (string) spl_object_id($employee);
+            unset(self::$gdprChangedFields[$key]);
         });
     }
 

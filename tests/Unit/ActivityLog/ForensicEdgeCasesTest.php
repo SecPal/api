@@ -168,7 +168,7 @@ test('edge case 3: illegitimate genesis detected', function () {
     ]);
     $log2->saveQuietly();
 
-    // Calculate correct hash for genesis
+    // Calculate correct hash for genesis (including created_at for hash uniqueness)
     $logData = json_encode([
         'tenant_id' => $log2->tenant_id,
         'log_name' => $log2->log_name,
@@ -178,6 +178,7 @@ test('edge case 3: illegitimate genesis detected', function () {
         'causer_type' => $log2->causer_type,
         'causer_id' => $log2->causer_id,
         'properties' => $log2->properties,
+        'created_at' => $log2->created_at?->toIso8601String(),
     ], JSON_THROW_ON_ERROR);
 
     // Set as fake genesis with correct hash
@@ -221,6 +222,7 @@ test('edge case 4: illegitimate genesis with deleted batch activities', function
     $logs = $logs->map(fn ($log) => $log->refresh());
 
     // Break chain on log2 (make it fake genesis with correct hash)
+    // Calculate correct hash for log2 (as fake genesis) - include created_at
     $log2Data = json_encode([
         'tenant_id' => $logs[2]->tenant_id,
         'log_name' => $logs[2]->log_name,
@@ -230,6 +232,7 @@ test('edge case 4: illegitimate genesis with deleted batch activities', function
         'causer_type' => $logs[2]->causer_type,
         'causer_id' => $logs[2]->causer_id,
         'properties' => $logs[2]->properties,
+        'created_at' => $logs[2]->created_at?->toIso8601String(),
     ], JSON_THROW_ON_ERROR);
 
     DB::table('activity_log')
