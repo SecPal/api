@@ -46,7 +46,6 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property array<int, string>|null $nationalities Array of ISO 3166-1 alpha-2 codes
  * @property string|null $email
  * @property string|null $phone
- * @property string|null $address_encrypted Encrypted address (DEPRECATED - use structured fields)
  * @property string|null $address_street_enc Encrypted street name
  * @property string|null $address_house_number_enc Encrypted house number
  * @property string|null $address_postal_code_enc Encrypted postal code
@@ -108,7 +107,6 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property-read string $last_name Decrypted last name
  * @property-read string|null $birth_name Decrypted birth name
  * @property-read string|null $date_of_birth Decrypted date of birth (string, not Carbon)
- * @property-read string|null $address Decrypted address (DEPRECATED)
  * @property-read string|null $address_street Decrypted street
  * @property-read string|null $address_house_number Decrypted house number
  * @property-read string|null $address_postal_code Decrypted postal code
@@ -186,10 +184,7 @@ class Employee extends Model
         // Contact
         'email',
         'phone',
-        // Address (DEPRECATED: address_encrypted kept for migration)
-        'address', // plaintext field → triggers mutator → sets address_encrypted → triggers cast
-        'address_encrypted',
-        // Structured Address (NEW)
+        // Structured Address
         'address_street', // plaintext → address_street_enc
         'address_street_enc',
         'address_house_number', // plaintext → address_house_number_enc
@@ -274,7 +269,6 @@ class Employee extends Model
         'birth_name_enc',
         'date_of_birth_enc',
         'date_of_birth_idx',
-        'address_encrypted', // DEPRECATED
         'address_street_enc',
         'address_house_number_enc',
         'address_postal_code_enc',
@@ -299,7 +293,6 @@ class Employee extends Model
             'last_name_enc' => \App\Casts\EncryptedWithDek::class,
             'birth_name_enc' => \App\Casts\EncryptedWithDek::class,
             'date_of_birth_enc' => \App\Casts\EncryptedWithDek::class,
-            'address_encrypted' => \App\Casts\EncryptedWithDek::class, // DEPRECATED
             'address_street_enc' => \App\Casts\EncryptedWithDek::class,
             'address_house_number_enc' => \App\Casts\EncryptedWithDek::class,
             'address_postal_code_enc' => \App\Casts\EncryptedWithDek::class,
@@ -457,9 +450,6 @@ class Employee extends Model
             // Highly sensitive encrypted data (check decrypted values)
             if ($employee->isDirty('date_of_birth_enc') && $employee->hasActuallyChanged('date_of_birth')) {
                 $changedFields[] = 'date_of_birth';
-            }
-            if ($employee->isDirty('address_encrypted') && $employee->hasActuallyChanged('address')) {
-                $changedFields[] = 'address';
             }
             // New BewachV §16 encrypted fields
             if ($employee->isDirty('birth_name_enc') && $employee->hasActuallyChanged('birth_name')) {
@@ -650,14 +640,6 @@ class Employee extends Model
     }
 
     /**
-     * Get decrypted address (via EncryptedWithDek cast).
-     */
-    public function getAddressAttribute(): ?string
-    {
-        return $this->address_encrypted;
-    }
-
-    /**
      * Get decrypted hourly rate (via EncryptedWithDek cast, returns float).
      */
     public function getHourlyRateAttribute(): ?float
@@ -715,14 +697,6 @@ class Employee extends Model
     public function setDateOfBirthAttribute(?string $value): void
     {
         $this->date_of_birth_enc = $value;
-    }
-
-    /**
-     * Set plaintext address - Cast handles encryption.
-     */
-    public function setAddressAttribute(?string $value): void
-    {
-        $this->address_encrypted = $value;
     }
 
     /**
