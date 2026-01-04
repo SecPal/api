@@ -26,15 +26,41 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property string $id UUID primary key
  * @property int $tenant_id
  * @property string $employee_number
+ * @property string|null $bwr_id Bewacherregister-ID
+ * @property string $bwr_status not_registered|pending|active|suspended|revoked
+ * @property ?\Illuminate\Support\Carbon $bwr_registered_at
+ * @property ?\Illuminate\Support\Carbon $bwr_submission_date
+ * @property string|null $bwr_notes
  * @property string $first_name_enc Encrypted first name
  * @property string|null $first_name_idx Blind index for first name search
  * @property string $last_name_enc Encrypted last name
  * @property string|null $last_name_idx Blind index for last name search
+ * @property string|null $gender male|female|diverse
+ * @property string|null $birth_name_enc Encrypted birth name
+ * @property array<int, string>|null $previous_names Array of previous names
  * @property string|null $date_of_birth_enc Encrypted date of birth (text, not date)
  * @property string|null $date_of_birth_idx Blind index for date of birth
+ * @property string|null $birth_city
+ * @property string|null $birth_country ISO 3166-1 alpha-2
+ * @property string|null $birth_state
+ * @property array<int, string>|null $nationalities Array of ISO 3166-1 alpha-2 codes
  * @property string|null $email
  * @property string|null $phone
- * @property string|null $address_encrypted Encrypted address
+ * @property string|null $address_encrypted Encrypted address (DEPRECATED - use structured fields)
+ * @property string|null $address_street_enc Encrypted street name
+ * @property string|null $address_house_number_enc Encrypted house number
+ * @property string|null $address_postal_code_enc Encrypted postal code
+ * @property string|null $address_city_enc Encrypted city
+ * @property string|null $address_supplement_enc Encrypted address supplement
+ * @property string|null $address_country ISO 3166-1 alpha-2
+ * @property string|null $address_state
+ * @property array<int, array{from: string, to: string, street: string, house_number: string, postal_code: string, city: string, country: string, state: ?string}>|null $address_history Array of address objects (5 years)
+ * @property array<int, string>|null $intended_activities Array of activity codes
+ * @property string|null $id_document_type id_card|passport|residence_permit
+ * @property string|null $id_document_number_enc Encrypted document number
+ * @property ?\Illuminate\Support\Carbon $id_document_expiry
+ * @property string|null $id_document_copy_path Storage path (auto-deleted on BWR approval)
+ * @property ?\Illuminate\Support\Carbon $id_document_copy_deleted_at
  * @property string|null $photo_path
  * @property string|null $tax_id_enc Encrypted tax ID (Steueridentifikationsnummer)
  * @property string|null $social_security_number_enc Encrypted social security number (Sozialversicherungsnummer)
@@ -53,6 +79,9 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property string|null $sachkunde_type
  * @property string|null $sachkunde_certificate
  * @property ?\Illuminate\Support\Carbon $sachkunde_expiry
+ * @property string|null $sachkunde_ihk_number IHK identification number
+ * @property ?\Illuminate\Support\Carbon $sachkunde_exam_date
+ * @property ?\Illuminate\Support\Carbon $sachkunde_issued_date
  * @property string $work_permit_type unlimited|limited|none
  * @property string|null $work_permit_number
  * @property ?\Illuminate\Support\Carbon $work_permit_expiry
@@ -77,8 +106,15 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property ?\Illuminate\Support\Carbon $deleted_at
  * @property-read string $first_name Decrypted first name
  * @property-read string $last_name Decrypted last name
+ * @property-read string|null $birth_name Decrypted birth name
  * @property-read string|null $date_of_birth Decrypted date of birth (string, not Carbon)
- * @property-read string|null $address Decrypted address
+ * @property-read string|null $address Decrypted address (DEPRECATED)
+ * @property-read string|null $address_street Decrypted street
+ * @property-read string|null $address_house_number Decrypted house number
+ * @property-read string|null $address_postal_code Decrypted postal code
+ * @property-read string|null $address_city Decrypted city
+ * @property-read string|null $address_supplement Decrypted address supplement
+ * @property-read string|null $id_document_number Decrypted document number
  * @property-read float|null $hourly_rate Decrypted hourly rate
  * @property-read string|null $tax_id Decrypted tax ID
  * @property-read string|null $social_security_number Decrypted social security number
@@ -123,29 +159,73 @@ class Employee extends Model
     protected $fillable = [
         'tenant_id',
         'employee_number',
+        // BWR Fields
+        'bwr_id',
+        'bwr_status',
+        'bwr_registered_at',
+        'bwr_submission_date',
+        'bwr_notes',
+        // Personal Identity
         'first_name', // plaintext field → triggers mutator → sets first_name_enc → triggers cast
         'first_name_enc',
         'first_name_idx',
         'last_name', // plaintext field → triggers mutator → sets last_name_enc → triggers cast
         'last_name_enc',
         'last_name_idx',
+        'gender',
+        'birth_name', // plaintext field → triggers mutator → sets birth_name_enc → triggers cast
+        'birth_name_enc',
+        'previous_names',
         'date_of_birth', // plaintext field → triggers mutator → sets date_of_birth_enc → triggers cast
         'date_of_birth_enc',
         'date_of_birth_idx',
+        'birth_city',
+        'birth_country',
+        'birth_state',
+        'nationalities',
+        // Contact
         'email',
         'phone',
+        // Address (DEPRECATED: address_encrypted kept for migration)
         'address', // plaintext field → triggers mutator → sets address_encrypted → triggers cast
         'address_encrypted',
+        // Structured Address (NEW)
+        'address_street', // plaintext → address_street_enc
+        'address_street_enc',
+        'address_house_number', // plaintext → address_house_number_enc
+        'address_house_number_enc',
+        'address_postal_code', // plaintext → address_postal_code_enc
+        'address_postal_code_enc',
+        'address_city', // plaintext → address_city_enc
+        'address_city_enc',
+        'address_supplement', // plaintext → address_supplement_enc
+        'address_supplement_enc',
+        'address_country',
+        'address_state',
+        'address_history',
+        // Intended Activities
+        'intended_activities',
+        // ID Document
+        'id_document_type',
+        'id_document_number', // plaintext → id_document_number_enc
+        'id_document_number_enc',
+        'id_document_expiry',
+        'id_document_copy_path',
+        'id_document_copy_deleted_at',
         'photo_path',
+        // Tax & SSN
         'tax_id', // plaintext field → triggers mutator → sets tax_id_enc → triggers cast
         'tax_id_enc',
         'social_security_number', // plaintext field → triggers mutator → sets social_security_number_enc → triggers cast
         'social_security_number_enc',
+        // Employment Status
         'status',
         'hire_date',
         'contract_start_date',
         'termination_date',
         'last_working_day',
+        'employment_end_date',
+        'retention_period_end',
         'contract_type',
         'weekly_hours',
         'monthly_hours',
@@ -157,6 +237,9 @@ class Employee extends Model
         'sachkunde_type',
         'sachkunde_certificate',
         'sachkunde_expiry',
+        'sachkunde_ihk_number',
+        'sachkunde_exam_date',
+        'sachkunde_issued_date',
         'work_permit_type',
         'work_permit_number',
         'work_permit_expiry',
@@ -188,9 +271,16 @@ class Employee extends Model
         'first_name_idx',
         'last_name_enc',
         'last_name_idx',
+        'birth_name_enc',
         'date_of_birth_enc',
         'date_of_birth_idx',
-        'address_encrypted',
+        'address_encrypted', // DEPRECATED
+        'address_street_enc',
+        'address_house_number_enc',
+        'address_postal_code_enc',
+        'address_city_enc',
+        'address_supplement_enc',
+        'id_document_number_enc',
         'hourly_rate_enc',
         'tax_id_enc',
         'social_security_number_enc',
@@ -204,30 +294,56 @@ class Employee extends Model
     protected function casts(): array
     {
         return [
+            // Encrypted fields
             'first_name_enc' => \App\Casts\EncryptedWithDek::class,
             'last_name_enc' => \App\Casts\EncryptedWithDek::class,
+            'birth_name_enc' => \App\Casts\EncryptedWithDek::class,
             'date_of_birth_enc' => \App\Casts\EncryptedWithDek::class,
-            'address_encrypted' => \App\Casts\EncryptedWithDek::class,
+            'address_encrypted' => \App\Casts\EncryptedWithDek::class, // DEPRECATED
+            'address_street_enc' => \App\Casts\EncryptedWithDek::class,
+            'address_house_number_enc' => \App\Casts\EncryptedWithDek::class,
+            'address_postal_code_enc' => \App\Casts\EncryptedWithDek::class,
+            'address_city_enc' => \App\Casts\EncryptedWithDek::class,
+            'address_supplement_enc' => \App\Casts\EncryptedWithDek::class,
+            'id_document_number_enc' => \App\Casts\EncryptedWithDek::class,
             'hourly_rate_enc' => \App\Casts\EncryptedWithDek::class,
             'tax_id_enc' => \App\Casts\EncryptedWithDek::class,
             'social_security_number_enc' => \App\Casts\EncryptedWithDek::class,
+            // JSON arrays
+            'previous_names' => 'array',
+            'nationalities' => 'array',
+            'address_history' => 'array',
+            'intended_activities' => 'array',
+            // Dates
+            'bwr_registered_at' => 'datetime',
+            'bwr_submission_date' => 'date',
             'hire_date' => 'date',
             'contract_start_date' => 'date',
             'termination_date' => 'date',
             'last_working_day' => 'date',
+            'employment_end_date' => 'date',
+            'retention_period_end' => 'date',
             'sachkunde_expiry' => 'date',
+            'sachkunde_exam_date' => 'date',
+            'sachkunde_issued_date' => 'date',
+            'id_document_expiry' => 'date',
+            'id_document_copy_deleted_at' => 'datetime',
             'work_permit_expiry' => 'date',
             'residence_permit_expiry' => 'date',
             'criminal_record_check_date' => 'date',
+            // Decimals
             'weekly_hours' => 'decimal:2',
             'monthly_hours' => 'decimal:2',
+            // Booleans
             'user_account_active' => 'boolean',
+            'onboarding_completed' => 'boolean',
+            // Datetimes
             'user_account_activated_at' => 'datetime',
             'user_account_deactivated_at' => 'datetime',
-            'onboarding_completed' => 'boolean',
-            'onboarding_steps' => 'array',
             'onboarding_started_at' => 'datetime',
             'onboarding_completed_at' => 'datetime',
+            // Arrays
+            'onboarding_steps' => 'array',
         ];
     }
 
@@ -344,6 +460,28 @@ class Employee extends Model
             }
             if ($employee->isDirty('address_encrypted') && $employee->hasActuallyChanged('address')) {
                 $changedFields[] = 'address';
+            }
+            // New BewachV §16 encrypted fields
+            if ($employee->isDirty('birth_name_enc') && $employee->hasActuallyChanged('birth_name')) {
+                $changedFields[] = 'birth_name';
+            }
+            if ($employee->isDirty('address_street_enc') && $employee->hasActuallyChanged('address_street')) {
+                $changedFields[] = 'address_street';
+            }
+            if ($employee->isDirty('address_house_number_enc') && $employee->hasActuallyChanged('address_house_number')) {
+                $changedFields[] = 'address_house_number';
+            }
+            if ($employee->isDirty('address_postal_code_enc') && $employee->hasActuallyChanged('address_postal_code')) {
+                $changedFields[] = 'address_postal_code';
+            }
+            if ($employee->isDirty('address_city_enc') && $employee->hasActuallyChanged('address_city')) {
+                $changedFields[] = 'address_city';
+            }
+            if ($employee->isDirty('address_supplement_enc') && $employee->hasActuallyChanged('address_supplement')) {
+                $changedFields[] = 'address_supplement';
+            }
+            if ($employee->isDirty('id_document_number_enc') && $employee->hasActuallyChanged('id_document_number')) {
+                $changedFields[] = 'id_document_number';
             }
             if ($employee->isDirty('hourly_rate_enc') && $employee->hasActuallyChanged('hourly_rate')) {
                 $changedFields[] = 'hourly_rate';
@@ -609,6 +747,141 @@ class Employee extends Model
     public function setSocialSecurityNumberAttribute(?string $value): void
     {
         $this->social_security_number_enc = $value;
+    }
+
+    // === NEW BEWACHV §16 ACCESSORS & MUTATORS ===
+
+    /**
+     * Get decrypted birth name (via EncryptedWithDek cast).
+     */
+    public function getBirthNameAttribute(): ?string
+    {
+        return $this->birth_name_enc;
+    }
+
+    /**
+     * Set plaintext birth name - Cast handles encryption.
+     */
+    public function setBirthNameAttribute(?string $value): void
+    {
+        $this->birth_name_enc = $value;
+    }
+
+    /**
+     * Get decrypted address street (via EncryptedWithDek cast).
+     */
+    public function getAddressStreetAttribute(): ?string
+    {
+        return $this->address_street_enc;
+    }
+
+    /**
+     * Set plaintext address street - Cast handles encryption.
+     */
+    public function setAddressStreetAttribute(?string $value): void
+    {
+        $this->address_street_enc = $value;
+    }
+
+    /**
+     * Get decrypted house number (via EncryptedWithDek cast).
+     */
+    public function getAddressHouseNumberAttribute(): ?string
+    {
+        return $this->address_house_number_enc;
+    }
+
+    /**
+     * Set plaintext house number - Cast handles encryption.
+     */
+    public function setAddressHouseNumberAttribute(?string $value): void
+    {
+        $this->address_house_number_enc = $value;
+    }
+
+    /**
+     * Get decrypted postal code (via EncryptedWithDek cast).
+     */
+    public function getAddressPostalCodeAttribute(): ?string
+    {
+        return $this->address_postal_code_enc;
+    }
+
+    /**
+     * Set plaintext postal code - Cast handles encryption.
+     */
+    public function setAddressPostalCodeAttribute(?string $value): void
+    {
+        $this->address_postal_code_enc = $value;
+    }
+
+    /**
+     * Get decrypted city (via EncryptedWithDek cast).
+     */
+    public function getAddressCityAttribute(): ?string
+    {
+        return $this->address_city_enc;
+    }
+
+    /**
+     * Set plaintext city - Cast handles encryption.
+     */
+    public function setAddressCityAttribute(?string $value): void
+    {
+        $this->address_city_enc = $value;
+    }
+
+    /**
+     * Get decrypted address supplement (via EncryptedWithDek cast).
+     */
+    public function getAddressSupplementAttribute(): ?string
+    {
+        return $this->address_supplement_enc;
+    }
+
+    /**
+     * Set plaintext address supplement - Cast handles encryption.
+     */
+    public function setAddressSupplementAttribute(?string $value): void
+    {
+        $this->address_supplement_enc = $value;
+    }
+
+    /**
+     * Get decrypted ID document number (via EncryptedWithDek cast).
+     */
+    public function getIdDocumentNumberAttribute(): ?string
+    {
+        return $this->id_document_number_enc;
+    }
+
+    /**
+     * Set plaintext ID document number - Cast handles encryption.
+     */
+    public function setIdDocumentNumberAttribute(?string $value): void
+    {
+        $this->id_document_number_enc = $value;
+    }
+
+    /**
+     * Get complete structured address as formatted string.
+     *
+     * @return string|null Formatted address or null if no address data
+     */
+    public function getStructuredAddressAttribute(): ?string
+    {
+        if (! $this->address_street && ! $this->address_city) {
+            return null;
+        }
+
+        $parts = array_filter([
+            trim(($this->address_street ?? '').' '.($this->address_house_number ?? '')),
+            $this->address_supplement,
+            trim(($this->address_postal_code ?? '').' '.($this->address_city ?? '')),
+            $this->address_country ? strtoupper($this->address_country) : null,
+        ]);
+
+        return implode(', ', $parts);
     }
 
     // === STATUS STATE MACHINE ===
