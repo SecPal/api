@@ -306,7 +306,7 @@ class OpenTimestampService
             }
 
             // Execute: ots verify <proof-file> -d <hash>
-            // Note: File must come FIRST, then -d option (positional arg before options work in Python argparse)
+            // Note: File must come FIRST, then -d option (positional arg before options works in Python argparse)
             $result = $this->processExecutor->execute(
                 ['ots', 'verify', $tempFile, '-d', $digest],
                 null, // No stdin
