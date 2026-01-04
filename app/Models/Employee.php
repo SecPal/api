@@ -316,7 +316,7 @@ class Employee extends Model
             'last_working_day' => 'date',
             'employment_end_date' => 'date',
             'retention_period_end' => 'date',
-            'sachkunde_expiry' => 'date',
+            // Note: sachkunde_expiry removed - Sachkunde never expires (valid for life)!
             'sachkunde_exam_date' => 'date',
             'sachkunde_issued_date' => 'date',
             'id_document_expiry' => 'date',

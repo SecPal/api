@@ -90,8 +90,8 @@ class EmployeeResource extends JsonResource
             'id_document_copy_deleted_at' => $this->id_document_copy_deleted_at?->toIso8601String(),
 
             // BewachV § 21: Retention Management
-            'employment_end_date' => $this->employment_end_date?->toDateString(),
-            'retention_period_end' => $this->retention_period_end?->toDateString(),
+            'employment_end_date' => $this->employment_end_date,
+            'retention_period_end' => $this->retention_period_end,
 
             // Tax & Social Security (decrypted)
             'tax_id' => $this->tax_id,
@@ -116,9 +116,9 @@ class EmployeeResource extends JsonResource
             'health_insurance_number' => $this->health_insurance_number,
 
             // Legal Requirements (BewachV § 34a - Sachkunde)
+            // Note: Sachkunde qualification NEVER expires - valid for life!
             'sachkunde_type' => $this->sachkunde_type,
             'sachkunde_certificate' => $this->sachkunde_certificate,
-            'sachkunde_expiry' => $this->sachkunde_expiry?->toDateString(),
             'sachkunde_ihk_number' => $this->sachkunde_ihk_number,
             'sachkunde_exam_date' => $this->sachkunde_exam_date?->format('Y-m-d'),
             'sachkunde_issued_date' => $this->sachkunde_issued_date?->format('Y-m-d'),

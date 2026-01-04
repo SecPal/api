@@ -150,9 +150,9 @@ class StoreEmployeeRequest extends FormRequest
             'health_insurance_number' => ['nullable', 'string', 'max:255'],
 
             // Legal Requirements (BewachV § 34a - Sachkunde)
+            // Note: Sachkunde qualification NEVER expires - valid for life!
             'sachkunde_type' => ['nullable', 'string', 'max:255'],
             'sachkunde_certificate' => ['nullable', 'string', 'max:255'],
-            'sachkunde_expiry' => ['nullable', 'date'],
             'sachkunde_ihk_number' => ['nullable', 'string', 'max:50'], // IHK certificate number
             'sachkunde_exam_date' => ['nullable', 'date'], // Exam date
             'sachkunde_issued_date' => ['nullable', 'date'], // Certificate issue date

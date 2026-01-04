@@ -136,9 +136,9 @@ class UpdateEmployeeRequest extends FormRequest
             'health_insurance_number' => ['sometimes', 'nullable', 'string', 'max:255'],
 
             // Legal Requirements (BewachV § 34a - Sachkunde)
+            // Note: Sachkunde qualification NEVER expires - valid for life!
             'sachkunde_type' => ['sometimes', 'nullable', 'string', 'max:255'],
             'sachkunde_certificate' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'sachkunde_expiry' => ['sometimes', 'nullable', 'date'],
             'sachkunde_ihk_number' => ['sometimes', 'nullable', 'string', 'max:50'],
             'sachkunde_exam_date' => ['sometimes', 'nullable', 'date'],
             'sachkunde_issued_date' => ['sometimes', 'nullable', 'date'],
