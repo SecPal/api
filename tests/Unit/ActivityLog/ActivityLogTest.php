@@ -416,12 +416,13 @@ test('opentimestamp verification works with valid proof', function () {
     $mockExecutor->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
+            // Verify command: ots verify <tempfile> -d <hash>
             return count($command) === 5
                 && $command[0] === 'ots'
                 && $command[1] === 'verify'
-                && $command[2] === '--digest'
-                && $command[3] === $merkleRoot
-                && str_starts_with($command[4], '/tmp/ots_verify_')
+                && str_starts_with($command[2], '/tmp/ots_verify_')
+                && $command[3] === '-d'
+                && $command[4] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
         })

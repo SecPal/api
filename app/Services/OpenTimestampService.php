@@ -305,9 +305,10 @@ class OpenTimestampService
                 return false;
             }
 
-            // Execute: ots verify --digest <hash> <proof-file>
+            // Execute: ots verify <proof-file> -d <hash>
+            // Note: The proof file must come BEFORE -d flag
             $result = $this->processExecutor->execute(
-                ['ots', 'verify', '--digest', $digest, $tempFile],
+                ['ots', 'verify', $tempFile, '-d', $digest],
                 null, // No stdin
                 10 // 10 second timeout
             );
