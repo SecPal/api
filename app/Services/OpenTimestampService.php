@@ -305,9 +305,10 @@ class OpenTimestampService
                 return false;
             }
 
-            // Execute: ots verify --digest <hash> <proof-file>
+            // Execute: ots verify <proof-file> -d <hash>
+            // Note: File must come FIRST, then -d option (positional arg before options works in Python argparse)
             $result = $this->processExecutor->execute(
-                ['ots', 'verify', '--digest', $digest, $tempFile],
+                ['ots', 'verify', $tempFile, '-d', $digest],
                 null, // No stdin
                 10 // 10 second timeout
             );
