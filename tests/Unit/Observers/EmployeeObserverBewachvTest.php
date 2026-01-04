@@ -5,10 +5,11 @@
 
 use App\Models\Employee;
 use App\Models\TenantKey;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Models\Activity;
 
-uses()->group('unit', 'observer', 'bewachv');
+uses(RefreshDatabase::class)->group('unit', 'observer', 'bewachv');
 
 beforeEach(function () {
     if (! file_exists(TenantKey::getKekPath())) {
