@@ -64,6 +64,19 @@ class ActivityLogService
      * - If email belongs to an employee: use employee's organizational_unit_id
      * - If email belongs to a user: use user's primary organizational_unit_id
      * - If email unknown: organizational_unit_id = NULL (global, only visible to admins without scopes)
+     *
+     * Properties logged:
+     * - user_exists: true if a User account exists for this email
+     * - employee_exists: true if an Employee record exists for this email
+     * - has_organizational_unit: true if an OU could be determined
+     *
+     * Possible combinations:
+     * 1. user_exists=true, employee_exists=true, has_ou=true: User with employee record
+     * 2. user_exists=true, employee_exists=false, has_ou=true: User without employee, but with OU scope
+     * 3. user_exists=false, employee_exists=true, has_ou=true: Employee without user account
+     * 4. user_exists=false, employee_exists=false, has_ou=false: Unknown email (no user, no employee)
+     *
+     * All cases are logged, including completely unknown emails for security auditing.
      */
     public function logLoginFailed(string $email, string $reason, ?int $tenantId = null): ?Activity
     {
@@ -87,6 +100,7 @@ class ActivityLogService
 
         // Determine organizational_unit_id based on email
         $organizationalUnitId = null;
+        $employee = null;
 
         if ($user) {
             // User exists - check if they have an employee record
@@ -103,14 +117,14 @@ class ActivityLogService
                 $organizationalUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
             }
         } else {
-            // Check if email belongs to an employee (without user account)
+            // User doesn't exist - check if email belongs to an employee (without user account)
             $employee = \App\Models\Employee::where('email', $email)->first();
 
             if ($employee instanceof \App\Models\Employee) {
                 $organizationalUnitId = $employee->organizational_unit_id;
                 $targetTenantId = $employee->tenant_id;
             }
-            // else: unknown email - remains NULL (global, only visible to admins without scopes)
+            // else: unknown email (no user, no employee) - remains NULL (global, only visible to admins without scopes)
         }
 
         // Create Activity manually to set tenant_id and organizational_unit_id BEFORE saving
@@ -125,6 +139,7 @@ class ActivityLogService
                 'email' => $email,
                 'reason' => $reason,
                 'user_exists' => $user !== null,
+                'employee_exists' => $employee !== null,
                 'has_organizational_unit' => $organizationalUnitId !== null,
             ],
             'ip_address' => request()->ip(),

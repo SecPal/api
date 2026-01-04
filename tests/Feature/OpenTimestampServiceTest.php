@@ -85,9 +85,34 @@ test('upgrade returns null if not yet confirmed', function () {
     // Arrange: Create minimal pending proof
     $pendingProof = createPendingProof();
 
-    Http::fake([
-        '*/timestamp/*' => Http::response('', 404), // Not yet confirmed
-    ]);
+    // Mock: CLI upgrade command runs but proof not ready yet
+    $this->mockExecutor
+        ->shouldReceive('commandExists')
+        ->with('ots')
+        ->once()
+        ->andReturn(true);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->withArgs(function ($command, $stdin, $timeout) {
+            return count($command) === 3
+                && $command[0] === 'ots'
+                && $command[1] === 'upgrade'
+                && str_starts_with($command[2], '/tmp/ots_upgrade_')
+                && $stdin === null
+                && $timeout === 10;
+        })
+        ->andReturnUsing(function ($command) use ($pendingProof) {
+            // Simulate CLI: Proof file unchanged (no upgrade available)
+            file_put_contents($command[2], $pendingProof);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => 'No upgrade available yet',
+                'stderr' => '',
+            ];
+        });
 
     // Act: Attempt upgrade
     $upgradedProof = $this->service->upgrade($pendingProof);
@@ -103,9 +128,34 @@ test('upgrade returns confirmed proof when available', function () {
     // Mock confirmed proof with Bitcoin attestation
     $confirmedProof = createConfirmedProof();
 
-    Http::fake([
-        '*/timestamp/*' => Http::response($confirmedProof, 200),
-    ]);
+    // Mock: CLI upgrade command succeeds and modifies file
+    $this->mockExecutor
+        ->shouldReceive('commandExists')
+        ->with('ots')
+        ->once()
+        ->andReturn(true);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->withArgs(function ($command, $stdin, $timeout) {
+            return count($command) === 3
+                && $command[0] === 'ots'
+                && $command[1] === 'upgrade'
+                && str_starts_with($command[2], '/tmp/ots_upgrade_')
+                && $stdin === null
+                && $timeout === 10;
+        })
+        ->andReturnUsing(function ($command) use ($confirmedProof) {
+            // Simulate CLI: Write upgraded proof to file
+            file_put_contents($command[2], $confirmedProof);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => 'Success! Timestamp upgraded',
+                'stderr' => '',
+            ];
+        });
 
     // Act: Upgrade
     $upgraded = $this->service->upgrade($pendingProof);

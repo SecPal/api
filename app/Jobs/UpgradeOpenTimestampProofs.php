@@ -142,7 +142,7 @@ class UpgradeOpenTimestampProofs implements ShouldQueue
                 $upgradedProof = $otsService->upgrade($log->ots_proof);
 
                 if ($upgradedProof !== null) {
-                    // Collect for bulk update
+                    // Note: upgrade() returns binary proof (Activity mutator will base64-encode on save)
                     $toConfirm[$log->id] = $upgradedProof;
                     $upgraded++;
 
@@ -169,14 +169,18 @@ class UpgradeOpenTimestampProofs implements ShouldQueue
 
         // Bulk update all confirmed proofs
         if ($toConfirm !== []) {
-            foreach ($toConfirm as $logId => $upgradedProof) {
-                // Base64 encode proof for storage (matches Activity accessor/mutator)
-                $encodedProof = base64_encode($upgradedProof);
+            foreach ($toConfirm as $logId => $upgradedProofBinary) {
+                // Encode binary proof to base64 for storage (bypass mutator)
+                $encodedProof = base64_encode($upgradedProofBinary);
 
-                Activity::where('id', $logId)->update([
-                    'ots_proof' => $encodedProof,
-                    'ots_confirmed_at' => $confirmedAt,
-                ]);
+                // Update directly in database (bypasses mutator)
+                \Illuminate\Support\Facades\DB::table('activity_log')
+                    ->where('id', $logId)
+                    ->update([
+                        'ots_proof' => $encodedProof,
+                        'ots_confirmed_at' => $confirmedAt,
+                        'updated_at' => $confirmedAt,
+                    ]);
             }
         }
 
