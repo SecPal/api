@@ -49,9 +49,14 @@ test('verify returns true for valid proof when cli succeeds', function () {
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
-            // Verify command structure: ots verify --digest <hash>
-            return $command === ['ots', 'verify', '--digest', $merkleRoot]
-                && is_string($stdin)
+            // Verify command structure: ots verify --digest <hash> <tempfile>
+            return count($command) === 5
+                && $command[0] === 'ots'
+                && $command[1] === 'verify'
+                && $command[2] === '--digest'
+                && $command[3] === $merkleRoot
+                && str_starts_with($command[4], '/tmp/ots_verify_')
+                && $stdin === null // No stdin, proof is in tempfile
                 && $timeout === 10;
         })
         ->andReturn([
@@ -82,6 +87,16 @@ test('verify returns false for invalid proof when cli fails', function () {
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
+        ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
+            return count($command) === 5
+                && $command[0] === 'ots'
+                && $command[1] === 'verify'
+                && $command[2] === '--digest'
+                && $command[3] === $merkleRoot
+                && str_starts_with($command[4], '/tmp/ots_verify_')
+                && $stdin === null
+                && $timeout === 10;
+        })
         ->andReturn([
             'exitCode' => 1,
             'stdout' => '',
@@ -129,6 +144,16 @@ test('verify returns false when cli times out', function () {
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
+        ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
+            return count($command) === 5
+                && $command[0] === 'ots'
+                && $command[1] === 'verify'
+                && $command[2] === '--digest'
+                && $command[3] === $merkleRoot
+                && str_starts_with($command[4], '/tmp/ots_verify_')
+                && $stdin === null
+                && $timeout === 10;
+        })
         ->andReturn([
             'exitCode' => -1,
             'stdout' => '',
@@ -175,9 +200,16 @@ test('verify normalizes uppercase digest to lowercase', function () {
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
-        ->withArgs(function ($command) use ($merkleRoot) {
-            // Verify lowercase normalization
-            return $command[3] === strtolower($merkleRoot);
+        ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
+            // Verify lowercase normalization and new signature
+            return count($command) === 5
+                && $command[0] === 'ots'
+                && $command[1] === 'verify'
+                && $command[2] === '--digest'
+                && $command[3] === strtolower($merkleRoot)
+                && str_starts_with($command[4], '/tmp/ots_verify_')
+                && $stdin === null
+                && $timeout === 10;
         })
         ->andReturn([
             'exitCode' => 0,
@@ -207,6 +239,16 @@ test('verify handles empty proof gracefully', function () {
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
+        ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
+            return count($command) === 5
+                && $command[0] === 'ots'
+                && $command[1] === 'verify'
+                && $command[2] === '--digest'
+                && $command[3] === $merkleRoot
+                && str_starts_with($command[4], '/tmp/ots_verify_')
+                && $stdin === null
+                && $timeout === 10;
+        })
         ->andReturn([
             'exitCode' => 1,
             'stdout' => '',
@@ -235,6 +277,16 @@ test('verify caches successful verification', function () {
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
+        ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
+            return count($command) === 5
+                && $command[0] === 'ots'
+                && $command[1] === 'verify'
+                && $command[2] === '--digest'
+                && $command[3] === $merkleRoot
+                && str_starts_with($command[4], '/tmp/ots_verify_')
+                && $stdin === null
+                && $timeout === 10;
+        })
         ->andReturn([
             'exitCode' => 0,
             'stdout' => 'Success! Bitcoin attests data existed',
@@ -268,6 +320,16 @@ test('verify does not cache failed verification', function () {
     $this->mockExecutor
         ->shouldReceive('execute')
         ->twice()  // Should be called twice
+        ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
+            return count($command) === 5
+                && $command[0] === 'ots'
+                && $command[1] === 'verify'
+                && $command[2] === '--digest'
+                && $command[3] === $merkleRoot
+                && str_starts_with($command[4], '/tmp/ots_verify_')
+                && $stdin === null
+                && $timeout === 10;
+        })
         ->andReturn([
             'exitCode' => 1,
             'stdout' => '',

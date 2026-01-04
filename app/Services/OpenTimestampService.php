@@ -31,16 +31,6 @@ use RuntimeException;
 class OpenTimestampService
 {
     /**
-     * @var array<string> Calendar server URLs
-     */
-    private array $calendarUrls;
-
-    /**
-     * @var int Request timeout in seconds
-     */
-    private int $timeout;
-
-    /**
      * @var ProcessExecutor CLI process executor
      */
     private ProcessExecutor $processExecutor;
@@ -48,18 +38,6 @@ class OpenTimestampService
     public function __construct(ProcessExecutor $processExecutor)
     {
         $this->processExecutor = $processExecutor;
-
-        /** @var array<string> $urls */
-        $urls = config('opentimestamp.calendar_urls', [
-            'https://alice.btc.calendar.opentimestamps.org',
-            'https://bob.btc.calendar.opentimestamps.org',
-            'https://finney.calendar.eternitywall.com',
-        ]);
-        $this->calendarUrls = $urls;
-
-        /** @var int $timeout */
-        $timeout = config('opentimestamp.timeout', 5);
-        $this->timeout = $timeout;
     }
 
     /**
@@ -151,63 +129,95 @@ class OpenTimestampService
     }
 
     /**
-     * Upgrade pending proof to confirmed proof.
+     * Upgrade pending proof to confirmed proof using OTS CLI.
      *
-     * Queries calendars for Bitcoin block confirmation. Returns null if not yet confirmed.
+     * Uses the official `ots upgrade` CLI command to reliably upgrade proofs.
+     * This avoids commitment extraction issues with the HTTP API approach.
      *
      * @param  string  $pendingProof  Binary OTS proof with pending attestations
-     * @return string|null Upgraded proof with Bitcoin attestation, or null if pending
+     * @return string|null Binary upgraded proof with Bitcoin attestation, or null if pending
      */
     public function upgrade(string $pendingProof): ?string
     {
-        // Parse proof to extract commitment
-        $commitment = $this->extractCommitment($pendingProof);
-
-        if ($commitment === null) {
-            Log::warning('OpenTimestamp: Cannot extract commitment from proof');
+        // Check if ots CLI is installed
+        if (! $this->processExecutor->commandExists('ots')) {
+            Log::error('OpenTimestamp: ots CLI not installed for upgrade', [
+                'message' => 'Install with: pip install opentimestamps-client',
+            ]);
 
             return null;
         }
 
-        $commitmentHex = bin2hex($commitment);
-
-        Log::debug('OpenTimestamp: Attempting upgrade', ['commitment' => $commitmentHex]);
-
-        // Query calendars for upgraded proof
-        $http = Http::timeout($this->timeout)->withHeaders([
-            'Accept' => 'application/octet-stream',
-            'User-Agent' => 'SecPal-Laravel-OTS/1.0',
+        Log::debug('OpenTimestamp: Attempting upgrade via CLI', [
+            'proof_size' => strlen($pendingProof),
         ]);
 
-        foreach ($this->calendarUrls as $calendarUrl) {
-            try {
-                $response = $http->get("{$calendarUrl}/timestamp/{$commitmentHex}");
+        // Write proof to temporary file (ots CLI requires file input)
+        $tempFile = tempnam(sys_get_temp_dir(), 'ots_upgrade_');
+        if ($tempFile === false) {
+            Log::error('OpenTimestamp: Cannot create temp file for upgrade');
 
-                /** @var \Illuminate\Http\Client\Response $response */
-                if ($response->successful()) {
-                    $upgradedProof = $response->body();
-
-                    // Check if proof contains Bitcoin attestation
-                    if ($this->hasAttestation($upgradedProof, 'bitcoin')) {
-                        Log::info('OpenTimestamp: Proof upgraded', [
-                            'commitment' => $commitmentHex,
-                            'calendar' => $calendarUrl,
-                        ]);
-
-                        return $upgradedProof;
-                    }
-                }
-            } catch (\Exception $e) {
-                Log::debug('OpenTimestamp: Calendar upgrade failed', [
-                    'calendar' => $calendarUrl,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+            return null;
         }
 
-        Log::debug('OpenTimestamp: No upgrade available yet');
+        try {
+            $bytesWritten = file_put_contents($tempFile, $pendingProof);
+            if ($bytesWritten === false) {
+                Log::error('OpenTimestamp: Cannot write pending proof to temp file for upgrade', [
+                    'temp_file' => $tempFile,
+                    'proof_size' => strlen($pendingProof),
+                ]);
 
-        return null;
+                return null;
+            }
+
+            // Execute: ots upgrade <file>
+            // This modifies the file in-place if upgrade is available
+            $result = $this->processExecutor->execute(
+                ['ots', 'upgrade', $tempFile],
+                null, // No stdin
+                10 // 10 second timeout
+            );
+
+            // Read the (potentially upgraded) proof back
+            $upgradedProofBinary = file_get_contents($tempFile);
+            if ($upgradedProofBinary === false) {
+                Log::error('OpenTimestamp: Cannot read upgraded proof from temp file');
+
+                return null;
+            }
+
+            // Check if proof was actually upgraded (size should increase)
+            $proofChanged = ($pendingProof !== $upgradedProofBinary);
+
+            if ($result['exitCode'] === 0 && $proofChanged) {
+                // Verify it has Bitcoin attestation
+                if ($this->hasAttestation($upgradedProofBinary, 'bitcoin')) {
+                    Log::info('OpenTimestamp: Proof upgraded via CLI', [
+                        'old_size' => strlen($pendingProof),
+                        'new_size' => strlen($upgradedProofBinary),
+                        'output' => trim($result['stdout']),
+                    ]);
+
+                    // Return binary proof (matches Activity model accessor/mutator)
+                    return $upgradedProofBinary;
+                }
+            }
+
+            // Upgrade not yet available or failed
+            Log::debug('OpenTimestamp: No upgrade available yet (CLI)', [
+                'exit_code' => $result['exitCode'],
+                'proof_changed' => $proofChanged,
+                'output' => trim($result['stdout']),
+            ]);
+
+            return null;
+        } finally {
+            // Always cleanup temp file
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
+        }
     }
 
     /**
@@ -231,7 +241,7 @@ class OpenTimestampService
      * Installation: pip install opentimestamps-client
      * Docs: https://github.com/opentimestamps/opentimestamps-client
      *
-     * @param  string  $proof  Binary OTS proof
+     * @param  string  $proof  Binary OTS proof (matches Activity model accessor/mutator)
      * @param  string  $digest  SHA256 hash (64 hex characters)
      * @return bool True if proof is cryptographically valid, false otherwise
      *
@@ -275,69 +285,62 @@ class OpenTimestampService
             'proof_size' => strlen($proof),
         ]);
 
-        // Execute: ots verify --digest <hash>
-        // Proof is provided via stdin
-        $result = $this->processExecutor->execute(
-            ['ots', 'verify', '--digest', $digest],
-            $proof,
-            10 // 10 second timeout
-        );
+        // Write proof to temporary file (ots verify requires file input)
+        $tempFile = tempnam(sys_get_temp_dir(), 'ots_verify_');
+        if ($tempFile === false) {
+            Log::error('OpenTimestamp: Cannot create temp file for verification');
 
-        // Check exit code (0 = success, non-zero = failure)
-        if ($result['exitCode'] === 0) {
-            Log::info('OpenTimestamp: Proof verification successful', [
+            return false;
+        }
+
+        try {
+            $bytesWritten = file_put_contents($tempFile, $proof);
+
+            if ($bytesWritten === false) {
+                Log::error('OpenTimestamp: Failed to write proof to temp file for verification', [
+                    'digest' => $digest,
+                    'temp_file' => $tempFile,
+                ]);
+
+                return false;
+            }
+
+            // Execute: ots verify --digest <hash> <proof-file>
+            $result = $this->processExecutor->execute(
+                ['ots', 'verify', '--digest', $digest, $tempFile],
+                null, // No stdin
+                10 // 10 second timeout
+            );
+
+            // Check exit code (0 = success, non-zero = failure)
+            if ($result['exitCode'] === 0) {
+                Log::info('OpenTimestamp: Proof verification successful', [
+                    'digest' => $digest,
+                    'output' => trim($result['stdout']),
+                ]);
+
+                // Cache positive result forever (proofs are immutable once Bitcoin-anchored)
+                Cache::forever($cacheKey, true);
+
+                return true;
+            }
+
+            // Verification failed
+            // NOTE: Do NOT cache failures - proof may be upgraded later
+            Log::warning('OpenTimestamp: Proof verification failed', [
                 'digest' => $digest,
-                'output' => trim($result['stdout']),
+                'exit_code' => $result['exitCode'],
+                'stdout' => trim($result['stdout']),
+                'stderr' => trim($result['stderr']),
             ]);
 
-            // Cache positive result forever (proofs are immutable once Bitcoin-anchored)
-            Cache::forever($cacheKey, true);
-
-            return true;
+            return false;
+        } finally {
+            // Always cleanup temp file
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
         }
-
-        // Verification failed
-        // NOTE: Do NOT cache failures - proof may be upgraded later
-        Log::warning('OpenTimestamp: Proof verification failed', [
-            'digest' => $digest,
-            'exit_code' => $result['exitCode'],
-            'stdout' => trim($result['stdout']),
-            'stderr' => trim($result['stderr']),
-        ]);
-
-        return false;
-    }
-
-    /**
-     * Extract commitment (message digest) from OTS proof.
-     *
-     * Parses binary proof structure to find original commitment.
-     * NOTE: This is still a simplified implementation:
-     * - If the standard "OpenTimestamps proof\0" header is present, skip it
-     *   and extract the next 32 bytes as the commitment
-     * - Otherwise, use the first 32 bytes (legacy behavior for existing tests)
-     * A full OTS parser would properly traverse the operation tree.
-     *
-     * @param  string  $proof  Binary OTS proof
-     * @return string|null Commitment bytes, or null if parsing fails
-     */
-    private function extractCommitment(string $proof): ?string
-    {
-        // Check for standard OpenTimestamps header
-        $offset = 0;
-        $header = "OpenTimestamps proof\x00";
-
-        if (str_starts_with($proof, $header)) {
-            $offset = strlen($header);
-        }
-
-        if (strlen($proof) < $offset + 32) {
-            return null;
-        }
-
-        // For now, just return first 32 bytes after header
-        // TODO: Implement full OTS proof parser to extract actual commitment
-        return substr($proof, $offset, 32);
     }
 
     /**
