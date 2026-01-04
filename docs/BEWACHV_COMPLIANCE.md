@@ -6,7 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # BewachV Compliance Documentation
 
-**Verordnung über das Bewachungsgewerbe (BewachV) - Compliance Implementation**
+## Verordnung über das Bewachungsgewerbe (BewachV) - Compliance Implementation
 
 This document details SecPal's implementation of legal requirements from the German Private Security Ordinance (Bewachungsgewerbe-Verordnung - BewachV), specifically regarding employee data management, BWR (Bewacherregister) integration, and GDPR compliance.
 
@@ -159,7 +159,7 @@ enum bwr_status {
 
 **State Transitions:**
 
-```
+```text
 not_registered → pending → active
                            ↓
                       suspended → active
@@ -182,25 +182,20 @@ not_registered → pending → active
 
 | SecPal Field                  | BewachV Requirement          | Data Type   | Encrypted | Validation                          | Example                           |
 | ----------------------------- | ---------------------------- | ----------- | --------- | ----------------------------------- | --------------------------------- |
-| **BWR Tracking**              |
 | `bwr_id`                      | § 16 Abs. 2 Nr. 5            | string(7)   | No        | Exactly 7 digits, unique            | `0001234`                         |
 | `bwr_status`                  | § 16 Abs. 3                  | enum        | No        | 5 valid states                      | `active`                          |
 | `bwr_registered_at`           | § 16 workflow                | timestamp   | No        | Nullable date                       | `2024-06-15`                      |
 | `bwr_submission_date`         | § 16 workflow                | timestamp   | No        | Nullable date                       | `2024-06-01`                      |
 | `bwr_notes`                   | Internal tracking            | text        | No        | Max 1000 chars                      | "Renewal in 5 years"              |
-| **Retention**                 |
 | `employment_end_date`         | § 21 Abs. 4                  | date        | No        | Auto-calculated                     | `2024-06-15`                      |
 | `retention_period_end`        | § 21 Abs. 4                  | date        | No        | Auto-calculated                     | `2027-12-31`                      |
-| **Identity Data**             |
 | `gender`                      | § 16 Abs. 2 Nr. 1 (implicit) | enum        | No        | Required if BWR pending/active      | `male`, `female`, `diverse`       |
 | `birth_name_enc`              | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Nullable string                     | "Schmidt" (birth name)            |
 | `previous_names`              | § 16 Abs. 2 Nr. 1 (implicit) | JSON        | No        | Array of strings                    | `["Mueller", "Schneider"]`        |
 | `birth_city`                  | § 16 Abs. 2 Nr. 1            | string(255) | No        | Nullable                            | "Berlin"                          |
 | `birth_country`               | § 16 Abs. 2 Nr. 1            | string(2)   | No        | ISO 3166-1 alpha-2                  | `DE`                              |
 | `birth_state`                 | § 16 Abs. 2 Nr. 1            | string(100) | No        | Nullable                            | "Berlin"                          |
-| **Nationalities**             |
 | `nationalities`               | § 16 Abs. 2 Nr. 2            | JSON        | No        | Array of ISO codes                  | `["DE", "PL"]`                    |
-| **Structured Address**        |
 | `address_street_enc`          | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Required if BWR pending/active      | "Hauptstraße"                     |
 | `address_house_number_enc`    | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Nullable                            | "42"                              |
 | `address_postal_code_enc`     | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Required if BWR pending/active      | "10115"                           |
@@ -208,17 +203,13 @@ not_registered → pending → active
 | `address_supplement_enc`      | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Nullable                            | "3. OG rechts"                    |
 | `address_country`             | § 16 Abs. 2 Nr. 1            | string(2)   | No        | ISO 3166-1 alpha-2                  | `DE`                              |
 | `address_state`               | § 16 Abs. 2 Nr. 1            | string(100) | No        | Nullable                            | "NRW"                             |
-| **Address History**           |
 | `address_history`             | § 16 Abs. 2 Nr. 6 (5 years)  | JSON        | No        | Array of address objects            | See example below                 |
-| **Intended Activities**       |
 | `intended_activities`         | § 16 Abs. 2 Nr. 4            | JSON        | No        | Array of §34a work types            | `["Objektschutz", "Citystreife"]` |
-| **ID Document**               |
 | `id_document_type`            | § 16 Abs. 2 Nr. 1 (implicit) | enum        | No        | ID card, passport, residence permit | `id_card`                         |
 | `id_document_number_enc`      | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Nullable                            | "L01234567"                       |
 | `id_document_expiry`          | § 16 Abs. 2 Nr. 1 (implicit) | date        | No        | Nullable                            | `2030-12-31`                      |
 | `id_document_copy_path`       | GDPR Art. 30                 | text        | **Yes**   | Nullable file path                  | `storage/id_docs/...`             |
 | `id_document_copy_deleted_at` | GDPR Art. 5(1)(e)            | timestamp   | No        | Nullable                            | `2024-06-16`                      |
-| **Sachkunde (§34a)**          |
 | `sachkunde_ihk_number`        | § 16 Abs. 2 Nr. 4            | string(100) | No        | Nullable                            | "IHK-123456"                      |
 | `sachkunde_exam_date`         | § 16 Abs. 2 Nr. 4            | date        | No        | Nullable                            | `2023-05-20`                      |
 | `sachkunde_issued_date`       | § 16 Abs. 2 Nr. 4            | date        | No        | Nullable                            | `2023-06-01`                      |
@@ -313,7 +304,7 @@ protected function deleteIdDocumentCopy(Employee $employee): void
 
 **Workflow Diagram:**
 
-```
+```text
 Employee created
      ↓
 BWR application prepared
@@ -354,7 +345,7 @@ Activity log created: "ID document copy automatically deleted (BWR active)"
 
 **Formula:**
 
-```
+```text
 retention_period_end = END_OF_YEAR(termination_date) + 3 years
 ```
 
@@ -685,7 +676,7 @@ if ($employee->retention_period_end < now()) {
 
 ### Test Coverage
 
-**Total Tests: 41**
+#### Total Tests: 41
 
 - Model Tests: 10
 - Observer Tests: 9
@@ -693,7 +684,7 @@ if ($employee->retention_period_end < now()) {
 - Resource Tests: 6
 - Feature (Validation) Tests: 8
 
-**Total Assertions: 201**
+#### Total Assertions: 201
 
 **Pass Rate: 100%** ✅
 
