@@ -94,6 +94,33 @@ class ActivityLogServiceLoginFailureTest extends TestCase
     }
 
     /**
+     * Test login failure with user but no employee.
+     *
+     * Scenario: User has organizational unit scopes but no employee record.
+     * Expected: user_exists=true, employee_exists=false, has_ou=true
+     */
+    public function test_logs_user_without_employee(): void
+    {
+        $user = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        // Give user an organizational scope (without employee record)
+        \App\Models\UserInternalOrganizationalScope::create([
+            'user_id' => $user->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+        ]);
+
+        $activity = $this->service->logLoginFailed($user->email, 'invalid_credentials');
+
+        expect($activity)->not->toBeNull();
+        expect($activity->properties['user_exists'])->toBeTrue();
+        expect($activity->properties['employee_exists'])->toBeFalse();
+        expect($activity->properties['has_organizational_unit'])->toBeTrue();
+        expect($activity->organizational_unit_id)->toBe($this->orgUnit->id);
+    }
+
+    /**
      * Test login failure with employee but no user.
      *
      * Scenario: Email has employee record but no user account.

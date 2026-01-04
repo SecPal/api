@@ -161,7 +161,15 @@ class OpenTimestampService
         }
 
         try {
-            file_put_contents($tempFile, $pendingProof);
+            $bytesWritten = file_put_contents($tempFile, $pendingProof);
+            if ($bytesWritten === false) {
+                Log::error('OpenTimestamp: Cannot write pending proof to temp file for upgrade', [
+                    'temp_file' => $tempFile,
+                    'proof_size' => strlen($pendingProof),
+                ]);
+
+                return null;
+            }
 
             // Execute: ots upgrade <file>
             // This modifies the file in-place if upgrade is available
@@ -286,7 +294,16 @@ class OpenTimestampService
         }
 
         try {
-            file_put_contents($tempFile, $proof);
+            $bytesWritten = file_put_contents($tempFile, $proof);
+
+            if ($bytesWritten === false) {
+                Log::error('OpenTimestamp: Failed to write proof to temp file for verification', [
+                    'digest' => $digest,
+                    'temp_file' => $tempFile,
+                ]);
+
+                return false;
+            }
 
             // Execute: ots verify --digest <hash> <proof-file>
             $result = $this->processExecutor->execute(
