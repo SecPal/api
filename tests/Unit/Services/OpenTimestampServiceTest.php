@@ -245,8 +245,10 @@ test('verify handles uppercase digest', function () {
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command) use ($merkleRoot) {
-            // Verify lowercase normalization
-            return $command[3] === strtolower($merkleRoot);
+            // Verify lowercase normalization and correct command order
+            // ots verify <file> -d <hash>
+            return $command[4] === strtolower($merkleRoot)
+                && $command[3] === '-d';
         })
         ->andReturn([
             'exitCode' => 0,
