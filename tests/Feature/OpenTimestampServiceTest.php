@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
-use Illuminate\Support\Facades\Http;
 
 /**
  * Test OpenTimestamp service integration.
