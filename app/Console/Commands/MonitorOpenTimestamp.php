@@ -8,9 +8,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Models\Activity;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use App\Models\Activity;
 
 /**
  * Scheduled monitoring task for OpenTimestamp health
@@ -61,6 +61,7 @@ class MonitorOpenTimestamp extends Command
         }
 
         $this->info('✓ OpenTimestamp monitoring complete');
+
         return self::SUCCESS;
     }
 }

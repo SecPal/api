@@ -36,8 +36,9 @@ class UpdateOpenTimestamp extends Command
 
         $otsUpdate = collect($outdatedList)->firstWhere('name', 'opentimestamps-client');
 
-        if (!$otsUpdate || !is_array($otsUpdate)) {
+        if (! $otsUpdate || ! is_array($otsUpdate)) {
             $this->info('✓ OpenTimestamps is already up to date');
+
             return self::SUCCESS;
         }
 
@@ -46,13 +47,15 @@ class UpdateOpenTimestamp extends Command
 
         if ($this->option('dry-run')) {
             $this->info('Dry run - no changes made');
-            $this->line("Would run: pip install --upgrade opentimestamps-client");
+            $this->line('Would run: pip install --upgrade opentimestamps-client');
+
             return self::SUCCESS;
         }
 
         // 3. Ask for confirmation
-        if (!$this->confirm('Do you want to update OpenTimestamp now?', true)) {
+        if (! $this->confirm('Do you want to update OpenTimestamp now?', true)) {
             $this->info('Update cancelled');
+
             return self::SUCCESS;
         }
 
@@ -80,6 +83,7 @@ class UpdateOpenTimestamp extends Command
             return self::SUCCESS;
         } else {
             $this->error('✗ Update failed');
+
             return self::FAILURE;
         }
     }

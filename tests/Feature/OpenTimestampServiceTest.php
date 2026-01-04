@@ -27,6 +27,10 @@ beforeEach(function () {
     // Mock ProcessExecutor to avoid CLI dependency
     $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
     $this->mockExecutor->shouldReceive('commandExists')
+        ->with('python3')
+        ->andReturn(true)
+        ->byDefault();
+    $this->mockExecutor->shouldReceive('commandExists')
         ->with('ots')
         ->andReturn(true)
         ->byDefault();
@@ -36,9 +40,8 @@ beforeEach(function () {
 });
 
 test('submit creates pending proof', function () {
-    // Arrange: Mock ots stamp command execution
+    // Arrange: Mock Python script execution
     $merkleRoot = hash('sha256', 'test-merkle-root');
-    $merkleBytes = hex2bin($merkleRoot);
 
     $mockProof = hex2bin(
         '00'. // OpSHA256
@@ -47,7 +50,14 @@ test('submit creates pending proof', function () {
     );
 
     $this->mockExecutor->shouldReceive('execute')
-        ->with(['ots', 'stamp', '-'], $merkleBytes, 15)
+        ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
+            return count($command) === 3
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-stamp-hash.py')
+                && $command[2] === $merkleRoot
+                && $stdin === null
+                && $timeout === 15;
+        })
         ->once()
         ->andReturn(['exitCode' => 0, 'stdout' => $mockProof, 'stderr' => '']);
 
@@ -61,13 +71,19 @@ test('submit creates pending proof', function () {
 });
 
 test('submit fails if insufficient calendars respond', function () {
-    // Arrange: ots stamp will fail if calendars don't respond
+    // Arrange: Python script will fail if calendars don't respond
     $merkleRoot = hash('sha256', 'test-merkle-root');
-    $merkleBytes = hex2bin($merkleRoot);
 
-    // Mock ots stamp command - returns error exit code when insufficient calendars respond
+    // Mock Python script - returns error exit code when insufficient calendars respond
     $this->mockExecutor->shouldReceive('execute')
-        ->with(['ots', 'stamp', '-'], $merkleBytes, 15)
+        ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
+            return count($command) === 3
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-stamp-hash.py')
+                && $command[2] === $merkleRoot
+                && $stdin === null
+                && $timeout === 15;
+        })
         ->once()
         ->andReturn([
             'exitCode' => 1,
