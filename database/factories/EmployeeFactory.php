@@ -134,7 +134,7 @@ class EmployeeFactory extends Factory
      */
     public function withBwrRegistration(): static
     {
-        $status = fake()->randomElement(['active', 'pending', 'expired']);
+        $status = fake()->randomElement(['active', 'pending', 'suspended', 'revoked']);
 
         return $this->state(fn (array $attributes) => [
             'bwr_id' => fake()->numerify('#######'), // Exactly 7 digits (0000000-9999999)
@@ -176,7 +176,7 @@ class EmployeeFactory extends Factory
             'address_house_number' => fake()->buildingNumber(),
             'address_postal_code' => fake()->postcode(),
             'address_city' => fake()->randomElement($germanCities),
-            'address_supplement' => fake()->optional(0.2)->secondaryAddress(),
+            'address_supplement' => fake()->optional(0.2)->randomElement(['Hinterhof', 'Seiteneingang', 'c/o Müller']),
             'address_country' => 'DE',
             'address_state' => fake()->randomElement(['NRW', 'BY', 'BW', 'BE', 'HH']),
 

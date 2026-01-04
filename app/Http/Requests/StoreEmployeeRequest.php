@@ -49,7 +49,7 @@ class StoreEmployeeRequest extends FormRequest
                 'regex:/^[0-9]{7}$/',
                 'unique:employees,bwr_id',
             ],
-            'bwr_status' => ['nullable', Rule::in(['not_started', 'pending', 'active', 'expired', 'rejected'])],
+            'bwr_status' => ['nullable', Rule::in(['not_registered', 'pending', 'active', 'suspended', 'revoked'])],
             'bwr_registered_at' => ['nullable', 'date'],
             'bwr_submission_date' => ['nullable', 'date'],
             'bwr_notes' => ['nullable', 'string', 'max:1000'],

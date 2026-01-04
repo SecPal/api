@@ -53,7 +53,7 @@ class UpdateEmployeeRequest extends FormRequest
                 'regex:/^[0-9]{7}$/',
                 Rule::unique('employees', 'bwr_id')->ignore($employeeId),
             ],
-            'bwr_status' => ['sometimes', 'nullable', Rule::in(['not_started', 'pending', 'active', 'expired', 'rejected'])],
+            'bwr_status' => ['sometimes', 'nullable', Rule::in(['not_registered', 'pending', 'active', 'suspended', 'revoked'])],
             'bwr_registered_at' => ['sometimes', 'nullable', 'date'],
             'bwr_submission_date' => ['sometimes', 'nullable', 'date'],
             'bwr_notes' => ['sometimes', 'nullable', 'string', 'max:1000'],
