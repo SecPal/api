@@ -57,27 +57,36 @@ class OpenTimestampService
             throw new \InvalidArgumentException('Digest must be 64-character hex SHA256 hash');
         }
 
-        // Check if ots CLI is installed
-        if (! $this->processExecutor->commandExists('ots')) {
+        // Check if Python and OTS script are available
+        if (! $this->processExecutor->commandExists('python3')) {
             throw new RuntimeException(
-                'OpenTimestamp CLI not installed. Install with: pip install opentimestamps-client'
+                'Python3 not installed. Required for OTS script execution.'
             );
         }
 
-        Log::info('OpenTimestamp: Submitting digest via CLI', ['digest' => $digest]);
+        if (! file_exists(base_path('scripts/ots-stamp-hash.py'))) {
+            throw new RuntimeException(
+                'OTS submission script not found: scripts/ots-stamp-hash.py'
+            );
+        }
 
-        // Use ots CLI to stamp the hash
-        // ots stamp reads from stdin and writes proof to stdout
-        $digestBytes = hex2bin($digest);
-        if ($digestBytes === false) {
-            throw new \InvalidArgumentException('Invalid hex digest');
+        Log::info('OpenTimestamp: Submitting digest via Python script', ['digest' => $digest]);
+
+        // Use custom Python script that timestamps a pre-computed hash directly.
+        // The standard `ots stamp -` command hashes its input, which would double-hash our merkle root.
+        // Our script uses the opentimestamps Python library to create Timestamp(digest) directly.
+        $scriptPath = base_path('scripts/ots-stamp-hash.py');
+
+        if (! file_exists($scriptPath)) {
+            throw new RuntimeException("OTS script not found: {$scriptPath}");
         }
 
         try {
-            // Execute: echo <bytes> | ots stamp -
+            // Execute: python3 ots-stamp-hash.py <hex_hash>
+            // Script writes binary proof to stdout, status messages to stderr
             $result = $this->processExecutor->execute(
-                ['ots', 'stamp', '-'],
-                $digestBytes,
+                ['python3', $scriptPath, $digest],
+                null, // No stdin needed - hash is passed as argument
                 15 // 15 second timeout for calendar submissions
             );
 
@@ -94,7 +103,7 @@ class OpenTimestampService
 
                 throw new RuntimeException(
                     sprintf(
-                        'OTS stamp failed with exit code %d: %s',
+                        'OTS submission script failed with exit code %d: %s',
                         $result['exitCode'],
                         $stderr
                     )
