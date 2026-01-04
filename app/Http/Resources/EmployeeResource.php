@@ -44,8 +44,54 @@ class EmployeeResource extends JsonResource
             'date_of_birth' => $this->date_of_birth,
             'email' => $this->email,
             'phone' => $this->phone,
-            'address' => $this->address,
             'photo_path' => $this->photo_path,
+
+            // BewachV § 16 Abs. 2 Nr. 1: BWR Registration Tracking
+            'bwr_id' => $this->bwr_id, // 7-digit Bewacher-ID
+            'bwr_status' => $this->bwr_status,
+            'bwr_registered_at' => $this->bwr_registered_at?->toIso8601String(),
+            'bwr_submission_date' => $this->bwr_submission_date?->toDateString(),
+            'bwr_notes' => $this->bwr_notes,
+
+            // BewachV § 16 Abs. 2 Nr. 2: Identity Data
+            'gender' => $this->gender,
+            'birth_name' => $this->birth_name, // Decrypted
+            'previous_names' => $this->previous_names, // JSON array
+
+            // BewachV § 16 Abs. 2 Nr. 3: Birth Place
+            'birth_city' => $this->birth_city,
+            'birth_country' => $this->birth_country, // ISO 3166-1 alpha-2
+            'birth_state' => $this->birth_state,
+
+            // BewachV § 16 Abs. 2 Nr. 4: Nationalities (supports dual citizenship)
+            'nationalities' => $this->nationalities, // JSON array of ISO codes
+
+            // BewachV § 16 Abs. 2 Nr. 5: Structured Current Address (decrypted)
+            'address_street' => $this->address_street,
+            'address_house_number' => $this->address_house_number,
+            'address_postal_code' => $this->address_postal_code,
+            'address_city' => $this->address_city,
+            'address_supplement' => $this->address_supplement,
+            'address_country' => $this->address_country, // ISO 3166-1 alpha-2
+            'address_state' => $this->address_state,
+            'structured_address' => $this->structured_address, // Computed property
+
+            // BewachV § 16 Abs. 2 Nr. 6: Address History (Last 5 Years)
+            'address_history' => $this->address_history, // JSON array
+
+            // BewachV § 16 Abs. 2 Nr. 7: Intended Activities (§34a work types)
+            'intended_activities' => $this->intended_activities, // JSON array
+
+            // BewachV § 16 Abs. 2 Nr. 11: ID Document
+            'id_document_type' => $this->id_document_type,
+            'id_document_number' => $this->id_document_number, // Decrypted, sensitive!
+            'id_document_expiry' => $this->id_document_expiry?->toDateString(),
+            'id_document_copy_path' => $this->id_document_copy_path,
+            'id_document_copy_deleted_at' => $this->id_document_copy_deleted_at?->toIso8601String(),
+
+            // BewachV § 21: Retention Management
+            'employment_end_date' => $this->employment_end_date?->toDateString(),
+            'retention_period_end' => $this->retention_period_end?->toDateString(),
 
             // Tax & Social Security (decrypted)
             'tax_id' => $this->tax_id,
@@ -69,10 +115,13 @@ class EmployeeResource extends JsonResource
             'health_insurance_provider' => $this->health_insurance_provider,
             'health_insurance_number' => $this->health_insurance_number,
 
-            // Legal Requirements (BewachV)
+            // Legal Requirements (BewachV § 34a - Sachkunde)
             'sachkunde_type' => $this->sachkunde_type,
             'sachkunde_certificate' => $this->sachkunde_certificate,
             'sachkunde_expiry' => $this->sachkunde_expiry?->toDateString(),
+            'sachkunde_ihk_number' => $this->sachkunde_ihk_number,
+            'sachkunde_exam_date' => $this->sachkunde_exam_date?->format('Y-m-d'),
+            'sachkunde_issued_date' => $this->sachkunde_issued_date?->format('Y-m-d'),
 
             // Work & Residence Permits
             'work_permit_type' => $this->work_permit_type,
