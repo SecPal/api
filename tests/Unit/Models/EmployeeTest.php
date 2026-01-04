@@ -223,7 +223,11 @@ test('employee mutators trigger encryption', function () {
     $employee->first_name = 'TestFirst';
     $employee->last_name = 'TestLast';
     $employee->date_of_birth = '1985-03-20';
-    $employee->address = '123 Test Street, Berlin';
+    $employee->address_street = 'Test Street';
+    $employee->address_house_number = '123';
+    $employee->address_postal_code = '10115';
+    $employee->address_city = 'Berlin';
+    $employee->address_country = 'DE';
     $employee->hourly_rate = 18.50;
     $employee->tax_id = '12345678901';
     $employee->social_security_number = '12 345678 A 123';
@@ -235,7 +239,11 @@ test('employee mutators trigger encryption', function () {
     expect($employee->first_name)->toBe('TestFirst');
     expect($employee->last_name)->toBe('TestLast');
     expect($employee->date_of_birth)->toBe('1985-03-20');
-    expect($employee->address)->toBe('123 Test Street, Berlin');
+    expect($employee->address_street)->toBe('Test Street');
+    expect($employee->address_house_number)->toBe('123');
+    expect($employee->address_postal_code)->toBe('10115');
+    expect($employee->address_city)->toBe('Berlin');
+    expect($employee->address_country)->toBe('DE');
     expect($employee->hourly_rate)->toBe(18.50);
     expect($employee->tax_id)->toBe('12345678901');
     expect($employee->social_security_number)->toBe('12 345678 A 123');
@@ -312,13 +320,21 @@ test('employee scopes with and without user account', function () {
 test('employee nullable encrypted fields handle null values', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'address' => null,
+        'address_street' => null,
+        'address_house_number' => null,
+        'address_postal_code' => null,
+        'address_city' => null,
+        'address_country' => null,
         'hourly_rate' => null,
         'tax_id' => null,
         'social_security_number' => null,
     ]);
 
-    expect($employee->address)->toBeNull();
+    expect($employee->address_street)->toBeNull();
+    expect($employee->address_house_number)->toBeNull();
+    expect($employee->address_postal_code)->toBeNull();
+    expect($employee->address_city)->toBeNull();
+    expect($employee->address_country)->toBeNull();
     expect($employee->hourly_rate)->toBeNull();
     expect($employee->tax_id)->toBeNull();
     expect($employee->social_security_number)->toBeNull();

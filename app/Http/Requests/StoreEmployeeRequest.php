@@ -39,8 +39,86 @@ class StoreEmployeeRequest extends FormRequest
             'date_of_birth' => ['nullable', 'date', 'before:today'],
             'email' => ['required', 'email', 'unique:employees,email'],
             'phone' => ['nullable', 'string', 'max:255'],
-            'address' => ['nullable', 'string', 'max:1000'],
             'photo_path' => ['nullable', 'string', 'max:255'],
+
+            // BewachV § 16 Abs. 2 Nr. 1: BWR Tracking
+            'bwr_id' => [
+                'nullable',
+                'string',
+                'size:7',
+                'regex:/^[0-9]{7}$/',
+                'unique:employees,bwr_id',
+            ],
+            'bwr_status' => ['nullable', Rule::in(['not_registered', 'pending', 'active', 'suspended', 'revoked'])],
+            'bwr_registered_at' => ['nullable', 'date'],
+            'bwr_submission_date' => ['nullable', 'date'],
+            'bwr_notes' => ['nullable', 'string', 'max:1000'],
+
+            // BewachV § 16 Abs. 2 Nr. 2: Identity Data
+            'gender' => [
+                'required_if:bwr_status,pending,active', // MANDATORY for BWR submission
+                Rule::in(['male', 'female', 'diverse']),
+            ],
+            'birth_name' => ['nullable', 'string', 'max:255'], // Will be encrypted
+            'previous_names' => ['nullable', 'array'], // JSON array of strings
+            'previous_names.*' => ['string', 'max:255'],
+
+            // BewachV § 16 Abs. 2 Nr. 3: Birth Place
+            'birth_city' => ['nullable', 'string', 'max:255'],
+            'birth_country' => ['nullable', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'], // ISO 3166-1 alpha-2
+            'birth_state' => ['nullable', 'string', 'max:100'],
+
+            // BewachV § 16 Abs. 2 Nr. 4: Nationalities (supports dual citizenship)
+            'nationalities' => ['nullable', 'array'], // JSON array of ISO codes
+            'nationalities.*' => ['string', 'size:2', 'regex:/^[A-Z]{2}$/'], // e.g., ["DE", "PL"]
+
+            // BewachV § 16 Abs. 2 Nr. 5: Structured Current Address
+            'address_street' => [
+                'required_if:bwr_status,pending,active', // MANDATORY for BWR submission
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'address_house_number' => ['nullable', 'string', 'max:10'],
+            'address_postal_code' => [
+                'required_if:bwr_status,pending,active', // MANDATORY for BWR submission
+                'nullable',
+                'string',
+                'max:20',
+            ],
+            'address_city' => [
+                'required_if:bwr_status,pending,active', // MANDATORY for BWR submission
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'address_supplement' => ['nullable', 'string', 'max:255'],
+            'address_country' => ['nullable', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'], // ISO 3166-1 alpha-2
+            'address_state' => ['nullable', 'string', 'max:100'],
+
+            // BewachV § 16 Abs. 2 Nr. 6: Address History (Last 5 Years)
+            'address_history' => ['nullable', 'array'], // JSON array of address objects
+            'address_history.*.from' => ['required', 'date'],
+            'address_history.*.to' => ['required', 'date', 'after_or_equal:address_history.*.from'],
+            'address_history.*.street' => ['required', 'string', 'max:255'],
+            'address_history.*.city' => ['required', 'string', 'max:255'],
+            'address_history.*.postal_code' => ['required', 'string', 'max:20'],
+            'address_history.*.country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'],
+
+            // BewachV § 16 Abs. 2 Nr. 7: Intended Activities
+            'intended_activities' => ['nullable', 'array'], // JSON array of activity codes
+            'intended_activities.*' => ['string', 'max:100'],
+
+            // BewachV § 16 Abs. 2 Nr. 11: ID Document
+            'id_document_type' => ['nullable', Rule::in(['passport', 'id_card', 'residence_permit'])],
+            'id_document_number' => ['nullable', 'string', 'max:255'], // Will be encrypted
+            'id_document_expiry' => ['nullable', 'date', 'after:today'],
+            // NOTE: id_document_copy_path is NOT client-writable (security risk)
+            // This field is set server-side during file upload via dedicated upload endpoint
+
+            // Retention & Employment End (BewachV § 21)
+            'employment_end_date' => ['nullable', 'date'],
+            'retention_period_end' => ['nullable', 'date'], // Auto-calculated by Observer
 
             // Tax & Social Security (will be encrypted)
             'tax_id' => ['nullable', 'string', 'max:255'],
@@ -72,10 +150,13 @@ class StoreEmployeeRequest extends FormRequest
             'health_insurance_provider' => ['nullable', 'string', 'max:255'],
             'health_insurance_number' => ['nullable', 'string', 'max:255'],
 
-            // Legal Requirements (BewachV)
+            // Legal Requirements (BewachV § 34a - Sachkunde)
+            // Note: Sachkunde qualification NEVER expires - valid for life!
             'sachkunde_type' => ['nullable', 'string', 'max:255'],
             'sachkunde_certificate' => ['nullable', 'string', 'max:255'],
-            'sachkunde_expiry' => ['nullable', 'date'],
+            'sachkunde_ihk_number' => ['nullable', 'string', 'max:50'], // IHK certificate number
+            'sachkunde_exam_date' => ['nullable', 'date'], // Exam date
+            'sachkunde_issued_date' => ['nullable', 'date'], // Certificate issue date
 
             // Work & Residence Permits
             'work_permit_type' => ['nullable', Rule::in(['unlimited', 'limited', 'none'])],
@@ -126,6 +207,7 @@ class StoreEmployeeRequest extends FormRequest
     public function messages(): array
     {
         return [
+            // Basic fields
             'first_name.required' => __('First name is required'),
             'last_name.required' => __('Last name is required'),
             'email.required' => __('Email address is required'),
@@ -134,6 +216,36 @@ class StoreEmployeeRequest extends FormRequest
             'contract_type.required' => __('Contract type is required'),
             'status.required' => __('Employment status is required'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
+
+            // BWR-ID validation
+            'bwr_id.size' => 'Die Bewacher-ID muss exakt 7 Ziffern haben.',
+            'bwr_id.regex' => 'Die Bewacher-ID darf nur Ziffern enthalten (0000000-9999999).',
+            'bwr_id.unique' => 'Diese Bewacher-ID ist bereits vergeben.',
+
+            // Gender (mandatory for BWR)
+            'gender.required_if' => 'Geschlecht ist für BWR-Anmeldung verpflichtend.',
+
+            // Structured address (mandatory for BWR)
+            'address_street.required_if' => 'Straße ist für BWR-Anmeldung verpflichtend.',
+            'address_postal_code.required_if' => 'PLZ ist für BWR-Anmeldung verpflichtend.',
+            'address_city.required_if' => 'Stadt/Ort ist für BWR-Anmeldung verpflichtend.',
+
+            // ISO country codes
+            'birth_country.size' => 'Geburtsland muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
+            'birth_country.regex' => 'Geburtsland muss aus 2 Großbuchstaben bestehen.',
+            'address_country.size' => 'Land muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
+            'address_country.regex' => 'Land muss aus 2 Großbuchstaben bestehen.',
+            'nationalities.*.size' => 'Staatsangehörigkeit muss ISO-Code mit 2 Buchstaben sein (z.B. DE, TR).',
+            'nationalities.*.regex' => 'Staatsangehörigkeit muss aus 2 Großbuchstaben bestehen.',
+
+            // Address history
+            'address_history.*.to.after_or_equal' => 'End-Datum muss nach Start-Datum liegen.',
+            'address_history.*.from.required' => 'Start-Datum für Adresshistorie erforderlich.',
+            'address_history.*.to.required' => 'End-Datum für Adresshistorie erforderlich.',
+            'address_history.*.street.required' => 'Straße für Adresshistorie erforderlich.',
+            'address_history.*.city.required' => 'Stadt für Adresshistorie erforderlich.',
+            'address_history.*.postal_code.required' => 'PLZ für Adresshistorie erforderlich.',
+            'address_history.*.country.required' => 'Land für Adresshistorie erforderlich.',
         ];
     }
 }

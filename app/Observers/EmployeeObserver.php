@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
@@ -81,12 +82,24 @@ class EmployeeObserver
      *
      * 1. Recompute blind indexes if encrypted fields changed
      * 2. Handle status transitions for user account lifecycle
+     * 3. Handle BewachV §16 ID document auto-deletion on BWR registration
+     * 4. Handle BewachV §21 retention period calculation on termination
      */
     public function updating(Employee $employee): void
     {
         // Recompute indexes if encrypted fields are dirty
         if ($employee->isDirty(['first_name_enc', 'last_name_enc', 'date_of_birth_enc'])) {
             $this->updateBlindIndexes($employee);
+        }
+
+        // Handle BewachV §16 - Auto-delete ID document when BWR status becomes active
+        if ($employee->isDirty('bwr_status')) {
+            $oldBwrStatus = $employee->getOriginal('bwr_status');
+            $newBwrStatus = $employee->bwr_status;
+
+            if ($newBwrStatus === 'active' && $oldBwrStatus !== 'active') {
+                $this->deleteIdDocumentCopy($employee);
+            }
         }
 
         // Handle status changes
@@ -97,6 +110,11 @@ class EmployeeObserver
             // Only process if both are strings
             if (is_string($oldStatus) && is_string($newStatus)) {
                 $this->handleStatusTransition($employee, $oldStatus, $newStatus);
+
+                // Calculate retention period on termination (BewachV §21)
+                if ($newStatus === Employee::STATUS_TERMINATED) {
+                    $this->calculateRetentionPeriod($employee);
+                }
             }
         }
     }
@@ -351,6 +369,153 @@ class EmployeeObserver
             'employee_number' => $employee->employee_number,
         ]);
         // Future: Restore full permissions
+    }
+
+    /**
+     * Delete ID document copy when BWR registration becomes active.
+     *
+     * Legal Basis:
+     * - GDPR Art. 5(1)(e) - Storage Limitation: "kept in a form which permits identification
+     *   of data subjects for no longer than is necessary"
+     * - After BWR registration is approved/active, the ID document copy is no longer needed
+     *   for the registration process and must be deleted to minimize data retention.
+     *
+     * Implementation:
+     * - Deletes physical file from storage
+     * - Sets id_document_copy_deleted_at timestamp for audit trail (GDPR Art. 30)
+     * - Logs deletion with legal basis reference
+     * - Failures logged but don't block status transition (manual cleanup possible)
+     */
+    private function deleteIdDocumentCopy(Employee $employee): void
+    {
+        // Skip if no document path exists
+        if (! $employee->id_document_copy_path) {
+            return;
+        }
+
+        // Skip if already deleted
+        if ($employee->id_document_copy_deleted_at !== null) {
+            return;
+        }
+
+        // SECURITY: Validate path is within expected directory before deletion
+        // Prevents unauthorized file deletion if path is somehow set to arbitrary value
+        $normalizedPath = str_replace('\\', '/', $employee->id_document_copy_path);
+        if (! str_starts_with($normalizedPath, 'id_documents/') &&
+            ! str_starts_with($normalizedPath, 'employees/') &&
+            ! str_starts_with($normalizedPath, 'documents/')) {
+            Log::warning('Suspicious id_document_copy_path detected - refusing to delete', [
+                'employee_id' => $employee->id,
+                'employee_number' => $employee->employee_number,
+                'path' => $employee->id_document_copy_path,
+                'security_note' => 'Path outside expected directories (id_documents/, employees/, documents/)',
+            ]);
+
+            return; // Don't delete files outside expected directories
+        }
+
+        try {
+            // Delete physical file
+            if (Storage::exists($employee->id_document_copy_path)) {
+                Storage::delete($employee->id_document_copy_path);
+                Log::info('ID document copy deleted (BWR active)', [
+                    'employee_id' => $employee->id,
+                    'employee_number' => $employee->employee_number,
+                    'bwr_status' => $employee->bwr_status,
+                    'file_path' => $employee->id_document_copy_path,
+                    'legal_basis' => 'GDPR Art. 5(1)(e) - Storage Limitation',
+                ]);
+            } else {
+                Log::warning('ID document copy not found in storage (already deleted?)', [
+                    'employee_id' => $employee->id,
+                    'file_path' => $employee->id_document_copy_path,
+                ]);
+            }
+
+            // Set deletion timestamp (GDPR Art. 30 audit trail)
+            $employee->updateQuietly([
+                'id_document_copy_deleted_at' => now(),
+            ]);
+
+            // Create activity log entry
+            activity('employee_changes')
+                ->performedOn($employee)
+                ->withProperties([
+                    'action' => 'id_document_auto_deleted',
+                    'bwr_status' => $employee->bwr_status,
+                    'legal_basis' => 'GDPR Art. 5(1)(e) - Storage Limitation',
+                    'reason' => 'ID document no longer necessary after BWR registration approval',
+                ])
+                ->log('ID document copy automatically deleted (BWR active)');
+        } catch (\Exception $e) {
+            Log::error('ID document deletion failed', [
+                'employee_id' => $employee->id,
+                'file_path' => $employee->id_document_copy_path,
+                'error' => $e->getMessage(),
+            ]);
+            // Don't throw - allow BWR status transition to proceed
+            // HR can manually delete file via admin panel
+        }
+    }
+
+    /**
+     * Calculate and set retention period end date on employee termination.
+     *
+     * Legal Basis:
+     * - BewachV §21 Abs. 4: "Aufzeichnungen und Unterlagen sind für die Dauer von drei Jahren
+     *   aufzubewahren. Die Aufbewahrungsfrist beginnt mit dem Schluss des Kalenderjahres, in
+     *   dem die letzte Eintragung gemacht worden ist."
+     *
+     * Translation: "Records and documents must be retained for three years. The retention
+     * period begins at the end of the calendar year in which the last entry was made."
+     *
+     * Calculation:
+     * - employment_end_date = termination_date (or now() if null)
+     * - retention_period_end = end of calendar year + 3 years
+     * - Example: Terminated 2025-06-15 → End of year = 2025-12-31 → +3 years = 2028-12-31
+     *
+     * Implementation:
+     * - Sets employment_end_date (used as "last entry" date per BewachV §21)
+     * - Calculates retention_period_end (legal deletion deadline)
+     * - Logs calculation with legal basis for audit trail
+     * - Used by automated deletion job (Issue #470) to identify deletion-eligible employees
+     */
+    private function calculateRetentionPeriod(Employee $employee): void
+    {
+        // Use termination_date if set, otherwise use current timestamp
+        $employmentEndDate = $employee->termination_date ?? now();
+
+        // BewachV §21 Abs. 4: Retention period starts at end of calendar year
+        $endOfYear = $employmentEndDate->copy()->endOfYear();
+
+        // Add 3 years as mandated by BewachV §21 Abs. 4
+        $retentionPeriodEnd = $endOfYear->addYears(3);
+
+        // Update employee record without triggering observers again
+        $employee->updateQuietly([
+            'employment_end_date' => $employmentEndDate,
+            'retention_period_end' => $retentionPeriodEnd,
+        ]);
+
+        Log::info('Retention period calculated (BewachV §21)', [
+            'employee_id' => $employee->id,
+            'employee_number' => $employee->employee_number,
+            'employment_end_date' => $employmentEndDate->toDateString(),
+            'retention_period_end' => $retentionPeriodEnd->toDateString(),
+            'legal_basis' => 'BewachV §21 Abs. 4',
+        ]);
+
+        // Create activity log entry
+        activity('employee_changes')
+            ->performedOn($employee)
+            ->withProperties([
+                'action' => 'retention_period_calculated',
+                'employment_end_date' => $employmentEndDate->toDateString(),
+                'retention_period_end' => $retentionPeriodEnd->toDateString(),
+                'legal_basis' => 'BewachV §21 Abs. 4',
+                'calculation' => "End of year {$endOfYear->year} + 3 years",
+            ])
+            ->log('Retention period calculated (BewachV §21 - 3 years from end of calendar year)');
     }
 
     /**

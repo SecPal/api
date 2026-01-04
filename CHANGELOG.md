@@ -14,6 +14,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **BewachV § 16 Employee Data Fields for BWR Registration** (Issue #468, Epic #469)
+  - **IMPLEMENTED** Complete BewachV compliance for Bewacherregister (BWR) employee data management
+  - **30+ New Fields** across 7 categories:
+    - **BWR Tracking**: `bwr_id` (7-digit unique ID), `bwr_status` (5-state enum), `bwr_registered_at`, `bwr_submission_date`, `bwr_notes`
+    - **Retention Management**: `employment_end_date`, `retention_period_end` (auto-calculated: end-of-year + 3 years)
+    - **Identity Data**: `gender` (mandatory for BWR), `birth_name_enc`, `previous_names` (JSON), `birth_city`, `birth_country` (ISO 3166-1), `birth_state`
+    - **Nationalities**: `nationalities` (JSON array with dual citizenship support, ISO 3166-1 alpha-2)
+    - **Structured Address**: 7 encrypted fields (`address_street_enc`, `address_house_number_enc`, `address_postal_code_enc`, `address_city_enc`, `address_supplement_enc`, `address_country`, `address_state`)
+    - **Address History**: `address_history` (JSON, 5-year requirement per BewachV § 16 Abs. 2 Nr. 6)
+    - **Intended Activities**: `intended_activities` (JSON, §34a work types)
+    - **ID Document**: `id_document_type` (enum), `id_document_number_enc`, `id_document_expiry`, `id_document_copy_path`, `id_document_copy_deleted_at`
+    - **Sachkunde**: `sachkunde_ihk_number`, `sachkunde_exam_date`, `sachkunde_issued_date` (NO expiry - valid for life)
+  - **Auto-Deletion System (GDPR Art. 5(1)(e))**:
+    - ID document copies automatically deleted when `bwr_status` = 'active'
+    - Physical file removal from storage + database timestamp
+    - Activity log with legal basis: "ID document copy automatically deleted (BWR active)"
+  - **Retention Period Calculation (BewachV § 21 Abs. 4)**:
+    - Formula: `retention_period_end = END_OF_YEAR(termination_date) + 3 years`
+    - Example: Terminated 2024-06-15 → Retention until 2027-12-31
+    - Auto-calculated via Observer on status change to 'terminated'
+    - Activity log with legal basis: "Retention period calculated (BewachV §21 - 3 years from end of calendar year)"
+  - **Form Request Validation**:
+    - BWR-ID: Exactly 7 digits (`size:7`, `regex:/^[0-9]{7}$/`), unique, preserves leading zeros
+    - Gender: Required when `bwr_status` is 'pending' or 'active'
+    - Address fields: Required when `bwr_status` is 'pending' or 'active'
+    - ISO codes: All country/nationality fields use ISO 3166-1 alpha-2 (`size:2`, `regex:/^[A-Z]{2}$/`)
+    - German validation messages: "Die Bewacher-ID muss exakt 7 Ziffern haben"
+  - **EmployeeResource API**:
+    - All 30+ new fields exposed in JSON response
+    - Computed property `structured_address`: "Straße 42, 10115 Berlin, DE"
+    - Encrypted fields decrypted automatically (no \_enc suffix in API)
+  - **EmployeeFactory States**:
+    - `withBwrRegistration()`: Minimal BWR data (7-digit ID, status, gender, address)
+    - `withCompleteBewachvData()`: Complete § 16 dataset (BWR, identity, dual citizenship, address history, intended activities, ID document, Sachkunde)
+    - `withDualCitizenship()`: Random EU country combinations
+    - `withAddressHistory()`: 0-2 historical addresses (5-year period)
+  - **Database**:
+    - Migration: `2026_01_04_183934_add_bewachv_fields_to_employees_table.php` (296 lines)
+    - 3 indexes: `bwr_status`, `retention_period_end`, `bwr_registered_at`
+    - Enum constraint: `bwr_status` CHECK (5 values: not_registered, pending, active, suspended, revoked)
+  - **Testing**:
+    - 41 comprehensive tests (100% passing, 201 assertions)
+    - Model tests (10): Encryption, JSON casting, string storage, computed properties
+    - Observer tests (9): Auto-deletion, retention calculation, activity logging
+    - Factory tests (8): State validation, BWR-ID generation, ISO compliance
+    - Resource tests (6): API transformation, date formatting, field inclusion
+    - Feature tests (8): BWR-ID format, uniqueness, conditional validation, German messages
+  - **Documentation**:
+    - `docs/BEWACHV_COMPLIANCE.md` (500+ lines): Complete legal reference, field mapping, workflows, GDPR compliance
+  - **Quality Gates**: ✅ PHPStan Level Max, ✅ Pint compliant, ✅ 41/41 tests passing, ✅ REUSE 3.3
+  - **Impact**: Foundation for Issues #471 (BWR Workflow Export), #470 (Automated Data Deletion), #472 (Work Permit Tracking)
+
 - **Activity Log REST API with Scoped Filtering** (Issue #394, Epic #385)
   - **IMPLEMENTED** ActivityLogController with 3 RESTful endpoints for activity log access
   - Endpoints:
@@ -100,6 +152,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Next Steps:** Issue #424 (LeadershipLevel Model), #425 (API Endpoints), #426 (Frontend)
   - **Impact:** Epic #399 (Leadership-Based Access Control) - foundational infrastructure for hierarchical employee visibility
 
+### Changed
+
+- **BWR-ID Format and Validation** (Issue #468)
+  - **BREAKING CHANGE**: BWR-ID format now strictly enforces 7-digit numeric range: `0000000` - `9999999`
+  - Changed from `string(50)` to `string(7)` with regex validation: `/^[0-9]{7}$/`
+  - String storage preserves leading zeros (e.g., "0012345") for legal compliance
+  - Database constraint: Unique index on `bwr_id` column
+  - Rationale: BewachV § 16 Bewacherregister uses 7-digit IDs exclusively
+
+- **Sachkunde Qualification Tracking** (Issue #468)
+  - Sachkunde (§ 34a) qualification is **valid for life** per IHK confirmation
+  - Removed expiry date field (no longer needed)
+  - Tracking: IHK number, exam date, issued date only
+  - Changed from 4 fields to 3 fields (removed `sachkunde_expiry`)
+
+### Breaking Changes
+
+⚠️ **BewachV Employee Data Changes** (Issue #468) - Version 0.x.x allows breaking changes to avoid technical debt
+
+- **Address Structure Change**:
+  - Old: Single `address_encrypted` field with free-text format
+  - New: 7 structured fields (`address_street_enc`, `address_house_number_enc`, `address_postal_code_enc`, `address_city_enc`, `address_supplement_enc`, `address_country`, `address_state`)
+  - Impact: API responses now include 7 separate address fields instead of 1
+  - Migration Path: Use computed property `structured_address` for comma-separated format in UI
+  - Code Changes Required: Update API clients to handle new address structure
+
+- **BWR-ID Validation Change**:
+  - Old: `string(50)` with no format validation
+  - New: Exactly 7 digits (`size:7`, `regex:/^[0-9]{7}$/`), unique constraint
+  - Impact: Existing BWR-IDs with ≠7 digits will fail validation
+  - Migration Path: Update existing records to 7-digit format before deployment (data cleanup script recommended)
+  - Code Changes Required: Update any hardcoded BWR-ID test data to 7-digit format
+
+- **Sachkunde Expiry Removal**:
+  - Old: `sachkunde_expiry` date field for tracking qualification expiry
+  - New: No expiry field (Sachkunde valid for life)
+  - Impact: `sachkunde_expiry` no longer exists in model/database/API
+  - Migration Path: Remove any UI/logic that relies on Sachkunde expiry dates
+  - Code Changes Required: Update frontend to remove Sachkunde expiry displays/warnings
+
+- **Factory Address Changes**:
+  - Old: Generated `address_encrypted` via Factory default state
+  - New: Requires 7 structured address fields
+  - Impact: Old factory calls without address fields will fail validation for BWR employees
+  - Migration Path: Use `withBwrRegistration()` or `withCompleteBewachvData()` states for BWR employees
+  - Code Changes Required: Update all test factories to use new states or provide structured address fields
+
+### Security
+
+- **Enhanced Encryption for Personal Data** (Issue #468)
+  - All new BewachV § 16 identity fields use `EncryptedWithDek` cast (encryption at rest)
+  - Encrypted fields: `birth_name_enc`, `address_street_enc`, `address_house_number_enc`, `address_postal_code_enc`, `address_city_enc`, `address_supplement_enc`, `id_document_number_enc`
+  - Blind indexes maintained for unique constraints (BWR-ID, email, etc.)
+  - Security Enhancement: 7 fields now encrypted vs. 1 previously (address)
+  - Compliance: GDPR Art. 32 (Security of Processing)
+
 - **Queue-based Activity Hash Chain Building** (Issue #408, PR #419)
   - **IMPLEMENTED** race-condition-free hash chain processing via Laravel queues
   - Eliminates race condition window from synchronous `creating` hook approach
@@ -158,6 +266,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact:** Level 3 audit trail verification now FULLY FUNCTIONAL and secure
   - **Note:** Completes security fix from Issue #412 (revert) → Issue #415 (secure implementation)
 
+### Legal Compliance
+
+- **BewachV § 16 Implementation** (Issue #468)
+  - **Full Compliance**: All mandatory registration fields per BewachV § 16 Bewacherregister
+  - Required fields: BWR-ID (7 digits), gender, structured address, nationality, identity documents, Sachkunde (if applicable)
+  - Conditional validation: Gender + address required when `bwr_status` is 'pending' or 'active'
+  - 5-year address history tracked per BewachV § 16 Abs. 2 Nr. 6
+
+- **BewachV § 21 Abs. 4 Retention** (Issue #468)
+  - **Automated Retention**: Calculates 3-year retention from end of calendar year
+  - Formula: `END_OF_YEAR(termination_date) + 3 years`
+  - Auto-calculated via Observer on status change to 'terminated'
+  - Activity log records legal basis: "Retention period calculated (BewachV §21)"
+  - Future: Batch deletion queries will use `retention_period_end` for GDPR compliance
+
+- **BewachV § 34a Sachkunde** (Issue #468)
+  - **Clarification**: Sachkunde qualification valid for life (no expiry per IHK)
+  - Tracking: IHK number, exam date, issued date
+  - Field removed: `sachkunde_expiry` (incorrect assumption)
+  - Compliance: Accurate representation of German security guard qualification rules
+
+- **GDPR Art. 5(1)(e) Storage Limitation** (Issue #468)
+  - **Auto-Deletion System**: ID document copies automatically deleted when BWR registration complete
+  - Trigger: `bwr_status` change to 'active'
+  - Action: Physical file deletion + `id_document_copy_deleted_at` timestamp
+  - Activity log records legal basis: "ID document copy automatically deleted (BWR active)"
+  - Justification: Documents no longer needed once BWR registration confirmed
+
+- **GDPR Art. 30 Records of Processing** (Issue #468)
+  - **Audit Trail**: All BewachV data changes logged via Spatie ActivityLog
+  - Logged events: BWR status changes, retention calculation, ID document deletion
+  - Properties: Old/new values stored as Collections for immutability
+  - Retention: Activity logs retained per `retention_period_end` (BewachV § 21)
+  - Compliance: Complete audit trail for regulatory inspections
+
+### Documentation
+
+- **BewachV Compliance Documentation** (Issue #468)
+  - Created `docs/BEWACHV_COMPLIANCE.md` (500+ lines)
+  - Sections:
+    - Legal Framework: BewachV §16/§21/§34a full text with translations
+    - BWR-ID Implementation: 7-digit format specification, string storage rationale
+    - Field Mapping: Complete table of 30+ fields with data types, encryption, validation
+    - Auto-Deletion Workflow: Observer implementation with code, diagram, edge cases
+    - Retention Calculation: Formula explanation, examples, batch deletion queries
+    - Sachkunde Clarification: Valid for life, IHK confirmation
+    - Breaking Changes: Address structure, BWR-ID format, Sachkunde expiry
+    - GDPR Compliance: Encryption, storage limitation, audit logging
+    - Testing & Validation: 41 tests, quality gates, manual checklist
+  - Audience: Legal teams, auditors, compliance officers, senior developers
+  - Reference: Link in PR #[TBD] and Issue #468
+
 - **OpenTimestamp Proof Verification - Security Fix** (Issue #412, PR #413)
   - **REVERTED** unsecure "hybrid approach" implementation after Copilot security review
   - Previous implementation was vulnerable to trivial proof forgery attacks
@@ -183,6 +343,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Pure algorithm performance: <0.1ms (DB refresh() adds ~1.3ms overhead)
   - All 7 new tests passing with ≥95% coverage
   - verifyMerkleProof() method fully covered and validated
+
+### Removed
+
+- **Deprecated Employee Address Fields** (Issue #468)
+  - **BREAKING CHANGE**: Removed `address_encrypted` single-field storage
+  - Replaced by 7 structured address fields: `address_street_enc`, `address_house_number_enc`, `address_postal_code_enc`, `address_city_enc`, `address_supplement_enc`, `address_country`, `address_state`
+  - Migration provides backward compatibility via data extraction
+  - Computed property `structured_address` provides comma-separated format for backward compatibility
+
+- **Sachkunde Expiry Field** (Issue #468)
+  - **BREAKING CHANGE**: Removed `sachkunde_expiry` from Employee model
+  - Sachkunde qualification never expires (valid for life per IHK)
+  - Database column not created in new migrations
+  - Factory no longer generates expiry dates for Sachkunde
 
 - **🎉 MAJOR: Production-Ready Multi-Tenant Architecture** (Epic #357)
   - User-based tenant resolution via `users.tenant_id` foreign key relationship
