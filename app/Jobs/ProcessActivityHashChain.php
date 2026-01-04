@@ -58,6 +58,11 @@ class ProcessActivityHashChain implements ShouldQueue
     public int $tries = 3;
 
     /**
+     * The number of seconds to wait before retrying the job.
+     */
+    public int $backoff = 5;
+
+    /**
      * The number of seconds the job can run before timing out.
      */
     public int $timeout = 60;
@@ -122,13 +127,16 @@ class ProcessActivityHashChain implements ShouldQueue
         $activityId = $this->activityData['id'];
 
         // Build hash chain and update activity within transaction
-        // NOTE: lockForUpdate() ensures atomicity per job, but NOT per-tenant serialization.
-        // Queue worker MUST use single worker for activity-hash-chain queue to prevent
-        // concurrent jobs from processing same tenant (see docs/QUEUE_WORKERS.md).
+        // Use advisory lock to ensure sequential processing per tenant
         DB::transaction(function () use ($activityId): void {
+            // Acquire exclusive advisory lock for this tenant
+            // This ensures only ONE job per tenant processes at a time
+            // Lock is automatically released when transaction commits/rolls back
+            DB::statement('SELECT pg_advisory_xact_lock(?)', [$this->tenantId]);
+
             // Find previous log in tenant's chain (including soft-deleted)
             // Exclude current activity from lookup
-            // lockForUpdate() prevents concurrent transactions from seeing same "previous log"
+            // lockForUpdate() ensures no other transaction can modify the row
             $previousActivity = Activity::withTrashed()
                 ->where('tenant_id', $this->tenantId)
                 ->where('id', '!=', $activityId)
@@ -151,6 +159,7 @@ class ProcessActivityHashChain implements ShouldQueue
                     'causer_type' => $this->activityData['causer_type'] ?? null,
                     'causer_id' => $this->activityData['causer_id'] ?? null,
                     'properties' => $this->activityData['properties'] ?? null,
+                    'created_at' => $this->activityData['created_at'] ?? null, // Timestamp ensures hash uniqueness
                 ], JSON_THROW_ON_ERROR);
 
                 $eventHash = hash('sha256', ($previousHash ?? '').$logData);

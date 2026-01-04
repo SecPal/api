@@ -108,6 +108,14 @@ class Employee extends Model
     public const STATUS_TERMINATED = 'terminated';
 
     /**
+     * Temporary storage for GDPR changed fields during model lifecycle.
+     * Maps model instance ID to array of changed field names.
+     *
+     * @var array<string, string[]>
+     */
+    private static array $gdprChangedFields = [];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -271,18 +279,46 @@ class Employee extends Model
      *
      * Registers event listeners for DSGVO-compliant logging of sensitive personal data.
      * Documents THAT a change occurred without storing the actual values.
+     *
+     * IMPORTANT: Encrypted fields (_enc) are ALWAYS marked as dirty due to new nonce generation.
+     * We must compare DECRYPTED values to detect actual changes, not the encrypted columns.
+     *
+     * Uses 'updating' event to capture changed fields, then 'updated' event to log them.
+     * This ensures the Spatie LogsActivity trait's log is created first, then our GDPR log,
+     * maintaining proper sequential order for the hash chain.
      */
     protected static function booted(): void
     {
+        // Track changed sensitive fields during 'updating' (before save)
         static::updating(function (Employee $employee) {
-            // Track which sensitive fields changed
+            // Helper: Check if decrypted value actually changed (not just re-encrypted with new nonce)
+            $hasActuallyChanged = function (string $field) use ($employee): bool {
+                // Get original (from DB before changes) - will be decrypted by accessor
+                $original = $employee->getOriginal($field);
+                // Get current (in-memory, potentially modified)
+                $current = $employee->getAttribute($field);
+
+                // Both null = no change
+                if ($original === null && $current === null) {
+                    return false;
+                }
+
+                // One is null, other isn't = changed
+                if ($original === null || $current === null) {
+                    return true;
+                }
+
+                // Compare decrypted values
+                return $original !== $current;
+            };
+
             $changedFields = [];
 
-            // Name changes (encrypted fields)
-            if ($employee->isDirty('first_name_enc')) {
+            // Name changes (check decrypted values via accessors: first_name, last_name)
+            if ($employee->isDirty('first_name_enc') && $hasActuallyChanged('first_name')) {
                 $changedFields[] = 'first_name';
             }
-            if ($employee->isDirty('last_name_enc')) {
+            if ($employee->isDirty('last_name_enc') && $hasActuallyChanged('last_name')) {
                 $changedFields[] = 'last_name';
             }
 
@@ -294,22 +330,30 @@ class Employee extends Model
                 $changedFields[] = 'phone';
             }
 
-            // Highly sensitive encrypted data
-            if ($employee->isDirty('date_of_birth_enc')) {
+            // Highly sensitive encrypted data (check decrypted values)
+            if ($employee->isDirty('date_of_birth_enc') && $hasActuallyChanged('date_of_birth')) {
                 $changedFields[] = 'date_of_birth';
             }
-            if ($employee->isDirty('address_encrypted')) {
+            if ($employee->isDirty('address_encrypted') && $hasActuallyChanged('address')) {
                 $changedFields[] = 'address';
             }
-            if ($employee->isDirty('hourly_rate_enc')) {
+            if ($employee->isDirty('hourly_rate_enc') && $hasActuallyChanged('hourly_rate')) {
                 $changedFields[] = 'hourly_rate';
             }
-            if ($employee->isDirty('tax_id_enc')) {
+            if ($employee->isDirty('tax_id_enc') && $hasActuallyChanged('tax_id')) {
                 $changedFields[] = 'tax_id';
             }
-            if ($employee->isDirty('social_security_number_enc')) {
+            if ($employee->isDirty('social_security_number_enc') && $hasActuallyChanged('social_security_number')) {
                 $changedFields[] = 'social_security_number';
             }
+
+            // Store in static array for use in 'updated' event
+            self::$gdprChangedFields[$employee->id] = $changedFields;
+        });
+
+        // Create GDPR log AFTER save (after Spatie LogsActivity has created its log)
+        static::updated(function (Employee $employee) {
+            $changedFields = self::$gdprChangedFields[$employee->id] ?? [];
 
             // Log if any sensitive fields changed
             if (! empty($changedFields) && Auth::check()) {
@@ -323,6 +367,9 @@ class Employee extends Model
                     ])
                     ->log('Sensitive data changed (GDPR-compliant: no values stored)');
             }
+
+            // Clean up temporary storage
+            unset(self::$gdprChangedFields[$employee->id]);
         });
     }
 

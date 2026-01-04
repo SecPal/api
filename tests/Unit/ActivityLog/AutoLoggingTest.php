@@ -198,3 +198,61 @@ test('empty updates do not create activity logs', function (): void {
 
     expect($newCount)->toBe(0);
 });
+
+test('employee update with sensitive and non-sensitive fields creates properly chained logs', function (): void {
+    // This test specifically addresses the race condition bug where:
+    // - Spatie LogsActivity creates log for non-sensitive fields (e.g., management_level)
+    // - Employee.booted() creates GDPR log for sensitive fields (e.g., email)
+    // - Both logs are created in the same request
+    // - Without proper synchronization, the second log could get NULL previous_hash
+    //
+    // Expected behavior:
+    // - Both logs should be properly chained
+    // - GDPR log should link to Spatie log via previous_hash
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'email' => 'original@example.com',
+        'management_level' => 5,
+    ]);
+
+    // Clear creation log
+    Activity::where('log_name', 'employee_changes')->delete();
+
+    // Update BOTH sensitive (email) AND non-sensitive (management_level) fields
+    // This triggers both Spatie LogsActivity and Employee GDPR observer
+    $employee->update([
+        'email' => 'updated@example.com',
+        'management_level' => 6,
+    ]);
+
+    // Fetch the two logs created
+    $activities = Activity::where('log_name', 'employee_changes')
+        ->orderBy('id')
+        ->get();
+
+    expect($activities)->toHaveCount(2);
+
+    // First log: Spatie's "updated" log for management_level
+    $spatieLog = $activities[0];
+    expect($spatieLog->description)->toBe('updated')
+        ->and($spatieLog->properties)->toHaveKey('attributes')
+        ->and($spatieLog->properties['attributes'])->toHaveKey('management_level')
+        ->and($spatieLog->event_hash)->not->toBeNull('Spatie log should have event_hash');
+
+    // Second log: GDPR log for email change
+    $gdprLog = $activities[1];
+    expect($gdprLog->description)->toContain('Sensitive data changed')
+        ->and($gdprLog->properties)->toHaveKey('changed_fields')
+        ->and($gdprLog->properties['changed_fields'])->toContain('email')
+        ->and($gdprLog->event_hash)->not->toBeNull('GDPR log should have event_hash');
+
+    // CRITICAL: GDPR log must link to Spatie log (no NULL previous_hash race condition!)
+    expect($gdprLog->previous_hash)->not->toBeNull('GDPR log must link to previous log')
+        ->and($gdprLog->previous_hash)->toBe($spatieLog->event_hash, 'GDPR log must link to Spatie log');
+
+    // Verify hash chain integrity
+    expect($spatieLog->verifyChain())->toBeTrue('Spatie log hash chain should be valid')
+        ->and($gdprLog->verifyChain())->toBeTrue('GDPR log hash chain should be valid')
+        ->and($gdprLog->verifyChainLink())->toBeTrue('GDPR log chain link should be valid');
+});
