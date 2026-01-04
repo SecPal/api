@@ -398,6 +398,22 @@ class EmployeeObserver
             return;
         }
 
+        // SECURITY: Validate path is within expected directory before deletion
+        // Prevents unauthorized file deletion if path is somehow set to arbitrary value
+        $normalizedPath = str_replace('\\', '/', $employee->id_document_copy_path);
+        if (! str_starts_with($normalizedPath, 'id_documents/') &&
+            ! str_starts_with($normalizedPath, 'employees/') &&
+            ! str_starts_with($normalizedPath, 'documents/')) {
+            Log::warning('Suspicious id_document_copy_path detected - refusing to delete', [
+                'employee_id' => $employee->id,
+                'employee_number' => $employee->employee_number,
+                'path' => $employee->id_document_copy_path,
+                'security_note' => 'Path outside expected directories (id_documents/, employees/, documents/)',
+            ]);
+
+            return; // Don't delete files outside expected directories
+        }
+
         try {
             // Delete physical file
             if (Storage::exists($employee->id_document_copy_path)) {

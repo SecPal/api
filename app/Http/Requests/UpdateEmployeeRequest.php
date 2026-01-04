@@ -99,7 +99,8 @@ class UpdateEmployeeRequest extends FormRequest
             'id_document_type' => ['sometimes', 'nullable', Rule::in(['passport', 'id_card', 'residence_permit'])],
             'id_document_number' => ['sometimes', 'nullable', 'string', 'max:255'],
             'id_document_expiry' => ['sometimes', 'nullable', 'date', 'after:today'],
-            'id_document_copy_path' => ['sometimes', 'nullable', 'string', 'max:500'],
+            // NOTE: id_document_copy_path is NOT client-writable (security risk)
+            // This field is set server-side during file upload via dedicated upload endpoint
 
             // Retention & Employment End
             'employment_end_date' => ['sometimes', 'nullable', 'date'],

@@ -205,7 +205,8 @@ class Employee extends Model
         'id_document_number', // plaintext → id_document_number_enc
         'id_document_number_enc',
         'id_document_expiry',
-        'id_document_copy_path',
+        // NOTE: id_document_copy_path is NOT fillable (security risk - prevents arbitrary file deletion)
+        // This field is set server-side during file upload via dedicated upload endpoint
         'id_document_copy_deleted_at',
         'photo_path',
         // Tax & SSN

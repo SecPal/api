@@ -113,7 +113,8 @@ class StoreEmployeeRequest extends FormRequest
             'id_document_type' => ['nullable', Rule::in(['passport', 'id_card', 'residence_permit'])],
             'id_document_number' => ['nullable', 'string', 'max:255'], // Will be encrypted
             'id_document_expiry' => ['nullable', 'date', 'after:today'],
-            'id_document_copy_path' => ['nullable', 'string', 'max:500'],
+            // NOTE: id_document_copy_path is NOT client-writable (security risk)
+            // This field is set server-side during file upload via dedicated upload endpoint
 
             // Retention & Employment End (BewachV § 21)
             'employment_end_date' => ['nullable', 'date'],

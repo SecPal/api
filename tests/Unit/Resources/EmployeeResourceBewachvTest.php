@@ -75,7 +75,6 @@ test('EmployeeResource formats dates consistently', function () {
     ]);
 
     $resource = new EmployeeResource($employee);
-    $resource = new EmployeeResource($employee);
     $array = $resource->toArray(request());
 
     // Dates should be serialized as strings or Carbon instances

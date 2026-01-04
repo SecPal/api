@@ -123,8 +123,8 @@ test('it does not calculate retention when termination date is null', function (
 });
 
 test('it handles both bwr activation and termination in same update', function () {
-    Storage::put('doc.pdf', 'test');
-    $employee = Employee::factory()->create(['status' => Employee::STATUS_ACTIVE, 'bwr_status' => 'pending', 'id_document_copy_path' => 'doc.pdf']);
+    Storage::put('id_documents/doc.pdf', 'test');
+    $employee = Employee::factory()->create(['status' => Employee::STATUS_ACTIVE, 'bwr_status' => 'pending', 'id_document_copy_path' => 'id_documents/doc.pdf']);
 
     // Update BWR status and termination separately to ensure both observers fire
     $employee->bwr_status = 'active';
