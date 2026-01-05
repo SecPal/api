@@ -17,19 +17,32 @@ use Illuminate\Support\Facades\Log;
  */
 class MonitorOpenTimestamp extends Command
 {
-    protected $signature = 'ots:monitor
-                          {--alert-threshold=2 : Number of failed servers before alerting}';
+    /**
+     * Threshold for alerting when too many activities are pending OTS proof submission.
+     */
+    private const PENDING_ACTIVITIES_ALERT_THRESHOLD = 100;
+
+    protected $signature = 'ots:monitor';
 
     protected $description = 'Monitor OpenTimestamp health and alert on issues';
 
+    /**
+     * Execute the OpenTimestamp monitoring command.
+     *
+     * This command:
+     * - Runs the ots:check health check command and logs a critical error if the check fails.
+     * - Evaluates the number of activities that have a Merkle root but no OTS proof
+     *   and logs a warning when this count exceeds the alert threshold.
+     *
+     * @return int Console exit code: self::SUCCESS on success or self::FAILURE if the health check command fails.
+     */
     public function handle(): int
     {
-        $threshold = (int) $this->option('alert-threshold');
 
         // Run the check command and capture results
         $this->info('Running OpenTimestamp health check...');
 
-        $exitCode = $this->call('ots:check', ['--json' => true]);
+        $exitCode = $this->call('ots:check');
 
         if ($exitCode !== 0) {
             $this->error('⚠ OpenTimestamp health check FAILED');
@@ -51,12 +64,13 @@ class MonitorOpenTimestamp extends Command
             ->whereNull('ots_proof')
             ->count();
 
-        if ($pendingCount > 100) {
+        if ($pendingCount > self::PENDING_ACTIVITIES_ALERT_THRESHOLD) {
             $this->warn("⚠ {$pendingCount} activities without OTS proof");
 
             Log::warning('High number of activities without OTS proof', [
                 'component' => 'opentimestamp',
                 'pending_count' => $pendingCount,
+                'threshold' => self::PENDING_ACTIVITIES_ALERT_THRESHOLD,
             ]);
         }
 

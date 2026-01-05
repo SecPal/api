@@ -20,17 +20,29 @@ class UpdateOpenTimestamp extends Command
 
     protected $description = 'Update OpenTimestamp library to the latest version';
 
+    /**
+     * Execute the console command.
+     *
+     * This command checks the installed OpenTimestamp (opentimestamps-client) Python
+     * package for available updates, optionally performs the upgrade using pip, and
+     * then runs a follow-up health check on the configured calendar servers via the
+     * ots:check command.
+     *
+     * @return int Symfony console exit code (Command::SUCCESS or Command::FAILURE)
+     */
     public function handle(): int
     {
+        $executor = app(\App\Contracts\ProcessExecutor::class);
         $this->info('Checking for OpenTimestamp updates...');
 
         // 1. Check current version
-        $currentVersion = trim(shell_exec('python3 -c "import opentimestamps; print(opentimestamps.__version__)" 2>&1') ?: '');
+        $versionResult = $executor->execute(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5);
+        $currentVersion = trim($versionResult['stdout'] ?: '');
         $this->line("Current version: {$currentVersion}");
 
         // 2. Check for updates
-        $updateCheck = shell_exec('pip list --outdated --format=json 2>&1') ?: '[]';
-        $outdated = json_decode($updateCheck, true);
+        $updateResult = $executor->execute(['pip', 'list', '--outdated', '--format=json'], null, 10);
+        $outdated = json_decode($updateResult['stdout'] ?: '[]', true);
         /** @var array<int, array{name: string, version: string, latest_version: string}> $outdatedList */
         $outdatedList = is_array($outdated) ? $outdated : [];
 

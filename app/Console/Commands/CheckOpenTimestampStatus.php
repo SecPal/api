@@ -20,13 +20,15 @@ class CheckOpenTimestampStatus extends Command
     public function handle(): int
     {
         $results = [];
+        $executor = app(\App\Contracts\ProcessExecutor::class);
 
         $this->info('Checking OpenTimestamp installation...');
-        $pythonVersion = trim(shell_exec('python3 --version 2>&1') ?: '');
-        $otsVersion = trim(shell_exec('python3 -c "import opentimestamps; print(opentimestamps.__version__)" 2>&1') ?: '');
-        $results['python_version'] = $pythonVersion;
-        $results['ots_version'] = $otsVersion;
-        $this->line("  Python: {$pythonVersion}");
+        $pythonResult = $executor->execute(['python3', '--version'], null, 5);
+        $pythonVersion = trim($pythonResult['stdout'] ?: $pythonResult['stderr'] ?: '');
+
+        $otsResult = $executor->execute(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5);
+        $otsVersion = trim($otsResult['stdout'] ?: '');
+
         $this->line("  OpenTimestamps: {$otsVersion}");
 
         $this->newLine();
@@ -50,8 +52,8 @@ class CheckOpenTimestampStatus extends Command
         if ($this->option('update-check')) {
             $this->newLine();
             $this->info('Checking for updates...');
-            $updateCheck = shell_exec('pip list --outdated --format=json 2>&1') ?: '[]';
-            $outdated = json_decode($updateCheck, true);
+            $updateResult = $executor->execute(['pip', 'list', '--outdated', '--format=json'], null, 10);
+            $outdated = json_decode($updateResult['stdout'] ?: '[]', true);
             /** @var array<int, array{name: string, version: string, latest_version: string}> $outdatedList */
             $outdatedList = is_array($outdated) ? $outdated : [];
             $otsUpdate = collect($outdatedList)->firstWhere('name', 'opentimestamps-client');

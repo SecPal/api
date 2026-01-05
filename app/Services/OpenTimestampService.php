@@ -77,10 +77,6 @@ class OpenTimestampService
         // Our script uses the opentimestamps Python library to create Timestamp(digest) directly.
         $scriptPath = base_path('scripts/ots-stamp-hash.py');
 
-        if (! file_exists($scriptPath)) {
-            throw new RuntimeException("OTS script not found: {$scriptPath}");
-        }
-
         try {
             // Execute: python3 ots-stamp-hash.py <hex_hash>
             // Script writes binary proof to stdout, status messages to stderr

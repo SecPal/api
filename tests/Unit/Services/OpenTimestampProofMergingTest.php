@@ -93,9 +93,16 @@ class OpenTimestampProofMergingTest extends TestCase
         // Act: Submit timestamp
         $result = $this->service->submit($digest);
 
-        // Assert: Should return proof
+        // Assert: Should return the first valid (Alice) calendar proof
+        // Note: With the Python script approach, the proof structure may differ from CLI
         $this->assertNotEmpty($result, 'Should return a valid proof');
         $this->assertGreaterThan(50, strlen($result), 'Proof should have reasonable size');
+        // Verify the proof contains reference to Alice's calendar server
+        $this->assertStringContainsString(
+            'alice.btc.calendar.opentimestamps.org',
+            $result,
+            'Should select Alice calendar proof when it is the first valid response'
+        );
     }
 
     /**
@@ -225,9 +232,14 @@ class OpenTimestampProofMergingTest extends TestCase
         // Act
         $result = $this->service->submit($digest);
 
-        // Assert: Should return a valid proof
+        // Assert: Should return proof from the first (Alice) calendar
         $this->assertNotEmpty($result, 'Should return a valid proof');
         $this->assertGreaterThan(50, strlen($result), 'Proof should have reasonable size');
+        $this->assertStringContainsString(
+            'alice.btc.calendar.opentimestamps.org',
+            $result,
+            'Proof should come from Alice calendar'
+        );
     }
 
     /**

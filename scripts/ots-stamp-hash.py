@@ -54,6 +54,8 @@ def main():
         calendar_urls = list(DEFAULT_CALENDAR_URLS)
     except ImportError:
         # Fallback to hardcoded servers if import fails (older library version)
+        print("Warning: Could not import calendar servers from library", file=sys.stderr)
+        print("Falling back to hardcoded calendar server list", file=sys.stderr)
         calendar_urls = [
             'https://a.pool.opentimestamps.org',
             'https://b.pool.opentimestamps.org',
