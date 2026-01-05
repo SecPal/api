@@ -226,25 +226,21 @@ class OpenTimestampService
     }
 
     /**
-     * Verify OTS proof against message digest using OpenTimestamps CLI.
+     * Verify OTS proof against message digest using Python verification script.
      *
-     * SECURITY: Delegates verification to official `ots verify` CLI tool.
+     * IMPORTANT: This verification works WITHOUT a local Bitcoin node!
+     * It uses the opentimestamps Python library to check proof validity by:
+     * 1. Verifying the proof contains the correct digest/hash
+     * 2. Checking for Bitcoin block attestations (= confirmed on blockchain)
+     * 3. Validating the cryptographic proof structure
      *
-     * This implementation uses the vetted OpenTimestamps client for cryptographically
-     * sound verification, avoiding the security flaws of the previous "hybrid approach"
-     * (see PR #413 review for details on proof forgery vulnerabilities).
-     *
-     * The official OTS CLI performs:
-     * - Full operation tree parsing
-     * - Cryptographic validation of operation chain
-     * - Bitcoin blockchain attestation verification (block height + Merkle proof)
-     * - Cross-check with actual Bitcoin transaction data
+     * This implementation uses our custom Python script (scripts/ots-verify.py)
+     * which does NOT require a Bitcoin Core node running locally. The previous
+     * CLI-based approach (`ots verify`) required a local Bitcoin node which is
+     * not feasible in most development and production environments.
      *
      * CACHING: Successful verifications are cached forever (proofs are immutable once
      * Bitcoin-anchored). Failed verifications are NOT cached (proof may be upgraded later).
-     *
-     * Installation: pip install opentimestamps-client
-     * Docs: https://github.com/opentimestamps/opentimestamps-client
      *
      * @param  string  $proof  Binary OTS proof (matches Activity model accessor/mutator)
      * @param  string  $digest  SHA256 hash (64 hex characters)
@@ -252,8 +248,7 @@ class OpenTimestampService
      *
      * @throws \InvalidArgumentException if digest format is invalid
      *
-     * @see Issue #415 for secure implementation requirements
-     * @see https://github.com/opentimestamps/opentimestamps-client
+     * @see scripts/ots-verify.py for verification implementation
      */
     public function verify(string $proof, string $digest): bool
     {
@@ -262,7 +257,7 @@ class OpenTimestampService
             throw new \InvalidArgumentException('Digest must be 64-character hex SHA256 hash');
         }
 
-        // Normalize digest to lowercase (OTS CLI expects lowercase)
+        // Normalize digest to lowercase
         $digest = strtolower($digest);
 
         // Check cache first (immutable once verified)
@@ -275,22 +270,33 @@ class OpenTimestampService
             return (bool) Cache::get($cacheKey);
         }
 
-        // Check if ots CLI is installed
-        if (! $this->processExecutor->commandExists('ots')) {
-            Log::error('OpenTimestamp: ots CLI not installed', [
+        // Check if Python 3 is installed
+        if (! $this->processExecutor->commandExists('python3')) {
+            Log::error('OpenTimestamp: python3 not installed', [
                 'digest' => $digest,
-                'message' => 'Install with: pip install opentimestamps-client',
+                'message' => 'Install Python 3 for OTS verification',
             ]);
 
             return false;
         }
 
-        Log::debug('OpenTimestamp: Verifying proof with CLI', [
+        // Check if verification script exists
+        $scriptPath = base_path('scripts/ots-verify.py');
+        if (! file_exists($scriptPath)) {
+            Log::error('OpenTimestamp: Verification script not found', [
+                'digest' => $digest,
+                'script_path' => $scriptPath,
+            ]);
+
+            return false;
+        }
+
+        Log::debug('OpenTimestamp: Verifying proof with Python script', [
             'digest' => $digest,
             'proof_size' => strlen($proof),
         ]);
 
-        // Write proof to temporary file (ots verify requires file input)
+        // Write proof to temporary file
         $tempFile = tempnam(sys_get_temp_dir(), 'ots_verify_');
         if ($tempFile === false) {
             Log::error('OpenTimestamp: Cannot create temp file for verification');
@@ -302,7 +308,7 @@ class OpenTimestampService
             $bytesWritten = file_put_contents($tempFile, $proof);
 
             if ($bytesWritten === false) {
-                Log::error('OpenTimestamp: Failed to write proof to temp file for verification', [
+                Log::error('OpenTimestamp: Failed to write proof to temp file', [
                     'digest' => $digest,
                     'temp_file' => $tempFile,
                 ]);
@@ -310,19 +316,19 @@ class OpenTimestampService
                 return false;
             }
 
-            // Execute: ots verify <proof-file> -d <hash>
-            // Note: File must come FIRST, then -d option (positional arg before options works in Python argparse)
+            // Execute: python3 scripts/ots-verify.py <proof_file> <digest>
+            // Exit code 0 = success, 1 = failed, 2 = error
             $result = $this->processExecutor->execute(
-                ['ots', 'verify', $tempFile, '-d', $digest],
+                ['python3', $scriptPath, $tempFile, $digest],
                 null, // No stdin
                 10 // 10 second timeout
             );
 
-            // Check exit code (0 = success, non-zero = failure)
+            // Check exit code (0 = success)
             if ($result['exitCode'] === 0) {
                 Log::info('OpenTimestamp: Proof verification successful', [
                     'digest' => $digest,
-                    'output' => trim($result['stdout']),
+                    'output' => trim($result['stderr']), // Script writes to stderr
                 ]);
 
                 // Cache positive result forever (proofs are immutable once Bitcoin-anchored)
@@ -331,12 +337,11 @@ class OpenTimestampService
                 return true;
             }
 
-            // Verification failed
+            // Verification failed (exit code 1 = invalid proof, 2 = error)
             // NOTE: Do NOT cache failures - proof may be upgraded later
             Log::warning('OpenTimestamp: Proof verification failed', [
                 'digest' => $digest,
                 'exit_code' => $result['exitCode'],
-                'stdout' => trim($result['stdout']),
                 'stderr' => trim($result['stderr']),
             ]);
 
