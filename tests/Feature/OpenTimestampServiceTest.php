@@ -30,10 +30,6 @@ beforeEach(function () {
         ->with('python3')
         ->andReturn(true)
         ->byDefault();
-    $this->mockExecutor->shouldReceive('commandExists')
-        ->with('ots')
-        ->andReturn(true)
-        ->byDefault();
     $this->app->instance(ProcessExecutor::class, $this->mockExecutor);
 
     $this->service = app(OpenTimestampService::class);
@@ -187,18 +183,12 @@ test('verify returns false for invalid proof', function () {
     $invalidProof = 'invalid-proof-data';
     $merkleRoot = hash('sha256', 'test');
 
-    // Mock: CLI returns failure
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
+    // Mock: Python script returns failure
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->andReturn([
-            'exitCode' => 1,
+            'exitCode' => 2,
             'stdout' => '',
             'stderr' => 'Error: Invalid proof',
         ]);
@@ -209,26 +199,26 @@ test('verify returns false for invalid proof', function () {
     expect($result)->toBeFalse();
 });
 
-test('verify returns false when cli not available', function () {
-    // Arrange: ots CLI not installed
+test('verify returns false when python not available', function () {
+    // Arrange: python3 not installed
     $merkleRoot = hash('sha256', 'test-root');
     $merkleRootBytes = hex2bin($merkleRoot);
 
     // Create proof: merkle root (32 bytes) + Bitcoin attestation signature
     $confirmedProof = $merkleRootBytes."\x05\x88\x96\x0d\x73\xd7\x19\x01\x03\xe3\x93\x10";
 
-    // Mock: CLI not available
+    // Mock: python3 not available
     $this->mockExecutor
         ->shouldReceive('commandExists')
-        ->with('ots')
+        ->with('python3')
         ->once()
         ->andReturn(false);
 
     // Act: Verify
     $result = $this->service->verify($confirmedProof, $merkleRoot);
 
-    // Assert: Should return false when CLI not installed
-    expect($result)->toBeFalse('verify() should return false when ots CLI not installed');
+    // Assert: Should return false when python3 not installed
+    expect($result)->toBeFalse('verify() should return false when python3 not installed');
 });
 
 test('verify checks for bitcoin attestation', function () {
@@ -236,13 +226,7 @@ test('verify checks for bitcoin attestation', function () {
     $merkleRoot = hash('sha256', 'test-root');
     $pendingProof = createPendingProof();
 
-    // Mock: CLI returns "not yet confirmed" error
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
+    // Mock: Python script returns "not yet confirmed" error
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
