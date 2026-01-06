@@ -28,6 +28,10 @@ uses()->group('unit', 'services', 'opentimestamp', 'verification');
 beforeEach(function () {
     // Mock ProcessExecutor to avoid CLI dependency in tests
     $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
+    $this->mockExecutor->shouldReceive('commandExists')
+        ->with('python3')
+        ->andReturn(true)
+        ->byDefault();
     $this->app->instance(ProcessExecutor::class, $this->mockExecutor);
 
     $this->service = app(OpenTimestampService::class);
@@ -38,38 +42,31 @@ test('verify returns true for valid proof when cli succeeds', function () {
     $merkleRoot = hash('sha256', 'test-root');
     $proof = buildValidOtsProofForCliVerification();
 
-    // Mock: CLI returns success (exit code 0)
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
+    // Mock: Python script returns success (exit code 0)
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
-            // Verify command structure: ots verify <tempfile> -d <hash>
-            return count($command) === 5
-                && $command[0] === 'ots'
-                && $command[1] === 'verify'
+            // Verify command structure: python3 scripts/ots-verify.py <tempfile> <hash>
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-verify.py')
                 && str_starts_with($command[2], '/tmp/ots_verify_')
-                && $command[3] === '-d'
-                && $command[4] === $merkleRoot
+                && $command[3] === $merkleRoot
                 && $stdin === null // No stdin, proof is in tempfile
                 && $timeout === 10;
         })
         ->andReturn([
             'exitCode' => 0,
-            'stdout' => 'Success! Bitcoin attests data existed as of 2025-12-24 12:00:00 UTC',
-            'stderr' => '',
+            'stdout' => '',
+            'stderr' => 'SUCCESS: Proof is valid and confirmed on Bitcoin blockchain',
         ]);
 
     // Act
     $result = $this->service->verify($proof, $merkleRoot);
 
     // Assert: Verification succeeds
-    expect($result, 'CLI verification should return true for valid proof')->toBeTrue();
+    expect($result, 'Python script verification should return true for valid proof')->toBeTrue();
 });
 
 test('verify returns false for invalid proof when cli fails', function () {
@@ -77,28 +74,21 @@ test('verify returns false for invalid proof when cli fails', function () {
     $merkleRoot = hash('sha256', 'test-root');
     $invalidProof = 'invalid-proof-data';
 
-    // Mock: CLI returns failure (exit code 1)
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
+    // Mock: Python script returns error (exit code 2 for errors)
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
-            return count($command) === 5
-                && $command[0] === 'ots'
-                && $command[1] === 'verify'
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-verify.py')
                 && str_starts_with($command[2], '/tmp/ots_verify_')
-                && $command[3] === '-d'
-                && $command[4] === $merkleRoot
+                && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
         })
         ->andReturn([
-            'exitCode' => 1,
+            'exitCode' => 2,
             'stdout' => '',
             'stderr' => 'Error: Invalid proof format',
         ]);
@@ -107,18 +97,18 @@ test('verify returns false for invalid proof when cli fails', function () {
     $result = $this->service->verify($invalidProof, $merkleRoot);
 
     // Assert: Verification fails
-    expect($result, 'CLI verification should return false for invalid proof')->toBeFalse();
+    expect($result, 'Python script verification should return false for invalid proof')->toBeFalse();
 });
 
-test('verify returns false when ots cli not installed', function () {
+test('verify returns false when python not installed', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
     $proof = buildValidOtsProofForCliVerification();
 
-    // Mock: ots command not found
+    // Mock: python3 not available
     $this->mockExecutor
         ->shouldReceive('commandExists')
-        ->with('ots')
+        ->with('python3')
         ->once()
         ->andReturn(false);
 
@@ -126,31 +116,24 @@ test('verify returns false when ots cli not installed', function () {
     $result = $this->service->verify($proof, $merkleRoot);
 
     // Assert: Verification fails gracefully
-    expect($result, 'Verification should fail when ots CLI is not installed')->toBeFalse();
+    expect($result, 'Verification should fail when python3 is not installed')->toBeFalse();
 });
 
-test('verify returns false when cli times out', function () {
+test('verify returns false when script times out', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
     $proof = buildValidOtsProofForCliVerification();
 
-    // Mock: CLI times out
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
+    // Mock: Python script times out
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
-            return count($command) === 5
-                && $command[0] === 'ots'
-                && $command[1] === 'verify'
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-verify.py')
                 && str_starts_with($command[2], '/tmp/ots_verify_')
-                && $command[3] === '-d'
-                && $command[4] === $merkleRoot
+                && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
         })
@@ -164,7 +147,7 @@ test('verify returns false when cli times out', function () {
     $result = $this->service->verify($proof, $merkleRoot);
 
     // Assert: Verification fails on timeout
-    expect($result, 'Verification should fail on CLI timeout')->toBeFalse();
+    expect($result, 'Verification should fail on script timeout')->toBeFalse();
 });
 
 test('verify rejects invalid digest format', function () {
@@ -190,31 +173,24 @@ test('verify normalizes uppercase digest to lowercase', function () {
     $merkleRoot = strtoupper(hash('sha256', 'test-root'));
     $proof = buildValidOtsProofForCliVerification();
 
-    // Mock: CLI should receive lowercase digest
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
+    // Mock: Python script should receive lowercase digest
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
-            // Verify lowercase normalization and correct command order
-            return count($command) === 5
-                && $command[0] === 'ots'
-                && $command[1] === 'verify'
+            // Verify lowercase normalization
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-verify.py')
                 && str_starts_with($command[2], '/tmp/ots_verify_')
-                && $command[3] === '-d'
-                && $command[4] === strtolower($merkleRoot)
+                && $command[3] === strtolower($merkleRoot)
                 && $stdin === null
                 && $timeout === 10;
         })
         ->andReturn([
             'exitCode' => 0,
-            'stdout' => 'Success!',
-            'stderr' => '',
+            'stdout' => '',
+            'stderr' => 'SUCCESS: Proof is valid',
         ]);
 
     // Act
@@ -229,28 +205,21 @@ test('verify handles empty proof gracefully', function () {
     $merkleRoot = hash('sha256', 'test-root');
     $emptyProof = '';
 
-    // Mock: CLI should still be called
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
+    // Mock: Python script should still be called
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
-            return count($command) === 5
-                && $command[0] === 'ots'
-                && $command[1] === 'verify'
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-verify.py')
                 && str_starts_with($command[2], '/tmp/ots_verify_')
-                && $command[3] === '-d'
-                && $command[4] === $merkleRoot
+                && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
         })
         ->andReturn([
-            'exitCode' => 1,
+            'exitCode' => 2,
             'stdout' => '',
             'stderr' => 'Error: Empty proof',
         ]);
@@ -269,40 +238,33 @@ test('verify caches successful verification', function () {
 
     // Mock: First call succeeds
     $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
-    $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
-            return count($command) === 5
-                && $command[0] === 'ots'
-                && $command[1] === 'verify'
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-verify.py')
                 && str_starts_with($command[2], '/tmp/ots_verify_')
-                && $command[3] === '-d'
-                && $command[4] === $merkleRoot
+                && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
         })
         ->andReturn([
             'exitCode' => 0,
-            'stdout' => 'Success! Bitcoin attests data existed',
-            'stderr' => '',
+            'stdout' => '',
+            'stderr' => 'SUCCESS: Proof is valid and confirmed on Bitcoin blockchain',
         ]);
 
     // Act: First verification
     $result1 = $this->service->verify($proof, $merkleRoot);
     expect($result1)->toBeTrue();
 
-    // Act: Second verification should use cache (no CLI call)
+    // Act: Second verification should use cache (no script call)
     $result2 = $this->service->verify($proof, $merkleRoot);
     expect($result2)->toBeTrue();
 
-    // Assert: Cache was used (no second CLI call expected)
-    // Mockery will automatically fail if CLI is called twice
+    // Assert: Cache was used (no second script call expected)
+    // Mockery will automatically fail if script is called twice
 });
 
 test('verify does not cache failed verification', function () {
@@ -310,30 +272,23 @@ test('verify does not cache failed verification', function () {
     $merkleRoot = hash('sha256', 'test-root');
     $invalidProof = 'invalid-proof';
 
-    // Mock: Both calls should fail
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->twice()  // Should be called twice (no caching)
-        ->andReturn(true);
-
+    // Mock: Both calls should fail (exit code 1 for invalid proofs)
     $this->mockExecutor
         ->shouldReceive('execute')
-        ->twice()  // Should be called twice
+        ->twice()  // Should be called twice (no caching of failures)
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
-            return count($command) === 5
-                && $command[0] === 'ots'
-                && $command[1] === 'verify'
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-verify.py')
                 && str_starts_with($command[2], '/tmp/ots_verify_')
-                && $command[3] === '-d'
-                && $command[4] === $merkleRoot
+                && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
         })
         ->andReturn([
             'exitCode' => 1,
             'stdout' => '',
-            'stderr' => 'Invalid proof',
+            'stderr' => 'FAILURE: Proof verification failed',
         ]);
 
     // Act: First verification
