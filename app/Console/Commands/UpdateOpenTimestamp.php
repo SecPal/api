@@ -81,7 +81,7 @@ class UpdateOpenTimestamp extends Command
         );
 
         // Output the pip install log
-        $output = explode("\n", trim($updateExecResult['stdout'] . $updateExecResult['stderr']));
+        $output = explode("\n", trim($updateExecResult['stdout'].$updateExecResult['stderr']));
         foreach ($output as $line) {
             if (! empty($line)) {
                 $this->line("  {$line}");

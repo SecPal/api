@@ -8,10 +8,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Console\Commands;
 
+use App\Console\Commands\MonitorOpenTimestamp;
 use App\Models\Activity;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
-use App\Console\Commands\MonitorOpenTimestamp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
@@ -120,4 +120,3 @@ class MonitorOpenTimestampTest extends TestCase
             ->assertExitCode(0);
     }
 }
-
