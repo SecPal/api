@@ -406,29 +406,28 @@ test('opentimestamp verification works with valid proof', function () {
         'ots_confirmed_at' => now(),
     ]);
 
-    // Mock ProcessExecutor to simulate successful CLI verification
+    // Mock ProcessExecutor to simulate successful Python script verification
     $mockExecutor = Mockery::mock(\App\Contracts\ProcessExecutor::class);
     $mockExecutor->shouldReceive('commandExists')
-        ->with('ots')
+        ->with('python3')
         ->once()
         ->andReturn(true);
 
     $mockExecutor->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
-            return count($command) === 5
-                && $command[0] === 'ots'
-                && $command[1] === 'verify'
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-verify.py')
                 && str_starts_with($command[2], '/tmp/ots_verify_')
-                && $command[3] === '-d'
-                && $command[4] === $merkleRoot
+                && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
         })
         ->andReturn([
             'exitCode' => 0,
-            'stdout' => 'Success! Bitcoin attests data existed as of 2025-12-24',
-            'stderr' => '',
+            'stdout' => '',
+            'stderr' => 'SUCCESS: Proof is valid and confirmed on Bitcoin blockchain',
         ]);
 
     app()->instance(\App\Contracts\ProcessExecutor::class, $mockExecutor);
