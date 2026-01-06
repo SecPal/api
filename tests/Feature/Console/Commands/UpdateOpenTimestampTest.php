@@ -111,4 +111,52 @@ class UpdateOpenTimestampTest extends TestCase
             ->expectsOutput('Update cancelled')
             ->assertExitCode(0);
     }
+
+    public function test_command_performs_upgrade_with_confirmation(): void
+    {
+        // Mock version check
+        $this->executor
+            ->shouldReceive('execute')
+            ->with(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5)
+            ->twice() // Called once at start, once after upgrade
+            ->andReturn(['exitCode' => 0, 'stdout' => '0.4.5', 'stderr' => ''], ['exitCode' => 0, 'stdout' => '0.5.0', 'stderr' => '']);
+
+        // Mock python --version for ots:check
+        $this->executor
+            ->shouldReceive('execute')
+            ->with(['python3', '--version'], null, 5)
+            ->andReturn(['exitCode' => 0, 'stdout' => 'Python 3.11.2', 'stderr' => '']);
+
+        // Mock update check
+        $this->executor
+            ->shouldReceive('execute')
+            ->with(['pip', 'list', '--outdated', '--format=json'], null, 10)
+            ->andReturn([
+                'exitCode' => 0,
+                'stdout' => json_encode([
+                    ['name' => 'opentimestamps-client', 'version' => '0.4.5', 'latest_version' => '0.5.0'],
+                ]),
+                'stderr' => '',
+            ]);
+
+        // Mock pip upgrade execution
+        $this->executor
+            ->shouldReceive('execute')
+            ->with(['pip', 'install', '--upgrade', 'opentimestamps-client'], null, 60)
+            ->andReturn([
+                'exitCode' => 0,
+                'stdout' => 'Successfully installed opentimestamps-client-0.5.0',
+                'stderr' => '',
+            ]);
+
+        // Mock OpenTimestampService for ots:check
+        $otsService = \Mockery::mock(\App\Services\OpenTimestampService::class);
+        $otsService->shouldReceive('submit')->andReturn('test-proof');
+        $this->app->instance(\App\Services\OpenTimestampService::class, $otsService);
+
+        $this->artisan(UpdateOpenTimestamp::class)
+            ->expectsQuestion('Do you want to update OpenTimestamp now?', true)
+            ->expectsOutputToContain('Successfully updated to version 0.5.0')
+            ->assertExitCode(0);
+    }
 }

@@ -74,23 +74,35 @@ class UpdateOpenTimestamp extends Command
         // 4. Perform update
         $this->info('Updating OpenTimestamp...');
 
-        $output = [];
-        $returnCode = 0;
-        exec('pip install --upgrade opentimestamps-client 2>&1', $output, $returnCode);
+        $updateExecResult = $executor->execute(
+            ['pip', 'install', '--upgrade', 'opentimestamps-client'],
+            null,
+            60 // 60 second timeout for package installation
+        );
 
+        // Output the pip install log
+        $output = explode("\n", trim($updateExecResult['stdout'] . $updateExecResult['stderr']));
         foreach ($output as $line) {
-            $this->line("  {$line}");
+            if (! empty($line)) {
+                $this->line("  {$line}");
+            }
         }
 
-        if ($returnCode === 0) {
-            $newVersion = trim(shell_exec('python3 -c "import opentimestamps; print(opentimestamps.__version__)" 2>&1') ?: '');
+        if ($updateExecResult['exitCode'] === 0) {
+            // Re-check version after update
+            $newVersionResult = $executor->execute(
+                ['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'],
+                null,
+                5
+            );
+            $newVersion = trim($newVersionResult['stdout'] ?: '');
             $this->info("✓ Successfully updated to version {$newVersion}");
 
             // 5. Check calendar servers after update
             $this->newLine();
             $this->info('Checking calendar servers after update...');
 
-            $this->call('ots:check', ['--json' => false]);
+            $this->call('ots:check');
 
             return self::SUCCESS;
         } else {
