@@ -28,6 +28,10 @@ uses()->group('unit');
 beforeEach(function () {
     // Mock ProcessExecutor to avoid CLI dependency
     $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
+    $this->mockExecutor->shouldReceive('commandExists')
+        ->with('python3')
+        ->andReturn(true)
+        ->byDefault();
     $this->app->instance(ProcessExecutor::class, $this->mockExecutor);
 
     $this->service = app(OpenTimestampService::class);
@@ -48,39 +52,33 @@ test('verify rejects non hex digest', function () {
         ->toThrow(InvalidArgumentException::class, 'Digest must be 64-character hex SHA256 hash');
 });
 
-test('verify returns false when cli not available', function () {
-    // Arrange: ots CLI not available
+test('verify returns false when python not available', function () {
+    // Arrange: python3 not available
     $merkleRoot = hash('sha256', 'test-root');
     $merkleRootBytes = hex2bin($merkleRoot);
     $proof = buildValidOtsProof($merkleRootBytes);
 
     $this->mockExecutor
         ->shouldReceive('commandExists')
-        ->with('ots')
+        ->with('python3')
         ->once()
         ->andReturn(false);
 
     // Act
     $result = $this->service->verify($proof, $merkleRoot);
 
-    // Assert: Returns false when CLI not available
-    expect($result, 'verify() should return false when ots CLI not available')->toBeFalse();
+    // Assert: Returns false when python3 not available
+    expect($result, 'verify() should return false when python3 not available')->toBeFalse();
 });
 
 test('verify returns false for empty proof', function () {
     $merkleRoot = hash('sha256', 'test-root');
 
     $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
-    $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->andReturn([
-            'exitCode' => 1,
+            'exitCode' => 2,
             'stdout' => '',
             'stderr' => 'Error: Empty proof',
         ]);
@@ -95,16 +93,10 @@ test('verify returns false for malformed proof', function () {
     $malformedProof = 'random-binary-data-without-structure';
 
     $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
-    $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->andReturn([
-            'exitCode' => 1,
+            'exitCode' => 2,
             'stdout' => '',
             'stderr' => 'Error: Invalid proof format',
         ]);
@@ -120,12 +112,6 @@ test('verify returns false for proof with wrong commitment', function () {
     $differentRoot = hash('sha256', 'different-root');
     $differentRootBytes = hex2bin($differentRoot);
     $proof = buildValidOtsProof($differentRootBytes);
-
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
 
     $this->mockExecutor
         ->shouldReceive('execute')
@@ -150,12 +136,6 @@ test('verify returns false for pending proof', function () {
     $pendingProof = buildPendingOtsProof($merkleRootBytes);
 
     $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
-    $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->andReturn([
@@ -177,20 +157,14 @@ test('verify returns false for any proof', function () {
     $merkleRootBytes = hex2bin($merkleRoot);
     $proof = buildValidOtsProof($merkleRootBytes);
 
-    // Mock: CLI returns success for first call
-    $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once() // Only called once due to caching
-        ->andReturn(true);
-
+    // Mock: Python script returns success for first call
     $this->mockExecutor
         ->shouldReceive('execute')
         ->once() // Only executed once, second call uses cache
         ->andReturn([
             'exitCode' => 0,
-            'stdout' => 'Success!',
-            'stderr' => '',
+            'stdout' => '',
+            'stderr' => 'SUCCESS: Proof is valid',
         ]);
 
     // Act: Multiple calls with same proof
@@ -198,7 +172,7 @@ test('verify returns false for any proof', function () {
     $result2 = $this->service->verify($proof, $merkleRoot);
 
     // Assert: Both return true
-    // Second call returns true from cache (not from CLI execution)
+    // Second call returns true from cache (not from execution)
     expect($result1)->toBeTrue();
     expect($result2)->toBeTrue();
 });
@@ -209,16 +183,10 @@ test('verify handles malformed proof gracefully', function () {
     $malformedProof = 'x'; // Very short
 
     $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
-    $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->andReturn([
-            'exitCode' => 1,
+            'exitCode' => 2,
             'stdout' => '',
             'stderr' => 'Error: Invalid proof',
         ]);
@@ -236,24 +204,20 @@ test('verify handles uppercase digest', function () {
     $proof = 'some-proof-data';
 
     $this->mockExecutor
-        ->shouldReceive('commandExists')
-        ->with('ots')
-        ->once()
-        ->andReturn(true);
-
-    $this->mockExecutor
         ->shouldReceive('execute')
         ->once()
         ->withArgs(function ($command) use ($merkleRoot) {
-            // Verify lowercase normalization and correct command order
-            // ots verify <file> -d <hash>
-            return $command[4] === strtolower($merkleRoot)
-                && $command[3] === '-d';
+            // Verify lowercase normalization and correct command structure
+            // python3 scripts/ots-verify.py <proof_file> <digest>
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && str_ends_with($command[1], 'scripts/ots-verify.py')
+                && $command[3] === strtolower($merkleRoot);
         })
         ->andReturn([
             'exitCode' => 0,
-            'stdout' => 'Success!',
-            'stderr' => '',
+            'stdout' => '',
+            'stderr' => 'SUCCESS: Proof is valid',
         ]);
 
     // Act

@@ -42,6 +42,10 @@ class OpenTimestampProofMergingTest extends TestCase
         // Mock ProcessExecutor to avoid CLI dependency
         $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
         $this->mockExecutor->shouldReceive('commandExists')
+            ->with('python3')
+            ->andReturn(true)
+            ->byDefault();
+        $this->mockExecutor->shouldReceive('commandExists')
             ->with('ots')
             ->andReturn(true)
             ->byDefault();
@@ -67,9 +71,16 @@ class OpenTimestampProofMergingTest extends TestCase
         $bobProof = $this->buildCalendarProof($digestBytes, 'https://bob.btc.calendar.opentimestamps.org');
         $finneyProof = $this->buildCalendarProof($digestBytes, 'https://finney.calendar.eternitywall.com');
 
-        // Mock ots stamp command execution
+        // Mock Python script execution
         $this->mockExecutor->shouldReceive('execute')
-            ->with(['ots', 'stamp', '-'], $digestBytes, 15)
+            ->withArgs(function ($command, $stdin, $timeout) use ($digest) {
+                return count($command) === 3
+                    && $command[0] === 'python3'
+                    && str_ends_with($command[1], 'scripts/ots-stamp-hash.py')
+                    && $command[2] === $digest
+                    && $stdin === null
+                    && $timeout === 15;
+            })
             ->once()
             ->andReturn(['exitCode' => 0, 'stdout' => $aliceProof, 'stderr' => '']);
 
@@ -82,11 +93,16 @@ class OpenTimestampProofMergingTest extends TestCase
         // Act: Submit timestamp
         $result = $this->service->submit($digest);
 
-        // Assert: Should return first calendar's proof (alice)
-        // Note: This test validates current behavior (first proof selection)
-        // not ideal merged proof behavior (which requires Issue #410)
-        $this->assertStringContainsString('alice.btc.calendar.opentimestamps.org', $result,
-            'Should return first calendar proof (alice)');
+        // Assert: Should return the first valid (Alice) calendar proof
+        // Note: With the Python script approach, the proof structure may differ from CLI
+        $this->assertNotEmpty($result, 'Should return a valid proof');
+        $this->assertGreaterThan(50, strlen($result), 'Proof should have reasonable size');
+        // Verify the proof contains reference to Alice's calendar server
+        $this->assertStringContainsString(
+            'alice.btc.calendar.opentimestamps.org',
+            $result,
+            'Should select Alice calendar proof when it is the first valid response'
+        );
     }
 
     /**
@@ -104,9 +120,16 @@ class OpenTimestampProofMergingTest extends TestCase
         $proof2 = $this->buildCalendarProof($digestBytes, 'https://bob.btc.calendar.opentimestamps.org');
         $proof3 = $this->buildCalendarProof($digestBytes, 'https://finney.calendar.eternitywall.com');
 
-        // Mock ots stamp command execution
+        // Mock Python script execution
         $this->mockExecutor->shouldReceive('execute')
-            ->with(['ots', 'stamp', '-'], $digestBytes, 15)
+            ->withArgs(function ($command, $stdin, $timeout) use ($digest) {
+                return count($command) === 3
+                    && $command[0] === 'python3'
+                    && str_ends_with($command[1], 'scripts/ots-stamp-hash.py')
+                    && $command[2] === $digest
+                    && $stdin === null
+                    && $timeout === 15;
+            })
             ->once()
             ->andReturn(['exitCode' => 0, 'stdout' => $proof1, 'stderr' => '']);
 
@@ -142,9 +165,16 @@ class OpenTimestampProofMergingTest extends TestCase
         $proof1 = $this->buildCalendarProof($digestBytes, 'https://alice.btc.calendar.opentimestamps.org');
         $proof2 = $this->buildCalendarProof($digestBytes, 'https://bob.btc.calendar.opentimestamps.org');
 
-        // Mock ots stamp command execution
+        // Mock Python script execution
         $this->mockExecutor->shouldReceive('execute')
-            ->with(['ots', 'stamp', '-'], $digestBytes, 15)
+            ->withArgs(function ($command, $stdin, $timeout) use ($digest) {
+                return count($command) === 3
+                    && $command[0] === 'python3'
+                    && str_ends_with($command[1], 'scripts/ots-stamp-hash.py')
+                    && $command[2] === $digest
+                    && $stdin === null
+                    && $timeout === 15;
+            })
             ->once()
             ->andReturn(['exitCode' => 0, 'stdout' => $proof1, 'stderr' => '']);
 
@@ -180,9 +210,16 @@ class OpenTimestampProofMergingTest extends TestCase
         $aliceProof = $this->buildCalendarProof($digestBytes, 'https://alice.btc.calendar.opentimestamps.org');
         $bobProof = $this->buildCalendarProof($digestBytes, 'https://bob.btc.calendar.opentimestamps.org');
 
-        // Mock ots stamp command execution
+        // Mock Python script execution
         $this->mockExecutor->shouldReceive('execute')
-            ->with(['ots', 'stamp', '-'], $digestBytes, 15)
+            ->withArgs(function ($command, $stdin, $timeout) use ($digest) {
+                return count($command) === 3
+                    && $command[0] === 'python3'
+                    && str_ends_with($command[1], 'scripts/ots-stamp-hash.py')
+                    && $command[2] === $digest
+                    && $stdin === null
+                    && $timeout === 15;
+            })
             ->once()
             ->andReturn(['exitCode' => 0, 'stdout' => $aliceProof, 'stderr' => '']);
 
@@ -195,8 +232,14 @@ class OpenTimestampProofMergingTest extends TestCase
         // Act
         $result = $this->service->submit($digest);
 
-        // Assert: Should return first responding calendar's proof
-        $this->assertStringContainsString('alice.btc.calendar.opentimestamps.org', $result);
+        // Assert: Should return proof from the first (Alice) calendar
+        $this->assertNotEmpty($result, 'Should return a valid proof');
+        $this->assertGreaterThan(50, strlen($result), 'Proof should have reasonable size');
+        $this->assertStringContainsString(
+            'alice.btc.calendar.opentimestamps.org',
+            $result,
+            'Proof should come from Alice calendar'
+        );
     }
 
     /**

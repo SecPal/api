@@ -43,3 +43,13 @@ Schedule::job(\App\Jobs\UpgradeOpenTimestampProofs::class)->hourly()->name('ots-
 // 3-tier strategy: Level 1 (1y→2y), Level 2 (3y→5y), Level 3 (permanent)
 // BewachV §21 Abs. 4 + GDPR Article 5(1)(e) compliance
 Schedule::command('activity:apply-retention')->dailyAt('02:00')->name('activity-retention');
+
+// Schedule: Monitor OpenTimestamp health every 6 hours
+// Checks library version, calendar server availability, and functionality
+// Logs warnings if servers are down or updates are available
+Schedule::command('ots:monitor')->everySixHours()->name('ots-health-monitor');
+
+// Schedule: Check for OpenTimestamp library updates weekly
+// Runs every Monday at 03:00 to check for new versions
+// Manual update with: php artisan ots:update
+Schedule::command('ots:check --update-check')->weekly()->mondays()->at('03:00')->name('ots-update-check');
