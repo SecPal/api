@@ -114,12 +114,19 @@ class UpdateOpenTimestampTest extends TestCase
 
     public function test_command_performs_upgrade_with_confirmation(): void
     {
-        // Mock version check
+        // Mock version check - called 3 times:
+        // 1. At start of ots:update
+        // 2. After pip upgrade in ots:update
+        // 3. Inside ots:check command (called after upgrade)
         $this->executor
             ->shouldReceive('execute')
             ->with(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5)
-            ->twice() // Called once at start, once after upgrade
-            ->andReturn(['exitCode' => 0, 'stdout' => '0.4.5', 'stderr' => ''], ['exitCode' => 0, 'stdout' => '0.5.0', 'stderr' => '']);
+            ->times(3)
+            ->andReturn(
+                ['exitCode' => 0, 'stdout' => '0.4.5', 'stderr' => ''],
+                ['exitCode' => 0, 'stdout' => '0.5.0', 'stderr' => ''],
+                ['exitCode' => 0, 'stdout' => '0.5.0', 'stderr' => '']
+            );
 
         // Mock python --version for ots:check
         $this->executor
