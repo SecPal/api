@@ -99,9 +99,9 @@ jobs:
         env:
           PGPASSWORD: testing
         run: |
-          # Create databases for parallel test workers (up to 8 workers)
+          # Create databases for parallel test workers (Laravel's ParallelTesting uses test_1, test_2, etc.)
           for i in {1..8}; do
-            psql -h localhost -U testing -d testing -c "CREATE DATABASE testing_$i;" || true
+            psql -h localhost -U testing -d testing -c "CREATE DATABASE testing_test_$i;" || true
           done
 
       - name: Run Tests
