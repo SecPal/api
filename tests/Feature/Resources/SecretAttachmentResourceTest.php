@@ -101,7 +101,7 @@ test('resource transforms collection of attachments correctly', function () {
         'checksum_sha256' => hash('sha256', 'test-content-2'),
     ]);
 
-    $collection = SecretAttachmentResource::collection([$attachment1, $attachment2]);
+    $collection = SecretAttachmentResource::collection(collect([$attachment1, $attachment2]));
     $array = $collection->toArray(request());
 
     expect($array)->toHaveCount(2);
