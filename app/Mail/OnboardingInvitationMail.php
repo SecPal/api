@@ -6,6 +6,7 @@
 namespace App\Mail;
 
 use App\Models\Employee;
+use App\Models\EmployeeOnboardingToken;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -13,7 +14,6 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Password;
 
 /**
  * OnboardingInvitationMail sent to pre-contract employees.
@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Password;
  * Contains:
  * - Welcome message
  * - Contract start date
- * - Password reset link
+ * - Magic link for account setup
  * - Onboarding checklist
  * - Deadline reminder
  */
@@ -54,8 +54,9 @@ class OnboardingInvitationMail extends Mailable implements ShouldQueue
      */
     public function content(): Content
     {
-        // Generate password reset token
-        $token = Password::createToken($this->user);
+        // Generate onboarding token
+        $tokenData = EmployeeOnboardingToken::generate($this->employee);
+        $token = $tokenData['plain'];
         $frontendUrl = config('app.frontend_url');
         $email = $this->employee->email;
 
@@ -63,12 +64,12 @@ class OnboardingInvitationMail extends Mailable implements ShouldQueue
             throw new \RuntimeException('Frontend URL or employee email not configured');
         }
 
-        $resetUrl = $frontendUrl.'/password/reset?token='.urlencode($token).'&email='.urlencode($email);
+        $onboardingUrl = $frontendUrl.'/onboarding/complete?token='.urlencode($token);
 
         return new Content(
             markdown: 'emails.employees.onboarding-invitation',
             with: [
-                'resetUrl' => $resetUrl,
+                'onboardingUrl' => $onboardingUrl,
             ],
         );
     }

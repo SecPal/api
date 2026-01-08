@@ -67,6 +67,10 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/password/reset', [AuthController::class, 'passwordReset'])
         ->middleware('throttle:password-reset');
 
+    // Onboarding completion (public, token-authenticated)
+    Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])
+        ->middleware('throttle:onboarding');
+
     // Protected routes (require auth:sanctum)
     Route::middleware('auth:sanctum')->group(function () {
         // Token logout (for Bearer token auth - mobile/native apps)
