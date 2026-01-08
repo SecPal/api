@@ -39,10 +39,17 @@ class EmployeeFactory extends Factory
         $dateOfBirth = fake()->date('Y-m-d', '-25 years');
         $germanCities = ['Berlin', 'Hamburg', 'München', 'Köln', 'Frankfurt', 'Stuttgart', 'Düsseldorf', 'Dortmund', 'Essen', 'Leipzig'];
 
+        // Use faker unique() for test employee numbers
+        // Format: EMP-NNNN with unique sequence to avoid collisions in parallel tests
+        $employeeNumber = sprintf(
+            'EMP-%04d',
+            fake()->unique()->numberBetween(1, 9999)
+        );
+
         return [
             'tenant_id' => $tenant->id,
             'organizational_unit_id' => OrganizationalUnit::factory(),
-            'employee_number' => strtoupper(fake()->bothify('EMP-####')),
+            'employee_number' => $employeeNumber,
             'first_name' => $firstName,
             'last_name' => $lastName,
             'date_of_birth' => $dateOfBirth,
