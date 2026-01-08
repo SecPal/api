@@ -51,9 +51,11 @@ use Illuminate\Support\Str;
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property-read Employee $employee
+ * @template TFactory of \Database\Factories\EmployeeOnboardingTokenFactory
  */
 class EmployeeOnboardingToken extends Model
 {
+    /** @use HasFactory<TFactory> */
     use HasFactory;
     use HasUuids;
 
@@ -90,7 +92,7 @@ class EmployeeOnboardingToken extends Model
      * be sent immediately via email.
      *
      * @param  Employee  $employee  Employee to generate token for
-     * @return array{model: EmployeeOnboardingToken, plain: string}
+     * @return array{model: EmployeeOnboardingToken<TFactory>, plain: string}
      */
     public static function generate(Employee $employee): array
     {
@@ -116,7 +118,7 @@ class EmployeeOnboardingToken extends Model
      * comparison to prevent timing attacks.
      *
      * @param  string  $plainToken  Plain text token from magic link
-     * @return EmployeeOnboardingToken|null Token model or null if not found/invalid
+     * @return EmployeeOnboardingToken<TFactory>|null Token model or null if not found/invalid
      */
     public static function findByPlainToken(string $plainToken): ?self
     {
@@ -161,7 +163,7 @@ class EmployeeOnboardingToken extends Model
     /**
      * Employee relationship
      *
-     * @return BelongsTo<Employee, EmployeeOnboardingToken>
+     * @return BelongsTo<Employee, $this>
      */
     public function employee(): BelongsTo
     {

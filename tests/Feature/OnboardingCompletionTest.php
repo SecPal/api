@@ -69,7 +69,7 @@ test('completes onboarding with valid token', function () {
     ]);
 
     // Assert: Response is successful
-    $response->assertStatus(200)
+    $response->assertOk()
         ->assertJsonStructure([
             'message',
             'data' => [
@@ -146,7 +146,7 @@ test('rejects already used token', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
-    ])->assertStatus(200);
+    ])->assertOk();
 
     // Try to use same token again
     $response = postJson('/v1/onboarding/complete', [
@@ -243,7 +243,7 @@ test('creates sanctum token after successful completion', function () {
         'last_name' => 'Doe',
     ]);
 
-    $response->assertStatus(200);
+    $response->assertOk();
 
     // Extract token from response
     $data = $response->json('data');
@@ -252,5 +252,5 @@ test('creates sanctum token after successful completion', function () {
 
     // Use token to authenticate
     $authResponse = $this->withToken($sanctumToken)->getJson('/v1/me');
-    $authResponse->assertStatus(200);
+    $authResponse->assertOk();
 });
