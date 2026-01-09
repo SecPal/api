@@ -6,7 +6,6 @@
 namespace Database\Factories;
 
 use App\Models\Employee;
-use App\Models\EmployeeOnboardingToken;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 
@@ -25,7 +24,7 @@ class EmployeeOnboardingTokenFactory extends Factory
         // Default token expires in 7 days
         return [
             'employee_id' => Employee::factory(),
-            'token' => Hash::make('test-token-' . fake()->uuid()),
+            'token' => Hash::make('test-token-'.fake()->uuid()),
             'expires_at' => now()->addDays(7),
             'completed_at' => null,
             'completed_from_ip' => null,

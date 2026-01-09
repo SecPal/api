@@ -11,6 +11,7 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+
 use function Pest\Laravel\postJson;
 
 uses(RefreshDatabase::class);

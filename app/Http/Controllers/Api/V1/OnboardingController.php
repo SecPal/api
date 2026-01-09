@@ -101,6 +101,7 @@ class OnboardingController extends Controller
         $token = $user->createToken('onboarding-completion')->plainTextToken;
 
         $appName = config('app.name');
+
         return response()->json([
             'message' => __('Onboarding completed successfully. Welcome to :app_name!', ['app_name' => is_string($appName) ? $appName : 'SecPal']),
             'data' => [

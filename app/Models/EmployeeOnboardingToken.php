@@ -51,12 +51,14 @@ use Illuminate\Support\Str;
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property-read Employee $employee
+ *
  * @template TFactory of \Database\Factories\EmployeeOnboardingTokenFactory
  */
 class EmployeeOnboardingToken extends Model
 {
     /** @use HasFactory<TFactory> */
     use HasFactory;
+
     use HasUuids;
 
     /**
