@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Constant-time token comparison prevents timing attacks
     - Audit trail: IP address and user agent logged on completion
     - Rate limiting: 3 attempts per 10 minutes per IP
-  - **Tests**: 15 unit tests (all passing), 3 feature tests (E2E flow validated)
+  - **Tests**: 16 unit tests (all passing), 7 feature tests (E2E flow validated, 2 pending User accounts)
 
 - **BewachV § 16 Employee Data Fields for BWR Registration** (Issue #468, Epic #469)
   - **IMPLEMENTED** Complete BewachV compliance for Bewacherregister (BWR) employee data management

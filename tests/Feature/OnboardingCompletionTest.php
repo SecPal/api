@@ -21,22 +21,6 @@ beforeEach(function () {
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
-
-    // Helper to create pre-contract employee with user
-    $this->createPreContractEmployee = function (array $employeeAttrs = [], array $userAttrs = []): Employee {
-        /** @var User $user */
-        $user = User::factory()->create(array_merge([
-            'password' => Hash::make('temporary-password'),
-        ], $userAttrs));
-
-        /** @var Employee $employee */
-        $employee = Employee::factory()->preContract()->create(array_merge([
-            'email' => $user->email,
-            'user_id' => $user->id,
-        ], $employeeAttrs));
-
-        return $employee;
-    };
 });
 
 afterEach(function () {
@@ -142,29 +126,29 @@ test('rejects already used token', function () {
     // TODO: Blocked by Issue #419 - Employee factory doesn't create User accounts
     // This test requires a User account to be associated with the Employee
     // Will be enabled once frontend User registration is implemented
-    markTestSkipped('Requires User account functionality (Issue #419)');
+    $this->markTestSkipped('Requires User account functionality (Issue #419)');
 
-    employee = Employee::factory()->preContract()->create();
-    tokenData = EmployeeOnboardingToken::generate(employee);
-    plainToken = tokenData['plain'];
+    $employee = Employee::factory()->preContract()->create();
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
 
     // Complete onboarding once
     postJson('/v1/onboarding/complete', [
-        'token' => plainToken,
+        'token' => $plainToken,
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
     ])->assertOk();
 
     // Try to use same token again
-    response = postJson('/v1/onboarding/complete', [
-        'token' => plainToken,
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
         'password' => 'DifferentPassword456!',
         'first_name' => 'Jane',
         'last_name' => 'Smith',
     ]);
 
-    response->assertStatus(422)
+    $response->assertStatus(422)
         ->assertJson([
             'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
         ]);
@@ -246,28 +230,28 @@ test('creates sanctum token after successful completion', function () {
     // TODO: Blocked by Issue #419 - Employee factory doesn't create User accounts
     // This test requires a User account to be associated with the Employee
     // Will be enabled once frontend User registration is implemented
-    markTestSkipped('Requires User account functionality (Issue #419)');
+    $this->markTestSkipped('Requires User account functionality (Issue #419)');
 
-    employee = Employee::factory()->preContract()->create();
-    tokenData = EmployeeOnboardingToken::generate(employee);
-    plainToken = tokenData['plain'];
+    $employee = Employee::factory()->preContract()->create();
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
 
-    response = postJson('/v1/onboarding/complete', [
-        'token' => plainToken,
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
     ]);
 
-    response->assertOk();
+    $response->assertOk();
 
     // Extract token from response
-    data = response->json('data');
-    expect(data)->toHaveKey('token');
-    sanctumToken = data['token'];
+    $data = $response->json('data');
+    expect($data)->toHaveKey('token');
+    $sanctumToken = $data['token'];
 
     // Use token to authenticate
-    authResponse = this->withToken(sanctumToken)->getJson('/v1/me');
-    authResponse->assertOk();
+    $authResponse = $this->withToken($sanctumToken)->getJson('/v1/me');
+    $authResponse->assertOk();
 });
 */

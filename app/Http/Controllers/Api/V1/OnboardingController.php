@@ -16,6 +16,7 @@ use App\Models\OnboardingFormTemplate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 
@@ -48,13 +49,12 @@ class OnboardingController extends Controller
      */
     public function complete(Request $request): JsonResponse
     {
-        /** @var array{token: string, password: string, first_name: string, last_name: string, photo?: mixed} $validated */
+        /** @var array{token: string, password: string, first_name: string, last_name: string} $validated */
         $validated = $request->validate([
             'token' => ['required', 'string'],
             'password' => ['required', Password::defaults()],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'photo' => ['nullable', 'image', 'max:2048'], // 2MB max
         ]);
 
         // Find token
@@ -75,13 +75,30 @@ class OnboardingController extends Controller
             ], Response::HTTP_FORBIDDEN);
         }
 
-        // Update employee name if provided
-        $employee->first_name = $validated['first_name'];
-        $employee->last_name = $validated['last_name'];
-        $employee->onboarding_started_at ??= now();
-        $employee->save();
+        // Wrap all operations in a transaction to ensure atomicity
+        DB::transaction(function () use ($employee, $validated, $tokenModel, $request) {
+            // Update employee name if provided
+            $employee->first_name = $validated['first_name'];
+            $employee->last_name = $validated['last_name'];
+            $employee->onboarding_started_at ??= now();
+            $employee->save();
 
-        // Set password on user
+            // Set password on user
+            $user = $employee->user;
+            if (! $user) {
+                throw new \RuntimeException(__('User account not found for employee.'));
+            }
+
+            $user->password = Hash::make($validated['password']);
+            $user->save();
+
+            // Mark token as completed (only after all operations succeed)
+            $ip = $request->ip() ?? 'unknown';
+            $userAgent = $request->userAgent() ?? 'unknown';
+            $tokenModel->markAsCompleted($ip, $userAgent);
+        });
+
+        // Create session token after transaction completes successfully
         $user = $employee->user;
         if (! $user) {
             return response()->json([
@@ -89,15 +106,6 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $user->password = Hash::make($validated['password']);
-        $user->save();
-
-        // Mark token as completed
-        $ip = $request->ip() ?? 'unknown';
-        $userAgent = $request->userAgent() ?? 'unknown';
-        $tokenModel->markAsCompleted($ip, $userAgent);
-
-        // Create session token
         $token = $user->createToken('onboarding-completion')->plainTextToken;
 
         $appName = config('app.name');

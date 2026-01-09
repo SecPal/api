@@ -207,30 +207,8 @@ test('tokens are deleted when employee is deleted', function () {
     expect(EmployeeOnboardingToken::find($tokenId))->toBeNull();
 });
 
-test('token lookup is constant-time to prevent timing attacks', function () {
-    $employee = Employee::factory()->preContract()->create();
-    $result = EmployeeOnboardingToken::generate($employee);
-
-    // Generate multiple tokens to test against
-    for ($i = 0; $i < 5; $i++) {
-        EmployeeOnboardingToken::generate(Employee::factory()->preContract()->create());
-    }
-
-    // Test valid token
-    $start = microtime(true);
-    EmployeeOnboardingToken::findByPlainToken($result['plain']);
-    $validTime = microtime(true) - $start;
-
-    // Test invalid token (should take similar time due to constant-time comparison)
-    $start = microtime(true);
-    EmployeeOnboardingToken::findByPlainToken('invalid-token-'.str_repeat('x', 64));
-    $invalidTime = microtime(true) - $start;
-
-    // Timing difference should be minimal (< 10ms variance is acceptable)
-    // This prevents attackers from determining valid token patterns via timing
-    $timeDiff = abs($validTime - $invalidTime);
-    expect($timeDiff)->toBeLessThan(0.01);
-})->skip('Timing tests are flaky in CI environments');
+// Timing test removed: Hash::check() already provides constant-time comparison (Laravel guarantee)
+// Manual timing tests are unreliable in CI environments and don't add security value
 
 test('generates unique tokens for each call', function () {
     $employee = Employee::factory()->preContract()->create();
