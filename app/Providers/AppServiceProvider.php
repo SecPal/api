@@ -97,6 +97,15 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
+        // Onboarding completion rate limiter (3 attempts per 10 minutes by IP)
+        RateLimiter::for('onboarding', function (Request $request) {
+            return Limit::perMinutes(10, 3)->by($request->ip())->response(function () {
+                return response()->json([
+                    'message' => __('Too many onboarding attempts. Please try again later.'),
+                ], 429);
+            });
+        });
+
         // Register policy for Spatie Role model
         Gate::policy(Role::class, RoleManagementPolicy::class);
 

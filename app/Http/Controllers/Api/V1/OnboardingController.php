@@ -10,16 +10,21 @@ use App\Http\Requests\SubmitOnboardingFormRequest;
 use App\Http\Resources\OnboardingFormSubmissionResource;
 use App\Http\Resources\OnboardingFormTemplateResource;
 use App\Models\Employee;
+use App\Models\EmployeeOnboardingToken;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 /**
  * OnboardingController handles pre-contract employee onboarding workflows.
  *
  * Pre-contract employees can:
+ * - Complete magic link onboarding
  * - View onboarding steps
  * - View/submit onboarding forms
  * - Upload required documents
@@ -28,6 +33,102 @@ use Illuminate\Http\Response;
  */
 class OnboardingController extends Controller
 {
+    /**
+     * Complete onboarding with magic link token.
+     *
+     * POST /api/v1/onboarding/complete
+     *
+     * This is a public endpoint (no authentication required).
+     * The token provides authentication.
+     *
+     * Security:
+     * - Token is single-use (marked as completed)
+     * - Token expires after 7 days
+     * - Constant-time comparison prevents timing attacks
+     * - Audit trail: IP and user agent stored
+     */
+    public function complete(Request $request): JsonResponse
+    {
+        /** @var array{token: string, password: string, first_name: string, last_name: string} $validated */
+        $validated = $request->validate([
+            'token' => ['required', 'string'],
+            'password' => ['required', Password::defaults()],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+        ]);
+
+        // Find token
+        $tokenModel = EmployeeOnboardingToken::findByPlainToken($validated['token']);
+
+        if (! $tokenModel || ! $tokenModel->isValid()) {
+            return response()->json([
+                'message' => __('Invalid or expired onboarding link. Please request a new invitation.'),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        /** @var Employee $employee */
+        $employee = $tokenModel->employee;
+
+        if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
+            return response()->json([
+                'message' => __('Onboarding is only available for pre-contract employees.'),
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // Wrap all operations in a transaction to ensure atomicity
+        DB::transaction(function () use ($employee, $validated, $tokenModel, $request) {
+            // Update employee name if provided
+            $employee->first_name = $validated['first_name'];
+            $employee->last_name = $validated['last_name'];
+            $employee->onboarding_started_at ??= now();
+            $employee->save();
+
+            // Set password on user
+            $user = $employee->user;
+            if (! $user) {
+                throw new \RuntimeException(__('User account not found for employee.'));
+            }
+
+            $user->password = Hash::make($validated['password']);
+            $user->save();
+
+            // Mark token as completed (only after all operations succeed)
+            $ip = $request->ip() ?? 'unknown';
+            $userAgent = $request->userAgent() ?? 'unknown';
+            $tokenModel->markAsCompleted($ip, $userAgent);
+        });
+
+        // Create session token after transaction completes successfully
+        $user = $employee->user;
+        if (! $user) {
+            return response()->json([
+                'message' => __('User account not found for employee.'),
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $token = $user->createToken('onboarding-completion')->plainTextToken;
+
+        $appName = config('app.name');
+
+        return response()->json([
+            'message' => __('Onboarding completed successfully. Welcome to :app_name!', ['app_name' => is_string($appName) ? $appName : 'SecPal']),
+            'data' => [
+                'token' => $token,
+                'user' => [
+                    'id' => $user->id,
+                    'email' => $user->email,
+                    'name' => $user->name,
+                ],
+                'employee' => [
+                    'id' => $employee->id,
+                    'first_name' => $employee->first_name,
+                    'last_name' => $employee->last_name,
+                    'status' => $employee->status,
+                ],
+            ],
+        ]);
+    }
+
     /**
      * Get onboarding steps for authenticated pre-contract employee.
      *

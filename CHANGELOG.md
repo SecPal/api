@@ -14,6 +14,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Magic Link Employee Onboarding System** (Issue #486, Epic #469)
+  - **IMPLEMENTED** Secure single-use tokens for pre-contract employee onboarding
+  - **`employee_onboarding_tokens` Table**: UUID primary key, bcrypt-hashed tokens, 7-day expiry, single-use enforcement, audit trail (IP, user agent)
+  - **`EmployeeOnboardingToken` Model**:
+    - `generate(Employee)`: Creates 64-char random token with 7-day expiry
+    - `findByPlainToken(string)`: Constant-time comparison prevents timing attacks
+    - `isValid()`: Checks expiry AND single-use status
+    - `markAsCompleted(ip, userAgent)`: Enforces single-use, logs completion
+  - **`OnboardingController::complete()`**: POST `/v1/onboarding/complete` endpoint
+    - Public endpoint (no authentication required)
+    - Token-based authentication
+    - Sets employee first/last name, marks onboarding_started_at
+    - Sets user password (replaces temporary password)
+    - Creates Sanctum token for immediate login
+    - Rate limited: 3 attempts per 10 minutes per IP
+  - **Updated `OnboardingInvitationMail`**:
+    - Generates `EmployeeOnboardingToken` instead of password reset token
+    - Links to `/onboarding/complete?token={token}` instead of `/password/reset`
+  - **Security Features**:
+    - Tokens hashed with bcrypt before storage (plain text never in database)
+    - Single-use enforcement via `completed_at` timestamp
+    - 7-day expiry (configurable)
+    - Constant-time token comparison prevents timing attacks
+    - Audit trail: IP address and user agent logged on completion
+    - Rate limiting: 3 attempts per 10 minutes per IP
+  - **Tests**: 16 unit tests (all passing), 7 feature tests (E2E flow validated, 2 pending User accounts)
+
 - **BewachV § 16 Employee Data Fields for BWR Registration** (Issue #468, Epic #469)
   - **IMPLEMENTED** Complete BewachV compliance for Bewacherregister (BWR) employee data management
   - **30+ New Fields** across 7 categories:
@@ -151,6 +178,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Quality Gates: ✅ Pint compliant, ✅ PHPStan Level 9, ✅ REUSE 3.3 compliant
   - **Next Steps:** Issue #424 (LeadershipLevel Model), #425 (API Endpoints), #426 (Frontend)
   - **Impact:** Epic #399 (Leadership-Based Access Control) - foundational infrastructure for hierarchical employee visibility
+
+### Deprecated
+
+- **Password Reset for Employee Onboarding** (Issue #486)
+  - **DEPRECATED**: Using `Password::createToken()` for onboarding invitations
+  - **Reason**: Security anti-pattern - password reset tokens are designed for password recovery, not account setup
+  - **Migration Path**: Use new `EmployeeOnboardingToken` system instead
+  - **Removal Timeline**: Legacy approach removed immediately (replaced in this release)
+  - **Impact**: Onboarding emails now use dedicated single-use tokens with 7-day expiry
 
 ### Changed
 

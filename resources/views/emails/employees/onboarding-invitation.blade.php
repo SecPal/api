@@ -12,7 +12,7 @@
 
 {{ __('To prepare for your first day, please complete the onboarding process in our portal:') }}
 
-<x-mail::button :url="$resetUrl">
+<x-mail::button :url="$onboardingUrl">
 {{ __('Start Onboarding') }}
 </x-mail::button>
 
