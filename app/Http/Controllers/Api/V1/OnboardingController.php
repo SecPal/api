@@ -573,9 +573,13 @@ class OnboardingController extends Controller
             return 90.0;
         }
 
-        // Special case: New name contains original as prefix (Hans → Hans-Peter)
+        // Special case: New name contains original as prefix (Hans → Hans-Peter OR Max → Maximilian)
         // This indicates addition of name components, not a fundamental change
-        if (str_starts_with($new, $original.'-') || str_starts_with($new, $original.' ')) {
+        $isNewPrefixedByOriginal = str_starts_with($new, $original.'-') ||
+                                   str_starts_with($new, $original.' ') ||
+                                   (str_starts_with($new, $original) && mb_strlen($original) >= 3);
+
+        if ($isNewPrefixedByOriginal) {
             // Calculate based on ratio of added characters
             $addedChars = mb_strlen($new) - mb_strlen($original);
             $penalty = ($addedChars / mb_strlen($new)) * 40; // Max 40% penalty for additions
@@ -584,7 +588,11 @@ class OnboardingController extends Controller
         }
 
         // Same check reversed: Original contains new as prefix
-        if (str_starts_with($original, $new.'-') || str_starts_with($original, $new.' ')) {
+        $isOriginalPrefixedByNew = str_starts_with($original, $new.'-') ||
+                                   str_starts_with($original, $new.' ') ||
+                                   (str_starts_with($original, $new) && mb_strlen($new) >= 3);
+
+        if ($isOriginalPrefixedByNew) {
             // Employee removed part of name
             $removedChars = mb_strlen($original) - mb_strlen($new);
             $penalty = ($removedChars / mb_strlen($original)) * 40;
