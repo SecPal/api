@@ -34,6 +34,60 @@ use Illuminate\Validation\Rules\Password;
 class OnboardingController extends Controller
 {
     /**
+     * Validate onboarding token and return employee data for prefilling.
+     *
+     * GET /api/v1/onboarding/validate-token?token=xxx&email=xxx
+     *
+     * This is a public endpoint (no authentication required).
+     * Used by frontend to validate token and prefill form with existing employee data.
+     *
+     * Security: Both token AND email must match to prevent token hijacking.
+     *
+     * @return JsonResponse
+     */
+    public function validateToken(Request $request): JsonResponse
+    {
+        /** @var array{token: string, email: string} $validated */
+        $validated = $request->validate([
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email'],
+        ]);
+
+        // Find token
+        $tokenModel = EmployeeOnboardingToken::findByPlainToken($validated['token']);
+
+        if (! $tokenModel || ! $tokenModel->isValid()) {
+            return response()->json([
+                'message' => __('Invalid or expired onboarding link. Please request a new invitation.'),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        /** @var Employee $employee */
+        $employee = $tokenModel->employee;
+
+        // SECURITY: Validate that email matches employee email
+        if ($employee->email !== $validated['email']) {
+            return response()->json([
+                'message' => __('Invalid onboarding link. Email does not match.'),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
+            return response()->json([
+                'message' => __('Onboarding is only available for pre-contract employees.'),
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        return response()->json([
+            'data' => [
+                'first_name' => $employee->first_name,
+                'last_name' => $employee->last_name,
+                'email' => $employee->email,
+            ],
+        ]);
+    }
+
+    /**
      * Complete onboarding with magic link token.
      *
      * POST /api/v1/onboarding/complete
@@ -69,6 +123,13 @@ class OnboardingController extends Controller
         /** @var Employee $employee */
         $employee = $tokenModel->employee;
 
+        // SECURITY: Validate that email matches employee email
+        if ($employee->email !== $validated['email']) {
+            return response()->json([
+                'message' => __('Invalid onboarding link. Email does not match.'),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([
                 'message' => __('Onboarding is only available for pre-contract employees.'),
@@ -77,11 +138,31 @@ class OnboardingController extends Controller
 
         // Wrap all operations in a transaction to ensure atomicity
         DB::transaction(function () use ($employee, $validated, $tokenModel, $request) {
-            // Update employee name if provided
+            // Store old names for audit logging
+            $oldFirstName = $employee->first_name;
+            $oldLastName = $employee->last_name;
+
+            // Update employee name (allow corrections/updates)
             $employee->first_name = $validated['first_name'];
             $employee->last_name = $validated['last_name'];
             $employee->onboarding_started_at ??= now();
             $employee->save();
+
+            // Enhanced activity logging if names changed (Option D: Datenkonsistenz-Validierung)
+            if ($oldFirstName !== $validated['first_name'] || $oldLastName !== $validated['last_name']) {
+                activity('employee-onboarding')
+                    ->performedOn($employee)
+                    ->withProperties([
+                        'action' => 'name_changed_during_onboarding',
+                        'old_first_name' => $oldFirstName,
+                        'new_first_name' => $validated['first_name'],
+                        'old_last_name' => $oldLastName,
+                        'new_last_name' => $validated['last_name'],
+                        'ip' => $request->ip() ?? 'unknown',
+                        'user_agent' => $request->userAgent() ?? 'unknown',
+                    ])
+                    ->log('Employee name changed during onboarding completion');
+            }
 
             // Set password on user
             $user = $employee->user;
