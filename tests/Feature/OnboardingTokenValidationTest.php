@@ -245,5 +245,8 @@ test('rate limits validation attempts', function () {
     }
 
     // 4th request should be rate limited
-    $response->assertStatus(429);
+    $response->assertStatus(429)
+        ->assertJson([
+            'message' => 'Too many onboarding attempts. Please try again later.',
+        ]);
 });
