@@ -45,7 +45,7 @@ class OnboardingInvitationMail extends Mailable implements ShouldQueue
         $appName = config('app.name');
 
         return new Envelope(
-            subject: is_string($appName) ? __('emails.onboarding_invitation.subject', ['app_name' => $appName]) : __('emails.onboarding_invitation.subject_fallback'),
+            subject: is_string($appName) ? __('Welcome to :app_name – Complete Your Onboarding', ['app_name' => $appName]) : __('Welcome – Complete Your Onboarding'),
         );
     }
 

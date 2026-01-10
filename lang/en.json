@@ -40,6 +40,6 @@
   "Onboarding is only available for pre-contract employees": "Onboarding is only available for pre-contract employees",
   "Onboarding forms can only be submitted by pre-contract employees": "Onboarding forms can only be submitted by pre-contract employees",
   "Cannot activate: onboarding must be completed and contract start date must have passed": "Cannot activate: onboarding must be completed and contract start date must have passed",
-  "emails.onboarding_invitation.subject": "Welcome to :app_name – Complete Your Onboarding",
-  "emails.onboarding_invitation.subject_fallback": "Welcome – Complete Your Onboarding"
+  "Welcome to :app_name – Complete Your Onboarding": "Welcome to :app_name – Complete Your Onboarding",
+  "Welcome – Complete Your Onboarding": "Welcome – Complete Your Onboarding"
 }
