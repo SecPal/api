@@ -42,8 +42,6 @@ class OnboardingController extends Controller
      * Used by frontend to validate token and prefill form with existing employee data.
      *
      * Security: Both token AND email must match to prevent token hijacking.
-     *
-     * @return JsonResponse
      */
     public function validateToken(Request $request): JsonResponse
     {
