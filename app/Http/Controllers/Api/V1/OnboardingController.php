@@ -159,15 +159,12 @@ class OnboardingController extends Controller
             if ($oldFirstName !== $firstName) {
                 $firstNameValidation = $this->validateNameChange($oldFirstName, $firstName, 'first_name');
                 if (! $firstNameValidation['allowed']) {
-                    throw new \Illuminate\Validation\ValidationException(
-                        validator([], []),
-                        response()->json([
-                            'message' => __('Name change validation failed.'),
-                            'errors' => [
-                                'first_name' => [$firstNameValidation['message']],
-                            ],
-                        ], Response::HTTP_UNPROCESSABLE_ENTITY)
-                    );
+                    return response()->json([
+                        'message' => __('Name change validation failed.'),
+                        'errors' => [
+                            'first_name' => [$firstNameValidation['message']],
+                        ],
+                    ], Response::HTTP_UNPROCESSABLE_ENTITY);
                 }
                 if ($firstNameValidation['severity'] !== 'minor') {
                     $shouldNotifyHR = true;
@@ -177,15 +174,12 @@ class OnboardingController extends Controller
             if ($oldLastName !== $lastName) {
                 $lastNameValidation = $this->validateNameChange($oldLastName, $lastName, 'last_name');
                 if (! $lastNameValidation['allowed']) {
-                    throw new \Illuminate\Validation\ValidationException(
-                        validator([], []),
-                        response()->json([
-                            'message' => __('Name change validation failed.'),
-                            'errors' => [
-                                'last_name' => [$lastNameValidation['message']],
-                            ],
-                        ], Response::HTTP_UNPROCESSABLE_ENTITY)
-                    );
+                    return response()->json([
+                        'message' => __('Name change validation failed.'),
+                        'errors' => [
+                            'last_name' => [$lastNameValidation['message']],
+                        ],
+                    ], Response::HTTP_UNPROCESSABLE_ENTITY);
                 }
                 if ($lastNameValidation['severity'] !== 'minor') {
                     $shouldNotifyHR = true;
