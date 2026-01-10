@@ -36,8 +36,8 @@ test('completes onboarding with valid token', function () {
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
-        'first_name' => 'Temporary',
-        'last_name' => 'Name',
+        'first_name' => 'John', // Use realistic names to avoid validation issues
+        'last_name' => 'Doe',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -45,7 +45,7 @@ test('completes onboarding with valid token', function () {
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    // Act: Complete onboarding
+    // Act: Complete onboarding with same names (no change)
     $response = postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => $user->email,
@@ -467,3 +467,161 @@ test('creates sanctum token after successful completion', function () {
     $authResponse->assertOk();
 });
 */
+
+// ============================================================================
+// Name Change Validation Tests (Hybrid Approach: Similarity + HR Notification)
+// ============================================================================
+
+test('allows minor name correction (typo, >80% similar)', function () {
+    /** @var User $user */
+    $user = User::factory()->create(['email' => 'test@example.com']);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Hanns', // Typo
+        'last_name' => 'Mueller', // Alternate spelling
+        'email' => 'test@example.com',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Minor corrections should be allowed
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => 'test@example.com',
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Hans', // Corrected
+        'last_name' => 'Müller', // Corrected with umlaut
+    ]);
+
+    $response->assertOk();
+
+    // Verify name was updated
+    $employee->refresh();
+    expect($employee->first_name)->toBe('Hans');
+    expect($employee->last_name)->toBe('Müller');
+
+    // Verify activity log contains severity info
+    $activity = \Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
+        ->where('log_name', 'employee-onboarding')
+        ->where('description', 'Employee name changed during onboarding completion')
+        ->first();
+
+    expect($activity)->not->toBeNull();
+    expect($activity->properties['first_name_severity'])->toBeIn(['minor', 'none']);
+    expect($activity->properties['last_name_severity'])->toBeIn(['minor', 'none']);
+});
+
+test('allows medium name change with warning (50-80% similar)', function () {
+    \Illuminate\Support\Facades\Mail::fake();
+
+    /** @var User $user */
+    $user = User::factory()->create(['email' => 'test@example.com']);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Hans',
+        'last_name' => 'Müller',
+        'email' => 'test@example.com',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Medium change: Adding additional name
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => 'test@example.com',
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Hans-Peter', // Added hyphenated name
+        'last_name' => 'Müller-Schmidt', // Added double name
+    ]);
+
+    $response->assertOk();
+
+    // Verify name was updated
+    $employee->refresh();
+    expect($employee->first_name)->toBe('Hans-Peter');
+    expect($employee->last_name)->toBe('Müller-Schmidt');
+
+    // Verify HR notification was sent
+    \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
+        return $mail->employee->id === $employee->id
+            && $mail->oldFirstName === 'Hans'
+            && $mail->oldLastName === 'Müller'
+            && ($mail->firstNameValidation['severity'] === 'medium' || $mail->lastNameValidation['severity'] === 'medium');
+    });
+});
+
+test('blocks major name change (<50% similar)', function () {
+    /** @var User $user */
+    $user = User::factory()->create(['email' => 'test@example.com']);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Hans',
+        'last_name' => 'Müller',
+        'email' => 'test@example.com',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Major change: Completely different name
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => 'test@example.com',
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Maria', // Completely different
+        'last_name' => 'Schmidt', // Completely different
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJsonStructure([
+            'message',
+            'errors' => ['first_name'],
+        ]);
+
+    // Verify name was NOT updated
+    $employee->refresh();
+    expect($employee->first_name)->toBe('Hans');
+    expect($employee->last_name)->toBe('Müller');
+});
+
+test('allows unchanged name without HR notification', function () {
+    \Illuminate\Support\Facades\Mail::fake();
+
+    /** @var User $user */
+    $user = User::factory()->create(['email' => 'test@example.com']);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'email' => 'test@example.com',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Complete with same names
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => 'test@example.com',
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+    ]);
+
+    $response->assertOk();
+
+    // Verify NO HR notification was sent
+    \Illuminate\Support\Facades\Mail::assertNothingQueued();
+    \Illuminate\Support\Facades\Mail::assertNotSent(\App\Mail\OnboardingNameChangedMail::class);
+});
+
