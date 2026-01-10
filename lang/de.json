@@ -31,5 +31,15 @@
   "Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact an administrator to get direct access to this unit first.": "Diese Einheit kann nicht zu einer Stammeinheit gemacht werden. Ihr Zugriff auf diese Einheit wird von der übergeordneten Hierarchie geerbt. Wenn Sie diese Einheit zur Stammeinheit machen, wird Ihr Zugriff aufgehoben. Bitte wenden Sie sich zunächst an einen Administrator, um direkten Zugriff auf diese Einheit zu erhalten.",
   "Access denied. You must be an employee to access this resource.": "Zugang verweigert. Sie müssen ein Mitarbeiter sein, um auf diese Ressource zugreifen zu können.",
   "Access denied. Onboarding is only available for pre-contract employees.": "Zugang verweigert. Onboarding ist nur für Mitarbeiter vor Vertragsabschluss verfügbar.",
-  "Access denied. Please complete onboarding first before accessing operational features.": "Zugriff verweigert. Bitte schließen Sie zuerst das Onboarding ab, bevor Sie auf operative Funktionen zugreifen."
+  "Access denied. Please complete onboarding first before accessing operational features.": "Zugriff verweigert. Bitte schließen Sie zuerst das Onboarding ab, bevor Sie auf operative Funktionen zugreifen.",
+  "Too many onboarding attempts. Please try again later.": "Zu viele Onboarding-Versuche. Bitte versuchen Sie es später noch einmal.",
+  "Invalid or expired onboarding link. Please request a new invitation.": "Ungültiger oder abgelaufener Onboarding-Link. Bitte fordern Sie eine neue Einladung an.",
+  "Invalid onboarding link. Email does not match.": "Ungültiger Onboarding-Link. E-Mail stimmt nicht überein.",
+  "Onboarding is only available for pre-contract employees.": "Onboarding ist nur für Mitarbeiter vor Vertragsabschluss möglich.",
+  "Onboarding completed successfully. Welcome to :app_name!": "Onboarding erfolgreich abgeschlossen. Willkommen bei :app_name!",
+  "Onboarding is only available for pre-contract employees": "Onboarding ist nur für Mitarbeiter vor Vertragsabschluss verfügbar",
+  "Onboarding forms can only be submitted by pre-contract employees": "Onboarding-Formulare können nur von Vorvertragsangestellten eingereicht werden",
+  "Cannot activate: onboarding must be completed and contract start date must have passed": "Kann nicht aktiviert werden: Das Onboarding muss abgeschlossen sein und der Vertragsbeginn muss überschritten sein",
+  "Welcome to :app_name – Complete Your Onboarding": "Willkommen bei :app_name - Vervollständigen Sie Ihr Onboarding",
+  "Welcome – Complete Your Onboarding": "Willkommen - Vervollständigen Sie Ihr Onboarding"
 }

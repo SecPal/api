@@ -68,6 +68,8 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:password-reset');
 
     // Onboarding completion (public, token-authenticated)
+    Route::get('/onboarding/validate-token', [OnboardingController::class, 'validateToken'])
+        ->middleware('throttle:onboarding');
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])
         ->middleware('throttle:onboarding');
 
