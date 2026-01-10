@@ -137,54 +137,55 @@ class OnboardingController extends Controller
             ], Response::HTTP_FORBIDDEN);
         }
 
+        // Store old names for audit logging (before transaction)
+        $oldFirstName = $employee->first_name;
+        $oldLastName = $employee->last_name;
+
+        // Extract validated data (PHPStan type safety)
+        /** @var string $firstName */
+        $firstName = $validated['first_name'];
+        /** @var string $lastName */
+        $lastName = $validated['last_name'];
+        /** @var string $password */
+        $password = $validated['password'];
+
+        // Validate name changes (Hybrid approach: similarity check + HR notification)
+        $firstNameValidation = null;
+        $lastNameValidation = null;
+        $shouldNotifyHR = false;
+
+        if ($oldFirstName !== $firstName) {
+            $firstNameValidation = $this->validateNameChange($oldFirstName, $firstName, 'first_name');
+            if (! $firstNameValidation['allowed']) {
+                return response()->json([
+                    'message' => __('Name change validation failed.'),
+                    'errors' => [
+                        'first_name' => [$firstNameValidation['message']],
+                    ],
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            if ($firstNameValidation['severity'] !== 'minor') {
+                $shouldNotifyHR = true;
+            }
+        }
+
+        if ($oldLastName !== $lastName) {
+            $lastNameValidation = $this->validateNameChange($oldLastName, $lastName, 'last_name');
+            if (! $lastNameValidation['allowed']) {
+                return response()->json([
+                    'message' => __('Name change validation failed.'),
+                    'errors' => [
+                        'last_name' => [$lastNameValidation['message']],
+                    ],
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            if ($lastNameValidation['severity'] !== 'minor') {
+                $shouldNotifyHR = true;
+            }
+        }
+
         // Wrap all operations in a transaction to ensure atomicity
-        DB::transaction(function () use ($employee, $validated, $tokenModel, $request) {
-            // Store old names for audit logging
-            $oldFirstName = $employee->first_name;
-            $oldLastName = $employee->last_name;
-
-            // Extract validated data (PHPStan type safety)
-            /** @var string $firstName */
-            $firstName = $validated['first_name'];
-            /** @var string $lastName */
-            $lastName = $validated['last_name'];
-            /** @var string $password */
-            $password = $validated['password'];
-
-            // Validate name changes (Hybrid approach: similarity check + HR notification)
-            $firstNameValidation = null;
-            $lastNameValidation = null;
-            $shouldNotifyHR = false;
-
-            if ($oldFirstName !== $firstName) {
-                $firstNameValidation = $this->validateNameChange($oldFirstName, $firstName, 'first_name');
-                if (! $firstNameValidation['allowed']) {
-                    return response()->json([
-                        'message' => __('Name change validation failed.'),
-                        'errors' => [
-                            'first_name' => [$firstNameValidation['message']],
-                        ],
-                    ], Response::HTTP_UNPROCESSABLE_ENTITY);
-                }
-                if ($firstNameValidation['severity'] !== 'minor') {
-                    $shouldNotifyHR = true;
-                }
-            }
-
-            if ($oldLastName !== $lastName) {
-                $lastNameValidation = $this->validateNameChange($oldLastName, $lastName, 'last_name');
-                if (! $lastNameValidation['allowed']) {
-                    return response()->json([
-                        'message' => __('Name change validation failed.'),
-                        'errors' => [
-                            'last_name' => [$lastNameValidation['message']],
-                        ],
-                    ], Response::HTTP_UNPROCESSABLE_ENTITY);
-                }
-                if ($lastNameValidation['severity'] !== 'minor') {
-                    $shouldNotifyHR = true;
-                }
-            }
+        DB::transaction(function () use ($employee, $firstName, $lastName, $password, $oldFirstName, $oldLastName, $firstNameValidation, $lastNameValidation, $shouldNotifyHR, $tokenModel, $request) {
 
             // Update employee name (allow corrections/updates)
             $employee->first_name = $firstName;
@@ -195,6 +196,7 @@ class OnboardingController extends Controller
             // Enhanced activity logging if names changed
             if ($oldFirstName !== $firstName || $oldLastName !== $lastName) {
                 activity('employee-onboarding')
+                    ->causedBy($employee->user)
                     ->performedOn($employee)
                     ->withProperties([
                         'action' => 'name_changed_during_onboarding',
