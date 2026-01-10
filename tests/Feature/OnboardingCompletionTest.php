@@ -48,6 +48,7 @@ test('completes onboarding with valid token', function () {
     // Act: Complete onboarding
     $response = postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
+        'email' => $user->email,
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -86,6 +87,7 @@ test('completes onboarding with valid token', function () {
 test('rejects invalid token', function () {
     $response = postJson('/v1/onboarding/complete', [
         'token' => 'invalid-token-that-does-not-exist',
+        'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -99,7 +101,9 @@ test('rejects invalid token', function () {
 
 test('rejects expired token', function () {
     /** @var Employee $employee */
-    $employee = Employee::factory()->preContract()->create();
+    $employee = Employee::factory()->preContract()->create([
+        'email' => 'test@example.com',
+    ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
@@ -108,6 +112,7 @@ test('rejects expired token', function () {
 
     $response = postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
+        'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -157,9 +162,16 @@ test('rejects already used token', function () {
 
 test('rejects onboarding for non-pre-contract employee', function () {
     // Create employee with status other than PRE_CONTRACT
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'test@example.com',
+    ]);
+
     /** @var Employee $employee */
     $employee = Employee::factory()->create([
         'status' => Employee::STATUS_ACTIVE,
+        'email' => 'test@example.com',
+        'user_id' => $user->id,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);
@@ -167,6 +179,7 @@ test('rejects onboarding for non-pre-contract employee', function () {
 
     $response = postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
+        'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -182,17 +195,26 @@ test('validates required fields', function () {
     $response = postJson('/v1/onboarding/complete', []);
 
     $response->assertStatus(422)
-        ->assertJsonValidationErrors(['token', 'password', 'first_name', 'last_name']);
+        ->assertJsonValidationErrors(['token', 'email', 'password', 'first_name', 'last_name']);
 });
 
 test('validates password strength', function () {
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'test@example.com',
+    ]);
+
     /** @var Employee $employee */
-    $employee = Employee::factory()->preContract()->create();
+    $employee = Employee::factory()->preContract()->create([
+        'email' => 'test@example.com',
+        'user_id' => $user->id,
+    ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
     $response = postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
+        'email' => 'test@example.com',
         'password' => 'weak', // Too weak password
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -203,13 +225,11 @@ test('validates password strength', function () {
 });
 
 test('rate limits onboarding attempts', function () {
-    /** @var Employee $employee */
-    $employee = Employee::factory()->preContract()->create();
-
     // Make 4 requests (limit is 3 per 10 minutes)
     for ($i = 0; $i < 4; $i++) {
         $response = postJson('/v1/onboarding/complete', [
             'token' => 'invalid-token',
+            'email' => 'test@example.com',
             'password' => 'SecurePassword123!',
             'first_name' => 'John',
             'last_name' => 'Doe',
@@ -221,6 +241,198 @@ test('rate limits onboarding attempts', function () {
         ->assertJson([
             'message' => 'Too many onboarding attempts. Please try again later.',
         ]);
+});
+
+// ===== SECURITY TESTS: Email Validation =====
+
+test('SECURITY: rejects valid token with wrong email', function () {
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'correct@example.com',
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'email' => 'correct@example.com',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Attacker tries to use valid token with different email
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => 'attacker@example.com', // Wrong email!
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Hacker',
+        'last_name' => 'McHackface',
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJson([
+            'message' => 'Invalid onboarding link. Email does not match.',
+        ]);
+
+    // Verify employee was NOT modified
+    $employee->refresh();
+    expect($employee->first_name)->not->toBe('Hacker');
+});
+
+test('SECURITY: validates email case-sensitively', function () {
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'test@example.com',
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'email' => 'test@example.com',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Try with uppercase email
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => 'TEST@EXAMPLE.COM', // Wrong case
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJson([
+            'message' => 'Invalid onboarding link. Email does not match.',
+        ]);
+});
+
+test('SECURITY: prevents token hijacking scenario', function () {
+    // Scenario: Attacker intercepts token for victim@example.com
+    // Tries to use it to create account for attacker@example.com
+
+    /** @var User $victimUser */
+    $victimUser = User::factory()->create([
+        'email' => 'victim@example.com',
+    ]);
+
+    /** @var Employee $victimEmployee */
+    $victimEmployee = Employee::factory()->preContract()->create([
+        'first_name' => 'Victim',
+        'last_name' => 'User',
+        'email' => 'victim@example.com',
+        'user_id' => $victimUser->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($victimEmployee);
+    $interceptedToken = $tokenData['plain'];
+
+    // Attacker tries to complete onboarding with their own email
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $interceptedToken,
+        'email' => 'attacker@example.com',
+        'password' => 'AttackerPassword123!',
+        'first_name' => 'Attacker',
+        'last_name' => 'McEvil',
+    ]);
+
+    // Should be rejected
+    $response->assertStatus(422)
+        ->assertJson([
+            'message' => 'Invalid onboarding link. Email does not match.',
+        ]);
+
+    // Verify victim's data was NOT compromised
+    $victimEmployee->refresh();
+    expect($victimEmployee->first_name)->toBe('Victim');
+    expect($victimEmployee->last_name)->toBe('User');
+    expect($victimEmployee->email)->toBe('victim@example.com');
+
+    // Verify victim's password was NOT changed
+    $victimUser->refresh();
+    expect(Hash::check('AttackerPassword123!', $victimUser->password))->toBeFalse();
+});
+
+test('logs name changes with enhanced activity log', function () {
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'test@example.com',
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'OldFirst',
+        'last_name' => 'OldLast',
+        'email' => 'test@example.com',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Complete onboarding with different names
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => 'test@example.com',
+        'password' => 'SecurePassword123!',
+        'first_name' => 'NewFirst',
+        'last_name' => 'NewLast',
+    ]);
+
+    $response->assertOk();
+
+    // Verify activity log was created
+    $activity = \Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
+        ->where('log_name', 'employee-onboarding')
+        ->where('description', 'Employee name changed during onboarding completion')
+        ->first();
+
+    expect($activity)->not->toBeNull();
+    expect($activity->properties)->toHaveKey('old_first_name', 'OldFirst');
+    expect($activity->properties)->toHaveKey('new_first_name', 'NewFirst');
+    expect($activity->properties)->toHaveKey('old_last_name', 'OldLast');
+    expect($activity->properties)->toHaveKey('new_last_name', 'NewLast');
+    expect($activity->properties)->toHaveKey('ip');
+    expect($activity->properties)->toHaveKey('user_agent');
+});
+
+test('does not log activity if names unchanged', function () {
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'test@example.com',
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'email' => 'test@example.com',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Complete onboarding with same names
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => 'test@example.com',
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+    ]);
+
+    $response->assertOk();
+
+    // Verify NO activity log for name change was created
+    $activity = \Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
+        ->where('log_name', 'employee-onboarding')
+        ->where('description', 'Employee name changed during onboarding completion')
+        ->first();
+
+    expect($activity)->toBeNull();
 });
 
 // TODO: Uncomment when Issue #419 is resolved (User account creation)
