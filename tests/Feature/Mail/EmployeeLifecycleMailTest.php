@@ -68,6 +68,30 @@ test('onboarding invitation mail has correct content', function () {
     expect($content->markdown)->toBe('emails.employees.onboarding-invitation');
 });
 
+test('onboarding invitation URL includes token and email parameters', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'email' => 'test.onboarding@example.com',
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $user = User::factory()->create([
+        'name' => 'Test User',
+        'email' => 'test.onboarding@example.com',
+        'password' => bcrypt('password'),
+    ]);
+
+    $mail = new OnboardingInvitationMail($employee, $user);
+    $content = $mail->content();
+    $onboardingUrl = $content->with['onboardingUrl'];
+
+    // URL must contain both token and email parameters
+    expect($onboardingUrl)
+        ->toContain('?token=')
+        ->toContain('&email='.urlencode('test.onboarding@example.com'));
+});
+
 test('onboarding invitation mail generates password reset token', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,

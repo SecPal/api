@@ -64,7 +64,7 @@ class OnboardingInvitationMail extends Mailable implements ShouldQueue
             throw new \RuntimeException('Frontend URL or employee email not configured');
         }
 
-        $onboardingUrl = $frontendUrl.'/onboarding/complete?token='.urlencode($token);
+        $onboardingUrl = $frontendUrl.'/onboarding/complete?token='.urlencode($token).'&email='.urlencode($email);
 
         return new Content(
             markdown: 'emails.employees.onboarding-invitation',
