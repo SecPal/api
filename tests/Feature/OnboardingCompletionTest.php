@@ -624,4 +624,3 @@ test('allows unchanged name without HR notification', function () {
     \Illuminate\Support\Facades\Mail::assertNothingQueued();
     \Illuminate\Support\Facades\Mail::assertNotSent(\App\Mail\OnboardingNameChangedMail::class);
 });
-

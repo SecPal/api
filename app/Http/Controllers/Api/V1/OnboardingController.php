@@ -553,8 +553,8 @@ class OnboardingController extends Controller
      * - "Hans" vs "Hans-Peter" = ~70% (addition)
      * - "Hans" vs "Maria" = ~20% (different name)
      *
-     * @param string $original Original name from HR
-     * @param string $new New name from employee
+     * @param  string  $original  Original name from HR
+     * @param  string  $new  New name from employee
      * @return float Similarity percentage (0-100)
      */
     private function calculateNameSimilarity(string $original, string $new): float
@@ -579,18 +579,20 @@ class OnboardingController extends Controller
 
         // Special case: New name contains original as prefix (Hans → Hans-Peter)
         // This indicates addition of name components, not a fundamental change
-        if (str_starts_with($new, $original . '-') || str_starts_with($new, $original . ' ')) {
+        if (str_starts_with($new, $original.'-') || str_starts_with($new, $original.' ')) {
             // Calculate based on ratio of added characters
             $addedChars = mb_strlen($new) - mb_strlen($original);
             $penalty = ($addedChars / mb_strlen($new)) * 40; // Max 40% penalty for additions
+
             return max(50.0, 100.0 - $penalty);
         }
 
         // Same check reversed: Original contains new as prefix
-        if (str_starts_with($original, $new . '-') || str_starts_with($original, $new . ' ')) {
+        if (str_starts_with($original, $new.'-') || str_starts_with($original, $new.' ')) {
             // Employee removed part of name
             $removedChars = mb_strlen($original) - mb_strlen($new);
             $penalty = ($removedChars / mb_strlen($original)) * 40;
+
             return max(50.0, 100.0 - $penalty);
         }
 
@@ -614,9 +616,9 @@ class OnboardingController extends Controller
      * - 50-80% similarity: Medium change (additional name) - WARN but ALLOW
      * - <50% similarity: Major change (different name) - BLOCK
      *
-     * @param string $oldName Original name
-     * @param string $newName New name
-     * @param string $fieldName Field name for error messages ('first_name' or 'last_name')
+     * @param  string  $oldName  Original name
+     * @param  string  $newName  New name
+     * @param  string  $fieldName  Field name for error messages ('first_name' or 'last_name')
      * @return array{allowed: bool, severity: string, similarity: float, message: string|null}
      */
     private function validateNameChange(string $oldName, string $newName, string $fieldName): array

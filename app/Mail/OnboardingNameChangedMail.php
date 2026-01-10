@@ -28,11 +28,11 @@ class OnboardingNameChangedMail extends Mailable implements ShouldQueue
     /**
      * Create a new message instance.
      *
-     * @param Employee $employee Employee who changed name
-     * @param string $oldFirstName Original first name
-     * @param string $oldLastName Original last name
-     * @param array{allowed: bool, severity: string, similarity: float, message: string|null}|null $firstNameValidation First name validation result
-     * @param array{allowed: bool, severity: string, similarity: float, message: string|null}|null $lastNameValidation Last name validation result
+     * @param  Employee  $employee  Employee who changed name
+     * @param  string  $oldFirstName  Original first name
+     * @param  string  $oldLastName  Original last name
+     * @param  array{allowed: bool, severity: string, similarity: float, message: string|null}|null  $firstNameValidation  First name validation result
+     * @param  array{allowed: bool, severity: string, similarity: float, message: string|null}|null  $lastNameValidation  Last name validation result
      */
     public function __construct(
         public Employee $employee,
