@@ -31,5 +31,15 @@
   "Scope not found for this organizational unit": "Scope not found for this organizational unit",
   "Access denied. You must be an employee to access this resource.": "Access denied. You must be an employee to access this resource.",
   "Access denied. Onboarding is only available for pre-contract employees.": "Access denied. Onboarding is only available for pre-contract employees.",
-  "Access denied. Please complete onboarding first before accessing operational features.": "Access denied. Please complete onboarding first before accessing operational features."
+  "Access denied. Please complete onboarding first before accessing operational features.": "Access denied. Please complete onboarding first before accessing operational features.",
+  "Too many onboarding attempts. Please try again later.": "Too many onboarding attempts. Please try again later.",
+  "Invalid or expired onboarding link. Please request a new invitation.": "Invalid or expired onboarding link. Please request a new invitation.",
+  "Invalid onboarding link. Email does not match.": "Invalid onboarding link. Email does not match.",
+  "Onboarding is only available for pre-contract employees.": "Onboarding is only available for pre-contract employees.",
+  "Onboarding completed successfully. Welcome to :app_name!": "Onboarding completed successfully. Welcome to :app_name!",
+  "Onboarding is only available for pre-contract employees": "Onboarding is only available for pre-contract employees",
+  "Onboarding forms can only be submitted by pre-contract employees": "Onboarding forms can only be submitted by pre-contract employees",
+  "Cannot activate: onboarding must be completed and contract start date must have passed": "Cannot activate: onboarding must be completed and contract start date must have passed",
+  "emails.onboarding_invitation.subject": "Welcome to :app_name – Complete Your Onboarding",
+  "emails.onboarding_invitation.subject_fallback": "Welcome – Complete Your Onboarding"
 }
