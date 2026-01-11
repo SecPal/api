@@ -54,7 +54,7 @@
 ✅ **{{ __('Minor change detected. Review activity log if needed.') }}**
 @endif
 
-<x-mail::button :url="config('app.url') . '/admin/employees/' . $employee->id">
+<x-mail::button :url="url('/admin/employees/' . $employee->id)">
 {{ __('View Employee Details') }}
 </x-mail::button>
 

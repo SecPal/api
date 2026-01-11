@@ -154,18 +154,15 @@ class OnboardingController extends Controller
         $firstNameValidation = null;
         $lastNameValidation = null;
         $shouldNotifyHR = false;
+        $validationErrors = [];
 
+        // Validate both names first, collect all errors before returning
+        // This provides comprehensive feedback instead of one-at-a-time discovery
         if ($oldFirstName !== $firstName) {
             $firstNameValidation = $this->validateNameChange($oldFirstName, $firstName, 'first_name');
             if (! $firstNameValidation['allowed']) {
-                return response()->json([
-                    'message' => __('Name change validation failed.'),
-                    'errors' => [
-                        'first_name' => [$firstNameValidation['message']],
-                    ],
-                ], Response::HTTP_UNPROCESSABLE_ENTITY);
-            }
-            if ($firstNameValidation['severity'] !== 'minor') {
+                $validationErrors['first_name'] = [$firstNameValidation['message']];
+            } elseif ($firstNameValidation['severity'] !== 'minor') {
                 $shouldNotifyHR = true;
             }
         }
@@ -173,16 +170,18 @@ class OnboardingController extends Controller
         if ($oldLastName !== $lastName) {
             $lastNameValidation = $this->validateNameChange($oldLastName, $lastName, 'last_name');
             if (! $lastNameValidation['allowed']) {
-                return response()->json([
-                    'message' => __('Name change validation failed.'),
-                    'errors' => [
-                        'last_name' => [$lastNameValidation['message']],
-                    ],
-                ], Response::HTTP_UNPROCESSABLE_ENTITY);
-            }
-            if ($lastNameValidation['severity'] !== 'minor') {
+                $validationErrors['last_name'] = [$lastNameValidation['message']];
+            } elseif ($lastNameValidation['severity'] !== 'minor') {
                 $shouldNotifyHR = true;
             }
+        }
+
+        // Return all validation errors at once for better UX
+        if (! empty($validationErrors)) {
+            return response()->json([
+                'message' => __('Name change validation failed.'),
+                'errors' => $validationErrors,
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         // Wrap all operations in a transaction to ensure atomicity
@@ -219,7 +218,7 @@ class OnboardingController extends Controller
                 // Send HR notification if name change is significant
                 if ($shouldNotifyHR) {
                     Mail::to(config('mail.hr_email', config('mail.from.address')))
-                        ->send(new OnboardingNameChangedMail(
+                        ->queue(new OnboardingNameChangedMail(
                             $employee,
                             $oldFirstName,
                             $oldLastName,
@@ -626,10 +625,71 @@ class OnboardingController extends Controller
             return 100.0;
         }
 
-        $distance = levenshtein($original, $new);
+        $distance = $this->mbLevenshtein($original, $new);
         $similarity = (1 - ($distance / $maxLen)) * 100;
 
         return max(0.0, min(100.0, $similarity));
+    }
+
+    /**
+     * Multibyte-safe Levenshtein distance implementation for UTF-8 strings.
+     *
+     * PHP's built-in levenshtein() has two critical limitations:
+     * 1. 255 character limit per string (returns -1 if exceeded)
+     * 2. Not multibyte-safe (treats bytes not characters for UTF-8)
+     *
+     * This custom implementation:
+     * - Supports unlimited string length
+     * - Properly handles UTF-8 multibyte characters (German umlauts, etc.)
+     * - Uses dynamic programming algorithm (O(m*n) time, O(n) space)
+     *
+     * @param  string  $str1  First string (UTF-8)
+     * @param  string  $str2  Second string (UTF-8)
+     * @return int Minimum number of single-character edits (insertions, deletions, substitutions)
+     */
+    private function mbLevenshtein(string $str1, string $str2): int
+    {
+        // Split into UTF-8 character arrays
+        $chars1 = preg_split('//u', $str1, -1, PREG_SPLIT_NO_EMPTY);
+        $chars2 = preg_split('//u', $str2, -1, PREG_SPLIT_NO_EMPTY);
+
+        // Ensure we got arrays back (preg_split can return false on error)
+        if (! is_array($chars1) || ! is_array($chars2)) {
+            return max(mb_strlen($str1), mb_strlen($str2)); // fallback to max length
+        }
+
+        $len1 = count($chars1);
+        $len2 = count($chars2);
+
+        // Base cases
+        if ($len1 === 0) {
+            return $len2;
+        }
+        if ($len2 === 0) {
+            return $len1;
+        }
+
+        // Initialize first row (0, 1, 2, ..., len2)
+        $previousRow = range(0, $len2);
+
+        // Calculate Levenshtein distance using dynamic programming
+        for ($i = 1; $i <= $len1; $i++) {
+            $currentRow = [$i]; // First column is always $i
+
+            for ($j = 1; $j <= $len2; $j++) {
+                $cost = $chars1[$i - 1] === $chars2[$j - 1] ? 0 : 1;
+
+                $currentRow[$j] = min(
+                    $currentRow[$j - 1] + 1,      // insertion
+                    $previousRow[$j] + 1,         // deletion
+                    $previousRow[$j - 1] + $cost  // substitution
+                );
+            }
+
+            $previousRow = $currentRow;
+        }
+
+        return $previousRow[$len2];
     }
 
     /**
@@ -648,6 +708,7 @@ class OnboardingController extends Controller
     private function validateNameChange(string $oldName, string $newName, string $fieldName): array
     {
         $similarity = $this->calculateNameSimilarity($oldName, $newName);
+        $fieldLabel = $fieldName === 'first_name' ? __('First name') : __('Last name');
 
         if ($similarity >= 80) {
             return [
@@ -663,7 +724,7 @@ class OnboardingController extends Controller
                 'allowed' => true,
                 'severity' => 'medium',
                 'similarity' => $similarity,
-                'message' => __('Significant name change detected. HR will be notified for verification.'),
+                'message' => __(':field change detected. HR will be notified for verification.', ['field' => $fieldLabel]),
             ];
         }
 
@@ -672,7 +733,7 @@ class OnboardingController extends Controller
             'allowed' => false,
             'severity' => 'major',
             'similarity' => $similarity,
-            'message' => __('Name change too significant. Please contact HR if your name was entered incorrectly.'),
+            'message' => __(':field change too significant. Please contact HR if your name was entered incorrectly.', ['field' => $fieldLabel]),
         ];
     }
 }
