@@ -195,6 +195,8 @@ class OnboardingController extends Controller
 
             // Enhanced activity logging if names changed
             if ($oldFirstName !== $firstName || $oldLastName !== $lastName) {
+                // Reload user to ensure fresh data for activity log
+                $employee->load('user');
                 activity('employee-onboarding')
                     ->causedBy($employee->user)
                     ->performedOn($employee)
@@ -226,13 +228,15 @@ class OnboardingController extends Controller
                 }
             }
 
-            // Set password on user
+            // Set password on user and sync name
             $user = $employee->user;
             if (! $user) {
                 throw new \RuntimeException(__('User account not found for employee.'));
             }
 
             $user->password = Hash::make($password);
+            // Sync user name with employee name so it displays correctly after login
+            $user->name = $firstName.' '.$lastName;
             $user->save();
 
             // Mark token as completed (only after all operations succeed)
@@ -249,7 +253,20 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        // Refresh user to get updated name
+        $user->refresh();
+
         $token = $user->createToken('onboarding-completion')->plainTextToken;
+
+        // Log the automatic login after onboarding completion
+        activity('authentication')
+            ->causedBy($user)
+            ->withProperties([
+                'method' => 'onboarding_completion',
+                'ip' => $request->ip() ?? 'unknown',
+                'user_agent' => $request->userAgent() ?? 'unknown',
+            ])
+            ->log('User logged in after onboarding completion');
 
         $appName = config('app.name');
 
