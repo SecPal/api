@@ -59,11 +59,11 @@ test('completes onboarding with valid token', function () {
         ->assertJsonStructure([
             'message',
             'data' => [
-                'token',
                 'user' => ['id', 'email', 'name'],
                 'employee' => ['id', 'first_name', 'last_name', 'status'],
             ],
-        ]);
+        ])
+        ->assertJsonMissing(['token']); // Session-based auth, no token in response
 
     // Assert: Employee name updated
     $employee->refresh();
@@ -623,4 +623,144 @@ test('allows unchanged name without HR notification', function () {
     // Verify NO HR notification was sent
     \Illuminate\Support\Facades\Mail::assertNothingQueued();
     \Illuminate\Support\Facades\Mail::assertNotSent(\App\Mail\OnboardingNameChangedMail::class);
+});
+
+// Bug fix tests: User name sync and auto-login
+
+test('synchronizes user name with employee name after onboarding', function () {
+    /** @var User $user */
+    $user = User::factory()->create([
+        'name' => 'Max Mustermann', // Old name
+        'email' => 'max@example.com',
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Max',
+        'last_name' => 'Mustermann',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Complete onboarding with name change Max → Maximilian
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Maximilian', // Name changed
+        'last_name' => 'Mustermann',
+    ]);
+
+    $response->assertOk();
+
+    // Assert: Employee name was updated
+    $employee->refresh();
+    expect($employee->first_name)->toBe('Maximilian')
+        ->and($employee->last_name)->toBe('Mustermann');
+
+    // Assert: User name was synchronized with employee name (BUG FIX)
+    $user->refresh();
+    expect($user->name)->toBe('Maximilian Mustermann')
+        ->and($user->email)->toBe('max@example.com');
+
+    // Assert: Response includes updated user name
+    $response->assertJson([
+        'data' => [
+            'user' => [
+                'name' => 'Maximilian Mustermann',
+            ],
+        ],
+    ]);
+});
+
+test('creates activity log for automatic login after onboarding', function () {
+    /** @var User $user */
+    $user = User::factory()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Complete onboarding
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+    ]);
+
+    $response->assertOk();
+
+    // Assert: Activity log was created for automatic login (BUG FIX)
+    expect(\Spatie\Activitylog\Models\Activity::where('log_name', 'authentication')
+        ->where('causer_id', $user->id)
+        ->where('description', 'User logged in after onboarding completion')
+        ->exists())->toBeTrue();
+
+    // Verify properties contain method='onboarding_completion'
+    $activityLog = \Spatie\Activitylog\Models\Activity::where('log_name', 'authentication')
+        ->where('causer_id', $user->id)
+        ->where('description', 'User logged in after onboarding completion')
+        ->first();
+
+    expect($activityLog)->not->toBeNull();
+    $properties = $activityLog->properties;
+    expect($properties->get('method'))->toBe('onboarding_completion');
+    expect($properties->get('ip'))->not->toBeNull();
+    expect($properties->get('user_agent'))->not->toBeNull();
+});
+
+test('automatically logs user in with session after onboarding (no token)', function () {
+    /** @var User $user */
+    $user = User::factory()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Complete onboarding
+    $response = postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+    ]);
+
+    $response->assertOk();
+
+    // Assert: Response does NOT include token (uses session cookie instead) (BUG FIX)
+    $response->assertJsonMissing(['token'])
+        ->assertJsonStructure([
+            'message',
+            'data' => [
+                'user' => ['id', 'email', 'name'],
+                'employee' => ['id', 'first_name', 'last_name', 'status'],
+            ],
+        ]);
+
+    // Assert: User is authenticated via session (web guard)
+    expect(auth()->guard('web')->check())->toBeTrue()
+        ->and(auth()->guard('web')->id())->toBe($user->id);
+
+    // Assert: Session was regenerated (security measure)
+    expect(session()->getId())->not->toBeNull();
 });
