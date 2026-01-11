@@ -341,8 +341,7 @@ class Activity extends SpatieActivity
      * All logs have identical security measures (Hash Chain + Merkle Tree + OTS).
      * This method returns the legal retention period based on applicable law.
      *
-     * @param string $logName The log type name
-     *
+     * @param  string  $logName  The log type name
      * @return int Retention period in years (defaults to 3 if log type unknown)
      *
      * @see BewachV §21 Abs. 4 - 3 years for Bewachungsgewerbe
@@ -376,8 +375,7 @@ class Activity extends SpatieActivity
      *
      * @deprecated Use getRetentionYearsForLogType() or getAllRetentionYears() instead
      *
-     * @param string|null $logName The log type name. If null, returns all retention periods.
-     *
+     * @param  string|null  $logName  The log type name. If null, returns all retention periods.
      * @return int|array<string, int> Retention period in years, or array of all periods
      *
      * @see BewachV §21 Abs. 4 - 3 years for Bewachungsgewerbe
