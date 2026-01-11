@@ -46,7 +46,7 @@ test('completes onboarding with valid token', function () {
     $plainToken = $tokenData['plain'];
 
     // Act: Complete onboarding with same names (no change)
-    $response = test()->withSession([])->test()->withSession([])->postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => $user->email,
         'password' => 'SecurePassword123!',
