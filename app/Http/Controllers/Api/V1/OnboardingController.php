@@ -17,6 +17,7 @@ use App\Models\OnboardingFormTemplate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -256,7 +257,10 @@ class OnboardingController extends Controller
         // Refresh user to get updated name
         $user->refresh();
 
-        $token = $user->createToken('onboarding-completion')->plainTextToken;
+        // Automatically log the user in (create session with cookie, like regular login)
+        // This uses session-based auth (Sanctum SPA mode) instead of token-based auth
+        Auth::guard('web')->login($user, remember: true);
+        $request->session()->regenerate();
 
         // Log the automatic login after onboarding completion
         activity('authentication')
@@ -273,7 +277,6 @@ class OnboardingController extends Controller
         return response()->json([
             'message' => __('Onboarding completed successfully. Welcome to :app_name!', ['app_name' => is_string($appName) ? $appName : 'SecPal']),
             'data' => [
-                'token' => $token,
                 'user' => [
                     'id' => $user->id,
                     'email' => $user->email,
