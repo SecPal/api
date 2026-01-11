@@ -93,7 +93,7 @@ class ActivityResource extends JsonResource
             'ots_confirmed_at' => $this->ots_confirmed_at?->toIso8601String(),
             'has_ots_proof' => $this->ots_proof !== null,
 
-            // Soft delete handling
+            // Orphaned genesis handling
             'is_orphaned_genesis' => $this->is_orphaned_genesis,
             'orphaned_reason' => $this->orphaned_reason,
             'orphaned_at' => $this->orphaned_at?->toIso8601String(),
@@ -101,7 +101,6 @@ class ActivityResource extends JsonResource
             // Timestamps
             'created_at' => $this->created_at->toIso8601String(),
             'updated_at' => $this->updated_at->toIso8601String(),
-            'deleted_at' => $this->deleted_at?->toIso8601String(),
 
             // Relationships
             'organizational_unit' => new OrganizationalUnitResource($this->whenLoaded('organizationalUnit')),

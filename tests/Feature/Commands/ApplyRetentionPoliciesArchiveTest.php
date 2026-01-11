@@ -173,8 +173,8 @@ test('it tracks statistics for archived and hard deleted logs', function () {
         ->expectsOutputToContain('Retention Statistics')
         ->assertSuccessful();
 
-    // Verify: All 3 logs archived, none remain
-    expect(Activity::withTrashed()->count())->toBe(0);
+    // Verify: All 3 logs archived and hard deleted, none remain
+    expect(Activity::count())->toBe(0);
     expect(ActivityArchive::count())->toBe(3);
 });
 
@@ -310,8 +310,8 @@ test('it processes logs atomically in transaction', function () {
     $this->artisan('activity:apply-retention')
         ->assertSuccessful();
 
-    // Verify: Both logs archived and deleted atomically
-    expect(Activity::withTrashed()->count())->toBe(0);
+    // Verify: Both logs archived and hard deleted atomically
+    expect(Activity::count())->toBe(0);
     expect(ActivityArchive::count())->toBe(2);
 
     // Verify: Archives exist for both original log IDs

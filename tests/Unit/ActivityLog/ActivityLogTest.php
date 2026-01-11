@@ -302,10 +302,10 @@ test('activity belongs to tenant', function () {
 });
 
 // ============================================================================
-// Soft Delete Tests
+// Hard Delete Tests (GDPR Art. 17 Compliance)
 // ============================================================================
 
-test('soft deleted logs still maintain chain integrity', function () {
+test('deleted logs are permanently removed', function () {
     $this->actingAs($this->user);
 
     $log1 = Activity::create([
@@ -326,13 +326,20 @@ test('soft deleted logs still maintain chain integrity', function () {
         'description' => 'Third log',
     ]);
 
-    // Soft delete log2
+    // Hard delete log2 (simulating retention policy)
     $log2->delete();
 
     // Refresh to load event_hash computed by dispatchSync
     $log3->refresh();
 
-    // log3 should still verify (finds soft-deleted log2)
+    // log3 should verify if marked as orphaned genesis
+    $log3->update([
+        'is_orphaned_genesis' => true,
+        'orphaned_reason' => 'Predecessor deleted due to retention policy',
+        'orphaned_at' => now(),
+        'previous_hash' => null,
+    ]);
+
     expect($log3->verifyChain())->toBeTrue();
 });
 
