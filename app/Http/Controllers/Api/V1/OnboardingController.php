@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\SubmitOnboardingFormRequest;
 use App\Http\Resources\OnboardingFormSubmissionResource;
 use App\Http\Resources\OnboardingFormTemplateResource;
+use App\Mail\OnboardingNameChangedMail;
 use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
 use App\Models\OnboardingFormSubmission;
@@ -16,8 +17,10 @@ use App\Models\OnboardingFormTemplate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
 
 /**
@@ -135,19 +138,54 @@ class OnboardingController extends Controller
             ], Response::HTTP_FORBIDDEN);
         }
 
-        // Wrap all operations in a transaction to ensure atomicity
-        DB::transaction(function () use ($employee, $validated, $tokenModel, $request) {
-            // Store old names for audit logging
-            $oldFirstName = $employee->first_name;
-            $oldLastName = $employee->last_name;
+        // Store old names for audit logging (before transaction)
+        $oldFirstName = $employee->first_name;
+        $oldLastName = $employee->last_name;
 
-            // Extract validated data (PHPStan type safety)
-            /** @var string $firstName */
-            $firstName = $validated['first_name'];
-            /** @var string $lastName */
-            $lastName = $validated['last_name'];
-            /** @var string $password */
-            $password = $validated['password'];
+        // Extract validated data (PHPStan type safety)
+        /** @var string $firstName */
+        $firstName = $validated['first_name'];
+        /** @var string $lastName */
+        $lastName = $validated['last_name'];
+        /** @var string $password */
+        $password = $validated['password'];
+
+        // Validate name changes (Hybrid approach: similarity check + HR notification)
+        $firstNameValidation = null;
+        $lastNameValidation = null;
+        $shouldNotifyHR = false;
+        $validationErrors = [];
+
+        // Validate both names first, collect all errors before returning
+        // This provides comprehensive feedback instead of one-at-a-time discovery
+        if ($oldFirstName !== $firstName) {
+            $firstNameValidation = $this->validateNameChange($oldFirstName, $firstName, 'first_name');
+            if (! $firstNameValidation['allowed']) {
+                $validationErrors['first_name'] = [$firstNameValidation['message']];
+            } elseif ($firstNameValidation['severity'] !== 'minor') {
+                $shouldNotifyHR = true;
+            }
+        }
+
+        if ($oldLastName !== $lastName) {
+            $lastNameValidation = $this->validateNameChange($oldLastName, $lastName, 'last_name');
+            if (! $lastNameValidation['allowed']) {
+                $validationErrors['last_name'] = [$lastNameValidation['message']];
+            } elseif ($lastNameValidation['severity'] !== 'minor') {
+                $shouldNotifyHR = true;
+            }
+        }
+
+        // Return all validation errors at once for better UX
+        if (! empty($validationErrors)) {
+            return response()->json([
+                'message' => __('Name change validation failed.'),
+                'errors' => $validationErrors,
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // Wrap all operations in a transaction to ensure atomicity
+        DB::transaction(function () use ($employee, $firstName, $lastName, $password, $oldFirstName, $oldLastName, $firstNameValidation, $lastNameValidation, $shouldNotifyHR, $tokenModel, $request) {
 
             // Update employee name (allow corrections/updates)
             $employee->first_name = $firstName;
@@ -155,9 +193,12 @@ class OnboardingController extends Controller
             $employee->onboarding_started_at ??= now();
             $employee->save();
 
-            // Enhanced activity logging if names changed (Option D: Datenkonsistenz-Validierung)
+            // Enhanced activity logging if names changed
             if ($oldFirstName !== $firstName || $oldLastName !== $lastName) {
+                // Reload user to ensure fresh data for activity log
+                $employee->load('user');
                 activity('employee-onboarding')
+                    ->causedBy($employee->user)
                     ->performedOn($employee)
                     ->withProperties([
                         'action' => 'name_changed_during_onboarding',
@@ -165,19 +206,37 @@ class OnboardingController extends Controller
                         'new_first_name' => $firstName,
                         'old_last_name' => $oldLastName,
                         'new_last_name' => $lastName,
+                        'first_name_similarity' => $firstNameValidation ? $firstNameValidation['similarity'] : 100,
+                        'last_name_similarity' => $lastNameValidation ? $lastNameValidation['similarity'] : 100,
+                        'first_name_severity' => $firstNameValidation ? $firstNameValidation['severity'] : 'none',
+                        'last_name_severity' => $lastNameValidation ? $lastNameValidation['severity'] : 'none',
                         'ip' => $request->ip() ?? 'unknown',
                         'user_agent' => $request->userAgent() ?? 'unknown',
                     ])
                     ->log('Employee name changed during onboarding completion');
+
+                // Send HR notification if name change is significant
+                if ($shouldNotifyHR) {
+                    Mail::to(config('mail.hr_email', config('mail.from.address')))
+                        ->queue(new OnboardingNameChangedMail(
+                            $employee,
+                            $oldFirstName,
+                            $oldLastName,
+                            $firstNameValidation,
+                            $lastNameValidation
+                        ));
+                }
             }
 
-            // Set password on user
+            // Set password on user and sync name
             $user = $employee->user;
             if (! $user) {
                 throw new \RuntimeException(__('User account not found for employee.'));
             }
 
             $user->password = Hash::make($password);
+            // Sync user name with employee name so it displays correctly after login
+            $user->name = $firstName.' '.$lastName;
             $user->save();
 
             // Mark token as completed (only after all operations succeed)
@@ -194,14 +253,29 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $token = $user->createToken('onboarding-completion')->plainTextToken;
+        // Refresh user to get updated name
+        $user->refresh();
+
+        // Automatically log the user in (create session with cookie, like regular login)
+        // This uses session-based auth (Sanctum SPA mode) instead of token-based auth
+        Auth::guard('web')->login($user, remember: true);
+        $request->session()->regenerate();
+
+        // Log the automatic login after onboarding completion
+        activity('authentication')
+            ->causedBy($user)
+            ->withProperties([
+                'method' => 'onboarding_completion',
+                'ip' => $request->ip() ?? 'unknown',
+                'user_agent' => $request->userAgent() ?? 'unknown',
+            ])
+            ->log('User logged in after onboarding completion');
 
         $appName = config('app.name');
 
         return response()->json([
             'message' => __('Onboarding completed successfully. Welcome to :app_name!', ['app_name' => is_string($appName) ? $appName : 'SecPal']),
             'data' => [
-                'token' => $token,
                 'user' => [
                     'id' => $user->id,
                     'email' => $user->email,
@@ -477,5 +551,189 @@ class OnboardingController extends Controller
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($fresh),
         ]);
+    }
+
+    /**
+     * Calculate name similarity percentage (0-100).
+     *
+     * Uses Levenshtein distance to detect typo corrections vs. fundamental changes.
+     * Special handling for common patterns:
+     * - Hyphenated names (Hans → Hans-Peter)
+     * - Double names (Müller → Müller-Schmidt)
+     * - Umlaut variations (Mueller → Müller)
+     *
+     * Examples:
+     * - "Hans" vs "Hanns" = ~90% (typo)
+     * - "Müller" vs "Mueller" = ~85% (umlaut)
+     * - "Hans" vs "Hans-Peter" = ~70% (addition)
+     * - "Hans" vs "Maria" = ~20% (different name)
+     *
+     * @param  string  $original  Original name from HR
+     * @param  string  $new  New name from employee
+     * @return float Similarity percentage (0-100)
+     */
+    private function calculateNameSimilarity(string $original, string $new): float
+    {
+        // Normalize: lowercase, trim
+        $original = mb_strtolower(trim($original));
+        $new = mb_strtolower(trim($new));
+
+        // Same name = 100%
+        if ($original === $new) {
+            return 100.0;
+        }
+
+        // Special case: Umlaut normalization (Müller ↔ Mueller, Schön ↔ Schoen)
+        $originalNormalized = str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $original);
+        $newNormalized = str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $new);
+
+        if ($originalNormalized === $newNormalized || $originalNormalized === $new || $original === $newNormalized) {
+            // Umlaut variation detected - treat as minor correction
+            return 90.0;
+        }
+
+        // Special case: New name contains original as prefix (Hans → Hans-Peter OR Max → Maximilian)
+        // This indicates addition of name components, not a fundamental change
+        $isNewPrefixedByOriginal = str_starts_with($new, $original.'-') ||
+                                   str_starts_with($new, $original.' ') ||
+                                   (str_starts_with($new, $original) && mb_strlen($original) >= 3);
+
+        if ($isNewPrefixedByOriginal) {
+            // Calculate based on ratio of added characters
+            $addedChars = mb_strlen($new) - mb_strlen($original);
+            $penalty = ($addedChars / mb_strlen($new)) * 40; // Max 40% penalty for additions
+
+            return max(50.0, 100.0 - $penalty);
+        }
+
+        // Same check reversed: Original contains new as prefix
+        $isOriginalPrefixedByNew = str_starts_with($original, $new.'-') ||
+                                   str_starts_with($original, $new.' ') ||
+                                   (str_starts_with($original, $new) && mb_strlen($new) >= 3);
+
+        if ($isOriginalPrefixedByNew) {
+            // Employee removed part of name
+            $removedChars = mb_strlen($original) - mb_strlen($new);
+            $penalty = ($removedChars / mb_strlen($original)) * 40;
+
+            return max(50.0, 100.0 - $penalty);
+        }
+
+        // Use Levenshtein distance for other cases
+        $maxLen = max(mb_strlen($original), mb_strlen($new));
+        if ($maxLen === 0) {
+            return 100.0;
+        }
+
+        $distance = $this->mbLevenshtein($original, $new);
+        $similarity = (1 - ($distance / $maxLen)) * 100;
+
+        return max(0.0, min(100.0, $similarity));
+    }
+
+    /**
+     * Multibyte-safe Levenshtein distance implementation for UTF-8 strings.
+     *
+     * PHP's built-in levenshtein() has two critical limitations:
+     * 1. 255 character limit per string (returns -1 if exceeded)
+     * 2. Not multibyte-safe (treats bytes not characters for UTF-8)
+     *
+     * This custom implementation:
+     * - Supports unlimited string length
+     * - Properly handles UTF-8 multibyte characters (German umlauts, etc.)
+     * - Uses dynamic programming algorithm (O(m*n) time, O(n) space)
+     *
+     * @param  string  $str1  First string (UTF-8)
+     * @param  string  $str2  Second string (UTF-8)
+     * @return int Minimum number of single-character edits (insertions, deletions, substitutions)
+     */
+    private function mbLevenshtein(string $str1, string $str2): int
+    {
+        // Split into UTF-8 character arrays
+        $chars1 = preg_split('//u', $str1, -1, PREG_SPLIT_NO_EMPTY);
+        $chars2 = preg_split('//u', $str2, -1, PREG_SPLIT_NO_EMPTY);
+
+        // Ensure we got arrays back (preg_split can return false on error)
+        if (! is_array($chars1) || ! is_array($chars2)) {
+            return max(mb_strlen($str1), mb_strlen($str2)); // fallback to max length
+        }
+
+        $len1 = count($chars1);
+        $len2 = count($chars2);
+
+        // Base cases
+        if ($len1 === 0) {
+            return $len2;
+        }
+        if ($len2 === 0) {
+            return $len1;
+        }
+
+        // Initialize first row (0, 1, 2, ..., len2)
+        $previousRow = range(0, $len2);
+
+        // Calculate Levenshtein distance using dynamic programming
+        for ($i = 1; $i <= $len1; $i++) {
+            $currentRow = [$i]; // First column is always $i
+
+            for ($j = 1; $j <= $len2; $j++) {
+                $cost = $chars1[$i - 1] === $chars2[$j - 1] ? 0 : 1;
+
+                $currentRow[$j] = min(
+                    $currentRow[$j - 1] + 1,      // insertion
+                    $previousRow[$j] + 1,         // deletion
+                    $previousRow[$j - 1] + $cost  // substitution
+                );
+            }
+
+            $previousRow = $currentRow;
+        }
+
+        return $previousRow[$len2];
+    }
+
+    /**
+     * Validate name change and return validation result.
+     *
+     * Three tiers:
+     * - >80% similarity: Minor correction (typo) - ALLOWED
+     * - 50-80% similarity: Medium change (additional name) - WARN but ALLOW
+     * - <50% similarity: Major change (different name) - BLOCK
+     *
+     * @param  string  $oldName  Original name
+     * @param  string  $newName  New name
+     * @param  string  $fieldName  Field name for error messages ('first_name' or 'last_name')
+     * @return array{allowed: bool, severity: string, similarity: float, message: string|null}
+     */
+    private function validateNameChange(string $oldName, string $newName, string $fieldName): array
+    {
+        $similarity = $this->calculateNameSimilarity($oldName, $newName);
+        $fieldLabel = $fieldName === 'first_name' ? __('First name') : __('Last name');
+
+        if ($similarity >= 80) {
+            return [
+                'allowed' => true,
+                'severity' => 'minor',
+                'similarity' => $similarity,
+                'message' => null,
+            ];
+        }
+
+        if ($similarity >= 50) {
+            return [
+                'allowed' => true,
+                'severity' => 'medium',
+                'similarity' => $similarity,
+                'message' => __(':field change detected. HR will be notified for verification.', ['field' => $fieldLabel]),
+            ];
+        }
+
+        // <50% similarity: Block
+        return [
+            'allowed' => false,
+            'severity' => 'major',
+            'similarity' => $similarity,
+            'message' => __(':field change too significant. Please contact HR if your name was entered incorrectly.', ['field' => $fieldLabel]),
+        ];
     }
 }

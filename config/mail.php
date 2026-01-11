@@ -118,4 +118,17 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | HR Email Address
+    |--------------------------------------------------------------------------
+    |
+    | HR notification emails (e.g., for significant name changes during
+    | onboarding) are sent to this address. Falls back to MAIL_FROM_ADDRESS
+    | if not specified.
+    |
+    */
+
+    'hr_email' => env('MAIL_HR_EMAIL', env('MAIL_FROM_ADDRESS', 'hr@example.com')),
+
 ];
