@@ -46,7 +46,7 @@ test('completes onboarding with valid token', function () {
     $plainToken = $tokenData['plain'];
 
     // Act: Complete onboarding with same names (no change)
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => $user->email,
         'password' => 'SecurePassword123!',
@@ -85,7 +85,7 @@ test('completes onboarding with valid token', function () {
 });
 
 test('rejects invalid token', function () {
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => 'invalid-token-that-does-not-exist',
         'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
@@ -110,7 +110,7 @@ test('rejects expired token', function () {
     // Expire token
     $tokenData['model']->update(['expires_at' => now()->subDay()]);
 
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
@@ -138,7 +138,7 @@ test('rejects already used token', function () {
     $plainToken = $tokenData['plain'];
 
     // Complete onboarding once
-    postJson('/v1/onboarding/complete', [
+    test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
@@ -146,7 +146,7 @@ test('rejects already used token', function () {
     ])->assertOk();
 
     // Try to use same token again
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'password' => 'DifferentPassword456!',
         'first_name' => 'Jane',
@@ -177,7 +177,7 @@ test('rejects onboarding for non-pre-contract employee', function () {
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
@@ -192,7 +192,7 @@ test('rejects onboarding for non-pre-contract employee', function () {
 });
 
 test('validates required fields', function () {
-    $response = postJson('/v1/onboarding/complete', []);
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', []);
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['token', 'email', 'password', 'first_name', 'last_name']);
@@ -212,7 +212,7 @@ test('validates password strength', function () {
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@example.com',
         'password' => 'weak', // Too weak password
@@ -227,7 +227,7 @@ test('validates password strength', function () {
 test('rate limits onboarding attempts', function () {
     // Make 4 requests (limit is 3 per 10 minutes)
     for ($i = 0; $i < 4; $i++) {
-        $response = postJson('/v1/onboarding/complete', [
+        $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
             'token' => 'invalid-token',
             'email' => 'test@example.com',
             'password' => 'SecurePassword123!',
@@ -261,7 +261,7 @@ test('SECURITY: rejects valid token with wrong email', function () {
     $plainToken = $tokenData['plain'];
 
     // Attacker tries to use valid token with different email
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'attacker@example.com', // Wrong email!
         'password' => 'SecurePassword123!',
@@ -295,7 +295,7 @@ test('SECURITY: validates email case-sensitively', function () {
     $plainToken = $tokenData['plain'];
 
     // Try with uppercase email
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'TEST@EXAMPLE.COM', // Wrong case
         'password' => 'SecurePassword123!',
@@ -330,7 +330,7 @@ test('SECURITY: prevents token hijacking scenario', function () {
     $interceptedToken = $tokenData['plain'];
 
     // Attacker tries to complete onboarding with their own email
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $interceptedToken,
         'email' => 'attacker@example.com',
         'password' => 'AttackerPassword123!',
@@ -373,7 +373,7 @@ test('logs name changes with enhanced activity log', function () {
     $plainToken = $tokenData['plain'];
 
     // Complete onboarding with different names
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
@@ -416,7 +416,7 @@ test('does not log activity if names unchanged', function () {
     $plainToken = $tokenData['plain'];
 
     // Complete onboarding with same names
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
@@ -448,7 +448,7 @@ test('creates sanctum token after successful completion', function () {
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
@@ -488,7 +488,7 @@ test('allows minor name correction (typo, >80% similar)', function () {
     $plainToken = $tokenData['plain'];
 
     // Minor corrections should be allowed
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
@@ -532,7 +532,7 @@ test('allows medium name change with warning (50-80% similar)', function () {
     $plainToken = $tokenData['plain'];
 
     // Medium change: Adding additional name
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
@@ -572,7 +572,7 @@ test('blocks major name change (<50% similar)', function () {
     $plainToken = $tokenData['plain'];
 
     // Major change: Completely different name
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
@@ -610,7 +610,7 @@ test('allows unchanged name without HR notification', function () {
     $plainToken = $tokenData['plain'];
 
     // Complete with same names
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@example.com',
         'password' => 'SecurePassword123!',
@@ -646,7 +646,7 @@ test('synchronizes user name with employee name after onboarding', function () {
     $plainToken = $tokenData['plain'];
 
     // Complete onboarding with name change Max → Maximilian
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => $user->email,
         'password' => 'SecurePassword123!',
@@ -692,7 +692,7 @@ test('creates activity log for automatic login after onboarding', function () {
     $plainToken = $tokenData['plain'];
 
     // Complete onboarding
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => $user->email,
         'password' => 'SecurePassword123!',
@@ -737,7 +737,7 @@ test('automatically logs user in with session after onboarding (no token)', func
     $plainToken = $tokenData['plain'];
 
     // Complete onboarding
-    $response = postJson('/v1/onboarding/complete', [
+    $response = test()->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => $user->email,
         'password' => 'SecurePassword123!',
