@@ -11,7 +11,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Models\Activity as SpatieActivity;
@@ -57,7 +56,6 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  * @property bool $is_orphaned_genesis
  * @property string|null $orphaned_reason
  * @property \Carbon\Carbon|null $orphaned_at
- * @property \Carbon\Carbon|null $deleted_at
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  *
@@ -69,8 +67,6 @@ class Activity extends SpatieActivity
 {
     /** @use HasFactory<\Database\Factories\ActivityFactory> */
     use HasFactory;
-
-    use SoftDeletes;
 
     /**
      * The table associated with the model.
@@ -123,7 +119,6 @@ class Activity extends SpatieActivity
         'ots_confirmed_at' => 'datetime',
         'is_orphaned_genesis' => 'boolean',
         'orphaned_at' => 'datetime',
-        'deleted_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'causer_id' => 'string',
@@ -449,10 +444,9 @@ class Activity extends SpatieActivity
         // Use transaction to ensure lockForUpdate() works correctly
         // Without transaction, pessimistic lock has no effect
         DB::transaction(function (): void {
-            // Find previous log in tenant's chain (including soft-deleted)
+            // Find previous log in tenant's chain
             // lockForUpdate() prevents concurrent transactions from seeing same "previous log"
-            $query = static::withTrashed()
-                ->where('tenant_id', $this->tenant_id)
+            $query = static::where('tenant_id', $this->tenant_id)
                 ->lockForUpdate(); // Row-level lock (SELECT ... FOR UPDATE)
 
             // Exclude current record if it already exists
@@ -535,10 +529,9 @@ class Activity extends SpatieActivity
         }
 
         // For chained logs, verify predecessor exists AND own data is correct
-        // Find previous log (check active, soft-deleted, and archived logs)
+        // Find previous log (check active and archived logs)
         /** @var Activity|null $previousLog */
-        $previousLog = static::withTrashed()
-            ->where('tenant_id', $this->tenant_id)
+        $previousLog = static::where('tenant_id', $this->tenant_id)
             ->where('event_hash', $this->previous_hash)
             ->first();
 
@@ -582,8 +575,7 @@ class Activity extends SpatieActivity
         // Genesis log check: If previous_hash is NULL, verify it's a LEGITIMATE genesis
         if ($this->previous_hash === null) {
             // Check if there's an earlier activity with same log_name and tenant_id
-            $earlierActivity = static::withTrashed()
-                ->where('tenant_id', $this->tenant_id)
+            $earlierActivity = static::where('tenant_id', $this->tenant_id)
                 ->where('log_name', $this->log_name)
                 ->where('id', '<', $this->id)
                 ->orderBy('id', 'desc')
@@ -609,10 +601,9 @@ class Activity extends SpatieActivity
             return true;
         }
 
-        // Find previous log by event_hash (check active, soft-deleted, and archived logs)
+        // Find previous log by event_hash (check active and archived logs)
         /** @var Activity|null $previousLog */
-        $previousLog = static::withTrashed()
-            ->where('tenant_id', $this->tenant_id)
+        $previousLog = static::where('tenant_id', $this->tenant_id)
             ->where('event_hash', $this->previous_hash)
             ->first();
 

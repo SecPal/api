@@ -113,34 +113,9 @@ test('it creates orphaned genesis for successor when archiving predecessor', fun
     expect($logB->orphaned_at)->not->toBeNull();
 });
 
-test('it processes both active and soft deleted logs', function () {
-    // Create log expired but still active (never soft-deleted)
-    $activeExpired = Activity::factory()
-        ->for($this->tenant, 'tenant')
-        ->create([
-            'log_name' => 'default',
-            'created_at' => Carbon::now()->subYears(4)->startOfYear(),
-        ]);
-
-    // Create log expired and already soft-deleted (legacy data)
-    $softDeletedExpired = Activity::factory()
-        ->for($this->tenant, 'tenant')
-        ->create([
-            'log_name' => 'default',
-            'created_at' => Carbon::now()->subYears(4)->startOfYear()->addDay(),
-        ]);
-    $softDeletedExpired->delete(); // Soft delete
-
-    // Act: Run with both active and soft-deleted logs
-    $this->artisan('activity:apply-retention')
-        ->assertSuccessful();
-
-    // Assert: Both are archived and hard deleted
-    $this->assertDatabaseMissing('activity_log', ['id' => $activeExpired->id]);
-    $this->assertDatabaseMissing('activity_log', ['id' => $softDeletedExpired->id]);
-    $this->assertDatabaseHas('activity_log_archive', ['id' => $activeExpired->id]);
-    $this->assertDatabaseHas('activity_log_archive', ['id' => $softDeletedExpired->id]);
-});
+// Test removed: SoftDeletes no longer exists (Issue #447)
+// Previous test: 'it processes both active and soft deleted logs'
+// Reason: Activity model uses hard delete only (GDPR Art. 17 compliance)
 
 test('it tracks statistics for archived and hard deleted logs', function () {
     // Create 3 expired logs (different retention periods)
@@ -173,8 +148,8 @@ test('it tracks statistics for archived and hard deleted logs', function () {
         ->expectsOutputToContain('Retention Statistics')
         ->assertSuccessful();
 
-    // Verify: All 3 logs archived, none remain
-    expect(Activity::withTrashed()->count())->toBe(0);
+    // Verify: All 3 logs archived and hard deleted, none remain
+    expect(Activity::count())->toBe(0);
     expect(ActivityArchive::count())->toBe(3);
 });
 
@@ -310,8 +285,8 @@ test('it processes logs atomically in transaction', function () {
     $this->artisan('activity:apply-retention')
         ->assertSuccessful();
 
-    // Verify: Both logs archived and deleted atomically
-    expect(Activity::withTrashed()->count())->toBe(0);
+    // Verify: Both logs archived and hard deleted atomically
+    expect(Activity::count())->toBe(0);
     expect(ActivityArchive::count())->toBe(2);
 
     // Verify: Archives exist for both original log IDs

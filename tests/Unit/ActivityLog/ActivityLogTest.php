@@ -302,16 +302,16 @@ test('activity belongs to tenant', function () {
 });
 
 // ============================================================================
-// Soft Delete Tests
+// Hard Delete Tests (GDPR Art. 17 Compliance)
 // ============================================================================
 
-test('soft deleted logs still maintain chain integrity', function () {
+test('deleted logs are permanently removed', function () {
     $this->actingAs($this->user);
 
     $log1 = Activity::create([
         'tenant_id' => $this->tenant->id,
         'log_name' => 'default',
-        'description' => 'First log',
+        'description' => 'First log (oldest)',
     ]);
 
     $log2 = Activity::create([
@@ -323,17 +323,109 @@ test('soft deleted logs still maintain chain integrity', function () {
     $log3 = Activity::create([
         'tenant_id' => $this->tenant->id,
         'log_name' => 'default',
-        'description' => 'Third log',
+        'description' => 'Third log (newest)',
     ]);
 
-    // Soft delete log2
-    $log2->delete();
+    // Hard delete log1 (oldest - simulating retention policy)
+    // Retention policy deletes OLDEST logs first
+    $log1->delete();
+
+    // Verify log1 is permanently removed (GDPR Art. 17)
+    expect(Activity::find($log1->id))->toBeNull();
 
     // Refresh to load event_hash computed by dispatchSync
-    $log3->refresh();
+    $log2->refresh();
 
-    // log3 should still verify (finds soft-deleted log2)
+    // log2 becomes orphaned genesis (its predecessor log1 was deleted)
+    // This simulates what ApplyRetentionPolicies does automatically
+    $log2->update([
+        'is_orphaned_genesis' => true,
+        'orphaned_reason' => 'Predecessor deleted due to retention policy',
+        'orphaned_at' => now(),
+        'previous_hash' => null,
+    ]);
+
+    // log2 should still verify as orphaned genesis
+    expect($log2->verifyChain())->toBeTrue();
+
+    // log3 should still verify (points to log2 which exists)
+    $log3->refresh();
     expect($log3->verifyChain())->toBeTrue();
+});
+
+test('multiple old logs deleted - chain remains valid for remaining logs', function () {
+    $this->actingAs($this->user);
+
+    // Create 5 logs in sequence
+    $logs = collect(range(1, 5))->map(fn ($i) => Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'default',
+        'description' => "Log {$i}",
+    ]));
+
+    // Delete the 3 oldest logs (simulating retention policy)
+    $logs->take(3)->each(fn ($log) => $log->delete());
+
+    // Verify oldest 3 are gone
+    expect(Activity::find($logs[0]->id))->toBeNull();
+    expect(Activity::find($logs[1]->id))->toBeNull();
+    expect(Activity::find($logs[2]->id))->toBeNull();
+
+    // Log 4 (now oldest) becomes orphaned genesis
+    $log4 = $logs[3];
+    $log4->refresh();
+    $log4->update([
+        'is_orphaned_genesis' => true,
+        'orphaned_reason' => 'Predecessors deleted due to retention policy',
+        'orphaned_at' => now(),
+        'previous_hash' => null,
+    ]);
+
+    // Log 4 and 5 should still verify
+    expect($log4->verifyChain())->toBeTrue();
+
+    $log5 = $logs[4];
+    $log5->refresh();
+    expect($log5->verifyChain())->toBeTrue();
+    expect($log5->previous_hash)->toBe($log4->event_hash);
+});
+
+test('deleting genesis log - successor becomes new genesis', function () {
+    $this->actingAs($this->user);
+
+    // Create first log (genesis)
+    $genesis = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'default',
+        'description' => 'Genesis log',
+    ]);
+
+    $genesis->refresh();
+    expect($genesis->previous_hash)->toBeNull(); // True genesis
+
+    // Create successor
+    $log2 = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'default',
+        'description' => 'Second log',
+    ]);
+
+    $log2->refresh();
+    expect($log2->previous_hash)->toBe($genesis->event_hash);
+
+    // Delete genesis
+    $genesis->delete();
+    expect(Activity::find($genesis->id))->toBeNull();
+
+    // log2 becomes orphaned genesis
+    $log2->update([
+        'is_orphaned_genesis' => true,
+        'orphaned_reason' => 'Genesis predecessor deleted',
+        'orphaned_at' => now(),
+        'previous_hash' => null,
+    ]);
+
+    expect($log2->verifyChain())->toBeTrue();
 });
 
 // ============================================================================

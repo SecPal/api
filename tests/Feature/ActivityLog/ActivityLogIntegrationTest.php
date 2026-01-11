@@ -182,7 +182,7 @@ test('soft deleted logs maintain chain for subsequent logs', function () {
     expect($log2->previous_hash)->toBe($log1->event_hash);
 });
 
-test('activity log query excludes soft deleted by default', function () {
+test('deleted activities are permanently removed (GDPR Art. 17)', function () {
     $log1 = Activity::create([
         'log_name' => 'default',
         'description' => 'Log 1',
@@ -201,9 +201,7 @@ test('activity log query excludes soft deleted by default', function () {
         'user_agent' => 'TestBrowser',
     ]);
 
-    $activeLogs = Activity::all();
-    $allLogs = Activity::withTrashed()->get();
-
-    expect($activeLogs)->toHaveCount(1)
-        ->and($allLogs)->toHaveCount(2);
+    // Hard Delete: Deleted activities are gone permanently
+    expect(Activity::all())->toHaveCount(1)
+        ->and(Activity::find($log1->id))->toBeNull();
 });

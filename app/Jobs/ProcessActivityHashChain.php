@@ -134,11 +134,10 @@ class ProcessActivityHashChain implements ShouldQueue
             // Lock is automatically released when transaction commits/rolls back
             DB::statement('SELECT pg_advisory_xact_lock(?)', [$this->tenantId]);
 
-            // Find previous log in tenant's chain (including soft-deleted)
+            // Find previous log in tenant's chain
             // Exclude current activity from lookup
             // lockForUpdate() ensures no other transaction can modify the row
-            $previousActivity = Activity::withTrashed()
-                ->where('tenant_id', $this->tenantId)
+            $previousActivity = Activity::where('tenant_id', $this->tenantId)
                 ->where('id', '!=', $activityId)
                 ->lockForUpdate() // Row-level lock (SELECT ... FOR UPDATE)
                 ->latest('created_at')

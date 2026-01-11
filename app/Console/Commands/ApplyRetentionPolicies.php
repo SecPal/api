@@ -189,11 +189,8 @@ class ApplyRetentionPolicies extends Command
         $cutoffDate = now()->subYears($retentionYears)->endOfYear()->addDay()->startOfDay();
 
         // Use whereIn for batch processing (Performance: 1 query vs N queries)
-        // withTrashed() processes soft-deleted logs from legacy deployments (one-time cleanup)
-        // Going forward, all logs are directly archived without soft-deletion
         // Batch process: fetch all logs, orphan successors, archive + hard delete
-        $logsToArchive = Activity::withTrashed()
-            ->where('tenant_id', $tenantId)
+        $logsToArchive = Activity::where('tenant_id', $tenantId)
             ->whereIn('log_name', $logNames)
             ->where('created_at', '<', $cutoffDate)
             ->get();
