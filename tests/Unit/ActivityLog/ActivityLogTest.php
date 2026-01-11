@@ -173,19 +173,19 @@ test('user agent auto-captured from request', function () {
 // ============================================================================
 
 test('retention period determination works correctly', function () {
-    expect(Activity::getRetentionYears('default'))->toBe(3)
-        ->and(Activity::getRetentionYears('shift_management'))->toBe(3)
-        ->and(Activity::getRetentionYears('employee_changes'))->toBe(3) // DSGVO-relevant
-        ->and(Activity::getRetentionYears('authentication'))->toBe(3)
-        ->and(Activity::getRetentionYears('security'))->toBe(3)
-        ->and(Activity::getRetentionYears('rbac_changes'))->toBe(3)
-        ->and(Activity::getRetentionYears('hr_access'))->toBe(3)
-        ->and(Activity::getRetentionYears('contract_change'))->toBe(8) // HGB §257
-        ->and(Activity::getRetentionYears('guard_book_event'))->toBe(3); // BewachV §21
+    expect(Activity::getRetentionYearsForLogType('default'))->toBe(3)
+        ->and(Activity::getRetentionYearsForLogType('shift_management'))->toBe(3)
+        ->and(Activity::getRetentionYearsForLogType('employee_changes'))->toBe(3) // DSGVO-relevant
+        ->and(Activity::getRetentionYearsForLogType('authentication'))->toBe(3)
+        ->and(Activity::getRetentionYearsForLogType('security'))->toBe(3)
+        ->and(Activity::getRetentionYearsForLogType('rbac_changes'))->toBe(3)
+        ->and(Activity::getRetentionYearsForLogType('hr_access'))->toBe(3)
+        ->and(Activity::getRetentionYearsForLogType('contract_change'))->toBe(8) // HGB §257
+        ->and(Activity::getRetentionYearsForLogType('guard_book_event'))->toBe(3); // BewachV §21
 });
 
 test('unknown log types default to 3 years', function () {
-    expect(Activity::getRetentionYears('unknown_log_type'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('unknown_log_type'))->toBe(3);
 });
 
 // ============================================================================

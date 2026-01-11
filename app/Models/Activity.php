@@ -335,11 +335,45 @@ class Activity extends SpatieActivity
     }
 
     /**
-     * Get retention period in years for a log type.
+     * Get retention period for specific log type.
      *
+     * Uses retention periods defined in BewachV §21, HGB §257, AO §147.
      * All logs have identical security measures (Hash Chain + Merkle Tree + OTS).
      * This method returns the legal retention period based on applicable law.
      *
+     * @param  string  $logName  The log type name
+     * @return int Retention period in years (defaults to 3 if log type unknown)
+     *
+     * @see BewachV §21 Abs. 4 - 3 years for Bewachungsgewerbe
+     * @see HGB §257 Abs. 4 - 8/10 years for commercial records
+     * @see AO §147 Abs. 3 - 8 years for tax-relevant documents
+     */
+    public static function getRetentionYearsForLogType(string $logName): int
+    {
+        return self::$retentionYears[$logName] ?? 3;
+    }
+
+    /**
+     * Get all retention periods for all log types.
+     *
+     * Returns associative array mapping log type names to retention years.
+     * Used by commands that need to process all log types (e.g., retention policies).
+     *
+     * @return array<string, int> Associative array of log type => retention years
+     *
+     * @see BewachV §21 Abs. 4 - 3 years for Bewachungsgewerbe
+     * @see HGB §257 Abs. 4 - 8/10 years for commercial records
+     * @see AO §147 Abs. 3 - 8 years for tax-relevant documents
+     */
+    public static function getAllRetentionYears(): array
+    {
+        return self::$retentionYears;
+    }
+
+    /**
+     * Get retention period in years for a log type.
+     *
+     * @deprecated Use getRetentionYearsForLogType() or getAllRetentionYears() instead
      * @param  string|null  $logName  The log type name. If null, returns all retention periods.
      * @return int|array<string, int> Retention period in years, or array of all periods
      *
@@ -350,10 +384,10 @@ class Activity extends SpatieActivity
     public static function getRetentionYears(?string $logName = null): int|array
     {
         if ($logName === null) {
-            return self::$retentionYears;
+            return self::getAllRetentionYears();
         }
 
-        return self::$retentionYears[$logName] ?? 3;
+        return self::getRetentionYearsForLogType($logName);
     }
 
     /**

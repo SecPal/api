@@ -195,7 +195,7 @@ class BuildMerkleTreeBatchRefactoringTest extends TestCase
             $log->refresh();
             $this->assertNotNull(
                 $log->merkle_root,
-                "Log '{$log->description}' (retention: ".Activity::getRetentionYears($log->log_name).' years) should have merkle_root'
+                "Log '{$log->description}' (retention: ".Activity::getRetentionYearsForLogType($log->log_name).' years) should have merkle_root'
             );
         }
     }
