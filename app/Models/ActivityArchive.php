@@ -134,7 +134,6 @@ class ActivityArchive extends Model
         // Check active logs first (might reference non-archived predecessor)
         $previousInActive = Activity::where('tenant_id', $this->tenant_id)
             ->where('event_hash', $this->previous_hash)
-            ->whereNull('deleted_at')
             ->exists();
 
         if ($previousInActive) {
@@ -158,7 +157,6 @@ class ActivityArchive extends Model
         /** @var Activity|null $activeNext */
         $activeNext = Activity::where('tenant_id', $this->tenant_id)
             ->where('previous_hash', $this->event_hash)
-            ->whereNull('deleted_at')
             ->first();
 
         if ($activeNext !== null) {
