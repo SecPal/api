@@ -140,11 +140,7 @@ class ApplyRetentionPolicies extends Command
         ];
 
         // Process all retention periods (3, 8, 10 years)
-        $allRetentionYears = Activity::getRetentionYears();
-
-        if (! is_array($allRetentionYears)) {
-            throw new \RuntimeException('Activity::getRetentionYears() must return an array');
-        }
+        $allRetentionYears = Activity::getAllRetentionYears();
 
         // Group log types by retention period to optimize queries
         // Before: N×M queries (100 tenants × 17 log types = 1700 queries)

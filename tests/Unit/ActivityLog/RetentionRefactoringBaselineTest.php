@@ -22,8 +22,8 @@ use App\Models\Activity;
  * BASELINE: Unknown log types default to 3 years retention.
  */
 test('baseline unknown log types default to 3 years', function (): void {
-    expect(Activity::getRetentionYears('unknown_log_type'))->toBe(3);
-    expect(Activity::getRetentionYears(''))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('unknown_log_type'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType(''))->toBe(3);
 });
 
 /**
@@ -36,14 +36,14 @@ test('baseline unknown log types default to 3 years', function (): void {
  */
 test('baseline retention periods based on legal requirements', function (): void {
     // BewachV §21 Abs. 4: 3 years
-    expect(Activity::getRetentionYears('shift_management'))->toBe(3);
-    expect(Activity::getRetentionYears('security'))->toBe(3);
-    expect(Activity::getRetentionYears('guard_book_event'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('shift_management'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('security'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('guard_book_event'))->toBe(3);
 
     // HGB §257 Buchungsbelege: 8 years
-    expect(Activity::getRetentionYears('invoice_generated'))->toBe(8);
-    expect(Activity::getRetentionYears('contract_change'))->toBe(8);
+    expect(Activity::getRetentionYearsForLogType('invoice_generated'))->toBe(8);
+    expect(Activity::getRetentionYearsForLogType('contract_change'))->toBe(8);
 
     // HGB §257 Jahresabschlüsse: 10 years
-    expect(Activity::getRetentionYears('annual_closing'))->toBe(10);
+    expect(Activity::getRetentionYearsForLogType('annual_closing'))->toBe(10);
 });

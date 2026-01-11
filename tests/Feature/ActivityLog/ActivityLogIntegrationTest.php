@@ -76,7 +76,7 @@ test('activity log with named log type gets correct retention period', function 
         'user_agent' => 'TestBrowser',
     ]);
 
-    expect(Activity::getRetentionYears('authentication'))->toBe(3)
+    expect(Activity::getRetentionYearsForLogType('authentication'))->toBe(3)
         ->and($log->exists)->toBeTrue()
         ->and($log->log_name)->toBe('authentication');
 });

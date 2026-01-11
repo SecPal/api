@@ -23,7 +23,7 @@ use Carbon\Carbon;
  * - handleLevel3Permanent()
  *
  * With NEW single handler:
- * - Use getRetentionYears() instead of levels
+ * - Use getAllRetentionYears() instead of levels
  *
  * Written BEFORE implementation (Test-Driven Development).
  *
@@ -156,7 +156,7 @@ test('created on january 1st', function (): void {
  * Expected: All retention periods defined
  */
 test('all retention periods are defined', function (): void {
-    $retentionYears = Activity::getRetentionYears();
+    $retentionYears = Activity::getAllRetentionYears();
 
     $hasThreeYear = false;
     $hasEightYear = false;
@@ -186,13 +186,13 @@ test('all retention periods are defined', function (): void {
  */
 test('retention mapping matches legal requirements', function (): void {
     // BewachV §21 Abs. 4: 3 years
-    expect(Activity::getRetentionYears('guard_book_event'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('guard_book_event'))->toBe(3);
 
     // HGB §257 Abs. 1 Nr. 4: 8 years (Buchungsbelege)
-    expect(Activity::getRetentionYears('invoice_generated'))->toBe(8);
+    expect(Activity::getRetentionYearsForLogType('invoice_generated'))->toBe(8);
 
     // AO §147 Abs. 1 Nr. 1: 10 years (Jahresabschlüsse)
-    expect(Activity::getRetentionYears('annual_closing'))->toBe(10);
+    expect(Activity::getRetentionYearsForLogType('annual_closing'))->toBe(10);
 });
 
 /**
@@ -201,8 +201,8 @@ test('retention mapping matches legal requirements', function (): void {
  * Expected: Safe default for unknown log types
  */
 test('default retention is three years', function (): void {
-    expect(Activity::getRetentionYears('unknown_log_type'))->toBe(3);
-    expect(Activity::getRetentionYears('default'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('unknown_log_type'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('default'))->toBe(3);
 });
 
 /**
@@ -246,10 +246,10 @@ test('deletion logic with calendar years', function (): void {
 /**
  * TDD: Command should process all log types.
  *
- * Expected: Iterate over getRetentionYears()
+ * Expected: Iterate over getAllRetentionYears()
  */
 test('command should process all log types', function (): void {
-    $retentionYears = Activity::getRetentionYears();
+    $retentionYears = Activity::getAllRetentionYears();
 
     expect($retentionYears)->toBeArray()
         ->not->toBeEmpty();

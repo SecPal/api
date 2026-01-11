@@ -12,7 +12,7 @@ use App\Models\Activity;
  *
  * Documents the CHANGES required in Phase 3:
  * - BEFORE: Job filtered logs by security level (>=2)
- * - AFTER: Job processes ALL log types from getRetentionYears()
+ * - AFTER: Job processes ALL log types from getAllRetentionYears()
  *
  * - BEFORE: hasLevel3 check determined OTS submission
  * - AFTER: ALWAYS dispatch OTS for ALL batches
@@ -27,9 +27,9 @@ use App\Models\Activity;
  */
 test('job should process all log types', function (): void {
     // BEFORE: Filtered by securityLevels >= 2
-    // AFTER: Process ALL log types from getRetentionYears()
+    // AFTER: Process ALL log types from getAllRetentionYears()
 
-    $allLogTypes = Activity::getRetentionYears();
+    $allLogTypes = Activity::getAllRetentionYears();
 
     // Verify we have 3-year, 8-year, and 10-year retention logs
     $hasThreeYear = false;
@@ -60,8 +60,8 @@ test('three year logs currently split across levels', function (): void {
     //
     // NEW: ALL 3-year retention logs processed uniformly
 
-    expect(Activity::getRetentionYears('shift_management'))->toBe(3);
-    expect(Activity::getRetentionYears('security'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('shift_management'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('security'))->toBe(3);
 
     // After refactoring, both get merkle trees
     expect(true)->toBeTrue('Both should now be processed by BuildMerkleTreeBatch');
@@ -72,9 +72,9 @@ test('documents OTS is now dispatched for ALL batches', function (): void {
     // AFTER: ALWAYS dispatch OTS for ALL batches
 
     // After refactoring: ALL logs get OTS (no filtering)
-    expect(Activity::getRetentionYears('shift_management'))->toBe(3); // 3 years
-    expect(Activity::getRetentionYears('invoice_generated'))->toBe(8); // 8 years
-    expect(Activity::getRetentionYears('annual_closing'))->toBe(10); // 10 years
+    expect(Activity::getRetentionYearsForLogType('shift_management'))->toBe(3); // 3 years
+    expect(Activity::getRetentionYearsForLogType('invoice_generated'))->toBe(8); // 8 years
+    expect(Activity::getRetentionYearsForLogType('annual_closing'))->toBe(10); // 10 years
 
     // All of these will get OpenTimestamp proofs
     expect(true)->toBeTrue('OTS should be dispatched for ALL batches, regardless of retention period');
@@ -82,9 +82,9 @@ test('documents OTS is now dispatched for ALL batches', function (): void {
 
 test('retention mapping for key log types', function (): void {
     // Verify key log types have retention periods defined
-    expect(Activity::getRetentionYears('shift_management'))->toBe(3);
-    expect(Activity::getRetentionYears('security'))->toBe(3);
-    expect(Activity::getRetentionYears('guard_book_event'))->toBe(3);
-    expect(Activity::getRetentionYears('invoice_generated'))->toBe(8);
-    expect(Activity::getRetentionYears('annual_closing'))->toBe(10);
+    expect(Activity::getRetentionYearsForLogType('shift_management'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('security'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('guard_book_event'))->toBe(3);
+    expect(Activity::getRetentionYearsForLogType('invoice_generated'))->toBe(8);
+    expect(Activity::getRetentionYearsForLogType('annual_closing'))->toBe(10);
 });
