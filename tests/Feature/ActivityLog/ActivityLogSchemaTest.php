@@ -97,10 +97,10 @@ test('retention metadata columns exist', function () {
 });
 
 /**
- * Test soft delete column exists.
+ * Test soft delete column does NOT exist (removed in Issue #447).
  */
-test('soft delete column exists', function () {
-    expect(Schema::hasColumn('activity_log', 'deleted_at'))->toBeTrue();
+test('soft delete column does not exist', function () {
+    expect(Schema::hasColumn('activity_log', 'deleted_at'))->toBeFalse();
 });
 
 /**
