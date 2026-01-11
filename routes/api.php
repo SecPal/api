@@ -71,7 +71,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/onboarding/validate-token', [OnboardingController::class, 'validateToken'])
         ->middleware('throttle:onboarding');
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])
-        ->middleware('throttle:onboarding');
+        ->middleware(['throttle:onboarding', 'web']);
 
     // Protected routes (require auth:sanctum)
     Route::middleware('auth:sanctum')->group(function () {
