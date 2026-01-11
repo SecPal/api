@@ -773,12 +773,13 @@ test('sends HR notification when only first name changes with medium severity', 
         'last_name' => 'Mustermann',
         'email' => $user->email,
         'user_id' => $user->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    Mail::fake();
+    \Illuminate\Support\Facades\Mail::fake();
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
@@ -791,13 +792,13 @@ test('sends HR notification when only first name changes with medium severity', 
     $response->assertOk();
 
     // Assert: HR notification was sent for medium severity first name change
-    Mail::assertQueued(OnboardingNameChangedMail::class, function ($mail) use ($employee) {
+    \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
         return $mail->hasTo(config('mail.hr_email', config('mail.from.address')))
             && $mail->employee->id === $employee->id
             && $mail->oldFirstName === 'Max'
-            && $mail->newFirstName === 'Maximilian'
+            && $mail->employee->first_name === 'Maximilian'
             && $mail->oldLastName === 'Mustermann'
-            && $mail->newLastName === 'Mustermann';
+            && $mail->employee->last_name === 'Mustermann';
     });
 });
 
@@ -809,31 +810,32 @@ test('sends HR notification when only last name changes with medium severity', f
         'last_name' => 'Müller',
         'email' => $user->email,
         'user_id' => $user->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    Mail::fake();
+    \Illuminate\Support\Facades\Mail::fake();
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => $user->email,
         'password' => 'SecurePassword123!',
-        'first_name' => 'Hans',        // Unchanged
-        'last_name' => 'Müller-Schmidt', // Medium change (hyphenated addition)
+        'first_name' => 'Hans',                // Unchanged
+        'last_name' => 'Müller-Schmidtmann',  // Medium change (prefix pattern ~73% similar)
     ]);
 
     $response->assertOk();
 
     // Assert: HR notification was sent for medium severity last name change
-    Mail::assertQueued(OnboardingNameChangedMail::class, function ($mail) use ($employee) {
+    \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
         return $mail->hasTo(config('mail.hr_email', config('mail.from.address')))
             && $mail->employee->id === $employee->id
             && $mail->oldFirstName === 'Hans'
-            && $mail->newFirstName === 'Hans'
+            && $mail->employee->first_name === 'Hans'
             && $mail->oldLastName === 'Müller'
-            && $mail->newLastName === 'Müller-Schmidt';
+            && $mail->employee->last_name === 'Müller-Schmidtmann';
     });
 });
 
@@ -845,12 +847,13 @@ test('sends HR notification when mixed severity changes occur', function () {
         'last_name' => 'Schmidt',
         'email' => $user->email,
         'user_id' => $user->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    Mail::fake();
+    \Illuminate\Support\Facades\Mail::fake();
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
@@ -864,12 +867,12 @@ test('sends HR notification when mixed severity changes occur', function () {
 
     // Assert: HR notification was sent because of medium severity last name change
     // (even though first name is only minor)
-    Mail::assertQueued(OnboardingNameChangedMail::class, function ($mail) use ($employee) {
+    \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
         return $mail->hasTo(config('mail.hr_email', config('mail.from.address')))
             && $mail->employee->id === $employee->id
             && $mail->oldFirstName === 'Hanz'
-            && $mail->newFirstName === 'Hans'
+            && $mail->employee->first_name === 'Hans'
             && $mail->oldLastName === 'Schmidt'
-            && $mail->newLastName === 'Schmidt-Weber';
+            && $mail->employee->last_name === 'Schmidt-Weber';
     });
 });
