@@ -83,6 +83,14 @@ jobs:
             psql -h localhost -U db -d db -c "CREATE DATABASE db_test_$i;" || true
           done
 
+      - name: Generate KEK for testing
+        run: |
+          # Generate KEK file before parallel tests to prevent race conditions
+          # This ensures all parallel processes use the same KEK
+          mkdir -p storage/app/keys
+          php -r "file_put_contents('storage/app/keys/kek.key', sodium_crypto_secretbox_keygen());"
+          chmod 600 storage/app/keys/kek.key
+
       - name: Run tests with coverage
         env:
           # Test-only APP_KEY - not used in production
