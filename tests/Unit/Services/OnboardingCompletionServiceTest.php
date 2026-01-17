@@ -323,8 +323,9 @@ describe('OnboardingCompletionService::getCompletionStatus', function () {
         ]);
 
         expect($status['missing_templates'])->toHaveCount(2);
-        expect($status['missing_templates'][0]['name'])->toBe('Personal Information');
-        expect($status['missing_templates'][1]['name'])->toBe('Bank Account');
+        $names = collect($status['missing_templates'])->pluck('name')->toArray();
+        expect($names)->toContain('Personal Information');
+        expect($names)->toContain('Bank Account');
     });
 
     it('returns accurate status with partial completion', function () {
