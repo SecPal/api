@@ -4,12 +4,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OnboardingFormTemplate;
+use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 
 use function Pest\Laravel\actingAs;
 
+uses(RefreshDatabase::class);
+
 beforeEach(function () {
+    // Setup TenantKey for Spatie Permission (requires tenant_id)
+    TenantKey::setKekPath(getTestKekPath());
+    TenantKey::generateKek();
+    $keys = TenantKey::generateEnvelopeKeys();
+    $this->tenant = TenantKey::create($keys);
+
     // Create permissions first
     Permission::firstOrCreate(['name' => 'onboarding_template.write', 'guard_name' => 'sanctum']);
     Permission::firstOrCreate(['name' => 'onboarding_template.delete', 'guard_name' => 'sanctum']);
