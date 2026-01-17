@@ -14,6 +14,7 @@ use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use App\Services\OnboardingCompletionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -477,6 +478,12 @@ class OnboardingController extends Controller
 
         $submission->load('formTemplate');
 
+        // Check if onboarding is now complete (only for submitted, not draft)
+        if ($status === 'submitted') {
+            $completionService = new OnboardingCompletionService();
+            $completionService->checkCompletion($employee);
+        }
+
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($submission),
         ], $existing ? Response::HTTP_OK : Response::HTTP_CREATED);
@@ -509,6 +516,12 @@ class OnboardingController extends Controller
         /** @var OnboardingFormSubmission $fresh */
         $fresh = $submission->fresh();
         $fresh->load(['formTemplate', 'reviewer']);
+
+        // Check if employee's onboarding is now complete after approval
+        /** @var Employee $employee */
+        $employee = $submission->employee;
+        $completionService = new OnboardingCompletionService();
+        $completionService->checkCompletion($employee);
 
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($fresh),
@@ -735,5 +748,40 @@ class OnboardingController extends Controller
             'similarity' => $similarity,
             'message' => __(':field change too significant. Please contact HR if your name was entered incorrectly.', ['field' => $fieldLabel]),
         ];
+    }
+
+    /**
+     * Get onboarding completion status for authenticated employee.
+     *
+     * GET /api/v1/onboarding/completion-status
+     *
+     * Returns:
+     * - is_completed: bool - Overall completion status
+     * - total_required: int - Total number of required templates
+     * - completed_required: int - Number of completed required templates
+     * - missing_templates: array - List of templates not yet completed (id, name, description)
+     *
+     * Protected by auth:sanctum middleware (employee must be authenticated).
+     */
+    public function getCompletionStatus(Request $request): JsonResponse
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        /** @var Employee|null $employee */
+        $employee = $user->employee;
+
+        if (! $employee) {
+            return response()->json([
+                'message' => __('No employee record found for user'),
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $completionService = new OnboardingCompletionService();
+        $status = $completionService->getCompletionStatus($employee);
+
+        return response()->json([
+            'data' => $status,
+        ]);
     }
 }

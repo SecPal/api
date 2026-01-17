@@ -26,6 +26,9 @@ class DatabaseSeeder extends Seeder
         // Seed organizational structure (creates tenant key if needed)
         $this->call(OrganizationalUnitSeeder::class);
 
+        // Seed standard onboarding form templates (system-wide)
+        $this->call(OnboardingFormTemplatesSeeder::class);
+
         // Get tenant ID from created tenant key (OrganizationalUnitSeeder ensures it exists)
         $tenant = TenantKey::firstOrFail();
         $tenantId = $tenant->id;
