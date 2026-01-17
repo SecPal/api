@@ -12,6 +12,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Test Framework Migration** (Issue #491)
+  - **PARTIAL** Converted OpenTimestamp tests from PHPUnit to Pest syntax (4 of 7 files)
+  - **Files Converted**: 4 test files (25 tests total)
+    - `tests/Feature/Jobs/SubmitMerkleRootToOpenTimestampTest.php` (7 tests)
+    - `tests/Feature/Jobs/UpgradeOpenTimestampProofsTest.php` (9 tests)
+    - `tests/Feature/Console/Commands/MonitorOpenTimestampTest.php` (4 tests)
+    - `tests/Feature/Console/Commands/UpdateOpenTimestampTest.php` (5 tests)
+  - **Changes Applied**:
+    - Removed `class XTest extends TestCase` declarations
+    - Converted `public function test_*()` to `test('description', function() { ... })`
+    - Converted `setUp()` to `beforeEach(function() { ... })`
+    - Replaced `use RefreshDatabase` trait with `uses(RefreshDatabase::class)`
+    - Added proper `use function Pest\Laravel\artisan` imports
+    - Updated SPDX headers (// to /\*\* \*/ style)
+    - Improved test descriptions (snake_case to natural language)
+  - **Quality Assurance**:
+    - ✅ All 25 converted tests passing (remaining 3 files tracked in Issue #500)
+    - ✅ PHPStan Level 9 clean (no errors)
+    - ✅ Laravel Pint compliant
+    - ✅ No PHPUnit-style classes remaining in converted test files
+  - **Benefits**: Improved test readability, consistency with project-wide testing standards
+  - **Remaining Work**: 3 test files tracked in Issue #500
+
 ### Added
 
 - **Onboarding Completion Detection System** (Issue #498, Epic #469)
