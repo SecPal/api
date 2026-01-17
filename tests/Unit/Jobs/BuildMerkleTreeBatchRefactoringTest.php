@@ -1,11 +1,11 @@
 <?php
 
+/**
+ * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
 declare(strict_types=1);
-
-// SPDX-FileCopyrightText: 2025 SecPal <https://github.com/SecPal>
-// SPDX-License-Identifier: AGPL-3.0-or-later
-
-namespace Tests\Unit\Jobs;
 
 use App\Jobs\BuildMerkleTreeBatch;
 use App\Jobs\SubmitMerkleRootToOpenTimestamp;
@@ -15,7 +15,6 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
-use Tests\TestCase;
 
 /**
  * TDD Tests for BuildMerkleTreeBatch refactoring.
@@ -29,306 +28,280 @@ use Tests\TestCase;
  *
  * @see https://github.com/SecPal/api/issues/441
  */
-class BuildMerkleTreeBatchRefactoringTest extends TestCase
-{
-    use RefreshDatabase;
+uses(RefreshDatabase::class);
 
-    protected TenantKey $tenant;
+beforeEach(function () {
+    $this->tenant = TenantKey::factory()->create();
+    $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    protected User $user;
+    $this->actingAs($this->user);
+});
 
-    protected Customer $customer;
+/**
+ * TDD: ALL log types should get Merkle tree (not just Level 2+3).
+ *
+ * Expected: FAIL (currently only Level 2+3 processed)
+ */
+test('all log types get merkle tree', function () {
+    // Create logs with different retention periods
+    $log3Years = activity('shift_management') // 3 years retention
+        ->performedOn($this->customer)
+        ->log('Shift assigned');
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+    $log8Years = activity('invoice_generated') // 8 years retention
+        ->performedOn($this->customer)
+        ->log('Invoice created');
 
-        $this->tenant = TenantKey::factory()->create();
-        $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
-        $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $log10Years = activity('annual_closing') // 10 years retention
+        ->performedOn($this->customer)
+        ->log('Year closed');
 
-        $this->actingAs($this->user);
-    }
+    // Initially no merkle_root
+    expect($log3Years->fresh()->merkle_root)->toBeNull();
+    expect($log8Years->fresh()->merkle_root)->toBeNull();
+    expect($log10Years->fresh()->merkle_root)->toBeNull();
 
-    /**
-     * TDD: ALL log types should get Merkle tree (not just Level 2+3).
-     *
-     * Expected: FAIL (currently only Level 2+3 processed)
-     */
-    public function test_all_log_types_get_merkle_tree(): void
-    {
-        // Create logs with different retention periods
-        $log3Years = activity('shift_management') // 3 years retention
-            ->performedOn($this->customer)
-            ->log('Shift assigned');
+    // Run batch job
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
 
-        $log8Years = activity('invoice_generated') // 8 years retention
-            ->performedOn($this->customer)
-            ->log('Invoice created');
+    // ALL should have merkle_root now
+    $log3Years->refresh();
+    $log8Years->refresh();
+    $log10Years->refresh();
 
-        $log10Years = activity('annual_closing') // 10 years retention
-            ->performedOn($this->customer)
-            ->log('Year closed');
+    expect($log3Years->merkle_root)->not->toBeNull('3-year retention log should have merkle_root');
+    expect($log8Years->merkle_root)->not->toBeNull('8-year retention log should have merkle_root');
+    expect($log10Years->merkle_root)->not->toBeNull('10-year retention log should have merkle_root');
+});
 
-        // Initially no merkle_root
-        $this->assertNull($log3Years->fresh()->merkle_root);
-        $this->assertNull($log8Years->fresh()->merkle_root);
-        $this->assertNull($log10Years->fresh()->merkle_root);
+/**
+ * TDD: All logs in same batch should have same merkle_root.
+ *
+ * Expected: FAIL (3-year logs currently not batched)
+ */
+test('all logs in same tenant get same batch id', function () {
+    // Create multiple logs of different types
+    $log1 = activity('shift_management')->performedOn($this->customer)->log('Log 1');
+    $log2 = activity('invoice_generated')->performedOn($this->customer)->log('Log 2');
+    $log3 = activity('security')->performedOn($this->customer)->log('Log 3');
 
-        // Run batch job
-        $job = new BuildMerkleTreeBatch;
-        $job->handle();
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
 
-        // ALL should have merkle_root now
-        $log3Years->refresh();
-        $log8Years->refresh();
-        $log10Years->refresh();
+    $log1->refresh();
+    $log2->refresh();
+    $log3->refresh();
 
-        $this->assertNotNull($log3Years->merkle_root, '3-year retention log should have merkle_root');
-        $this->assertNotNull($log8Years->merkle_root, '8-year retention log should have merkle_root');
-        $this->assertNotNull($log10Years->merkle_root, '10-year retention log should have merkle_root');
-    }
+    // All should be in SAME batch (same tenant, same hour)
+    expect($log1->merkle_batch_id)->toBe(
+        $log2->merkle_batch_id,
+        'All logs should have same batch_id'
+    );
 
-    /**
-     * TDD: All logs in same batch should have same merkle_root.
-     *
-     * Expected: FAIL (3-year logs currently not batched)
-     */
-    public function test_all_logs_in_same_tenant_get_same_batch_id(): void
-    {
-        // Create multiple logs of different types
-        $log1 = activity('shift_management')->performedOn($this->customer)->log('Log 1');
-        $log2 = activity('invoice_generated')->performedOn($this->customer)->log('Log 2');
-        $log3 = activity('security')->performedOn($this->customer)->log('Log 3');
+    expect($log2->merkle_batch_id)->toBe(
+        $log3->merkle_batch_id,
+        'All logs should have same batch_id'
+    );
 
-        $job = new BuildMerkleTreeBatch;
-        $job->handle();
+    // All should have same merkle_root
+    expect($log1->merkle_root)->toBe(
+        $log2->merkle_root,
+        'All logs should have same merkle_root'
+    );
+});
 
-        $log1->refresh();
-        $log2->refresh();
-        $log3->refresh();
+/**
+ * TDD: OTS should be dispatched for ALL batches (not just Level 3).
+ *
+ * Expected: FAIL (currently only dispatched if hasLevel3)
+ */
+test('ots dispatched for all batches', function () {
+    Queue::fake();
 
-        // All should be in SAME batch (same tenant, same hour)
-        $this->assertSame(
-            $log1->merkle_batch_id,
-            $log2->merkle_batch_id,
-            'All logs should have same batch_id'
-        );
+    // Create ONLY 3-year retention logs (previously "Level 1")
+    activity('shift_management')->performedOn($this->customer)->log('Shift 1');
+    activity('authentication')->performedOn($this->customer)->log('Login');
+    activity('security')->performedOn($this->customer)->log('Access granted');
 
-        $this->assertSame(
-            $log2->merkle_batch_id,
-            $log3->merkle_batch_id,
-            'All logs should have same batch_id'
-        );
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
 
-        // All should have same merkle_root
-        $this->assertSame(
-            $log1->merkle_root,
-            $log2->merkle_root,
-            'All logs should have same merkle_root'
-        );
-    }
+    // OTS should be dispatched even for "low retention" logs
+    Queue::assertPushed(SubmitMerkleRootToOpenTimestamp::class);
+});
 
-    /**
-     * TDD: OTS should be dispatched for ALL batches (not just Level 3).
-     *
-     * Expected: FAIL (currently only dispatched if hasLevel3)
-     */
-    public function test_ots_dispatched_for_all_batches(): void
-    {
-        Queue::fake();
+/**
+ * TDD: OTS dispatched with correct parameters.
+ *
+ * Expected: FAIL (depends on previous test passing)
+ */
+test('ots dispatched with correct parameters', function () {
+    Queue::fake();
 
-        // Create ONLY 3-year retention logs (previously "Level 1")
-        activity('shift_management')->performedOn($this->customer)->log('Shift 1');
-        activity('authentication')->performedOn($this->customer)->log('Login');
-        activity('security')->performedOn($this->customer)->log('Access granted');
+    activity('shift_management')->performedOn($this->customer)->log('Test log');
 
-        $job = new BuildMerkleTreeBatch;
-        $job->handle();
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
 
-        // OTS should be dispatched even for "low retention" logs
-        Queue::assertPushed(SubmitMerkleRootToOpenTimestamp::class);
-    }
+    Queue::assertPushed(SubmitMerkleRootToOpenTimestamp::class, function ($job) {
+        return $job->tenantId === $this->tenant->id
+            && $job->batchId > 0
+            && strlen($job->merkleRoot) === 64; // SHA256 hex
+    });
+});
 
-    /**
-     * TDD: OTS dispatched with correct parameters.
-     *
-     * Expected: FAIL (depends on previous test passing)
-     */
-    public function test_ots_dispatched_with_correct_parameters(): void
-    {
-        Queue::fake();
+/**
+ * TDD: Job processes logs from all retention periods.
+ *
+ * Expected: FAIL (currently filters Level 2+3 only)
+ */
+test('job processes all retention periods', function () {
+    // Create mix of retention periods
+    $logs = [
+        activity('shift_management')->performedOn($this->customer)->log('3y'), // 3 years
+        activity('authentication')->performedOn($this->customer)->log('3y'), // 3 years
+        activity('invoice_generated')->performedOn($this->customer)->log('8y'), // 8 years
+        activity('contract_change')->performedOn($this->customer)->log('8y'), // 8 years
+        activity('annual_closing')->performedOn($this->customer)->log('10y'), // 10 years
+    ];
 
-        activity('shift_management')->performedOn($this->customer)->log('Test log');
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
 
-        $job = new BuildMerkleTreeBatch;
-        $job->handle();
-
-        Queue::assertPushed(SubmitMerkleRootToOpenTimestamp::class, function ($job) {
-            return $job->tenantId === $this->tenant->id
-                && $job->batchId > 0
-                && strlen($job->merkleRoot) === 64; // SHA256 hex
-        });
-    }
-
-    /**
-     * TDD: Job processes logs from all retention periods.
-     *
-     * Expected: FAIL (currently filters Level 2+3 only)
-     */
-    public function test_job_processes_all_retention_periods(): void
-    {
-        // Create mix of retention periods
-        $logs = [
-            activity('shift_management')->performedOn($this->customer)->log('3y'), // 3 years
-            activity('authentication')->performedOn($this->customer)->log('3y'), // 3 years
-            activity('invoice_generated')->performedOn($this->customer)->log('8y'), // 8 years
-            activity('contract_change')->performedOn($this->customer)->log('8y'), // 8 years
-            activity('annual_closing')->performedOn($this->customer)->log('10y'), // 10 years
-        ];
-
-        $job = new BuildMerkleTreeBatch;
-        $job->handle();
-
-        // ALL should be processed
-        foreach ($logs as $log) {
-            $log->refresh();
-            $this->assertNotNull(
-                $log->merkle_root,
-                "Log '{$log->description}' (retention: ".Activity::getRetentionYearsForLogType($log->log_name).' years) should have merkle_root'
-            );
-        }
-    }
-
-    /**
-     * TDD: Merkle proofs are self-contained (contain sibling hashes).
-     *
-     * This test verifies refactoring doesn't break merkle proof structure.
-     *
-     * Expected: PASS (existing functionality)
-     */
-    public function test_merkle_proofs_contain_sibling_hashes(): void
-    {
-        activity('shift_management')->performedOn($this->customer)->log('Log 1');
-        activity('shift_management')->performedOn($this->customer)->log('Log 2');
-        activity('shift_management')->performedOn($this->customer)->log('Log 3');
-
-        $job = new BuildMerkleTreeBatch;
-        $job->handle();
-
-        $log = Activity::where('tenant_id', $this->tenant->id)->first();
+    // ALL should be processed
+    foreach ($logs as $log) {
         $log->refresh();
+        expect($log->merkle_root)->not->toBeNull(
+            "Log '{$log->description}' (retention: ".Activity::getRetentionYearsForLogType($log->log_name).' years) should have merkle_root'
+        );
+    }
+});
 
-        $this->assertNotNull($log->merkle_proof);
-        $this->assertIsArray($log->merkle_proof);
+/**
+ * TDD: Merkle proofs are self-contained (contain sibling hashes).
+ *
+ * This test verifies refactoring doesn't break merkle proof structure.
+ *
+ * Expected: PASS (existing functionality)
+ */
+test('merkle proofs contain sibling hashes', function () {
+    activity('shift_management')->performedOn($this->customer)->log('Log 1');
+    activity('shift_management')->performedOn($this->customer)->log('Log 2');
+    activity('shift_management')->performedOn($this->customer)->log('Log 3');
 
-        // Proof should contain sibling hashes
-        foreach ($log->merkle_proof as $sibling) {
-            $this->assertArrayHasKey('hash', $sibling);
-            $this->assertArrayHasKey('position', $sibling);
-            $this->assertIsString($sibling['hash']);
-            $this->assertContains($sibling['position'], ['left', 'right']);
-        }
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
+
+    $log = Activity::where('tenant_id', $this->tenant->id)->first();
+    $log->refresh();
+
+    expect($log->merkle_proof)->not->toBeNull();
+    expect($log->merkle_proof)->toBeArray();
+
+    // Proof should contain sibling hashes
+    foreach ($log->merkle_proof as $sibling) {
+        expect($sibling)->toHaveKey('hash');
+        expect($sibling)->toHaveKey('position');
+        expect($sibling['hash'])->toBeString();
+        expect($sibling['position'])->toBeIn(['left', 'right']);
+    }
+});
+
+/**
+ * TDD: Batch integrity metadata is preserved.
+ *
+ * Expected: PASS (existing functionality)
+ */
+test('batch count stored for integrity checking', function () {
+    // Create 5 logs
+    for ($i = 1; $i <= 5; $i++) {
+        activity('shift_management')->performedOn($this->customer)->log("Log {$i}");
     }
 
-    /**
-     * TDD: Batch integrity metadata is preserved.
-     *
-     * Expected: PASS (existing functionality)
-     */
-    public function test_batch_count_stored_for_integrity_checking(): void
-    {
-        // Create 5 logs
-        for ($i = 1; $i <= 5; $i++) {
-            activity('shift_management')->performedOn($this->customer)->log("Log {$i}");
-        }
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
 
-        $job = new BuildMerkleTreeBatch;
-        $job->handle();
+    $logs = Activity::where('tenant_id', $this->tenant->id)->get();
 
-        $logs = Activity::where('tenant_id', $this->tenant->id)->get();
-
-        // All logs should have same batch count (test creates 6 logs above)
-        $expectedCount = $logs->count();
-        foreach ($logs as $log) {
-            $this->assertSame($expectedCount, $log->merkle_batch_count);
-        }
+    // All logs should have same batch count (test creates 6 logs above)
+    $expectedCount = $logs->count();
+    foreach ($logs as $log) {
+        expect($log->merkle_batch_count)->toBe($expectedCount);
     }
+});
 
-    /**
-     * TDD: Multiple tenants are isolated.
-     *
-     * Expected: PASS (existing functionality)
-     */
-    public function test_multiple_tenants_get_separate_batches(): void
-    {
-        $tenant2 = TenantKey::factory()->create();
-        $customer2 = Customer::factory()->create(['tenant_id' => $tenant2->id]);
-        $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);
+/**
+ * TDD: Multiple tenants are isolated.
+ *
+ * Expected: PASS (existing functionality)
+ */
+test('multiple tenants get separate batches', function () {
+    $tenant2 = TenantKey::factory()->create();
+    $customer2 = Customer::factory()->create(['tenant_id' => $tenant2->id]);
+    $user2 = User::factory()->create(['tenant_id' => $tenant2->id]);
 
-        // Tenant 1 logs
-        activity('shift_management')->performedOn($this->customer)->log('Tenant 1 Log');
+    // Tenant 1 logs
+    activity('shift_management')->performedOn($this->customer)->log('Tenant 1 Log');
 
-        // Tenant 2 logs
-        $this->actingAs($user2);
-        activity('shift_management')->performedOn($customer2)->log('Tenant 2 Log');
+    // Tenant 2 logs
+    $this->actingAs($user2);
+    activity('shift_management')->performedOn($customer2)->log('Tenant 2 Log');
 
-        $job = new BuildMerkleTreeBatch;
-        $job->handle();
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
 
-        $log1 = Activity::where('tenant_id', $this->tenant->id)->first();
-        $log2 = Activity::where('tenant_id', $tenant2->id)->first();
+    $log1 = Activity::where('tenant_id', $this->tenant->id)->first();
+    $log2 = Activity::where('tenant_id', $tenant2->id)->first();
 
-        // Different batch IDs
-        $this->assertNotSame($log1->merkle_batch_id, $log2->merkle_batch_id);
+    // Different batch IDs
+    expect($log1->merkle_batch_id)->not->toBe($log2->merkle_batch_id);
 
-        // Different merkle roots
-        $this->assertNotSame($log1->merkle_root, $log2->merkle_root);
-    }
+    // Different merkle roots
+    expect($log1->merkle_root)->not->toBe($log2->merkle_root);
+});
 
-    /**
-     * TDD: Job only processes unbatched logs.
-     *
-     * Expected: PASS (existing functionality)
-     */
-    public function test_job_skips_already_batched_logs(): void
-    {
-        $log1 = activity('shift_management')->performedOn($this->customer)->log('Log 1');
+/**
+ * TDD: Job only processes unbatched logs.
+ *
+ * Expected: PASS (existing functionality)
+ */
+test('job skips already batched logs', function () {
+    $log1 = activity('shift_management')->performedOn($this->customer)->log('Log 1');
 
-        // First run
-        $job = new BuildMerkleTreeBatch;
-        $job->handle();
+    // First run
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
 
-        $log1->refresh();
-        $originalBatchId = $log1->merkle_batch_id;
-        $originalRoot = $log1->merkle_root;
+    $log1->refresh();
+    $originalBatchId = $log1->merkle_batch_id;
+    $originalRoot = $log1->merkle_root;
 
-        // Create new log
-        activity('shift_management')->performedOn($this->customer)->log('Log 2');
+    // Create new log
+    activity('shift_management')->performedOn($this->customer)->log('Log 2');
 
-        // Second run
-        $job2 = new BuildMerkleTreeBatch;
-        $job2->handle();
+    // Second run
+    $job2 = new BuildMerkleTreeBatch;
+    $job2->handle();
 
-        $log1->refresh();
+    $log1->refresh();
 
-        // Original log should keep same batch data
-        $this->assertSame($originalBatchId, $log1->merkle_batch_id);
-        $this->assertSame($originalRoot, $log1->merkle_root);
-    }
+    // Original log should keep same batch data
+    expect($log1->merkle_batch_id)->toBe($originalBatchId);
+    expect($log1->merkle_root)->toBe($originalRoot);
+});
 
-    /**
-     * TDD: Empty tenants are skipped gracefully.
-     *
-     * Expected: PASS (existing functionality)
-     */
-    public function test_job_handles_empty_tenants_gracefully(): void
-    {
-        // Don't create any logs
+/**
+ * TDD: Empty tenants are skipped gracefully.
+ *
+ * Expected: PASS (existing functionality)
+ */
+test('job handles empty tenants gracefully', function () {
+    // Don't create any logs
 
-        $job = new BuildMerkleTreeBatch;
-        $job->handle(); // Should not throw
+    $job = new BuildMerkleTreeBatch;
+    $job->handle(); // Should not throw
 
-        $this->assertTrue(true, 'Job should handle empty tenants without errors');
-    }
-}
+    expect(true)->toBeTrue('Job should handle empty tenants without errors');
+});

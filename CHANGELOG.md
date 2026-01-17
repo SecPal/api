@@ -14,13 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Test Framework Migration** (Issue #491)
-  - **PARTIAL** Converted OpenTimestamp tests from PHPUnit to Pest syntax (4 of 7 files)
-  - **Files Converted**: 4 test files (25 tests total)
-    - `tests/Feature/Jobs/SubmitMerkleRootToOpenTimestampTest.php` (7 tests)
-    - `tests/Feature/Jobs/UpgradeOpenTimestampProofsTest.php` (9 tests)
-    - `tests/Feature/Console/Commands/MonitorOpenTimestampTest.php` (4 tests)
-    - `tests/Feature/Console/Commands/UpdateOpenTimestampTest.php` (5 tests)
+- **Test Framework Migration - COMPLETE** (Issues #491, #500, #441)
+  - **COMPLETED** All PHPUnit tests converted to Pest syntax (8 of 8 files)
+  - **Files Converted**: 8 test files (48 tests total)
+    - `tests/Feature/Jobs/SubmitMerkleRootToOpenTimestampTest.php` (7 tests) - Issue #491
+    - `tests/Feature/Jobs/UpgradeOpenTimestampProofsTest.php` (9 tests) - Issue #491
+    - `tests/Feature/Console/Commands/MonitorOpenTimestampTest.php` (4 tests) - Issue #491
+    - `tests/Feature/Console/Commands/UpdateOpenTimestampTest.php` (5 tests) - Issue #491
+    - `tests/Feature/Console/Commands/CheckOpenTimestampStatusTest.php` (4 tests) - Issue #500
+    - `tests/Unit/Services/ActivityLogServiceLoginFailureTest.php` (5 tests) - Issue #500
+    - `tests/Unit/Services/OpenTimestampProofMergingTest.php` (4 tests) - Issue #500
+    - `tests/Unit/Jobs/BuildMerkleTreeBatchRefactoringTest.php` (10 tests) - Complete migration
   - **Changes Applied**:
     - Removed `class XTest extends TestCase` declarations
     - Converted `public function test_*()` to `test('description', function() { ... })`
@@ -29,13 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Added proper `use function Pest\Laravel\artisan` imports
     - Updated SPDX headers (// to /\*\* \*/ style)
     - Improved test descriptions (snake_case to natural language)
+    - Converted helper methods to standalone functions (e.g., `buildCalendarProof()`)
   - **Quality Assurance**:
-    - ✅ All 25 converted tests passing (remaining 3 files tracked in Issue #500)
+    - ✅ All 48 converted tests passing
     - ✅ PHPStan Level 9 clean (no errors)
     - ✅ Laravel Pint compliant
-    - ✅ No PHPUnit-style classes remaining in converted test files
-  - **Benefits**: Improved test readability, consistency with project-wide testing standards
-  - **Remaining Work**: 3 test files tracked in Issue #500
+    - ✅ **NO PHPUnit-style classes remaining in entire test suite**
+  - **Benefits**: Improved test readability, consistency with project-wide testing standards, complete Pest migration achieved
 
 ### Added
 
