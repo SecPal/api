@@ -169,6 +169,7 @@ test('rejects onboarding for non-pre-contract employee', function () {
 
     /** @var Employee $employee */
     $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
         'status' => Employee::STATUS_ACTIVE,
         'email' => 'test@example.com',
         'user_id' => $user->id,
@@ -768,12 +769,11 @@ test('automatically logs user in with session after onboarding (no token)', func
 // New test: only first name changes (medium severity)
 test('sends HR notification when only first name changes with medium severity', function () {
     $user = User::factory()->create(['name' => '', 'email' => 'max@example.com']);
-    $employee = Employee::factory()->create([
+    $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Max',
         'last_name' => 'Mustermann',
         'email' => $user->email,
         'user_id' => $user->id,
-        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);
@@ -805,12 +805,11 @@ test('sends HR notification when only first name changes with medium severity', 
 // New test: only last name changes (medium severity)
 test('sends HR notification when only last name changes with medium severity', function () {
     $user = User::factory()->create(['name' => '', 'email' => 'hans@example.com']);
-    $employee = Employee::factory()->create([
+    $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hans',
         'last_name' => 'Müller',
         'email' => $user->email,
         'user_id' => $user->id,
-        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);
@@ -842,12 +841,11 @@ test('sends HR notification when only last name changes with medium severity', f
 // New test: mixed severity (first name minor, last name medium)
 test('sends HR notification when mixed severity changes occur', function () {
     $user = User::factory()->create(['name' => '', 'email' => 'hanz@example.com']);
-    $employee = Employee::factory()->create([
+    $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hanz',
         'last_name' => 'Schmidt',
         'email' => $user->email,
         'user_id' => $user->id,
-        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);

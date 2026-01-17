@@ -195,6 +195,7 @@ test('rejects token for non-pre-contract employee', function () {
 
     /** @var Employee $employee */
     $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
         'email' => 'test@example.com',
         'user_id' => $user->id,
         'status' => Employee::STATUS_ACTIVE, // Not PRE_CONTRACT

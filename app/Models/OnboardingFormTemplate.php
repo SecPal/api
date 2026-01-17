@@ -64,4 +64,24 @@ class OnboardingFormTemplate extends Model
     {
         return $this->hasMany(OnboardingFormSubmission::class, 'form_template_id');
     }
+
+    /**
+     * Determine if the template can be deleted.
+     *
+     * System templates cannot be deleted to protect BewachV § 16 compliance.
+     */
+    public function getCanBeDeletedAttribute(): bool
+    {
+        return ! $this->is_system_template;
+    }
+
+    /**
+     * Determine if the template can be edited.
+     *
+     * System templates cannot be edited to protect BewachV § 16 compliance.
+     */
+    public function getCanBeEditedAttribute(): bool
+    {
+        return ! $this->is_system_template;
+    }
 }

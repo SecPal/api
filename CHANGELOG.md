@@ -14,6 +14,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Onboarding Completion Detection System** (Issue #498, Epic #469)
+  - **IMPLEMENTED** Automatic detection and tracking of onboarding completion
+  - **`OnboardingCompletionService`**: Service class for completion logic
+    - `checkCompletion(Employee)`: Detects when all required templates approved, auto-updates `employee.onboarding_completed` and `employee.onboarding_completed_at`
+    - `getCompletionStatus(Employee)`: Returns detailed status (is_completed, total_required, completed_required, missing_templates)
+  - **Completion Criteria**: All templates with `is_required=true` must have submissions with `status='approved'`
+  - **Optional Templates**: Templates with `is_required=false` do not affect completion
+  - **Status Tracking**: Only 'approved' submissions count (pending/submitted/rejected do not count)
+  - **Activity Logging**: Logs 'onboarding_completed' event when completion is achieved
+  - **Controller Integration**:
+    - `OnboardingController::submitForm()`: Checks completion after form submission (not for drafts)
+    - `OnboardingController::approveSubmission()`: Checks completion after HR approval
+    - `OnboardingController::getCompletionStatus()`: GET `/v1/onboarding/completion-status` endpoint
+  - **API Endpoint**: GET `/v1/onboarding/completion-status` (auth:sanctum) returns JSON with completion details
+  - **Tests**: 29 comprehensive Pest tests (18 unit + 11 feature) covering all edge cases
+
+- **Standard Onboarding Form Templates Seeder** (Issue #497, Epic #469)
+  - **IMPLEMENTED** 4 pre-configured onboarding form templates (system-wide)
+  - **Templates Created**:
+    1. **Personal Information Form** (Required): BewachV § 16 required fields (gender, nationalities, intended activities)
+    2. **Bank Account Details** (Optional): IBAN, BIC, bank name, account holder
+    3. **Emergency Contact** (Optional): 2 contact persons with phone and relationship
+    4. **Tax Identification Number** (Optional): Tax ID (11 digits), tax class (1-6), children count
+  - **JSON Schema-Based**: Each template defines validation rules, field types, and requirements
+  - **System Templates Protection**: Marked as `is_system_template = true` to prevent accidental deletion/modification
+    - `OnboardingFormTemplatePolicy`: Prevents HR from deleting/editing system templates
+    - Model accessors: `can_be_deleted` and `can_be_edited` flags
+    - API Response: Includes protection flags for frontend UI logic
+    - **Rationale**: Deleting "Personal Information Form" would prevent BewachV § 16 compliance
+  - **Automatic Seeding**: Runs via `DatabaseSeeder` on fresh installations
+  - **Idempotent**: Seeder can be run multiple times safely (uses `updateOrCreate`)
+  - **Tests**: 20+ comprehensive Pest tests validating structure, validation rules, and data integrity
+
 - **Magic Link Employee Onboarding System** (Issue #486, Epic #469)
   - **IMPLEMENTED** Secure single-use tokens for pre-contract employee onboarding
   - **`employee_onboarding_tokens` Table**: UUID primary key, bcrypt-hashed tokens, 7-day expiry, single-use enforcement, audit trail (IP, user agent)

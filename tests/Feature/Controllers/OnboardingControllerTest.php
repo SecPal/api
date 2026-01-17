@@ -33,9 +33,9 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
-    Permission::create(['name' => 'onboarding.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'onboarding.write', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'onboarding.approve', 'guard_name' => 'sanctum']);
+    Permission::firstOrCreate(['name' => 'onboarding.read', 'guard_name' => 'sanctum']);
+    Permission::firstOrCreate(['name' => 'onboarding.write', 'guard_name' => 'sanctum']);
+    Permission::firstOrCreate(['name' => 'onboarding.approve', 'guard_name' => 'sanctum']);
 
     $organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
