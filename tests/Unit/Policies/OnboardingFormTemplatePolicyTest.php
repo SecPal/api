@@ -8,6 +8,7 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 
 use function Pest\Laravel\actingAs;
 
@@ -20,6 +21,10 @@ beforeEach(function () {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
+    // Set tenant context for permission system
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($this->tenant->id);
+
     // Create permissions first
     Permission::firstOrCreate(['name' => 'onboarding_template.write', 'guard_name' => 'sanctum']);
     Permission::firstOrCreate(['name' => 'onboarding_template.delete', 'guard_name' => 'sanctum']);
@@ -27,6 +32,12 @@ beforeEach(function () {
 
     $this->hrUser = User::factory()->create();
     $this->hrUser->givePermissionTo(['onboarding_template.write', 'onboarding_template.delete', 'onboarding.read']);
+});
+
+afterEach(function () {
+    // Reset tenant context
+    app(PermissionRegistrar::class)->setPermissionsTeamId(null);
+    TenantKey::setKekPath(null);
 });
 
 describe('OnboardingFormTemplatePolicy - System Template Protection', function () {
