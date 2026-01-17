@@ -8,7 +8,6 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
-use Illuminate\Support\Facades\DB;
 
 /**
  * OnboardingCompletionService handles automatic detection and tracking of onboarding completion.

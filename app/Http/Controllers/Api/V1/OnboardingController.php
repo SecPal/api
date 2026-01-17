@@ -480,7 +480,7 @@ class OnboardingController extends Controller
 
         // Check if onboarding is now complete (only for submitted, not draft)
         if ($status === 'submitted') {
-            $completionService = new OnboardingCompletionService();
+            $completionService = new OnboardingCompletionService;
             $completionService->checkCompletion($employee);
         }
 
@@ -520,7 +520,7 @@ class OnboardingController extends Controller
         // Check if employee's onboarding is now complete after approval
         /** @var Employee $employee */
         $employee = $submission->employee;
-        $completionService = new OnboardingCompletionService();
+        $completionService = new OnboardingCompletionService;
         $completionService->checkCompletion($employee);
 
         return response()->json([
@@ -777,7 +777,7 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $completionService = new OnboardingCompletionService();
+        $completionService = new OnboardingCompletionService;
         $status = $completionService->getCompletionStatus($employee);
 
         return response()->json([

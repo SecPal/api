@@ -7,7 +7,9 @@ use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\User;
-use function Pest\Laravel\{actingAs, getJson, postJson};
+
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\getJson;
 
 beforeEach(function () {
     // Create pre-contract employee with user account

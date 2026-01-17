@@ -7,10 +7,11 @@ use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Services\OnboardingCompletionService;
-use function Pest\Laravel\{actingAs, assertDatabaseHas};
+
+use function Pest\Laravel\assertDatabaseHas;
 
 beforeEach(function () {
-    $this->service = new OnboardingCompletionService();
+    $this->service = new OnboardingCompletionService;
 });
 
 describe('OnboardingCompletionService::checkCompletion', function () {
