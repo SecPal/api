@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\User;
+use Spatie\Permission\Models\Role;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\getJson;
@@ -14,7 +15,7 @@ use function Pest\Laravel\getJson;
 beforeEach(function () {
     // Create pre-contract employee with user account
     $this->user = User::factory()->create();
-    $this->employee = Employee::factory()->create([
+    $this->employee = Employee::factory()->preContract()->create([
         'user_id' => $this->user->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => false,
@@ -319,6 +320,7 @@ describe('OnboardingController::submitForm completion integration', function () 
 describe('OnboardingController::approveSubmission completion integration', function () {
     it('triggers completion check when approving last required form', function () {
         // Create HR user with approval permissions
+        Role::firstOrCreate(['name' => 'hr_admin', 'guard_name' => 'sanctum']);
         $hrUser = User::factory()->create();
         $hrUser->assignRole('hr_admin');
 
@@ -348,6 +350,7 @@ describe('OnboardingController::approveSubmission completion integration', funct
     });
 
     it('marks completion when all required forms are approved', function () {
+        Role::firstOrCreate(['name' => 'hr_admin', 'guard_name' => 'sanctum']);
         $hrUser = User::factory()->create();
         $hrUser->assignRole('hr_admin');
 

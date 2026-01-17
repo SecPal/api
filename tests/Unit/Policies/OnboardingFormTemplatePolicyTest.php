@@ -5,10 +5,16 @@
 
 use App\Models\OnboardingFormTemplate;
 use App\Models\User;
+use Spatie\Permission\Models\Permission;
 
 use function Pest\Laravel\actingAs;
 
 beforeEach(function () {
+    // Create permissions first
+    Permission::firstOrCreate(['name' => 'onboarding_template.write', 'guard_name' => 'sanctum']);
+    Permission::firstOrCreate(['name' => 'onboarding_template.delete', 'guard_name' => 'sanctum']);
+    Permission::firstOrCreate(['name' => 'onboarding.read', 'guard_name' => 'sanctum']);
+
     $this->hrUser = User::factory()->create();
     $this->hrUser->givePermissionTo(['onboarding_template.write', 'onboarding_template.delete', 'onboarding.read']);
 });

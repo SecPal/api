@@ -16,7 +16,7 @@ beforeEach(function () {
 
 describe('OnboardingCompletionService::checkCompletion', function () {
     it('returns false when employee has no submissions', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
         ]);
@@ -36,7 +36,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
     });
 
     it('returns false when employee has partial submissions', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
         ]);
@@ -67,7 +67,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
     });
 
     it('returns false when submissions are pending (not approved)', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
         ]);
@@ -104,7 +104,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
     });
 
     it('returns true and updates employee when all required templates approved', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
             'onboarding_completed_at' => null,
@@ -143,7 +143,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
     });
 
     it('ignores optional templates when checking completion', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
         ]);
@@ -175,7 +175,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
     });
 
     it('returns true immediately when no required templates exist', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
         ]);
@@ -196,7 +196,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
     it('does not update employee record if already completed', function () {
         $completedAt = now()->subDays(5);
 
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
             'onboarding_completed_at' => $completedAt,
@@ -223,7 +223,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
     });
 
     it('logs activity when completion is achieved', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
         ]);
@@ -253,7 +253,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
     });
 
     it('handles rejected submissions correctly (they do not count)', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
         ]);
@@ -292,7 +292,7 @@ describe('OnboardingCompletionService::checkCompletion', function () {
 
 describe('OnboardingCompletionService::getCompletionStatus', function () {
     it('returns accurate status with no submissions', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
         ]);
@@ -325,7 +325,7 @@ describe('OnboardingCompletionService::getCompletionStatus', function () {
     });
 
     it('returns accurate status with partial completion', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
@@ -363,7 +363,7 @@ describe('OnboardingCompletionService::getCompletionStatus', function () {
     });
 
     it('returns accurate status with full completion', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
@@ -404,7 +404,7 @@ describe('OnboardingCompletionService::getCompletionStatus', function () {
     });
 
     it('returns templates ordered by sort_order', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
@@ -440,7 +440,7 @@ describe('OnboardingCompletionService::getCompletionStatus', function () {
     });
 
     it('ignores optional templates in completion calculation', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
@@ -473,7 +473,7 @@ describe('OnboardingCompletionService::getCompletionStatus', function () {
     });
 
     it('handles no required templates (instant completion)', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
@@ -495,7 +495,7 @@ describe('OnboardingCompletionService::getCompletionStatus', function () {
     });
 
     it('does not modify employee record', function () {
-        $employee = Employee::factory()->create([
+        $employee = Employee::factory()->preContract()->create([
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
             'onboarding_completed_at' => null,
