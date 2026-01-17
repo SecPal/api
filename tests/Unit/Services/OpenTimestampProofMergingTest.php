@@ -37,6 +37,9 @@ beforeEach(function () {
         ->andReturn(true)
         ->byDefault();
 
+    // Explicitly bind mock to container for consistency with other test files
+    $this->app->instance(ProcessExecutor::class, $mockExecutor);
+
     $this->service = app(OpenTimestampService::class);
     $this->mockExecutor = $mockExecutor;
 });
