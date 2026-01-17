@@ -8,13 +8,13 @@
 declare(strict_types=1);
 
 use App\Console\Commands\MonitorOpenTimestamp;
+use App\Contracts\ProcessExecutor;
 use App\Models\Activity;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
+use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
-
-use function Pest\Laravel\artisan;
 
 /**
  * Test MonitorOpenTimestamp command.
@@ -29,7 +29,7 @@ uses(RefreshDatabase::class);
 
 test('command runs health check', function () {
     // The command will call ots:check internally
-    artisan(MonitorOpenTimestamp::class)
+    $this->artisan(MonitorOpenTimestamp::class)
         ->expectsOutput('Running OpenTimestamp health check...')
         ->expectsOutput('✓ OpenTimestamp monitoring complete')
         ->assertExitCode(0);
@@ -44,28 +44,28 @@ test('command logs critical error when check fails', function () {
         ]);
 
     // Mock ProcessExecutor to simulate failed check
-    $executor = Mockery::mock(App\Contracts\ProcessExecutor::class);
+    $executor = Mockery::mock(ProcessExecutor::class);
     $executor->shouldReceive('execute')
         ->andReturn(['stdout' => '', 'stderr' => 'Check failed', 'exitCode' => 1]);
-    app()->instance(App\Contracts\ProcessExecutor::class, $executor);
+    $this->app->instance(ProcessExecutor::class, $executor);
 
-    artisan(MonitorOpenTimestamp::class)
+    $this->artisan(MonitorOpenTimestamp::class)
         ->expectsOutput('⚠ OpenTimestamp health check FAILED')
         ->assertExitCode(1);
 });
 
 test('command warns about high pending count', function () {
     // Mock ProcessExecutor for the ots:check command
-    $executor = Mockery::mock(App\Contracts\ProcessExecutor::class);
+    $executor = Mockery::mock(ProcessExecutor::class);
     $executor->shouldReceive('execute')
         ->andReturn(['stdout' => 'Python 3.11.2\n0.4.5', 'stderr' => '', 'exitCode' => 0]);
-    app()->instance(App\Contracts\ProcessExecutor::class, $executor);
+    $this->app->instance(ProcessExecutor::class, $executor);
 
     // Mock OpenTimestampService for the ots:check functional test
-    $otsService = Mockery::mock(App\Services\OpenTimestampService::class);
+    $otsService = Mockery::mock(OpenTimestampService::class);
     $otsService->shouldReceive('submit')
         ->andReturn(base64_encode('fake-ots-proof'));
-    app()->instance(App\Services\OpenTimestampService::class, $otsService);
+    $this->app->instance(OpenTimestampService::class, $otsService);
 
     // Create a tenant and organizational unit for activities
     $tenant = TenantKey::factory()->create();
@@ -87,23 +87,23 @@ test('command warns about high pending count', function () {
             'threshold' => 100,
         ]);
 
-    artisan(MonitorOpenTimestamp::class)
+    $this->artisan(MonitorOpenTimestamp::class)
         ->expectsOutputToContain('150 activities without OTS proof')
         ->assertExitCode(0);
 });
 
 test('command does not warn when pending count below threshold', function () {
     // Mock ProcessExecutor for the ots:check command
-    $executor = Mockery::mock(App\Contracts\ProcessExecutor::class);
+    $executor = Mockery::mock(ProcessExecutor::class);
     $executor->shouldReceive('execute')
         ->andReturn(['stdout' => 'Python 3.11.2\n0.4.5', 'stderr' => '', 'exitCode' => 0]);
-    app()->instance(App\Contracts\ProcessExecutor::class, $executor);
+    $this->app->instance(ProcessExecutor::class, $executor);
 
     // Mock OpenTimestampService for the ots:check functional test
-    $otsService = Mockery::mock(App\Services\OpenTimestampService::class);
+    $otsService = Mockery::mock(OpenTimestampService::class);
     $otsService->shouldReceive('submit')
         ->andReturn(base64_encode('fake-ots-proof'));
-    app()->instance(App\Services\OpenTimestampService::class, $otsService);
+    $this->app->instance(OpenTimestampService::class, $otsService);
 
     // Create a tenant and organizational unit for activities
     $tenant = TenantKey::factory()->create();
@@ -119,6 +119,6 @@ test('command does not warn when pending count below threshold', function () {
 
     Log::shouldReceive('warning')->never();
 
-    artisan(MonitorOpenTimestamp::class)
+    $this->artisan(MonitorOpenTimestamp::class)
         ->assertExitCode(0);
 });
