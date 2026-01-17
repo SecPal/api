@@ -14,7 +14,7 @@ use function Pest\Laravel\assertDatabaseHas;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->service = new OnboardingCompletionService;
+    $this->service = app(OnboardingCompletionService::class);
 });
 
 describe('OnboardingCompletionService::checkCompletion', function () {
