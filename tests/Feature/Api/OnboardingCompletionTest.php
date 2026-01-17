@@ -9,11 +9,11 @@ use App\Models\OnboardingFormTemplate;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 use function Pest\Laravel\actingAs;
-use function Pest\Laravel\getJson;
 
 uses(RefreshDatabase::class);
 
@@ -35,6 +35,22 @@ beforeEach(function () {
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => false,
     ]);
+
+    // Grant onboarding.write permission for submission tests
+    Permission::firstOrCreate([
+        'name' => 'onboarding.write',
+        'guard_name' => 'sanctum',
+    ]);
+    $this->user->givePermissionTo('onboarding.write');
+
+    // Helper method to make authenticated requests with tenant header
+    $this->authGet = fn ($uri) => $this->actingAs($this->user, 'sanctum')
+        ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+        ->getJson($uri);
+
+    $this->authPost = fn ($uri, $data = []) => $this->actingAs($this->user, 'sanctum')
+        ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+        ->postJson($uri, $data);
 });
 
 afterEach(function () {
@@ -45,7 +61,8 @@ afterEach(function () {
 
 describe('GET /api/v1/onboarding/completion-status', function () {
     it('requires authentication', function () {
-        getJson('/api/v1/onboarding/completion-status')
+        $this->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->getJson('/v1/onboarding/completion-status')
             ->assertStatus(401);
     });
 
@@ -53,7 +70,8 @@ describe('GET /api/v1/onboarding/completion-status', function () {
         $userWithoutEmployee = User::factory()->create();
 
         actingAs($userWithoutEmployee, 'sanctum')
-            ->getJson('/api/v1/onboarding/completion-status')
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->getJson('/v1/onboarding/completion-status')
             ->assertStatus(404)
             ->assertJson([
                 'message' => 'No employee record found for user',
@@ -80,7 +98,8 @@ describe('GET /api/v1/onboarding/completion-status', function () {
         ]);
 
         actingAs($this->user, 'sanctum')
-            ->getJson('/api/v1/onboarding/completion-status')
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->getJson('/v1/onboarding/completion-status')
             ->assertOk()
             ->assertJson([
                 'data' => [
@@ -126,7 +145,8 @@ describe('GET /api/v1/onboarding/completion-status', function () {
         ]);
 
         actingAs($this->user, 'sanctum')
-            ->getJson('/api/v1/onboarding/completion-status')
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->getJson('/v1/onboarding/completion-status')
             ->assertOk()
             ->assertJson([
                 'data' => [
@@ -166,7 +186,8 @@ describe('GET /api/v1/onboarding/completion-status', function () {
         ]);
 
         actingAs($this->user, 'sanctum')
-            ->getJson('/api/v1/onboarding/completion-status')
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->getJson('/v1/onboarding/completion-status')
             ->assertOk()
             ->assertJson([
                 'data' => [
@@ -199,7 +220,8 @@ describe('GET /api/v1/onboarding/completion-status', function () {
         ]);
 
         actingAs($this->user, 'sanctum')
-            ->getJson('/api/v1/onboarding/completion-status')
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->getJson('/v1/onboarding/completion-status')
             ->assertOk()
             ->assertJson([
                 'data' => [
@@ -226,7 +248,8 @@ describe('GET /api/v1/onboarding/completion-status', function () {
         ]);
 
         actingAs($this->user, 'sanctum')
-            ->getJson('/api/v1/onboarding/completion-status')
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->getJson('/v1/onboarding/completion-status')
             ->assertOk()
             ->assertJson([
                 'data' => [
@@ -253,7 +276,8 @@ describe('GET /api/v1/onboarding/completion-status', function () {
         ]);
 
         actingAs($this->user, 'sanctum')
-            ->getJson('/api/v1/onboarding/completion-status')
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->getJson('/v1/onboarding/completion-status')
             ->assertOk()
             ->assertJson([
                 'data' => [
@@ -273,7 +297,8 @@ describe('GET /api/v1/onboarding/completion-status', function () {
         ]);
 
         actingAs($this->user, 'sanctum')
-            ->getJson('/api/v1/onboarding/completion-status')
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->getJson('/v1/onboarding/completion-status')
             ->assertOk()
             ->assertJson([
                 'data' => [
@@ -301,7 +326,8 @@ describe('OnboardingController::submitForm completion integration', function () 
         ]);
 
         actingAs($this->user, 'sanctum')
-            ->postJson('/api/v1/onboarding/submissions', [
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->postJson('/v1/onboarding/submissions', [
                 'form_template_id' => $template->id,
                 'form_data' => ['name' => 'John Doe'],
                 'status' => 'draft', // Draft status
@@ -326,7 +352,8 @@ describe('OnboardingController::submitForm completion integration', function () 
         ]);
 
         actingAs($this->user, 'sanctum')
-            ->postJson('/api/v1/onboarding/submissions', [
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->postJson('/v1/onboarding/submissions', [
                 'form_template_id' => $template->id,
                 'form_data' => ['name' => 'John Doe'],
                 'status' => 'submitted',
@@ -341,9 +368,11 @@ describe('OnboardingController::submitForm completion integration', function () 
 describe('OnboardingController::approveSubmission completion integration', function () {
     it('triggers completion check when approving last required form', function () {
         // Create HR user with approval permissions
+        Permission::firstOrCreate(['name' => 'onboarding.approve', 'guard_name' => 'sanctum']);
         Role::firstOrCreate(['name' => 'hr_admin', 'guard_name' => 'sanctum']);
         $hrUser = User::factory()->create();
         $hrUser->assignRole('hr_admin');
+        $hrUser->givePermissionTo('onboarding.approve');
 
         $template = OnboardingFormTemplate::factory()->create([
             'tenant_id' => null,
@@ -362,7 +391,8 @@ describe('OnboardingController::approveSubmission completion integration', funct
 
         // Approve submission
         actingAs($hrUser, 'sanctum')
-            ->postJson("/api/v1/admin/onboarding/submissions/{$submission->id}/approve")
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/approve")
             ->assertOk();
 
         // After approval - should be complete (only 1 required template)
@@ -371,9 +401,11 @@ describe('OnboardingController::approveSubmission completion integration', funct
     });
 
     it('marks completion when all required forms are approved', function () {
+        Permission::firstOrCreate(['name' => 'onboarding.approve', 'guard_name' => 'sanctum']);
         Role::firstOrCreate(['name' => 'hr_admin', 'guard_name' => 'sanctum']);
         $hrUser = User::factory()->create();
         $hrUser->assignRole('hr_admin');
+        $hrUser->givePermissionTo('onboarding.approve');
 
         $template1 = OnboardingFormTemplate::factory()->create([
             'tenant_id' => null,
@@ -401,7 +433,8 @@ describe('OnboardingController::approveSubmission completion integration', funct
 
         // Approve first submission
         actingAs($hrUser, 'sanctum')
-            ->postJson("/api/v1/admin/onboarding/submissions/{$submission1->id}/approve")
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->postJson("/v1/admin/onboarding/submissions/{$submission1->id}/approve")
             ->assertOk();
 
         // Not complete yet (1 of 2 approved)
@@ -409,7 +442,8 @@ describe('OnboardingController::approveSubmission completion integration', funct
 
         // Approve second submission
         actingAs($hrUser, 'sanctum')
-            ->postJson("/api/v1/admin/onboarding/submissions/{$submission2->id}/approve")
+            ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
+            ->postJson("/v1/admin/onboarding/submissions/{$submission2->id}/approve")
             ->assertOk();
 
         // Now complete (2 of 2 approved)
