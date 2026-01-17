@@ -77,7 +77,7 @@ class OnboardingCompletionService
      * This method does NOT modify the employee record. Use checkCompletion() to auto-update.
      *
      * @param  Employee  $employee  The employee to get status for
-     * @return array{is_completed: bool, total_required: int, completed_required: int, missing_templates: array<int, array{id: string, name: string, description: string|null}>}
+     * @return array{is_completed: bool, total_required: int, completed_required: int, missing_templates: array<mixed>}
      */
     public function getCompletionStatus(Employee $employee): array
     {
