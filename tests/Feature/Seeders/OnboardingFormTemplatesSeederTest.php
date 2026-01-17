@@ -5,8 +5,11 @@
 
 use App\Models\OnboardingFormTemplate;
 use Database\Seeders\OnboardingFormTemplatesSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 use function Pest\Laravel\artisan;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function () {
     // Clean database before each test
