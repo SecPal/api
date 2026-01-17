@@ -7,8 +7,11 @@ use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Services\OnboardingCompletionService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 use function Pest\Laravel\assertDatabaseHas;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->service = new OnboardingCompletionService;

@@ -6,13 +6,28 @@
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\getJson;
 
+uses(RefreshDatabase::class);
+
 beforeEach(function () {
+    // Setup TenantKey for encryption and permission system
+    TenantKey::setKekPath(getTestKekPath());
+    TenantKey::generateKek();
+    $keys = TenantKey::generateEnvelopeKeys();
+    $this->tenant = TenantKey::create($keys);
+
+    // Set tenant context for permission system
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($this->tenant->id);
+
     // Create pre-contract employee with user account
     $this->user = User::factory()->create();
     $this->employee = Employee::factory()->preContract()->create([
@@ -20,6 +35,12 @@ beforeEach(function () {
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => false,
     ]);
+});
+
+afterEach(function () {
+    // Reset tenant context
+    app(PermissionRegistrar::class)->setPermissionsTeamId(null);
+    TenantKey::setKekPath(null);
 });
 
 describe('GET /api/v1/onboarding/completion-status', function () {
