@@ -52,7 +52,7 @@ test('command detects python and ots versions', function () {
     $otsService
         ->shouldReceive('submit')
         ->once()
-        ->with(Mockery::pattern('/^[0-9a-f]{64}$/'))
+        ->with(\Mockery::pattern('/^[0-9a-f]{64}$/'))
         ->andReturn('mock-proof-data');
 
     $this->artisan(CheckOpenTimestampStatus::class)
