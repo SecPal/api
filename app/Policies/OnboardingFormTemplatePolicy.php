@@ -5,6 +5,7 @@
 
 namespace App\Policies;
 
+use App\Models\Employee;
 use App\Models\OnboardingFormTemplate;
 use App\Models\User;
 
@@ -25,20 +26,34 @@ class OnboardingFormTemplatePolicy
     /**
      * Determine if user can view any onboarding form templates.
      *
+     * Pre-contract employees can view templates for their onboarding.
      * Users with onboarding.read permission can view templates.
      */
     public function viewAny(User $user): bool
     {
+        // Pre-contract employees can view templates for their onboarding
+        $employee = $user->employee;
+        if ($employee && $employee->status === Employee::STATUS_PRE_CONTRACT) {
+            return true;
+        }
+
         return $user->can('onboarding.read');
     }
 
     /**
      * Determine if user can view a specific template.
      *
+     * Pre-contract employees can view templates for their onboarding.
      * Users with onboarding.read permission can view templates.
      */
     public function view(User $user, OnboardingFormTemplate $template): bool
     {
+        // Pre-contract employees can view templates for their onboarding
+        $employee = $user->employee;
+        if ($employee && $employee->status === Employee::STATUS_PRE_CONTRACT) {
+            return true;
+        }
+
         return $user->can('onboarding.read');
     }
 

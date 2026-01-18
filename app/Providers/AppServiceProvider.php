@@ -97,9 +97,10 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
-        // Onboarding completion rate limiter (3 attempts per 10 minutes by IP)
+        // Onboarding completion rate limiter (30 attempts per 10 minutes by IP)
+        // Allows multiple form steps, template loads, and submissions during onboarding flow
         RateLimiter::for('onboarding', function (Request $request) {
-            return Limit::perMinutes(10, 3)->by($request->ip())->response(function () {
+            return Limit::perMinutes(10, 30)->by($request->ip())->response(function () {
                 return response()->json([
                     'message' => __('Too many onboarding attempts. Please try again later.'),
                 ], 429);

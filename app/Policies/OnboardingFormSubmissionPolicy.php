@@ -27,11 +27,18 @@ class OnboardingFormSubmissionPolicy
     /**
      * Determine if user can view any submissions.
      *
+     * Pre-contract employees can view their own submissions.
      * Users with onboarding.read permission can view submissions.
      * Scope-based filtering handled at controller level.
      */
     public function viewAny(User $user): bool
     {
+        // Pre-contract employees can view their own submissions
+        $employee = $user->employee;
+        if ($employee && $employee->status === Employee::STATUS_PRE_CONTRACT) {
+            return true;
+        }
+
         return $user->can('onboarding.read');
     }
 
@@ -73,15 +80,11 @@ class OnboardingFormSubmissionPolicy
     /**
      * Determine if user can create submissions.
      *
-     * Users must have onboarding.write permission AND be pre-contract employees.
+     * Pre-contract employees can create their own onboarding submissions.
+     * Users with onboarding.write permission can create submissions.
      */
     public function create(User $user): bool
     {
-        // Must have permission
-        if (! $user->can('onboarding.write')) {
-            return false;
-        }
-
         /** @var Employee|null $employee */
         $employee = $user->employee()->first();
 
@@ -90,8 +93,13 @@ class OnboardingFormSubmissionPolicy
             return false;
         }
 
-        // Only pre-contract employees can create submissions
-        return $employee->status === 'pre_contract';
+        // Pre-contract employees can create their own onboarding submissions
+        if ($employee->status === 'pre_contract') {
+            return true;
+        }
+
+        // Users with onboarding.write permission can create submissions
+        return $user->can('onboarding.write');
     }
 
     /**
