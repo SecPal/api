@@ -816,8 +816,8 @@ class OnboardingController extends Controller
         $user = $request->user();
 
         // User's profile language preference (if authenticated)
-        if ($user && $user->language) {
-            return $user->language;
+        if ($user && $user->preferred_locale) {
+            return (string) $user->preferred_locale;
         }
 
         // Accept-Language header - parse manually because getPreferredLanguage() doesn't work reliably

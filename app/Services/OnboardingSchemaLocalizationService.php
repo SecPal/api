@@ -50,12 +50,12 @@ class OnboardingSchemaLocalizationService
         $localized = $schema;
 
         // Localize title
-        if (isset($schema['title'])) {
+        if (isset($schema['title']) && is_string($schema['title'])) {
             $localized['title'] = $this->translateSchemaProperty($schema['title'], $path, 'title');
         }
 
         // Localize description
-        if (isset($schema['description'])) {
+        if (isset($schema['description']) && is_string($schema['description'])) {
             $localized['description'] = $this->translateSchemaProperty($schema['description'], $path, 'description');
         }
 
@@ -85,14 +85,16 @@ class OnboardingSchemaLocalizationService
                 ]);
             } else {
                 // Fallback: translate each enum name individually
-                $localized['enumNames'] = array_map(function ($enumName) use ($path) {
-                    return $this->translateSchemaProperty($enumName, $path, 'enum');
-                }, $schema['enumNames']);
-                Log::info('Enum translated individually (fallback)', [
-                    'key' => $enumKey,
-                    'translated' => $translated,
-                    'result' => $localized['enumNames']
-                ]);
+                if (is_array($schema['enumNames'])) {
+                    $localized['enumNames'] = array_map(function ($enumName) use ($path) {
+                        return is_string($enumName) ? $this->translateSchemaProperty($enumName, $path, 'enum') : $enumName;
+                    }, $schema['enumNames']);
+                    Log::info('Enum translated individually (fallback)', [
+                        'key' => $enumKey,
+                        'translated' => $translated,
+                        'result' => $localized['enumNames']
+                    ]);
+                }
             }
         }
 
@@ -100,9 +102,13 @@ class OnboardingSchemaLocalizationService
         if (isset($schema['properties']) && is_array($schema['properties'])) {
             $localized['properties'] = [];
             foreach ($schema['properties'] as $propName => $propSchema) {
+                if (!is_array($propSchema)) {
+                    continue;
+                }
                 // Build the property-specific path for translation lookups
-                $propPath = array_merge($path, [$propName]);
+                $propPath = array_merge($path, [(string) $propName]);
 
+                /** @var array<string, mixed> $propSchema */
                 $localized['properties'][$propName] = $this->localizeSchemaRecursive(
                     $propSchema,
                     $propPath
@@ -112,14 +118,22 @@ class OnboardingSchemaLocalizationService
 
         // Localize array items
         if (isset($schema['items']) && is_array($schema['items'])) {
-            $localized['items'] = $this->localizeSchemaRecursive($schema['items'], array_merge($path, ['items']));
+            /** @var array<string, mixed> $items */
+            $items = $schema['items'];
+            $localized['items'] = $this->localizeSchemaRecursive($items, array_merge($path, ['items']));
         }
 
         // Localize oneOf/anyOf/allOf schemas
         foreach (['oneOf', 'anyOf', 'allOf'] as $combiningKeyword) {
             if (isset($schema[$combiningKeyword]) && is_array($schema[$combiningKeyword])) {
                 $localized[$combiningKeyword] = array_map(
-                    fn ($subSchema) => $this->localizeSchemaRecursive($subSchema, $path),
+                    function ($subSchema) use ($path) {
+                        if (!is_array($subSchema)) {
+                            return $subSchema;
+                        }
+                        /** @var array<string, mixed> $subSchema */
+                        return $this->localizeSchemaRecursive($subSchema, $path);
+                    },
                     $schema[$combiningKeyword]
                 );
             }
