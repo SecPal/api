@@ -1044,51 +1044,64 @@ class Employee extends Model
      */
     public static function getDefaultOnboardingSteps(): array
     {
-        return [
-            'steps' => [
-                [
-                    'id' => 'personal_data',
-                    'name' => 'Persönliche Daten',
-                    'completed' => false,
-                    'completed_at' => null,
-                    'form_submission_id' => null,
-                ],
-                [
-                    'id' => 'bank_details',
-                    'name' => 'Bankverbindung',
-                    'completed' => false,
-                    'completed_at' => null,
-                    'form_submission_id' => null,
-                ],
-                [
-                    'id' => 'tax_info',
-                    'name' => 'Steuerinformationen',
-                    'completed' => false,
-                    'completed_at' => null,
-                    'form_submission_id' => null,
-                ],
-                [
-                    'id' => 'qualifications',
-                    'name' => 'Qualifikationen & Zertifikate',
-                    'completed' => false,
-                    'completed_at' => null,
-                    'form_submission_id' => null,
-                ],
-                [
-                    'id' => 'documents',
-                    'name' => 'Dokumente hochladen',
-                    'completed' => false,
-                    'completed_at' => null,
-                    'form_submission_id' => null,
-                ],
-                [
-                    'id' => 'confirmation',
-                    'name' => 'Bestätigung & Abschluss',
-                    'completed' => false,
-                    'completed_at' => null,
-                    'form_submission_id' => null,
-                ],
+        // Get system templates ordered by sort_order to match with steps
+        $templates = OnboardingFormTemplate::where('is_system_template', true)
+            ->whereNull('tenant_id')
+            ->orderBy('sort_order')
+            ->get();
+
+        // Map templates to steps by index (first 4 templates match first 4 steps)
+        $steps = [
+            [
+                'id' => 'personal_data',
+                'name' => 'Persönliche Daten',
+                'completed' => false,
+                'completed_at' => null,
+                'form_submission_id' => null,
+                'template_id' => $templates->get(0)?->id ?? null,
+            ],
+            [
+                'id' => 'bank_details',
+                'name' => 'Bankverbindung',
+                'completed' => false,
+                'completed_at' => null,
+                'form_submission_id' => null,
+                'template_id' => $templates->get(1)?->id ?? null,
+            ],
+            [
+                'id' => 'tax_info',
+                'name' => 'Steuerinformationen',
+                'completed' => false,
+                'completed_at' => null,
+                'form_submission_id' => null,
+                'template_id' => $templates->get(3)?->id ?? null, // Tax is 4th template (sort_order 4)
+            ],
+            [
+                'id' => 'qualifications',
+                'name' => 'Qualifikationen & Zertifikate',
+                'completed' => false,
+                'completed_at' => null,
+                'form_submission_id' => null,
+                'template_id' => null, // No template yet for qualifications
+            ],
+            [
+                'id' => 'documents',
+                'name' => 'Dokumente hochladen',
+                'completed' => false,
+                'completed_at' => null,
+                'form_submission_id' => null,
+                'template_id' => null, // Documents are uploaded separately
+            ],
+            [
+                'id' => 'confirmation',
+                'name' => 'Bestätigung & Abschluss',
+                'completed' => false,
+                'completed_at' => null,
+                'form_submission_id' => null,
+                'template_id' => null, // Confirmation step
             ],
         ];
+
+        return ['steps' => $steps];
     }
 }
