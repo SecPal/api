@@ -83,6 +83,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     'type' => 'string',
                     'title' => 'Gender',
                     'enum' => ['male', 'female', 'diverse'],
+                    'enumNames' => ['Male', 'Female', 'Diverse'],
                 ],
                 'birth_name' => [
                     'type' => 'string',
@@ -119,6 +120,15 @@ class OnboardingFormTemplatesSeeder extends Seeder
                             'alarm_response',
                             'security_patrol',
                             'personal_protection',
+                        ],
+                        'enumNames' => [
+                            'Door Control',
+                            'Event Security',
+                            'Store Detective',
+                            'Cash & Valuables Transport',
+                            'Alarm Response',
+                            'Security Patrol',
+                            'Personal Protection',
                         ],
                     ],
                     'minItems' => 1,

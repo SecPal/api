@@ -15,12 +15,14 @@ use App\Models\EmployeeOnboardingToken;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Services\OnboardingCompletionService;
+use App\Services\OnboardingSchemaLocalizationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
 
@@ -355,8 +357,19 @@ class OnboardingController extends Controller
             ->orderBy('name')
             ->get();
 
+        // Localize all templates
+        $locale = $this->resolveLocale($request);
+        Log::info('Locale resolved for templates', ['locale' => $locale, 'accept_language' => $request->header('Accept-Language')]);
+        $localizationService = new OnboardingSchemaLocalizationService;
+
+        $localizedTemplates = $templates->map(function ($template) use ($localizationService, $locale) {
+            $localizedSchema = $localizationService->localizeSchema($template->form_schema ?? [], $locale);
+
+            return new OnboardingFormTemplateResource($template, $localizedSchema);
+        });
+
         return response()->json([
-            'data' => OnboardingFormTemplateResource::collection($templates),
+            'data' => $localizedTemplates,
         ]);
     }
 
@@ -365,12 +378,21 @@ class OnboardingController extends Controller
      *
      * GET /api/v1/onboarding/templates/{template}
      */
-    public function getTemplate(OnboardingFormTemplate $template): JsonResponse
+    public function getTemplate(Request $request, OnboardingFormTemplate $template): JsonResponse
     {
         $this->authorize('view', $template);
 
+        // Determine locale: user preference > Accept-Language header > 'en'
+        $locale = $this->resolveLocale($request);
+        Log::info('Locale resolved for single template', ['locale' => $locale, 'template_id' => $template->id, 'accept_language' => $request->header('Accept-Language')]);
+
+        // Localize schema
+        $localizationService = new OnboardingSchemaLocalizationService;
+        $localizedSchema = $localizationService->localizeSchema($template->form_schema ?? [], $locale);
+        Log::info('Schema localized', ['has_title' => isset($localizedSchema['title']), 'title' => $localizedSchema['title'] ?? 'N/A']);
+
         return response()->json([
-            'data' => new OnboardingFormTemplateResource($template),
+            'data' => new OnboardingFormTemplateResource($template, $localizedSchema),
         ]);
     }
 
@@ -775,10 +797,43 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $status = app(OnboardingCompletionService::class)->getCompletionStatus($employee);
+        $completionService = new OnboardingCompletionService;
+        $completionData = $completionService->getCompletionStatus($employee);
 
         return response()->json([
-            'data' => $status,
+            'data' => $completionData,
         ]);
+    }
+
+    /**
+     * Resolve locale from request.
+     *
+     * Priority: user language preference > Accept-Language header > 'en'
+     */
+    private function resolveLocale(Request $request): string
+    {
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+
+        // User's profile language preference (if authenticated)
+        if ($user && $user->language) {
+            return $user->language;
+        }
+
+        // Accept-Language header - parse manually because getPreferredLanguage() doesn't work reliably
+        $acceptLanguage = $request->header('Accept-Language');
+        if ($acceptLanguage) {
+            // Parse "de,en;q=0.9" or "de-DE,de;q=0.9,en;q=0.8"
+            // Extract first language code
+            if (preg_match('/^([a-z]{2})/', strtolower($acceptLanguage), $matches)) {
+                $locale = $matches[1];
+                if (in_array($locale, ['en', 'de'])) {
+                    return $locale;
+                }
+            }
+        }
+
+        // Default to English
+        return 'en';
     }
 }
