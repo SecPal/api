@@ -20,7 +20,7 @@
   "require-dev": {
     "barryvdh/laravel-ide-helper": "^3.6",
     "fakerphp/faker": "^1.23",
-    "larastan/larastan": "^3.8",
+    "larastan/larastan": "^3.9",
     "laravel/boost": "^1.8",
     "laravel/pail": "^1.2.6",
     "laravel/pint": "^1.27",
