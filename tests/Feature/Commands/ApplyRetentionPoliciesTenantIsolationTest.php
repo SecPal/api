@@ -140,13 +140,25 @@ describe('ApplyRetentionPolicies → Tenant Isolation', function () {
         expect($tenant1Logs[0]->is_orphaned_genesis)->toBeTrue('Recent second should be orphaned genesis');
 
         // Tenant 2: "created" + 2 manual logs = 3 logs, chain intact, NO orphaned genesis (CRITICAL)
-        $tenant2Logs = Activity::where('tenant_id', $this->tenant2->id)->orderBy('created_at')->get();
+        // Use deterministic ordering for parallel CI environments.
+        $tenant2Logs = Activity::where('tenant_id', $this->tenant2->id)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
         expect($tenant2Logs)->toHaveCount(3);
         expect($tenant2Logs[0]->is_orphaned_genesis)->toBeFalse();
         expect($tenant2Logs[1]->is_orphaned_genesis)->toBeFalse();
         expect($tenant2Logs[2]->is_orphaned_genesis)->toBeFalse();
-        // Verify chain integrity: log2.previous_hash should equal log1.event_hash
-        expect($tenant2Logs[2]->previous_hash)->toBe($tenant2Logs[1]->event_hash);
+
+        // Verify chain integrity only for the tenant's shift_management chain.
+        $tenant2ShiftLogs = Activity::where('tenant_id', $this->tenant2->id)
+            ->where('log_name', 'shift_management')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        expect($tenant2ShiftLogs)->toHaveCount(2);
+        expect($tenant2ShiftLogs[1]->previous_hash)->toBe($tenant2ShiftLogs[0]->event_hash);
     });
 
     test('--tenant option processes only specified tenant', function () {
