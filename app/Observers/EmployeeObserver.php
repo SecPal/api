@@ -190,6 +190,16 @@ class EmployeeObserver
                         return;
                     }
 
+                    if ($existingUser->employee !== null && $existingUser->employee->id !== $employee->id) {
+                        Log::warning('User account provisioning blocked because user is already linked', [
+                            'employee_id' => $employee->id,
+                            'conflicting_user_id' => $existingUser->id,
+                            'linked_employee_id' => $existingUser->employee->id,
+                        ]);
+
+                        return;
+                    }
+
                     $user = $existingUser;
                     Log::info('Reusing existing user account for employee', [
                         'employee_id' => $employee->id,

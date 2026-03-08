@@ -144,6 +144,57 @@ test('employee observer does not reuse user account from another tenant', functi
     Mail::assertNothingQueued();
 });
 
+test('employee observer does not reuse user account already linked to another employee', function () {
+    Mail::fake();
+
+    $existingUser = User::factory()->create([
+        'name' => 'Existing User',
+        'email' => 'linked@example.com',
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $firstEmployee = Employee::factory()->create([
+        'employee_number' => 'EMP-004B',
+        'tenant_id' => $this->tenant->id,
+        'first_name' => 'First',
+        'last_name' => 'Employee',
+        'email' => 'linked@example.com',
+        'date_of_birth' => '1988-11-30',
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->addDays(7),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    expect($firstEmployee->fresh()?->user_id)->toBe($existingUser->id);
+
+    $existingUser->forceFill([
+        'email' => 'duplicate@example.com',
+    ])->save();
+
+    Mail::fake();
+
+    $secondEmployee = Employee::factory()->create([
+        'employee_number' => 'EMP-004C',
+        'tenant_id' => $this->tenant->id,
+        'first_name' => 'Second',
+        'last_name' => 'Employee',
+        'email' => 'duplicate@example.com',
+        'date_of_birth' => '1990-12-01',
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->addDays(14),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $secondEmployee->refresh();
+
+    expect($secondEmployee->user)->toBeNull();
+    expect($secondEmployee->user_account_active)->toBeFalse();
+    expect(User::where('email', 'duplicate@example.com')->count())->toBe(1);
+    expect($existingUser->fresh()?->employee?->id)->toBe($firstEmployee->id);
+
+    Mail::assertNothingQueued();
+});
+
 test('employee observer activates user account when status changes to active', function () {
     Mail::fake();
 
