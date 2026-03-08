@@ -11,7 +11,6 @@ namespace App\Services;
 
 use App\Contracts\ProcessExecutor;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -57,6 +56,8 @@ class OpenTimestampService
             throw new \InvalidArgumentException('Digest must be 64-character hex SHA256 hash');
         }
 
+        $digest = strtolower($digest);
+
         // Check if Python and OTS script are available
         if (! $this->processExecutor->commandExists('python3')) {
             throw new RuntimeException(
@@ -70,7 +71,9 @@ class OpenTimestampService
             );
         }
 
-        Log::info('OpenTimestamp: Submitting digest via Python script', ['digest' => $digest]);
+        Log::info('OpenTimestamp: Submitting digest via Python script', [
+            'digest_hint' => $this->digestHint($digest),
+        ]);
 
         // Use custom Python script that timestamps a pre-computed hash directly.
         // The standard `ots stamp -` command hashes its input, which would double-hash our merkle root.
@@ -113,7 +116,7 @@ class OpenTimestampService
             }
 
             Log::info('OpenTimestamp: Submission successful', [
-                'digest' => $digest,
+                'digest_hint' => $this->digestHint($digest),
                 'proof_size' => strlen($proof),
             ]);
 
@@ -121,8 +124,8 @@ class OpenTimestampService
 
         } catch (\Exception $e) {
             Log::error('OpenTimestamp: Submission failed', [
-                'digest' => $digest,
-                'error' => $e->getMessage(),
+                'digest_hint' => $this->digestHint($digest),
+                'error' => $this->sanitizeProcessMessage($e->getMessage()),
             ]);
 
             throw new RuntimeException(
@@ -158,18 +161,17 @@ class OpenTimestampService
         ]);
 
         // Write proof to temporary file (ots CLI requires file input)
-        $tempFile = tempnam(sys_get_temp_dir(), 'ots_upgrade_');
-        if ($tempFile === false) {
+        $tempFile = $this->createSecureTempFile('ots_upgrade_');
+        if ($tempFile === null) {
             Log::error('OpenTimestamp: Cannot create temp file for upgrade');
 
             return null;
         }
 
         try {
-            $bytesWritten = file_put_contents($tempFile, $pendingProof);
+            $bytesWritten = file_put_contents($tempFile, $pendingProof, LOCK_EX);
             if ($bytesWritten === false) {
                 Log::error('OpenTimestamp: Cannot write pending proof to temp file for upgrade', [
-                    'temp_file' => $tempFile,
                     'proof_size' => strlen($pendingProof),
                 ]);
 
@@ -218,10 +220,7 @@ class OpenTimestampService
 
             return null;
         } finally {
-            // Always cleanup temp file
-            if (file_exists($tempFile)) {
-                unlink($tempFile);
-            }
+            $this->cleanupTempFile($tempFile);
         }
     }
 
@@ -264,7 +263,7 @@ class OpenTimestampService
         $cacheKey = "ots:verified:{$digest}";
         if (Cache::has($cacheKey)) {
             Log::debug('OpenTimestamp: Cache hit for verified proof', [
-                'digest' => $digest,
+                'digest_hint' => $this->digestHint($digest),
             ]);
 
             return (bool) Cache::get($cacheKey);
@@ -273,7 +272,7 @@ class OpenTimestampService
         // Check if Python 3 is installed
         if (! $this->processExecutor->commandExists('python3')) {
             Log::error('OpenTimestamp: python3 not installed', [
-                'digest' => $digest,
+                'digest_hint' => $this->digestHint($digest),
                 'message' => 'Install Python 3 for OTS verification',
             ]);
 
@@ -284,7 +283,7 @@ class OpenTimestampService
         $scriptPath = base_path('scripts/ots-verify.py');
         if (! file_exists($scriptPath)) {
             Log::error('OpenTimestamp: Verification script not found', [
-                'digest' => $digest,
+                'digest_hint' => $this->digestHint($digest),
                 'script_path' => $scriptPath,
             ]);
 
@@ -292,25 +291,24 @@ class OpenTimestampService
         }
 
         Log::debug('OpenTimestamp: Verifying proof with Python script', [
-            'digest' => $digest,
+            'digest_hint' => $this->digestHint($digest),
             'proof_size' => strlen($proof),
         ]);
 
         // Write proof to temporary file
-        $tempFile = tempnam(sys_get_temp_dir(), 'ots_verify_');
-        if ($tempFile === false) {
+        $tempFile = $this->createSecureTempFile('ots_verify_');
+        if ($tempFile === null) {
             Log::error('OpenTimestamp: Cannot create temp file for verification');
 
             return false;
         }
 
         try {
-            $bytesWritten = file_put_contents($tempFile, $proof);
+            $bytesWritten = file_put_contents($tempFile, $proof, LOCK_EX);
 
             if ($bytesWritten === false) {
                 Log::error('OpenTimestamp: Failed to write proof to temp file', [
-                    'digest' => $digest,
-                    'temp_file' => $tempFile,
+                    'digest_hint' => $this->digestHint($digest),
                 ]);
 
                 return false;
@@ -327,8 +325,8 @@ class OpenTimestampService
             // Check exit code (0 = success)
             if ($result['exitCode'] === 0) {
                 Log::info('OpenTimestamp: Proof verification successful', [
-                    'digest' => $digest,
-                    'output' => trim($result['stderr']), // Script writes to stderr
+                    'digest_hint' => $this->digestHint($digest),
+                    'output' => $this->sanitizeProcessMessage((string) $result['stderr']),
                 ]);
 
                 // Cache positive result forever (proofs are immutable once Bitcoin-anchored)
@@ -340,18 +338,72 @@ class OpenTimestampService
             // Verification failed (exit code 1 = invalid proof, 2 = error)
             // NOTE: Do NOT cache failures - proof may be upgraded later
             Log::warning('OpenTimestamp: Proof verification failed', [
-                'digest' => $digest,
+                'digest_hint' => $this->digestHint($digest),
                 'exit_code' => $result['exitCode'],
-                'stderr' => trim($result['stderr']),
+                'stderr' => $this->sanitizeProcessMessage((string) $result['stderr']),
             ]);
 
             return false;
         } finally {
-            // Always cleanup temp file
-            if (file_exists($tempFile)) {
-                unlink($tempFile);
-            }
+            $this->cleanupTempFile($tempFile);
         }
+    }
+
+    /**
+     * Create a temporary proof file with restrictive permissions.
+     */
+    private function createSecureTempFile(string $prefix): ?string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), $prefix);
+        if ($tempFile === false) {
+            return null;
+        }
+
+        @chmod($tempFile, 0600);
+
+        return $tempFile;
+    }
+
+    /**
+     * Remove a temporary proof file if it still exists.
+     */
+    private function cleanupTempFile(?string $tempFile): void
+    {
+        if ($tempFile === null || $tempFile === '') {
+            return;
+        }
+
+        clearstatcache(true, $tempFile);
+
+        if (file_exists($tempFile)) {
+            @unlink($tempFile);
+        }
+    }
+
+    /**
+     * Reduce log exposure for digests while retaining traceability.
+     */
+    private function digestHint(string $digest): string
+    {
+        return substr($digest, 0, 12);
+    }
+
+    /**
+     * Normalize and truncate process output before logging.
+     */
+    private function sanitizeProcessMessage(string $message, int $maxLength = 500): string
+    {
+        $sanitized = trim(preg_replace('/[[:cntrl:]]+/', ' ', $message) ?? '');
+
+        if ($sanitized === '') {
+            return 'No error details available';
+        }
+
+        if (strlen($sanitized) > $maxLength) {
+            return substr($sanitized, 0, $maxLength);
+        }
+
+        return $sanitized;
     }
 
     /**

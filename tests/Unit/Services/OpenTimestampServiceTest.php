@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Unit tests for OpenTimestamp proof verification.
@@ -225,6 +226,63 @@ test('verify handles uppercase digest', function () {
 
     // Assert: Returns true with normalized digest
     expect($result)->toBeTrue();
+});
+
+test('verify cleans up temporary proof file after execution', function () {
+    $merkleRoot = hash('sha256', 'cleanup-test');
+    $proof = 'proof-data';
+    $capturedTempFile = null;
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->withArgs(function ($command) use (&$capturedTempFile, $proof, $merkleRoot) {
+            $capturedTempFile = $command[2] ?? null;
+
+            return count($command) === 4
+                && $command[0] === 'python3'
+                && is_string($capturedTempFile)
+                && file_exists($capturedTempFile)
+                && file_get_contents($capturedTempFile) === $proof
+                && $command[3] === $merkleRoot;
+        })
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'Error: Invalid proof',
+        ]);
+
+    $result = $this->service->verify($proof, $merkleRoot);
+
+    expect($result)->toBeFalse();
+    expect($capturedTempFile)->not->toBeNull();
+    expect(file_exists($capturedTempFile))->toBeFalse();
+});
+
+test('submit failure logs only sanitized digest context', function () {
+    $digest = hash('sha256', 'sensitive-digest');
+
+    Log::shouldReceive('info')->once();
+    Log::shouldReceive('error')
+        ->once()
+        ->withArgs(function (string $message, array $context) use ($digest) {
+            return $message === 'OpenTimestamp: Submission failed'
+                && ($context['digest_hint'] ?? null) === substr($digest, 0, 12)
+                && ! array_key_exists('digest', $context)
+                && ($context['error'] ?? null) === 'OTS submission script failed with exit code 1: calendar failure';
+        });
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'calendar failure',
+        ]);
+
+    expect(fn () => $this->service->submit($digest))
+        ->toThrow(RuntimeException::class, 'Failed to submit timestamp: OTS submission script failed with exit code 1: calendar failure');
 });
 
 /**
