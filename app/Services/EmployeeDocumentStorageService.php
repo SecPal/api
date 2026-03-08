@@ -74,6 +74,9 @@ class EmployeeDocumentStorageService
         }
 
         $encryptedBlob = $storage->get($document->file_path);
+        if (! is_string($encryptedBlob)) {
+            throw new \RuntimeException('Failed to read encrypted employee document blob');
+        }
 
         $decoded = json_decode($encryptedBlob, true);
         if (! is_array($decoded) || ! isset($decoded['ciphertext'], $decoded['nonce'])) {
