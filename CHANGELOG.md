@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles (TDD, quality gates, PR protocol, GDPR conventions) auto-loaded for all files in this repo via `applyTo: "**"`
+
 ### Changed
 
 - **Test Framework Migration - COMPLETE** (Issues #491, #500, #441)
