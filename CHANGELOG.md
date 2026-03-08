@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal
+SPDX-FileCopyrightText: 2026 SecPal
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -14,7 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `.github/instructions/php-laravel.instructions.md` - targeted Laravel, Pest, and DDEV guidance for PHP work in this repo
+- `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
 - `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles (TDD, quality gates, PR protocol, GDPR conventions) auto-loaded for all files in this repo via `applyTo: "**"`
+
+### Changed
+
+- `.github/copilot-instructions.md` - replaced comment-based pseudo-inheritance and oversized repo guidance with a self-contained runtime baseline for this repository
+- `.github/instructions/org-shared.instructions.md` - reduced to a short repo-local overlay that reinforces the runtime baseline instead of duplicating org documents
 
 ### Changed
 
