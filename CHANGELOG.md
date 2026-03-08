@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `app/Http/Controllers/Api/V1/EmployeeDocumentController.php`, `app/Policies/EmployeeDocumentPolicy.php`, and `app/Http/Resources/EmployeeDocumentResource.php` - aligned employee document authorization with a consistent policy model, encrypted stored document binaries at rest, and removed raw storage paths from API responses
 - `database/factories/EmployeeDocumentFactory.php` and employee document feature/policy tests - updated fixtures and tests to reflect encrypted storage and the normalized authorization behavior
+- `app/Services/EmployeeDocumentStorageService.php` and employee document controller/policy tests - tightened missing-file handling to return 404 only for true storage misses, validated upload metadata before persisting encrypted blobs, and replaced duplicate manager coverage with a real scoped-manager scenario
 
 - `.github/copilot-instructions.md` - replaced comment-based pseudo-inheritance and oversized repo guidance with a self-contained runtime baseline for this repository
 - `.github/instructions/org-shared.instructions.md` - reduced to a short repo-local overlay that reinforces the runtime baseline instead of duplicating org documents

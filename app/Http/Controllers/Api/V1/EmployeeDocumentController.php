@@ -5,6 +5,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\EmployeeDocumentFileNotFoundException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UploadEmployeeDocumentRequest;
 use App\Http\Resources\EmployeeDocumentResource;
@@ -136,7 +137,7 @@ class EmployeeDocumentController extends Controller
 
         try {
             $fileContent = $this->storageService->retrieve($document);
-        } catch (\RuntimeException) {
+        } catch (EmployeeDocumentFileNotFoundException) {
             abort(Response::HTTP_NOT_FOUND, __('File not found'));
         }
 

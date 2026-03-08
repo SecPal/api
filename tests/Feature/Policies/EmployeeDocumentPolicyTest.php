@@ -49,8 +49,17 @@ test('users with employee_document.read permission can view any employee documen
 });
 
 test('users with employee_document.read permission can view any employee documents (Manager)', function (): void {
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    $user->assignRole('Manager');
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'include_descendants' => false,
+        'access_level' => 'read',
+    ]);
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+    ]);
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.read');
 
     expect($this->policy->viewAny($user, $employee))->toBeTrue();

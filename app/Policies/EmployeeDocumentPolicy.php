@@ -17,9 +17,9 @@ use App\Models\User;
  * Rules:
  * - viewAny: Employee (own documents) OR HR OR Manager (scope)
  * - view: Check visible_to_employee flag + ownership
- * - create: HR only
- * - update: HR only
- * - delete: HR only
+ * - create: employee_document.write with tenant-wide or scoped access
+ * - update: employee_document.write with tenant-wide or scoped access
+ * - delete: employee_document.write with tenant-wide or scoped access
  */
 class EmployeeDocumentPolicy
 {
@@ -91,7 +91,7 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can update a document.
      *
-     * Users with employee_document.update permission can update with scope validation.
+     * Users with employee_document.write permission can update with scope validation.
      */
     public function update(User $user, EmployeeDocument $document): bool
     {
@@ -106,7 +106,7 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can delete a document.
      *
-     * Users with employee_document.delete permission can delete with scope validation.
+     * Users with employee_document.write permission can delete with scope validation.
      */
     public function delete(User $user, EmployeeDocument $document): bool
     {

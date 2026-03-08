@@ -1,10 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 SecPal
+// SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Services;
 
+use App\Exceptions\EmployeeDocumentFileNotFoundException;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use Illuminate\Http\UploadedFile;
@@ -33,16 +34,6 @@ class EmployeeDocumentStorageService
             throw new \RuntimeException('Employee must belong to a tenant');
         }
 
-        $encrypted = $tenant->encrypt($content);
-        $path = sprintf('employees/%s/documents/%s.enc', $employee->id, Str::uuid()->toString());
-
-        $blob = json_encode([
-            'ciphertext' => base64_encode($encrypted['ciphertext']),
-            'nonce' => base64_encode($encrypted['nonce']),
-        ], JSON_THROW_ON_ERROR);
-
-        Storage::disk('local')->put($path, $blob);
-
         $mimeType = $file->getMimeType();
         if ($mimeType === null) {
             throw new \RuntimeException('Failed to determine employee document MIME type');
@@ -52,6 +43,16 @@ class EmployeeDocumentStorageService
         if ($fileSize === false) {
             throw new \RuntimeException('Failed to determine employee document size');
         }
+
+        $encrypted = $tenant->encrypt($content);
+        $path = sprintf('employees/%s/documents/%s.enc', $employee->id, Str::uuid()->toString());
+
+        $blob = json_encode([
+            'ciphertext' => base64_encode($encrypted['ciphertext']),
+            'nonce' => base64_encode($encrypted['nonce']),
+        ], JSON_THROW_ON_ERROR);
+
+        Storage::disk('local')->put($path, $blob);
 
         return [
             'file_path' => $path,
@@ -66,10 +67,13 @@ class EmployeeDocumentStorageService
      */
     public function retrieve(EmployeeDocument $document): string
     {
-        $encryptedBlob = Storage::disk('local')->get($document->file_path);
-        if ($encryptedBlob === null) {
-            throw new \RuntimeException('Employee document not found in storage');
+        $storage = Storage::disk('local');
+
+        if (! $storage->exists($document->file_path)) {
+            throw new EmployeeDocumentFileNotFoundException('Employee document not found in storage');
         }
+
+        $encryptedBlob = $storage->get($document->file_path);
 
         $decoded = json_decode($encryptedBlob, true);
         if (! is_array($decoded) || ! isset($decoded['ciphertext'], $decoded['nonce'])) {

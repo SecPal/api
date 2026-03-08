@@ -390,6 +390,26 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
 
         $response->assertStatus(404);
     });
+
+    test('returns 500 when encrypted document blob is invalid', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
+
+        $document = EmployeeDocument::factory()->create([
+            'employee_id' => $this->employee->id,
+            'uploaded_by' => $this->user->id,
+            'file_path' => 'employees/1/documents/invalid.enc',
+            'file_name' => 'invalid.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 123,
+        ]);
+
+        Storage::disk('local')->put($document->file_path, '{"ciphertext":"broken"}');
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$this->employee->id}/documents/{$document->id}/download");
+
+        $response->assertStatus(500);
+    });
 });
 
 describe('DELETE /v1/employees/{employee}/documents/{document}', function () {
