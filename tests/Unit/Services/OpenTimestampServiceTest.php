@@ -311,6 +311,32 @@ test('verify failure redacts digests and temp file paths from logged stderr', fu
     expect($result)->toBeFalse();
 });
 
+test('verify failure redacts ots temp paths outside tmp from logged stderr', function () {
+    $digest = hash('sha256', 'stderr-redaction-alt-path');
+    $proof = 'proof-data';
+
+    Log::shouldReceive('debug')->once();
+    Log::shouldReceive('warning')
+        ->once()
+        ->withArgs(function (string $message, array $context) {
+            return $message === 'OpenTimestamp: Proof verification failed'
+                && ($context['stderr'] ?? null) === 'Verification failed at [redacted-temp-file] for digest [redacted-digest]';
+        });
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => "Verification failed at /var/tmp/ots_verify_abc123 for digest {$digest}",
+        ]);
+
+    $result = $this->service->verify($proof, $digest);
+
+    expect($result)->toBeFalse();
+});
+
 /**
  * Build valid OTS proof structure for testing.
  *
