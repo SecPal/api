@@ -91,7 +91,7 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
             ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
                 'email_plain' => 'test@example.com',
                 'phone_plain' => '+49 123 456789',
-                'note_enc' => 'Test note',
+                'note_plain' => 'Test note',
             ]);
 
         $response->assertStatus(201)
@@ -149,6 +149,55 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
         expect($person->note_enc)->toBeNull();
     });
 
+    test('preserves an existing note when note_plain is omitted on update', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'person.write');
+
+        $existing = new Person;
+        $existing->tenant_id = $this->tenant->id;
+        $existing->email_plain = 'preserve@example.com';
+        $existing->phone_plain = '111';
+        $existing->note_plain = 'Keep this note';
+        $existing->save();
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
+                'email_plain' => 'preserve@example.com',
+                'phone_plain' => '222',
+            ]);
+
+        $response->assertStatus(201);
+
+        $updated = $existing->fresh();
+        expect($updated)->not->toBeNull();
+        expect($updated?->phone_enc)->toBe('222');
+        expect($updated?->note_enc)->toBe('Keep this note');
+    });
+
+    test('clears an existing note when note_plain is explicitly null on update', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'person.write');
+
+        $existing = new Person;
+        $existing->tenant_id = $this->tenant->id;
+        $existing->email_plain = 'clear@example.com';
+        $existing->phone_plain = '111';
+        $existing->note_plain = 'Remove this note';
+        $existing->save();
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
+                'email_plain' => 'clear@example.com',
+                'phone_plain' => '333',
+                'note_plain' => null,
+            ]);
+
+        $response->assertStatus(201);
+
+        $updated = $existing->fresh();
+        expect($updated)->not->toBeNull();
+        expect($updated?->phone_enc)->toBe('333');
+        expect($updated?->note_enc)->toBeNull();
+    });
+
     test('returns 404 when tenant does not exist', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'person.write');
         $nonExistentTenantId = 99999;
@@ -169,7 +218,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
         $this->testPerson->tenant_id = $this->tenant->id;
         $this->testPerson->email_plain = 'search@example.com';
         $this->testPerson->phone_plain = '+49 123 456789';
-        $this->testPerson->note_enc = 'Test note';
+        $this->testPerson->note_plain = 'Test note';
         $this->testPerson->save();
     });
 

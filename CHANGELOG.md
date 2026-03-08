@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- align the Person API contract with plaintext transient fields by accepting `note_plain` instead of exposing direct `*_enc` input semantics
 - block tenant-crossing user reuse during pre-contract employee provisioning so onboarding accounts are only linked within the same tenant, and avoid logging employee email addresses in this path
 
 ### Changed

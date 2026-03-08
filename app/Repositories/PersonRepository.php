@@ -65,7 +65,7 @@ class PersonRepository
      * If a Person with the given email exists, update it. Otherwise, create new.
      *
      * @param  int  $tenantId  Tenant ID for isolation
-     * @param  array<string, mixed>  $attributes  Attributes including email_plain, phone_plain, note_enc
+     * @param  array<string, mixed>  $attributes  Attributes including email_plain, phone_plain, note_plain
      * @return Person The created or updated Person
      *
      * @throws \InvalidArgumentException if email_plain is missing or not a string
@@ -88,8 +88,8 @@ class PersonRepository
             if (isset($attributes['phone_plain']) && is_string($attributes['phone_plain'])) {
                 $person->phone_plain = $attributes['phone_plain'];
             }
-            if (isset($attributes['note_enc']) && is_string($attributes['note_enc'])) {
-                $person->note_enc = $attributes['note_enc'];
+            if (array_key_exists('note_plain', $attributes) && (is_string($attributes['note_plain']) || $attributes['note_plain'] === null)) {
+                $person->note_plain = $attributes['note_plain'];
             }
             $person->save();
         } else {
@@ -100,8 +100,8 @@ class PersonRepository
             if (isset($attributes['phone_plain']) && is_string($attributes['phone_plain'])) {
                 $person->phone_plain = $attributes['phone_plain'];
             }
-            if (isset($attributes['note_enc']) && is_string($attributes['note_enc'])) {
-                $person->note_enc = $attributes['note_enc'];
+            if (array_key_exists('note_plain', $attributes) && (is_string($attributes['note_plain']) || $attributes['note_plain'] === null)) {
+                $person->note_plain = $attributes['note_plain'];
             }
             $person->save();
         }
