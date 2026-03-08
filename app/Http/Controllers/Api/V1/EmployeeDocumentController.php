@@ -5,15 +5,16 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\EmployeeDocumentFileNotFoundException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UploadEmployeeDocumentRequest;
 use App\Http\Resources\EmployeeDocumentResource;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
+use App\Services\EmployeeDocumentStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * EmployeeDocumentController handles employee document management.
@@ -23,6 +24,17 @@ use Illuminate\Support\Facades\Storage;
  */
 class EmployeeDocumentController extends Controller
 {
+    public function __construct(
+        private readonly EmployeeDocumentStorageService $storageService
+    ) {}
+
+    private function ensureDocumentBelongsToEmployee(Employee $employee, EmployeeDocument $document): void
+    {
+        if ($document->employee_id !== $employee->id) {
+            abort(Response::HTTP_NOT_FOUND, __('Document not found'));
+        }
+    }
+
     /**
      * Display a listing of an employee's documents.
      *
@@ -36,15 +48,6 @@ class EmployeeDocumentController extends Controller
 
         /** @var \App\Models\User $user */
         $user = $request->user();
-
-        // Check organizational scope access for scoped users
-        $hasScopes = $user->organizationalScopes()->exists();
-
-        if ($hasScopes && $employee->organizationalUnit !== null) {
-            if (! $user->hasAccessToUnit($employee->organizationalUnit)) {
-                abort(Response::HTTP_FORBIDDEN, 'You do not have access to this employee\'s organizational unit');
-            }
-        }
 
         $query = $employee->documents();
 
@@ -76,13 +79,7 @@ class EmployeeDocumentController extends Controller
 
         /** @var \Illuminate\Http\UploadedFile $file */
         $file = $request->file('file');
-
-        // Generate safe filename
-        $filename = time().'_'.$file->getClientOriginalName();
-        $path = "employees/{$employee->id}/documents/{$filename}";
-
-        // Store file
-        Storage::disk('local')->put($path, $file->getContent());
+        $storedFile = $this->storageService->store($file, $employee);
 
         /** @var \App\Models\User $user */
         $user = $request->user();
@@ -93,10 +90,10 @@ class EmployeeDocumentController extends Controller
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'document_type' => $validated['document_type'],
-            'file_path' => $path,
-            'file_name' => $file->getClientOriginalName(),
-            'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
-            'file_size' => $file->getSize(),
+            'file_path' => $storedFile['file_path'],
+            'file_name' => $storedFile['file_name'],
+            'mime_type' => $storedFile['mime_type'],
+            'file_size' => $storedFile['file_size'],
             'expiry_date' => $validated['expiry_date'] ?? null,
             'status' => 'valid',
             'visible_to_employee' => $validated['visible_to_employee'],
@@ -116,6 +113,7 @@ class EmployeeDocumentController extends Controller
      */
     public function show(Employee $employee, EmployeeDocument $document): JsonResponse
     {
+        $this->ensureDocumentBelongsToEmployee($employee, $document);
         $this->authorize('view', $document);
 
         $document->load('uploader');
@@ -134,13 +132,14 @@ class EmployeeDocumentController extends Controller
      */
     public function download(Employee $employee, EmployeeDocument $document): Response
     {
+        $this->ensureDocumentBelongsToEmployee($employee, $document);
         $this->authorize('view', $document);
 
-        if (! Storage::disk('local')->exists($document->file_path)) {
+        try {
+            $fileContent = $this->storageService->retrieve($document);
+        } catch (EmployeeDocumentFileNotFoundException) {
             abort(Response::HTTP_NOT_FOUND, __('File not found'));
         }
-
-        $fileContent = Storage::disk('local')->get($document->file_path);
 
         return response($fileContent)
             ->header('Content-Type', $document->mime_type)
@@ -156,12 +155,10 @@ class EmployeeDocumentController extends Controller
      */
     public function destroy(Employee $employee, EmployeeDocument $document): JsonResponse
     {
+        $this->ensureDocumentBelongsToEmployee($employee, $document);
         $this->authorize('delete', $document);
 
-        // Delete file from storage
-        if (Storage::disk('local')->exists($document->file_path)) {
-            Storage::disk('local')->delete($document->file_path);
-        }
+        $this->storageService->delete($document);
 
         // Soft delete database record
         $document->delete();

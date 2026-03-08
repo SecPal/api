@@ -31,6 +31,8 @@ class EmployeeDocumentResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $downloadUrl = url(sprintf('/v1/employees/%s/documents/%s/download', $this->employee_id, $this->id));
+
         return [
             'id' => $this->id,
             'employee_id' => $this->employee_id,
@@ -38,10 +40,10 @@ class EmployeeDocumentResource extends JsonResource
             'title' => $this->title,
             'description' => $this->description,
             'document_type' => $this->document_type,
-            'file_path' => $this->file_path,
             'file_name' => $this->file_name,
             'mime_type' => $this->mime_type,
             'file_size' => $this->file_size,
+            'download_url' => $downloadUrl,
             'expiry_date' => $this->expiry_date?->toDateString(),
             'status' => $this->status,
             'visible_to_employee' => $this->visible_to_employee,

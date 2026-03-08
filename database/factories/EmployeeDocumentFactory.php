@@ -35,7 +35,7 @@ class EmployeeDocumentFactory extends Factory
                 'other',
             ]),
             'file_name' => fake()->word().'.pdf',
-            'file_path' => 'employee_documents/'.fake()->uuid().'.pdf',
+            'file_path' => 'employee_documents/'.fake()->uuid().'.enc',
             'mime_type' => 'application/pdf',
             'file_size' => fake()->numberBetween(10000, 5000000), // 10KB to 5MB
             'expiry_date' => fake()->optional()->dateTimeBetween('now', '+2 years'),
