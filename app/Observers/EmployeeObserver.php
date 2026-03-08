@@ -180,6 +180,11 @@ class EmployeeObserver
 
                 if ($existingUser) {
                     if ($existingUser->tenant_id !== $employee->tenant_id) {
+                        $employee->updateQuietly([
+                            'user_account_active' => false,
+                            'user_account_activated_at' => null,
+                        ]);
+
                         Log::warning('User account provisioning blocked due to tenant conflict', [
                             'employee_id' => $employee->id,
                             'conflicting_user_id' => $existingUser->id,
@@ -191,6 +196,11 @@ class EmployeeObserver
                     }
 
                     if ($existingUser->employee !== null && $existingUser->employee->id !== $employee->id) {
+                        $employee->updateQuietly([
+                            'user_account_active' => false,
+                            'user_account_activated_at' => null,
+                        ]);
+
                         Log::warning('User account provisioning blocked because user is already linked', [
                             'employee_id' => $employee->id,
                             'conflicting_user_id' => $existingUser->id,

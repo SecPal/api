@@ -137,6 +137,7 @@ test('employee observer does not reuse user account from another tenant', functi
 
     expect($employee->user)->toBeNull();
     expect($employee->user_account_active)->toBeFalse();
+    expect($employee->user_account_activated_at)->toBeNull();
     expect(User::where('email', 'conflict@example.com')->count())->toBe(1);
     expect(User::whereKey($otherTenantUser->id)->value('tenant_id'))->toBe($otherTenant->id);
     expect($otherOrgUnit->tenant_id)->toBe($otherTenant->id);
@@ -189,6 +190,7 @@ test('employee observer does not reuse user account already linked to another em
 
     expect($secondEmployee->user)->toBeNull();
     expect($secondEmployee->user_account_active)->toBeFalse();
+    expect($secondEmployee->user_account_activated_at)->toBeNull();
     expect(User::where('email', 'duplicate@example.com')->count())->toBe(1);
     expect($existingUser->fresh()?->employee?->id)->toBe($firstEmployee->id);
 
