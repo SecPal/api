@@ -17,6 +17,16 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 - Domain policy is strict: use only `secpal.app` and `secpal.dev`.
 - Prefer small, root-cause fixes that match existing conventions. Do not introduce unrelated refactors.
 
+## Required Checklist
+
+Before any commit, PR, or merge, announce and verify at least:
+
+- the smallest relevant Pest tests passed for the affected area
+- `CHANGELOG.md` was updated in the same change set for real changes
+- no bypass was used, including `--no-verify` or force-push
+- repo-local instructions remain self-contained and do not rely on cross-repo inheritance
+- out-of-scope findings were turned into GitHub issues immediately
+
 ## Repository Stack
 
 - Laravel 12, PHP 8.4, Pest 4, PostgreSQL 16, DDEV.

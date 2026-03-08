@@ -8,6 +8,9 @@ applyTo: "**"
 
 # API Runtime Overlay
 
+The historical filename `org-shared.instructions.md` is retained for continuity.
+At runtime, this file now acts as the repo-local overlay for the `api` repository.
+
 - Treat `.github/copilot-instructions.md` in this repo as the authoritative runtime baseline.
 - Do not rely on cross-repo inheritance, comments, or external config files being loaded.
 - Enforce SecPal core rules while editing any file: tests first where applicable, no bypass, fail fast, one topic per change, immediate issue creation for out-of-scope findings, and `CHANGELOG.md` updates for real changes.
