@@ -69,6 +69,134 @@ test('employee observer creates user account when status changes to pre_contract
     });
 });
 
+test('employee observer reuses existing user account in same tenant', function () {
+    Mail::fake();
+
+    $existingUser = User::factory()->create([
+        'name' => 'Existing User',
+        'email' => 'existing@example.com',
+        'password' => bcrypt('password'),
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'employee_number' => 'EMP-004',
+        'tenant_id' => $this->tenant->id,
+        'first_name' => 'Existing',
+        'last_name' => 'User',
+        'email' => 'existing@example.com',
+        'date_of_birth' => '1988-11-30',
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->addDays(14),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $employee->refresh();
+
+    expect($employee->user)->not->toBeNull();
+    expect($employee->user->id)->toBe($existingUser->id);
+    expect(User::where('email', 'existing@example.com')->count())->toBe(1);
+
+    Mail::assertQueued(OnboardingInvitationMail::class, function ($mail) use ($employee, $existingUser) {
+        return $mail->employee->id === $employee->id
+            && $mail->hasTo($existingUser->email);
+    });
+});
+
+test('employee observer does not reuse user account from another tenant', function () {
+    Mail::fake();
+
+    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherOrgUnit = OrganizationalUnit::create([
+        'tenant_id' => $otherTenant->id,
+        'name' => 'Other Department',
+        'code' => 'OTHER',
+        'type' => 'department',
+        'is_active' => true,
+    ]);
+
+    $otherTenantUser = User::factory()->create([
+        'name' => 'Other Tenant User',
+        'email' => 'conflict@example.com',
+        'tenant_id' => $otherTenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'employee_number' => 'EMP-004A',
+        'tenant_id' => $this->tenant->id,
+        'first_name' => 'Conflict',
+        'last_name' => 'User',
+        'email' => 'conflict@example.com',
+        'date_of_birth' => '1988-11-30',
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->addDays(14),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $employee->refresh();
+
+    expect($employee->user)->toBeNull();
+    expect($employee->user_account_active)->toBeFalse();
+    expect($employee->user_account_activated_at)->toBeNull();
+    expect(User::where('email', 'conflict@example.com')->count())->toBe(1);
+    expect(User::whereKey($otherTenantUser->id)->value('tenant_id'))->toBe($otherTenant->id);
+    expect($otherOrgUnit->tenant_id)->toBe($otherTenant->id);
+
+    Mail::assertNothingQueued();
+});
+
+test('employee observer does not reuse user account already linked to another employee', function () {
+    Mail::fake();
+
+    $existingUser = User::factory()->create([
+        'name' => 'Existing User',
+        'email' => 'linked@example.com',
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $firstEmployee = Employee::factory()->create([
+        'employee_number' => 'EMP-004B',
+        'tenant_id' => $this->tenant->id,
+        'first_name' => 'First',
+        'last_name' => 'Employee',
+        'email' => 'linked@example.com',
+        'date_of_birth' => '1988-11-30',
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->addDays(7),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    expect($firstEmployee->fresh()?->user_id)->toBe($existingUser->id);
+
+    $existingUser->forceFill([
+        'email' => 'duplicate@example.com',
+    ])->save();
+
+    Mail::fake();
+
+    $secondEmployee = Employee::factory()->create([
+        'employee_number' => 'EMP-004C',
+        'tenant_id' => $this->tenant->id,
+        'first_name' => 'Second',
+        'last_name' => 'Employee',
+        'email' => 'duplicate@example.com',
+        'date_of_birth' => '1990-12-01',
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->addDays(14),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $secondEmployee->refresh();
+
+    expect($secondEmployee->user)->toBeNull();
+    expect($secondEmployee->user_account_active)->toBeFalse();
+    expect($secondEmployee->user_account_activated_at)->toBeNull();
+    expect(User::where('email', 'duplicate@example.com')->count())->toBe(1);
+    expect($existingUser->fresh()?->employee?->id)->toBe($firstEmployee->id);
+
+    Mail::assertNothingQueued();
+});
+
 test('employee observer activates user account when status changes to active', function () {
     Mail::fake();
 
@@ -139,37 +267,6 @@ test('employee observer deactivates user account when status changes to terminat
     Mail::assertQueued(AccountDeactivatedMail::class, function ($mail) use ($employee) {
         return $mail->employee->id === $employee->id;
     });
-});
-
-test('employee observer does not create duplicate user account', function () {
-    Mail::fake();
-
-    // Create employee with existing user
-    $existingUser = User::factory()->create([
-        'name' => 'Existing User',
-        'email' => 'existing@example.com',
-        'password' => bcrypt('password'),
-    ]);
-
-    $employee = Employee::factory()->create([
-        'employee_number' => 'EMP-004',
-        'tenant_id' => $this->tenant->id,
-        'first_name' => 'Existing',
-        'last_name' => 'User',
-        'email' => 'existing@example.com',
-        'date_of_birth' => '1988-11-30',
-        'organizational_unit_id' => $this->orgUnit->id,
-        'contract_start_date' => now()->addDays(14),
-        'status' => Employee::STATUS_PRE_CONTRACT,
-    ]);
-
-    // Should reuse existing user
-    $employee->refresh();
-    expect($employee->user)->not->toBeNull();
-    expect($employee->user->id)->toBe($existingUser->id);
-
-    // Only one user should exist with this email
-    expect(User::where('email', 'existing@example.com')->count())->toBe(1);
 });
 
 test('employee observer handles transition from pre_contract to terminated', function () {
