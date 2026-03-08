@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
 - `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles (TDD, quality gates, PR protocol, GDPR conventions) auto-loaded for all files in this repo via `applyTo: "**"`
 
+### Fixed
+
+- harden OpenTimestamp proof handling by creating restrictive temporary proof files via shared cleanup helpers and by logging only sanitized digest hints instead of full digests
+- align the Person API contract with plaintext transient fields by accepting `note_plain` instead of exposing direct `*_enc` input semantics
+- block tenant-crossing user reuse during pre-contract employee provisioning so onboarding accounts are only linked within the same tenant, and avoid logging employee email addresses in this path
+
 ### Changed
 
 - `app/Http/Controllers/Api/V1/EmployeeDocumentController.php`, `app/Policies/EmployeeDocumentPolicy.php`, and `app/Http/Resources/EmployeeDocumentResource.php` - aligned employee document authorization with a consistent policy model, encrypted stored document binaries at rest, and removed raw storage paths from API responses

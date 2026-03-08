@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Model;
  *
  * Encrypted fields (*_enc) use Eloquent encrypted cast and are stored as TEXT.
  * Blind indexes (*_idx) are computed automatically by PersonObserver and are stored as VARCHAR.
- * Transient properties (email_plain, phone_plain) provide write-only plaintext access.
+ * Transient properties (email_plain, phone_plain, note_plain) provide write-only plaintext access.
  *
  * @property int $id
  * @property int $tenant_id
@@ -30,6 +30,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property \Illuminate\Support\Carbon $updated_at
  * @property-write string|null $email_plain Transient plaintext email
  * @property-write string|null $phone_plain Transient plaintext phone
+ * @property-write string|null $note_plain Transient plaintext note
  *
  * @method static \Database\Factories\PersonFactory factory($count = null, $state = [])
  */
@@ -106,6 +107,14 @@ class Person extends Model
     private ?string $phonePlain = null;
 
     /**
+     * Transient plaintext note for writing.
+     *
+     * This property keeps the external API on *_plain fields while the model
+     * persists the encrypted note via the casted note_enc column.
+     */
+    private ?string $notePlain = null;
+
+    /**
      * Set plaintext email (transient).
      */
     public function setEmailPlainAttribute(?string $value): void
@@ -141,6 +150,23 @@ class Person extends Model
     public function getPhonePlainAttribute(): ?string
     {
         return $this->phonePlain;
+    }
+
+    /**
+     * Set plaintext note (transient).
+     */
+    public function setNotePlainAttribute(?string $value): void
+    {
+        $this->notePlain = $value;
+        $this->note_enc = $value;
+    }
+
+    /**
+     * Get plaintext note (transient).
+     */
+    public function getNotePlainAttribute(): ?string
+    {
+        return $this->notePlain;
     }
 
     /**

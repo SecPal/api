@@ -286,7 +286,7 @@ describe('PersonRepository - Create or Update', function () {
         $person = $repo->createOrUpdate($this->tenant->id, [
             'email_plain' => 'new@example.com',
             'phone_plain' => '123456789',
-            'note_enc' => 'Test note',
+            'note_plain' => 'Test note',
         ]);
 
         expect($person)->toBeInstanceOf(Person::class);
@@ -301,7 +301,7 @@ describe('PersonRepository - Create or Update', function () {
         $existing->tenant_id = $this->tenant->id;
         $existing->email_plain = 'existing@example.com';
         $existing->phone_plain = '111';
-        $existing->note_enc = 'Old note';
+        $existing->note_plain = 'Old note';
         $existing->save();
 
         $repo = new \App\Repositories\PersonRepository;
@@ -309,7 +309,7 @@ describe('PersonRepository - Create or Update', function () {
         $updated = $repo->createOrUpdate($this->tenant->id, [
             'email_plain' => 'existing@example.com',
             'phone_plain' => '222',
-            'note_enc' => 'Updated note',
+            'note_plain' => 'Updated note',
         ]);
 
         expect($updated->id)->toBe($existing->id); // Same ID
