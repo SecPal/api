@@ -34,7 +34,7 @@ class PersonController extends Controller
      *
      * POST /v1/tenants/{tenant}/persons
      *
-     * @param  StorePersonRequest  $request  Validated request with email_plain, phone_plain, note_enc
+     * @param  StorePersonRequest  $request  Validated request with email_plain, phone_plain, note_plain
      * @return JsonResponse Created Person (201) with sanitized data
      */
     public function store(StorePersonRequest $request): JsonResponse
@@ -45,7 +45,7 @@ class PersonController extends Controller
         $person = $this->repository->createOrUpdate($tenantId, [
             'email_plain' => $request->input('email_plain'),
             'phone_plain' => $request->input('phone_plain'),
-            'note_enc' => $request->input('note_enc'),
+            'note_plain' => $request->input('note_plain'),
         ]);
 
         return (new PersonResource($person))

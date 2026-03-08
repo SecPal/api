@@ -16,7 +16,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * Validates:
  * - email_plain: required, valid email format
  * - phone_plain: optional, string
- * - note_enc: optional, string
+ * - note_plain: optional, string
  */
 class StorePersonRequest extends FormRequest
 {
@@ -39,7 +39,7 @@ class StorePersonRequest extends FormRequest
         return [
             'email_plain' => ['required', 'email'],
             'phone_plain' => ['nullable', 'string'],
-            'note_enc' => ['nullable', 'string'],
+            'note_plain' => ['nullable', 'string'],
         ];
     }
 

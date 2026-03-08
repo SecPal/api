@@ -91,7 +91,7 @@ describe('POST /v1/tenants/{tenant}/persons', function () {
             ->postJson("/v1/tenants/{$this->tenant->id}/persons", [
                 'email_plain' => 'test@example.com',
                 'phone_plain' => '+49 123 456789',
-                'note_enc' => 'Test note',
+                'note_plain' => 'Test note',
             ]);
 
         $response->assertStatus(201)
@@ -169,7 +169,7 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
         $this->testPerson->tenant_id = $this->tenant->id;
         $this->testPerson->email_plain = 'search@example.com';
         $this->testPerson->phone_plain = '+49 123 456789';
-        $this->testPerson->note_enc = 'Test note';
+        $this->testPerson->note_plain = 'Test note';
         $this->testPerson->save();
     });
 
