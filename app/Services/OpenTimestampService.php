@@ -395,6 +395,9 @@ class OpenTimestampService
     {
         $sanitized = trim(preg_replace('/[[:cntrl:]]+/', ' ', $message) ?? '');
 
+        $sanitized = preg_replace('/\b[a-f0-9]{64}\b/i', '[redacted-digest]', $sanitized) ?? $sanitized;
+        $sanitized = preg_replace('#/tmp/ots_[^\s]+#', '[redacted-temp-file]', $sanitized) ?? $sanitized;
+
         if ($sanitized === '') {
             return 'No error details available';
         }

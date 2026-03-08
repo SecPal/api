@@ -285,6 +285,32 @@ test('submit failure logs only sanitized digest context', function () {
         ->toThrow(RuntimeException::class, 'Failed to submit timestamp: OTS submission script failed with exit code 1: calendar failure');
 });
 
+test('verify failure redacts digests and temp file paths from logged stderr', function () {
+    $digest = hash('sha256', 'stderr-redaction');
+    $proof = 'proof-data';
+
+    Log::shouldReceive('debug')->once();
+    Log::shouldReceive('warning')
+        ->once()
+        ->withArgs(function (string $message, array $context) {
+            return $message === 'OpenTimestamp: Proof verification failed'
+                && ($context['stderr'] ?? null) === 'Error: Digest mismatch! Expected: [redacted-digest] In proof: [redacted-digest] Proof file not found: [redacted-temp-file]';
+        });
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => "Error: Digest mismatch!\nExpected: {$digest}\nIn proof: {$digest}\nProof file not found: /tmp/ots_verify_abc123",
+        ]);
+
+    $result = $this->service->verify($proof, $digest);
+
+    expect($result)->toBeFalse();
+});
+
 /**
  * Build valid OTS proof structure for testing.
  *
