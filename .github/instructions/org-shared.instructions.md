@@ -78,14 +78,14 @@ All personal data **MUST** be encrypted at rest:
 
 Run before EVERY commit:
 
-- [ ] Tests written first (TDD), all passing (`php artisan test`)
+- [ ] Tests written first (TDD), all passing (`ddev exec php artisan test`)
 - [ ] No code duplication (DRY)
 - [ ] CHANGELOG.md updated in this commit
 - [ ] SPDX headers on all new files (`reuse lint`)
 - [ ] All findings have GitHub issues created
 - [ ] No `--no-verify` or force bypass used
 
-## 🐛 Issue Creation Protocol (Critical Rule #6 — Zero Tolerance)
+## 🐛 Issue Creation Protocol (Critical Rule #10 — Zero Tolerance)
 
 Found a bug, tech debt, or security issue in existing code that cannot be fixed in this PR?
 
