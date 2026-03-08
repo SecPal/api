@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
 - `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles (TDD, quality gates, PR protocol, GDPR conventions) auto-loaded for all files in this repo via `applyTo: "**"`
 
+### Fixed
+
+- block tenant-crossing user reuse during pre-contract employee provisioning so onboarding accounts are only linked within the same tenant, and avoid logging employee email addresses in this path
+
 ### Changed
 
 - `.github/copilot-instructions.md` - replaced comment-based pseudo-inheritance and oversized repo guidance with a self-contained runtime baseline for this repository

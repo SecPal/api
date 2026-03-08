@@ -176,24 +176,31 @@ class EmployeeObserver
     {
         try {
             DB::transaction(function () use ($employee) {
-                // Check if user already exists with this email
                 $existingUser = User::where('email', $employee->email)->first();
 
                 if ($existingUser) {
-                    // Reuse existing user
+                    if ($existingUser->tenant_id !== $employee->tenant_id) {
+                        Log::warning('User account provisioning blocked due to tenant conflict', [
+                            'employee_id' => $employee->id,
+                            'conflicting_user_id' => $existingUser->id,
+                            'employee_tenant_id' => $employee->tenant_id,
+                            'user_tenant_id' => $existingUser->tenant_id,
+                        ]);
+
+                        return;
+                    }
+
                     $user = $existingUser;
                     Log::info('Reusing existing user account for employee', [
                         'employee_id' => $employee->id,
                         'user_id' => $user->id,
-                        'email' => $employee->email,
                     ]);
                 } else {
-                    // Create new user
                     $user = User::create([
                         'name' => $employee->first_name.' '.$employee->last_name,
                         'email' => $employee->email,
-                        'password' => Hash::make(Str::random(32)), // Random password, user must reset
-                        'email_verified_at' => null, // Must verify email
+                        'password' => Hash::make(Str::random(32)),
+                        'email_verified_at' => null,
                         'tenant_id' => $employee->tenant_id,
                     ]);
 
@@ -218,11 +225,8 @@ class EmployeeObserver
         } catch (\Exception $e) {
             Log::error('User account creation failed for employee', [
                 'employee_id' => $employee->id,
-                'email' => $employee->email,
                 'error' => $e->getMessage(),
             ]);
-            // Don't throw - allow employee record to save
-            // HR can manually retry via admin panel
         }
     }
 
