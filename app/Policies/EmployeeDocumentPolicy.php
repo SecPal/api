@@ -1,10 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Policies;
 
+use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\User;
 
@@ -22,15 +23,37 @@ use App\Models\User;
  */
 class EmployeeDocumentPolicy
 {
+    private function canManageEmployeeDocuments(User $user, Employee $employee, string $permission): bool
+    {
+        if (! $user->can($permission)) {
+            return false;
+        }
+
+        if (! $user->organizationalScopes()->exists()) {
+            return true;
+        }
+
+        if ($employee->organizationalUnit === null) {
+            return false;
+        }
+
+        return $user->hasAccessToUnit($employee->organizationalUnit);
+    }
+
     /**
      * Determine if user can view any documents.
      *
-     * Users with employee_document.read permission can view documents.
-     * Scope-based filtering handled at controller level.
+     * Employees can list their own visible documents.
+     * Users with employee_document.read permission can list documents in scope
+     * or tenant-wide when no scopes are assigned.
      */
-    public function viewAny(User $user): bool
+    public function viewAny(User $user, Employee $employee): bool
     {
-        return $user->can('employee_document.read');
+        if ($user->id === $employee->user_id) {
+            return true;
+        }
+
+        return $this->canManageEmployeeDocuments($user, $employee, 'employee_document.read');
     }
 
     /**
@@ -51,32 +74,18 @@ class EmployeeDocumentPolicy
             return true;
         }
 
-        // Users with permission can view
-        if (! $user->can('employee_document.read')) {
-            return false;
-        }
-
-        // Check if user has organizational scopes (Manager role)
-        $hasScopes = $user->organizationalScopes()->exists();
-
-        if ($hasScopes && $employee->organizationalUnit !== null) {
-            // Check organizational scope
-            return $user->hasAccessToUnit($employee->organizationalUnit);
-        }
-
-        // No scopes = no access
-        return false;
+        return $this->canManageEmployeeDocuments($user, $employee, 'employee_document.read');
     }
 
     /**
      * Determine if user can create documents.
      *
-     * Users with employee_document.write permission can upload documents.
-     * Scope validation enforced at controller level.
+     * Users with employee_document.write permission can upload documents in
+     * scope or tenant-wide when no scopes are assigned.
      */
-    public function create(User $user): bool
+    public function create(User $user, Employee $employee): bool
     {
-        return $user->can('employee_document.write');
+        return $this->canManageEmployeeDocuments($user, $employee, 'employee_document.write');
     }
 
     /**
@@ -86,25 +95,12 @@ class EmployeeDocumentPolicy
      */
     public function update(User $user, EmployeeDocument $document): bool
     {
-        if (! $user->can('employee_document.write')) {
-            return false;
-        }
-
         $employee = $document->employee;
         if ($employee === null) {
             return false;
         }
 
-        // Check if user has organizational scopes (Manager role)
-        $hasScopes = $user->organizationalScopes()->exists();
-
-        if ($hasScopes && $employee->organizationalUnit !== null) {
-            // Check organizational scope
-            return $user->hasAccessToUnit($employee->organizationalUnit);
-        }
-
-        // No scopes = no access
-        return false;
+        return $this->canManageEmployeeDocuments($user, $employee, 'employee_document.write');
     }
 
     /**
@@ -114,25 +110,12 @@ class EmployeeDocumentPolicy
      */
     public function delete(User $user, EmployeeDocument $document): bool
     {
-        if (! $user->can('employee_document.write')) {
-            return false;
-        }
-
         $employee = $document->employee;
         if ($employee === null) {
             return false;
         }
 
-        // Check if user has organizational scopes (Manager role)
-        $hasScopes = $user->organizationalScopes()->exists();
-
-        if ($hasScopes && $employee->organizationalUnit !== null) {
-            // Check organizational scope
-            return $user->hasAccessToUnit($employee->organizationalUnit);
-        }
-
-        // No scopes = no access
-        return false;
+        return $this->canManageEmployeeDocuments($user, $employee, 'employee_document.write');
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\EmployeeDocumentStorageService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
@@ -104,8 +105,6 @@ describe('GET /v1/employees/{employee}/documents', function () {
     });
 
     test('filters documents by visible_to_employee for employee viewing own documents', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
-
         // Make this user the employee's user account
         $this->employee->update(['user_id' => $this->user->id]);
 
@@ -209,7 +208,7 @@ describe('POST /v1/employees/{employee}/documents', function () {
     test('uploads document with valid data', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.write');
 
-        $file = UploadedFile::fake()->create('contract.pdf', 1024, 'application/pdf');
+        $file = UploadedFile::fake()->createWithContent('contract.pdf', 'Employment contract payload');
 
         $response = $this->withToken($this->token)
             ->postJson("/v1/employees/{$this->employee->id}/documents", [
@@ -227,7 +226,7 @@ describe('POST /v1/employees/{employee}/documents', function () {
                     'employee_id',
                     'document_type',
                     'file_name',
-                    'file_path',
+                    'download_url',
                     'mime_type',
                     'file_size',
                     'visible_to_employee',
@@ -236,8 +235,17 @@ describe('POST /v1/employees/{employee}/documents', function () {
 
         expect($response->json('data.document_type'))->toBe('contract');
         expect($response->json('data.visible_to_employee'))->toBe(true);
+        expect(array_key_exists('file_path', $response->json('data')))->toBeFalse();
 
-        Storage::disk('local')->assertExists($response->json('data.file_path'));
+        $document = EmployeeDocument::query()->findOrFail($response->json('data.id'));
+        Storage::disk('local')->assertExists($document->file_path);
+
+        $storedBlob = Storage::disk('local')->get($document->file_path);
+        expect($storedBlob)->not->toBe('Employment contract payload');
+
+        $decodedBlob = json_decode($storedBlob, true);
+        expect($decodedBlob)->toBeArray();
+        expect($decodedBlob)->toHaveKeys(['ciphertext', 'nonce']);
     });
 
     test('returns 422 when file exceeds 10MB limit', function (): void {
@@ -345,14 +353,20 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
     test('downloads document file with valid permission', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
 
+        $storageService = app(EmployeeDocumentStorageService::class);
+        $storedFile = $storageService->store(
+            UploadedFile::fake()->createWithContent('test.pdf', 'PDF content'),
+            $this->employee
+        );
+
         $document = EmployeeDocument::factory()->create([
             'employee_id' => $this->employee->id,
-            'file_path' => 'employees/1/documents/test.pdf',
-            'file_name' => 'test.pdf',
-            'mime_type' => 'application/pdf',
+            'uploaded_by' => $this->user->id,
+            'file_path' => $storedFile['file_path'],
+            'file_name' => $storedFile['file_name'],
+            'mime_type' => $storedFile['mime_type'],
+            'file_size' => $storedFile['file_size'],
         ]);
-
-        Storage::disk('local')->put($document->file_path, 'PDF content');
 
         $response = $this->withToken($this->token)
             ->getJson("/v1/employees/{$this->employee->id}/documents/{$document->id}/download");
@@ -360,6 +374,7 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
         $response->assertStatus(200);
         expect($response->headers->get('content-type'))->toBe('application/pdf');
         expect($response->headers->get('content-disposition'))->toContain('test.pdf');
+        expect($response->getContent())->toBe('PDF content');
     });
 
     test('returns 404 when document file does not exist', function (): void {
@@ -401,12 +416,20 @@ describe('DELETE /v1/employees/{employee}/documents/{document}', function () {
     test('deletes document and file with valid permission', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.write');
 
+        $storageService = app(EmployeeDocumentStorageService::class);
+        $storedFile = $storageService->store(
+            UploadedFile::fake()->createWithContent('delete.pdf', 'content'),
+            $this->employee
+        );
+
         $document = EmployeeDocument::factory()->create([
             'employee_id' => $this->employee->id,
-            'file_path' => 'employees/1/documents/delete.pdf',
+            'uploaded_by' => $this->user->id,
+            'file_path' => $storedFile['file_path'],
+            'file_name' => $storedFile['file_name'],
+            'mime_type' => $storedFile['mime_type'],
+            'file_size' => $storedFile['file_size'],
         ]);
-
-        Storage::disk('local')->put($document->file_path, 'content');
 
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/employees/{$this->employee->id}/documents/{$document->id}");
