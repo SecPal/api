@@ -42,11 +42,16 @@ class PersonController extends Controller
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
 
-        $person = $this->repository->createOrUpdate($tenantId, [
+        $attributes = [
             'email_plain' => $request->input('email_plain'),
             'phone_plain' => $request->input('phone_plain'),
-            'note_plain' => $request->input('note_plain'),
-        ]);
+        ];
+
+        if ($request->exists('note_plain')) {
+            $attributes['note_plain'] = $request->input('note_plain');
+        }
+
+        $person = $this->repository->createOrUpdate($tenantId, $attributes);
 
         return (new PersonResource($person))
             ->response()
