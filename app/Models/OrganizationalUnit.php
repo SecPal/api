@@ -1,10 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Models;
 
+use App\Models\Concerns\EnforcesTenantRouteBinding;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -49,7 +50,10 @@ use Illuminate\Support\Facades\DB;
 class OrganizationalUnit extends Model
 {
     /** @use HasFactory<\Database\Factories\OrganizationalUnitFactory> */
-    use HasFactory, HasUuids, SoftDeletes;
+    use EnforcesTenantRouteBinding, HasFactory, HasUuids, SoftDeletes {
+        EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;
+        HasUuids::resolveRouteBindingQuery as resolveUuidRouteBindingQuery;
+    }
 
     /**
      * The table associated with the model.

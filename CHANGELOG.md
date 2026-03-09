@@ -22,7 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- reject cross-tenant target users on role-assignment and direct-permission administration endpoints with fail-closed 404 responses, including tenant-scoped user route binding and matching policy checks
+- reject cross-tenant target users on role-assignment and direct-permission administration endpoints with fail-closed 404 responses and matching policy checks
+- constrain route model binding for tenant-owned admin models to the authenticated tenant so cross-tenant resource identifiers fail closed before controller logic
+- preserve access to global system qualifications and onboarding templates while still fail-closing tenant-foreign bindings, including employee-linked submissions and qualification records
 - harden OpenTimestamp proof handling by creating restrictive temporary proof files via shared cleanup helpers and by logging only sanitized digest hints instead of full digests
 - align the Person API contract with plaintext transient fields by accepting `note_plain` instead of exposing direct `*_enc` input semantics
 - block tenant-crossing user reuse during pre-contract employee provisioning so onboarding accounts are only linked within the same tenant, and avoid logging employee email addresses in this path

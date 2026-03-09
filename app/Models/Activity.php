@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\EnforcesTenantRouteBinding;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
@@ -66,7 +68,7 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
 class Activity extends SpatieActivity
 {
     /** @use HasFactory<\Database\Factories\ActivityFactory> */
-    use HasFactory;
+    use EnforcesTenantRouteBinding, HasFactory;
 
     /**
      * The table associated with the model.
@@ -124,6 +126,18 @@ class Activity extends SpatieActivity
         'causer_id' => 'string',
         'subject_id' => 'string',
     ];
+
+    /**
+     * @param  Builder<static>  $query
+     * @param  mixed  $value
+     * @param  string|null  $field
+     * @return Builder<static>
+     */
+    protected function resolveBaseRouteBindingQuery($query, $value, $field = null): Builder
+    {
+        /** @var Builder<static> */
+        return parent::resolveRouteBindingQuery($query, $value, $field);
+    }
 
     /**
      * Get the OTS proof attribute.

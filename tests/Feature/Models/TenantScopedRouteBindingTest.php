@@ -3,6 +3,13 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Activity;
+use App\Models\Customer;
+use App\Models\Employee;
+use App\Models\EmployeeQualification;
+use App\Models\OnboardingFormSubmission;
+use App\Models\OnboardingFormTemplate;
+use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,4 +68,134 @@ test('user route binding resolves only within the authenticated tenant', functio
 
     expect($resolvedSameTenantUser?->id)->toBe($sameTenantUser->id)
         ->and($resolvedOtherTenantUser)->toBeNull();
+});
+
+test('customer route binding resolves only within the authenticated tenant', function (): void {
+    ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
+
+    $sameTenantCustomer = Customer::factory()->forTenant($tenant->id)->create();
+    $otherTenantCustomer = Customer::factory()->forTenant($otherTenant->id)->create();
+
+    /** @var Customer|null $resolvedSameTenantCustomer */
+    $resolvedSameTenantCustomer = (new Customer)->resolveRouteBindingQuery(Customer::query(), $sameTenantCustomer->id)->first();
+    /** @var Customer|null $resolvedOtherTenantCustomer */
+    $resolvedOtherTenantCustomer = (new Customer)->resolveRouteBindingQuery(Customer::query(), $otherTenantCustomer->id)->first();
+
+    expect($resolvedSameTenantCustomer?->id)->toBe($sameTenantCustomer->id)
+        ->and($resolvedOtherTenantCustomer)->toBeNull();
+});
+
+test('qualification route binding includes global records and rejects other tenant records', function (): void {
+    ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
+
+    $sameTenantQualification = Qualification::factory()->create([
+        'tenant_id' => $tenant->id,
+        'is_system_qualification' => false,
+    ]);
+    $globalQualification = Qualification::factory()->create([
+        'tenant_id' => null,
+        'is_system_qualification' => true,
+    ]);
+    $otherTenantQualification = Qualification::factory()->create([
+        'tenant_id' => $otherTenant->id,
+        'is_system_qualification' => false,
+    ]);
+
+    /** @var Qualification|null $resolvedSameTenantQualification */
+    $resolvedSameTenantQualification = (new Qualification)->resolveRouteBindingQuery(Qualification::query(), $sameTenantQualification->id)->first();
+    /** @var Qualification|null $resolvedGlobalQualification */
+    $resolvedGlobalQualification = (new Qualification)->resolveRouteBindingQuery(Qualification::query(), $globalQualification->id)->first();
+    /** @var Qualification|null $resolvedOtherTenantQualification */
+    $resolvedOtherTenantQualification = (new Qualification)->resolveRouteBindingQuery(Qualification::query(), $otherTenantQualification->id)->first();
+
+    expect($resolvedSameTenantQualification?->id)->toBe($sameTenantQualification->id)
+        ->and($resolvedGlobalQualification?->id)->toBe($globalQualification->id)
+        ->and($resolvedOtherTenantQualification)->toBeNull();
+});
+
+test('employee qualification route binding resolves only through same-tenant employees', function (): void {
+    ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
+
+    $sameTenantEmployee = Employee::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $otherTenantEmployee = Employee::factory()->create([
+        'tenant_id' => $otherTenant->id,
+    ]);
+    $sameTenantQualification = Qualification::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $otherTenantQualification = Qualification::factory()->create([
+        'tenant_id' => $otherTenant->id,
+    ]);
+
+    $sameTenantEmployeeQualification = EmployeeQualification::factory()->create([
+        'employee_id' => $sameTenantEmployee->id,
+        'qualification_id' => $sameTenantQualification->id,
+    ]);
+    $otherTenantEmployeeQualification = EmployeeQualification::factory()->create([
+        'employee_id' => $otherTenantEmployee->id,
+        'qualification_id' => $otherTenantQualification->id,
+    ]);
+
+    /** @var EmployeeQualification|null $resolvedSameTenantEmployeeQualification */
+    $resolvedSameTenantEmployeeQualification = (new EmployeeQualification)->resolveRouteBindingQuery(EmployeeQualification::query(), $sameTenantEmployeeQualification->id)->first();
+    /** @var EmployeeQualification|null $resolvedOtherTenantEmployeeQualification */
+    $resolvedOtherTenantEmployeeQualification = (new EmployeeQualification)->resolveRouteBindingQuery(EmployeeQualification::query(), $otherTenantEmployeeQualification->id)->first();
+
+    expect($resolvedSameTenantEmployeeQualification?->id)->toBe($sameTenantEmployeeQualification->id)
+        ->and($resolvedOtherTenantEmployeeQualification)->toBeNull();
+});
+
+test('onboarding submission route binding resolves only through same-tenant employees', function (): void {
+    ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
+
+    $sameTenantEmployee = Employee::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $otherTenantEmployee = Employee::factory()->create([
+        'tenant_id' => $otherTenant->id,
+    ]);
+    $sameTenantTemplate = OnboardingFormTemplate::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $otherTenantTemplate = OnboardingFormTemplate::factory()->create([
+        'tenant_id' => $otherTenant->id,
+    ]);
+
+    $sameTenantSubmission = OnboardingFormSubmission::factory()->create([
+        'employee_id' => $sameTenantEmployee->id,
+        'form_template_id' => $sameTenantTemplate->id,
+    ]);
+    $otherTenantSubmission = OnboardingFormSubmission::factory()->create([
+        'employee_id' => $otherTenantEmployee->id,
+        'form_template_id' => $otherTenantTemplate->id,
+    ]);
+
+    /** @var OnboardingFormSubmission|null $resolvedSameTenantSubmission */
+    $resolvedSameTenantSubmission = (new OnboardingFormSubmission)->resolveRouteBindingQuery(OnboardingFormSubmission::query(), $sameTenantSubmission->id)->first();
+    /** @var OnboardingFormSubmission|null $resolvedOtherTenantSubmission */
+    $resolvedOtherTenantSubmission = (new OnboardingFormSubmission)->resolveRouteBindingQuery(OnboardingFormSubmission::query(), $otherTenantSubmission->id)->first();
+
+    expect($resolvedSameTenantSubmission?->id)->toBe($sameTenantSubmission->id)
+        ->and($resolvedOtherTenantSubmission)->toBeNull();
+});
+
+test('activity route binding resolves only within the authenticated tenant', function (): void {
+    ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
+
+    $sameTenantActivity = Activity::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $otherTenantActivity = Activity::factory()->create([
+        'tenant_id' => $otherTenant->id,
+    ]);
+
+    /** @var Activity|null $resolvedSameTenantActivity */
+    $resolvedSameTenantActivity = (new Activity)->resolveRouteBindingQuery(Activity::query(), $sameTenantActivity->id)->first();
+    /** @var Activity|null $resolvedOtherTenantActivity */
+    $resolvedOtherTenantActivity = (new Activity)->resolveRouteBindingQuery(Activity::query(), $otherTenantActivity->id)->first();
+
+    expect($resolvedSameTenantActivity?->id)->toBe($sameTenantActivity->id)
+        ->and($resolvedOtherTenantActivity)->toBeNull();
 });

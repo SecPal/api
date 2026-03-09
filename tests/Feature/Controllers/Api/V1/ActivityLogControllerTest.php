@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -16,46 +16,40 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\getJson;
+
 /**
- * Feature tests for ActivityLogController.
- *
- * Tests scoped access control with:
- * - Tenant isolation
- * - Permission checks (activity_log.read)
- * - Organizational scope filtering
- * - Leadership level filtering
- * - Verification endpoints
- *
- * @see \App\Http\Controllers\Api\V1\ActivityLogController
- * @see \App\Policies\ActivityPolicy
- * @see SecPal/api#394 PR-11: ActivityLogController with scoped filtering
- * @see SecPal/api#385 Epic: Activity Logging & Audit Trail Strategy
- *
- * @property TenantKey $tenant
- * @property User $user
- * @property mixed $token
+ * @return array{tenant: TenantKey, registrar: PermissionRegistrar, user: User}
  */
+function createActivityLogContext(): array
+{
+    $keys = TenantKey::generateEnvelopeKeys();
+    $tenant = TenantKey::create($keys);
+
+    /** @var PermissionRegistrar $registrar */
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($tenant->id);
+
+    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+
+    $user = User::factory()->create(['tenant_id' => $tenant->id]);
+
+    return [
+        'tenant' => $tenant,
+        'registrar' => $registrar,
+        'user' => $user,
+    ];
+}
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
-    $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
-
-    // Set tenant context for permission system
-    $registrar = app(PermissionRegistrar::class);
-    $registrar->setPermissionsTeamId($this->tenant->id);
-
-    // Run seeder to ensure predefined roles exist
-    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
-
-    $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
-    $this->token = $this->user->createToken('test-device')->plainTextToken;
 });
 
 afterEach(function (): void {
-    // Reset tenant context
     app(PermissionRegistrar::class)->setPermissionsTeamId(null);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
@@ -63,19 +57,28 @@ afterEach(function (): void {
 
 describe('GET /v1/activity-logs', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->getJson('/v1/activity-logs');
+        createActivityLogContext();
+
+        $response = getJson('/v1/activity-logs');
         $response->assertStatus(401);
     });
 
     test('returns 403 when user lacks activity_log.read permission', function (): void {
-        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+        ['user' => $user] = createActivityLogContext();
+
+        actingAs($user, 'sanctum');
+
+        $response = getJson('/v1/activity-logs');
         $response->assertStatus(403);
     });
 
     test('returns empty list when user has permission but no accessible logs', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
-        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $response = getJson('/v1/activity-logs');
 
         $response->assertOk();
         expect($response->json('data'))->toBeArray();
@@ -83,17 +86,19 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('returns global activities (no org unit) to any user with permission', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
-        // Create global activity (no organizational_unit_id)
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'log_name' => 'authentication',
             'description' => 'User logged in',
         ]);
 
-        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+        $response = getJson('/v1/activity-logs');
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
@@ -101,32 +106,32 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('returns activities from accessible organizational units', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
-        // Create organizational unit
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
         $orgUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'name' => 'Department A',
         ]);
 
-        // Give user scope to this org unit
         UserInternalOrganizationalScope::factory()->create([
-            'user_id' => $this->user->id,
+            'user_id' => $user->id,
             'organizational_unit_id' => $orgUnit->id,
             'access_level' => 'read',
             'min_viewable_rank' => null,
             'max_viewable_rank' => null,
         ]);
 
-        // Create activity in this org unit
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => $orgUnit->id,
             'log_name' => 'employee_changes',
             'description' => 'Employee updated',
         ]);
 
-        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+        $response = getJson('/v1/activity-logs');
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
@@ -134,39 +139,40 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('excludes activities from inaccessible organizational units', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $accessibleUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
         ]);
 
         $inaccessibleUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
         ]);
 
-        // Give user scope only to accessibleUnit
         UserInternalOrganizationalScope::factory()->create([
-            'user_id' => $this->user->id,
+            'user_id' => $user->id,
             'organizational_unit_id' => $accessibleUnit->id,
             'access_level' => 'read',
             'min_viewable_rank' => null,
             'max_viewable_rank' => null,
         ]);
 
-        // Create activities in both units
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => $accessibleUnit->id,
             'description' => 'Accessible activity',
         ]);
 
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => $inaccessibleUnit->id,
             'description' => 'Inaccessible activity',
         ]);
 
-        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+        $response = getJson('/v1/activity-logs');
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
@@ -174,79 +180,78 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('excludes global activities for users with organizational scopes', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $orgUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
         ]);
 
-        // Give user scope to orgUnit
         UserInternalOrganizationalScope::factory()->create([
-            'user_id' => $this->user->id,
+            'user_id' => $user->id,
             'organizational_unit_id' => $orgUnit->id,
             'access_level' => 'read',
             'min_viewable_rank' => null,
             'max_viewable_rank' => null,
         ]);
 
-        // Create a global activity (no organizational_unit_id)
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'description' => 'Global activity',
         ]);
 
-        // Create a scoped activity
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => $orgUnit->id,
             'description' => 'Scoped activity',
         ]);
 
-        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+        $response = getJson('/v1/activity-logs');
 
         $response->assertOk();
-        // Users WITH scopes should see ONLY scoped activities, NOT global ones
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['description'])->toBe('Scoped activity');
     });
 
     test('filters by leadership level - only shows subordinates activities', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $orgUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
         ]);
 
-        // User has scope to view management levels 2-5 (subordinates)
         UserInternalOrganizationalScope::factory()->create([
-            'user_id' => $this->user->id,
+            'user_id' => $user->id,
             'organizational_unit_id' => $orgUnit->id,
             'access_level' => 'read',
             'min_viewable_rank' => 2,
             'max_viewable_rank' => 5,
         ]);
 
-        // Create employee users at different management levels
-        $seniorManager = User::factory()->create(['tenant_id' => $this->tenant->id]);
+        $seniorManager = User::factory()->create(['tenant_id' => $tenant->id]);
         Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'user_id' => $seniorManager->id,
             'organizational_unit_id' => $orgUnit->id,
-            'management_level' => 1, // Not visible (above viewable range)
+            'management_level' => 1,
         ]);
 
-        $subordinate = User::factory()->create(['tenant_id' => $this->tenant->id]);
+        $subordinate = User::factory()->create(['tenant_id' => $tenant->id]);
         Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'user_id' => $subordinate->id,
             'organizational_unit_id' => $orgUnit->id,
-            'management_level' => 3, // Visible (within range 2-5)
+            'management_level' => 3,
         ]);
 
-        // Create activities caused by these users
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => $orgUnit->id,
             'causer_type' => User::class,
             'causer_id' => $seniorManager->id,
@@ -254,14 +259,14 @@ describe('GET /v1/activity-logs', function () {
         ]);
 
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => $orgUnit->id,
             'causer_type' => User::class,
             'causer_id' => $subordinate->id,
             'description' => 'Subordinate activity',
         ]);
 
-        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+        $response = getJson('/v1/activity-logs');
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
@@ -269,30 +274,32 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('shows system-generated activities regardless of leadership level', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $orgUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
         ]);
 
         UserInternalOrganizationalScope::factory()->create([
-            'user_id' => $this->user->id,
+            'user_id' => $user->id,
             'organizational_unit_id' => $orgUnit->id,
             'access_level' => 'read',
             'min_viewable_rank' => 2,
             'max_viewable_rank' => 5,
         ]);
 
-        // System-generated activity (no causer)
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => $orgUnit->id,
             'causer_type' => null,
             'causer_id' => null,
             'description' => 'System activity',
         ]);
 
-        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+        $response = getJson('/v1/activity-logs');
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
@@ -300,25 +307,26 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('filters by date range', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
-        // Create activities at different dates
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'description' => 'Old activity',
             'created_at' => now()->subDays(10),
         ]);
 
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'description' => 'Recent activity',
             'created_at' => now()->subDays(2),
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson('/v1/activity-logs?from_date='.now()->subDays(3)->toDateString());
+        $response = getJson('/v1/activity-logs?from_date='.now()->subDays(3)->toDateString());
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
@@ -326,24 +334,26 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('filters by log_name', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'log_name' => 'authentication',
             'description' => 'User logged in',
         ]);
 
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'log_name' => 'hr_access',
             'description' => 'HR data accessed',
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson('/v1/activity-logs?log_name=hr_access');
+        $response = getJson('/v1/activity-logs?log_name=hr_access');
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
@@ -351,22 +361,24 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('searches in description', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'description' => 'Employee contract updated',
         ]);
 
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'description' => 'User logged out',
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson('/v1/activity-logs?search=contract');
+        $response = getJson('/v1/activity-logs?search=contract');
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
@@ -374,16 +386,17 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('respects pagination parameters', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
-        // Create 15 activities
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
         Activity::factory()->count(15)->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson('/v1/activity-logs?per_page=5');
+        $response = getJson('/v1/activity-logs?per_page=5');
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(5);
@@ -392,16 +405,17 @@ describe('GET /v1/activity-logs', function () {
     });
 
     test('enforces tenant isolation', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
-        // Create activity in user's tenant
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
         Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'description' => 'Own tenant activity',
         ]);
 
-        // Create second tenant and activity
         $otherTenant = TenantKey::factory()->create();
         Activity::factory()->create([
             'tenant_id' => $otherTenant->id,
@@ -409,7 +423,7 @@ describe('GET /v1/activity-logs', function () {
             'description' => 'Other tenant activity',
         ]);
 
-        $response = $this->withToken($this->token)->getJson('/v1/activity-logs');
+        $response = getJson('/v1/activity-logs');
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
@@ -419,29 +433,37 @@ describe('GET /v1/activity-logs', function () {
 
 describe('GET /v1/activity-logs/{activity}', function () {
     test('returns 401 when not authenticated', function (): void {
+        ['tenant' => $tenant] = createActivityLogContext();
+
         $activity = Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
         ]);
 
-        $response = $this->getJson("/v1/activity-logs/{$activity->id}");
+        $response = getJson("/v1/activity-logs/{$activity->id}");
         $response->assertStatus(401);
     });
 
     test('returns 403 when user lacks activity_log.read permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
         $activity = Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/activity-logs/{$activity->id}");
+        actingAs($user, 'sanctum');
+
+        $response = getJson("/v1/activity-logs/{$activity->id}");
 
         $response->assertStatus(403);
     });
 
-    test('returns 403 when user tries to access activity from different tenant', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+    test('returns 404 when user tries to access activity from different tenant', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $otherTenant = TenantKey::factory()->create();
         $activity = Activity::factory()->create([
@@ -449,24 +471,25 @@ describe('GET /v1/activity-logs/{activity}', function () {
             'organizational_unit_id' => null,
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/activity-logs/{$activity->id}");
+        $response = getJson("/v1/activity-logs/{$activity->id}");
 
-        $response->assertStatus(403);
+        $response->assertNotFound();
     });
 
     test('returns global activity when user has permission', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $activity = Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'log_name' => 'authentication',
             'description' => 'User logged in',
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/activity-logs/{$activity->id}");
+        $response = getJson("/v1/activity-logs/{$activity->id}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -485,14 +508,17 @@ describe('GET /v1/activity-logs/{activity}', function () {
     });
 
     test('returns activity from accessible organizational unit', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $orgUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
         ]);
 
         UserInternalOrganizationalScope::factory()->create([
-            'user_id' => $this->user->id,
+            'user_id' => $user->id,
             'organizational_unit_id' => $orgUnit->id,
             'access_level' => 'read',
             'min_viewable_rank' => null,
@@ -500,48 +526,50 @@ describe('GET /v1/activity-logs/{activity}', function () {
         ]);
 
         $activity = Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => $orgUnit->id,
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/activity-logs/{$activity->id}");
+        $response = getJson("/v1/activity-logs/{$activity->id}");
 
         $response->assertOk();
         expect($response->json('data.id'))->toBe($activity->id);
     });
 
     test('returns 403 for activity in inaccessible organizational unit', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $inaccessibleUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
         ]);
 
         $activity = Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => $inaccessibleUnit->id,
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/activity-logs/{$activity->id}");
+        $response = getJson("/v1/activity-logs/{$activity->id}");
 
         $response->assertStatus(403);
     });
 
     test('includes verification data when requested', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $activity = Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
         ]);
 
-        // Hash chain must be built (happens via job in real scenario)
         $activity->refresh();
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/activity-logs/{$activity->id}?include_verification=1");
+        $response = getJson("/v1/activity-logs/{$activity->id}?include_verification=1");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -559,41 +587,47 @@ describe('GET /v1/activity-logs/{activity}', function () {
 
 describe('GET /v1/activity-logs/{activity}/verify', function () {
     test('returns 401 when not authenticated', function (): void {
+        ['tenant' => $tenant] = createActivityLogContext();
+
         $activity = Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
         ]);
 
-        $response = $this->getJson("/v1/activity-logs/{$activity->id}/verify");
+        $response = getJson("/v1/activity-logs/{$activity->id}/verify");
         $response->assertStatus(401);
     });
 
     test('returns 403 when user lacks activity_log.read permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
         $activity = Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/activity-logs/{$activity->id}/verify");
+        actingAs($user, 'sanctum');
+
+        $response = getJson("/v1/activity-logs/{$activity->id}/verify");
 
         $response->assertStatus(403);
     });
 
     test('returns verification results for accessible activity', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $activity = Activity::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => $tenant->id,
             'organizational_unit_id' => null,
             'log_name' => 'authentication',
         ]);
 
-        // Hash chain must be built
         $activity->refresh();
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/activity-logs/{$activity->id}/verify");
+        $response = getJson("/v1/activity-logs/{$activity->id}/verify");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -617,8 +651,11 @@ describe('GET /v1/activity-logs/{activity}/verify', function () {
         expect($response->json('data.verification.chain_valid'))->toBeTrue();
     });
 
-    test('enforces tenant isolation for verification', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'activity_log.read');
+    test('returns 404 for verification when activity belongs to different tenant', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
 
         $otherTenant = TenantKey::factory()->create();
         $activity = Activity::factory()->create([
@@ -626,9 +663,8 @@ describe('GET /v1/activity-logs/{activity}/verify', function () {
             'organizational_unit_id' => null,
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/activity-logs/{$activity->id}/verify");
+        $response = getJson("/v1/activity-logs/{$activity->id}/verify");
 
-        $response->assertStatus(403);
+        $response->assertNotFound();
     });
 });
