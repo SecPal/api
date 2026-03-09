@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests;
@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class ExtendRoleRequest extends FormRequest
 {
@@ -41,10 +42,16 @@ class ExtendRoleRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            /** @var int|null $userId */
-            $userId = $this->route('user');
+            /** @var User|string|null $routeUser */
+            $routeUser = $this->route('user');
             /** @var string|null $roleName */
             $roleName = $this->route('role');
+
+            $userId = match (true) {
+                $routeUser instanceof User => $routeUser->getKey(),
+                is_string($routeUser) => $routeUser,
+                default => null,
+            };
 
             if (! $userId || ! $roleName) {
                 return;
@@ -57,11 +64,21 @@ class ExtendRoleRequest extends FormRequest
                 return;
             }
 
+            $tenantId = match (true) {
+                $routeUser instanceof User => $routeUser->tenant_id,
+                default => app(PermissionRegistrar::class)->getPermissionsTeamId(),
+            };
+
             // Find current assignment using role_id
-            $assignment = TemporalRoleUser::where('role_id', $role->id)
+            $assignmentQuery = TemporalRoleUser::where('role_id', $role->id)
                 ->where('model_id', $userId)
-                ->where('model_type', User::class)
-                ->first();
+                ->where('model_type', User::class);
+
+            if ($tenantId !== null) {
+                $assignmentQuery->where('tenant_id', $tenantId);
+            }
+
+            $assignment = $assignmentQuery->first();
 
             // Validate new valid_until is after current valid_until
             if ($assignment && $this->input('valid_until')) {

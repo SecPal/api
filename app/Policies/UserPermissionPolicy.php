@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -28,6 +28,10 @@ class UserPermissionPolicy
      */
     public function viewPermissions(User $currentUser, User $targetUser): bool
     {
+        if (! $currentUser->sharesTenantWith($targetUser)) {
+            return false;
+        }
+
         // User can view own permissions
         if ($currentUser->id === $targetUser->id) {
             return true;
@@ -44,6 +48,10 @@ class UserPermissionPolicy
      */
     public function assignPermission(User $currentUser, User $targetUser): bool
     {
+        if (! $currentUser->sharesTenantWith($targetUser)) {
+            return false;
+        }
+
         return $currentUser->can('permissions.assign_direct');
     }
 
@@ -54,6 +62,10 @@ class UserPermissionPolicy
      */
     public function revokePermission(User $currentUser, User $targetUser): bool
     {
+        if (! $currentUser->sharesTenantWith($targetUser)) {
+            return false;
+        }
+
         return $currentUser->can('permissions.revoke_direct');
     }
 }
