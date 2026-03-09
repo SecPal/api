@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -122,7 +122,7 @@ describe('Cross-Tenant Isolation - Sites', function () {
         // User1 attempts to view Tenant2 site
         $response = $this->withToken($this->token1)->getJson("/v1/sites/{$site2->id}");
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
     });
 
     test('user cannot create site with references to other tenant', function () {
@@ -162,7 +162,7 @@ describe('Cross-Tenant Isolation - Sites', function () {
             'name' => 'Hacked Name',
         ]);
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
     });
 
     test('user cannot delete site from other tenant', function () {
@@ -178,7 +178,7 @@ describe('Cross-Tenant Isolation - Sites', function () {
         // User1 attempts to delete Tenant2 site
         $response = $this->withToken($this->token1)->deleteJson("/v1/sites/{$site2->id}");
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
 
         // Verify site still exists
         expect(Site::find($site2->id))->not->toBeNull();
@@ -212,7 +212,7 @@ describe('Cross-Tenant Isolation - Customers', function () {
 
         $response = $this->withToken($this->token1)->getJson("/v1/customers/{$customer2->id}");
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
     });
 
     test('user cannot update customer from other tenant', function () {
@@ -222,7 +222,7 @@ describe('Cross-Tenant Isolation - Customers', function () {
             'name' => 'Hacked Name',
         ]);
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
     });
 
     test('user cannot delete customer from other tenant', function () {
@@ -230,7 +230,7 @@ describe('Cross-Tenant Isolation - Customers', function () {
 
         $response = $this->withToken($this->token1)->deleteJson("/v1/customers/{$customer2->id}");
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
         expect(Customer::find($customer2->id))->not->toBeNull();
     });
 });
@@ -271,7 +271,7 @@ describe('Cross-Tenant Isolation - Employees', function () {
 
         $response = $this->withToken($this->token1)->getJson("/v1/employees/{$employee2->id}");
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
     });
 
     test('user cannot update employee from other tenant', function () {
@@ -285,7 +285,7 @@ describe('Cross-Tenant Isolation - Employees', function () {
             'first_name' => 'Hacked',
         ]);
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
     });
 
     test('user cannot delete employee from other tenant', function () {
@@ -297,7 +297,7 @@ describe('Cross-Tenant Isolation - Employees', function () {
 
         $response = $this->withToken($this->token1)->deleteJson("/v1/employees/{$employee2->id}");
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
         expect(Employee::find($employee2->id))->not->toBeNull();
     });
 
@@ -311,7 +311,7 @@ describe('Cross-Tenant Isolation - Employees', function () {
 
         $response = $this->withToken($this->token1)->postJson("/v1/employees/{$employee2->id}/activate");
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
 
         // Verify status unchanged
         $employee2->refresh();
@@ -328,7 +328,7 @@ describe('Cross-Tenant Isolation - Employees', function () {
 
         $response = $this->withToken($this->token1)->postJson("/v1/employees/{$employee2->id}/terminate");
 
-        $response->assertStatus(403); // Forbidden (tenant isolation via Policy)
+        $response->assertStatus(404); // Fail closed for foreign-tenant resources
 
         // Verify status unchanged
         $employee2->refresh();
@@ -411,7 +411,7 @@ describe('Security Attack Scenarios', function () {
         // User1 attempts to access each Tenant2 site
         foreach ($sites2 as $site) {
             $response = $this->withToken($this->token1)->getJson("/v1/sites/{$site->id}");
-            $response->assertStatus(403); // All should be 403 (Forbidden via Policy)
+            $response->assertStatus(404); // All should fail closed for foreign-tenant resources
         }
     });
 
