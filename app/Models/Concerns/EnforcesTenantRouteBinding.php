@@ -6,6 +6,7 @@
 namespace App\Models\Concerns;
 
 use App\Models\TenantKey;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
@@ -49,12 +50,8 @@ trait EnforcesTenantRouteBinding
      */
     protected function resolveBaseRouteBindingQuery($query, $value, $field = null): Builder
     {
-        /** @var Builder<static> $resolvedQuery */
-        $resolvedQuery = method_exists($this, 'resolveUuidRouteBindingQuery')
-            ? $this->resolveUuidRouteBindingQuery($query, $value, $field)
-            : parent::resolveRouteBindingQuery($query, $value, $field);
-
-        return $resolvedQuery;
+        /** @var Builder<static> */
+        return $this->resolveUuidRouteBindingQuery($query, $value, $field);
     }
 
     /**
@@ -98,17 +95,17 @@ trait EnforcesTenantRouteBinding
      */
     protected function resolveCurrentRouteTenantId(): ?int
     {
-        /** @var object{tenant_id?: int|null}|null $authUser */
+        /** @var User|null $authUser */
         $authUser = Auth::user();
 
-        if (isset($authUser?->tenant_id) && $authUser->tenant_id !== null) {
-            return (int) $authUser->tenant_id;
+        if ($authUser instanceof User && $authUser->tenant_id !== null) {
+            return $authUser->tenant_id;
         }
 
         $routeTenant = request()->route('tenant');
 
         if ($routeTenant instanceof TenantKey) {
-            return (int) $routeTenant->getKey();
+            return $routeTenant->id;
         }
 
         if (is_numeric($routeTenant)) {
