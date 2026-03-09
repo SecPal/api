@@ -216,7 +216,7 @@ class UserPermissionController extends Controller
         $authUser = Auth::user();
 
         if (! $authUser->sharesTenantWith($targetUser)) {
-            throw (new ModelNotFoundException)->setModel(User::class, [$targetUser->getKey()]);
+            throw (new ModelNotFoundException)->setModel(User::class, $targetUser->id);
         }
     }
 }
