@@ -5,6 +5,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EnforcesTenantRouteBinding;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -30,7 +31,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Qualification extends Model
 {
     /** @use HasFactory<\Database\Factories\QualificationFactory> */
-    use HasFactory, HasUuids, SoftDeletes;
+    use EnforcesTenantRouteBinding, HasFactory, HasUuids, SoftDeletes {
+        EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;
+        HasUuids::resolveRouteBindingQuery as resolveUuidRouteBindingQuery;
+    }
 
     protected $fillable = [
         'tenant_id',
@@ -77,5 +81,13 @@ class Qualification extends Model
     public function employeeQualifications(): HasMany
     {
         return $this->hasMany(EmployeeQualification::class);
+    }
+
+    /**
+     * System qualifications remain globally addressable alongside tenant-local ones.
+     */
+    protected function routeBindingAllowsGlobalRecords(): bool
+    {
+        return true;
     }
 }
