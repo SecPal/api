@@ -181,6 +181,34 @@ test('onboarding submission route binding resolves only through same-tenant empl
         ->and($resolvedOtherTenantSubmission)->toBeNull();
 });
 
+test('onboarding template route binding includes global records and rejects other tenant records', function (): void {
+    ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
+
+    $sameTenantTemplate = OnboardingFormTemplate::factory()->create([
+        'tenant_id' => $tenant->id,
+        'is_system_template' => false,
+    ]);
+    $globalTemplate = OnboardingFormTemplate::factory()->create([
+        'tenant_id' => null,
+        'is_system_template' => true,
+    ]);
+    $otherTenantTemplate = OnboardingFormTemplate::factory()->create([
+        'tenant_id' => $otherTenant->id,
+        'is_system_template' => false,
+    ]);
+
+    /** @var OnboardingFormTemplate|null $resolvedSameTenantTemplate */
+    $resolvedSameTenantTemplate = (new OnboardingFormTemplate)->resolveRouteBindingQuery(OnboardingFormTemplate::query(), $sameTenantTemplate->id)->first();
+    /** @var OnboardingFormTemplate|null $resolvedGlobalTemplate */
+    $resolvedGlobalTemplate = (new OnboardingFormTemplate)->resolveRouteBindingQuery(OnboardingFormTemplate::query(), $globalTemplate->id)->first();
+    /** @var OnboardingFormTemplate|null $resolvedOtherTenantTemplate */
+    $resolvedOtherTenantTemplate = (new OnboardingFormTemplate)->resolveRouteBindingQuery(OnboardingFormTemplate::query(), $otherTenantTemplate->id)->first();
+
+    expect($resolvedSameTenantTemplate?->id)->toBe($sameTenantTemplate->id)
+        ->and($resolvedGlobalTemplate?->id)->toBe($globalTemplate->id)
+        ->and($resolvedOtherTenantTemplate)->toBeNull();
+});
+
 test('activity route binding resolves only within the authenticated tenant', function (): void {
     ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
 
