@@ -1,12 +1,13 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 use App\Models\Permission;
+use App\Models\TemporalRoleUser;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,71 +15,91 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\deleteJson;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\patchJson;
+use function Pest\Laravel\postJson;
+
 /**
- * @property TenantKey $tenant
- * @property PermissionRegistrar $registrar
- * @property User $user
- * @property mixed $token
- * @property User $targetUser
- * @property Role $role
+ * @return array{
+ *     tenant: TenantKey,
+ *     registrar: PermissionRegistrar,
+ *     user: User,
+ *     targetUser: User,
+ *     role: Role,
+ *     otherTenant: TenantKey,
+ *     crossTenantUser: User
+ * }
  */
-uses(RefreshDatabase::class);
-
-beforeEach(function (): void {
-    // Use process-specific KEK file for parallel test isolation
-    TenantKey::setKekPath(getTestKekPath());
-    TenantKey::generateKek();
+function createRoleApiContext(): array
+{
     $keys = TenantKey::generateEnvelopeKeys();
-    $this->tenant = TenantKey::create($keys);
+    $tenant = TenantKey::create($keys);
 
-    // Set tenant context for permission system
-    $this->registrar = app(PermissionRegistrar::class);
-    $this->registrar->setPermissionsTeamId($this->tenant->id);
+    /** @var PermissionRegistrar $registrar */
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($tenant->id);
 
-    // Create test user with token
-    $this->user = User::factory()->create();
-    $this->token = $this->user->createToken('test-device')->plainTextToken;
+    $user = User::factory()->create();
+    $targetUser = User::factory()->create();
+    $role = Role::create(['name' => 'manager', 'guard_name' => 'sanctum']);
 
-    // Create target user (recipient of role assignments)
-    $this->targetUser = User::factory()->create();
+    $otherTenantKeys = TenantKey::generateEnvelopeKeys();
+    $otherTenant = TenantKey::create($otherTenantKeys);
+    $crossTenantUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
 
-    // Create test role
-    $this->role = Role::create(['name' => 'manager', 'guard_name' => 'sanctum']);
-
-    // Create permissions (global, not team-scoped)
     Permission::create(['name' => 'role.assign', 'guard_name' => 'sanctum']);
     Permission::create(['name' => 'role.revoke', 'guard_name' => 'sanctum']);
     Permission::create(['name' => 'role.read', 'guard_name' => 'sanctum']);
+
+    return [
+        'tenant' => $tenant,
+        'registrar' => $registrar,
+        'user' => $user,
+        'targetUser' => $targetUser,
+        'role' => $role,
+        'otherTenant' => $otherTenant,
+        'crossTenantUser' => $crossTenantUser,
+    ];
+}
+
+uses(RefreshDatabase::class);
+
+beforeEach(function (): void {
+    TenantKey::setKekPath(getTestKekPath());
+    TenantKey::generateKek();
 });
 
 afterEach(function (): void {
-    $this->registrar->setPermissionsTeamId(null);
+    app(PermissionRegistrar::class)->setPermissionsTeamId(null);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
 
-// UUID compatibility test - ensures RoleController accepts string UUIDs
 test('role controller accepts UUID string parameters', function (): void {
-    $this->user->givePermissionTo('role.assign');
+    ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-    // Verify that User IDs are UUIDs (strings, not integers)
-    expect($this->targetUser->id)->toBeString();
-    expect($this->targetUser->id)->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i');
+    $user->givePermissionTo('role.assign');
+    actingAs($user, 'sanctum');
 
-    // This tests the RoleController::store(string $user) type hint
-    $response = $this->withToken($this->token)
-        ->postJson("/v1/users/{$this->targetUser->id}/roles", [
-            'role' => 'manager',
-            'valid_from' => now()->toIso8601String(),
-            'valid_until' => now()->addDays(7)->toIso8601String(),
-        ]);
+    expect($targetUser->id)->toBeString();
+    expect($targetUser->id)->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i');
+
+    $response = postJson("/v1/users/{$targetUser->id}/roles", [
+        'role' => 'manager',
+        'valid_from' => now()->toIso8601String(),
+        'valid_until' => now()->addDays(7)->toIso8601String(),
+    ]);
 
     $response->assertCreated();
 });
 
 describe('POST /v1/users/{id}/roles - Assign Role', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->postJson("/v1/users/{$this->targetUser->id}/roles", [
+        ['targetUser' => $targetUser] = createRoleApiContext();
+
+        $response = postJson("/v1/users/{$targetUser->id}/roles", [
             'role' => 'manager',
             'valid_from' => now()->toIso8601String(),
             'valid_until' => now()->addDays(7)->toIso8601String(),
@@ -88,57 +109,66 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
     });
 
     test('returns 403 when user lacks role.assign permission', function (): void {
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
-                'role' => 'manager',
-                'valid_from' => now()->toIso8601String(),
-                'valid_until' => now()->addDays(7)->toIso8601String(),
-            ]);
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
+
+        actingAs($user, 'sanctum');
+
+        $response = postJson("/v1/users/{$targetUser->id}/roles", [
+            'role' => 'manager',
+            'valid_from' => now()->toIso8601String(),
+            'valid_until' => now()->addDays(7)->toIso8601String(),
+        ]);
 
         $response->assertForbidden();
     });
 
     test('returns 422 when role is missing', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
-                'valid_from' => now()->toIso8601String(),
-                'valid_until' => now()->addDays(7)->toIso8601String(),
-            ]);
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
+
+        $response = postJson("/v1/users/{$targetUser->id}/roles", [
+            'valid_from' => now()->toIso8601String(),
+            'valid_until' => now()->addDays(7)->toIso8601String(),
+        ]);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['role']);
     });
 
     test('returns 422 when valid_until is before valid_from', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
-                'role' => 'manager',
-                'valid_from' => now()->addDays(7)->toIso8601String(),
-                'valid_until' => now()->toIso8601String(), // before valid_from
-            ]);
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
+
+        $response = postJson("/v1/users/{$targetUser->id}/roles", [
+            'role' => 'manager',
+            'valid_from' => now()->addDays(7)->toIso8601String(),
+            'valid_until' => now()->toIso8601String(),
+        ]);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['valid_until']);
     });
 
     test('assigns role with temporal parameters and returns 201', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
+
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
 
         $validFrom = now();
         $validUntil = now()->addDays(7);
 
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
-                'role' => 'manager',
-                'valid_from' => $validFrom->toIso8601String(),
-                'valid_until' => $validUntil->toIso8601String(),
-                'auto_revoke' => true,
-                'reason' => 'Vacation coverage',
-            ]);
+        $response = postJson("/v1/users/{$targetUser->id}/roles", [
+            'role' => 'manager',
+            'valid_from' => $validFrom->toIso8601String(),
+            'valid_until' => $validUntil->toIso8601String(),
+            'auto_revoke' => true,
+            'reason' => 'Vacation coverage',
+        ]);
 
         $response->assertCreated()
             ->assertJsonStructure([
@@ -150,58 +180,80 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
                 'reason',
             ])
             ->assertJsonFragment([
-                'user_id' => $this->targetUser->id,
+                'user_id' => $targetUser->id,
                 'role' => 'manager',
                 'auto_revoke' => true,
                 'reason' => 'Vacation coverage',
             ]);
 
-        // Verify role was assigned in database
-        expect($this->targetUser->hasRole('manager'))->toBeTrue();
+        expect($targetUser->hasRole('manager'))->toBeTrue();
+    });
+
+    test('returns 404 for cross-tenant target user', function (): void {
+        ['user' => $user, 'crossTenantUser' => $crossTenantUser] = createRoleApiContext();
+
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
+
+        $response = postJson("/v1/users/{$crossTenantUser->id}/roles", [
+            'role' => 'manager',
+            'valid_from' => now()->toIso8601String(),
+            'valid_until' => now()->addDays(7)->toIso8601String(),
+        ]);
+
+        $response->assertNotFound();
     });
 });
 
 describe('GET /v1/users/{id}/roles - List Roles', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->getJson("/v1/users/{$this->targetUser->id}/roles");
+        ['targetUser' => $targetUser] = createRoleApiContext();
+
+        $response = getJson("/v1/users/{$targetUser->id}/roles");
 
         $response->assertUnauthorized();
     });
 
     test('returns 403 when user lacks role.read permission', function (): void {
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/users/{$this->targetUser->id}/roles");
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
+
+        actingAs($user, 'sanctum');
+
+        $response = getJson("/v1/users/{$targetUser->id}/roles");
 
         $response->assertForbidden();
     });
 
     test('returns empty array when user has no roles', function (): void {
-        $this->user->givePermissionTo('role.read');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/users/{$this->targetUser->id}/roles");
+        $user->givePermissionTo('role.read');
+        actingAs($user, 'sanctum');
+
+        $response = getJson("/v1/users/{$targetUser->id}/roles");
 
         $response->assertOk()
             ->assertJson(['roles' => []]);
     });
 
     test('returns roles with expiry info when user has roles', function (): void {
-        $this->user->givePermissionTo('role.read');
+        ['tenant' => $tenant, 'user' => $user, 'targetUser' => $targetUser, 'role' => $role] = createRoleApiContext();
 
-        // Assign role with temporal parameters
+        $user->givePermissionTo('role.read');
+        actingAs($user, 'sanctum');
+
         $validFrom = now()->subHours(1);
         $validUntil = now()->addDays(7);
 
-        assignTemporalRole($this->targetUser, $this->role, $this->tenant->id, [
+        assignTemporalRole($targetUser, $role, $tenant->id, [
             'valid_from' => $validFrom,
             'valid_until' => $validUntil,
             'auto_revoke' => true,
-            'assigned_by' => $this->user->id,
+            'assigned_by' => $user->id,
             'reason' => 'Test assignment',
         ]);
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/users/{$this->targetUser->id}/roles");
+        $response = getJson("/v1/users/{$targetUser->id}/roles");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -223,58 +275,89 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
                 'is_expired' => false,
             ]);
     });
+
+    test('returns 404 for cross-tenant target user', function (): void {
+        ['user' => $user, 'crossTenantUser' => $crossTenantUser] = createRoleApiContext();
+
+        $user->givePermissionTo('role.read');
+        actingAs($user, 'sanctum');
+
+        $response = getJson("/v1/users/{$crossTenantUser->id}/roles");
+
+        $response->assertNotFound();
+    });
 });
 
 describe('DELETE /v1/users/{id}/roles/{role} - Revoke Role', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->deleteJson("/v1/users/{$this->targetUser->id}/roles/manager");
+        ['targetUser' => $targetUser] = createRoleApiContext();
+
+        $response = deleteJson("/v1/users/{$targetUser->id}/roles/manager");
 
         $response->assertUnauthorized();
     });
 
     test('returns 403 when user lacks role.revoke permission', function (): void {
-        $response = $this->withToken($this->token)
-            ->deleteJson("/v1/users/{$this->targetUser->id}/roles/manager");
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
+
+        actingAs($user, 'sanctum');
+
+        $response = deleteJson("/v1/users/{$targetUser->id}/roles/manager");
 
         $response->assertForbidden();
     });
 
     test('returns 404 when role not assigned to user', function (): void {
-        $this->user->givePermissionTo('role.revoke');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-        $response = $this->withToken($this->token)
-            ->deleteJson("/v1/users/{$this->targetUser->id}/roles/manager");
+        $user->givePermissionTo('role.revoke');
+        actingAs($user, 'sanctum');
+
+        $response = deleteJson("/v1/users/{$targetUser->id}/roles/manager");
 
         $response->assertNotFound();
     });
 
     test('revokes role and returns 204', function (): void {
-        $this->user->givePermissionTo('role.revoke');
+        ['tenant' => $tenant, 'user' => $user, 'targetUser' => $targetUser, 'role' => $role] = createRoleApiContext();
 
-        // Assign role first
-        assignTemporalRole($this->targetUser, $this->role, $this->tenant->id, [
+        $user->givePermissionTo('role.revoke');
+        actingAs($user, 'sanctum');
+
+        assignTemporalRole($targetUser, $role, $tenant->id, [
             'valid_from' => now(),
             'valid_until' => now()->addDays(7),
             'auto_revoke' => true,
-            'assigned_by' => $this->user->id,
+            'assigned_by' => $user->id,
         ]);
 
-        expect($this->targetUser->hasRole('manager'))->toBeTrue();
+        expect($targetUser->hasRole('manager'))->toBeTrue();
 
-        $response = $this->withToken($this->token)
-            ->deleteJson("/v1/users/{$this->targetUser->id}/roles/manager");
+        $response = deleteJson("/v1/users/{$targetUser->id}/roles/manager");
 
         $response->assertNoContent();
 
-        // Verify role was revoked
-        $this->targetUser->refresh();
-        expect($this->targetUser->hasRole('manager'))->toBeFalse();
+        $targetUser->refresh();
+        expect($targetUser->hasRole('manager'))->toBeFalse();
+    });
+
+    test('returns 404 for cross-tenant target user', function (): void {
+        ['user' => $user, 'crossTenantUser' => $crossTenantUser] = createRoleApiContext();
+
+        $user->givePermissionTo('role.revoke');
+        actingAs($user, 'sanctum');
+
+        $response = deleteJson("/v1/users/{$crossTenantUser->id}/roles/manager");
+
+        $response->assertNotFound();
     });
 });
 
 describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
+        ['targetUser' => $targetUser] = createRoleApiContext();
+
+        $response = patchJson("/v1/users/{$targetUser->id}/roles/manager/extend", [
             'valid_until' => now()->addDays(14)->toIso8601String(),
         ]);
 
@@ -282,66 +365,71 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
     });
 
     test('returns 403 when user lacks role.assign permission', function (): void {
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
-                'valid_until' => now()->addDays(14)->toIso8601String(),
-            ]);
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
+
+        actingAs($user, 'sanctum');
+
+        $response = patchJson("/v1/users/{$targetUser->id}/roles/manager/extend", [
+            'valid_until' => now()->addDays(14)->toIso8601String(),
+        ]);
 
         $response->assertForbidden();
     });
 
     test('returns 404 when role not assigned to user', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
-                'valid_until' => now()->addDays(14)->toIso8601String(),
-            ]);
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
+
+        $response = patchJson("/v1/users/{$targetUser->id}/roles/manager/extend", [
+            'valid_until' => now()->addDays(14)->toIso8601String(),
+        ]);
 
         $response->assertNotFound();
     });
 
     test('returns 422 when new valid_until is before current valid_until', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['tenant' => $tenant, 'user' => $user, 'targetUser' => $targetUser, 'role' => $role] = createRoleApiContext();
 
-        // Assign role with 14 days validity
-        assignTemporalRole($this->targetUser, $this->role, $this->tenant->id, [
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
+
+        assignTemporalRole($targetUser, $role, $tenant->id, [
             'valid_from' => now(),
             'valid_until' => now()->addDays(14),
             'auto_revoke' => true,
-            'assigned_by' => $this->user->id,
+            'assigned_by' => $user->id,
         ]);
 
-        // Try to "extend" to 7 days (actually shortening)
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
-                'valid_until' => now()->addDays(7)->toIso8601String(),
-            ]);
+        $response = patchJson("/v1/users/{$targetUser->id}/roles/manager/extend", [
+            'valid_until' => now()->addDays(7)->toIso8601String(),
+        ]);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['valid_until']);
     });
 
     test('extends role expiration and returns 200', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['tenant' => $tenant, 'user' => $user, 'targetUser' => $targetUser, 'role' => $role] = createRoleApiContext();
+
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
 
         $originalValidUntil = now()->addDays(7);
         $newValidUntil = now()->addDays(14);
 
-        // Assign role
-        assignTemporalRole($this->targetUser, $this->role, $this->tenant->id, [
+        assignTemporalRole($targetUser, $role, $tenant->id, [
             'valid_from' => now(),
             'valid_until' => $originalValidUntil,
             'auto_revoke' => true,
-            'assigned_by' => $this->user->id,
+            'assigned_by' => $user->id,
         ]);
 
-        // Extend role
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
-                'valid_until' => $newValidUntil->toIso8601String(),
-                'reason' => 'Extended vacation period',
-            ]);
+        $response = patchJson("/v1/users/{$targetUser->id}/roles/manager/extend", [
+            'valid_until' => $newValidUntil->toIso8601String(),
+            'reason' => 'Extended vacation period',
+        ]);
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -352,46 +440,60 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
                 'reason',
             ])
             ->assertJsonFragment([
-                'user_id' => $this->targetUser->id,
+                'user_id' => $targetUser->id,
                 'role' => 'manager',
                 'reason' => 'Extended vacation period',
             ]);
 
-        // Verify expiration was extended in database
-        $assignment = \App\Models\TemporalRoleUser::where('model_id', $this->targetUser->id)
-            ->where('role_id', $this->role->id)
+        $assignment = TemporalRoleUser::where('model_id', $targetUser->id)
+            ->where('role_id', $role->id)
             ->first();
 
         expect($assignment->valid_until->toDateString())
             ->toBe($newValidUntil->toDateString());
     });
+
+    test('returns 404 for cross-tenant target user', function (): void {
+        ['user' => $user, 'crossTenantUser' => $crossTenantUser] = createRoleApiContext();
+
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
+
+        $response = patchJson("/v1/users/{$crossTenantUser->id}/roles/manager/extend", [
+            'valid_until' => now()->addDays(14)->toIso8601String(),
+        ]);
+
+        $response->assertNotFound();
+    });
 });
 
 describe('Edge Cases - Temporal Date Validation', function () {
     test('accepts assignment with valid_from in the past and valid_until also past', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
-                'role' => 'manager',
-                'valid_from' => now()->subDays(10)->toIso8601String(),
-                'valid_until' => now()->subDays(5)->toIso8601String(),
-            ]);
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
 
-        // Should accept - validation allows past dates for historical assignments
+        $response = postJson("/v1/users/{$targetUser->id}/roles", [
+            'role' => 'manager',
+            'valid_from' => now()->subDays(10)->toIso8601String(),
+            'valid_until' => now()->subDays(5)->toIso8601String(),
+        ]);
+
         $response->assertCreated();
     });
 
     test('accepts assignment with only valid_from (no end date - unbegrenzt)', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
-                'role' => 'manager',
-                'valid_from' => now()->toIso8601String(),
-            ]);
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
 
-        // Should accept - allows flexible date combinations
+        $response = postJson("/v1/users/{$targetUser->id}/roles", [
+            'role' => 'manager',
+            'valid_from' => now()->toIso8601String(),
+        ]);
+
         $response->assertCreated()
             ->assertJsonFragment([
                 'role' => 'manager',
@@ -399,15 +501,16 @@ describe('Edge Cases - Temporal Date Validation', function () {
     });
 
     test('accepts assignment with only valid_until (no start date)', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
-                'role' => 'manager',
-                'valid_until' => now()->addDays(7)->toIso8601String(),
-            ]);
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
 
-        // Should accept - allows flexible date combinations
+        $response = postJson("/v1/users/{$targetUser->id}/roles", [
+            'role' => 'manager',
+            'valid_until' => now()->addDays(7)->toIso8601String(),
+        ]);
+
         $response->assertCreated()
             ->assertJsonFragment([
                 'role' => 'manager',
@@ -415,14 +518,15 @@ describe('Edge Cases - Temporal Date Validation', function () {
     });
 
     test('accepts assignment with neither valid_from nor valid_until (permanent role)', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['user' => $user, 'targetUser' => $targetUser] = createRoleApiContext();
 
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/users/{$this->targetUser->id}/roles", [
-                'role' => 'manager',
-            ]);
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
 
-        // Nullable fields allow omitting both for permanent assignments
+        $response = postJson("/v1/users/{$targetUser->id}/roles", [
+            'role' => 'manager',
+        ]);
+
         $response->assertCreated()
             ->assertJsonFragment([
                 'role' => 'manager',
@@ -430,19 +534,20 @@ describe('Edge Cases - Temporal Date Validation', function () {
     });
 
     test('rejects extension with past date', function (): void {
-        $this->user->givePermissionTo('role.assign');
+        ['tenant' => $tenant, 'user' => $user, 'targetUser' => $targetUser, 'role' => $role] = createRoleApiContext();
 
-        // Assign role first
-        assignTemporalRole($this->targetUser, $this->role, $this->tenant->id, [
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
+
+        assignTemporalRole($targetUser, $role, $tenant->id, [
             'valid_from' => now(),
             'valid_until' => now()->addDays(7),
-            'assigned_by' => $this->user->id,
+            'assigned_by' => $user->id,
         ]);
 
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/users/{$this->targetUser->id}/roles/manager/extend", [
-                'valid_until' => now()->subDay()->toIso8601String(),
-            ]);
+        $response = patchJson("/v1/users/{$targetUser->id}/roles/manager/extend", [
+            'valid_until' => now()->subDay()->toIso8601String(),
+        ]);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['valid_until']);
@@ -451,10 +556,12 @@ describe('Edge Cases - Temporal Date Validation', function () {
 
 describe('Edge Cases - N+1 Query Prevention', function () {
     test('fetches multiple role assignments efficiently', function (): void {
-        $this->user->givePermissionTo('role.read');
+        ['tenant' => $tenant, 'registrar' => $registrar, 'user' => $user, 'targetUser' => $targetUser, 'role' => $role] = createRoleApiContext();
 
-        // Create multiple roles in the current tenant context
-        $this->registrar->setPermissionsTeamId($this->tenant->id);
+        $user->givePermissionTo('role.read');
+        actingAs($user, 'sanctum');
+
+        $registrar->setPermissionsTeamId($tenant->id);
 
         $roles = [
             Role::create(['name' => 'admin']),
@@ -462,36 +569,27 @@ describe('Edge Cases - N+1 Query Prevention', function () {
             Role::create(['name' => 'viewer']),
         ];
 
-        // Assign all roles to target user (including the manager role from beforeEach)
-        assignTemporalRole($this->targetUser, $this->role, $this->tenant->id, [
+        assignTemporalRole($targetUser, $role, $tenant->id, [
             'valid_from' => now(),
             'valid_until' => now()->addDays(30),
-            'assigned_by' => $this->user->id,
+            'assigned_by' => $user->id,
         ]);
 
-        foreach ($roles as $role) {
-            assignTemporalRole($this->targetUser, $role, $this->tenant->id, [
+        foreach ($roles as $extraRole) {
+            assignTemporalRole($targetUser, $extraRole, $tenant->id, [
                 'valid_from' => now(),
                 'valid_until' => now()->addDays(30),
-                'assigned_by' => $this->user->id,
+                'assigned_by' => $user->id,
             ]);
         }
 
-        // Enable query log
         DB::enableQueryLog();
 
-        $response = $this->withToken($this->token)
-            ->getJson("/v1/users/{$this->targetUser->id}/roles");
+        $response = getJson("/v1/users/{$targetUser->id}/roles");
 
         $queries = DB::getQueryLog();
         DB::disableQueryLog();
 
-        // Should have minimal queries:
-        // 1. Auth user lookup
-        // 2. Permission check
-        // 3. TemporalRoleUser query
-        // 4. Single Role::whereIn() query (NOT one per role)
-        // Total should be < 10 queries even with multiple roles
         expect(count($queries))->toBeLessThan(10);
 
         $response->assertOk()
@@ -501,7 +599,6 @@ describe('Edge Cases - N+1 Query Prevention', function () {
                 ],
             ]);
 
-        // Verify all 4 roles returned (manager + 3 new)
         $data = $response->json();
         expect($data['roles'])->toHaveCount(4);
     });

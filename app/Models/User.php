@@ -1,10 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Models;
 
+use App\Models\Concerns\EnforcesTenantRouteBinding;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -44,7 +45,10 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasApiTokens, HasFactory, HasRoles, HasUuids, Notifiable;
+    use EnforcesTenantRouteBinding, HasApiTokens, HasFactory, HasRoles, HasUuids, Notifiable {
+        EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;
+        HasUuids::resolveRouteBindingQuery as resolveUuidRouteBindingQuery;
+    }
 
     /**
      * The guard name for Spatie Laravel-Permission.
@@ -168,6 +172,14 @@ class User extends Authenticatable
             ->where('model_id', $this->getKey())
             ->where('permission_id', $permission->id)
             ->exists();
+    }
+
+    /**
+     * Determine whether this user belongs to the same tenant as another user.
+     */
+    public function sharesTenantWith(self $user): bool
+    {
+        return $this->tenant_id === $user->tenant_id;
     }
 
     /**

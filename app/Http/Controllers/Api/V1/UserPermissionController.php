@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -11,7 +11,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AssignUserPermissionRequest;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
@@ -35,6 +37,7 @@ class UserPermissionController extends Controller
      */
     public function index(User $user): JsonResponse
     {
+        $this->ensureSameTenant($user);
         Gate::authorize('viewPermissions', $user);
 
         // Get all permissions (via roles + direct)
@@ -87,6 +90,7 @@ class UserPermissionController extends Controller
      */
     public function store(AssignUserPermissionRequest $request, User $user): JsonResponse
     {
+        $this->ensureSameTenant($user);
         Gate::authorize('assignPermission', $user);
 
         /** @var array<int, string> $permissions */
@@ -101,7 +105,7 @@ class UserPermissionController extends Controller
             $pivotData = [
                 'valid_from' => $request->validated('valid_from'),
                 'valid_until' => $request->validated('valid_until'),
-                'assigned_by' => auth()->id(),
+                'assigned_by' => Auth::id(),
                 'reason' => $request->validated('reason'),
             ];
 
@@ -147,6 +151,7 @@ class UserPermissionController extends Controller
      */
     public function destroy(User $user, string $permission): JsonResponse
     {
+        $this->ensureSameTenant($user);
         Gate::authorize('revokePermission', $user);
 
         // Check if user has this permission directly
@@ -174,6 +179,7 @@ class UserPermissionController extends Controller
      */
     public function direct(User $user): JsonResponse
     {
+        $this->ensureSameTenant($user);
         Gate::authorize('viewPermissions', $user);
 
         // Get direct permissions with pivot data
@@ -199,5 +205,18 @@ class UserPermissionController extends Controller
                 'direct' => $directPermissions,
             ],
         ]);
+    }
+
+    /**
+     * Reject cross-tenant target users with a fail-closed 404.
+     */
+    private function ensureSameTenant(User $targetUser): void
+    {
+        /** @var User $authUser */
+        $authUser = Auth::user();
+
+        if (! $authUser->sharesTenantWith($targetUser)) {
+            throw (new ModelNotFoundException)->setModel(User::class, [$targetUser->getKey()]);
+        }
     }
 }

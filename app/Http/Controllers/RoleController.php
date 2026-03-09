@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -34,9 +34,9 @@ class RoleController extends Controller
      *
      * POST /v1/users/{user}/roles
      */
-    public function store(AssignRoleRequest $request, string $user): JsonResponse
+    public function store(AssignRoleRequest $request, User $user): JsonResponse
     {
-        $targetUser = User::findOrFail($user);
+        $targetUser = $user;
         $roleName = $request->string('role')->toString();
         $role = Role::where('name', $roleName)->firstOrFail();
 
@@ -76,7 +76,9 @@ class RoleController extends Controller
                 'auto_revoke' => $existingAssignment->auto_revoke,
                 'reason' => $existingAssignment->reason ?? '',
             ], Response::HTTP_OK); // 200 OK - Idempotent operation
-        }        DB::transaction(function () use ($targetUser, $role, $validFrom, $validUntil, $request, $tenantId, $authUser) {
+        }
+
+        DB::transaction(function () use ($targetUser, $role, $validFrom, $validUntil, $request, $tenantId, $authUser) {
             // Direct database insert to bypass Spatie's relationship methods:
             // We require additional temporal and audit fields (valid_from, valid_until, auto_revoke, assigned_by, reason)
             // in the model_has_roles table, which are not supported by Spatie's built-in relationship methods.
@@ -124,12 +126,14 @@ class RoleController extends Controller
     /**
      * List all roles for a user with their expiration status.
      */
-    public function index(Request $request, string $user): JsonResponse
+    public function index(Request $request, User $user): JsonResponse
     {
+        $targetUser = $user;
+
         /** @var int|null $tenantId */
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
 
-        $roleAssignments = TemporalRoleUser::where('model_id', $user)
+        $roleAssignments = TemporalRoleUser::where('model_id', $targetUser->id)
             ->where('model_type', User::class)
             ->where('tenant_id', $tenantId)
             ->get();
@@ -166,9 +170,9 @@ class RoleController extends Controller
      *
      * DELETE /v1/users/{user}/roles/{role}
      */
-    public function destroy(Request $request, string $user, string $roleName): JsonResponse|Response
+    public function destroy(Request $request, User $user, string $roleName): JsonResponse|Response
     {
-        $targetUser = User::findOrFail($user);
+        $targetUser = $user;
         $role = Role::where('name', $roleName)->firstOrFail();
 
         /** @var \App\Models\User $authUser */
@@ -213,9 +217,9 @@ class RoleController extends Controller
      *
      * PATCH /v1/users/{user}/roles/{role}/extend
      */
-    public function extend(ExtendRoleRequest $request, string $user, string $roleName): JsonResponse
+    public function extend(ExtendRoleRequest $request, User $user, string $roleName): JsonResponse
     {
-        $targetUser = User::findOrFail($user);
+        $targetUser = $user;
         $role = Role::where('name', $roleName)->firstOrFail();
 
         /** @var \App\Models\User $authUser */
