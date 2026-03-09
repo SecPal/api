@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class ExtendRoleRequest extends FormRequest
 {
@@ -63,11 +64,21 @@ class ExtendRoleRequest extends FormRequest
                 return;
             }
 
+            $tenantId = match (true) {
+                $routeUser instanceof User => $routeUser->tenant_id,
+                default => app(PermissionRegistrar::class)->getPermissionsTeamId(),
+            };
+
             // Find current assignment using role_id
-            $assignment = TemporalRoleUser::where('role_id', $role->id)
+            $assignmentQuery = TemporalRoleUser::where('role_id', $role->id)
                 ->where('model_id', $userId)
-                ->where('model_type', User::class)
-                ->first();
+                ->where('model_type', User::class);
+
+            if ($tenantId !== null) {
+                $assignmentQuery->where('tenant_id', $tenantId);
+            }
+
+            $assignment = $assignmentQuery->first();
 
             // Validate new valid_until is after current valid_until
             if ($assignment && $this->input('valid_until')) {
