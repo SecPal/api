@@ -5,6 +5,8 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EnforcesTenantRouteBinding;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -27,7 +29,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class OnboardingFormSubmission extends Model
 {
     /** @use HasFactory<\Database\Factories\OnboardingFormSubmissionFactory> */
-    use HasFactory, HasUuids, SoftDeletes;
+    use EnforcesTenantRouteBinding, HasFactory, HasUuids, SoftDeletes {
+        EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;
+        HasUuids::resolveRouteBindingQuery as resolveUuidRouteBindingQuery;
+    }
 
     protected $fillable = [
         'employee_id',
@@ -75,5 +80,16 @@ class OnboardingFormSubmission extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /**
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
+    protected function applyTenantRouteBindingConstraint(Builder $query, int $tenantId): Builder
+    {
+        return $query->whereHas('employee', function (Builder $employeeQuery) use ($tenantId): void {
+            $employeeQuery->where('tenant_id', $tenantId);
+        });
     }
 }
