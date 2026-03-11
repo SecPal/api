@@ -248,7 +248,7 @@ class Activity extends SpatieActivity
                 if (class_exists($subjectType)) {
                     // Use withTrashed() to find soft-deleted models (e.g., during 'deleted' event)
                     if (method_exists($subjectType, 'withTrashed')) {
-                        /** @var \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model> $query */
+                        /** @var Builder<\Illuminate\Database\Eloquent\Model> $query */
                         $query = $subjectType::withTrashed();
                         $subjectModel = $query->find($activity->subject_id);
                     } else {
@@ -764,7 +764,7 @@ class Activity extends SpatieActivity
             return $otsService->verify($this->ots_proof, $this->merkle_root);
         } catch (\Exception $e) {
             // Log error but return false (don't expose exception)
-            \Illuminate\Support\Facades\Log::warning('OpenTimestamp verification failed', [
+            Log::warning('OpenTimestamp verification failed', [
                 'activity_id' => $this->id,
                 'tenant_id' => $this->tenant_id,
                 'error' => $e->getMessage(),

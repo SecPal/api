@@ -18,7 +18,7 @@ class ActivityFactory extends Factory
     /**
      * The name of the factory's corresponding model.
      *
-     * @var class-string<\App\Models\Activity>
+     * @var class-string<Activity>
      */
     protected $model = Activity::class;
 

@@ -20,7 +20,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * Tests upgrading of pending OTS proofs to confirmed proofs
  * when Bitcoin blocks confirm.
  *
- * @see App\Jobs\UpgradeOpenTimestampProofs
+ * @see UpgradeOpenTimestampProofs
  * @see Issue #391 PR-6: Integrate OpenTimestamp PHP library
  */
 uses(RefreshDatabase::class);
@@ -45,7 +45,7 @@ test('job upgrades pending proofs', function () {
     ]));
 
     // Mock service - proof is now confirmed
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('upgrade')
         ->times(3)
@@ -77,7 +77,7 @@ test('job skips logs without pending proofs', function () {
         'ots_confirmed_at' => null,
     ]));
 
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldNotReceive('upgrade');
 
@@ -104,7 +104,7 @@ test('job skips already confirmed proofs', function () {
         'ots_confirmed_at' => now()->subDays(1),
     ]);
 
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldNotReceive('upgrade');
 
@@ -132,7 +132,7 @@ test('job handles proof not yet ready for upgrade', function () {
     ]);
 
     // Mock service - upgrade not yet available (Bitcoin not confirmed)
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('upgrade')
         ->once()
@@ -172,7 +172,7 @@ test('job processes multiple tenants', function () {
         'ots_confirmed_at' => null,
     ]);
 
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('upgrade')
         ->twice()
@@ -198,10 +198,10 @@ test('job handles upgrade errors gracefully', function () {
     ]);
 
     // Mock service - upgrade throws exception
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('upgrade')
-        ->andThrow(new \RuntimeException('Calendar server timeout'));
+        ->andThrow(new RuntimeException('Calendar server timeout'));
 
     // Act: Job should handle gracefully (don't fail entire job)
     $job = new UpgradeOpenTimestampProofs;
@@ -225,7 +225,7 @@ test('job batch processes logs efficiently', function () {
         'ots_confirmed_at' => null,
     ]));
 
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('upgrade')
         ->times(100)
@@ -255,7 +255,7 @@ test('job respects batch limit of 100 proofs', function () {
         ]);
     }
 
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('upgrade')
         ->times(100) // Only 100 should be processed
@@ -294,7 +294,7 @@ test('job skips recently submitted proofs', function () {
         'ots_confirmed_at' => null,
     ]);
 
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('upgrade')
         ->once() // Only old proof processed

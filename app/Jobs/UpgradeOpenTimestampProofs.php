@@ -96,8 +96,8 @@ class UpgradeOpenTimestampProofs implements ShouldQueue
      *   - Skip recent (<1h) to reduce calendar load
      *   - Continue on individual errors (don't fail entire batch)
      *
-     * @see \App\Jobs\SubmitMerkleRootToOpenTimestamp for proof creation
-     * @see \App\Services\OpenTimestampService::upgrade() for upgrade logic
+     * @see SubmitMerkleRootToOpenTimestamp for proof creation
+     * @see OpenTimestampService::upgrade() for upgrade logic
      * @see ADR-010 Section 6: OpenTimestamp Integration
      */
     public function handle(OpenTimestampService $otsService): void

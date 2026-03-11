@@ -299,7 +299,7 @@ describe('Secrets + Attachments + Shares Integration', function () {
 describe('Role-Based Shares Integration', function () {
     beforeEach(function () {
         // Set up permission registrar for tenant context
-        $registrar = app(\Spatie\Permission\PermissionRegistrar::class);
+        $registrar = app(Spatie\Permission\PermissionRegistrar::class);
         $registrar->setPermissionsTeamId($this->tenant->id);
 
         $this->owner = User::factory()->create();

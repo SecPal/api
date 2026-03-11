@@ -30,7 +30,7 @@ uses(RefreshDatabase::class);
  *
  * TDD approach: Tests written before implementation
  *
- * @see App\Models\Activity::verifyMerkleProof()
+ * @see Activity::verifyMerkleProof()
  * @see Issue #390 PR-5: Add Merkle proof storage & verification methods
  */
 beforeEach(function () {

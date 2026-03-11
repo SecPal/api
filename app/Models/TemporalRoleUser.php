@@ -24,8 +24,8 @@ use Illuminate\Database\Eloquent\Relations\MorphPivot;
  * @property string $model_type
  * @property int $model_id
  * @property int $tenant_id
- * @property \Carbon\Carbon|null $valid_from
- * @property \Carbon\Carbon|null $valid_until
+ * @property Carbon|null $valid_from
+ * @property Carbon|null $valid_until
  * @property bool $auto_revoke
  * @property int|null $assigned_by
  * @property string|null $reason

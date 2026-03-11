@@ -15,7 +15,7 @@ use App\Services\OpenTimestampService;
  *
  * Tests submission and upgrade of timestamps via REST API.
  *
- * @see App\Services\OpenTimestampService
+ * @see OpenTimestampService
  */
 /**
  * @property ProcessExecutor $mockExecutor
@@ -89,7 +89,7 @@ test('submit fails if insufficient calendars respond', function () {
 
     // Act & Assert: Should throw exception
     expect(fn () => $this->service->submit($merkleRoot))
-        ->toThrow(\RuntimeException::class, 'only 1 of 3 calendars responded');
+        ->toThrow(RuntimeException::class, 'only 1 of 3 calendars responded');
 });
 
 test('upgrade returns null if not yet confirmed', function () {

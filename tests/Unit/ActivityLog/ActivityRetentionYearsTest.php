@@ -60,7 +60,7 @@ test('all retention years are valid integers', function (): void {
 
 test('retention years property has legal references', function (): void {
     // This test verifies the docblock contains legal references
-    $reflection = new \ReflectionClass(Activity::class);
+    $reflection = new ReflectionClass(Activity::class);
     $property = $reflection->getProperty('retentionYears');
     $docComment = $property->getDocComment();
 
@@ -73,15 +73,15 @@ test('get retention years methods exist and are static', function (): void {
     expect(method_exists(Activity::class, 'getRetentionYearsForLogType'))->toBeTrue();
     expect(method_exists(Activity::class, 'getAllRetentionYears'))->toBeTrue();
 
-    $reflection = new \ReflectionMethod(Activity::class, 'getRetentionYearsForLogType');
+    $reflection = new ReflectionMethod(Activity::class, 'getRetentionYearsForLogType');
     expect($reflection->isStatic())->toBeTrue();
 
-    $reflection2 = new \ReflectionMethod(Activity::class, 'getAllRetentionYears');
+    $reflection2 = new ReflectionMethod(Activity::class, 'getAllRetentionYears');
     expect($reflection2->isStatic())->toBeTrue();
 });
 
 test('get retention years for log type accepts string parameter', function (): void {
-    $reflection = new \ReflectionMethod(Activity::class, 'getRetentionYearsForLogType');
+    $reflection = new ReflectionMethod(Activity::class, 'getRetentionYearsForLogType');
     $parameters = $reflection->getParameters();
 
     expect($parameters)->toHaveCount(1);

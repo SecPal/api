@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Queue;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \App\Models\User $user
+ * @property TenantKey $tenant
+ * @property User $user
  */
 beforeEach(function () {
     $this->tenant = TenantKey::factory()->create();
@@ -253,7 +253,7 @@ test('all logs schedule opentimestamp submission', function () {
     $job->handle();
 
     // Verify OTS job dispatched
-    Queue::assertPushed(\App\Jobs\SubmitMerkleRootToOpenTimestamp::class, function ($job) use ($log) {
+    Queue::assertPushed(App\Jobs\SubmitMerkleRootToOpenTimestamp::class, function ($job) use ($log) {
         $log->refresh();
 
         return $job->tenantId === $log->tenant_id
@@ -291,5 +291,5 @@ test('multiple log types all get opentimestamp', function () {
     $job->handle();
 
     // Verify OTS job dispatched for ALL logs (not filtered by level anymore)
-    Queue::assertPushed(\App\Jobs\SubmitMerkleRootToOpenTimestamp::class);
+    Queue::assertPushed(App\Jobs\SubmitMerkleRootToOpenTimestamp::class);
 });

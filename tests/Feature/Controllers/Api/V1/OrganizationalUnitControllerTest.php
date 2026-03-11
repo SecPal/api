@@ -20,10 +20,10 @@ use function Pest\Laravel\postJson;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \Spatie\Permission\PermissionRegistrar $registrar
- * @property \App\Models\User $user
- * @property \App\Models\OrganizationalUnit $rootUnit
+ * @property TenantKey $tenant
+ * @property PermissionRegistrar $registrar
+ * @property User $user
+ * @property OrganizationalUnit $rootUnit
  */
 beforeEach(function () {
     // Use process-specific KEK file for parallel test isolation

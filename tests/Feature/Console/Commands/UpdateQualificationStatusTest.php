@@ -19,9 +19,9 @@ use Illuminate\Support\Facades\Mail;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \App\Models\OrganizationalUnit $orgUnit
- * @property \App\Models\Qualification $qualification
+ * @property TenantKey $tenant
+ * @property OrganizationalUnit $orgUnit
+ * @property Qualification $qualification
  */
 beforeEach(function () {
     Mail::fake();

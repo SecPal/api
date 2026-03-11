@@ -39,7 +39,7 @@ beforeEach(function (): void {
     $this->secret->save();
 
     $this->attachment = new SecretAttachment;
-    $this->attachment->id = \Illuminate\Support\Str::uuid();
+    $this->attachment->id = Illuminate\Support\Str::uuid();
     $this->attachment->secret_id = $this->secret->id;
     $this->attachment->tenant_id = $this->tenant->id;
     $this->attachment->filename_plain = 'test.pdf';

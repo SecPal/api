@@ -29,14 +29,14 @@ Schedule::command('employees:send-contract-ending-notifications')->dailyAt('08:0
 // Default: every minute (local), hourly (production)
 $merkleFrequency = config('opentimestamp.merkle_schedule_frequency', 'hour');
 $merkleSchedule = $merkleFrequency === 'minute'
-    ? Schedule::job(\App\Jobs\BuildMerkleTreeBatch::class)->everyMinute()
-    : Schedule::job(\App\Jobs\BuildMerkleTreeBatch::class)->hourly();
+    ? Schedule::job(App\Jobs\BuildMerkleTreeBatch::class)->everyMinute()
+    : Schedule::job(App\Jobs\BuildMerkleTreeBatch::class)->hourly();
 $merkleSchedule->name('merkle-tree-batch');
 
 // Schedule: Upgrade pending OpenTimestamp proofs hourly
 // See ADR-010 Phase 3: OpenTimestamp Integration
 // Checks for Bitcoin block confirmations and upgrades pending proofs
-Schedule::job(\App\Jobs\UpgradeOpenTimestampProofs::class)->hourly()->name('ots-proof-upgrade');
+Schedule::job(App\Jobs\UpgradeOpenTimestampProofs::class)->hourly()->name('ots-proof-upgrade');
 
 // Schedule: Apply retention policies daily at 02:00
 // See ADR-010 Phase 4: Retention Policies

@@ -180,7 +180,7 @@ describe('No Plaintext in Logs', function () {
             $person = new Person;
             $person->email_plain = $sensitiveEmail;
             $person->save(); // Should throw exception
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Exception message should not contain the sensitive email
             expect($e->getMessage())->not->toContain($sensitiveEmail);
             expect($e->getMessage())->not->toContain('confidential');

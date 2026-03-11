@@ -27,7 +27,7 @@ beforeEach(function (): void {
     $this->tenant = TenantKey::create($keys);
 
     // Seed roles and permissions
-    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
 
     $this->owner = User::factory()->create();
     $this->sharedUser = User::factory()->create();

@@ -21,7 +21,7 @@ uses(RefreshDatabase::class);
 /**
  * Helper to create a password reset token for testing.
  */
-function createPasswordResetToken(User $user, ?\DateTimeInterface $createdAt = null): string
+function createPasswordResetToken(User $user, ?DateTimeInterface $createdAt = null): string
 {
     $token = Str::random(64);
 

@@ -19,8 +19,8 @@ use function Pest\Laravel\postJson;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \App\Models\User $user
+ * @property TenantKey $tenant
+ * @property User $user
  */
 beforeEach(function () {
     // Use process-specific KEK file for parallel test isolation
@@ -423,7 +423,7 @@ describe('SecretController - Share-Based Access', function () {
         ]);
 
         // Grant read access to current user
-        \App\Models\SecretShare::create([
+        App\Models\SecretShare::create([
             'secret_id' => $secret->id,
             'user_id' => $this->user->id,
             'permission' => 'read',
@@ -449,7 +449,7 @@ describe('SecretController - Share-Based Access', function () {
             'title_plain' => 'Read Only',
         ]);
 
-        \App\Models\SecretShare::create([
+        App\Models\SecretShare::create([
             'secret_id' => $secret->id,
             'user_id' => $this->user->id,
             'permission' => 'read',
@@ -475,7 +475,7 @@ describe('SecretController - Share-Based Access', function () {
             'title_plain' => 'Editable',
         ]);
 
-        \App\Models\SecretShare::create([
+        App\Models\SecretShare::create([
             'secret_id' => $secret->id,
             'user_id' => $this->user->id,
             'permission' => 'write',
@@ -502,7 +502,7 @@ describe('SecretController - Share-Based Access', function () {
             'title_plain' => 'Protected',
         ]);
 
-        \App\Models\SecretShare::create([
+        App\Models\SecretShare::create([
             'secret_id' => $secret->id,
             'user_id' => $this->user->id,
             'permission' => 'write',
@@ -526,7 +526,7 @@ describe('SecretController - Share-Based Access', function () {
             'title_plain' => 'Deletable',
         ]);
 
-        \App\Models\SecretShare::create([
+        App\Models\SecretShare::create([
             'secret_id' => $secret->id,
             'user_id' => $this->user->id,
             'permission' => 'admin',
@@ -550,7 +550,7 @@ describe('SecretController - Share-Based Access', function () {
             'title_plain' => 'Expired Access',
         ]);
 
-        \App\Models\SecretShare::create([
+        App\Models\SecretShare::create([
             'secret_id' => $secret->id,
             'user_id' => $this->user->id,
             'permission' => 'read',
@@ -583,7 +583,7 @@ describe('SecretController - Filter Parameter', function () {
             'owner_id' => $owner->id,
             'title_plain' => 'Shared Secret',
         ]);
-        \App\Models\SecretShare::create([
+        App\Models\SecretShare::create([
             'secret_id' => $sharedSecret->id,
             'user_id' => $this->user->id,
             'permission' => 'read',
@@ -615,7 +615,7 @@ describe('SecretController - Filter Parameter', function () {
             'owner_id' => $owner->id,
             'title_plain' => 'Shared Secret',
         ]);
-        \App\Models\SecretShare::create([
+        App\Models\SecretShare::create([
             'secret_id' => $sharedSecret->id,
             'user_id' => $this->user->id,
             'permission' => 'read',
@@ -647,7 +647,7 @@ describe('SecretController - Filter Parameter', function () {
             'owner_id' => $owner->id,
             'title_plain' => 'Shared Secret',
         ]);
-        \App\Models\SecretShare::create([
+        App\Models\SecretShare::create([
             'secret_id' => $sharedSecret->id,
             'user_id' => $this->user->id,
             'permission' => 'read',

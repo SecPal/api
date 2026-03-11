@@ -19,10 +19,10 @@ use function Pest\Laravel\postJson;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \App\Models\User $owner
- * @property \App\Models\Secret $secret
- * @property \App\Models\User $otherUser
+ * @property TenantKey $tenant
+ * @property User $owner
+ * @property Secret $secret
+ * @property User $otherUser
  */
 beforeEach(function () {
     // Use process-specific KEK file for parallel test isolation
@@ -34,7 +34,7 @@ beforeEach(function () {
     $this->tenant = TenantKey::create($keys);
 
     // Seed roles and permissions
-    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
 
     // Create owner user
     $this->owner = User::factory()->create();

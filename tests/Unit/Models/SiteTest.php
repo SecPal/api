@@ -17,7 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class)->group('unit', 'models', 'site');
 
 /**
- * @property \App\Models\TenantKey $tenant
+ * @property TenantKey $tenant
  */
 beforeEach(function () {
     TenantKey::setKekPath(getTestKekPath());
@@ -199,15 +199,15 @@ test('site has organizational unit relationship', function () {
 test('site has assignments relationship', function () {
     $site = Site::factory()->create();
 
-    expect($site->assignments())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class);
-    expect($site->assignments)->toBeInstanceOf(\Illuminate\Database\Eloquent\Collection::class);
+    expect($site->assignments())->toBeInstanceOf(Illuminate\Database\Eloquent\Relations\HasMany::class);
+    expect($site->assignments)->toBeInstanceOf(Illuminate\Database\Eloquent\Collection::class);
 });
 
 test('site has cost centers relationship', function () {
     $site = Site::factory()->create();
 
-    expect($site->costCenters())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class);
-    expect($site->costCenters)->toBeInstanceOf(\Illuminate\Database\Eloquent\Collection::class);
+    expect($site->costCenters())->toBeInstanceOf(Illuminate\Database\Eloquent\Relations\HasMany::class);
+    expect($site->costCenters)->toBeInstanceOf(Illuminate\Database\Eloquent\Collection::class);
 });
 
 test('full address accessor formats address correctly', function () {

@@ -27,7 +27,7 @@ use Illuminate\Http\Request;
  * - Verification endpoint (hash chain + Merkle + OpenTimestamp)
  *
  * @see \App\Policies\ActivityPolicy
- * @see \App\Models\Activity
+ * @see Activity
  * @see SecPal/api#394 PR-11: ActivityLogController with scoped filtering
  * @see SecPal/api#385 Epic: Activity Logging & Audit Trail Strategy
  * @see SecPal/.github#docs/adr/20251221-activity-logging-audit-trail-strategy.md ADR-010

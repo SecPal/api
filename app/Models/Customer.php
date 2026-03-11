@@ -46,7 +46,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property \Illuminate\Support\Carbon|null $deleted_at
  * @property-read TenantKey $tenant The tenant this customer belongs to
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Site> $sites Sites belonging to this customer
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model> $assignments User assignments to this customer
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Model> $assignments User assignments to this customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $assignedUsers Users assigned to this customer
  *
  * @see SecPal/.github#210 Customer & Site Management Epic

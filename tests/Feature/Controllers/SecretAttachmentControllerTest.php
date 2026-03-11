@@ -15,9 +15,9 @@ use Illuminate\Support\Facades\Storage;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \App\Models\User $user
- * @property \App\Models\Secret $secret
+ * @property TenantKey $tenant
+ * @property User $user
+ * @property Secret $secret
  */
 beforeEach(function (): void {
     Storage::fake('local');
@@ -124,7 +124,7 @@ describe('GET /v1/secrets/{secret}/attachments - List', function () {
     test('lists attachments for secret', function (): void {
         // Create 2 attachments
         $att1 = new SecretAttachment;
-        $att1->id = \Illuminate\Support\Str::uuid();
+        $att1->id = Illuminate\Support\Str::uuid();
         $att1->secret_id = $this->secret->id;
         $att1->tenant_id = $this->tenant->id;
         $att1->filename_plain = 'file1.pdf';
@@ -136,7 +136,7 @@ describe('GET /v1/secrets/{secret}/attachments - List', function () {
         $att1->save();
 
         $att2 = new SecretAttachment;
-        $att2->id = \Illuminate\Support\Str::uuid();
+        $att2->id = Illuminate\Support\Str::uuid();
         $att2->secret_id = $this->secret->id;
         $att2->tenant_id = $this->tenant->id;
         $att2->filename_plain = 'file2.jpg';
@@ -196,7 +196,7 @@ describe('GET /v1/attachments/{attachment}/download - Download', function () {
 
     test('requires authorization (non-owner)', function (): void {
         $attachment = new SecretAttachment;
-        $attachment->id = \Illuminate\Support\Str::uuid();
+        $attachment->id = Illuminate\Support\Str::uuid();
         $attachment->secret_id = $this->secret->id;
         $attachment->tenant_id = $this->tenant->id;
         $attachment->filename_plain = 'test.pdf';
@@ -243,7 +243,7 @@ describe('DELETE /v1/attachments/{attachment} - Delete', function () {
         Storage::put('test/path.enc', 'encrypted content');
 
         $attachment = new SecretAttachment;
-        $attachment->id = \Illuminate\Support\Str::uuid();
+        $attachment->id = Illuminate\Support\Str::uuid();
         $attachment->secret_id = $this->secret->id;
         $attachment->tenant_id = $this->tenant->id;
         $attachment->filename_plain = 'document.pdf';
@@ -262,7 +262,7 @@ describe('DELETE /v1/attachments/{attachment} - Delete', function () {
 
     test('requires authorization (non-owner)', function (): void {
         $attachment = new SecretAttachment;
-        $attachment->id = \Illuminate\Support\Str::uuid();
+        $attachment->id = Illuminate\Support\Str::uuid();
         $attachment->secret_id = $this->secret->id;
         $attachment->tenant_id = $this->tenant->id;
         $attachment->filename_plain = 'test.pdf';

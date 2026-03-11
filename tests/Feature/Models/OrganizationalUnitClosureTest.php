@@ -51,7 +51,7 @@ describe('OrganizationalUnitClosure Model', function () {
             ]);
 
             // Try to create duplicate - should fail
-            $this->expectException(\Illuminate\Database\QueryException::class);
+            $this->expectException(Illuminate\Database\QueryException::class);
 
             OrganizationalUnitClosure::create([
                 'ancestor_id' => $unit->id,

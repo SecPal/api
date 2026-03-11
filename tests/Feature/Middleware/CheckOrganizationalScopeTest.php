@@ -68,7 +68,7 @@ function createMockRequest(User $user, ?string $unitId = null): Request
 
     if ($unitId !== null) {
         $request->setRouteResolver(function () use ($unitId) {
-            $route = new \Illuminate\Routing\Route('GET', '/test/{organizational_unit}', []);
+            $route = new Illuminate\Routing\Route('GET', '/test/{organizational_unit}', []);
             $route->parameters = ['organizational_unit' => $unitId];
 
             return $route;
@@ -219,7 +219,7 @@ describe('CheckOrganizationalScope Middleware', function () {
             $request = Request::create('/test', 'GET');
             $request->setUserResolver(fn () => null);
             $request->setRouteResolver(function () {
-                $route = new \Illuminate\Routing\Route('GET', '/test/{organizational_unit}', []);
+                $route = new Illuminate\Routing\Route('GET', '/test/{organizational_unit}', []);
                 $route->parameters = ['organizational_unit' => $this->region->id];
 
                 return $route;

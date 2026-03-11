@@ -103,7 +103,7 @@ describe('SetTenant Middleware', function (): void {
         $this->getJson("/tenants/{$tenant->id}/test");
 
         // Verify that PermissionRegistrar has the correct team ID set
-        $registrar = app(\Spatie\Permission\PermissionRegistrar::class);
+        $registrar = app(Spatie\Permission\PermissionRegistrar::class);
         expect($registrar->getPermissionsTeamId())->toBe($tenant->id);
     });
 
@@ -116,7 +116,7 @@ describe('SetTenant Middleware', function (): void {
 
         // First request sets tenant1
         $this->getJson("/tenants/{$tenant1->id}/test");
-        $registrar = app(\Spatie\Permission\PermissionRegistrar::class);
+        $registrar = app(Spatie\Permission\PermissionRegistrar::class);
         expect($registrar->getPermissionsTeamId())->toBe($tenant1->id);
 
         // Second request should change to tenant2

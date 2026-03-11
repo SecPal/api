@@ -81,7 +81,7 @@ class OrganizationalUnitController extends Controller
                         ],
                     ]);
                 }
-                $childIds = \App\Models\OrganizationalUnitClosure::where('ancestor_id', $parentId)
+                $childIds = OrganizationalUnitClosure::where('ancestor_id', $parentId)
                     ->where('depth', 1)
                     ->whereIn('descendant_id', $accessibleIds)
                     ->pluck('descendant_id');
@@ -121,7 +121,7 @@ class OrganizationalUnitController extends Controller
 
         foreach ($accessibleUnits as $unit) {
             // Get immediate parent via closure table
-            $parentClosure = \App\Models\OrganizationalUnitClosure::where('descendant_id', $unit->id)
+            $parentClosure = OrganizationalUnitClosure::where('descendant_id', $unit->id)
                 ->where('depth', 1)
                 ->first();
 

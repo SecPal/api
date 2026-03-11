@@ -97,7 +97,7 @@ test('terminated factory state sets employment end date', function () {
 
     expect($employee->status)->toBe('terminated')
         ->and($employee->last_working_day)->not->toBeNull()
-        ->and($employee->last_working_day)->toBeInstanceOf(\Carbon\Carbon::class);
+        ->and($employee->last_working_day)->toBeInstanceOf(Carbon\Carbon::class);
 });
 
 test('factory creates unique BWR-IDs', function () {

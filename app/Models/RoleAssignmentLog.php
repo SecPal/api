@@ -25,9 +25,9 @@ use Spatie\Permission\Models\Role;
  * @property string|null $assigned_by
  * @property string|null $reason
  * @property \Illuminate\Support\Carbon $created_at
- * @property-read \App\Models\User $user
- * @property-read \Spatie\Permission\Models\Role $role
- * @property-read \App\Models\User|null $assignedBy
+ * @property-read User $user
+ * @property-read Role $role
+ * @property-read User|null $assignedBy
  */
 class RoleAssignmentLog extends Model
 {

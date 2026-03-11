@@ -34,7 +34,7 @@ class InjectTenantId
      * Returns 401 if user is not authenticated.
      * Always overrides client-provided tenant_id to prevent cross-tenant attacks.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {

@@ -24,7 +24,7 @@ use Symfony\Component\HttpFoundation\Response;
  * Allows organizations to use their own terminology (e.g., "Key Account Manager",
  * "Sales Representative", "Billing Contact").
  *
- * @see \App\Models\CustomerAssignment
+ * @see CustomerAssignment
  * @see SecPal/api#315 Assignment API endpoints
  * @see SecPal/.github#210 Customer & Site Management Epic
  */

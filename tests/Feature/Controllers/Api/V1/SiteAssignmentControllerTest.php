@@ -18,10 +18,10 @@ use Spatie\Permission\PermissionRegistrar;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \App\Models\User $user
+ * @property TenantKey $tenant
+ * @property User $user
  * @property string $token
- * @property \App\Models\Site $site
+ * @property Site $site
  */
 beforeEach(function (): void {
     TenantKey::setKekPath(getTestKekPath());

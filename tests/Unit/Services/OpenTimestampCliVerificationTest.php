@@ -16,14 +16,14 @@ use App\Services\OpenTimestampService;
  * Tests the secure implementation using external `ots verify` CLI tool.
  * Mocks ProcessExecutor to avoid dependency on actual ots-cli installation.
  *
- * @see App\Services\OpenTimestampService::verify()
+ * @see OpenTimestampService::verify()
  * @see Issue #412 - Secure OpenTimestamp verification implementation
  */
 uses()->group('unit', 'services', 'opentimestamp', 'verification');
 
 /**
- * @property \App\Contracts\ProcessExecutor&\Mockery\MockInterface $mockExecutor
- * @property \App\Services\OpenTimestampService $service
+ * @property ProcessExecutor&Mockery\MockInterface $mockExecutor
+ * @property OpenTimestampService $service
  */
 beforeEach(function () {
     // Mock ProcessExecutor to avoid CLI dependency in tests

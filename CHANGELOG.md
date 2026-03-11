@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `pint.json` and repository-wide PHP/test files - re-enabled `fully_qualified_strict_types` after a dedicated Pint baseline to keep the stricter style rule active without mixing it into the dependency bump PR
 - `app/Http/Controllers/Api/V1/EmployeeDocumentController.php`, `app/Policies/EmployeeDocumentPolicy.php`, and `app/Http/Resources/EmployeeDocumentResource.php` - aligned employee document authorization with a consistent policy model, encrypted stored document binaries at rest, and removed raw storage paths from API responses
 - `database/factories/EmployeeDocumentFactory.php` and employee document feature/policy tests - updated fixtures and tests to reflect encrypted storage and the normalized authorization behavior
 - `app/Services/EmployeeDocumentStorageService.php` and employee document controller/policy tests - tightened missing-file handling to return 404 only for true storage misses, validated upload metadata before persisting encrypted blobs, and replaced duplicate manager coverage with a real scoped-manager scenario

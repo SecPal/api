@@ -99,8 +99,8 @@ class SubmitMerkleRootToOpenTimestamp implements ShouldQueue
      * This job creates PENDING proofs. The UpgradeOpenTimestampProofs job
      * (scheduled hourly) converts pending → confirmed when Bitcoin confirms.
      *
-     * @see \App\Jobs\UpgradeOpenTimestampProofs for proof upgrade
-     * @see \App\Services\OpenTimestampService::submit() for calendar submission
+     * @see UpgradeOpenTimestampProofs for proof upgrade
+     * @see OpenTimestampService::submit() for calendar submission
      * @see ADR-010 Section 6: OpenTimestamp Integration
      *
      * @throws \RuntimeException if submission fails (triggers retry with backoff)

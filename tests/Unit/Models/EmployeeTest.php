@@ -14,7 +14,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class)->group('unit', 'models', 'employee');
 
 /**
- * @property \App\Models\TenantKey $tenant
+ * @property TenantKey $tenant
  */
 beforeEach(function () {
     // Disable EmployeeObserver for unit tests - we test the model in isolation
@@ -86,7 +86,7 @@ test('employee model generates blind indexes for searchable encrypted fields', f
     ]);
 
     // Manually generate blind indexes by calling the observer's method
-    $observer = new \App\Observers\EmployeeObserver;
+    $observer = new App\Observers\EmployeeObserver;
     $observer->creating($employee);
 
     // Save the employee
@@ -200,7 +200,7 @@ test('employee relationships load correctly', function () {
 
     $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
     $employee->qualifications()->attach($qualification->id, [
-        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'id' => (string) Illuminate\Support\Str::uuid(),
         'obtained_date' => now(),
     ]);
 

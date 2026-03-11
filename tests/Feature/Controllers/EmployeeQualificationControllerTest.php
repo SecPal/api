@@ -83,7 +83,7 @@ describe('GET /v1/employees/{employee}/qualifications', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.read');
 
         $this->employee->qualifications()->attach($this->qualification->id, [
-            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'id' => Illuminate\Support\Str::uuid()->toString(),
             'obtained_date' => now()->toDateString(),
             'status' => 'valid',
         ]);
@@ -138,13 +138,13 @@ describe('GET /v1/employees/{employee}/qualifications', function () {
         ]);
 
         $employeeA->qualifications()->attach($this->qualification->id, [
-            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'id' => Illuminate\Support\Str::uuid()->toString(),
             'obtained_date' => now()->toDateString(),
             'status' => 'valid',
         ]);
 
         $employeeB->qualifications()->attach($this->qualification->id, [
-            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'id' => Illuminate\Support\Str::uuid()->toString(),
             'obtained_date' => now()->toDateString(),
             'status' => 'valid',
         ]);
@@ -223,7 +223,7 @@ describe('POST /v1/employees/{employee}/qualifications', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.write');
 
         $this->employee->qualifications()->attach($this->qualification->id, [
-            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'id' => Illuminate\Support\Str::uuid()->toString(),
             'obtained_date' => now()->toDateString(),
             'status' => 'valid',
         ]);

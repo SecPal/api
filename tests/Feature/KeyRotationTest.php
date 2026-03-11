@@ -13,9 +13,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
+ * @property TenantKey $tenant
  * @property string $originalDekWrapped
- * @property \App\Models\Person $person
+ * @property Person $person
  */
 beforeEach(function (): void {
     // Increment counter to ensure unique KEK file for this test
