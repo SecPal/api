@@ -26,13 +26,13 @@ uses(RefreshDatabase::class);
  * - Small trees (4 leaves): < 5ms per verification (threshold enforced in CI)
  * - Medium trees (100 leaves): < 2ms per verification (threshold enforced below)
  *
- * @see App\Models\Activity::verifyMerkleProof()
+ * @see Activity::verifyMerkleProof()
  * @see Issue #390 PR-5: Add Merkle proof storage & verification methods
  */
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \App\Models\User $user
+ * @property TenantKey $tenant
+ * @property User $user
  */
 beforeEach(function () {
     $this->tenant = TenantKey::factory()->create();

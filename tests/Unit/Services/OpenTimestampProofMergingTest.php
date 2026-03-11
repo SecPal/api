@@ -21,12 +21,12 @@ use Illuminate\Support\Facades\Http;
  * Current behavior: Returns the first valid calendar proof, ensuring we always
  * store a structurally valid OTS proof that can be verified by external tools.
  *
- * @see App\Services\OpenTimestampService::mergeProofs()
+ * @see OpenTimestampService::mergeProofs()
  * @see Issue #411: Implement proper OpenTimestamp proof merging
  */
 beforeEach(function () {
     // Mock ProcessExecutor to avoid CLI dependency
-    /** @var ProcessExecutor&\Mockery\MockInterface $mockExecutor */
+    /** @var ProcessExecutor&Mockery\MockInterface $mockExecutor */
     $mockExecutor = $this->mock(ProcessExecutor::class);
     $mockExecutor->shouldReceive('commandExists')
         ->with('python3')

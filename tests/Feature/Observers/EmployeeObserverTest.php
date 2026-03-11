@@ -427,7 +427,7 @@ test('employee observer creates user immediately when status=pre_contract during
 
     // This test reproduces the exact scenario from Issue #345
     // Verifies observer works with direct model creation (not just via factory) for comprehensive coverage
-    $uniqueId = \Illuminate\Support\Str::random(8);
+    $uniqueId = Illuminate\Support\Str::random(8);
     $employee = Employee::create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,

@@ -540,7 +540,7 @@ describe('OrganizationalUnit Model', function () {
             ]);
 
             expect(fn () => $unit->setParent($unit))
-                ->toThrow(\InvalidArgumentException::class, 'Cannot set unit as its own parent.');
+                ->toThrow(InvalidArgumentException::class, 'Cannot set unit as its own parent.');
         });
 
         it('prevents setting a descendant as parent (cycle prevention)', function (): void {
@@ -567,11 +567,11 @@ describe('OrganizationalUnit Model', function () {
 
             // Trying to set C as parent of A would create a cycle: A -> B -> C -> A
             expect(fn () => $a->setParent($c))
-                ->toThrow(\InvalidArgumentException::class, 'Cannot set a descendant as parent (would create a cycle).');
+                ->toThrow(InvalidArgumentException::class, 'Cannot set a descendant as parent (would create a cycle).');
 
             // Similarly, trying to set B as parent of A
             expect(fn () => $a->setParent($b))
-                ->toThrow(\InvalidArgumentException::class, 'Cannot set a descendant as parent (would create a cycle).');
+                ->toThrow(InvalidArgumentException::class, 'Cannot set a descendant as parent (would create a cycle).');
         });
     });
 });

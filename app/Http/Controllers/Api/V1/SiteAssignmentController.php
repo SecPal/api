@@ -24,7 +24,7 @@ use Symfony\Component\HttpFoundation\Response;
  * Allows organizations to use their own terminology (e.g., "Account Manager",
  * "Site Manager", "Operations Lead", "Quality Manager").
  *
- * @see \App\Models\SiteAssignment
+ * @see SiteAssignment
  * @see SecPal/api#315 Assignment API endpoints
  * @see SecPal/.github#210 Customer & Site Management Epic
  */

@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Log;
  * Tests the scheduled monitoring command that checks OpenTimestamp
  * health and warns about high pending proof counts.
  *
- * @see App\Console\Commands\MonitorOpenTimestamp
+ * @see MonitorOpenTimestamp
  * @see Issue #491: Convert OpenTimestamp PHPUnit tests to Pest
  */
 uses(RefreshDatabase::class);

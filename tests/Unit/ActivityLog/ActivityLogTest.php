@@ -455,7 +455,7 @@ test('merkle proof verifies with valid proof via batch job', function () {
     ]));
 
     // Build Merkle tree via job
-    $job = new \App\Jobs\BuildMerkleTreeBatch;
+    $job = new App\Jobs\BuildMerkleTreeBatch;
     $job->handle();
 
     // Verify proofs work
@@ -499,7 +499,7 @@ test('opentimestamp verification works with valid proof', function () {
     ]);
 
     // Mock ProcessExecutor to simulate successful Python script verification
-    $mockExecutor = Mockery::mock(\App\Contracts\ProcessExecutor::class);
+    $mockExecutor = Mockery::mock(App\Contracts\ProcessExecutor::class);
     $mockExecutor->shouldReceive('commandExists')
         ->with('python3')
         ->once()
@@ -522,7 +522,7 @@ test('opentimestamp verification works with valid proof', function () {
             'stderr' => 'SUCCESS: Proof is valid and confirmed on Bitcoin blockchain',
         ]);
 
-    app()->instance(\App\Contracts\ProcessExecutor::class, $mockExecutor);
+    app()->instance(App\Contracts\ProcessExecutor::class, $mockExecutor);
 
     expect($log->verifyOpenTimestamp())->toBeTrue();
 });
@@ -532,7 +532,7 @@ test('opentimestamp verification works with valid proof', function () {
 // ============================================================================
 
 test('accepts valid organizational_unit_id from same tenant', function () {
-    $orgUnit = \App\Models\OrganizationalUnit::factory()->create([
+    $orgUnit = App\Models\OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
 
@@ -550,7 +550,7 @@ test('accepts valid organizational_unit_id from same tenant', function () {
 
 test('throws exception when organizational_unit_id belongs to different tenant', function () {
     $otherTenant = TenantKey::factory()->create();
-    $otherOrgUnit = \App\Models\OrganizationalUnit::factory()->create([
+    $otherOrgUnit = App\Models\OrganizationalUnit::factory()->create([
         'tenant_id' => $otherTenant->id,
     ]);
 
@@ -564,7 +564,7 @@ test('throws exception when organizational_unit_id belongs to different tenant',
             'description' => 'Test log with cross-tenant OU',
         ]);
         $this->fail('Expected InvalidArgumentException was not thrown');
-    } catch (\InvalidArgumentException $e) {
+    } catch (InvalidArgumentException $e) {
         expect($e->getMessage())->toMatch(
             "/Organizational unit '.*' belongs to tenant '.*' but activity log belongs to tenant '.*'/"
         );
@@ -578,7 +578,7 @@ test('throws exception when organizational_unit_id belongs to different tenant',
 test('throws exception when organizational_unit_id does not exist', function () {
     $this->actingAs($this->user);
 
-    $nonExistentOuId = \Illuminate\Support\Str::uuid()->toString();
+    $nonExistentOuId = Illuminate\Support\Str::uuid()->toString();
 
     expect(fn () => Activity::create([
         'tenant_id' => $this->tenant->id,
@@ -586,7 +586,7 @@ test('throws exception when organizational_unit_id does not exist', function () 
         'log_name' => 'default',
         'description' => 'Test log with invalid OU',
     ]))->toThrow(
-        \InvalidArgumentException::class,
+        InvalidArgumentException::class,
         "Organizational unit '{$nonExistentOuId}' does not exist"
     );
 })->group('security', 'issue-402');

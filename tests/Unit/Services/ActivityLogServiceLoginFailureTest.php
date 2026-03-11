@@ -89,7 +89,7 @@ test('logs user without employee', function () {
     ]);
 
     // Give user an organizational scope (without employee record)
-    \App\Models\UserInternalOrganizationalScope::create([
+    App\Models\UserInternalOrganizationalScope::create([
         'user_id' => $user->id,
         'organizational_unit_id' => $this->orgUnit->id,
     ]);

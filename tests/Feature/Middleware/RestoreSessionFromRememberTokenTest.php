@@ -64,7 +64,7 @@ describe('RestoreSessionFromRememberToken Middleware', function () {
         $request->setLaravelSession(app('session.store'));
 
         // Set remember cookie on request (simulating browser sending remember cookie)
-        /** @var \Illuminate\Auth\SessionGuard $guard */
+        /** @var Illuminate\Auth\SessionGuard $guard */
         $guard = Auth::guard('web');
         $cookieName = $guard->getRecallerName();
         $request->cookies->set($cookieName, 'some-remember-token-value');
@@ -85,12 +85,12 @@ describe('RestoreSessionFromRememberToken Middleware', function () {
 describe('Session Restoration Integration', function () {
     test('middleware is registered in api middleware stack', function () {
         // Verify the middleware is registered by checking the kernel
-        $kernel = app(\Illuminate\Contracts\Http\Kernel::class);
+        $kernel = app(Illuminate\Contracts\Http\Kernel::class);
         $middlewareGroups = $kernel->getMiddlewareGroups();
 
         // The RestoreSessionFromRememberToken should be in the api group
         expect($middlewareGroups['api'])->toContain(
-            \App\Http\Middleware\RestoreSessionFromRememberToken::class
+            RestoreSessionFromRememberToken::class
         );
     });
 

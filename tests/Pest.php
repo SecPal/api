@@ -77,9 +77,9 @@ function cleanupTestKekFile(): void
  * Assign permissions to a user with proper tenant context.
  * Sets Spatie Permission team ID, assigns permission, then resets team ID.
  */
-function givePermissionWithTenant(\App\Models\User $user, int $tenantId, string $permission): void
+function givePermissionWithTenant(App\Models\User $user, int $tenantId, string $permission): void
 {
-    $registrar = app(\Spatie\Permission\PermissionRegistrar::class);
+    $registrar = app(Spatie\Permission\PermissionRegistrar::class);
     $registrar->setPermissionsTeamId($tenantId);
     $user->givePermissionTo($permission);
     $registrar->setPermissionsTeamId(null);
@@ -93,16 +93,16 @@ function givePermissionWithTenant(\App\Models\User $user, int $tenantId, string 
  * Creates a scope with manage access (min=0, max=255) by default.
  */
 function giveOrganizationalScope(
-    \App\Models\User $user,
-    \App\Models\OrganizationalUnit $organizationalUnit,
+    App\Models\User $user,
+    App\Models\OrganizationalUnit $organizationalUnit,
     ?int $minViewableRank = 0,
     ?int $maxViewableRank = 255,
     ?int $minAssignableRank = 0,
     ?int $maxAssignableRank = 255,
     bool $allowSelfAccess = true,
     string $accessLevel = 'manage'
-): \App\Models\UserInternalOrganizationalScope {
-    return \App\Models\UserInternalOrganizationalScope::create([
+): App\Models\UserInternalOrganizationalScope {
+    return App\Models\UserInternalOrganizationalScope::create([
         'user_id' => $user->id,
         'organizational_unit_id' => $organizationalUnit->id,
         'access_level' => $accessLevel,
@@ -120,14 +120,14 @@ function giveOrganizationalScope(
  * Directly inserts into model_has_roles with tenant_id support.
  */
 function assignTemporalRole(
-    \App\Models\User $user,
-    \Spatie\Permission\Models\Role $role,
+    App\Models\User $user,
+    Spatie\Permission\Models\Role $role,
     int $tenantId,
     array $attributes = []
 ): void {
     $now = now();
 
-    \Illuminate\Support\Facades\DB::table('model_has_roles')->insert(array_merge([
+    Illuminate\Support\Facades\DB::table('model_has_roles')->insert(array_merge([
         'model_type' => get_class($user),
         'model_id' => $user->id,
         'role_id' => $role->id,
@@ -145,9 +145,9 @@ function assignTemporalRole(
  * Create Secret with proper encryption pattern.
  * Sets tenant_id BEFORE title_plain to ensure correct encryption context.
  */
-function createTestSecret(array $attributes): \App\Models\Secret
+function createTestSecret(array $attributes): App\Models\Secret
 {
-    $secret = new \App\Models\Secret;
+    $secret = new App\Models\Secret;
     $secret->tenant_id = $attributes['tenant_id'];
     $secret->owner_id = $attributes['owner_id'];
     $secret->title_plain = $attributes['title_plain'] ?? 'Test Secret';
@@ -167,9 +167,9 @@ function createTestSecret(array $attributes): \App\Models\Secret
  * Create SecretAttachment with proper encryption pattern.
  * Sets tenant_id BEFORE filename_plain to ensure correct encryption context.
  */
-function createTestAttachment(array $attributes): \App\Models\SecretAttachment
+function createTestAttachment(array $attributes): App\Models\SecretAttachment
 {
-    $attachment = new \App\Models\SecretAttachment;
+    $attachment = new App\Models\SecretAttachment;
     $attachment->secret_id = $attributes['secret_id'];
     $attachment->tenant_id = $attributes['tenant_id'];
     $attachment->filename_plain = $attributes['filename_plain'];

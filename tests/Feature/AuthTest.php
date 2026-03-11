@@ -427,7 +427,7 @@ describe('Login Rate Limiting', function () {
         // Clear rate limiter cache between tests
         // RateLimiter::clear('login') doesn't work because it expects full key like 'login:ip|email'
         // Using Cache::flush() ensures clean state for each test
-        \Illuminate\Support\Facades\Cache::flush();
+        Illuminate\Support\Facades\Cache::flush();
     });
 
     test('token endpoint is rate limited after 5 failed attempts', function () {
@@ -636,8 +636,8 @@ describe('Organizational Scopes Authorization', function () {
     });
 
     test('hasOrganizationalScopes is true when user has scopes', function () {
-        $tenant = \App\Models\TenantKey::factory()->create();
-        $orgUnit = \App\Models\OrganizationalUnit::factory()->create([
+        $tenant = App\Models\TenantKey::factory()->create();
+        $orgUnit = App\Models\OrganizationalUnit::factory()->create([
             'tenant_id' => $tenant->id,
         ]);
 

@@ -39,7 +39,7 @@ class CheckOrganizationalScope
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      * @param  string  $requiredLevel  The minimum access level required (default: 'read')
      */
     public function handle(Request $request, Closure $next, string $requiredLevel = 'read'): Response

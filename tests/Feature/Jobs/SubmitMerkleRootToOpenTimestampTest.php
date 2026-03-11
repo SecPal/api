@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Queue;
  * Tests submission of Merkle roots to OpenTimestamp calendar servers
  * and storage of pending proofs.
  *
- * @see App\Jobs\SubmitMerkleRootToOpenTimestamp
+ * @see SubmitMerkleRootToOpenTimestamp
  * @see Issue #391 PR-6: Integrate OpenTimestamp PHP library
  */
 uses(RefreshDatabase::class);
@@ -47,7 +47,7 @@ test('job submits merkle root and stores proof', function () {
     ]));
 
     // Mock OpenTimestamp service
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockProof = hex2bin('0004f0'.bin2hex('pending-proof'));
 
@@ -103,7 +103,7 @@ test('job only updates logs in specified batch', function () {
     ]));
 
     // Mock service
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('submit')
         ->with($merkleRoot1)
@@ -132,14 +132,14 @@ test('job handles submission failure gracefully', function () {
     ]);
 
     // Mock service - submission fails
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('submit')
-        ->andThrow(new \RuntimeException('Calendar servers unavailable'));
+        ->andThrow(new RuntimeException('Calendar servers unavailable'));
 
     // Act & Assert: Job should throw exception (will be retried by queue)
     expect(fn () => (new SubmitMerkleRootToOpenTimestamp($this->tenant->id, $batchId, $merkleRoot))->handle($mockService))
-        ->toThrow(\RuntimeException::class);
+        ->toThrow(RuntimeException::class);
 
     // Logs should NOT be updated
     $log = Activity::first();
@@ -163,7 +163,7 @@ test('job skips if no logs found', function () {
     $batchId = 9999;
     $merkleRoot = hash('sha256', 'root');
 
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldNotReceive('submit');
 
@@ -191,7 +191,7 @@ test('job converts binary proof for storage', function () {
     // Mock service - returns binary proof
     $binaryProof = "\x00\x04\xf0".random_bytes(50);
 
-    /** @var OpenTimestampService&\Mockery\MockInterface $mockService */
+    /** @var OpenTimestampService&Mockery\MockInterface $mockService */
     $mockService = $this->mock(OpenTimestampService::class);
     $mockService->shouldReceive('submit')
         ->andReturn($binaryProof);

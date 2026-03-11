@@ -385,7 +385,7 @@ test('logs name changes with enhanced activity log', function () {
     $response->assertOk();
 
     // Verify activity log was created
-    $activity = \Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
+    $activity = Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
         ->where('log_name', 'employee-onboarding')
         ->where('description', 'Employee name changed during onboarding completion')
         ->first();
@@ -428,7 +428,7 @@ test('does not log activity if names unchanged', function () {
     $response->assertOk();
 
     // Verify NO activity log for name change was created
-    $activity = \Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
+    $activity = Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
         ->where('log_name', 'employee-onboarding')
         ->where('description', 'Employee name changed during onboarding completion')
         ->first();
@@ -505,7 +505,7 @@ test('allows minor name correction (typo, >80% similar)', function () {
     expect($employee->last_name)->toBe('Müller');
 
     // Verify activity log contains severity info
-    $activity = \Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
+    $activity = Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
         ->where('log_name', 'employee-onboarding')
         ->where('description', 'Employee name changed during onboarding completion')
         ->first();
@@ -516,7 +516,7 @@ test('allows minor name correction (typo, >80% similar)', function () {
 });
 
 test('allows medium name change with warning (50-80% similar)', function () {
-    \Illuminate\Support\Facades\Mail::fake();
+    Illuminate\Support\Facades\Mail::fake();
 
     /** @var User $user */
     $user = User::factory()->create(['email' => 'test@example.com']);
@@ -549,7 +549,7 @@ test('allows medium name change with warning (50-80% similar)', function () {
     expect($employee->last_name)->toBe('Müller-Schmidt');
 
     // Verify HR notification was sent
-    \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
+    Illuminate\Support\Facades\Mail::assertQueued(App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
         return $mail->employee->id === $employee->id
             && $mail->oldFirstName === 'Hans'
             && $mail->oldLastName === 'Müller'
@@ -594,7 +594,7 @@ test('blocks major name change (<50% similar)', function () {
 });
 
 test('allows unchanged name without HR notification', function () {
-    \Illuminate\Support\Facades\Mail::fake();
+    Illuminate\Support\Facades\Mail::fake();
 
     /** @var User $user */
     $user = User::factory()->create(['email' => 'test@example.com']);
@@ -622,8 +622,8 @@ test('allows unchanged name without HR notification', function () {
     $response->assertOk();
 
     // Verify NO HR notification was sent
-    \Illuminate\Support\Facades\Mail::assertNothingQueued();
-    \Illuminate\Support\Facades\Mail::assertNotSent(\App\Mail\OnboardingNameChangedMail::class);
+    Illuminate\Support\Facades\Mail::assertNothingQueued();
+    Illuminate\Support\Facades\Mail::assertNotSent(App\Mail\OnboardingNameChangedMail::class);
 });
 
 // Bug fix tests: User name sync and auto-login
@@ -704,13 +704,13 @@ test('creates activity log for automatic login after onboarding', function () {
     $response->assertOk();
 
     // Assert: Activity log was created for automatic login (BUG FIX)
-    expect(\Spatie\Activitylog\Models\Activity::where('log_name', 'authentication')
+    expect(Spatie\Activitylog\Models\Activity::where('log_name', 'authentication')
         ->where('causer_id', $user->id)
         ->where('description', 'User logged in after onboarding completion')
         ->exists())->toBeTrue();
 
     // Verify properties contain method='onboarding_completion'
-    $activityLog = \Spatie\Activitylog\Models\Activity::where('log_name', 'authentication')
+    $activityLog = Spatie\Activitylog\Models\Activity::where('log_name', 'authentication')
         ->where('causer_id', $user->id)
         ->where('description', 'User logged in after onboarding completion')
         ->first();
@@ -779,7 +779,7 @@ test('sends HR notification when only first name changes with medium severity', 
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    \Illuminate\Support\Facades\Mail::fake();
+    Illuminate\Support\Facades\Mail::fake();
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
@@ -792,7 +792,7 @@ test('sends HR notification when only first name changes with medium severity', 
     $response->assertOk();
 
     // Assert: HR notification was sent for medium severity first name change
-    \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
+    Illuminate\Support\Facades\Mail::assertQueued(App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
         return $mail->hasTo(config('mail.hr_email', config('mail.from.address')))
             && $mail->employee->id === $employee->id
             && $mail->oldFirstName === 'Max'
@@ -815,7 +815,7 @@ test('sends HR notification when only last name changes with medium severity', f
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    \Illuminate\Support\Facades\Mail::fake();
+    Illuminate\Support\Facades\Mail::fake();
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
@@ -828,7 +828,7 @@ test('sends HR notification when only last name changes with medium severity', f
     $response->assertOk();
 
     // Assert: HR notification was sent for medium severity last name change
-    \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
+    Illuminate\Support\Facades\Mail::assertQueued(App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
         return $mail->hasTo(config('mail.hr_email', config('mail.from.address')))
             && $mail->employee->id === $employee->id
             && $mail->oldFirstName === 'Hans'
@@ -851,7 +851,7 @@ test('sends HR notification when mixed severity changes occur', function () {
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    \Illuminate\Support\Facades\Mail::fake();
+    Illuminate\Support\Facades\Mail::fake();
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
@@ -865,7 +865,7 @@ test('sends HR notification when mixed severity changes occur', function () {
 
     // Assert: HR notification was sent because of medium severity last name change
     // (even though first name is only minor)
-    \Illuminate\Support\Facades\Mail::assertQueued(\App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
+    Illuminate\Support\Facades\Mail::assertQueued(App\Mail\OnboardingNameChangedMail::class, function ($mail) use ($employee) {
         return $mail->hasTo(config('mail.hr_email', config('mail.from.address')))
             && $mail->employee->id === $employee->id
             && $mail->oldFirstName === 'Hanz'

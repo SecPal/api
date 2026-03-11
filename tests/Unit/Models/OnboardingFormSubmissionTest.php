@@ -13,7 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
+ * @property TenantKey $tenant
  */
 beforeEach(function () {
     TenantKey::setKekPath(getTestKekPath());
@@ -75,14 +75,14 @@ test('onboarding form submission casts dates correctly', function () {
         'submitted_at' => now(),
     ]);
 
-    expect($submission->submitted_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+    expect($submission->submitted_at)->toBeInstanceOf(Illuminate\Support\Carbon::class)
         ->and($submission->reviewed_at)->toBeNull();
 
     $submission->reviewed_at = now();
     $submission->save();
     $submission->refresh();
 
-    expect($submission->reviewed_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+    expect($submission->reviewed_at)->toBeInstanceOf(Illuminate\Support\Carbon::class);
 });
 
 test('onboarding form submission casts form data as array', function () {
@@ -106,15 +106,15 @@ test('onboarding form submission factory states work correctly', function () {
     $rejected = OnboardingFormSubmission::factory()->rejected()->create();
 
     expect($submitted->status)->toBe('submitted')
-        ->and($submitted->submitted_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
+        ->and($submitted->submitted_at)->toBeInstanceOf(Illuminate\Support\Carbon::class)
         ->and($submitted->reviewed_by)->toBeNull()
         ->and($submitted->reviewed_at)->toBeNull();
 
     expect($approved->status)->toBe('approved')
         ->and($approved->reviewed_by)->not->toBeNull()
-        ->and($approved->reviewed_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+        ->and($approved->reviewed_at)->toBeInstanceOf(Illuminate\Support\Carbon::class);
 
     expect($rejected->status)->toBe('rejected')
         ->and($rejected->reviewed_by)->not->toBeNull()
-        ->and($rejected->reviewed_at)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+        ->and($rejected->reviewed_at)->toBeInstanceOf(Illuminate\Support\Carbon::class);
 });

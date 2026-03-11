@@ -37,8 +37,8 @@ uses(RefreshDatabase::class);
  */
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \App\Models\User $user
+ * @property TenantKey $tenant
+ * @property User $user
  */
 beforeEach(function () {
     $this->tenant = TenantKey::factory()->create();

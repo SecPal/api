@@ -250,5 +250,5 @@ test('activity archive created_at is cast to carbon instance', function () {
     $tenant = TenantKey::factory()->create();
     $archive = ActivityArchive::factory()->create(['tenant_id' => $tenant->id]);
 
-    expect($archive->created_at)->toBeInstanceOf(\Carbon\Carbon::class);
+    expect($archive->created_at)->toBeInstanceOf(Carbon\Carbon::class);
 });

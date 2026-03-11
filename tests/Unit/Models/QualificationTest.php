@@ -11,7 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
+ * @property TenantKey $tenant
  */
 beforeEach(function () {
     TenantKey::setKekPath(getTestKekPath());
@@ -45,7 +45,7 @@ test('qualification has employees relationship', function () {
     $employee = Employee::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $qualification->employees()->attach($employee->id, [
-        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'id' => (string) Illuminate\Support\Str::uuid(),
         'obtained_date' => now(),
     ]);
 

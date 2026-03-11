@@ -141,9 +141,9 @@ test('command performs upgrade with confirmation', function () {
         ]);
 
     // Mock OpenTimestampService for ots:check
-    $otsService = \Mockery::mock(\App\Services\OpenTimestampService::class);
+    $otsService = Mockery::mock(App\Services\OpenTimestampService::class);
     $otsService->shouldReceive('submit')->andReturn('test-proof');
-    $this->app->instance(\App\Services\OpenTimestampService::class, $otsService);
+    $this->app->instance(App\Services\OpenTimestampService::class, $otsService);
 
     $this->artisan(UpdateOpenTimestamp::class)
         ->expectsQuestion('Do you want to update OpenTimestamp now?', true)

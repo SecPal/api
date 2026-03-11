@@ -149,7 +149,7 @@ describe('TemporalRoleUser Pivot Model', function () {
             ]);
 
             // Query using active() scope directly on TemporalRoleUser
-            $activeAssignments = \App\Models\TemporalRoleUser::query()
+            $activeAssignments = App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
                 ->where('tenant_id', $this->tenant->id)
@@ -187,7 +187,7 @@ describe('TemporalRoleUser Pivot Model', function () {
             ]);
 
             // Query using expired() scope
-            $expiredAssignments = \App\Models\TemporalRoleUser::query()
+            $expiredAssignments = App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
                 ->where('tenant_id', $this->tenant->id)
@@ -207,7 +207,7 @@ describe('TemporalRoleUser Pivot Model', function () {
                 'valid_until' => now()->addHour(),
             ]);
 
-            $pivot = \App\Models\TemporalRoleUser::query()
+            $pivot = App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
                 ->where('role_id', $this->managerRole->id)
@@ -223,7 +223,7 @@ describe('TemporalRoleUser Pivot Model', function () {
                 'valid_until' => now()->addDays(2),
             ]);
 
-            $pivot = \App\Models\TemporalRoleUser::query()
+            $pivot = App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
                 ->where('role_id', $this->managerRole->id)
@@ -239,7 +239,7 @@ describe('TemporalRoleUser Pivot Model', function () {
                 'valid_until' => now()->subDay(),
             ]);
 
-            $pivot = \App\Models\TemporalRoleUser::query()
+            $pivot = App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
                 ->where('role_id', $this->managerRole->id)
@@ -255,7 +255,7 @@ describe('TemporalRoleUser Pivot Model', function () {
                 'valid_until' => now()->addHour(),
             ]);
 
-            $pivot = \App\Models\TemporalRoleUser::query()
+            $pivot = App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
                 ->where('role_id', $this->managerRole->id)
@@ -287,7 +287,7 @@ describe('TemporalRoleUser Pivot Model', function () {
             ]);
 
             // Use expired() scope to get auto-revoke candidates
-            $autoRevokeAssignments = \App\Models\TemporalRoleUser::query()
+            $autoRevokeAssignments = App\Models\TemporalRoleUser::query()
                 ->where('model_id', $this->user->id)
                 ->where('model_type', User::class)
                 ->where('tenant_id', $this->tenant->id)

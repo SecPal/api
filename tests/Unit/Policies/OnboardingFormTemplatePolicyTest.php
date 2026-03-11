@@ -141,7 +141,7 @@ describe('OnboardingFormTemplateResource - API Response', function () {
             'name' => 'Personal Information Form',
         ]);
 
-        $resource = new \App\Http\Resources\OnboardingFormTemplateResource($systemTemplate);
+        $resource = new App\Http\Resources\OnboardingFormTemplateResource($systemTemplate);
         $response = $resource->toArray(request());
 
         expect($response)->toHaveKey('can_be_deleted');
@@ -157,7 +157,7 @@ describe('OnboardingFormTemplateResource - API Response', function () {
             'name' => 'Custom Template',
         ]);
 
-        $resource = new \App\Http\Resources\OnboardingFormTemplateResource($customTemplate);
+        $resource = new App\Http\Resources\OnboardingFormTemplateResource($customTemplate);
         $response = $resource->toArray(request());
 
         expect($response)->toHaveKey('can_be_deleted');

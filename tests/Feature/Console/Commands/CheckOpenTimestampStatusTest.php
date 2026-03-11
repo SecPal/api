@@ -18,14 +18,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * Tests that the command correctly detects Python, OpenTimestamp installation,
  * performs functional tests, and optionally checks for updates.
  *
- * @see App\Console\Commands\CheckOpenTimestampStatus
+ * @see CheckOpenTimestampStatus
  * @see Issue #391 PR-6: Integrate OpenTimestamp PHP library
  */
 uses(RefreshDatabase::class);
 
 test('command detects python and ots versions', function () {
     // Mock ProcessExecutor for Python version
-    /** @var ProcessExecutor&\Mockery\MockInterface $executor */
+    /** @var ProcessExecutor&Mockery\MockInterface $executor */
     $executor = $this->mock(ProcessExecutor::class);
     $executor
         ->shouldReceive('execute')
@@ -47,12 +47,12 @@ test('command detects python and ots versions', function () {
         ]);
 
     // Mock functional test
-    /** @var OpenTimestampService&\Mockery\MockInterface $otsService */
+    /** @var OpenTimestampService&Mockery\MockInterface $otsService */
     $otsService = $this->mock(OpenTimestampService::class);
     $otsService
         ->shouldReceive('submit')
         ->once()
-        ->with(\Mockery::pattern('/^[0-9a-f]{64}$/'))
+        ->with(Mockery::pattern('/^[0-9a-f]{64}$/'))
         ->andReturn('mock-proof-data');
 
     $this->artisan(CheckOpenTimestampStatus::class)
@@ -61,7 +61,7 @@ test('command detects python and ots versions', function () {
 });
 
 test('command fails when functional test fails', function () {
-    /** @var ProcessExecutor&\Mockery\MockInterface $executor */
+    /** @var ProcessExecutor&Mockery\MockInterface $executor */
     $executor = $this->mock(ProcessExecutor::class);
 
     // Mock version checks
@@ -76,19 +76,19 @@ test('command fails when functional test fails', function () {
         ->andReturn(['exitCode' => 0, 'stdout' => '0.4.5', 'stderr' => '']);
 
     // Mock functional test failure
-    /** @var OpenTimestampService&\Mockery\MockInterface $otsService */
+    /** @var OpenTimestampService&Mockery\MockInterface $otsService */
     $otsService = $this->mock(OpenTimestampService::class);
     $otsService
         ->shouldReceive('submit')
         ->once()
-        ->andThrow(new \RuntimeException('Calendar server unavailable'));
+        ->andThrow(new RuntimeException('Calendar server unavailable'));
 
     $this->artisan(CheckOpenTimestampStatus::class)
         ->assertExitCode(1);
 });
 
 test('command checks for updates when flag provided', function () {
-    /** @var ProcessExecutor&\Mockery\MockInterface $executor */
+    /** @var ProcessExecutor&Mockery\MockInterface $executor */
     $executor = $this->mock(ProcessExecutor::class);
 
     // Mock version checks
@@ -103,7 +103,7 @@ test('command checks for updates when flag provided', function () {
         ->andReturn(['exitCode' => 0, 'stdout' => '0.4.5', 'stderr' => '']);
 
     // Mock functional test
-    /** @var OpenTimestampService&\Mockery\MockInterface $otsService */
+    /** @var OpenTimestampService&Mockery\MockInterface $otsService */
     $otsService = $this->mock(OpenTimestampService::class);
     $otsService
         ->shouldReceive('submit')
@@ -128,7 +128,7 @@ test('command checks for updates when flag provided', function () {
 });
 
 test('command handles pip errors gracefully', function () {
-    /** @var ProcessExecutor&\Mockery\MockInterface $executor */
+    /** @var ProcessExecutor&Mockery\MockInterface $executor */
     $executor = $this->mock(ProcessExecutor::class);
 
     // Mock version checks
@@ -143,7 +143,7 @@ test('command handles pip errors gracefully', function () {
         ->andReturn(['exitCode' => 0, 'stdout' => '0.4.5', 'stderr' => '']);
 
     // Mock functional test
-    /** @var OpenTimestampService&\Mockery\MockInterface $otsService */
+    /** @var OpenTimestampService&Mockery\MockInterface $otsService */
     $otsService = $this->mock(OpenTimestampService::class);
     $otsService
         ->shouldReceive('submit')

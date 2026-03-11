@@ -14,8 +14,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
- * @property \App\Models\User $user
+ * @property TenantKey $tenant
+ * @property User $user
  */
 beforeEach(function (): void {
     // Use process-specific KEK file for parallel test isolation
@@ -166,7 +166,7 @@ describe('Secret Model - Hidden Fields', function () {
         $secret->save();
 
         // Verify FTS column was populated (check via raw query)
-        $result = \DB::selectOne('SELECT notes_tsv FROM secrets WHERE id = ?', [$secret->id]);
+        $result = DB::selectOne('SELECT notes_tsv FROM secrets WHERE id = ?', [$secret->id]);
         expect($result->notes_tsv)->not->toBeNull();
     });
 
@@ -181,7 +181,7 @@ describe('Secret Model - Hidden Fields', function () {
         $secret->notes_plain = 'Updated notes with more details';
         $secret->save();
 
-        $result = \DB::selectOne('SELECT notes_tsv FROM secrets WHERE id = ?', [$secret->id]);
+        $result = DB::selectOne('SELECT notes_tsv FROM secrets WHERE id = ?', [$secret->id]);
         expect($result->notes_tsv)->not->toBeNull();
     });
 });
@@ -194,7 +194,7 @@ describe('Secret Model - Relationships', function () {
         $secret->title_plain = 'Test Secret';
         $secret->save();
 
-        expect($secret->attachments())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class);
+        expect($secret->attachments())->toBeInstanceOf(Illuminate\Database\Eloquent\Relations\HasMany::class);
         expect($secret->attachments)->toBeEmpty();
     });
 

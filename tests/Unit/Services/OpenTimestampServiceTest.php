@@ -17,14 +17,14 @@ use Illuminate\Support\Facades\Log;
  * Tests CLI-based verification with mocked ProcessExecutor.
  * For detailed CLI verification tests, see OpenTimestampCliVerificationTest.
  *
- * @see App\Services\OpenTimestampService::verify()
+ * @see OpenTimestampService::verify()
  * @see Issue #412 for secure implementation requirements
  */
 uses()->group('unit');
 
 /**
- * @property \App\Contracts\ProcessExecutor&\Mockery\MockInterface $mockExecutor
- * @property \App\Services\OpenTimestampService $service
+ * @property ProcessExecutor&Mockery\MockInterface $mockExecutor
+ * @property OpenTimestampService $service
  */
 beforeEach(function () {
     // Mock ProcessExecutor to avoid CLI dependency

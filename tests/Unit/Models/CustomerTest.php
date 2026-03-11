@@ -127,14 +127,14 @@ test('customer has tenant relationship', function (): void {
 test('customer has sites relationship', function (): void {
     $customer = Customer::factory()->create();
 
-    expect($customer->sites)->toBeInstanceOf(\Illuminate\Database\Eloquent\Collection::class);
+    expect($customer->sites)->toBeInstanceOf(Illuminate\Database\Eloquent\Collection::class);
 });
 
 test('customer has assignments relationship', function (): void {
     $customer = Customer::factory()->create();
 
-    expect($customer->assignments())->toBeInstanceOf(\Illuminate\Database\Eloquent\Relations\HasMany::class)
-        ->and($customer->assignments)->toBeInstanceOf(\Illuminate\Database\Eloquent\Collection::class);
+    expect($customer->assignments())->toBeInstanceOf(Illuminate\Database\Eloquent\Relations\HasMany::class)
+        ->and($customer->assignments)->toBeInstanceOf(Illuminate\Database\Eloquent\Collection::class);
 });
 
 test('customer billing address is cast to array', function (): void {

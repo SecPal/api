@@ -22,7 +22,7 @@ uses(RefreshDatabase::class);
  * - Expiry enforcement (7 days default)
  * - Constant-time token comparison
  *
- * @see App\Models\EmployeeOnboardingToken
+ * @see EmployeeOnboardingToken
  */
 test('generates token with 7 day expiry', function () {
     $employee = Employee::factory()->preContract()->create();

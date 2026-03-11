@@ -12,7 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * @property \App\Models\TenantKey $tenant
+ * @property TenantKey $tenant
  */
 beforeEach(function () {
     TenantKey::setKekPath(getTestKekPath());
@@ -31,7 +31,7 @@ test('employee qualification can be created', function () {
     $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employeeQual = EmployeeQualification::create([
-        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'id' => (string) Illuminate\Support\Str::uuid(),
         'employee_id' => $employee->id,
         'qualification_id' => $qualification->id,
         'obtained_date' => now(),
@@ -48,7 +48,7 @@ test('employee qualification has employee relationship', function () {
     $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employeeQual = EmployeeQualification::create([
-        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'id' => (string) Illuminate\Support\Str::uuid(),
         'employee_id' => $employee->id,
         'qualification_id' => $qualification->id,
         'obtained_date' => now(),
@@ -64,7 +64,7 @@ test('employee qualification has qualification relationship', function () {
     $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employeeQual = EmployeeQualification::create([
-        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'id' => (string) Illuminate\Support\Str::uuid(),
         'employee_id' => $employee->id,
         'qualification_id' => $qualification->id,
         'obtained_date' => now(),
@@ -80,7 +80,7 @@ test('employee qualification casts dates correctly', function () {
     $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employeeQual = EmployeeQualification::create([
-        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'id' => (string) Illuminate\Support\Str::uuid(),
         'employee_id' => $employee->id,
         'qualification_id' => $qualification->id,
         'obtained_date' => '2023-01-15',
@@ -88,6 +88,6 @@ test('employee qualification casts dates correctly', function () {
         'status' => 'valid',
     ]);
 
-    expect($employeeQual->obtained_date)->toBeInstanceOf(\Illuminate\Support\Carbon::class)
-        ->and($employeeQual->expiry_date)->toBeInstanceOf(\Illuminate\Support\Carbon::class);
+    expect($employeeQual->obtained_date)->toBeInstanceOf(Illuminate\Support\Carbon::class)
+        ->and($employeeQual->expiry_date)->toBeInstanceOf(Illuminate\Support\Carbon::class);
 });

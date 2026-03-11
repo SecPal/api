@@ -19,7 +19,7 @@ final class PersonFactory extends Factory
     /**
      * The name of the factory's corresponding model.
      *
-     * @var class-string<\App\Models\Person>
+     * @var class-string<Person>
      */
     protected $model = Person::class;
 

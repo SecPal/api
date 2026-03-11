@@ -44,7 +44,7 @@ return [
      * @see App\Models\Activity
      * @see ADR-010 Section 2: Custom Activity Model with Extensions
      */
-    'activity_model' => \App\Models\Activity::class,
+    'activity_model' => App\Models\Activity::class,
 
     /*
      * This is the name of the table that will be created by the migration and

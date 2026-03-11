@@ -47,7 +47,7 @@ class RoleController extends Controller
             ? Carbon::parse($request->string('valid_until')->toString())
             : null;
 
-        /** @var \App\Models\User $authUser */
+        /** @var User $authUser */
         $authUser = $request->user();
         /** @var int|null $tenantId */
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
@@ -175,7 +175,7 @@ class RoleController extends Controller
         $targetUser = $user;
         $role = Role::where('name', $roleName)->firstOrFail();
 
-        /** @var \App\Models\User $authUser */
+        /** @var User $authUser */
         $authUser = $request->user();
         /** @var int|null $tenantId */
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();
@@ -222,7 +222,7 @@ class RoleController extends Controller
         $targetUser = $user;
         $role = Role::where('name', $roleName)->firstOrFail();
 
-        /** @var \App\Models\User $authUser */
+        /** @var User $authUser */
         $authUser = $request->user();
         /** @var int|null $tenantId */
         $tenantId = app(\Spatie\Permission\PermissionRegistrar::class)->getPermissionsTeamId();

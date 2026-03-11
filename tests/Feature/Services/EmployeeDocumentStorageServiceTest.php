@@ -62,13 +62,13 @@ test('service stores employee document with encryption', function (): void {
 });
 
 test('service does not persist blob when mime type cannot be determined', function (): void {
-    $file = \Mockery::mock(UploadedFile::class);
+    $file = Mockery::mock(UploadedFile::class);
     $file->shouldReceive('getRealPath')->once()->andReturn(__FILE__);
     $file->shouldReceive('getMimeType')->once()->andReturn(null);
     $file->shouldNotReceive('getSize');
 
     expect(fn () => $this->service->store($file, $this->employee))
-        ->toThrow(\RuntimeException::class, 'Failed to determine employee document MIME type');
+        ->toThrow(RuntimeException::class, 'Failed to determine employee document MIME type');
 
     expect(Storage::disk('local')->allFiles())->toBe([]);
 });

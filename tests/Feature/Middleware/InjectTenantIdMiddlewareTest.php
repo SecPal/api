@@ -124,7 +124,7 @@ describe('InjectTenantId Middleware', function () {
 
         $middleware->handle($request, function ($req) {
             // Verify that Spatie Permission team ID was set
-            $permissionRegistrar = app(\Spatie\Permission\PermissionRegistrar::class);
+            $permissionRegistrar = app(Spatie\Permission\PermissionRegistrar::class);
             expect($permissionRegistrar->getPermissionsTeamId())->toBe($this->user->tenant_id);
 
             return response()->json(['ok' => true]);
