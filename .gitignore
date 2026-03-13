@@ -38,6 +38,9 @@ _ide_helper_models.php
 # DDEV local development
 /.ddev/*
 !/.ddev/config.yaml
+!/.ddev/web-build/
+!/.ddev/web-build/*
+!/.ddev/web-build/Dockerfile.opentimestamps
 storage/testing/
 .pr-body.md
 
