@@ -46,9 +46,7 @@ class StoreSiteAssignmentRequest extends FormRequest
                 'required',
                 'uuid',
                 Rule::exists('users', 'id')->where(function (\Illuminate\Database\Query\Builder $query) use ($tenantId): void {
-                    if ($tenantId !== null) {
-                        $query->where('tenant_id', $tenantId);
-                    }
+                    $query->where('tenant_id', $tenantId ?? 0);
                 }),
             ],
             'role' => ['required', 'string', 'max:100'],

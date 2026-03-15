@@ -38,8 +38,13 @@ class AttachQualificationRequest extends FormRequest
         return [
             'qualification_id' => [
                 'required',
+                'uuid',
                 Rule::exists(Qualification::class, 'id')->where(function (\Illuminate\Database\Query\Builder $query) use ($tenantId): void {
+                    $query->whereNull('deleted_at');
+
                     if ($tenantId === null) {
+                        $query->whereRaw('1 = 0');
+
                         return;
                     }
 
