@@ -103,14 +103,14 @@ Quick reference checklist for SecPal API production deployment.
 
   - Expected: 200 OK with access token
 
-- [ ] Test secrets API:
+- [ ] Test authenticated API:
 
   ```bash
-  curl http://localhost/api/v1/secrets \
+  curl http://localhost/api/v1/me \
     -H "Authorization: Bearer YOUR_TOKEN"
   ```
 
-  - Expected: 200 OK with empty array
+  - Expected: 200 OK with authenticated user payload
 
 ### Logging & Monitoring
 
@@ -134,9 +134,9 @@ Quick reference checklist for SecPal API production deployment.
 2. Database connection failed: Check `.env` credentials
 3. KEK file not readable: `chmod 0600 /path/to/kek.key`
 
-### Secrets API Returns 503
+### Authenticated API Returns 503
 
-**Problem:** `/api/v1/secrets` returns 503 "No tenant keys available".
+**Problem:** `/api/v1/me` returns 503 "No tenant keys available".
 
 **Solution:** `php artisan tenant:setup`
 

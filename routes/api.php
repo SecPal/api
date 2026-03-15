@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Http\Controllers\Api\V1\ActivityLogController;
@@ -16,9 +16,6 @@ use App\Http\Controllers\Api\V1\OrganizationalUnitController;
 use App\Http\Controllers\Api\V1\PermissionManagementController;
 use App\Http\Controllers\Api\V1\QualificationController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
-use App\Http\Controllers\Api\V1\SecretAttachmentController;
-use App\Http\Controllers\Api\V1\SecretController;
-use App\Http\Controllers\Api\V1\SecretShareController;
 use App\Http\Controllers\Api\V1\SiteAssignmentController;
 use App\Http\Controllers\Api\V1\SiteController;
 use App\Http\Controllers\Api\V1\UserAssignmentController;
@@ -136,30 +133,6 @@ Route::prefix('v1')->group(function () {
                 ->middleware('permission:person.write');
             Route::get('/persons/by-email', [PersonController::class, 'byEmail'])
                 ->middleware('permission:person.read');
-        });
-
-        // Secret Attachment endpoints (File Attachments API - Phase 2)
-        Route::middleware('tenant.inject')->group(function () {
-            Route::post('/secrets/{secret}/attachments', [SecretAttachmentController::class, 'store']);
-            Route::get('/secrets/{secret}/attachments', [SecretAttachmentController::class, 'index']);
-            Route::get('/attachments/{attachment}/download', [SecretAttachmentController::class, 'download']);
-            Route::delete('/attachments/{attachment}', [SecretAttachmentController::class, 'destroy']);
-        });
-
-        // Secret Sharing endpoints (Phase 3) - must be before single {secret} routes
-        Route::middleware('tenant.inject')->group(function () {
-            Route::get('/secrets/{secret}/shares', [SecretShareController::class, 'index']);
-            Route::post('/secrets/{secret}/shares', [SecretShareController::class, 'store']);
-            Route::delete('/secrets/{secret}/shares/{share}', [SecretShareController::class, 'destroy']);
-        });
-
-        // Secret CRUD endpoints (Phase 3)
-        Route::middleware('tenant.inject')->group(function () {
-            Route::get('/secrets', [SecretController::class, 'index']);
-            Route::post('/secrets', [SecretController::class, 'store']);
-            Route::get('/secrets/{secret}', [SecretController::class, 'show']);
-            Route::patch('/secrets/{secret}', [SecretController::class, 'update']);
-            Route::delete('/secrets/{secret}', [SecretController::class, 'destroy']);
         });
 
         // Organizational Unit Scope Management (RBAC Issue #234)

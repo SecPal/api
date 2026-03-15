@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\User;
@@ -597,7 +597,7 @@ describe('Login Rate Limiting', function () {
 describe('Unauthenticated Request Handling', function () {
     test('unauthenticated request to protected endpoint returns 401 JSON response', function () {
         // Issue #253: API should return 401 JSON, not 500 "Route [login] not defined"
-        $response = $this->getJson('/v1/secrets');
+        $response = $this->getJson('/v1/me');
 
         $response->assertUnauthorized()
             ->assertJson(['message' => 'Unauthenticated.']);
@@ -605,7 +605,7 @@ describe('Unauthenticated Request Handling', function () {
 
     test('request with invalid token returns 401 JSON response', function () {
         $response = $this->withHeader('Authorization', 'Bearer invalid-token-12345')
-            ->getJson('/v1/secrets');
+            ->getJson('/v1/me');
 
         $response->assertUnauthorized()
             ->assertJson(['message' => 'Unauthenticated.']);

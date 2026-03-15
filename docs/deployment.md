@@ -356,15 +356,15 @@ curl -X POST http://localhost/api/v1/auth/token \
 
 **Expected:** 200 OK with access token.
 
-### 2. Secrets API Works
+### 2. Authenticated API Works
 
 ```bash
-# Test secrets endpoint (requires Bearer token)
-curl http://localhost/api/v1/secrets \
+# Test authenticated profile endpoint (requires Bearer token)
+curl http://localhost/api/v1/me \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
-**Expected:** 200 OK with empty array (no secrets yet).
+**Expected:** 200 OK with the authenticated user payload.
 
 ### 3. Health Checks Return 200
 
@@ -428,9 +428,9 @@ sudo tail -f /var/log/apache2/error.log  # Apache
    sudo chown www-data:www-data /path/to/kek.key
    ```
 
-### Secrets API Returns 503
+### Authenticated API Returns 503
 
-**Problem:** `/api/v1/secrets` returns 503 "No tenant keys available".
+**Problem:** `/api/v1/me` returns 503 "No tenant keys available".
 
 **Solution:**
 

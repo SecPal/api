@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Providers;
@@ -18,14 +18,10 @@ use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\Person;
 use App\Models\Qualification;
-use App\Models\Secret;
-use App\Models\SecretAttachment;
-use App\Models\SecretShare;
 use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Observers\EmployeeObserver;
 use App\Observers\PersonObserver;
-use App\Observers\SecretObserver;
 use App\Policies\CostCenterPolicy;
 use App\Policies\CustomerAssignmentPolicy;
 use App\Policies\CustomerPolicy;
@@ -38,9 +34,6 @@ use App\Policies\OrganizationalUnitPolicy;
 use App\Policies\PermissionManagementPolicy;
 use App\Policies\QualificationPolicy;
 use App\Policies\RoleManagementPolicy;
-use App\Policies\SecretAttachmentPolicy;
-use App\Policies\SecretPolicy;
-use App\Policies\SecretSharePolicy;
 use App\Policies\SiteAssignmentPolicy;
 use App\Policies\SitePolicy;
 use App\Services\SystemProcessExecutor;
@@ -68,7 +61,6 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Person::observe(PersonObserver::class);
-        Secret::observe(SecretObserver::class);
         Employee::observe(EmployeeObserver::class);
 
         // Define rate limiters (using cache, not Redis)
@@ -111,15 +103,6 @@ class AppServiceProvider extends ServiceProvider
 
         // Register policy for Spatie Permission model
         Gate::policy(Permission::class, PermissionManagementPolicy::class);
-
-        // Register policy for Secret model
-        Gate::policy(Secret::class, SecretPolicy::class);
-
-        // Register policy for SecretShare model
-        Gate::policy(SecretShare::class, SecretSharePolicy::class);
-
-        // Register policy for SecretAttachment model
-        Gate::policy(SecretAttachment::class, SecretAttachmentPolicy::class);
 
         // Register policies for Customer & Site Management (Epic #210)
         Gate::policy(Customer::class, CustomerPolicy::class);

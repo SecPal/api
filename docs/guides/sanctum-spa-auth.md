@@ -54,14 +54,14 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
      │ Body: {user: {...}}        │                            │
      │<───────────────────────────│                            │
      │                            │                            │
-     │ GET /v1/secrets            │                            │
+    │ GET /v1/me                 │                            │
      │ Cookie: secpal-session     │                            │
      │ Header: X-XSRF-TOKEN       │                            │
      │───────────────────────────>│                            │
      │                            │ Validate session + CSRF    │
      │                            │───────────────────────────>│
      │                            │<───────────────────────────│
-     │ Body: {secrets: [...]}     │                            │
+    │ Body: {user: {...}}        │                            │
      │<───────────────────────────│                            │
 ```
 
@@ -211,8 +211,8 @@ export async function login(credentials: LoginCredentials) {
 }
 
 // All subsequent requests
-export async function fetchSecrets() {
-  const response = await fetch(`${API_URL}/v1/secrets`, {
+export async function fetchCurrentUser() {
+  const response = await fetch(`${API_URL}/v1/me`, {
     credentials: "include",
     headers: {
       "X-XSRF-TOKEN": getCsrfToken() || "",
@@ -267,7 +267,7 @@ Content-Type: application/json
 ### Authenticated Request
 
 ```http
-GET /v1/secrets HTTP/1.1
+GET /v1/me HTTP/1.1
 Host: api.secpal.dev
 Cookie: secpal-session=...
 X-XSRF-TOKEN: eyJpdiI6...
@@ -276,7 +276,11 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-  "data": [...]
+  "data": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "John Doe"
+  }
 }
 ```
 
@@ -352,7 +356,7 @@ curl -b cookies.txt -c cookies.txt \
 
 # 4. Make authenticated request
 curl -b cookies.txt \
-  -X GET http://api.secpal.dev/v1/secrets \
+  -X GET http://api.secpal.dev/v1/me \
   -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -i
 ```
@@ -565,6 +569,5 @@ server {
 
 ## Related Documentation
 
-- [Secret Sharing Guide](./secret-sharing.md)
 - [Role Management Guide](./role-management.md)
 - [Temporal Roles Guide](./temporal-roles.md)
