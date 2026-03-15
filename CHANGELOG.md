@@ -14,9 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Removed the product-level Secrets feature from the API, including secret CRUD,
-  sharing, attachments, the backing database tables, and the obsolete Secrets
-  migrations in 0.x.
+- Removed the deleted legacy product module from the API, including its retired
+  CRUD endpoints, sharing flows, attachment handling, backing database tables,
+  and obsolete migrations in 0.x.
 
 ### Added
 
@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Removed a stale legacy schema comment from the employee migration so the API source no longer references the deleted module outside historical changelog entries
 - install `opentimestamps-client` in the DDEV web image so OpenTimestamp-backed Laravel tests and local stamping commands do not fail with missing Python module errors
 - reject cross-tenant target users on role-assignment and direct-permission administration endpoints with fail-closed 404 responses and matching policy checks
 - constrain route model binding for tenant-owned admin models to the authenticated tenant so cross-tenant resource identifiers fail closed before controller logic
@@ -551,7 +552,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CRITICAL: Fixed tenant_id spoofing vulnerability in InjectTenantId middleware** (PR #356)
   - Client-provided `tenant_id` parameters (query string or request body) are now **always rejected**
   - Prevents cross-tenant data access attacks in multi-tenant deployments
-  - Affected: All controllers using `tenant.inject` middleware (Sites, Customers, Secrets, etc.)
+  - Affected: All controllers using `tenant.inject` middleware
   - Root cause: Middleware accepted client-side tenant_id without validation
   - Fix: Middleware now explicitly removes client parameters before injecting server-resolved tenant_id
   - Impact: Security hardening for current single-tenant development mode, **critical** for future multi-tenant production (Epic #357)
@@ -942,16 +943,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **SecretController**: Removed hardcoded tenant ID resolution (#190)
-  - Replaced `TenantKey::first()` workaround with proper `InjectTenantId` middleware
-  - New middleware automatically injects `tenant_id` into request for Secret routes
-  - Single-tenant development mode: Uses first available TenantKey
-  - Production-ready pattern: Middleware can be extended for user-based tenant resolution
-  - Middleware registered as `tenant.inject` alias in `bootstrap/app.php`
-  - Applied to all `/v1/secrets` and `/v1/attachments` routes
-  - 5 comprehensive middleware tests added
-  - Resolves TODO comment in `SecretController::store()`
-  - Maintains backward compatibility: Respects pre-existing `tenant_id` in request
 - **CI/CD**: Codecov upload now fully functional for Dependabot PRs
   - Added `continue-on-error` for dependabot/renovate bots to prevent blocking
   - Made `CODECOV_TOKEN` optional (tokenless uploads work for public repos)
@@ -975,75 +966,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Form request validation via `UpdateUserLanguageRequest`
   - 8 comprehensive feature tests
   - Database migration: `2025_11_16_192506_add_preferred_locale_to_users_table`
-
-- **Secret Sharing & Access Control (Phase 3)** (#182) - **COMPLETED 19.11.2025**
-  - **Secret CRUD API**: Full REST API for password manager functionality
-    (#187)
-    - Create secrets with encrypted title, username, password, URL, notes
-      (POST `/v1/secrets`)
-    - List user's secrets with filter parameter: `all` (default), `owned`, `shared`
-      (via SecretShare) (GET `/v1/secrets?filter={type}`)
-    - Filter validation via `IndexSecretRequest` (rejects invalid filter values)
-    - Query optimization: Role IDs cached to avoid N+1 queries
-    - DRY implementation: Shared filter logic extracted to `Secret::scopeSharedWith()`
-    - Empty role array optimization: Skips `orWhereIn` when user has no roles
-    - View secret details with owner or share-based access (GET
-      `/v1/secrets/{secret}`)
-    - Update secrets with automatic version incrementing (PATCH
-      `/v1/secrets/{secret}`)
-    - Soft delete secrets (DELETE `/v1/secrets/{secret}`)
-    - Authorization via `SecretPolicy` with 9 methods: viewAny, view, create,
-      update, delete, restore, forceDelete, share, viewShares
-    - Permission hierarchy: admin > write > read (via
-      `Secret::userHasPermission()`)
-    - Share-based access respects expiration dates and permission levels
-    - Validation via `StoreSecretRequest`, `UpdateSecretRequest`, `IndexSecretRequest`
-    - 22 comprehensive Controller tests covering CRUD + share-based access
-      scenarios
-  - **Secret Sharing API**: Grant/revoke access to secrets
-    - Grant read/write/admin access to users OR roles (POST `/v1/secrets/{secret}/shares`)
-    - List all shares for a secret (GET `/v1/secrets/{secret}/shares`)
-    - Revoke share access (DELETE `/v1/secrets/{secret}/shares/{share}`)
-    - XOR constraint validation: cannot grant to both user AND role
-    - Optional expiration dates for time-limited access
-    - Permission hierarchy: admin > write > read
-    - Authorization via `SecretSharePolicy` (owner-only for now)
-    - 18 comprehensive Controller tests covering all scenarios
-  - **Attachment Permissions**: SecretAttachment authorization extended
-    - Updated `SecretAttachmentPolicy` to honor share-based permissions
-    - viewAny/view: Owner OR read+ permission (read/write/admin)
-    - create/delete: Owner OR write+ permission (write/admin)
-    - Removed TODO comment, integrated with `Secret::userHasPermission()`
-  - **Integration Tests**: Comprehensive end-to-end validation (#189)
-    - 20 integration tests covering Secrets + Shares + Attachments workflows
-    - Tests: Permission levels (read/write/admin), expiration, revocation
-    - Tests: Attachment upload/download with share-based access
-    - Tests: Role-based sharing, role removal, multiple roles
-    - Tests: Cascade deletes, owner always-access, self-sharing edge cases
-    - All tests passing with 42 assertions
-  - **Developer Documentation**:
-    - Secret Sharing Guide: docs/guides/secret-sharing.md (created)
-    - CHANGELOG: Phase 3 completion documented
-  - **Database Foundation** (already merged):
-    - `secret_shares` table with XOR constraint
-    - `SecretShare` model with relationships and scopes
-    - Migration tests and model tests (13 total)
-  - **Total Test Coverage**: 22 Controller tests (Secrets), 18 Controller tests (Shares),
-    20 Integration tests, 13 Model tests = 73 tests, all passing
-  - **Note**: Tenant resolution uses temporary `TenantKey::first()` pattern (TODO: TenantMiddleware)
-  - **Delivered**: 4 merged PRs (#183, #184, #185, #191) + Issue #189 completion
-  - **Status**: Phase 3 100% complete, ready for frontend implementation
-
-- **File Attachments API (Phase 2)** (#175)
-  - Upload encrypted file attachments to secrets (POST `/v1/secrets/{secret}/attachments`)
-  - List attachments for a secret (GET `/v1/secrets/{secret}/attachments`)
-  - Download decrypted attachments (GET `/v1/attachments/{attachment}/download`)
-  - Delete attachments (DELETE `/v1/attachments/{attachment}`)
-  - Files encrypted at rest using tenant DEK encryption
-  - Configurable file size limits and MIME type restrictions
-  - Owner-based authorization via `SecretAttachmentPolicy`
-  - OpenAPI documentation for all attachment endpoints
-  - Comprehensive test coverage: 13 Controller tests, 3 Service tests, 2 Model tests, 8 Policy tests
 
 - **Code Coverage Integration** (#170)
   - Integrated Codecov for automated coverage tracking

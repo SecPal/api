@@ -130,7 +130,7 @@ return new class extends Migration
             $table->index('termination_date');
             $table->index(['tenant_id', 'position']);
             $table->index(['tenant_id', 'management_level']); // For hierarchical queries
-            // Blind index indexes for encrypted field searches (following pattern from person/secrets tables)
+            // Blind index indexes for encrypted field searches (following the encrypted person-data table pattern)
             $table->index(['tenant_id', 'first_name_idx']);
             $table->index(['tenant_id', 'last_name_idx']);
             $table->index(['tenant_id', 'date_of_birth_idx']);
