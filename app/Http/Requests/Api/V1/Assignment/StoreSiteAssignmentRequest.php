@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -34,7 +34,7 @@ class StoreSiteAssignmentRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
@@ -45,7 +45,7 @@ class StoreSiteAssignmentRequest extends FormRequest
             'user_id' => [
                 'required',
                 'uuid',
-                Rule::exists('users', 'id')->where(function ($query) use ($tenantId): void {
+                Rule::exists('users', 'id')->where(function (\Illuminate\Database\Query\Builder $query) use ($tenantId): void {
                     if ($tenantId !== null) {
                         $query->where('tenant_id', $tenantId);
                     }

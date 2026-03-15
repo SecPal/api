@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests;
@@ -38,14 +38,14 @@ class AttachQualificationRequest extends FormRequest
         return [
             'qualification_id' => [
                 'required',
-                Rule::exists(Qualification::class, 'id')->where(function ($query) use ($tenantId): void {
+                Rule::exists(Qualification::class, 'id')->where(function (\Illuminate\Database\Query\Builder $query) use ($tenantId): void {
                     if ($tenantId === null) {
                         return;
                     }
 
-                    $query->where(function ($qualificationQuery) use ($tenantId): void {
+                    $query->where(function (\Illuminate\Database\Query\Builder $qualificationQuery) use ($tenantId): void {
                         $qualificationQuery->where('tenant_id', $tenantId)
-                            ->orWhere(function ($globalQualificationQuery): void {
+                            ->orWhere(function (\Illuminate\Database\Query\Builder $globalQualificationQuery): void {
                                 $globalQualificationQuery->whereNull('tenant_id')
                                     ->where('is_system_qualification', true);
                             });
