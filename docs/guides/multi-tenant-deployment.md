@@ -39,7 +39,6 @@ This guide assumes you've already completed the [Production Deployment Guide](/d
 │  ├─ Sites                   ├─ Sites                    │
 │  ├─ Customers               ├─ Customers                │
 │  ├─ Employees               ├─ Employees                │
-│  ├─ Secrets                 ├─ Secrets                  │
 │  └─ Roles & Permissions     └─ Roles & Permissions      │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
@@ -482,8 +481,6 @@ class TenantUsage
             'sites' => Site::where('tenant_id', $tenantId)->count(),
             'customers' => Customer::where('tenant_id', $tenantId)->count(),
             'employees' => Employee::where('tenant_id', $tenantId)->count(),
-            'secrets' => Secret::where('tenant_id', $tenantId)->count(),
-            'storage_mb' => SecretAttachment::where('tenant_id', $tenantId)->sum('file_size') / 1024 / 1024,
         ];
     }
 }
@@ -545,7 +542,6 @@ class TenantDeletionService
             // Cascade deletes:
             // - Users (users.tenant_id FK)
             // - Sites, Customers, Employees, etc.
-            // - Secrets (encrypted data unrecoverable without DEK)
 
             DB::commit();
 

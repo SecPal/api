@@ -372,7 +372,7 @@ await fetch(`${apiUrl}/v1/auth/token`, {
 });
 
 // 3. Authenticated requests
-await fetch(`${apiUrl}/v1/secrets`, {
+await fetch(`${apiUrl}/v1/me`, {
   credentials: "include",
   headers: {
     "X-XSRF-TOKEN": getCsrfToken(),
@@ -399,7 +399,7 @@ EncryptedSharedPreferences.create(/* ... */).edit {
 }
 
 // 3. Authenticated requests
-httpClient.get("$apiUrl/v1/secrets") {
+httpClient.get("$apiUrl/v1/me") {
     bearerAuth(token)
 }
 ```
