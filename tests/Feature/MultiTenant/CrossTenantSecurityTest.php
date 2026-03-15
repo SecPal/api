@@ -235,8 +235,6 @@ describe('Cross-Tenant Isolation - Customers', function () {
     });
 });
 
-// Note: Secrets module not yet implemented - tests skipped
-
 describe('Cross-Tenant Isolation - Employees', function () {
     test('user cannot list employees from other tenant', function () {
         $orgUnit1 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant1->id]);
