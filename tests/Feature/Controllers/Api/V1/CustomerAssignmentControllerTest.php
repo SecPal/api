@@ -200,6 +200,25 @@ describe('POST /v1/customers/{customer}/assignments', function () {
         expect($response->json('data.user.id'))->toBe($targetUser->id);
     });
 
+    test('returns 422 when target user belongs to a different tenant', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignUser = User::factory()->create([
+            'tenant_id' => $otherTenant->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/customers/{$this->customer->id}/assignments", [
+                'user_id' => $foreignUser->id,
+                'role' => 'Cross Tenant Contact',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['user_id']);
+    });
+
     test('creates assignment with validity period', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');

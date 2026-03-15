@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Qualification;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -31,8 +32,26 @@ class AttachQualificationRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var int|null $tenantId */
+        $tenantId = $this->integer('tenant_id') ?: $this->user()?->tenant_id;
+
         return [
-            'qualification_id' => ['required', 'exists:qualifications,id'],
+            'qualification_id' => [
+                'required',
+                Rule::exists(Qualification::class, 'id')->where(function ($query) use ($tenantId): void {
+                    if ($tenantId === null) {
+                        return;
+                    }
+
+                    $query->where(function ($qualificationQuery) use ($tenantId): void {
+                        $qualificationQuery->where('tenant_id', $tenantId)
+                            ->orWhere(function ($globalQualificationQuery): void {
+                                $globalQualificationQuery->whereNull('tenant_id')
+                                    ->where('is_system_qualification', true);
+                            });
+                    });
+                }),
+            ],
             'obtained_date' => ['required', 'date', 'before_or_equal:today'],
             'expiry_date' => ['nullable', 'date', 'after:obtained_date'],
             'certificate_number' => ['nullable', 'string', 'max:255'],

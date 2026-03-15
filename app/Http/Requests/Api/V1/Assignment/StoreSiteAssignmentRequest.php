@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1\Assignment;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Form request for creating site assignments.
@@ -37,8 +38,19 @@ class StoreSiteAssignmentRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var int|null $tenantId */
+        $tenantId = $this->integer('tenant_id') ?: $this->user()?->tenant_id;
+
         return [
-            'user_id' => ['required', 'uuid', 'exists:users,id'],
+            'user_id' => [
+                'required',
+                'uuid',
+                Rule::exists('users', 'id')->where(function ($query) use ($tenantId): void {
+                    if ($tenantId !== null) {
+                        $query->where('tenant_id', $tenantId);
+                    }
+                }),
+            ],
             'role' => ['required', 'string', 'max:100'],
             'valid_from' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],
