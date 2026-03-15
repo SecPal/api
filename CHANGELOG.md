@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the product-level Secrets feature from the API, including secret CRUD,
+  sharing, attachments, the backing database tables, and the obsolete Secrets
+  migrations in 0.x.
+
 ### Added
 
 - `app/Services/EmployeeDocumentStorageService.php` - encrypted-at-rest storage service for employee document uploads and downloads

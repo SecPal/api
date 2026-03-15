@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -62,7 +62,7 @@ Content-Type: application/json
 Set-Cookie: laravel_session=<session>; path=/; HttpOnly; Secure; SameSite=lax
 
 {
-  "token": "1|abc123...", // Still returned for backwards compatibility
+  "token": "1|abc123...",
   "user": {
     "id": 1,
     "name": "John Doe",
@@ -134,14 +134,14 @@ function getCsrfToken() {
 }
 
 // Make authenticated request
-fetch("/v1/secrets", {
+fetch("/v1/organizational-units", {
   method: "POST",
   credentials: "include", // Send cookies
   headers: {
     "Content-Type": "application/json",
     "X-XSRF-TOKEN": getCsrfToken(),
   },
-  body: JSON.stringify({ title: "My Secret" }),
+  body: JSON.stringify({ name: "Operations", type: "department" }),
 });
 ```
 
