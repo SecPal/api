@@ -30,7 +30,10 @@ trait EnforcesTenantRouteBinding
      */
     public function resolveRouteBindingQuery($query, $value, $field = null): Builder
     {
-        $resolvedQuery = $this->resolveBaseRouteBindingQuery($query, $value, $field);
+        /** @var Builder<static> $baseQuery */
+        $baseQuery = $query instanceof Relation ? $query->getQuery() : $query;
+
+        $resolvedQuery = $this->resolveBaseRouteBindingQuery($baseQuery, $value, $field);
 
         $tenantId = $this->resolveCurrentRouteTenantId();
 
@@ -44,19 +47,16 @@ trait EnforcesTenantRouteBinding
     /**
      * Resolve the base binding query before tenant constraints are applied.
      *
-     * @param  Builder<static>|Relation<static, *, *>  $query
+     * @param  Builder<static>  $query
      * @param  mixed  $value
      * @param  string|null  $field
      * @return Builder<static>
      */
     protected function resolveBaseRouteBindingQuery($query, $value, $field = null): Builder
     {
-        /** @var Builder<static> $builder */
-        $builder = $query instanceof Relation ? $query->getQuery() : $query;
-
         $field ??= $this->getRouteKeyName();
 
-        return $builder->where($field, $value);
+        return $query->where($field, $value);
     }
 
     /**
