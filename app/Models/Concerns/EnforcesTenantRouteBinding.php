@@ -8,6 +8,7 @@ namespace App\Models\Concerns;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -22,7 +23,7 @@ trait EnforcesTenantRouteBinding
     /**
      * Scope route model binding to the current tenant.
      *
-     * @param  Builder<static>  $query
+     * @param  Builder<static>|Relation<static, *, *>  $query
      * @param  mixed  $value
      * @param  string|null  $field
      * @return Builder<static>
@@ -43,7 +44,7 @@ trait EnforcesTenantRouteBinding
     /**
      * Resolve the base binding query before tenant constraints are applied.
      *
-     * @param  Builder<static>  $query
+     * @param  Builder<static>|Relation<static, *, *>  $query
      * @param  mixed  $value
      * @param  string|null  $field
      * @return Builder<static>
@@ -51,7 +52,7 @@ trait EnforcesTenantRouteBinding
     protected function resolveBaseRouteBindingQuery($query, $value, $field = null): Builder
     {
         /** @var Builder<static> $builder */
-        $builder = $query;
+        $builder = $query instanceof Relation ? $query->getQuery() : $query;
 
         $field ??= $this->getRouteKeyName();
 

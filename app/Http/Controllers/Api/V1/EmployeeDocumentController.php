@@ -28,13 +28,6 @@ class EmployeeDocumentController extends Controller
         private readonly EmployeeDocumentStorageService $storageService
     ) {}
 
-    private function ensureDocumentBelongsToEmployee(Employee $employee, EmployeeDocument $document): void
-    {
-        if ($document->employee_id !== $employee->id) {
-            abort(Response::HTTP_NOT_FOUND, __('Document not found'));
-        }
-    }
-
     /**
      * Display a listing of an employee's documents.
      *
@@ -113,7 +106,6 @@ class EmployeeDocumentController extends Controller
      */
     public function show(Employee $employee, EmployeeDocument $document): JsonResponse
     {
-        $this->ensureDocumentBelongsToEmployee($employee, $document);
         $this->authorize('view', $document);
 
         $document->load('uploader');
@@ -132,7 +124,6 @@ class EmployeeDocumentController extends Controller
      */
     public function download(Employee $employee, EmployeeDocument $document): Response
     {
-        $this->ensureDocumentBelongsToEmployee($employee, $document);
         $this->authorize('view', $document);
 
         try {
@@ -155,7 +146,6 @@ class EmployeeDocumentController extends Controller
      */
     public function destroy(Employee $employee, EmployeeDocument $document): JsonResponse
     {
-        $this->ensureDocumentBelongsToEmployee($employee, $document);
         $this->authorize('delete', $document);
 
         $this->storageService->delete($document);
