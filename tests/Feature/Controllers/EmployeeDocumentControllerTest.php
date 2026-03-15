@@ -321,6 +321,24 @@ describe('GET /v1/employees/{employee}/documents/{document}', function () {
                 ],
             ]);
     });
+
+    test('returns 404 when document belongs to a different employee route', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
+
+        $otherEmployee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->employee->organizational_unit_id,
+        ]);
+
+        $foreignDocument = EmployeeDocument::factory()->create([
+            'employee_id' => $otherEmployee->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$this->employee->id}/documents/{$foreignDocument->id}");
+
+        $response->assertStatus(404);
+    });
 });
 
 describe('GET /v1/employees/{employee}/documents/{document}/download', function () {

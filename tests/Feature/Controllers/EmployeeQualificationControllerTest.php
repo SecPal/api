@@ -219,6 +219,45 @@ describe('POST /v1/employees/{employee}/qualifications', function () {
         expect($response->json('data.certificate_number'))->toBe('CERT-12345');
     });
 
+    test('returns 422 when qualification belongs to a different tenant', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.write');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignQualification = Qualification::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'is_system_qualification' => false,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$this->employee->id}/qualifications", [
+                'qualification_id' => $foreignQualification->id,
+                'obtained_date' => now()->subMonth()->toDateString(),
+                'status' => 'valid',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['qualification_id']);
+    });
+
+    test('allows attaching global system qualifications', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.write');
+
+        $systemQualification = Qualification::factory()->create([
+            'tenant_id' => null,
+            'is_system_qualification' => true,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$this->employee->id}/qualifications", [
+                'qualification_id' => $systemQualification->id,
+                'obtained_date' => now()->subMonth()->toDateString(),
+                'status' => 'valid',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.qualification_id', $systemQualification->id);
+    });
+
     test('returns 409 when qualification already attached to employee', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.write');
 

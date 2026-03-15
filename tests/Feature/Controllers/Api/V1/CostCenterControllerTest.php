@@ -362,6 +362,28 @@ describe('GET /v1/sites/{site}/cost-centers/{costCenter}', function () {
                 'activity_type' => 'Security',
             ]);
     });
+
+    test('returns 404 when cost center belongs to a different site route', function (): void {
+        $this->user->givePermissionTo(['cost-centers.read', 'sites.read']);
+
+        $otherSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $foreignCostCenter = CostCenter::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $otherSite->id,
+        ]);
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer {$this->token}",
+            'X-Tenant-ID' => (string) $this->tenant->id,
+        ])->getJson("/v1/sites/{$this->site->id}/cost-centers/{$foreignCostCenter->id}");
+
+        $response->assertStatus(404);
+    });
 });
 
 describe('PUT /v1/sites/{site}/cost-centers/{costCenter}', function () {
@@ -421,6 +443,36 @@ describe('PUT /v1/sites/{site}/cost-centers/{costCenter}', function () {
             'id' => $costCenter->id,
             'name' => 'Updated Name',
         ]);
+    });
+
+    test('returns 404 when updating cost center through a different site route', function (): void {
+        $this->user->givePermissionTo(['cost-centers.update', 'sites.update']);
+
+        $otherSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $foreignCostCenter = CostCenter::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $otherSite->id,
+            'code' => 'KST-OTHER',
+            'name' => 'Other Site Cost Center',
+        ]);
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer {$this->token}",
+            'X-Tenant-ID' => (string) $this->tenant->id,
+        ])->putJson("/v1/sites/{$this->site->id}/cost-centers/{$foreignCostCenter->id}", [
+            'code' => 'KST-OTHER',
+            'name' => 'Hijacked Name',
+        ]);
+
+        $response->assertStatus(404);
+
+        $foreignCostCenter->refresh();
+        expect($foreignCostCenter->name)->toBe('Other Site Cost Center');
     });
 
     test('validates code uniqueness on update', function (): void {

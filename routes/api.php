@@ -185,7 +185,7 @@ Route::prefix('v1')->group(function () {
         });
 
         // Sites (physical locations where services are provided)
-        Route::middleware('tenant.inject')->group(function () {
+        Route::middleware('tenant.inject')->scopeBindings()->group(function () {
             Route::get('/sites', [SiteController::class, 'index']);
             Route::post('/sites', [SiteController::class, 'store']);
             Route::get('/sites/{site}', [SiteController::class, 'show']);
@@ -265,7 +265,7 @@ Route::prefix('v1')->group(function () {
         });
 
         // Employee Documents
-        Route::middleware('tenant.inject')->group(function () {
+        Route::middleware('tenant.inject')->scopeBindings()->group(function () {
             Route::get('/employees/{employee}/documents', [EmployeeDocumentController::class, 'index']);
             Route::post('/employees/{employee}/documents', [EmployeeDocumentController::class, 'store']);
             Route::get('/employees/{employee}/documents/{document}', [EmployeeDocumentController::class, 'show']);

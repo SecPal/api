@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1\Assignment;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Form request for creating site assignments.
@@ -33,12 +34,21 @@ class StoreSiteAssignmentRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
+        /** @var int|null $tenantId */
+        $tenantId = $this->integer('tenant_id') ?: $this->user()?->tenant_id;
+
         return [
-            'user_id' => ['required', 'uuid', 'exists:users,id'],
+            'user_id' => [
+                'required',
+                'uuid',
+                Rule::exists('users', 'id')->where(function (\Illuminate\Database\Query\Builder $query) use ($tenantId): void {
+                    $query->where('tenant_id', $tenantId ?? 0);
+                }),
+            ],
             'role' => ['required', 'string', 'max:100'],
             'valid_from' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date', 'after_or_equal:valid_from'],
