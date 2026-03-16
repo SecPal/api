@@ -93,7 +93,7 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
 // config/sanctum.php
 'stateful' => explode(',', env(
     'SANCTUM_STATEFUL_DOMAINS',
-    'localhost,localhost:5173,127.0.0.1:5173'
+  'app.secpal.dev,app.secpal.app'
 )),
 ```
 
@@ -101,7 +101,7 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
 
 ```env
 # .env
-SANCTUM_STATEFUL_DOMAINS=localhost,localhost:5173,127.0.0.1:5173
+SANCTUM_STATEFUL_DOMAINS=app.secpal.dev,app.secpal.app
 ```
 
 #### 2. CORS Configuration
@@ -123,7 +123,7 @@ SANCTUM_STATEFUL_DOMAINS=localhost,localhost:5173,127.0.0.1:5173
 
 ```env
 # .env
-CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+CORS_ALLOWED_ORIGINS=https://app.secpal.dev,https://app.secpal.app
 CORS_SUPPORTS_CREDENTIALS=true
 CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN
 ```
@@ -135,7 +135,7 @@ CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN
 'driver' => env('SESSION_DRIVER', 'database'), // default: database, use 'cookie' for simpler setups
 'lifetime' => 120,
 'http_only' => true,
-'secure' => env('SESSION_SECURE_COOKIE', false), // true in production
+'secure' => env('SESSION_SECURE_COOKIE', true),
 'same_site' => 'lax',
 ```
 
@@ -377,7 +377,7 @@ curl -b cookies.txt \
 
    ```bash
    # Backend .env must include frontend domain
-   SANCTUM_STATEFUL_DOMAINS=localhost:5173,localhost:3000
+   SANCTUM_STATEFUL_DOMAINS=app.secpal.dev,app.secpal.app
    ```
 
 2. **Verify CORS Configuration**
@@ -385,7 +385,7 @@ curl -b cookies.txt \
    ```php
    // config/cors.php
    'supports_credentials' => true, // MUST be true!
-   'allowed_origins' => ['http://localhost:5173'], // Explicit origins
+   'allowed_origins' => ['https://app.secpal.dev'], // Explicit origins
    ```
 
 3. **Inspect Browser Cookies**
@@ -476,7 +476,7 @@ curl -b cookies.txt \
 
    ```php
    // DON'T use '*' with credentials!
-   'allowed_origins' => ['http://localhost:5173'],
+   'allowed_origins' => ['https://app.secpal.dev'],
    ```
 
 3. **Frontend Must Send Credentials**

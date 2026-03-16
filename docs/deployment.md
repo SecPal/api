@@ -103,7 +103,7 @@ DB_PASSWORD=YOUR_SECURE_PASSWORD_HERE
 KEK_PATH=/var/www/secpal-api/storage/keys/kek.key
 
 # Sanctum (SPA Authentication)
-SANCTUM_STATEFUL_DOMAINS=app.secpal.app,localhost:5173
+SANCTUM_STATEFUL_DOMAINS=app.secpal.dev,app.secpal.app
 SESSION_DOMAIN=.secpal.app
 
 # Mail Configuration
