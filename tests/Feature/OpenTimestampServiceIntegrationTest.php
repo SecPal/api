@@ -10,10 +10,10 @@ use App\Services\SystemProcessExecutor;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Integration tests for OpenTimestamp CLI verification.
+ * Integration tests for OpenTimestamp verification.
  *
- * These tests use the real ots CLI tool (not mocked) to verify
- * that the integration works end-to-end in the DDEV environment.
+ * These tests use the real Python-based verification runtime (not mocked) to
+ * verify that the integration works end-to-end in the active environment.
  */
 /**
  * @property OpenTimestampService $service
@@ -30,14 +30,16 @@ beforeEach(function () {
 });
 
 /**
- * Test that the ots CLI is available in the environment.
+ * Test that the Python verification runtime is available in the environment.
  */
-test('ots cli is available', function () {
+test('python verification runtime is available', function () {
     $executor = new SystemProcessExecutor;
     expect(
-        $executor->commandExists('ots'),
-        'ots CLI tool must be installed (opentimestamps-client package)'
+        $executor->commandExists('python3'),
+        'python3 must be installed for OpenTimestamp verification'
     )->toBeTrue();
+
+    expect(file_exists(base_path('scripts/ots-verify.py')))->toBeTrue();
 });
 
 /**

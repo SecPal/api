@@ -21,6 +21,7 @@ beforeEach(function () {
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
+    $this->withHeaders(spaCsrfHeaders($this));
 });
 
 afterEach(function () {

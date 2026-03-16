@@ -62,11 +62,11 @@ See [README.md](./README.md) for full installation instructions.
 
 ## Test Database Setup (Automated)
 
-**✅ Fully automated via DDEV hooks** - No manual intervention required!
+**✅ Fully automated during local test bootstrap** - No DDEV dependency required.
 
 ### How It Works
 
-DDEV automatically creates test databases on every `ddev start` via `.ddev/config.yaml` post-start hook:
+When you run `php artisan test`, the shared API test bootstrap now ensures the PostgreSQL test database needed by the current process exists before Laravel starts refreshing it:
 
 - `testing` - Main test database
 - `testing_test_1` - Parallel test DB (process 1)
@@ -76,11 +76,16 @@ DDEV automatically creates test databases on every `ddev start` via `.ddev/confi
 
 When running tests in **parallel** (e.g., with `php artisan test --parallel`), Pest uses multiple processes for faster execution. Each process needs its own isolated database to prevent race conditions and data conflicts.
 
+**Requirements:**
+
+- Local PostgreSQL server reachable via your `.env`
+- The configured PostgreSQL user must be allowed to create databases
+
 **Configuration:**
 
 - `phpunit.xml` sets `DB_DATABASE=testing` as base name
 - When running tests in parallel (e.g., with `php artisan test --parallel`), Pest automatically appends `_test_1`, `_test_2` suffixes to the database name for each process.
-- DDEV hook creates all DBs idempotently (checks existence first), so the additional databases are always available if you choose to run tests in parallel.
+- The test bootstrap creates the required database idempotently (checks existence first). Parallel workers create their own suffixed `testing_test_<token>` databases as needed.
 
 ### How to Run Tests in Parallel
 
@@ -96,7 +101,7 @@ This will run your tests across multiple processes, each using its own isolated 
 
 ```bash
 # List all databases
-ddev psql -c '\l'
+psql -h 127.0.0.1 -U "$DB_USERNAME" -d postgres -c '\l'
 
 # Should show:
 # - testing
@@ -106,14 +111,14 @@ ddev psql -c '\l'
 
 ### Troubleshooting
 
-If tests fail with "database does not exist":
+If tests fail with database bootstrap errors:
 
 ```bash
-# Restart DDEV to trigger post-start hook
-ddev restart
+# Verify the configured PostgreSQL role can create databases
+psql -h 127.0.0.1 -U "$DB_USERNAME" -d postgres -c '\du'
 
-# Or manually verify hook execution
-ddev logs -s db | grep "CREATE DATABASE"
+# Then rerun the targeted test file
+php artisan test tests/Feature/HealthCheckTest.php
 ```
 
 ## IDE Configuration

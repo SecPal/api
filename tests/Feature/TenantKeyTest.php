@@ -28,7 +28,7 @@ afterEach(function (): void {
 test('generates KEK file with correct permissions', function (): void {
     TenantKey::generateKek();
 
-    $kekPath = storage_path('app/keys/kek.key');
+    $kekPath = TenantKey::getKekPath();
 
     expect(file_exists($kekPath))->toBeTrue();
     expect(filesize($kekPath))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);

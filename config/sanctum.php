@@ -18,11 +18,10 @@ return [
     |
     */
 
-    'stateful' => explode(',', (string) env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s,%s',
-        'localhost:5173,localhost:3000,127.0.0.1:5173',
-        Sanctum::currentApplicationUrlWithPort()
-    ))),
+    'stateful' => explode(',', (string) env(
+        'SANCTUM_STATEFUL_DOMAINS',
+        'app.secpal.dev,app.secpal.app'
+    )),
 
     /*
     |--------------------------------------------------------------------------

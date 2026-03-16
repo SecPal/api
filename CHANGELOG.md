@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the deleted legacy product module from the API, including its retired
   CRUD endpoints, sharing flows, attachment handling, backing database tables,
   and obsolete migrations in 0.x.
+- Removed the unused built-in Laravel `/up` health route so the API exposes only the documented `/health`, `/health/live`, and `/health/ready` endpoints.
 
 ### Added
 
@@ -30,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - normalize onboarding template ID collections and site full-address filtering so the API stays PHPStan-clean after the `phpstan/phpstan` `2.1.41` Dependabot update
 - Removed a stale legacy schema comment from the employee migration so the API source no longer references the deleted module outside historical changelog entries
+- bootstrap PostgreSQL test databases automatically during Pest/PHPUnit startup so local `php artisan test` runs work without relying on DDEV hooks
+- aligned SPA auth and CORS defaults plus affected feature tests with the VPS-based `app.secpal.dev` and `api.secpal.dev` development domains instead of legacy localhost/Vite assumptions
+- stabilize local and CI test bootstrapping by forcing `APP_ENV=testing` under PHPUnit, isolating the OpenTimestamp monitor test from the real health check runtime, and validating KEK permissions against the per-test key path
 - install `opentimestamps-client` in the DDEV web image so OpenTimestamp-backed Laravel tests and local stamping commands do not fail with missing Python module errors
 - reject cross-tenant target users on role-assignment and direct-permission administration endpoints with fail-closed 404 responses and matching policy checks
 - constrain route model binding for tenant-owned admin models to the authenticated tenant so cross-tenant resource identifiers fail closed before controller logic

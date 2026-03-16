@@ -27,7 +27,7 @@ return [
 
     'allowed_methods' => explode(',', (string) env('CORS_ALLOWED_METHODS', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')),
 
-    'allowed_origins' => explode(',', (string) env('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://localhost:3000')),
+    'allowed_origins' => explode(',', (string) env('CORS_ALLOWED_ORIGINS', 'https://app.secpal.dev,https://app.secpal.app')),
 
     'allowed_origins_patterns' => [],
 
