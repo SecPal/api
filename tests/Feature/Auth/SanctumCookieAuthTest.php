@@ -88,8 +88,8 @@ describe('httpOnly Cookie Authentication Flow', function () {
         if (app()->environment('production')) {
             expect($secure)->toBeTrue();
         } else {
-            // In testing, secure can be null, false, or true
-            expect($secure)->toBeIn([null, true, false]);
+            // In testing and CI, session.secure may resolve to null, bool, or an empty string.
+            expect($secure)->toBeIn([null, '', true, false]);
         }
     });
 });

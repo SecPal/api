@@ -129,7 +129,14 @@ abstract class TestCase extends BaseTestCase
         $username = self::environmentValue('DB_USERNAME', 'postgres');
         $password = self::environmentValue('DB_PASSWORD', '');
 
-        foreach (['postgres', 'template1'] as $maintenanceDatabase) {
+        $configuredDatabase = self::environmentValue('DB_DATABASE', 'postgres');
+        $maintenanceDatabases = array_values(array_unique([
+            $configuredDatabase,
+            'postgres',
+            'template1',
+        ]));
+
+        foreach ($maintenanceDatabases as $maintenanceDatabase) {
             try {
                 $pdo = new \PDO(
                     sprintf('pgsql:host=%s;port=%s;dbname=%s', $host, $port, $maintenanceDatabase),
