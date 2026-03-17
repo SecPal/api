@@ -102,19 +102,6 @@ abstract class TestCase extends BaseTestCase
         return [$databaseName];
     }
 
-    private static function isParallelTestRun(): bool
-    {
-        $argv = $_SERVER['argv'] ?? [];
-
-        if (in_array('--parallel', $argv, true) || getenv('LARAVEL_PARALLEL_TESTING') !== false) {
-            return true;
-        }
-
-        $testToken = getenv('TEST_TOKEN');
-
-        return is_string($testToken) && $testToken !== '';
-    }
-
     private static function assertValidDatabaseName(string $databaseName): void
     {
         if (! preg_match('/\A[a-zA-Z0-9_]+\z/', $databaseName)) {

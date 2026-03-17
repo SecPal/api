@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `.env.example` — `SANCTUM_STATEFUL_DOMAINS` and `CORS_ALLOWED_ORIGINS` no longer include
+  `localhost` or `127.0.0.1` entries. Local development setups that use the Vite
+  dev server on `localhost:5173` must add the relevant origins to their local `.env` file.
 - `pint.json` and repository-wide PHP/test files - re-enabled `fully_qualified_strict_types` after a dedicated Pint baseline to keep the stricter style rule active without mixing it into the dependency bump PR
 - `app/Http/Controllers/Api/V1/EmployeeDocumentController.php`, `app/Policies/EmployeeDocumentPolicy.php`, and `app/Http/Resources/EmployeeDocumentResource.php` - aligned employee document authorization with a consistent policy model, encrypted stored document binaries at rest, and removed raw storage paths from API responses
 - `database/factories/EmployeeDocumentFactory.php` and employee document feature/policy tests - updated fixtures and tests to reflect encrypted storage and the normalized authorization behavior
