@@ -8,6 +8,7 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use UnexpectedValueException;
 
 /**
  * OnboardingCompletionService handles automatic detection and tracking of onboarding completion.
@@ -39,7 +40,9 @@ class OnboardingCompletionService
         $requiredTemplateIds = OnboardingFormTemplate::where('is_required', true)
             ->whereNull('tenant_id') // System templates only
             ->pluck('id')
-            ->toArray();
+            ->all();
+
+        $requiredTemplateIds = $this->normalizeTemplateIds($requiredTemplateIds);
 
         // No required templates = instant completion
         if (count($requiredTemplateIds) === 0) {
@@ -52,7 +55,9 @@ class OnboardingCompletionService
             ->whereIn('form_template_id', $requiredTemplateIds)
             ->pluck('form_template_id')
             ->unique()
-            ->toArray();
+            ->all();
+
+        $approvedSubmissionTemplateIds = $this->normalizeTemplateIds($approvedSubmissionTemplateIds);
 
         // Check if all required templates have been submitted and approved
         $allRequiredCompleted = count(array_diff($requiredTemplateIds, $approvedSubmissionTemplateIds)) === 0;
@@ -77,7 +82,7 @@ class OnboardingCompletionService
      * This method does NOT modify the employee record. Use checkCompletion() to auto-update.
      *
      * @param  Employee  $employee  The employee to get status for
-     * @return array{is_completed: bool, total_required: int, completed_required: int, missing_templates: array<mixed>}
+     * @return array{is_completed: bool, total_required: int, completed_required: int, missing_templates: list<array{id: string, name: string, description: ?string}>}
      */
     public function getCompletionStatus(Employee $employee): array
     {
@@ -105,20 +110,28 @@ class OnboardingCompletionService
             ->whereIn('form_template_id', $requiredTemplates->pluck('id'))
             ->pluck('form_template_id')
             ->unique()
-            ->toArray();
+            ->all();
+
+        $approvedTemplateIds = $this->normalizeTemplateIds($approvedTemplateIds);
 
         $completedRequired = count($approvedTemplateIds);
 
         // Identify missing templates
-        $missingTemplates = $requiredTemplates
-            ->whereNotIn('id', $approvedTemplateIds)
-            ->map(fn ($template) => [
-                'id' => $template->id,
-                'name' => $template->name,
-                'description' => $template->description,
-            ])
-            ->values()
-            ->toArray();
+        $missingTemplates = [];
+
+        foreach ($requiredTemplates as $template) {
+            $templateId = $this->normalizeTemplateId($template->id);
+
+            if (in_array($templateId, $approvedTemplateIds, true)) {
+                continue;
+            }
+
+            $missingTemplates[] = [
+                'id' => $templateId,
+                'name' => (string) $template->name,
+                'description' => is_string($template->description) ? $template->description : null,
+            ];
+        }
 
         $isCompleted = count($missingTemplates) === 0;
 
@@ -160,5 +173,33 @@ class OnboardingCompletionService
             ->log('Employee completed all required onboarding forms');
 
         return true;
+    }
+
+    /**
+     * @param  iterable<mixed>  $templateIds
+     * @return list<string>
+     */
+    private function normalizeTemplateIds(iterable $templateIds): array
+    {
+        $normalizedTemplateIds = [];
+
+        foreach ($templateIds as $templateId) {
+            $normalizedTemplateIds[] = $this->normalizeTemplateId($templateId);
+        }
+
+        return $normalizedTemplateIds;
+    }
+
+    private function normalizeTemplateId(mixed $templateId): string
+    {
+        if (is_string($templateId) && $templateId !== '') {
+            return $templateId;
+        }
+
+        if (is_int($templateId)) {
+            return (string) $templateId;
+        }
+
+        throw new UnexpectedValueException('Expected onboarding template id to be a non-empty string or integer value.');
     }
 }

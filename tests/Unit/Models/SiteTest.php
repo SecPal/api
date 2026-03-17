@@ -238,6 +238,18 @@ test('full address accessor handles missing fields', function () {
     expect($site->full_address)->toBe($expected);
 });
 
+test('full address accessor ignores non-string address parts', function () {
+    $site = Site::factory()->create([
+        'address' => [
+            'street' => 'Teststr. 123',
+            'postal_code' => 10115,
+            'city' => 'Berlin',
+        ],
+    ]);
+
+    expect($site->full_address)->toBe('Teststr. 123, Berlin');
+});
+
 test('is expired accessor returns true for expired sites', function () {
     $site = Site::factory()->expired()->create();
 
