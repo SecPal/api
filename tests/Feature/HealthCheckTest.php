@@ -19,6 +19,13 @@ describe('Health Check Endpoints', function () {
         cleanupTestKekFile();
         TenantKey::setKekPath(null);
     });
+
+    describe('GET /up', function () {
+        it('returns 404 because the built-in Laravel health route is disabled', function () {
+            $this->get('/up')->assertNotFound();
+        });
+    });
+
     describe('GET /health/live', function () {
         it('returns 200 OK when application is running', function () {
             $response = $this->getJson('/health/live');
@@ -119,11 +126,11 @@ describe('Health Check Endpoints', function () {
     describe('CORS for health endpoints', function () {
         it('returns CORS headers for /health/live with whitelisted origin', function () {
             $response = $this->withHeaders([
-                'Origin' => 'http://localhost:5173',
+                'Origin' => 'https://app.secpal.dev',
             ])->getJson('/health/live');
 
             $response->assertOk();
-            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('https://app.secpal.dev');
             expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
         });
 
@@ -140,34 +147,34 @@ describe('Health Check Endpoints', function () {
             TenantKey::generateKek();
 
             $response = $this->withHeaders([
-                'Origin' => 'http://localhost:5173',
+                'Origin' => 'https://app.secpal.dev',
             ])->getJson('/health/ready');
 
             $response->assertOk();
-            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('https://app.secpal.dev');
             expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
         });
 
         it('handles OPTIONS preflight for /health/ready', function () {
             $response = $this->call('OPTIONS', '/health/ready', [], [], [], [
-                'HTTP_ORIGIN' => 'http://localhost:5173',
+                'HTTP_ORIGIN' => 'https://app.secpal.dev',
                 'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET',
             ]);
 
             $response->assertNoContent();
-            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('https://app.secpal.dev');
             expect($response->headers->get('Access-Control-Allow-Methods'))->toContain('GET');
             expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
         });
 
         it('handles OPTIONS preflight for /health/live', function () {
             $response = $this->call('OPTIONS', '/health/live', [], [], [], [
-                'HTTP_ORIGIN' => 'http://localhost:5173',
+                'HTTP_ORIGIN' => 'https://app.secpal.dev',
                 'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET',
             ]);
 
             $response->assertNoContent();
-            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('https://app.secpal.dev');
             expect($response->headers->get('Access-Control-Allow-Methods'))->toContain('GET');
             expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
         });

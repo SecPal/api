@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Hash;
 uses(RefreshDatabase::class);
 
 describe('httpOnly Cookie Authentication Flow', function () {
+    beforeEach(function () {
+        clearLoginRateLimiter('test@example.com');
+    });
+
     test('login endpoint is accessible and returns token', function () {
         $user = User::factory()->create([
             'email' => 'test@example.com',
@@ -84,8 +88,8 @@ describe('httpOnly Cookie Authentication Flow', function () {
         if (app()->environment('production')) {
             expect($secure)->toBeTrue();
         } else {
-            // In testing, secure can be null, false, or true
-            expect($secure)->toBeIn([null, true, false]);
+            // In testing and CI, session.secure may resolve to null, bool, or an empty string.
+            expect($secure)->toBeIn([null, '', true, false]);
         }
     });
 });
@@ -132,18 +136,26 @@ describe('Cookie Attributes and Security', function () {
 });
 
 describe('Token-Based vs Cookie-Based Authentication', function () {
+    beforeEach(function () {
+        clearLoginRateLimiter('test@example.com');
+    });
+
     test('Bearer token authentication still works for API clients', function () {
+        $email = 'test-'.Illuminate\Support\Str::uuid().'@example.com';
+
         $user = User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => Hash::make('password123'),
         ]);
 
         // Generate token via API
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => 'password123',
             'device_name' => 'mobile-app',
         ]);
+
+        $response->assertCreated();
 
         $token = $response->json('token');
 
@@ -153,7 +165,7 @@ describe('Token-Based vs Cookie-Based Authentication', function () {
 
         $response->assertOk()
             ->assertJson([
-                'email' => 'test@example.com',
+                'email' => $email,
             ]);
     });
 
@@ -240,11 +252,14 @@ describe('Multiple Device Sessions', function () {
 
 describe('SPA Session-Based Login', function () {
     beforeEach(function () {
+        clearLoginRateLimiter('spa@example.com');
+        clearLoginRateLimiter('user@example.com');
+        clearLoginRateLimiter('nonexistent@example.com');
+        clearLoginRateLimiter('test@example.com');
+        clearLoginRateLimiter('session@example.com');
+
         // Set stateful domain header so Sanctum activates session middleware
-        $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ]);
+        $this->withHeaders(spaHeaders());
     });
 
     test('successful login with valid credentials creates session', function () {
@@ -253,11 +268,12 @@ describe('SPA Session-Based Login', function () {
             'password' => Hash::make('securepassword'),
         ]);
 
-        // Get CSRF cookie first (required for stateful requests)
-        $this->get('/sanctum/csrf-cookie');
+        $csrfToken = issueSpaCsrfToken($this);
 
         // Login via SPA endpoint
-        $response = $this->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $csrfToken,
+        ]))->postJson('/v1/auth/login', [
             'email' => 'spa@example.com',
             'password' => 'securepassword',
         ]);
@@ -275,9 +291,11 @@ describe('SPA Session-Based Login', function () {
             'password' => Hash::make('correctpassword'),
         ]);
 
-        $this->get('/sanctum/csrf-cookie');
+        $csrfToken = issueSpaCsrfToken($this);
 
-        $response = $this->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $csrfToken,
+        ]))->postJson('/v1/auth/login', [
             'email' => 'user@example.com',
             'password' => 'wrongpassword',
         ]);
@@ -288,9 +306,11 @@ describe('SPA Session-Based Login', function () {
     });
 
     test('login fails with non-existent user', function () {
-        $this->get('/sanctum/csrf-cookie');
+        $csrfToken = issueSpaCsrfToken($this);
 
-        $response = $this->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $csrfToken,
+        ]))->postJson('/v1/auth/login', [
             'email' => 'nonexistent@example.com',
             'password' => 'anypassword',
         ]);
@@ -301,9 +321,11 @@ describe('SPA Session-Based Login', function () {
     });
 
     test('login validation requires email', function () {
-        $this->get('/sanctum/csrf-cookie');
+        $csrfToken = issueSpaCsrfToken($this);
 
-        $response = $this->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $csrfToken,
+        ]))->postJson('/v1/auth/login', [
             'password' => 'somepassword',
         ]);
 
@@ -312,10 +334,12 @@ describe('SPA Session-Based Login', function () {
     });
 
     test('login validation requires password', function () {
-        $this->get('/sanctum/csrf-cookie');
+        $csrfToken = issueSpaCsrfToken($this);
 
-        $response = $this->postJson('/v1/auth/login', [
-            'email' => 'test@example.com',
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $csrfToken,
+        ]))->postJson('/v1/auth/login', [
+            'email' => 'missing-password-'.Illuminate\Support\Str::uuid().'@example.com',
         ]);
 
         $response->assertUnprocessable()
@@ -323,9 +347,11 @@ describe('SPA Session-Based Login', function () {
     });
 
     test('login validation requires valid email format', function () {
-        $this->get('/sanctum/csrf-cookie');
+        $csrfToken = issueSpaCsrfToken($this);
 
-        $response = $this->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $csrfToken,
+        ]))->postJson('/v1/auth/login', [
             'email' => 'invalid-email',
             'password' => 'somepassword',
         ]);
@@ -340,13 +366,15 @@ describe('SPA Session-Based Login', function () {
             'password' => Hash::make('password123'),
         ]);
 
-        $this->get('/sanctum/csrf-cookie');
+        $csrfToken = issueSpaCsrfToken($this);
 
         // Get initial session ID
         $initialSessionId = session()->getId();
 
         // Login
-        $this->postJson('/v1/auth/login', [
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $csrfToken,
+        ]))->postJson('/v1/auth/login', [
             'email' => 'session@example.com',
             'password' => 'password123',
         ]);
@@ -360,11 +388,11 @@ describe('SPA Session-Based Login', function () {
 
 describe('SPA Session-Based Logout', function () {
     beforeEach(function () {
+        clearLoginRateLimiter('logout@example.com');
+        clearLoginRateLimiter('multiauth@example.com');
+
         // Set stateful domain header so Sanctum activates session middleware
-        $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ]);
+        $this->withHeaders(spaHeaders());
     });
 
     test('session logout invalidates session', function () {
@@ -373,16 +401,20 @@ describe('SPA Session-Based Logout', function () {
             'password' => Hash::make('password123'),
         ]);
 
-        // Login first
-        $this->get('/sanctum/csrf-cookie');
-        $loginResponse = $this->postJson('/v1/auth/login', [
+        $loginCsrfToken = issueSpaCsrfToken($this);
+        $loginResponse = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $loginCsrfToken,
+        ]))->postJson('/v1/auth/login', [
             'email' => 'logout@example.com',
             'password' => 'password123',
         ]);
         $loginResponse->assertOk();
 
         // Logout via session endpoint
-        $response = $this->postJson('/v1/auth/session/logout');
+        $logoutCsrfToken = issueSpaCsrfToken($this);
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $logoutCsrfToken,
+        ]))->postJson('/v1/auth/session/logout');
 
         $response->assertOk()
             ->assertJson([
@@ -391,10 +423,11 @@ describe('SPA Session-Based Logout', function () {
     });
 
     test('session logout requires authentication', function () {
-        // Clear headers to ensure no auth
-        $this->withHeaders([]);
+        $csrfToken = issueSpaCsrfToken($this);
 
-        $response = $this->postJson('/v1/auth/session/logout');
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $csrfToken,
+        ]))->postJson('/v1/auth/session/logout');
 
         $response->assertUnauthorized();
     });
@@ -409,14 +442,19 @@ describe('SPA Session-Based Logout', function () {
         $token = $user->createToken('mobile-device')->plainTextToken;
 
         // Login via SPA session
-        $this->get('/sanctum/csrf-cookie');
-        $this->postJson('/v1/auth/login', [
+        $loginCsrfToken = issueSpaCsrfToken($this);
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $loginCsrfToken,
+        ]))->postJson('/v1/auth/login', [
             'email' => 'multiauth@example.com',
             'password' => 'password123',
         ]);
 
         // Logout from session
-        $this->postJson('/v1/auth/session/logout');
+        $logoutCsrfToken = issueSpaCsrfToken($this);
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $logoutCsrfToken,
+        ]))->postJson('/v1/auth/session/logout');
 
         // Token should still be valid
         expect($user->fresh()->tokens()->count())->toBe(1);

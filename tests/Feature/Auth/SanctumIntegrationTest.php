@@ -18,8 +18,8 @@ describe('Integration: CORS and Security', function () {
 
         // Request from whitelisted origin
         $response = $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
+            'Origin' => 'https://app.secpal.dev',
+            'Referer' => 'https://app.secpal.dev/',
         ])->postJson('/v1/auth/token', [
             'email' => 'test@example.com',
             'password' => 'password123',
@@ -27,18 +27,18 @@ describe('Integration: CORS and Security', function () {
 
         $response->assertCreated();
         expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
-        expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+        expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('https://app.secpal.dev');
     });
 
     test('OPTIONS preflight request succeeds for whitelisted origin', function () {
         $response = $this->call('OPTIONS', '/v1/auth/token', [], [], [], [
-            'HTTP_ORIGIN' => 'http://localhost:5173',
+            'HTTP_ORIGIN' => 'https://app.secpal.dev',
             'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
             'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'Content-Type,X-XSRF-TOKEN',
         ]);
 
         $response->assertNoContent();
-        expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:5173');
+        expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('https://app.secpal.dev');
         expect($response->headers->get('Access-Control-Allow-Methods'))->toContain('POST');
         expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
     });
@@ -51,7 +51,7 @@ describe('Integration: CORS and Security', function () {
 
         // Login
         $response = $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
+            'Origin' => 'https://app.secpal.dev',
         ])->postJson('/v1/auth/token', [
             'email' => $user->email,
             'password' => 'password',

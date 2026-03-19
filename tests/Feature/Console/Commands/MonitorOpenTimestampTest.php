@@ -28,7 +28,16 @@ use Illuminate\Support\Facades\Log;
 uses(RefreshDatabase::class);
 
 test('command runs health check', function () {
-    // The command will call ots:check internally
+    $executor = Mockery::mock(ProcessExecutor::class);
+    $executor->shouldReceive('execute')
+        ->andReturn(['stdout' => 'Python 3.11.2\n0.4.5', 'stderr' => '', 'exitCode' => 0]);
+    $this->app->instance(ProcessExecutor::class, $executor);
+
+    $otsService = Mockery::mock(OpenTimestampService::class);
+    $otsService->shouldReceive('submit')
+        ->andReturn(base64_encode('fake-ots-proof'));
+    $this->app->instance(OpenTimestampService::class, $otsService);
+
     $this->artisan(MonitorOpenTimestamp::class)
         ->expectsOutput('Running OpenTimestamp health check...')
         ->expectsOutput('✓ OpenTimestamp monitoring complete')

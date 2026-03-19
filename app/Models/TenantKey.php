@@ -166,7 +166,7 @@ class TenantKey extends Model
         $path = self::getKekPath();
         $dir = dirname($path);
 
-        if (! is_dir($dir) && ! mkdir($dir, self::KEY_DIRECTORY_PERMISSIONS, true)) {
+        if (! is_dir($dir) && ! mkdir($dir, self::KEY_DIRECTORY_PERMISSIONS, true) && ! is_dir($dir)) {
             throw new \RuntimeException('Failed to create keys directory');
         }
 

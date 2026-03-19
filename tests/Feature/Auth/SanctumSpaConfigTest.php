@@ -39,9 +39,9 @@ describe('Sanctum SPA Authentication Configuration', function () {
     test('session driver is configured for cookie storage', function () {
         $driver = config('session.driver');
 
-        // In testing environment, driver is 'array' for performance
-        // In production/development, it should be 'cookie' for SPA auth
-        expect($driver)->toBeIn(['cookie', 'array']);
+        // In testing, the suite may use database-backed sessions to exercise
+        // real stateful SPA flows. Production may use cookie or database.
+        expect($driver)->toBeIn(['cookie', 'array', 'database']);
     });
 
     test('session cookies are configured as httpOnly', function () {
@@ -58,10 +58,9 @@ describe('Sanctum SPA Authentication Configuration', function () {
 });
 
 describe('CORS Configuration for SPA', function () {
-    test('sanctum stateful domains include frontend development server', function () {
+    test('sanctum stateful domains include the frontend SPA domain', function () {
         $statefulDomains = config('sanctum.stateful');
 
-        expect($statefulDomains)->toContain('localhost:5173')
-            ->and($statefulDomains)->toContain('localhost:3000');
+        expect($statefulDomains)->toContain('app.secpal.dev');
     });
 });

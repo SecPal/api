@@ -50,11 +50,20 @@ class OnboardingCompletionService
         }
 
         // Get all approved submissions for this employee
+        /** @var array<int, string> $approvedSubmissionTemplateIds */
         $approvedSubmissionTemplateIds = OnboardingFormSubmission::where('employee_id', $employee->id)
             ->where('status', 'approved')
             ->whereIn('form_template_id', $requiredTemplateIds)
             ->pluck('form_template_id')
             ->unique()
+            ->map(static function (mixed $id): string {
+                if (! is_string($id) && ! is_int($id)) {
+                    throw new UnexpectedValueException('form_template_id must be int or string, got '.gettype($id));
+                }
+
+                return (string) $id;
+            })
+            ->values()
             ->all();
 
         $approvedSubmissionTemplateIds = $this->normalizeTemplateIds($approvedSubmissionTemplateIds);

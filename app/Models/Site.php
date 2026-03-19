@@ -334,13 +334,14 @@ class Site extends Model
                     return '';
                 }
 
-                $parts = array_filter([
+                /** @var array<int, string> $parts */
+                $parts = array_values(array_filter([
                     $this->address['street'] ?? null,
                     $this->address['postal_code'] ?? null,
                     $this->address['city'] ?? null,
-                ], static fn (mixed $part): bool => is_string($part) && $part !== '');
+                ], static fn (mixed $part): bool => is_string($part) && $part !== ''));
 
-                return implode(', ', array_values($parts));
+                return implode(', ', $parts);
             }
         );
     }

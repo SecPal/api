@@ -102,10 +102,9 @@ describe('Session Restoration Integration', function () {
         ]);
 
         // Step 2: Login via SPA endpoint (sets remember token + session + remember cookie)
-        $loginResponse = $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->postJson('/v1/auth/login', [
+        $loginResponse = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
             'email' => 'remember-flow@example.com',
             'password' => 'password123',
         ]);
@@ -117,10 +116,7 @@ describe('Session Restoration Integration', function () {
         expect($user->remember_token)->not->toBeNull();
 
         // Step 3: Verify we can access protected endpoint
-        $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->getJson('/v1/me')
+        $this->withHeaders(spaHeaders())->getJson('/v1/me')
             ->assertOk()
             ->assertJson(['email' => 'remember-flow@example.com']);
 
@@ -133,10 +129,7 @@ describe('Session Restoration Integration', function () {
         // Step 5: Make another request - middleware should restore session from remember cookie
         // Note: In Laravel's test environment, the remember cookie is maintained
         // and the middleware + SessionGuard will restore the authentication
-        $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->getJson('/v1/me')
+        $this->withHeaders(spaHeaders())->getJson('/v1/me')
             ->assertOk()
             ->assertJson(['email' => 'remember-flow@example.com']);
     });

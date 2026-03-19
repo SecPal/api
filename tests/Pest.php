@@ -73,6 +73,58 @@ function cleanupTestKekFile(): void
     }
 }
 
+function spaOrigin(): string
+{
+    return 'https://app.secpal.dev';
+}
+
+function spaReferer(): string
+{
+    return spaOrigin().'/';
+}
+
+/**
+ * @param  array<string, string>  $headers
+ * @return array<string, string>
+ */
+function spaHeaders(array $headers = []): array
+{
+    return array_merge([
+        'Origin' => spaOrigin(),
+        'Referer' => spaReferer(),
+    ], $headers);
+}
+
+function issueSpaCsrfToken(Tests\TestCase $testCase): string
+{
+    $response = $testCase->withHeaders(spaHeaders())
+        ->get('/sanctum/csrf-cookie');
+
+    $xsrfCookie = collect($response->headers->getCookies())
+        ->first(fn ($cookie) => $cookie->getName() === 'XSRF-TOKEN');
+
+    if ($xsrfCookie === null) {
+        throw new RuntimeException('Unable to issue SPA CSRF cookie for test request.');
+    }
+
+    return urldecode($xsrfCookie->getValue());
+}
+
+/**
+ * @return array<string, string>
+ */
+function spaCsrfHeaders(Tests\TestCase $testCase): array
+{
+    return spaHeaders([
+        'X-XSRF-TOKEN' => issueSpaCsrfToken($testCase),
+    ]);
+}
+
+function clearLoginRateLimiter(string $email, string $ip = '127.0.0.1'): void
+{
+    Illuminate\Support\Facades\RateLimiter::clear($ip.'|'.strtolower($email));
+}
+
 /**
  * Assign permissions to a user with proper tenant context.
  * Sets Spatie Permission team ID, assigns permission, then resets team ID.

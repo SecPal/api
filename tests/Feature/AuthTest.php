@@ -5,10 +5,15 @@
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
 describe('SPA Session Login', function () {
+    beforeEach(function () {
+        clearLoginRateLimiter('spa@example.com');
+    });
+
     test('spa login sets remember token for long-lived sessions', function () {
         $user = User::factory()->create([
             'email' => 'spa@example.com',
@@ -20,10 +25,9 @@ describe('SPA Session Login', function () {
         expect($user->remember_token)->toBeNull();
 
         // Simulate stateful SPA request with Origin header matching SANCTUM_STATEFUL_DOMAINS
-        $response = $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
             'email' => 'spa@example.com',
             'password' => 'password123',
         ]);
@@ -45,10 +49,9 @@ describe('SPA Session Login', function () {
             'password' => bcrypt('password123'),
         ]);
 
-        $response = $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
             'email' => 'spa@example.com',
             'password' => 'password123',
         ]);
@@ -78,10 +81,9 @@ describe('SPA Session Login', function () {
             'password' => bcrypt('correct-password'),
         ]);
 
-        $response = $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
             'email' => 'spa@example.com',
             'password' => 'wrong-password',
         ]);
@@ -97,36 +99,33 @@ describe('SPA Session Login', function () {
         ]);
 
         // Login with stateful headers
-        $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->postJson('/v1/auth/login', [
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
             'email' => 'spa@example.com',
             'password' => 'password123',
         ])->assertOk();
 
         // Verify we can access protected endpoint via session (cookies are preserved in test)
-        $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->getJson('/v1/me')
+        $this->withHeaders(spaHeaders())->getJson('/v1/me')
             ->assertOk()
             ->assertJson(['email' => 'spa@example.com']);
     });
 
     test('spa logout clears remember token', function () {
+        $email = 'spa-logout-'.Str::uuid().'@example.com';
+
         $user = User::factory()->create([
-            'email' => 'spa@example.com',
+            'email' => $email,
             'password' => bcrypt('password123'),
             'remember_token' => null,
         ]);
 
         // Login
-        $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->postJson('/v1/auth/login', [
-            'email' => 'spa@example.com',
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => $email,
             'password' => 'password123',
         ])->assertOk();
 
@@ -135,10 +134,9 @@ describe('SPA Session Login', function () {
         expect($user->remember_token)->not->toBeNull();
 
         // Logout
-        $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->postJson('/v1/auth/session/logout')->assertOk();
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/session/logout')->assertOk();
 
         // Verify remember token is cleared
         $user->refresh();
@@ -147,14 +145,20 @@ describe('SPA Session Login', function () {
 });
 
 describe('Auth Token Generation', function () {
+    beforeEach(function () {
+        clearLoginRateLimiter('test@example.com');
+    });
+
     test('user can generate token with valid credentials', function () {
+        $email = 'token-success-'.Str::uuid().'@example.com';
+
         $user = User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => bcrypt('password123'),
         ]);
 
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => 'password123',
             'device_name' => 'test-device',
         ]);
@@ -165,7 +169,7 @@ describe('Auth Token Generation', function () {
                 'user' => ['id', 'name', 'email'],
             ]);
 
-        expect($response->json('user.email'))->toBe('test@example.com');
+        expect($response->json('user.email'))->toBe($email);
         expect($user->tokens()->count())->toBe(1);
     });
 
@@ -180,13 +184,15 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation fails with invalid password', function () {
+        $email = 'token-invalid-password-'.Str::uuid().'@example.com';
+
         User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => bcrypt('correct-password'),
         ]);
 
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => 'wrong-password',
         ]);
 
@@ -204,8 +210,10 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation requires password', function () {
+        $email = 'token-missing-password-'.Str::uuid().'@example.com';
+
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => $email,
         ]);
 
         $response->assertUnprocessable()
@@ -213,13 +221,15 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation uses default device name when not provided', function () {
+        $email = 'test-'.Str::uuid().'@example.com';
+
         $user = User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => bcrypt('password123'),
         ]);
 
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => 'password123',
         ]);
 
@@ -228,19 +238,21 @@ describe('Auth Token Generation', function () {
     });
 
     test('user can generate multiple tokens for different devices', function () {
+        $email = 'test-'.Str::uuid().'@example.com';
+
         $user = User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => bcrypt('password123'),
         ]);
 
         $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => 'password123',
             'device_name' => 'mobile',
         ])->assertCreated();
 
         $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => 'password123',
             'device_name' => 'desktop',
         ])->assertCreated();
@@ -402,13 +414,15 @@ describe('Token Security', function () {
     });
 
     test('token is stored hashed in database', function () {
+        $email = 'test-'.Str::uuid().'@example.com';
+
         $user = User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => bcrypt('password123'),
         ]);
 
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => $email,
             'password' => 'password123',
         ]);
 
@@ -613,16 +627,20 @@ describe('Unauthenticated Request Handling', function () {
 });
 
 describe('Organizational Scopes Authorization', function () {
+    beforeEach(function () {
+        clearLoginRateLimiter('noscope@example.com');
+        clearLoginRateLimiter('withscope@example.com');
+    });
+
     test('hasOrganizationalScopes is false when user has no scopes', function () {
         $user = User::factory()->create([
             'email' => 'noscope@example.com',
             'password' => bcrypt('password123'),
         ]);
 
-        $response = $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
             'email' => 'noscope@example.com',
             'password' => 'password123',
         ]);
@@ -657,10 +675,9 @@ describe('Organizational Scopes Authorization', function () {
             'allow_self_access' => true,
         ]);
 
-        $response = $this->withHeaders([
-            'Origin' => 'http://localhost:5173',
-            'Referer' => 'http://localhost:5173/',
-        ])->postJson('/v1/auth/login', [
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
             'email' => 'withscope@example.com',
             'password' => 'password123',
         ]);
