@@ -42,7 +42,7 @@ describe('CSRF Protection for State-Changing Requests', function () {
 
         expect($middleware)->toHaveKey('validate_csrf_token')
             ->and($middleware['validate_csrf_token'])->toBe(
-                Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class
+                Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class
             );
     });
 
