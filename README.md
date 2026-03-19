@@ -14,11 +14,11 @@ SPDX-License-Identifier: CC0-1.0
 
 ## About
 
-SecPal API is the backend service for the SecPal platform, built with Laravel 12 and PostgreSQL. It provides a RESTful API for managing security service operations, guard books, and related functionality.
+SecPal API is the backend service for the SecPal platform, built with Laravel 13 and PostgreSQL. It provides a RESTful API for managing security service operations, guard books, and related functionality.
 
 ## Tech Stack
 
-- **Framework:** Laravel 12
+- **Framework:** Laravel 13
 - **Database:** PostgreSQL
 - **Testing:** PEST
 - **Code Style:** Laravel Pint (PSR-12)

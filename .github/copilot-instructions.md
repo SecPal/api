@@ -29,7 +29,7 @@ Before any commit, PR, or merge, announce and verify at least:
 
 ## Repository Stack
 
-- Laravel 12, PHP 8.4, Pest 4, PostgreSQL 16, DDEV.
+- Laravel 13, PHP 8.4, Pest 4, PostgreSQL 16, DDEV.
 - Use `ddev exec php artisan ...` for Artisan and test commands. Do not run `php artisan` directly outside DDEV.
 - Use `vendor/bin/pint --dirty` after PHP changes.
 
