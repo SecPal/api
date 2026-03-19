@@ -39,7 +39,8 @@ SPDX-License-Identifier: CC0-1.0
         <env name="SANCTUM_STATEFUL_DOMAINS" value="app.secpal.dev" force="true"/>
         <!-- database driver is required so Sanctum stateful SPA flows can persist sessions between test requests -->
         <env name="SESSION_DRIVER" value="database" force="true"/>
-        <env name="SESSION_DOMAIN" value="" force="true"/>
+        <!-- null disables the Domain= cookie attribute; empty string would produce an invalid Domain= header -->
+        <env name="SESSION_DOMAIN" value="null" force="true"/>
         <env name="SESSION_SECURE_COOKIE" value="false" force="true"/>
         <env name="PULSE_ENABLED" value="false" force="true"/>
         <env name="TELESCOPE_ENABLED" value="false" force="true"/>

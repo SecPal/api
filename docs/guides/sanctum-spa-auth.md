@@ -135,7 +135,7 @@ CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN
 'driver' => env('SESSION_DRIVER', 'database'), // default: database, use 'cookie' for simpler setups
 'lifetime' => 120,
 'http_only' => true,
-'secure' => env('SESSION_SECURE_COOKIE', true),
+'secure' => env('SESSION_SECURE_COOKIE'),
 'same_site' => 'lax',
 ```
 
