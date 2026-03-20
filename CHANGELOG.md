@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - upgraded the API runtime baseline to Laravel 13-compatible dependency constraints, refreshed direct supporting dependencies, aligned Sanctum's CSRF middleware reference with Laravel 13, and aligned cache configuration with Laravel 13's `serializable_classes` hardening default
-- updated repo-local API documentation and automation metadata so current framework references consistently point to Laravel 13 instead of stale Laravel 12 text
+- updated repo-local API documentation and automation metadata so current framework references consistently point to Laravel 13 instead of stale Laravel 12 text; updated doc links in `docs/rbac-architecture.md`, `docs/MAIL_SYSTEM.md`, and `docs/QUEUE_WORKERS.md` from `12.x` to `13.x`; removed version-specific qualifier from `ActivityLogIntegrationTest` workaround comment
 - `.env.example` — `SANCTUM_STATEFUL_DOMAINS` and `CORS_ALLOWED_ORIGINS` no longer include
   `localhost` or `127.0.0.1` entries. Local development setups that use the Vite
   dev server on `localhost:5173` must add the relevant origins to their local `.env` file.

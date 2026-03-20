@@ -292,6 +292,6 @@ ddev exec php artisan queue:flush
 
 ## Related Documentation
 
-- [Laravel Mail Documentation](https://laravel.com/docs/12.x/mail)
+- [Laravel Mail Documentation](https://laravel.com/docs/13.x/mail)
 - [Mailpit Documentation](https://mailpit.axllent.org/)
 - [Production Test Phase 2](PRODUCTION_TEST_PHASE2_EMAIL.md) - Email feature implementation report

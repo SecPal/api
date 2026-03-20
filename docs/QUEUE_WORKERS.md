@@ -382,7 +382,7 @@ ddev exec vendor/bin/pest tests/Performance/ActivityHashChainConcurrencyTest.php
 
 ## References
 
-- [Laravel Queues Documentation](https://laravel.com/docs/12.x/queues)
+- [Laravel Queues Documentation](https://laravel.com/docs/13.x/queues)
 - [Supervisor Documentation](http://supervisord.org/)
 - [Systemd Service Documentation](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
 - Issue #408: Queue-based activity hash chain building
