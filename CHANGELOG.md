@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `.github/copilot-instructions.md`, `.github/instructions/org-shared.instructions.md`, and `.github/instructions/php-laravel.instructions.md` now describe the API runtime as a native PHP environment for local shells and remote SSH sessions on the VPS instead of requiring DDEV wrappers
+
 ### Removed
 
 - Removed the deleted legacy product module from the API, including its retired
