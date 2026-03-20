@@ -29,8 +29,8 @@ Before any commit, PR, or merge, announce and verify at least:
 
 ## Repository Stack
 
-- Laravel 13, PHP 8.4, Pest 4, PostgreSQL 16, DDEV.
-- Use `ddev exec php artisan ...` for Artisan and test commands. Do not run `php artisan` directly outside DDEV.
+- Laravel 13, PHP 8.4, Pest 4, PostgreSQL 16, running in a native PHP environment locally or on the remote VPS over SSH.
+- Use direct commands such as `php artisan ...`, `php artisan test`, and `composer ...` in the active shell. Do not assume environment-specific wrappers are available.
 - Use `vendor/bin/pint --dirty` after PHP changes.
 
 ## Architecture
