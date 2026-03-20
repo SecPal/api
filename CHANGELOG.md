@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `app/Services/EmployeeDocumentStorageService.php` - encrypted-at-rest storage service for employee document uploads and downloads
 
-- `.github/instructions/php-laravel.instructions.md` - targeted Laravel, Pest, and DDEV guidance for PHP work in this repo
+- `.github/instructions/php-laravel.instructions.md` - targeted Laravel, Pest, and native PHP runtime guidance for PHP work in this repo
 - `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo
 - `.github/instructions/org-shared.instructions.md` — org-wide Copilot principles (TDD, quality gates, PR protocol, GDPR conventions) auto-loaded for all files in this repo via `applyTo: "**"`
 
