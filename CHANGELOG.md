@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- upgraded the API runtime baseline to Laravel 13-compatible dependency constraints, refreshed direct supporting dependencies, aligned Sanctum's CSRF middleware reference with Laravel 13, and aligned cache configuration with Laravel 13's `serializable_classes` hardening default
+- updated repo-local API documentation and automation metadata so current framework references consistently point to Laravel 13 instead of stale Laravel 12 text; updated doc links in `docs/rbac-architecture.md`, `docs/MAIL_SYSTEM.md`, and `docs/QUEUE_WORKERS.md` from `12.x` to `13.x`; removed version-specific qualifier from `ActivityLogIntegrationTest` workaround comment
 - `.env.example` — `SANCTUM_STATEFUL_DOMAINS` and `CORS_ALLOWED_ORIGINS` no longer include
   `localhost` or `127.0.0.1` entries. Local development setups that use the Vite
   dev server on `localhost:5173` must add the relevant origins to their local `.env` file.
@@ -58,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.github/copilot-instructions.md` - replaced comment-based pseudo-inheritance and oversized repo guidance with a self-contained runtime baseline for this repository
 - `.github/instructions/org-shared.instructions.md` - reduced to a short repo-local overlay that reinforces the runtime baseline instead of duplicating org documents
 
-### Changed
+### Historical Migration Notes
 
 - **Test Framework Migration - COMPLETE** (Issues #491, #500, #441)
   - **COMPLETED** All PHPUnit tests converted to Pest syntax (8 of 8 files)

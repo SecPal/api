@@ -1515,7 +1515,7 @@ test('temporal role expires automatically', function () {
 
 - [ADR-004: RBAC Architecture Decision](https://github.com/SecPal/.github/blob/main/docs/adr/20251108-rbac-architecture-decision.md) - Spatie vs Custom evaluation
 - Spatie Laravel-Permission: [Documentation](https://spatie.be/docs/laravel-permission)
-- Laravel Authorization: [Official Docs](https://laravel.com/docs/12.x/authorization)
+- Laravel Authorization: [Official Docs](https://laravel.com/docs/13.x/authorization)
 
 ---
 

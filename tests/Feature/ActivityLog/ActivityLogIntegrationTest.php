@@ -19,7 +19,7 @@ uses(RefreshDatabase::class);
  *
  * Tests Activity model integration with direct model usage.
  * Note: Tests use Activity::create() directly instead of activity() helper
- * to avoid Laravel 12 UUID polymorphic morph binding issues in test environment.
+ * to avoid UUID polymorphic morph binding issues in the test environment.
  */
 beforeEach(function () {
     $this->tenant = TenantKey::factory()->create();
