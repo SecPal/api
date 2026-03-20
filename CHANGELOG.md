@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CRUD endpoints, sharing flows, attachment handling, backing database tables,
   and obsolete migrations in 0.x.
 - Removed the unused built-in Laravel `/up` health route so the API exposes only the documented `/health`, `/health/live`, and `/health/ready` endpoints.
+- Removed the outdated `docs/BINARY_ENCODING_ISSUE.md` WIP debugging note because the current base64-on-VARCHAR binary storage and blind-index implementation already supersedes the old PostgreSQL `BYTEA` investigation.
 
 ### Added
 
