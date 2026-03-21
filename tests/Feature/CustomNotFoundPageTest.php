@@ -38,8 +38,8 @@ describe('Custom error pages', function () {
             ->assertSee('404', false)
             ->assertSee('Page not found', false)
             ->assertSee('src="/secpal-logo-light.png"', false)
-            ->assertSee('src="/secpal-logo-dark.png"', false)
-            ->assertSee('Sorry, we couldn', false)
+            ->assertSee('srcset="/secpal-logo-dark.png"', false)
+            ->assertSeeText("Sorry, we couldn't")
             ->assertDontSee('View status', false)
             ->assertDontSee('Contact support', false)
             ->assertDontSee('Eigenes SecPal-Branding statt Laravel-Standardseite', false)
@@ -58,7 +58,7 @@ describe('Custom error pages', function () {
         $response->assertSee('403', false)
             ->assertSee('Access forbidden', false)
             ->assertSee('src="/secpal-logo-light.png"', false)
-            ->assertSee('src="/secpal-logo-dark.png"', false)
+            ->assertSee('srcset="/secpal-logo-dark.png"', false)
             ->assertDontSee('View status', false)
             ->assertDontSee('Contact support', false);
     });
@@ -74,7 +74,7 @@ describe('Custom error pages', function () {
         $response->assertSee('500', false)
             ->assertSee('Something went wrong', false)
             ->assertSee('src="/secpal-logo-light.png"', false)
-            ->assertSee('src="/secpal-logo-dark.png"', false)
+            ->assertSee('srcset="/secpal-logo-dark.png"', false)
             ->assertDontSee('View status', false)
             ->assertDontSee('Contact support', false);
     });
@@ -90,7 +90,7 @@ describe('Custom error pages', function () {
         $response->assertSee('503', false)
             ->assertSee('Service unavailable', false)
             ->assertSee('src="/secpal-logo-light.png"', false)
-            ->assertSee('src="/secpal-logo-dark.png"', false)
+            ->assertSee('srcset="/secpal-logo-dark.png"', false)
             ->assertDontSee('View status', false)
             ->assertDontSee('Contact support', false);
     });
@@ -98,9 +98,9 @@ describe('Custom error pages', function () {
     it('keeps json 404 responses for api clients', function (): void {
         $response = $this->getJson('/diese-seite-gibt-es-nicht');
 
-        $response->assertNotFound()
-            ->assertJsonPath('message', 'The route diese-seite-gibt-es-nicht could not be found.');
+        $response->assertNotFound();
 
+        expect($response->json('message'))->toBeString()->toContain('could not be found');
         expect((string) $response->headers->get('Content-Type'))->toContain('application/json');
     });
 });

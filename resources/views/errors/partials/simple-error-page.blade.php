@@ -58,20 +58,6 @@
             object-fit: contain;
         }
 
-        .logo-dark {
-            display: none;
-        }
-
-        @media (prefers-color-scheme: dark) {
-            .logo-light {
-                display: none;
-            }
-
-            .logo-dark {
-                display: block;
-            }
-        }
-
         .eyebrow {
             margin: 64px 0 0;
             font-size: 1rem;
@@ -107,8 +93,10 @@
 <body>
     <main class="page">
         <section class="content" aria-labelledby="error-title">
-            <img class="logo logo-light" src="/secpal-logo-light.png" alt="SecPal Logo">
-            <img class="logo logo-dark" src="/secpal-logo-dark.png" alt="SecPal Logo">
+            <picture>
+                <source media="(prefers-color-scheme: dark)" srcset="/secpal-logo-dark.png">
+                <img class="logo" src="/secpal-logo-light.png" alt="SecPal Logo">
+            </picture>
 
             <p class="eyebrow">{{ $status }}</p>
             <h1 id="error-title" class="title">{{ $title }}</h1>
