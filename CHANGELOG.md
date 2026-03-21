@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- render a branded SecPal HTML 404 page for browser requests while preserving JSON 404 responses for API clients
+- add matching custom SecPal error pages for 403, 500, and 503 responses using the same simplified Tailwind-inspired layout as the 404 page
 - normalize onboarding template ID collections and site full-address filtering so the API stays PHPStan-clean after the `phpstan/phpstan` `2.1.41` Dependabot update
 - Removed a stale legacy schema comment from the employee migration so the API source no longer references the deleted module outside historical changelog entries
 - bootstrap PostgreSQL test databases automatically during Pest/PHPUnit startup so local `php artisan test` runs work without relying on DDEV hooks
