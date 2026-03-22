@@ -174,7 +174,7 @@ Example: Regional Manager needs:
 **2. Send API request:**
 
 ```bash
-curl -X POST https://api.secpal.app/v1/roles \
+curl -X POST https://api.secpal.dev/v1/roles \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -193,7 +193,7 @@ curl -X POST https://api.secpal.app/v1/roles \
 **3. Verify creation:**
 
 ```bash
-curl -X GET https://api.secpal.app/v1/roles/6 \
+curl -X GET https://api.secpal.dev/v1/roles/6 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -243,7 +243,7 @@ Most role assignments are **permanent** - they last until manually revoked or th
 #### Example: Assign Manager role
 
 ```bash
-curl -X POST https://api.secpal.app/v1/users/123/roles \
+curl -X POST https://api.secpal.dev/v1/users/123/roles \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -280,7 +280,7 @@ Temporal assignments **expire automatically** after a specified date. Perfect fo
 #### Example: 2-week vacation coverage
 
 ```bash
-curl -X POST https://api.secpal.app/v1/users/456/roles \
+curl -X POST https://api.secpal.dev/v1/users/456/roles \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -329,7 +329,7 @@ See [Temporal Roles Guide](temporal-roles.md) for detailed use cases.
 **Get all roles for a user:**
 
 ```bash
-curl -X GET https://api.secpal.app/v1/users/123/roles \
+curl -X GET https://api.secpal.dev/v1/users/123/roles \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -374,7 +374,7 @@ curl -X GET https://api.secpal.app/v1/users/123/roles \
 #### Method 1: Replace all permissions (recommended)
 
 ```bash
-curl -X PATCH https://api.secpal.app/v1/roles/6 \
+curl -X PATCH https://api.secpal.dev/v1/roles/6 \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -406,7 +406,7 @@ POST /v1/roles/{id}/permissions
 #### Method 1: Update with reduced list (current)
 
 ```bash
-curl -X PATCH https://api.secpal.app/v1/roles/6 \
+curl -X PATCH https://api.secpal.dev/v1/roles/6 \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -431,7 +431,7 @@ DELETE /v1/roles/{id}/permissions/{permission}
 **Get detailed role information including permissions:**
 
 ```bash
-curl -X GET https://api.secpal.app/v1/roles/2 \
+curl -X GET https://api.secpal.dev/v1/roles/2 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -482,7 +482,7 @@ See [Temporal Roles Guide](temporal-roles.md) for comprehensive coverage. Quick 
 **Extend a temporal role assignment:**
 
 ```bash
-curl -X PATCH https://api.secpal.app/v1/users/456/roles/manager/extend \
+curl -X PATCH https://api.secpal.dev/v1/users/456/roles/manager/extend \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -505,7 +505,7 @@ Remove a role assignment from a user (works for both permanent and temporal assi
 **Example:**
 
 ```bash
-curl -X DELETE https://api.secpal.app/v1/users/123/roles/manager \
+curl -X DELETE https://api.secpal.dev/v1/users/123/roles/manager \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -542,7 +542,7 @@ All revocations are logged in `role_assignments_log` table for compliance.
 ### Step 1: Check if Role is Assigned
 
 ```bash
-curl -X GET https://api.secpal.app/v1/roles/6 \
+curl -X GET https://api.secpal.dev/v1/roles/6 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -568,7 +568,7 @@ If `users_count > 0`, you must first revoke all role assignments.
 
 ```bash
 # For each user with this role:
-curl -X DELETE https://api.secpal.app/v1/users/{user_id}/roles/regional_manager \
+curl -X DELETE https://api.secpal.dev/v1/users/{user_id}/roles/regional_manager \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -587,7 +587,7 @@ foreach ($role->users as $user) {
 ### Step 3: Delete the Role
 
 ```bash
-curl -X DELETE https://api.secpal.app/v1/roles/6 \
+curl -X DELETE https://api.secpal.dev/v1/roles/6 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -723,13 +723,13 @@ ddev exec php artisan permission:cache-reset
 
 ```bash
 # 1. Assign manager role
-curl -X POST https://api.secpal.app/v1/users/123/roles \
+curl -X POST https://api.secpal.dev/v1/users/123/roles \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"role": "manager"}'
 
 # 2. Remove old guard role
-curl -X DELETE https://api.secpal.app/v1/users/123/roles/guard \
+curl -X DELETE https://api.secpal.dev/v1/users/123/roles/guard \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -739,7 +739,7 @@ curl -X DELETE https://api.secpal.app/v1/users/123/roles/guard \
 
 ```bash
 # Assign temporary manager role
-curl -X POST https://api.secpal.app/v1/users/456/roles \
+curl -X POST https://api.secpal.dev/v1/users/456/roles \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -763,7 +763,7 @@ curl -X POST https://api.secpal.app/v1/users/456/roles \
 
 ```bash
 # 1. Create role
-curl -X POST https://api.secpal.app/v1/roles \
+curl -X POST https://api.secpal.dev/v1/roles \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -779,7 +779,7 @@ curl -X POST https://api.secpal.app/v1/roles \
   }'
 
 # 2. Assign to users
-curl -X POST https://api.secpal.app/v1/users/789/roles \
+curl -X POST https://api.secpal.dev/v1/users/789/roles \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"role": "shift_coordinator"}'
@@ -797,7 +797,7 @@ curl -X POST https://api.secpal.app/v1/users/789/roles \
 
 ```bash
 # List all roles
-curl -X GET https://api.secpal.app/v1/roles \
+curl -X GET https://api.secpal.dev/v1/roles \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -812,7 +812,7 @@ curl -X GET https://api.secpal.app/v1/roles \
 1. Get users with this role:
 
 ```bash
-curl -X GET https://api.secpal.app/v1/roles/{id} \
+curl -X GET https://api.secpal.dev/v1/roles/{id} \
   -H "Authorization: Bearer YOUR_TOKEN"
 # Check "users_count" field
 ```
@@ -829,7 +829,7 @@ curl -X GET https://api.secpal.app/v1/roles/{id} \
 **Solution:** Only Admin role can manage roles. Check:
 
 ```bash
-curl -X GET https://api.secpal.app/v1/users/me/roles \
+curl -X GET https://api.secpal.dev/v1/users/me/roles \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 

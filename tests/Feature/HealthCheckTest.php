@@ -124,6 +124,16 @@ describe('Health Check Endpoints', function () {
     });
 
     describe('CORS for health endpoints', function () {
+        it('returns CORS headers for /health with whitelisted origin', function () {
+            $response = $this->withHeaders([
+                'Origin' => 'https://app.secpal.dev',
+            ])->getJson('/health');
+
+            $response->assertOk();
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('https://app.secpal.dev');
+            expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
+        });
+
         it('returns CORS headers for /health/live with whitelisted origin', function () {
             $response = $this->withHeaders([
                 'Origin' => 'https://app.secpal.dev',
@@ -169,6 +179,18 @@ describe('Health Check Endpoints', function () {
 
         it('handles OPTIONS preflight for /health/live', function () {
             $response = $this->call('OPTIONS', '/health/live', [], [], [], [
+                'HTTP_ORIGIN' => 'https://app.secpal.dev',
+                'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET',
+            ]);
+
+            $response->assertNoContent();
+            expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('https://app.secpal.dev');
+            expect($response->headers->get('Access-Control-Allow-Methods'))->toContain('GET');
+            expect($response->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
+        });
+
+        it('handles OPTIONS preflight for /health', function () {
+            $response = $this->call('OPTIONS', '/health', [], [], [], [
                 'HTTP_ORIGIN' => 'https://app.secpal.dev',
                 'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'GET',
             ]);

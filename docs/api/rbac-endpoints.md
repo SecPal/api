@@ -14,7 +14,7 @@ SecPal's RBAC API provides four functional areas:
 3. **[Permission Management API](#permission-management-api)** - CRUD operations for permissions (Phase 4 ⏳)
 4. **[Direct Permission API](#direct-permission-api)** - Assign permissions directly to users (Phase 4 ⏳)
 
-**Base URL:** `https://api.secpal.app/v1`
+**Base URL:** `https://api.secpal.dev/v1`
 
 **Authentication:** All endpoints require Bearer token authentication via Laravel Sanctum.
 
@@ -110,7 +110,7 @@ Assign a role to a user. Supports both permanent and temporal assignments.
 **cURL Example:**
 
 ```bash
-curl -X POST https://api.secpal.app/v1/users/123/roles \
+curl -X POST https://api.secpal.dev/v1/users/123/roles \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -124,7 +124,7 @@ curl -X POST https://api.secpal.app/v1/users/123/roles \
 **JavaScript Example:**
 
 ```javascript
-const response = await fetch("https://api.secpal.app/v1/users/123/roles", {
+const response = await fetch("https://api.secpal.dev/v1/users/123/roles", {
   method: "POST",
   headers: {
     Authorization: `Bearer ${token}`,
@@ -191,7 +191,7 @@ Get all roles assigned to a user, including temporal information.
 **cURL Example:**
 
 ```bash
-curl -X GET https://api.secpal.app/v1/users/123/roles \
+curl -X GET https://api.secpal.dev/v1/users/123/roles \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -237,7 +237,7 @@ Remove a role assignment from a user.
 **cURL Example:**
 
 ```bash
-curl -X DELETE https://api.secpal.app/v1/users/123/roles/manager \
+curl -X DELETE https://api.secpal.dev/v1/users/123/roles/manager \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -282,7 +282,7 @@ Extend the expiration date of a temporal role assignment.
 **cURL Example:**
 
 ```bash
-curl -X PATCH https://api.secpal.app/v1/users/123/roles/manager/extend \
+curl -X PATCH https://api.secpal.dev/v1/users/123/roles/manager/extend \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -337,10 +337,10 @@ Get a list of all roles in the system (predefined + custom).
     }
   ],
   "links": {
-    "first": "https://api.secpal.app/v1/roles?page=1",
-    "last": "https://api.secpal.app/v1/roles?page=3",
+    "first": "https://api.secpal.dev/v1/roles?page=1",
+    "last": "https://api.secpal.dev/v1/roles?page=3",
     "prev": null,
-    "next": "https://api.secpal.app/v1/roles?page=2"
+    "next": "https://api.secpal.dev/v1/roles?page=2"
   },
   "meta": {
     "current_page": 1,
@@ -356,7 +356,7 @@ Get a list of all roles in the system (predefined + custom).
 **cURL Example:**
 
 ```bash
-curl -X GET "https://api.secpal.app/v1/roles?page=1&per_page=15&sort=name" \
+curl -X GET "https://api.secpal.dev/v1/roles?page=1&per_page=15&sort=name" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -433,7 +433,7 @@ Create a new custom role with assigned permissions.
 **cURL Example:**
 
 ```bash
-curl -X POST https://api.secpal.app/v1/roles \
+curl -X POST https://api.secpal.dev/v1/roles \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -493,7 +493,7 @@ Get detailed information about a specific role, including assigned permissions.
 **cURL Example:**
 
 ```bash
-curl -X GET https://api.secpal.app/v1/roles/2 \
+curl -X GET https://api.secpal.dev/v1/roles/2 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -539,7 +539,7 @@ Update a role's name, description, and/or permissions.
 **cURL Example:**
 
 ```bash
-curl -X PATCH https://api.secpal.app/v1/roles/6 \
+curl -X PATCH https://api.secpal.dev/v1/roles/6 \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -586,7 +586,7 @@ Delete a custom role. **Cannot delete roles that are assigned to users.**
 **cURL Example:**
 
 ```bash
-curl -X DELETE https://api.secpal.app/v1/roles/6 \
+curl -X DELETE https://api.secpal.dev/v1/roles/6 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -651,7 +651,7 @@ Get all permissions grouped by resource.
 **cURL Example:**
 
 ```bash
-curl -X GET https://api.secpal.app/v1/permissions \
+curl -X GET https://api.secpal.dev/v1/permissions \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -711,7 +711,7 @@ Create a new custom permission.
 **cURL Example:**
 
 ```bash
-curl -X POST https://api.secpal.app/v1/permissions \
+curl -X POST https://api.secpal.dev/v1/permissions \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -762,7 +762,7 @@ Get detailed information about a specific permission.
 **cURL Example:**
 
 ```bash
-curl -X GET https://api.secpal.app/v1/permissions/5 \
+curl -X GET https://api.secpal.dev/v1/permissions/5 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -804,7 +804,7 @@ Update a permission's description. **Note:** Permission names are immutable for 
 **cURL Example:**
 
 ```bash
-curl -X PATCH https://api.secpal.app/v1/permissions/5 \
+curl -X PATCH https://api.secpal.dev/v1/permissions/5 \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -852,7 +852,7 @@ Delete a custom permission. **Cannot delete if assigned to any role or user.**
 **cURL Example:**
 
 ```bash
-curl -X DELETE https://api.secpal.app/v1/permissions/43 \
+curl -X DELETE https://api.secpal.dev/v1/permissions/43 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -922,7 +922,7 @@ Get all permissions for a user, showing role-based, direct, and combined permiss
 **cURL Example:**
 
 ```bash
-curl -X GET https://api.secpal.app/v1/users/123/permissions \
+curl -X GET https://api.secpal.dev/v1/users/123/permissions \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -992,7 +992,7 @@ Assign one or more permissions directly to a user, bypassing roles.
 **cURL Example:**
 
 ```bash
-curl -X POST https://api.secpal.app/v1/users/123/permissions \
+curl -X POST https://api.secpal.dev/v1/users/123/permissions \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1033,7 +1033,7 @@ Remove a direct permission from a user. **Does not affect role-based permissions
 **cURL Example:**
 
 ```bash
-curl -X DELETE https://api.secpal.app/v1/users/123/permissions/employees.export \
+curl -X DELETE https://api.secpal.dev/v1/users/123/permissions/employees.export \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -1084,7 +1084,7 @@ Get only the permissions assigned directly to a user (excludes role-based permis
 **cURL Example:**
 
 ```bash
-curl -X GET https://api.secpal.app/v1/users/123/permissions/direct \
+curl -X GET https://api.secpal.dev/v1/users/123/permissions/direct \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -1193,10 +1193,10 @@ List endpoints support pagination:
 {
   "data": [...],
   "links": {
-    "first": "https://api.secpal.app/v1/roles?page=1",
-    "last": "https://api.secpal.app/v1/roles?page=5",
+    "first": "https://api.secpal.dev/v1/roles?page=1",
+    "last": "https://api.secpal.dev/v1/roles?page=5",
     "prev": null,
-    "next": "https://api.secpal.app/v1/roles?page=2"
+    "next": "https://api.secpal.dev/v1/roles?page=2"
   },
   "meta": {
     "current_page": 1,

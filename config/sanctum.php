@@ -3,8 +3,6 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use Laravel\Sanctum\Sanctum;
-
 return [
 
     /*
@@ -18,10 +16,7 @@ return [
     |
     */
 
-    'stateful' => explode(',', (string) env(
-        'SANCTUM_STATEFUL_DOMAINS',
-        'app.secpal.dev,app.secpal.app'
-    )),
+    'stateful' => explode(',', (string) env('SANCTUM_STATEFUL_DOMAINS', 'app.secpal.dev')),
 
     /*
     |--------------------------------------------------------------------------

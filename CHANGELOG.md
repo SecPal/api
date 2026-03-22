@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- cover the base `/health` endpoint with Laravel CORS handling so it returns the same CORS and preflight headers as `/health/live` and `/health/ready`, and remove the mistaken `app.secpal.app` SPA defaults from the API config examples
+- align the API authentication and deployment guides with the active `app.secpal.dev` SPA domain and `api.secpal.dev` API host by removing stale `.app` frontend and API example domains
 - render a branded SecPal HTML 404 page for browser requests while preserving JSON 404 responses for API clients
 - add matching custom SecPal error pages for 403, 500, and 503 responses using the same simplified Tailwind-inspired layout as the 404 page
 - normalize onboarding template ID collections and site full-address filtering so the API stays PHPStan-clean after the `phpstan/phpstan` `2.1.41` Dependabot update

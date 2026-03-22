@@ -433,7 +433,7 @@ After provisioning, verify tenant isolation:
 
 ```bash
 # Login as admin
-curl -X POST https://api.secpal.app/v1/auth/login \
+curl -X POST https://api.secpal.dev/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@customercorp.com",
@@ -458,7 +458,7 @@ curl -X POST https://api.secpal.app/v1/auth/login \
 TOKEN="1|XYZ..."
 
 # List organizational units (should only see tenant's data)
-curl -X GET https://api.secpal.app/v1/organizational-units \
+curl -X GET https://api.secpal.dev/v1/organizational-units \
   -H "Authorization: Bearer $TOKEN"
 
 # Response should only include tenant's organizational units
@@ -473,7 +473,7 @@ curl -X GET https://api.secpal.app/v1/organizational-units \
 
 ```bash
 # Admin should have all permissions
-curl -X GET https://api.secpal.app/v1/users/me \
+curl -X GET https://api.secpal.dev/v1/users/me \
   -H "Authorization: Bearer $TOKEN"
 
 # Response includes roles

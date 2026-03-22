@@ -63,4 +63,12 @@ describe('CORS Configuration for SPA', function () {
 
         expect($statefulDomains)->toContain('app.secpal.dev');
     });
+
+    test('cors config includes the base health endpoint path', function () {
+        $corsPaths = config('cors.paths');
+
+        expect($corsPaths)
+            ->toContain('health')
+            ->toContain('health/*');
+    });
 });

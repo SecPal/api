@@ -17,7 +17,7 @@ This guide covers deploying SecPal API to production with Sanctum authentication
 - [ ] **HTTPS/TLS enabled** on production domain
   - Valid SSL certificate (Let's Encrypt, purchased cert)
   - HTTP automatically redirects to HTTPS
-  - Test with: `curl -I https://api.secpal.app`
+  - Test with: `curl -I https://api.secpal.dev`
 
 - [ ] **Environment Variables Secured**
   - `APP_KEY` generated: `php artisan key:generate`
@@ -42,15 +42,15 @@ This guide covers deploying SecPal API to production with Sanctum authentication
 - [ ] **CORS Configuration**
 
   ```env
-  CORS_ALLOWED_ORIGINS=https://app.secpal.app  # Explicit origins, NO wildcards with credentials
+  CORS_ALLOWED_ORIGINS=https://app.secpal.dev  # Explicit origins, NO wildcards with credentials
   CORS_SUPPORTS_CREDENTIALS=true
   ```
 
 - [ ] **Sanctum Stateful Domains**
 
   ```env
-  SANCTUM_STATEFUL_DOMAINS=app.secpal.app,admin.secpal.app
-  SESSION_DOMAIN=.secpal.app  # For subdomain cookie sharing
+  SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
+  SESSION_DOMAIN=.secpal.dev  # For subdomain cookie sharing
   ```
 
 ### Application
@@ -110,7 +110,7 @@ This guide covers deploying SecPal API to production with Sanctum authentication
   ```
 
 - [ ] **Health Check Endpoint**
-  - Test: `curl https://api.secpal.app/health`
+  - Test: `curl https://api.secpal.dev/health`
   - Should return 200 OK
 
 ## Nginx Configuration
@@ -120,11 +120,11 @@ This guide covers deploying SecPal API to production with Sanctum authentication
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name api.secpal.app;
+    server_name api.secpal.dev;
 
     # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/api.secpal.app/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.secpal.app/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/api.secpal.dev/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.secpal.dev/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
@@ -145,7 +145,7 @@ server {
 
     # CORS Headers (already handled by Laravel, but can add here)
     # Only add if NOT using Laravel's HandleCors middleware
-    # add_header 'Access-Control-Allow-Origin' 'https://app.secpal.app' always;
+    # add_header 'Access-Control-Allow-Origin' 'https://app.secpal.dev' always;
     # add_header 'Access-Control-Allow-Credentials' 'true' always;
     # add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
     # add_header 'Access-Control-Allow-Headers' 'Content-Type,Authorization,X-XSRF-TOKEN' always;
@@ -182,7 +182,7 @@ server {
 # HTTP to HTTPS Redirect
 server {
     listen 80;
-    server_name api.secpal.app;
+    server_name api.secpal.dev;
     return 301 https://$host$request_uri;
 }
 ```
@@ -246,13 +246,13 @@ http {
 
 ```apache
 <VirtualHost *:443>
-    ServerName api.secpal.app
+    ServerName api.secpal.dev
     DocumentRoot /var/www/secpal-api/public
 
     # SSL Configuration
     SSLEngine on
-    SSLCertificateFile /etc/letsencrypt/live/api.secpal.app/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/api.secpal.app/privkey.pem
+    SSLCertificateFile /etc/letsencrypt/live/api.secpal.dev/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/api.secpal.dev/privkey.pem
     SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
     SSLCipherSuite HIGH:!aNULL:!MD5
 
@@ -269,8 +269,8 @@ http {
 
 # HTTP to HTTPS Redirect
 <VirtualHost *:80>
-    ServerName api.secpal.app
-    Redirect permanent / https://api.secpal.app/
+    ServerName api.secpal.dev
+    Redirect permanent / https://api.secpal.dev/
 </VirtualHost>
 ```
 
@@ -285,7 +285,7 @@ APP_ENV=production
 APP_KEY=base64:GENERATED_KEY_HERE
 APP_DEBUG=false
 APP_TIMEZONE=UTC
-APP_URL=https://api.secpal.app
+APP_URL=https://api.secpal.dev
 APP_LOCALE=en
 APP_FALLBACK_LOCALE=en
 APP_FAKER_LOCALE=en_US
@@ -305,7 +305,7 @@ SESSION_LIFETIME=120
 SESSION_ENCRYPT=false
 SESSION_COOKIE=secpal-session
 SESSION_PATH=/
-SESSION_DOMAIN=.secpal.app
+SESSION_DOMAIN=.secpal.dev
 SESSION_SECURE_COOKIE=true
 SESSION_HTTP_ONLY=true
 SESSION_SAME_SITE=lax
@@ -319,10 +319,10 @@ REDIS_PORT=6379
 QUEUE_CONNECTION=redis
 
 # Sanctum
-SANCTUM_STATEFUL_DOMAINS=app.secpal.app,admin.secpal.app
+SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
 
 # CORS
-CORS_ALLOWED_ORIGINS=https://app.secpal.app,https://admin.secpal.app
+CORS_ALLOWED_ORIGINS=https://app.secpal.dev
 CORS_SUPPORTS_CREDENTIALS=true
 CORS_ALLOWED_METHODS=GET,POST,PUT,PATCH,DELETE,OPTIONS
 CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN
@@ -349,7 +349,7 @@ LOG_LEVEL=warning
 
 ```env
 # frontend/.env.production
-VITE_API_URL=https://api.secpal.app
+VITE_API_URL=https://api.secpal.dev
 ```
 
 **Authentication Flow:**
@@ -384,7 +384,7 @@ await fetch(`${apiUrl}/v1/me`, {
 
 ```kotlin
 // Android (Kotlin)
-val apiUrl = "https://api.secpal.app"
+val apiUrl = "https://api.secpal.dev"
 
 // 1. Login
 val response = httpClient.post("$apiUrl/v1/auth/token") {
@@ -425,7 +425,7 @@ Monitor with:
 
 ```bash
 # Uptime monitoring
-curl https://api.secpal.app/health
+curl https://api.secpal.dev/health
 
 # Expected response:
 # {"status":"healthy","timestamp":"2025-11-25T20:00:00+00:00","database":"connected"}
@@ -491,10 +491,10 @@ php artisan config:show cors
 grep SANCTUM_STATEFUL_DOMAINS .env
 
 # 3. Test CORS headers
-curl -I -H "Origin: https://app.secpal.app" https://api.secpal.app/v1/me
+curl -I -H "Origin: https://app.secpal.dev" https://api.secpal.dev/v1/me
 
 # Should see:
-# Access-Control-Allow-Origin: https://app.secpal.app
+# Access-Control-Allow-Origin: https://app.secpal.dev
 # Access-Control-Allow-Credentials: true
 ```
 
@@ -509,8 +509,8 @@ curl -I -H "Origin: https://app.secpal.app" https://api.secpal.app/v1/me
 php artisan config:show session
 
 # 2. Verify SESSION_DOMAIN
-# For app.secpal.app accessing api.secpal.app:
-SESSION_DOMAIN=.secpal.app  # Note the leading dot!
+# For app.secpal.dev accessing api.secpal.dev:
+SESSION_DOMAIN=.secpal.dev  # Note the leading dot!
 
 # 3. Ensure HTTPS in production
 SESSION_SECURE_COOKIE=true
