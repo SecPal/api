@@ -8,8 +8,11 @@ namespace App\Models\Concerns;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 /**
  * Fail closed on route-bound tenant-owned models.
@@ -56,7 +59,26 @@ trait EnforcesTenantRouteBinding
     {
         $field ??= $this->getRouteKeyName();
 
+        if ($this->usesUuidRouteBinding($field) && ! Str::isUuid($value)) {
+            $invalidRouteKey = match (true) {
+                is_int($value), is_string($value) => $value,
+                is_float($value), is_bool($value), $value === null => var_export($value, true),
+                default => get_debug_type($value),
+            };
+
+            throw (new ModelNotFoundException)->setModel(static::class, $invalidRouteKey);
+        }
+
         return $query->where($field, $value);
+    }
+
+    /**
+     * Determine whether the current route binding key is UUID-backed.
+     */
+    protected function usesUuidRouteBinding(string $field): bool
+    {
+        return in_array(HasUuids::class, class_uses_recursive($this), true)
+            && in_array($field, $this->uniqueIds(), true);
     }
 
     /**

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -183,6 +183,31 @@ describe('GET /v1/sites', function () {
         expect($response->json('data')[0]['customer_id'])->toBe($this->customer->id);
     });
 
+    test('returns 422 for invalid customer_id filter format', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/sites?customer_id=1');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['customer_id']);
+    });
+
+    test('returns 422 for foreign-tenant customer_id filter', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignCustomer = Customer::factory()->create([
+            'tenant_id' => $otherTenant->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/sites?customer_id={$foreignCustomer->id}");
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['customer_id']);
+    });
+
     test('filters sites by organizational_unit_id', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
@@ -208,6 +233,31 @@ describe('GET /v1/sites', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['organizational_unit_id'])->toBe($this->orgUnit->id);
+    });
+
+    test('returns 422 for invalid organizational_unit_id filter format', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/sites?organizational_unit_id=1');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['organizational_unit_id']);
+    });
+
+    test('returns 422 for foreign-tenant organizational_unit_id filter', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $otherTenant->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/sites?organizational_unit_id={$foreignUnit->id}");
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['organizational_unit_id']);
     });
 
     test('searches sites by name', function (): void {
@@ -735,6 +785,17 @@ describe('GET /v1/sites/{site}', function () {
         $response = $this->withToken($this->token)->getJson("/v1/sites/{$fakeId}");
 
         $response->assertStatus(404);
+    });
+
+    test('returns 404 for invalid site id format', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $response = $this->withToken($this->token)->getJson('/v1/sites/1');
+
+        $response->assertNotFound()
+            ->assertExactJson([
+                'message' => 'Resource not found.',
+            ]);
     });
 });
 

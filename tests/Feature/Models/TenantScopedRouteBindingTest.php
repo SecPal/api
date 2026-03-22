@@ -12,6 +12,7 @@ use App\Models\OnboardingFormTemplate;
 use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 use function Pest\Laravel\actingAs;
@@ -83,6 +84,31 @@ test('customer route binding resolves only within the authenticated tenant', fun
 
     expect($resolvedSameTenantCustomer?->id)->toBe($sameTenantCustomer->id)
         ->and($resolvedOtherTenantCustomer)->toBeNull();
+});
+
+test('tenant route binding rejects invalid UUID values before querying UUID primary keys', function (): void {
+    createTenantRouteBindingContext();
+
+    expect(fn () => (new Customer)->resolveRouteBindingQuery(Customer::query(), '1'))
+        ->toThrow(ModelNotFoundException::class)
+        ->and(fn () => (new Employee)->resolveRouteBindingQuery(Employee::query(), '1'))
+        ->toThrow(ModelNotFoundException::class);
+});
+
+test('tenant route binding formats bool and null invalid route keys via var_export', function (): void {
+    createTenantRouteBindingContext();
+
+    expect(fn () => (new Customer)->resolveRouteBindingQuery(Customer::query(), true))
+        ->toThrow(ModelNotFoundException::class)
+        ->and(fn () => (new Customer)->resolveRouteBindingQuery(Customer::query(), null))
+        ->toThrow(ModelNotFoundException::class);
+});
+
+test('tenant route binding formats non-scalar invalid route keys via get_debug_type', function (): void {
+    createTenantRouteBindingContext();
+
+    expect(fn () => (new Customer)->resolveRouteBindingQuery(Customer::query(), []))
+        ->toThrow(ModelNotFoundException::class);
 });
 
 test('qualification route binding includes global records and rejects other tenant records', function (): void {

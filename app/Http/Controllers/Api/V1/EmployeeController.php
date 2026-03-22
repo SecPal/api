@@ -1,17 +1,17 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexEmployeeRequest;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -24,14 +24,14 @@ class EmployeeController extends Controller
     /**
      * Display a listing of employees.
      *
-     * GET /api/v1/employees
+     * GET /v1/employees
      *
      * Supports filtering by:
      * - status (pre_contract, active, on_leave, terminated)
      * - organizational_unit_id
      * - search (name, email, employee_number)
      */
-    public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
+    public function index(IndexEmployeeRequest $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
     {
         $this->authorize('viewAny', Employee::class);
 

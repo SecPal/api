@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -126,6 +126,31 @@ describe('GET /v1/employees', function () {
 
         $response->assertStatus(200);
         expect($response->json('data'))->toHaveCount(1);
+    });
+
+    test('returns 422 for invalid organizational_unit_id filter format', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees?organizational_unit_id=1');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['organizational_unit_id']);
+    });
+
+    test('returns 422 for foreign-tenant organizational_unit_id filter', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $otherTenant->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees?organizational_unit_id={$foreignUnit->id}");
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['organizational_unit_id']);
     });
 
     test('manager with organizational scope cannot list employees outside scope', function (): void {
@@ -417,6 +442,18 @@ describe('GET /v1/employees/{employee}', function () {
                     'position' => 'Test Position',
                     'management_level' => 3,
                 ],
+            ]);
+    });
+
+    test('returns 404 for invalid employee id format', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees/1');
+
+        $response->assertNotFound()
+            ->assertExactJson([
+                'message' => 'Resource not found.',
             ]);
     });
 });

@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2025 SecPal -->
+<!-- SPDX-FileCopyrightText: 2025-2026 SecPal -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # RBAC API Endpoints Reference
@@ -1117,6 +1117,8 @@ User lacks required permission for the action.
 ### 404 Not Found
 
 Requested resource does not exist.
+
+For API resource lookups, SecPal returns a stable not-found payload without Laravel model names or other framework-internal details.
 
 ```json
 {

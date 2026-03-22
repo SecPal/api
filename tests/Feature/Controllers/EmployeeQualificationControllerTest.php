@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -351,6 +351,16 @@ describe('GET /v1/employee-qualifications/{employeeQualification}', function () 
                     'qualification',
                 ],
             ]);
+    });
+
+    test('returns 404 for invalid employee qualification id format', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employee-qualifications/1');
+
+        $response->assertNotFound()
+            ->assertJson(['message' => 'Resource not found.']);
     });
 });
 

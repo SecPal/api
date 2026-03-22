@@ -1,11 +1,12 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\IndexSiteRequest;
 use App\Http\Requests\Api\V1\StoreSiteRequest;
 use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
@@ -31,7 +32,7 @@ class SiteController extends Controller
     /**
      * Display a listing of sites.
      *
-     * GET /api/v1/sites
+     * GET /v1/sites
      *
      * Returns paginated list of accessible sites based on:
      * - Direct site assignments (currently active)
@@ -47,7 +48,7 @@ class SiteController extends Controller
      *
      * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection Paginated site list with metadata
      */
-    public function index(Request $request)
+    public function index(IndexSiteRequest $request)
     {
         $this->authorize('viewAny', Site::class);
 

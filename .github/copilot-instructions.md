@@ -16,6 +16,7 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 - Keep GitHub-facing communication in English.
 - Domain policy is strict: use only `secpal.app` and `secpal.dev`.
 - Prefer small, root-cause fixes that match existing conventions. Do not introduce unrelated refactors.
+- When editing a file that already has an `SPDX-FileCopyrightText` year from an earlier year, extend it to a year range ending in the current year (for example `2025-2026`) instead of leaving the header stale.
 
 ## Required Checklist
 

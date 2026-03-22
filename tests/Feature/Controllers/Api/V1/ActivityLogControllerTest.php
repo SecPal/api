@@ -476,6 +476,18 @@ describe('GET /v1/activity-logs/{activity}', function () {
         $response->assertNotFound();
     });
 
+    test('returns 404 for a non-existent activity', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $response = getJson('/v1/activity-logs/1');
+
+        $response->assertNotFound()
+            ->assertJson(['message' => 'Resource not found.']);
+    });
+
     test('returns global activity when user has permission', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
@@ -666,5 +678,17 @@ describe('GET /v1/activity-logs/{activity}/verify', function () {
         $response = getJson("/v1/activity-logs/{$activity->id}/verify");
 
         $response->assertNotFound();
+    });
+
+    test('returns 404 for verification of a non-existent activity', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $response = getJson('/v1/activity-logs/1/verify');
+
+        $response->assertNotFound()
+            ->assertJson(['message' => 'Resource not found.']);
     });
 });

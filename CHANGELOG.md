@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `.github/copilot-instructions.md`, `.github/instructions/org-shared.instructions.md`, and `.github/instructions/php-laravel.instructions.md` now describe the API runtime as a native PHP environment for local shells and remote SSH sessions on the VPS instead of requiring DDEV wrappers
+- `.github/copilot-instructions.md` now defines SPDX header maintenance explicitly: edited files with older copyright years should be updated to a year range ending in the current year
 
 ### Removed
 
@@ -34,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- return a stable JSON `404` payload for API `ModelNotFoundException` responses so missing resources no longer expose Laravel model class names or framework-internal not-found text
+- preserve Laravel's UUID-aware implicit route model binding for tenant-scoped resources so invalid detail IDs return a controlled `404 Not Found` instead of bubbling PostgreSQL UUID syntax errors into `500` responses on employee, customer, site, and organizational-unit endpoints
+- validate UUID filter parameters on employee and site index endpoints and extend regression coverage across qualification, employee-qualification, and cost-center UUID detail routes plus activity-log not-found handling so invalid or unknown identifiers now fail with controlled `422` or `404` responses instead of database-level errors
+- move employee and site list-filter validation into dedicated Form Request classes and reject foreign-tenant UUID filter values with controlled `422` validation responses
 - cover the base `/health` endpoint with Laravel CORS handling so it returns the same CORS and preflight headers as `/health/live` and `/health/ready`, and remove the mistaken `app.secpal.app` SPA defaults from the API config examples
 - align the API authentication and deployment guides with the active `app.secpal.dev` SPA domain and `api.secpal.dev` API host by removing stale `.app` frontend and API example domains
 - render a branded SecPal HTML 404 page for browser requests while preserving JSON 404 responses for API clients
@@ -46,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - install `opentimestamps-client` in the DDEV web image so OpenTimestamp-backed Laravel tests and local stamping commands do not fail with missing Python module errors
 - reject cross-tenant target users on role-assignment and direct-permission administration endpoints with fail-closed 404 responses and matching policy checks
 - constrain route model binding for tenant-owned admin models to the authenticated tenant so cross-tenant resource identifiers fail closed before controller logic
+- extend `EnforcesTenantRouteBinding` test coverage to include bool, null, and non-scalar invalid route key values so all three `match` arms in the UUID-rejection path are exercised
+- scope the `AuthenticationException` JSON renderer to API and JSON requests so non-API browser requests can fall back to standard HTML error handling instead of always receiving a JSON 401
+- update `index` action docblocks in `EmployeeController` and `SiteController` to reflect the actual `/v1/*` route paths rather than the stale `/api/v1/*` prefix
+- assert the stable `{ "message": "Resource not found." }` JSON payload in the `QualificationController`, `EmployeeQualificationController`, `CostCenterController`, and `ActivityLogController` not-found regression tests so the 404 contract is fully enforced across all affected endpoints
 - scope nested route bindings for cost centers and employee documents so child resources fail closed when resolved through the wrong parent path
 - validate assignment target users and employee qualification references against the active tenant so foreign-tenant IDs fail with 422 while global system qualifications remain attachable
 - preserve access to global system qualifications and onboarding templates while still fail-closing tenant-foreign bindings, including employee-linked submissions and qualification records

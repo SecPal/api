@@ -176,7 +176,10 @@ test('admin gets 404 when assigning permission to cross-tenant user', function (
         'permissions' => ['employees.export'],
     ]);
 
-    $response->assertNotFound();
+    $response->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
 });
 
 test('admin can assign direct permission with temporal constraints', function () {
