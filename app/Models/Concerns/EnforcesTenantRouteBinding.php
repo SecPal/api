@@ -23,8 +23,11 @@ use Illuminate\Support\Str;
  *
  * This concern is the architectural guarantee for single-record route-bound
  * controller actions: once a model uses this trait, controllers can treat the
- * bound instance as already tenant-filtered and should not duplicate that same
- * tenant-ownership check for the resolved model.
+ * bound instance as tenant-isolated (current tenant or an explicitly allowed
+ * global record) and should not duplicate that same tenant-ownership check.
+ * Models that opt in to global records via routeBindingAllowsGlobalRecords()
+ * may resolve a record with a null tenant column; controllers should be aware
+ * of that exception but still need not repeat the isolation check themselves.
  */
 trait EnforcesTenantRouteBinding
 {
