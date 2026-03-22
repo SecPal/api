@@ -1,13 +1,14 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace App\Models;
 
+use App\Models\Concerns\EnforcesTenantRouteBinding;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -37,7 +38,7 @@ use Illuminate\Database\Eloquent\Model;
 class Person extends Model
 {
     /** @use HasFactory<\Database\Factories\PersonFactory> */
-    use HasFactory;
+    use EnforcesTenantRouteBinding, HasFactory;
 
     /**
      * The table associated with the model.

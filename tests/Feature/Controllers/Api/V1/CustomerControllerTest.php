@@ -431,6 +431,19 @@ describe('GET /v1/customers/{customer}', function () {
         expect($response->json('data'))->not->toHaveKey('notes');
     });
 
+    test('returns 404 when user tries to access customer from different tenant', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $customer = Customer::factory()->create([
+            'tenant_id' => $otherTenant->id,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}");
+
+        $response->assertNotFound();
+    });
+
     test('returns 404 for non-existent customer', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
 

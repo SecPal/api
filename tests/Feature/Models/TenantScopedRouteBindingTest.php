@@ -10,7 +10,9 @@ use App\Models\EmployeeQualification;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OrganizationalUnit;
+use App\Models\Person;
 use App\Models\Qualification;
+use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -123,6 +125,51 @@ test('organizational unit route binding resolves only within the authenticated t
 
     expect($resolvedSameTenantUnit?->id)->toBe($sameTenantUnit->id)
         ->and($resolvedOtherTenantUnit)->toBeNull();
+});
+
+test('site route binding resolves only within the authenticated tenant', function (): void {
+    ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
+
+    $sameTenantCustomer = Customer::factory()->forTenant($tenant->id)->create();
+    $otherTenantCustomer = Customer::factory()->forTenant($otherTenant->id)->create();
+
+    $sameTenantSite = Site::factory()->create([
+        'tenant_id' => $tenant->id,
+        'customer_id' => $sameTenantCustomer->id,
+    ]);
+    $otherTenantUnit = OrganizationalUnit::factory()->forTenant($otherTenant->id)->create();
+    $otherTenantSite = Site::factory()->create([
+        'tenant_id' => $otherTenant->id,
+        'customer_id' => $otherTenantCustomer->id,
+        'organizational_unit_id' => $otherTenantUnit->id,
+    ]);
+
+    /** @var Site|null $resolvedSameTenantSite */
+    $resolvedSameTenantSite = (new Site)->resolveRouteBindingQuery(Site::query(), $sameTenantSite->id)->first();
+    /** @var Site|null $resolvedOtherTenantSite */
+    $resolvedOtherTenantSite = (new Site)->resolveRouteBindingQuery(Site::query(), $otherTenantSite->id)->first();
+
+    expect($resolvedSameTenantSite?->id)->toBe($sameTenantSite->id)
+        ->and($resolvedOtherTenantSite)->toBeNull();
+});
+
+test('person route binding resolves only within the authenticated tenant', function (): void {
+    ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
+
+    $sameTenantPerson = Person::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $otherTenantPerson = Person::factory()->create([
+        'tenant_id' => $otherTenant->id,
+    ]);
+
+    /** @var Person|null $resolvedSameTenantPerson */
+    $resolvedSameTenantPerson = (new Person)->resolveRouteBindingQuery(Person::query(), $sameTenantPerson->id)->first();
+    /** @var Person|null $resolvedOtherTenantPerson */
+    $resolvedOtherTenantPerson = (new Person)->resolveRouteBindingQuery(Person::query(), $otherTenantPerson->id)->first();
+
+    expect($resolvedSameTenantPerson?->id)->toBe($sameTenantPerson->id)
+        ->and($resolvedOtherTenantPerson)->toBeNull();
 });
 
 test('tenant route binding rejects invalid UUID values before querying UUID primary keys', function (): void {
