@@ -792,7 +792,10 @@ describe('GET /v1/sites/{site}', function () {
 
         $response = $this->withToken($this->token)->getJson('/v1/sites/1');
 
-        $response->assertNotFound();
+        $response->assertNotFound()
+            ->assertExactJson([
+                'message' => 'Resource not found.',
+            ]);
     });
 });
 

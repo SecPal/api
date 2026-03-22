@@ -515,7 +515,10 @@ describe('OrganizationalUnitController - Show', function () {
         $response = getJson('/v1/organizational-units/1');
 
         // Assert
-        $response->assertNotFound();
+        $response->assertNotFound()
+            ->assertExactJson([
+                'message' => 'Resource not found.',
+            ]);
     });
 });
 

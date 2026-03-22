@@ -451,7 +451,10 @@ describe('GET /v1/employees/{employee}', function () {
         $response = $this->withToken($this->token)
             ->getJson('/v1/employees/1');
 
-        $response->assertNotFound();
+        $response->assertNotFound()
+            ->assertExactJson([
+                'message' => 'Resource not found.',
+            ]);
     });
 });
 

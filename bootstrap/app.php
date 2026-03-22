@@ -1,13 +1,15 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -55,9 +57,41 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $shouldRenderApiJson = static function (Request $request): bool {
+            return $request->is('v1/*') || $request->expectsJson();
+        };
+
         // Return JSON 401 response for unauthenticated API requests
         // Prevents "Route [login] not defined" error since this is a pure API without web routes
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
+        });
+
+        $exceptions->render(function (ModelNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Resource not found.',
+            ], 404);
+        });
+
+        $exceptions->render(function (NotFoundHttpException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            $previous = $e->getPrevious();
+            $isModelNotFound = $previous instanceof ModelNotFoundException
+                || str_starts_with($e->getMessage(), 'No query results for model [');
+
+            if (! $isModelNotFound) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'Resource not found.',
+            ], 404);
         });
     })->create();

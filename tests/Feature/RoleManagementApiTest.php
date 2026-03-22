@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -224,7 +224,10 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
         $response = $this->withToken($this->token)
             ->getJson('/v1/roles/999999');
 
-        $response->assertNotFound();
+        $response->assertNotFound()
+            ->assertExactJson([
+                'message' => 'Resource not found.',
+            ]);
     });
 
     test('returns role details with permissions', function (): void {
