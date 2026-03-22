@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- document the `EnforcesTenantRouteBinding` controller invariant so route-bound single-record actions can rely on the concern instead of re-checking tenant ownership manually
 - stabilize `UserPermissionAssignmentApiTest` by creating same-tenant users explicitly instead of relying on the `UserFactory` fallback tenant lookup when the fixture creates multiple tenants
 - remove the redundant `UserPermissionController` tenant-ownership re-checks now that route-bound `User` models already fail closed through `EnforcesTenantRouteBinding`
 - document the only explicit global-record exceptions to fail-closed tenant route binding so system qualifications and onboarding form templates are called out alongside the binding concern itself
