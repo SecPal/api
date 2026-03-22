@@ -432,7 +432,6 @@ describe('GET /v1/customers/{customer}', function () {
     });
 
     test('returns 404 when user tries to access customer from different tenant', function (): void {
-        $this->user->forceFill(['tenant_id' => $this->tenant->id])->save();
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
 
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
