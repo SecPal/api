@@ -274,7 +274,7 @@ SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
 
 # Session configuration
 SESSION_DRIVER=database
-SESSION_DOMAIN=.secpal.dev # Use .secpal.app in production
+SESSION_DOMAIN=.secpal.dev
 SESSION_SECURE_COOKIE=true # HTTPS only
 SESSION_LIFETIME=120 # minutes
 
