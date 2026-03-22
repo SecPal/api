@@ -143,12 +143,9 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # CORS Headers (already handled by Laravel, but can add here)
-    # Only add if NOT using Laravel's HandleCors middleware
-    # add_header 'Access-Control-Allow-Origin' 'https://app.secpal.dev' always;
-    # add_header 'Access-Control-Allow-Credentials' 'true' always;
-    # add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
-    # add_header 'Access-Control-Allow-Headers' 'Content-Type,Authorization,X-XSRF-TOKEN' always;
+    # CORS is already handled by Laravel. Do not mirror it here with static
+    # Access-Control-Allow-Origin headers, or disallowed origins may appear
+    # half-authorized at the edge.
 
     # Laravel Front Controller
     location / {
