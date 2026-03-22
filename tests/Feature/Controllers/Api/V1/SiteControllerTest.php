@@ -778,6 +778,27 @@ describe('GET /v1/sites/{site}', function () {
         expect($response->json('data'))->not->toHaveKey('notes');
     });
 
+    test('returns 404 when user tries to access site from different tenant', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenantCustomer = Customer::factory()->create([
+            'tenant_id' => $otherTenant->id,
+        ]);
+        $otherTenantUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $otherTenant->id,
+        ]);
+        $site = Site::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'customer_id' => $otherTenantCustomer->id,
+            'organizational_unit_id' => $otherTenantUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson("/v1/sites/{$site->id}");
+
+        $response->assertNotFound();
+    });
+
     test('returns 404 for non-existent site', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
