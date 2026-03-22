@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - stabilize `UserPermissionAssignmentApiTest` by creating same-tenant users explicitly instead of relying on the `UserFactory` fallback tenant lookup when the fixture creates multiple tenants
+- document the only explicit global-record exceptions to fail-closed tenant route binding so system qualifications and onboarding form templates are called out alongside the binding concern itself
 - harden API CORS origin matching for `/v1/*`, `/health*`, and Sanctum endpoints by replacing the single-origin static fallback with exact origin pattern matching, so only explicitly allowed origins receive `Access-Control-Allow-Origin` and `Access-Control-Allow-Credentials`
 - return a stable JSON `404` payload for API `ModelNotFoundException` responses so missing resources no longer expose Laravel model class names or framework-internal not-found text
 - preserve Laravel's UUID-aware implicit route model binding for tenant-scoped resources so invalid detail IDs return a controlled `404 Not Found` instead of bubbling PostgreSQL UUID syntax errors into `500` responses on employee, customer, site, and organizational-unit endpoints

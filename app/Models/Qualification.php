@@ -84,7 +84,8 @@ class Qualification extends Model
     }
 
     /**
-     * System qualifications remain globally addressable alongside tenant-local ones.
+     * Allow route binding to resolve global system qualifications as an explicit
+     * exception to the default fail-closed tenant rule.
      */
     protected function routeBindingAllowsGlobalRecords(): bool
     {
