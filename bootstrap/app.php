@@ -63,7 +63,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Return JSON 401 response for unauthenticated API requests
         // Prevents "Route [login] not defined" error since this is a pure API without web routes
-        $exceptions->render(function (AuthenticationException $e, Request $request) {
+        $exceptions->render(function (AuthenticationException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
             return response()->json(['message' => 'Unauthenticated.'], 401);
         });
 

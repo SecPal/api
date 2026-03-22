@@ -24,7 +24,7 @@ class EmployeeController extends Controller
     /**
      * Display a listing of employees.
      *
-     * GET /api/v1/employees
+     * GET /v1/employees
      *
      * Supports filtering by:
      * - status (pre_contract, active, on_leave, terminated)

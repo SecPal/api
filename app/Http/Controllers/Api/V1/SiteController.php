@@ -32,7 +32,7 @@ class SiteController extends Controller
     /**
      * Display a listing of sites.
      *
-     * GET /api/v1/sites
+     * GET /v1/sites
      *
      * Returns paginated list of accessible sites based on:
      * - Direct site assignments (currently active)

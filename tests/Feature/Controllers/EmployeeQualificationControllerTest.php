@@ -359,7 +359,8 @@ describe('GET /v1/employee-qualifications/{employeeQualification}', function () 
         $response = $this->withToken($this->token)
             ->getJson('/v1/employee-qualifications/1');
 
-        $response->assertNotFound();
+        $response->assertNotFound()
+            ->assertJson(['message' => 'Resource not found.']);
     });
 });
 

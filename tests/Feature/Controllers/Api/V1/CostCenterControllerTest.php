@@ -393,7 +393,8 @@ describe('GET /v1/sites/{site}/cost-centers/{costCenter}', function () {
             'X-Tenant-ID' => (string) $this->tenant->id,
         ])->getJson("/v1/sites/{$this->site->id}/cost-centers/1");
 
-        $response->assertNotFound();
+        $response->assertNotFound()
+            ->assertJson(['message' => 'Resource not found.']);
     });
 });
 

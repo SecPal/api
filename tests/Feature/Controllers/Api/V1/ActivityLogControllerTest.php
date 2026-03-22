@@ -484,7 +484,8 @@ describe('GET /v1/activity-logs/{activity}', function () {
 
         $response = getJson('/v1/activity-logs/1');
 
-        $response->assertNotFound();
+        $response->assertNotFound()
+            ->assertJson(['message' => 'Resource not found.']);
     });
 
     test('returns global activity when user has permission', function (): void {
@@ -687,6 +688,7 @@ describe('GET /v1/activity-logs/{activity}/verify', function () {
 
         $response = getJson('/v1/activity-logs/1/verify');
 
-        $response->assertNotFound();
+        $response->assertNotFound()
+            ->assertJson(['message' => 'Resource not found.']);
     });
 });
