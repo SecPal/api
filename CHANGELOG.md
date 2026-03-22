@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - scope nested route bindings for cost centers and employee documents so child resources fail closed when resolved through the wrong parent path
 - validate assignment target users and employee qualification references against the active tenant so foreign-tenant IDs fail with 422 while global system qualifications remain attachable
 - preserve access to global system qualifications and onboarding templates while still fail-closing tenant-foreign bindings, including employee-linked submissions and qualification records
+- extend fail-closed tenant route-binding regression coverage for employee and organizational-unit models and prove cross-tenant employee detail requests return 404 before controller logic runs
 - harden OpenTimestamp proof handling by creating restrictive temporary proof files via shared cleanup helpers and by logging only sanitized digest hints instead of full digests
 - align the Person API contract with plaintext transient fields by accepting `note_plain` instead of exposing direct `*_enc` input semantics
 - block tenant-crossing user reuse during pre-contract employee provisioning so onboarding accounts are only linked within the same tenant, and avoid logging employee email addresses in this path
