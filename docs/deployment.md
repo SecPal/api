@@ -89,7 +89,7 @@ Edit `.env` with production values:
 APP_NAME=SecPal
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://api.secpal.app
+APP_URL=https://api.secpal.dev
 
 # Database
 DB_CONNECTION=pgsql
@@ -103,8 +103,8 @@ DB_PASSWORD=YOUR_SECURE_PASSWORD_HERE
 KEK_PATH=/var/www/secpal-api/storage/keys/kek.key
 
 # Sanctum (SPA Authentication)
-SANCTUM_STATEFUL_DOMAINS=app.secpal.dev,app.secpal.app
-SESSION_DOMAIN=.secpal.app
+SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
+SESSION_DOMAIN=.secpal.dev
 
 # Mail Configuration
 MAIL_MAILER=smtp

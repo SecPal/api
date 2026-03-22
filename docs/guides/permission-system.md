@@ -262,7 +262,7 @@ Permission: employees.export
 #### 2. Create via API
 
 ```bash
-curl -X POST https://api.secpal.app/v1/permissions \
+curl -X POST https://api.secpal.dev/v1/permissions \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -274,7 +274,7 @@ curl -X POST https://api.secpal.app/v1/permissions \
 #### 3. Verify Creation
 
 ```bash
-curl -X GET https://api.secpal.app/v1/permissions/43 \
+curl -X GET https://api.secpal.dev/v1/permissions/43 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -296,7 +296,7 @@ curl -X GET https://api.secpal.app/v1/permissions/43 \
 
 ```bash
 # Add to Manager role
-curl -X PATCH https://api.secpal.app/v1/roles/2 \
+curl -X PATCH https://api.secpal.dev/v1/roles/2 \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -379,7 +379,7 @@ DELETE /v1/users/{id}/permissions/employees.export
 **Delete:**
 
 ```bash
-curl -X DELETE https://api.secpal.app/v1/permissions/43 \
+curl -X DELETE https://api.secpal.dev/v1/permissions/43 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -661,7 +661,7 @@ public function view(User $user, Employee $employee): bool
 **Solution:** Check existing permissions:
 
 ```bash
-curl -X GET https://api.secpal.app/v1/permissions \
+curl -X GET https://api.secpal.dev/v1/permissions \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 

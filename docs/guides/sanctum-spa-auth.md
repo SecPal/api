@@ -93,7 +93,7 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
 // config/sanctum.php
 'stateful' => explode(',', env(
     'SANCTUM_STATEFUL_DOMAINS',
-  'app.secpal.dev,app.secpal.app'
+  'app.secpal.dev'
 )),
 ```
 
@@ -101,7 +101,7 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
 
 ```env
 # .env
-SANCTUM_STATEFUL_DOMAINS=app.secpal.dev,app.secpal.app
+SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
 ```
 
 #### 2. CORS Configuration
@@ -123,7 +123,7 @@ SANCTUM_STATEFUL_DOMAINS=app.secpal.dev,app.secpal.app
 
 ```env
 # .env
-CORS_ALLOWED_ORIGINS=https://app.secpal.dev,https://app.secpal.app
+CORS_ALLOWED_ORIGINS=https://app.secpal.dev
 CORS_SUPPORTS_CREDENTIALS=true
 CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN
 ```
@@ -377,7 +377,7 @@ curl -b cookies.txt \
 
    ```bash
    # Backend .env must include frontend domain
-   SANCTUM_STATEFUL_DOMAINS=app.secpal.dev,app.secpal.app
+   SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
    ```
 
 2. **Verify CORS Configuration**
@@ -453,7 +453,7 @@ curl -b cookies.txt \
 
    ```env
    SESSION_SECURE_COOKIE=true  # HTTPS only!
-   APP_URL=https://api.secpal.app
+   APP_URL=https://api.secpal.dev
    ```
 
 ### Issue: CORS Errors
@@ -493,14 +493,14 @@ curl -b cookies.txt \
 
 - [ ] **HTTPS Enabled**
   - `SESSION_SECURE_COOKIE=true`
-  - `APP_URL=https://api.secpal.app`
+  - `APP_URL=https://api.secpal.dev`
 
 - [ ] **Domain Configuration**
-  - `SESSION_DOMAIN=.secpal.app` (for subdomains)
-  - `SANCTUM_STATEFUL_DOMAINS=app.secpal.app,admin.secpal.app`
+  - `SESSION_DOMAIN=.secpal.dev` (for subdomains)
+  - `SANCTUM_STATEFUL_DOMAINS=app.secpal.dev`
 
 - [ ] **CORS Configuration**
-  - `CORS_ALLOWED_ORIGINS=https://app.secpal.app`
+  - `CORS_ALLOWED_ORIGINS=https://app.secpal.dev`
   - `CORS_SUPPORTS_CREDENTIALS=true`
 
 - [ ] **Session Security**
@@ -517,13 +517,13 @@ curl -b cookies.txt \
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name api.secpal.app;
+    server_name api.secpal.dev;
 
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
 
     # CORS headers (if not handled by Laravel)
-    add_header 'Access-Control-Allow-Origin' 'https://app.secpal.app' always;
+    add_header 'Access-Control-Allow-Origin' 'https://app.secpal.dev' always;
     add_header 'Access-Control-Allow-Credentials' 'true' always;
     add_header 'Access-Control-Allow-Headers' 'Content-Type,Authorization,X-XSRF-TOKEN' always;
 

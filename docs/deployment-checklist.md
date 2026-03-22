@@ -35,7 +35,7 @@ Quick reference checklist for SecPal API production deployment.
 - [ ] Edit `.env` with production values
 - [ ] Set `APP_ENV=production`
 - [ ] Set `APP_DEBUG=false`
-- [ ] Configure `APP_URL` (e.g., `https://api.secpal.app`)
+- [ ] Configure `APP_URL` (e.g., `https://api.secpal.dev`)
 - [ ] Configure database credentials (`DB_*`)
 - [ ] Configure mail settings (`MAIL_*`)
 - [ ] Configure Sanctum domains (`SANCTUM_STATEFUL_DOMAINS`, `SESSION_DOMAIN`)

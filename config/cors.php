@@ -23,11 +23,11 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'v1/*', 'health/*', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*', 'v1/*', 'health', 'health/*', 'sanctum/csrf-cookie'],
 
     'allowed_methods' => explode(',', (string) env('CORS_ALLOWED_METHODS', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')),
 
-    'allowed_origins' => explode(',', (string) env('CORS_ALLOWED_ORIGINS', 'https://app.secpal.dev,https://app.secpal.app')),
+    'allowed_origins' => explode(',', (string) env('CORS_ALLOWED_ORIGINS', 'https://app.secpal.dev')),
 
     'allowed_origins_patterns' => [],
 

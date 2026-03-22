@@ -270,7 +270,7 @@ Authorization: Bearer 1|abc123def456...
 
 ```env
 # Stateful domains for SPA mode (comma-separated)
-SANCTUM_STATEFUL_DOMAINS=app.secpal.dev,app.secpal.app
+SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
 
 # Session configuration
 SESSION_DRIVER=database
@@ -279,14 +279,14 @@ SESSION_SECURE_COOKIE=true # HTTPS only
 SESSION_LIFETIME=120 # minutes
 
 # CORS configuration
-CORS_ALLOWED_ORIGINS=https://app.secpal.dev,https://app.secpal.app
+CORS_ALLOWED_ORIGINS=https://app.secpal.dev
 CORS_SUPPORTS_CREDENTIALS=true
 ```
 
 ### Production Checklist
 
 - [ ] `SESSION_SECURE_COOKIE=true` (HTTPS only)
-- [ ] `SANCTUM_STATEFUL_DOMAINS` includes `app.secpal.dev` and `app.secpal.app` as needed
+- [ ] `SANCTUM_STATEFUL_DOMAINS` includes `app.secpal.dev`
 - [ ] `CORS_ALLOWED_ORIGINS` includes the active frontend domain
 - [ ] `SESSION_DOMAIN` matches the active environment (for example `.secpal.dev` or `.secpal.app`)
 - [ ] HTTPS configured with valid SSL certificate

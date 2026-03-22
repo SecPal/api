@@ -228,7 +228,7 @@ php artisan tenant:create "Customer Corp"
 Users can register themselves:
 
 ```bash
-curl -X POST https://api.secpal.app/v1/auth/register \
+curl -X POST https://api.secpal.dev/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@customercorp.com",
@@ -352,26 +352,26 @@ echo "Tenant 2: User {$user2->email}, Site '{$site2->name}'\n";
 
 ```bash
 # Login as user1
-TOKEN1=$(curl -s -X POST https://api.secpal.app/v1/auth/login \
+TOKEN1=$(curl -s -X POST https://api.secpal.dev/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user1@tenant1.com","password":"password"}' \
   | jq -r '.token')
 
 # User1 should see only Site 1
-curl -s -X GET https://api.secpal.app/v1/sites \
+curl -s -X GET https://api.secpal.dev/v1/sites \
   -H "Authorization: Bearer $TOKEN1" \
   | jq '.data[].name'
 
 # Expected output: "Site 1 (Tenant 1)"
 
 # Login as user2
-TOKEN2=$(curl -s -X POST https://api.secpal.app/v1/auth/login \
+TOKEN2=$(curl -s -X POST https://api.secpal.dev/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user2@tenant2.com","password":"password"}' \
   | jq -r '.token')
 
 # User2 should see only Site 2
-curl -s -X GET https://api.secpal.app/v1/sites \
+curl -s -X GET https://api.secpal.dev/v1/sites \
   -H "Authorization: Bearer $TOKEN2" \
   | jq '.data[].name'
 
