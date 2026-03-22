@@ -1,11 +1,46 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
+
+function withCorsAllowedOrigins(string $value, Closure $callback): mixed
+{
+    $previousValue = getenv('CORS_ALLOWED_ORIGINS');
+    $hadEnvValue = array_key_exists('CORS_ALLOWED_ORIGINS', $_ENV);
+    $hadServerValue = array_key_exists('CORS_ALLOWED_ORIGINS', $_SERVER);
+    $previousEnvValue = $_ENV['CORS_ALLOWED_ORIGINS'] ?? null;
+    $previousServerValue = $_SERVER['CORS_ALLOWED_ORIGINS'] ?? null;
+
+    putenv("CORS_ALLOWED_ORIGINS={$value}");
+    $_ENV['CORS_ALLOWED_ORIGINS'] = $value;
+    $_SERVER['CORS_ALLOWED_ORIGINS'] = $value;
+
+    try {
+        return $callback();
+    } finally {
+        if ($previousValue === false) {
+            putenv('CORS_ALLOWED_ORIGINS');
+        } else {
+            putenv("CORS_ALLOWED_ORIGINS={$previousValue}");
+        }
+
+        if ($hadEnvValue) {
+            $_ENV['CORS_ALLOWED_ORIGINS'] = $previousEnvValue;
+        } else {
+            unset($_ENV['CORS_ALLOWED_ORIGINS']);
+        }
+
+        if ($hadServerValue) {
+            $_SERVER['CORS_ALLOWED_ORIGINS'] = $previousServerValue;
+        } else {
+            unset($_SERVER['CORS_ALLOWED_ORIGINS']);
+        }
+    }
+}
 
 describe('Sanctum SPA Authentication Configuration', function () {
     test('sanctum stateful domains configuration is set', function () {
@@ -70,5 +105,24 @@ describe('CORS Configuration for SPA', function () {
         expect($corsPaths)
             ->toContain('health')
             ->toContain('health/*');
+    });
+
+    test('cors config builds exact patterns for multiple configured origins', function () {
+        $corsConfig = withCorsAllowedOrigins('https://app.secpal.dev,https://admin.secpal.dev',
+            static fn (): array => require base_path('config/cors.php')
+        );
+
+        expect($corsConfig['allowed_origins'])->toBe([])
+            ->and($corsConfig['allowed_origins_patterns'])->toBe([
+                '#^https\://app\.secpal\.dev$#',
+                '#^https\://admin\.secpal\.dev$#',
+            ]);
+    });
+
+    test('cors config rejects wildcard origins when credentials are enabled', function () {
+        expect(fn () => withCorsAllowedOrigins('https://*.secpal.dev',
+            static fn (): array => require base_path('config/cors.php')
+        ))
+            ->toThrow(InvalidArgumentException::class, 'CORS_ALLOWED_ORIGINS must contain exact origins only; wildcards are not allowed.');
     });
 });

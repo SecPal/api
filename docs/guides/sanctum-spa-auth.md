@@ -108,9 +108,13 @@ SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
 
 ```php
 // config/cors.php
-'paths' => ['api/*', 'v1/*', 'sanctum/csrf-cookie'],
+'paths' => ['api/*', 'v1/*', 'health', 'health/*', 'sanctum/csrf-cookie'],
 'supports_credentials' => true, // CRITICAL!
-'allowed_origins' => explode(',', env('CORS_ALLOWED_ORIGINS')),
+'allowed_origins' => [],
+'allowed_origins_patterns' => array_map(
+  static fn (string $origin): string => '#^'.preg_quote(trim($origin), '#').'$#',
+  explode(',', env('CORS_ALLOWED_ORIGINS')),
+),
 'allowed_headers' => [
     'Content-Type',
     'Authorization',
@@ -380,15 +384,16 @@ curl -b cookies.txt \
    SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
    ```
 
-2. **Verify CORS Configuration**
+1. **Verify CORS Configuration**
 
    ```php
    // config/cors.php
    'supports_credentials' => true, // MUST be true!
-   'allowed_origins' => ['https://app.secpal.dev'], // Explicit origins
+   'allowed_origins' => [],
+   'allowed_origins_patterns' => ['#^https://app\\.secpal\\.dev$#'], // Exact-match origin
    ```
 
-3. **Inspect Browser Cookies**
+1. **Inspect Browser Cookies**
    - Open DevTools → Application → Cookies
    - Verify `secpal-session` and `XSRF-TOKEN` exist
    - Check cookie domain/path
@@ -472,14 +477,15 @@ curl -b cookies.txt \
    'supports_credentials' => true,
    ```
 
-2. **Explicit Allowed Origins**
+1. **Explicit Allowed Origins**
 
    ```php
    // DON'T use '*' with credentials!
-   'allowed_origins' => ['https://app.secpal.dev'],
+   'allowed_origins' => [],
+   'allowed_origins_patterns' => ['#^https://app\\.secpal\\.dev$#'],
    ```
 
-3. **Frontend Must Send Credentials**
+1. **Frontend Must Send Credentials**
 
    ```typescript
    fetch(url, {
@@ -522,10 +528,8 @@ server {
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
 
-    # CORS headers (if not handled by Laravel)
-    add_header 'Access-Control-Allow-Origin' 'https://app.secpal.dev' always;
-    add_header 'Access-Control-Allow-Credentials' 'true' always;
-    add_header 'Access-Control-Allow-Headers' 'Content-Type,Authorization,X-XSRF-TOKEN' always;
+    # Let Laravel handle CORS to keep origin checks aligned with config/cors.php.
+    # Do not add static Access-Control-Allow-Origin headers here.
 
     location / {
         proxy_pass http://127.0.0.1:8000;
