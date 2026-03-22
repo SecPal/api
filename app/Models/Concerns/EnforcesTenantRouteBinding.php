@@ -20,6 +20,11 @@ use Illuminate\Support\Str;
  * When an authenticated user is present, bindings are constrained to that
  * user's tenant. As a fallback for tenant-prefixed routes, the explicit
  * {tenant} route parameter is used.
+ *
+ * This concern is the architectural guarantee for single-record route-bound
+ * controller actions: once a model uses this trait, controllers can treat the
+ * bound instance as already tenant-filtered and should not duplicate that same
+ * tenant-ownership check for the resolved model.
  */
 trait EnforcesTenantRouteBinding
 {
