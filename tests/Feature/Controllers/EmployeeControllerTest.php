@@ -445,6 +445,24 @@ describe('GET /v1/employees/{employee}', function () {
             ]);
     });
 
+    test('returns 404 when user tries to access employee from different tenant', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $otherTenant->id,
+        ]);
+        $employee = Employee::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'organizational_unit_id' => $foreignUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$employee->id}");
+
+        $response->assertNotFound();
+    });
+
     test('returns 404 for invalid employee id format', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
