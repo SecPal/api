@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OrganizationalUnit;
@@ -505,6 +505,14 @@ describe('OrganizationalUnitController - Show', function () {
     test('show returns 404 for non-existent unit', function () {
         // Act
         $response = getJson('/v1/organizational-units/00000000-0000-0000-0000-000000000000');
+
+        // Assert
+        $response->assertNotFound();
+    });
+
+    test('show returns 404 for invalid unit id format', function () {
+        // Act
+        $response = getJson('/v1/organizational-units/1');
 
         // Assert
         $response->assertNotFound();

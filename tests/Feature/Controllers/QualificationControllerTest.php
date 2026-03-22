@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -255,6 +255,15 @@ describe('GET /v1/qualifications/{qualification}', function () {
                     'name' => 'Test Qualification',
                 ],
             ]);
+    });
+
+    test('returns 404 for invalid qualification id format', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'qualification.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/qualifications/1');
+
+        $response->assertNotFound();
     });
 });
 

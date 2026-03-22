@@ -54,6 +54,13 @@ trait EnforcesTenantRouteBinding
      */
     protected function resolveBaseRouteBindingQuery($query, $value, $field = null): Builder
     {
+        if (method_exists($this, 'resolveUuidRouteBindingQuery')) {
+            /** @var Builder<static> $uuidResolvedQuery */
+            $uuidResolvedQuery = $this->resolveUuidRouteBindingQuery($query, $value, $field);
+
+            return $uuidResolvedQuery;
+        }
+
         $field ??= $this->getRouteKeyName();
 
         return $query->where($field, $value);

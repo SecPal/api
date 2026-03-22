@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -383,6 +383,17 @@ describe('GET /v1/sites/{site}/cost-centers/{costCenter}', function () {
         ])->getJson("/v1/sites/{$this->site->id}/cost-centers/{$foreignCostCenter->id}");
 
         $response->assertStatus(404);
+    });
+
+    test('returns 404 for invalid cost center id format', function (): void {
+        $this->user->givePermissionTo(['cost-centers.read', 'sites.read']);
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer {$this->token}",
+            'X-Tenant-ID' => (string) $this->tenant->id,
+        ])->getJson("/v1/sites/{$this->site->id}/cost-centers/1");
+
+        $response->assertNotFound();
     });
 });
 

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -438,6 +438,14 @@ describe('GET /v1/customers/{customer}', function () {
         $response = $this->withToken($this->token)->getJson("/v1/customers/{$fakeId}");
 
         $response->assertStatus(404);
+    });
+
+    test('returns 404 for invalid customer id format', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        $response = $this->withToken($this->token)->getJson('/v1/customers/1');
+
+        $response->assertNotFound();
     });
 });
 
