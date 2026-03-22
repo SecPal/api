@@ -60,6 +60,11 @@ function createUserPermissionAssignmentContext(): array
     ];
 }
 
+function createTenantUser(TenantKey $tenant): User
+{
+    return User::factory()->create(['tenant_id' => $tenant->id]);
+}
+
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
@@ -74,9 +79,9 @@ afterEach(function (): void {
 });
 
 test('user can view own permissions via_roles and direct and all', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $user = User::factory()->create();
+    $user = createTenantUser($tenant);
     $user->assignRole('Manager');
     $user->givePermissionTo('employees.export');
 
@@ -102,12 +107,12 @@ test('user can view own permissions via_roles and direct and all', function () {
 });
 
 test('admin can view any user permissions', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
-    $targetUser = User::factory()->create();
+    $targetUser = createTenantUser($tenant);
     $targetUser->assignRole('Manager');
 
     actingAs($admin, 'sanctum');
@@ -119,9 +124,9 @@ test('admin can view any user permissions', function () {
 });
 
 test('admin gets 404 when viewing cross-tenant user permissions', function () {
-    ['crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
+    ['tenant' => $tenant, 'crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
     actingAs($admin, 'sanctum');
@@ -132,10 +137,10 @@ test('admin gets 404 when viewing cross-tenant user permissions', function () {
 });
 
 test('user cannot view other user permissions', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $user = User::factory()->create();
-    $otherUser = User::factory()->create();
+    $user = createTenantUser($tenant);
+    $otherUser = createTenantUser($tenant);
 
     actingAs($user, 'sanctum');
 
@@ -145,12 +150,12 @@ test('user cannot view other user permissions', function () {
 });
 
 test('admin can assign direct permission to user', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
-    $targetUser = User::factory()->create();
+    $targetUser = createTenantUser($tenant);
 
     actingAs($admin, 'sanctum');
 
@@ -165,9 +170,9 @@ test('admin can assign direct permission to user', function () {
 });
 
 test('admin gets 404 when assigning permission to cross-tenant user', function () {
-    ['crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
+    ['tenant' => $tenant, 'crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
     actingAs($admin, 'sanctum');
@@ -183,12 +188,12 @@ test('admin gets 404 when assigning permission to cross-tenant user', function (
 });
 
 test('admin can assign direct permission with temporal constraints', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
-    $targetUser = User::factory()->create();
+    $targetUser = createTenantUser($tenant);
 
     $validFrom = now()->toIso8601String();
     $validUntil = now()->addDays(7)->toIso8601String();
@@ -209,10 +214,10 @@ test('admin can assign direct permission with temporal constraints', function ()
 });
 
 test('non-admin cannot assign permissions', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $user = User::factory()->create();
-    $targetUser = User::factory()->create();
+    $user = createTenantUser($tenant);
+    $targetUser = createTenantUser($tenant);
 
     actingAs($user, 'sanctum');
 
@@ -224,12 +229,12 @@ test('non-admin cannot assign permissions', function () {
 });
 
 test('admin can revoke direct permission from user', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
-    $targetUser = User::factory()->create();
+    $targetUser = createTenantUser($tenant);
     $targetUser->givePermissionTo('employees.export');
 
     expect($targetUser->hasDirectPermission('employees.export'))->toBeTrue();
@@ -244,9 +249,9 @@ test('admin can revoke direct permission from user', function () {
 });
 
 test('admin gets 404 when revoking permission from cross-tenant user', function () {
-    ['crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
+    ['tenant' => $tenant, 'crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
     actingAs($admin, 'sanctum');
@@ -257,12 +262,12 @@ test('admin gets 404 when revoking permission from cross-tenant user', function 
 });
 
 test('revoking direct permission does not affect role permissions', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
-    $targetUser = User::factory()->create();
+    $targetUser = createTenantUser($tenant);
     $targetUser->assignRole('Manager');
     $targetUser->givePermissionTo('employees.read');
 
@@ -277,9 +282,9 @@ test('revoking direct permission does not affect role permissions', function () 
 });
 
 test('user can view only direct permissions', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $user = User::factory()->create();
+    $user = createTenantUser($tenant);
     $user->assignRole('Manager');
     $user->givePermissionTo('employees.export');
 
@@ -293,9 +298,9 @@ test('user can view only direct permissions', function () {
 });
 
 test('admin gets 404 when viewing direct permissions for cross-tenant user', function () {
-    ['crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
+    ['tenant' => $tenant, 'crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
     actingAs($admin, 'sanctum');
@@ -306,9 +311,9 @@ test('admin gets 404 when viewing direct permissions for cross-tenant user', fun
 });
 
 test('unauthenticated user cannot access permissions endpoints', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $user = User::factory()->create();
+    $user = createTenantUser($tenant);
 
     getJson("/v1/users/{$user->id}/permissions")
         ->assertUnauthorized();
@@ -325,12 +330,12 @@ test('unauthenticated user cannot access permissions endpoints', function () {
 });
 
 test('validation fails when permissions array is empty', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
-    $targetUser = User::factory()->create();
+    $targetUser = createTenantUser($tenant);
 
     actingAs($admin, 'sanctum');
 
@@ -343,12 +348,12 @@ test('validation fails when permissions array is empty', function () {
 });
 
 test('validation fails when permission does not exist', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
-    $targetUser = User::factory()->create();
+    $targetUser = createTenantUser($tenant);
 
     actingAs($admin, 'sanctum');
 
@@ -361,12 +366,12 @@ test('validation fails when permission does not exist', function () {
 });
 
 test('validation fails when valid_until is before valid_from', function () {
-    createUserPermissionAssignmentContext();
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
-    $admin = User::factory()->create();
+    $admin = createTenantUser($tenant);
     $admin->assignRole('Admin');
 
-    $targetUser = User::factory()->create();
+    $targetUser = createTenantUser($tenant);
 
     actingAs($admin, 'sanctum');
 
