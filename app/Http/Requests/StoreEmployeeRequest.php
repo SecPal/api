@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests;
@@ -36,7 +36,7 @@ class StoreEmployeeRequest extends FormRequest
             // Personal Data (will be encrypted)
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'date_of_birth' => ['nullable', 'date', 'before:today'],
+            'date_of_birth' => ['required', 'date', 'before:today'],
             'email' => ['required', 'email', 'unique:employees,email'],
             'phone' => ['nullable', 'string', 'max:255'],
             'photo_path' => ['nullable', 'string', 'max:255'],
@@ -132,10 +132,10 @@ class StoreEmployeeRequest extends FormRequest
                 Employee::STATUS_ON_LEAVE,
                 Employee::STATUS_TERMINATED,
             ])],
-            'position' => ['nullable', 'string', 'max:255'],
+            'position' => ['required', 'string', 'max:255'],
             'management_level' => ['required', 'integer', 'min:0', 'max:255'],
             'hire_date' => ['nullable', 'date'],
-            'contract_start_date' => ['nullable', 'date'],
+            'contract_start_date' => ['required', 'date'],
             'termination_date' => ['nullable', 'date', 'after_or_equal:contract_start_date'],
             'last_working_day' => ['nullable', 'date'],
 
@@ -172,7 +172,7 @@ class StoreEmployeeRequest extends FormRequest
 
             // Organizational - Security: Validate user has access to selected unit
             'organizational_unit_id' => [
-                'nullable',
+                'required',
                 Rule::exists('organizational_units', 'id')->where(function (\Illuminate\Database\Query\Builder $query): void {
                     /** @var string $tenantId */
                     $tenantId = $this->input('tenant_id');
@@ -210,11 +210,15 @@ class StoreEmployeeRequest extends FormRequest
             // Basic fields
             'first_name.required' => __('First name is required'),
             'last_name.required' => __('Last name is required'),
+            'date_of_birth.required' => __('Date of birth is required'),
             'email.required' => __('Email address is required'),
             'email.email' => __('Email address must be valid'),
             'email.unique' => __('Email address is already in use'),
+            'position.required' => __('Position is required'),
             'contract_type.required' => __('Contract type is required'),
+            'contract_start_date.required' => __('Contract start date is required'),
             'status.required' => __('Employment status is required'),
+            'organizational_unit_id.required' => __('Organizational unit is required'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
 
             // BWR-ID validation

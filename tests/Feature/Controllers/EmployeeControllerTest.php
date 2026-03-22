@@ -227,6 +227,7 @@ describe('POST /v1/employees', function () {
             'last_name' => 'Doe',
             'email' => 'john.doe@example.com',
             'date_of_birth' => '1990-01-15',
+            'position' => 'Security Guard',
             'status' => 'pre_contract',
             'contract_type' => 'full_time',
             'contract_start_date' => now()->toDateString(),
@@ -250,8 +251,34 @@ describe('POST /v1/employees', function () {
                 'first_name',
                 'last_name',
                 'email',
+                'date_of_birth',
+                'position',
                 'status',
+                'contract_start_date',
                 'contract_type',
+                'organizational_unit_id',
+            ]);
+    });
+
+    test('returns 422 when frontend-required employee fields are missing', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'John',
+                'last_name' => 'Doe',
+                'email' => 'john.doe@example.com',
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'contract_type' => 'full_time',
+                'management_level' => 0,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'date_of_birth',
+                'position',
+                'contract_start_date',
+                'organizational_unit_id',
             ]);
     });
 
@@ -264,6 +291,7 @@ describe('POST /v1/employees', function () {
                 'last_name' => 'Doe',
                 'email' => 'john.doe@example.com',
                 'date_of_birth' => '1990-01-15',
+                'position' => 'Security Guard',
                 'status' => 'pre_contract',
                 'contract_type' => 'full_time',
                 'contract_start_date' => now()->toDateString(),
@@ -302,6 +330,7 @@ describe('POST /v1/employees', function () {
                 'last_name' => 'Smith',
                 'email' => 'jane.smith@example.com',
                 'date_of_birth' => '1995-06-20',
+                'position' => 'Site Supervisor',
                 'status' => 'pre_contract',
                 'contract_type' => 'full_time',
                 'contract_start_date' => now()->toDateString(),
@@ -330,6 +359,7 @@ describe('POST /v1/employees', function () {
                 'last_name' => 'Employee',
                 'email' => 'first@example.com',
                 'date_of_birth' => '1990-01-01',
+                'position' => 'Security Guard',
                 'status' => 'pre_contract',
                 'contract_type' => 'full_time',
                 'contract_start_date' => now()->toDateString(),
@@ -348,6 +378,7 @@ describe('POST /v1/employees', function () {
                 'last_name' => 'Employee',
                 'email' => 'second@example.com',
                 'date_of_birth' => '1992-02-02',
+                'position' => 'Patrol Guard',
                 'status' => 'pre_contract',
                 'contract_type' => 'part_time',
                 'contract_start_date' => now()->toDateString(),
@@ -750,6 +781,7 @@ test('manager cannot create employee in unit outside their scope', function (): 
         'contract_start_date' => now()->toDateString(),
         'position' => 'Security Guard',
         'organizational_unit_id' => $unitB->id,
+        'management_level' => 0,
     ]);
 
     $response->assertStatus(422);
@@ -900,6 +932,7 @@ test('manager with include_descendants=false cannot create employee in child uni
         'contract_start_date' => now()->toDateString(),
         'position' => 'Security Guard',
         'organizational_unit_id' => $child->id,
+        'management_level' => 0,
     ]);
 
     $response->assertStatus(422);
