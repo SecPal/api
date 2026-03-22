@@ -60,7 +60,11 @@ trait EnforcesTenantRouteBinding
         $field ??= $this->getRouteKeyName();
 
         if ($this->usesUuidRouteBinding($field) && ! Str::isUuid($value)) {
-            throw (new ModelNotFoundException)->setModel(static::class, [$value]);
+            $invalidRouteKey = is_int($value) || is_string($value)
+                ? $value
+                : (string) $value;
+
+            throw (new ModelNotFoundException)->setModel(static::class, $invalidRouteKey);
         }
 
         return $query->where($field, $value);
