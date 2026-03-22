@@ -19,7 +19,10 @@ use Illuminate\Support\Str;
  *
  * When an authenticated user is present, bindings are constrained to that
  * user's tenant. As a fallback for tenant-prefixed routes, the explicit
- * {tenant} route parameter is used.
+ * {tenant} route parameter is used. Models that intentionally expose global
+ * records must opt in explicitly via routeBindingAllowsGlobalRecords(); in the
+ * current API surface this is limited to system qualifications and onboarding
+ * form templates.
  *
  * This concern is the architectural guarantee for single-record route-bound
  * controller actions: once a model uses this trait, controllers can treat the
