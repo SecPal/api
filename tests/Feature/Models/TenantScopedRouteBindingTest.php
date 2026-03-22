@@ -95,6 +95,22 @@ test('tenant route binding rejects invalid UUID values before querying UUID prim
         ->toThrow(ModelNotFoundException::class);
 });
 
+test('tenant route binding formats bool and null invalid route keys via var_export', function (): void {
+    createTenantRouteBindingContext();
+
+    expect(fn () => (new Customer)->resolveRouteBindingQuery(Customer::query(), true))
+        ->toThrow(ModelNotFoundException::class)
+        ->and(fn () => (new Customer)->resolveRouteBindingQuery(Customer::query(), null))
+        ->toThrow(ModelNotFoundException::class);
+});
+
+test('tenant route binding formats non-scalar invalid route keys via get_debug_type', function (): void {
+    createTenantRouteBindingContext();
+
+    expect(fn () => (new Customer)->resolveRouteBindingQuery(Customer::query(), []))
+        ->toThrow(ModelNotFoundException::class);
+});
+
 test('qualification route binding includes global records and rejects other tenant records', function (): void {
     ['tenant' => $tenant, 'otherTenant' => $otherTenant] = createTenantRouteBindingContext();
 

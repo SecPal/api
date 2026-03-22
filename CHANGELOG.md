@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - install `opentimestamps-client` in the DDEV web image so OpenTimestamp-backed Laravel tests and local stamping commands do not fail with missing Python module errors
 - reject cross-tenant target users on role-assignment and direct-permission administration endpoints with fail-closed 404 responses and matching policy checks
 - constrain route model binding for tenant-owned admin models to the authenticated tenant so cross-tenant resource identifiers fail closed before controller logic
+- extend `EnforcesTenantRouteBinding` test coverage to include bool, null, and non-scalar invalid route key values so all three `match` arms in the UUID-rejection path are exercised
 - scope nested route bindings for cost centers and employee documents so child resources fail closed when resolved through the wrong parent path
 - validate assignment target users and employee qualification references against the active tenant so foreign-tenant IDs fail with 422 while global system qualifications remain attachable
 - preserve access to global system qualifications and onboarding templates while still fail-closing tenant-foreign bindings, including employee-linked submissions and qualification records
