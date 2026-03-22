@@ -67,33 +67,41 @@ describe('Integration: CORS and Security', function () {
     })->with('disallowed CORS origins');
 
     test('multiple configured origins are allowed exactly without widening matching', function () {
+        $originalAllowedOrigins = Config::get('cors.allowed_origins');
+        $originalAllowedOriginsPatterns = Config::get('cors.allowed_origins_patterns');
+
         Config::set('cors.allowed_origins', []);
         Config::set('cors.allowed_origins_patterns', [
             '#^https://app\.secpal\.dev$#',
             '#^https://admin\.secpal\.dev$#',
         ]);
 
-        $allowedResponse = $this->call('OPTIONS', '/v1/auth/token', [], [], [], [
-            'HTTP_ORIGIN' => 'https://admin.secpal.dev',
-            'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
-            'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'Content-Type,X-XSRF-TOKEN',
-        ]);
+        try {
+            $allowedResponse = $this->call('OPTIONS', '/v1/auth/token', [], [], [], [
+                'HTTP_ORIGIN' => 'https://admin.secpal.dev',
+                'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
+                'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'Content-Type,X-XSRF-TOKEN',
+            ]);
 
-        $allowedResponse->assertNoContent();
-        expect($allowedResponse->headers->get('Access-Control-Allow-Origin'))->toBe('https://admin.secpal.dev');
-        expect($allowedResponse->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
-        expect($allowedResponse->headers->get('Vary'))->toContain('Origin');
+            $allowedResponse->assertNoContent();
+            expect($allowedResponse->headers->get('Access-Control-Allow-Origin'))->toBe('https://admin.secpal.dev');
+            expect($allowedResponse->headers->get('Access-Control-Allow-Credentials'))->toBe('true');
+            expect($allowedResponse->headers->get('Vary'))->toContain('Origin');
 
-        $disallowedResponse = $this->call('OPTIONS', '/v1/auth/token', [], [], [], [
-            'HTTP_ORIGIN' => 'https://admin.secpal.dev.evil.example',
-            'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
-            'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'Content-Type,X-XSRF-TOKEN',
-        ]);
+            $disallowedResponse = $this->call('OPTIONS', '/v1/auth/token', [], [], [], [
+                'HTTP_ORIGIN' => 'https://admin.secpal.dev.evil.example',
+                'HTTP_ACCESS_CONTROL_REQUEST_METHOD' => 'POST',
+                'HTTP_ACCESS_CONTROL_REQUEST_HEADERS' => 'Content-Type,X-XSRF-TOKEN',
+            ]);
 
-        $disallowedResponse->assertNoContent();
-        expect($disallowedResponse->headers->get('Access-Control-Allow-Origin'))->toBeNull();
-        expect($disallowedResponse->headers->get('Access-Control-Allow-Credentials'))->toBeNull();
-        expect($disallowedResponse->headers->get('Vary'))->toContain('Origin');
+            $disallowedResponse->assertNoContent();
+            expect($disallowedResponse->headers->get('Access-Control-Allow-Origin'))->toBeNull();
+            expect($disallowedResponse->headers->get('Access-Control-Allow-Credentials'))->toBeNull();
+            expect($disallowedResponse->headers->get('Vary'))->toContain('Origin');
+        } finally {
+            Config::set('cors.allowed_origins', $originalAllowedOrigins);
+            Config::set('cors.allowed_origins_patterns', $originalAllowedOriginsPatterns);
+        }
     });
 
     test('disallowed origins do not receive CORS headers on actual requests', function (string $origin) {

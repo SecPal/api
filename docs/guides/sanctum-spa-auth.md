@@ -108,7 +108,7 @@ SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
 
 ```php
 // config/cors.php
-'paths' => ['api/*', 'v1/*', 'sanctum/csrf-cookie'],
+'paths' => ['api/*', 'v1/*', 'health', 'health/*', 'sanctum/csrf-cookie'],
 'supports_credentials' => true, // CRITICAL!
 'allowed_origins' => [],
 'allowed_origins_patterns' => array_map(
@@ -386,12 +386,12 @@ curl -b cookies.txt \
 
 1. **Verify CORS Configuration**
 
-```php
-// config/cors.php
-'supports_credentials' => true, // MUST be true!
-'allowed_origins' => [],
-'allowed_origins_patterns' => ['#^https://app\\.secpal\\.dev$#'], // Exact-match origin
-```
+   ```php
+   // config/cors.php
+   'supports_credentials' => true, // MUST be true!
+   'allowed_origins' => [],
+   'allowed_origins_patterns' => ['#^https://app\\.secpal\\.dev$#'], // Exact-match origin
+   ```
 
 1. **Inspect Browser Cookies**
    - Open DevTools → Application → Cookies
@@ -479,11 +479,11 @@ curl -b cookies.txt \
 
 1. **Explicit Allowed Origins**
 
-```php
-// DON'T use '*' with credentials!
-'allowed_origins' => [],
-'allowed_origins_patterns' => ['#^https://app\\.secpal\\.dev$#'],
-```
+   ```php
+   // DON'T use '*' with credentials!
+   'allowed_origins' => [],
+   'allowed_origins_patterns' => ['#^https://app\\.secpal\\.dev$#'],
+   ```
 
 1. **Frontend Must Send Credentials**
 
