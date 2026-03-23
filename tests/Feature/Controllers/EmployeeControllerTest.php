@@ -423,7 +423,7 @@ describe('POST /v1/employees', function () {
 
         $response->assertStatus(201)
             ->assertJsonPath('data.onboarding_invitation.status', Employee::INVITATION_STATUS_CREATED_NOT_SENT)
-            ->assertJsonPath('data.onboarding_invitation.failure_reason', 'Frontend URL or employee email not configured');
+            ->assertJsonPath('data.onboarding_invitation.failure_reason', 'Mail delivery failed. Check logs for details.');
 
         $employee = Employee::findOrFail($response->json('data.id'));
 
@@ -431,7 +431,7 @@ describe('POST /v1/employees', function () {
             ->and($employee->onboarding_invitation_token_created_at)->not->toBeNull()
             ->and($employee->onboarding_invitation_mail_sent_at)->toBeNull()
             ->and($employee->onboarding_invitation_mail_failed_at)->not->toBeNull()
-            ->and($employee->onboarding_invitation_failure_reason)->toBe('Frontend URL or employee email not configured')
+            ->and($employee->onboarding_invitation_failure_reason)->toBe('Mail delivery failed. Check logs for details.')
             ->and(EmployeeOnboardingToken::where('employee_id', $employee->id)->count())->toBe(1);
     });
 

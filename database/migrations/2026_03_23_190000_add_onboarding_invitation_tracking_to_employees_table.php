@@ -5,7 +5,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -34,10 +33,6 @@ return new class extends Migration
 
             $table->index('onboarding_invitation_status');
         });
-
-        DB::table('employees')
-            ->whereNull('onboarding_invitation_status')
-            ->update(['onboarding_invitation_status' => 'not_requested']);
     }
 
     public function down(): void

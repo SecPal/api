@@ -22,6 +22,7 @@ class EmployeeOnboardingInvitationService
         $employee->updateQuietly([
             'onboarding_invitation_status' => Employee::INVITATION_STATUS_FAILED,
             'onboarding_invitation_requested_at' => now(),
+            'onboarding_invitation_token_created_at' => null,
             'onboarding_invitation_mail_sent_at' => null,
             'onboarding_invitation_mail_failed_at' => null,
             'onboarding_invitation_failure_reason' => null,
@@ -62,10 +63,10 @@ class EmployeeOnboardingInvitationService
             ]);
 
             if ($tokenCreatedAt instanceof Carbon) {
-                return $this->markCreatedNotSent($employee, $throwable->getMessage());
+                return $this->markCreatedNotSent($employee, 'Mail delivery failed. Check logs for details.');
             }
 
-            return $this->markFailed($employee, $throwable->getMessage());
+            return $this->markFailed($employee, 'Invitation delivery failed. Check logs for details.');
         }
 
         $employee->updateQuietly([
