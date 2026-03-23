@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- align employee creation validation with the frontend-required minimum dataset so `date_of_birth`, `position`, `contract_start_date`, and `organizational_unit_id` are now mandatory on `POST /v1/employees`
 - document the `EnforcesTenantRouteBinding` controller invariant so route-bound single-record actions can rely on the concern instead of re-checking tenant ownership manually
 - stabilize `UserPermissionAssignmentApiTest` by creating same-tenant users explicitly instead of relying on the `UserFactory` fallback tenant lookup when the fixture creates multiple tenants
 - remove the redundant `UserPermissionController` tenant-ownership re-checks now that route-bound `User` models already fail closed through `EnforcesTenantRouteBinding`
