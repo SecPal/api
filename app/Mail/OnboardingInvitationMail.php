@@ -6,10 +6,8 @@
 namespace App\Mail;
 
 use App\Models\Employee;
-use App\Models\EmployeeOnboardingToken;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -25,7 +23,7 @@ use Illuminate\Queue\SerializesModels;
  * - Onboarding checklist
  * - Deadline reminder
  */
-class OnboardingInvitationMail extends Mailable implements ShouldQueue
+class OnboardingInvitationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -34,7 +32,8 @@ class OnboardingInvitationMail extends Mailable implements ShouldQueue
      */
     public function __construct(
         public Employee $employee,
-        public User $user
+        public User $user,
+        public string $plainToken
     ) {}
 
     /**
@@ -54,9 +53,6 @@ class OnboardingInvitationMail extends Mailable implements ShouldQueue
      */
     public function content(): Content
     {
-        // Generate onboarding token
-        $tokenData = EmployeeOnboardingToken::generate($this->employee);
-        $token = $tokenData['plain'];
         $frontendUrl = config('app.frontend_url');
         $email = $this->employee->email;
 
@@ -64,7 +60,7 @@ class OnboardingInvitationMail extends Mailable implements ShouldQueue
             throw new \RuntimeException('Frontend URL or employee email not configured');
         }
 
-        $onboardingUrl = $frontendUrl.'/onboarding/complete?token='.urlencode($token).'&email='.urlencode($email);
+        $onboardingUrl = $frontendUrl.'/onboarding/complete?token='.urlencode($this->plainToken).'&email='.urlencode($email);
 
         return new Content(
             markdown: 'emails.employees.onboarding-invitation',

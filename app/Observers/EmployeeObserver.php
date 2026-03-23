@@ -6,7 +6,6 @@
 namespace App\Observers;
 
 use App\Mail\AccountDeactivatedMail;
-use App\Mail\OnboardingInvitationMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
 use App\Models\TenantKey;
@@ -27,7 +26,7 @@ use Spatie\Permission\Models\Role;
  * 2. Create user accounts for pre_contract employees
  * 3. Activate/deactivate user accounts on status transitions
  * 4. Assign temporal roles based on contract dates
- * 5. Send lifecycle notification emails
+ * 5. Send lifecycle notification emails for post-onboarding account state changes
  *
  * Status Transitions:
  * - creating: Generate blind indexes, create user account if pre_contract
@@ -166,11 +165,9 @@ class EmployeeObserver
      * - Active status (can login to onboarding portal)
      * - No roles assigned (roles assigned on activation)
      *
-     * Sends onboarding invitation email with password reset link.
-     *
      * Error Handling:
      * - Failures are logged but don't block employee creation
-     * - HR can manually retry via admin panel
+     * - HR/API can trigger invitation sending explicitly after employee creation
      */
     private function createUserAccount(Employee $employee): void
     {
@@ -238,9 +235,6 @@ class EmployeeObserver
                     'onboarding_steps' => $employee->onboarding_steps ?? Employee::getDefaultOnboardingSteps(),
                     'onboarding_started_at' => $employee->onboarding_started_at ?? now(),
                 ]);
-
-                // Send onboarding invitation
-                Mail::to($user->email)->queue(new OnboardingInvitationMail($employee, $user));
             });
         } catch (\Exception $e) {
             Log::error('User account creation failed for employee', [

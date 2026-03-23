@@ -7,7 +7,6 @@
 declare(strict_types=1);
 
 use App\Mail\AccountDeactivatedMail;
-use App\Mail\OnboardingInvitationMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
@@ -48,7 +47,7 @@ afterEach(function () {
     TenantKey::setKekPath(null);
 });
 
-test('employee observer creates user account when status changes to pre_contract', function () {
+test('employee observer creates user account when status changes to pre_contract without automatically sending invitation mail', function () {
     Mail::fake();
 
     $employee = Employee::factory()->create([
@@ -63,10 +62,7 @@ test('employee observer creates user account when status changes to pre_contract
     expect($employee->user)->not->toBeNull();
     expect($employee->user->email)->toBe('john.doe@example.com');
 
-    // Onboarding invitation email should be queued
-    Mail::assertQueued(OnboardingInvitationMail::class, function ($mail) use ($employee) {
-        return $mail->employee->id === $employee->id;
-    });
+    Mail::assertNothingQueued();
 });
 
 test('employee observer reuses existing user account in same tenant', function () {
@@ -97,10 +93,7 @@ test('employee observer reuses existing user account in same tenant', function (
     expect($employee->user->id)->toBe($existingUser->id);
     expect(User::where('email', 'existing@example.com')->count())->toBe(1);
 
-    Mail::assertQueued(OnboardingInvitationMail::class, function ($mail) use ($employee, $existingUser) {
-        return $mail->employee->id === $employee->id
-            && $mail->hasTo($existingUser->email);
-    });
+    Mail::assertNothingQueued();
 });
 
 test('employee observer does not reuse user account from another tenant', function () {
@@ -422,7 +415,7 @@ test('employee observer does not trigger status transition when status unchanged
     Mail::assertNothingQueued();
 });
 
-test('employee observer creates user immediately when status=pre_contract during Employee::create() - Issue #345', function () {
+test('employee observer creates user immediately when status=pre_contract during Employee::create() without auto-sending an invitation - Issue #345', function () {
     Mail::fake();
 
     // This test reproduces the exact scenario from Issue #345
@@ -452,6 +445,7 @@ test('employee observer creates user immediately when status=pre_contract during
     expect($employee->user->email)->toBe($employee->email);
     expect($employee->user_account_active)->toBeTrue();
 
-    // Onboarding invitation email should be queued
-    Mail::assertQueued(OnboardingInvitationMail::class);
+    expect($employee->onboarding_invitation_status)->toBe(Employee::INVITATION_STATUS_NOT_REQUESTED);
+
+    Mail::assertNothingQueued();
 });

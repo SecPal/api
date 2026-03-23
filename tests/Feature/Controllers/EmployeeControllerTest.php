@@ -6,13 +6,16 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Mail\OnboardingInvitationMail;
 use App\Models\Employee;
+use App\Models\EmployeeOnboardingToken;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
@@ -348,6 +351,115 @@ describe('POST /v1/employees', function () {
         $employee = Employee::find($response->json('data.id'));
         expect($employee->user_id)->not->toBeNull();
         expect($employee->user->email)->toBe('jane.smith@example.com');
+    });
+
+    test('creates employee and sends onboarding invitation when explicitly requested', function (): void {
+        Mail::fake();
+
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'Ivy',
+                'last_name' => 'Invite',
+                'email' => 'ivy.invite@example.com',
+                'date_of_birth' => '1991-03-20',
+                'position' => 'Security Guard',
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->addWeek()->toDateString(),
+                'weekly_hours' => 40,
+                'hourly_rate' => 16.50,
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'sachkunde_type' => 'none',
+                'work_permit_type' => 'none',
+                'criminal_record_status' => 'valid',
+                'management_level' => 0,
+                'send_invitation' => true,
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.onboarding_invitation.status', Employee::INVITATION_STATUS_SENT);
+
+        $employee = Employee::findOrFail($response->json('data.id'));
+
+        expect($employee->onboarding_invitation_status)->toBe(Employee::INVITATION_STATUS_SENT)
+            ->and($employee->onboarding_invitation_requested_at)->not->toBeNull()
+            ->and($employee->onboarding_invitation_token_created_at)->not->toBeNull()
+            ->and($employee->onboarding_invitation_mail_sent_at)->not->toBeNull()
+            ->and($employee->onboarding_invitation_mail_failed_at)->toBeNull()
+            ->and(EmployeeOnboardingToken::where('employee_id', $employee->id)->count())->toBe(1);
+
+        Mail::assertSent(OnboardingInvitationMail::class, function (OnboardingInvitationMail $mail) use ($employee): bool {
+            return $mail->employee->id === $employee->id
+                && $mail->hasTo('ivy.invite@example.com');
+        });
+    });
+
+    test('returns a visible partial-failure invitation state when onboarding mail cannot be sent', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        config()->set('app.frontend_url', null);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'Faye',
+                'last_name' => 'Failure',
+                'email' => 'faye.failure@example.com',
+                'date_of_birth' => '1992-07-12',
+                'position' => 'Security Guard',
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->addWeek()->toDateString(),
+                'weekly_hours' => 40,
+                'hourly_rate' => 16.50,
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'sachkunde_type' => 'none',
+                'work_permit_type' => 'none',
+                'criminal_record_status' => 'valid',
+                'management_level' => 0,
+                'send_invitation' => true,
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.onboarding_invitation.status', Employee::INVITATION_STATUS_CREATED_NOT_SENT)
+            ->assertJsonPath('data.onboarding_invitation.failure_reason', 'Frontend URL or employee email not configured');
+
+        $employee = Employee::findOrFail($response->json('data.id'));
+
+        expect($employee->onboarding_invitation_status)->toBe(Employee::INVITATION_STATUS_CREATED_NOT_SENT)
+            ->and($employee->onboarding_invitation_token_created_at)->not->toBeNull()
+            ->and($employee->onboarding_invitation_mail_sent_at)->toBeNull()
+            ->and($employee->onboarding_invitation_mail_failed_at)->not->toBeNull()
+            ->and($employee->onboarding_invitation_failure_reason)->toBe('Frontend URL or employee email not configured')
+            ->and(EmployeeOnboardingToken::where('employee_id', $employee->id)->count())->toBe(1);
+    });
+
+    test('returns 422 when send_invitation is requested for a non-pre-contract employee', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'Alex',
+                'last_name' => 'Active',
+                'email' => 'alex.active@example.com',
+                'date_of_birth' => '1990-01-15',
+                'position' => 'Security Guard',
+                'status' => Employee::STATUS_ACTIVE,
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->toDateString(),
+                'weekly_hours' => 40,
+                'hourly_rate' => 15.50,
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'sachkunde_type' => 'none',
+                'work_permit_type' => 'none',
+                'criminal_record_status' => 'valid',
+                'management_level' => 0,
+                'send_invitation' => true,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['send_invitation']);
     });
 
     test('generates unique employee_number per tenant', function (): void {
