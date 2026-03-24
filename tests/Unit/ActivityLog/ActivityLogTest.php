@@ -12,6 +12,7 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 /**
  * @property TenantKey $tenant
@@ -21,6 +22,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     // Create tenant for tests
+    Queue::fake([App\Jobs\SubmitMerkleRootToOpenTimestamp::class]);
     $this->tenant = TenantKey::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 });

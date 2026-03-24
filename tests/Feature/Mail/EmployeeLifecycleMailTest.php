@@ -26,6 +26,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    config()->set('app.frontend_url', 'https://app.secpal.dev');
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();
@@ -62,7 +63,7 @@ test('onboarding invitation mail has correct content', function () {
         'password' => bcrypt('password'),
     ]);
 
-    $mail = new OnboardingInvitationMail($employee, $user);
+    $mail = new OnboardingInvitationMail($employee, $user, 'fixed-onboarding-token');
 
     $content = $mail->content();
     expect($content->markdown)->toBe('emails.employees.onboarding-invitation');
@@ -82,17 +83,17 @@ test('onboarding invitation URL includes token and email parameters', function (
         'password' => bcrypt('password'),
     ]);
 
-    $mail = new OnboardingInvitationMail($employee, $user);
+    $mail = new OnboardingInvitationMail($employee, $user, 'fixed-onboarding-token');
     $content = $mail->content();
     $onboardingUrl = $content->with['onboardingUrl'];
 
     // URL must contain both token and email parameters
     expect($onboardingUrl)
-        ->toContain('?token=')
+        ->toContain('?token=fixed-onboarding-token')
         ->toContain('&email='.urlencode('test.onboarding@example.com'));
 });
 
-test('onboarding invitation mail generates password reset token', function () {
+test('onboarding invitation mail keeps the provided onboarding token', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,
@@ -106,11 +107,11 @@ test('onboarding invitation mail generates password reset token', function () {
         'password' => bcrypt('password'),
     ]);
 
-    $mail = new OnboardingInvitationMail($employee, $user);
+    $mail = new OnboardingInvitationMail($employee, $user, 'provided-token-123');
 
-    // Should have employee and user
     expect($mail->employee->id)->toBe($employee->id);
     expect($mail->user->id)->toBe($user->id);
+    expect($mail->plainToken)->toBe('provided-token-123');
 });
 
 test('welcome active mail has correct content', function () {

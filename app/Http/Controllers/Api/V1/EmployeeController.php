@@ -11,6 +11,7 @@ use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
+use App\Services\EmployeeOnboardingInvitationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
@@ -87,7 +88,7 @@ class EmployeeController extends Controller
      *
      * Creates employee and triggers EmployeeObserver to create user account if status = pre_contract.
      */
-    public function store(StoreEmployeeRequest $request): JsonResponse
+    public function store(StoreEmployeeRequest $request, EmployeeOnboardingInvitationService $invitationService): JsonResponse
     {
         $this->authorize('create', Employee::class);
 
@@ -96,6 +97,8 @@ class EmployeeController extends Controller
 
         /** @var array<string, mixed> $validated */
         $validated = $request->validated();
+        $shouldSendInvitation = (bool) ($validated['send_invitation'] ?? false);
+        unset($validated['send_invitation']);
 
         // Prepare data with tenant_id FIRST (required for encryption cast to work)
         $data = ['tenant_id' => $tenantId];
@@ -113,10 +116,16 @@ class EmployeeController extends Controller
 
         $employee = Employee::create($data);
 
-        // Observer will handle user account creation if status = pre_contract
+        if ($shouldSendInvitation) {
+            $employee = $invitationService->send($employee);
+        }
+
+        /** @var Employee $freshEmployee */
+        $freshEmployee = $employee->fresh();
+        $freshEmployee->load(['user', 'organizationalUnit']);
 
         return response()->json([
-            'data' => new EmployeeResource($employee->load(['user', 'organizationalUnit'])),
+            'data' => new EmployeeResource($freshEmployee),
         ], Response::HTTP_CREATED);
     }
 

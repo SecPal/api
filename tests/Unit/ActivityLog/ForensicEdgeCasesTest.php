@@ -8,11 +8,13 @@
 declare(strict_types=1);
 
 use App\Jobs\BuildMerkleTreeBatch;
+use App\Jobs\SubmitMerkleRootToOpenTimestamp;
 use App\Models\Activity;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 /**
  * Comprehensive Forensic Verification Test Suite
@@ -30,6 +32,7 @@ use Illuminate\Support\Facades\DB;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    Queue::fake([SubmitMerkleRootToOpenTimestamp::class]);
     $this->tenant = TenantKey::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
 });

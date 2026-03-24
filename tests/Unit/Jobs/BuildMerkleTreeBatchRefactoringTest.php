@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Queue;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    Queue::fake([SubmitMerkleRootToOpenTimestamp::class]);
     $this->tenant = TenantKey::factory()->create();
     $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);

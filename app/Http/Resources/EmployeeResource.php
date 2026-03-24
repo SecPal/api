@@ -146,6 +146,14 @@ class EmployeeResource extends JsonResource
             'onboarding_steps' => $this->onboarding_steps,
             'onboarding_started_at' => $this->onboarding_started_at?->toIso8601String(),
             'onboarding_completed_at' => $this->onboarding_completed_at?->toIso8601String(),
+            'onboarding_invitation' => [
+                'status' => $this->onboarding_invitation_status ?? 'not_requested',
+                'requested_at' => $this->onboarding_invitation_requested_at?->toIso8601String(),
+                'token_created_at' => $this->onboarding_invitation_token_created_at?->toIso8601String(),
+                'mail_sent_at' => $this->onboarding_invitation_mail_sent_at?->toIso8601String(),
+                'mail_failed_at' => $this->onboarding_invitation_mail_failed_at?->toIso8601String(),
+                'failure_reason' => $this->onboarding_invitation_failure_reason,
+            ],
 
             // Organizational
             'organizational_unit_id' => $this->organizational_unit_id,

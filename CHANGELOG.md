@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- couple `send_invitation` on `POST /v1/employees` to an explicit onboarding invitation service, generate the onboarding token before mail delivery, persist invitation delivery state on the employee record, and surface partial delivery failures in the API response instead of silently relying on the observer queue path
 - align employee creation validation with the frontend-required minimum dataset so `date_of_birth`, `position`, `contract_start_date`, and `organizational_unit_id` are now mandatory on `POST /v1/employees`
 - document the `EnforcesTenantRouteBinding` controller invariant so route-bound single-record actions can rely on the concern instead of re-checking tenant ownership manually
 - stabilize `UserPermissionAssignmentApiTest` by creating same-tenant users explicitly instead of relying on the `UserFactory` fallback tenant lookup when the fixture creates multiple tenants

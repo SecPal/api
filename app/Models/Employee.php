@@ -98,6 +98,12 @@ use Spatie\Activitylog\Traits\LogsActivity;
  * @property array<string, mixed>|null $onboarding_steps
  * @property ?\Illuminate\Support\Carbon $onboarding_started_at
  * @property ?\Illuminate\Support\Carbon $onboarding_completed_at
+ * @property string $onboarding_invitation_status not_requested|sent|created_not_sent|failed
+ * @property ?\Illuminate\Support\Carbon $onboarding_invitation_requested_at
+ * @property ?\Illuminate\Support\Carbon $onboarding_invitation_token_created_at
+ * @property ?\Illuminate\Support\Carbon $onboarding_invitation_mail_sent_at
+ * @property ?\Illuminate\Support\Carbon $onboarding_invitation_mail_failed_at
+ * @property string|null $onboarding_invitation_failure_reason
  * @property string|null $organizational_unit_id
  * @property string|null $position Job title/role (e.g., 'Objektleiter Flughafen Berlin')
  * @property int $management_level Management level: 0=non-management, 1=CEO/highest, 2-255=lower levels
@@ -144,6 +150,14 @@ class Employee extends Model
     public const STATUS_ON_LEAVE = 'on_leave';
 
     public const STATUS_TERMINATED = 'terminated';
+
+    public const INVITATION_STATUS_NOT_REQUESTED = 'not_requested';
+
+    public const INVITATION_STATUS_SENT = 'sent';
+
+    public const INVITATION_STATUS_CREATED_NOT_SENT = 'created_not_sent';
+
+    public const INVITATION_STATUS_FAILED = 'failed';
 
     /**
      * Temporary storage for GDPR changed fields during model lifecycle.
@@ -256,6 +270,12 @@ class Employee extends Model
         'onboarding_steps',
         'onboarding_started_at',
         'onboarding_completed_at',
+        'onboarding_invitation_status',
+        'onboarding_invitation_requested_at',
+        'onboarding_invitation_token_created_at',
+        'onboarding_invitation_mail_sent_at',
+        'onboarding_invitation_mail_failed_at',
+        'onboarding_invitation_failure_reason',
         'organizational_unit_id',
         'position',
         'management_level',
@@ -340,6 +360,10 @@ class Employee extends Model
             'user_account_deactivated_at' => 'datetime',
             'onboarding_started_at' => 'datetime',
             'onboarding_completed_at' => 'datetime',
+            'onboarding_invitation_requested_at' => 'datetime',
+            'onboarding_invitation_token_created_at' => 'datetime',
+            'onboarding_invitation_mail_sent_at' => 'datetime',
+            'onboarding_invitation_mail_failed_at' => 'datetime',
             // Arrays
             'onboarding_steps' => 'array',
         ];

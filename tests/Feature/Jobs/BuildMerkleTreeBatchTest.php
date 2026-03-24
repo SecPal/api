@@ -21,6 +21,7 @@ uses(RefreshDatabase::class);
  * @property User $user
  */
 beforeEach(function () {
+    Queue::fake([App\Jobs\SubmitMerkleRootToOpenTimestamp::class]);
     $this->tenant = TenantKey::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->actingAs($this->user);

@@ -141,6 +141,15 @@ class StoreEmployeeRequest extends FormRequest
 
             // Contract Details
             'contract_type' => ['required', Rule::in(['full_time', 'part_time', 'minijob', 'freelance'])],
+            'send_invitation' => [
+                'sometimes',
+                'boolean',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ((bool) $value && $this->input('status') !== Employee::STATUS_PRE_CONTRACT) {
+                        $fail(__('Invitation sending is only available for pre-contract employees.'));
+                    }
+                },
+            ],
             'weekly_hours' => ['nullable', 'numeric', 'min:0', 'max:60'],
             'monthly_hours' => ['nullable', 'numeric', 'min:0', 'max:300'],
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
@@ -219,6 +228,7 @@ class StoreEmployeeRequest extends FormRequest
             'contract_start_date.required' => __('Contract start date is required'),
             'status.required' => __('Employment status is required'),
             'organizational_unit_id.required' => __('Organizational unit is required'),
+            'send_invitation.boolean' => __('Invitation sending must be true or false'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
 
             // BWR-ID validation
