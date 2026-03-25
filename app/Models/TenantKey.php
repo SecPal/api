@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -166,7 +166,7 @@ class TenantKey extends Model
         $path = self::getKekPath();
         $dir = dirname($path);
 
-        if (! is_dir($dir) && ! mkdir($dir, self::KEY_DIRECTORY_PERMISSIONS, true) && ! is_dir($dir)) {
+        if (! self::ensureKeysDirectoryExists($dir)) {
             throw new \RuntimeException('Failed to create keys directory');
         }
 
@@ -177,6 +177,29 @@ class TenantKey extends Model
         }
 
         chmod($path, 0600);
+    }
+
+    /**
+     * Create the keys directory while tolerating parallel test workers racing to create it first.
+     */
+    private static function ensureKeysDirectoryExists(string $dir): bool
+    {
+        if (is_dir($dir)) {
+            return true;
+        }
+
+        set_error_handler(static fn (): bool => is_dir($dir));
+
+        try {
+            if (mkdir($dir, self::KEY_DIRECTORY_PERMISSIONS, true)) {
+                return true;
+            }
+        } finally {
+            restore_error_handler();
+            clearstatcache(true, $dir);
+        }
+
+        return is_dir($dir);
     }
 
     /**
