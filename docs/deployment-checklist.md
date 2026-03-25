@@ -96,7 +96,7 @@ Quick reference checklist for SecPal API production deployment.
 - [ ] Test login works:
 
   ```bash
-  curl -X POST http://localhost/api/v1/auth/token \
+  curl -X POST http://localhost/v1/auth/token \
     -H "Content-Type: application/json" \
     -d '{"email":"admin@secpal.app","password":"..."}'
   ```
@@ -106,7 +106,7 @@ Quick reference checklist for SecPal API production deployment.
 - [ ] Test authenticated API:
 
   ```bash
-  curl http://localhost/api/v1/me \
+  curl http://localhost/v1/me \
     -H "Authorization: Bearer YOUR_TOKEN"
   ```
 
@@ -136,7 +136,7 @@ Quick reference checklist for SecPal API production deployment.
 
 ### Authenticated API Returns 503
 
-**Problem:** `/api/v1/me` returns 503 "No tenant keys available".
+**Problem:** `/v1/me` returns 503 "No tenant keys available".
 
 **Solution:** `php artisan tenant:setup`
 

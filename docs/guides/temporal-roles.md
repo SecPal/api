@@ -801,8 +801,10 @@ User's next request after expiration will fail authorization check.
 ```php
 // Frontend should periodically check permissions
 setInterval(async () => {
-  const perms = await fetch('/v1/users/me/permissions');
-  if (!perms.includes('managers.dashboard')) {
+  const response = await fetch('/v1/me');
+  const user = await response.json();
+
+  if (!user.permissions.includes('managers.dashboard')) {
     // Redirect to home or show notification
     alert('Your temporary manager access has expired');
     window.location.href = '/dashboard';

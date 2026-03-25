@@ -43,35 +43,36 @@ The `XSRF-TOKEN` cookie is readable by JavaScript and must be sent in the `X-XSR
 #### Step 2: Login
 
 ```http
-POST /v1/auth/token
+POST /v1/auth/login
 Content-Type: application/json
 X-XSRF-TOKEN: <token-from-cookie>
 
 {
   "email": "user@example.com",
-  "password": "password123",
-  "device_name": "web-browser" // Optional
+  "password": "password123"
 }
 ```
 
 **Response:**
 
 ```http
-HTTP/1.1 201 Created
+HTTP/1.1 200 OK
 Content-Type: application/json
 Set-Cookie: laravel_session=<session>; path=/; HttpOnly; Secure; SameSite=lax
 
 {
-  "token": "1|abc123...",
   "user": {
     "id": 1,
     "name": "John Doe",
-    "email": "user@example.com"
+    "email": "user@example.com",
+    "roles": ["Admin"],
+    "permissions": ["*"],
+    "hasOrganizationalScopes": true
   }
 }
 ```
 
-**Important:** For SPA mode, ignore the `token` field. Authentication is handled via the `laravel_session` httpOnly cookie automatically sent by the browser.
+**Important:** For SPA mode, use `/v1/auth/login`. `/v1/auth/token` remains the official endpoint for Android, native, CLI, and other Bearer-token clients.
 
 #### Step 3: Authenticated Requests
 
@@ -110,11 +111,11 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-  "message": "Token revoked successfully."
+  "message": "Logged out successfully"
 }
 ```
 
-> **Note:** When using httpOnly cookie authentication, the logout endpoint works but the message is designed for Bearer token mode. The session is still properly invalidated.
+> **Note:** `/v1/auth/logout` is the canonical logout endpoint for both SPA session auth and Bearer-token auth. `/v1/auth/session/logout` remains available as a legacy compatibility alias for older SPA clients.
 
 ### CSRF Token Handling
 
@@ -212,7 +213,10 @@ Content-Type: application/json
   "user": {
     "id": 1,
     "name": "John Doe",
-    "email": "user@example.com"
+    "email": "user@example.com",
+    "roles": ["Manager"],
+    "permissions": ["employees.read"],
+    "hasOrganizationalScopes": false
   }
 }
 ```
@@ -366,7 +370,7 @@ If migrating from localStorage-based authentication:
    await fetch("/sanctum/csrf-cookie", { credentials: "include" });
 
    // Then login
-   await fetch("/v1/auth/token", {
+   await fetch("/v1/auth/login", {
      method: "POST",
      credentials: "include",
      headers: {

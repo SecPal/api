@@ -309,7 +309,7 @@ describe('Token Revocation', function () {
             ->postJson('/v1/auth/logout');
 
         $response->assertOk()
-            ->assertJson(['message' => 'Token revoked successfully']);
+            ->assertJson(['message' => 'Logged out successfully']);
 
         expect($user->tokens()->count())->toBe(0);
     });
@@ -366,7 +366,7 @@ describe('Token Revocation', function () {
 
         // Should succeed without crashing (200 OK)
         $response->assertOk()
-            ->assertJson(['message' => 'Token revoked successfully']);
+            ->assertJson(['message' => 'Logged out successfully']);
 
         // Token1 should be deleted
         expect($user->fresh()->tokens()->count())->toBe(0);
@@ -382,6 +382,21 @@ describe('Token Revocation', function () {
         $response = $this->postJson('/v1/auth/logout-all');
 
         $response->assertUnauthorized();
+    });
+
+    test('legacy session logout alias rejects bearer-token clients', function () {
+        $user = User::factory()->create([
+            'password' => bcrypt('password123'),
+        ]);
+
+        $token = $user->createToken('mobile-device')->plainTextToken;
+
+        $this->withHeaders(['Authorization' => "Bearer {$token}"])
+            ->postJson('/v1/auth/session/logout')
+            ->assertUnauthorized();
+
+        // Token must still be intact — legacy alias must not revoke it
+        expect($user->fresh()->tokens()->count())->toBe(1);
     });
 });
 
@@ -524,7 +539,10 @@ describe('Login Rate Limiting', function () {
         ]);
 
         $response->assertCreated()
-            ->assertJsonStructure(['token', 'user' => ['id', 'name', 'email']]);
+            ->assertJsonStructure([
+                'token',
+                'user' => ['id', 'name', 'email', 'roles', 'permissions', 'hasOrganizationalScopes'],
+            ]);
     });
 
     test('rate limit applies to email regardless of password', function () {

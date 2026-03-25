@@ -829,11 +829,11 @@ curl -X GET https://api.secpal.dev/v1/roles/{id} \
 **Solution:** Only Admin role can manage roles. Check:
 
 ```bash
-curl -X GET https://api.secpal.dev/v1/users/me/roles \
+curl -X GET https://api.secpal.dev/v1/me \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-Ensure user has Admin role or `roles.create`, `roles.update`, `roles.delete` permissions.
+Ensure the response includes the Admin role or the `roles.create`, `roles.update`, and `roles.delete` permissions.
 
 ---
 

@@ -352,7 +352,7 @@ echo "Tenant 2: User {$user2->email}, Site '{$site2->name}'\n";
 
 ```bash
 # Login as user1
-TOKEN1=$(curl -s -X POST https://api.secpal.dev/v1/auth/login \
+TOKEN1=$(curl -s -X POST https://api.secpal.dev/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"email":"user1@tenant1.com","password":"password"}' \
   | jq -r '.token')
@@ -365,7 +365,7 @@ curl -s -X GET https://api.secpal.dev/v1/sites \
 # Expected output: "Site 1 (Tenant 1)"
 
 # Login as user2
-TOKEN2=$(curl -s -X POST https://api.secpal.dev/v1/auth/login \
+TOKEN2=$(curl -s -X POST https://api.secpal.dev/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"email":"user2@tenant2.com","password":"password"}' \
   | jq -r '.token')

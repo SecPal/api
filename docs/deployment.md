@@ -346,7 +346,7 @@ After deployment, verify these critical functions:
 
 ```bash
 # Test login (replace with actual credentials)
-curl -X POST http://localhost/api/v1/auth/token \
+curl -X POST http://localhost/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@secpal.app",
@@ -360,7 +360,7 @@ curl -X POST http://localhost/api/v1/auth/token \
 
 ```bash
 # Test authenticated profile endpoint (requires Bearer token)
-curl http://localhost/api/v1/me \
+curl http://localhost/v1/me \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -430,7 +430,7 @@ sudo tail -f /var/log/apache2/error.log  # Apache
 
 ### Authenticated API Returns 503
 
-**Problem:** `/api/v1/me` returns 503 "No tenant keys available".
+**Problem:** `/v1/me` returns 503 "No tenant keys available".
 
 **Solution:**
 
