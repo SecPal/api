@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\TenantKey;
@@ -40,6 +40,19 @@ test('tenant key factory generates valid envelope keys', function (): void {
     $idxKey = $tenantKey->unwrapIdxKey();
     expect(strlen($idxKey))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
     sodium_memzero($idxKey);
+});
+
+test('tenant key factory creates the kek directory when it is missing', function (): void {
+    $keysDirectory = storage_path('app/keys/tenant-key-test-'.getmypid().'-'.uniqid('', true));
+    TenantKey::setKekPath($keysDirectory.'/kek.key');
+
+    expect(is_dir($keysDirectory))->toBeFalse();
+
+    $tenantKey = TenantKey::factory()->create();
+
+    expect($tenantKey->exists)->toBeTrue()
+        ->and(is_dir($keysDirectory))->toBeTrue()
+        ->and(file_exists(TenantKey::getKekPath()))->toBeTrue();
 });
 
 test('tenant key factory can create with specific version', function (): void {
