@@ -309,7 +309,7 @@ describe('Token Revocation', function () {
             ->postJson('/v1/auth/logout');
 
         $response->assertOk()
-            ->assertJson(['message' => 'Token revoked successfully']);
+            ->assertJson(['message' => 'Logged out successfully']);
 
         expect($user->tokens()->count())->toBe(0);
     });
@@ -366,7 +366,7 @@ describe('Token Revocation', function () {
 
         // Should succeed without crashing (200 OK)
         $response->assertOk()
-            ->assertJson(['message' => 'Token revoked successfully']);
+            ->assertJson(['message' => 'Logged out successfully']);
 
         // Token1 should be deleted
         expect($user->fresh()->tokens()->count())->toBe(0);
@@ -524,7 +524,10 @@ describe('Login Rate Limiting', function () {
         ]);
 
         $response->assertCreated()
-            ->assertJsonStructure(['token', 'user' => ['id', 'name', 'email']]);
+            ->assertJsonStructure([
+                'token',
+                'user' => ['id', 'name', 'email', 'roles', 'permissions', 'hasOrganizationalScopes'],
+            ]);
     });
 
     test('rate limit applies to email regardless of password', function () {

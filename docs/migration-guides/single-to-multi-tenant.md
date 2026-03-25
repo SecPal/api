@@ -242,7 +242,7 @@ psql -U secpal_user -d secpal_production -c "\d users" | grep tenant_id
 
 ```bash
 # Test login
-TOKEN=$(curl -s -X POST https://api.secpal.dev/v1/auth/login \
+TOKEN=$(curl -s -X POST https://api.secpal.dev/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com","password":"password"}' \
   | jq -r '.token')
@@ -250,7 +250,7 @@ TOKEN=$(curl -s -X POST https://api.secpal.dev/v1/auth/login \
 echo "Token: $TOKEN"
 
 # Test API request (should use user's tenant_id)
-curl -s -X GET https://api.secpal.dev/v1/users/me \
+curl -s -X GET https://api.secpal.dev/v1/me \
   -H "Authorization: Bearer $TOKEN" \
   | jq '.tenant_id'
 
@@ -289,13 +289,13 @@ echo "User 2 created: {$user2->email} (Tenant {$user2->tenant_id})\n";
 
 ```bash
 # Login as user2
-TOKEN2=$(curl -s -X POST https://api.secpal.dev/v1/auth/login \
+TOKEN2=$(curl -s -X POST https://api.secpal.dev/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"email":"user2@tenant2.com","password":"password"}' \
   | jq -r '.token')
 
 # User2 should have different tenant_id
-curl -s -X GET https://api.secpal.dev/v1/users/me \
+curl -s -X GET https://api.secpal.dev/v1/me \
   -H "Authorization: Bearer $TOKEN2" \
   | jq '.tenant_id'
 
@@ -403,7 +403,7 @@ sudo systemctl start php8.4-fpm nginx
 
 ```bash
 # Test login
-curl -X POST https://api.secpal.dev/v1/auth/login \
+curl -X POST https://api.secpal.dev/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com","password":"password"}'
 

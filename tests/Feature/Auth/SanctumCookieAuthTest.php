@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\User;
@@ -29,7 +29,7 @@ describe('httpOnly Cookie Authentication Flow', function () {
         $response->assertCreated()
             ->assertJsonStructure([
                 'token',
-                'user' => ['id', 'name', 'email'],
+                'user' => ['id', 'name', 'email', 'roles', 'permissions', 'hasOrganizationalScopes'],
             ]);
     });
 
@@ -73,7 +73,7 @@ describe('httpOnly Cookie Authentication Flow', function () {
             ->postJson('/v1/auth/logout');
 
         $response->assertOk()
-            ->assertJson(['message' => 'Token revoked successfully']);
+            ->assertJson(['message' => 'Logged out successfully']);
 
         // Verify token was revoked
         expect($user->fresh()->tokens()->count())->toBe(0);
@@ -395,7 +395,7 @@ describe('SPA Session-Based Logout', function () {
         $this->withHeaders(spaHeaders());
     });
 
-    test('session logout invalidates session', function () {
+    test('canonical logout endpoint invalidates session', function () {
         $user = User::factory()->create([
             'email' => 'logout@example.com',
             'password' => Hash::make('password123'),
@@ -410,13 +410,37 @@ describe('SPA Session-Based Logout', function () {
         ]);
         $loginResponse->assertOk();
 
-        // Logout via session endpoint
+        // Logout via canonical endpoint
         $logoutCsrfToken = issueSpaCsrfToken($this);
         $response = $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => $logoutCsrfToken,
-        ]))->postJson('/v1/auth/session/logout');
+        ]))->postJson('/v1/auth/logout');
 
         $response->assertOk()
+            ->assertJson([
+                'message' => 'Logged out successfully',
+            ]);
+    });
+
+    test('legacy session logout alias still works', function () {
+        User::factory()->create([
+            'email' => 'logout@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $loginCsrfToken = issueSpaCsrfToken($this);
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $loginCsrfToken,
+        ]))->postJson('/v1/auth/login', [
+            'email' => 'logout@example.com',
+            'password' => 'password123',
+        ])->assertOk();
+
+        $logoutCsrfToken = issueSpaCsrfToken($this);
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $logoutCsrfToken,
+        ]))->postJson('/v1/auth/session/logout')
+            ->assertOk()
             ->assertJson([
                 'message' => 'Logged out successfully',
             ]);
@@ -427,7 +451,7 @@ describe('SPA Session-Based Logout', function () {
 
         $response = $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => $csrfToken,
-        ]))->postJson('/v1/auth/session/logout');
+        ]))->postJson('/v1/auth/logout');
 
         $response->assertUnauthorized();
     });

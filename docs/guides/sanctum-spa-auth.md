@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2025 SecPal Contributors -->
+<!-- SPDX-FileCopyrightText: 2025-2026 SecPal Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # Sanctum SPA Authentication with httpOnly Cookies
@@ -42,7 +42,7 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
      │<───────────────────────────│                            │
      │ Set-Cookie: secpal-session │                            │
      │                            │                            │
-     │ POST /v1/auth/token        │                            │
+    │ POST /v1/auth/login        │                            │
      │ Header: X-XSRF-TOKEN       │                            │
      │ Body: {email, password}    │                            │
      │───────────────────────────>│                            │
@@ -200,7 +200,7 @@ export async function login(credentials: LoginCredentials) {
   await fetchCsrfCookie();
 
   // Step 2: Login with credentials
-  const response = await fetch(`${API_URL}/v1/auth/token`, {
+  const response = await fetch(`${API_URL}/v1/auth/login`, {
     method: "POST",
     credentials: "include", // Send/receive cookies
     headers: {
@@ -211,7 +211,7 @@ export async function login(credentials: LoginCredentials) {
   });
 
   const data = await response.json();
-  return data; // Returns {token, user}; SPA ignores token, uses session cookie
+  return data; // Returns {user}; SPA auth is handled via the session cookie
 }
 
 // All subsequent requests
@@ -243,7 +243,7 @@ Set-Cookie: secpal-session=eyJpdiI6...; HttpOnly; SameSite=lax
 ### Login Endpoint
 
 ```http
-POST /v1/auth/token HTTP/1.1
+POST /v1/auth/login HTTP/1.1
 Host: api.secpal.dev
 Content-Type: application/json
 X-XSRF-TOKEN: eyJpdiI6...
@@ -254,16 +254,18 @@ Cookie: secpal-session=...
   "password": "password123"
 }
 
-HTTP/1.1 201 Created
+HTTP/1.1 200 OK
 Set-Cookie: secpal-session=...; HttpOnly; SameSite=lax
 Content-Type: application/json
 
 {
-  "token": "1|abcdef123456...",
   "user": {
     "id": "uuid",
     "email": "user@example.com",
-    "name": "John Doe"
+    "name": "John Doe",
+    "roles": ["Admin"],
+    "permissions": ["*"],
+    "hasOrganizationalScopes": true
   }
 }
 ```
@@ -280,11 +282,12 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-  "data": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "name": "John Doe"
-  }
+  "id": "uuid",
+  "email": "user@example.com",
+  "name": "John Doe",
+  "roles": ["Admin"],
+  "permissions": ["*"],
+  "hasOrganizationalScopes": true
 }
 ```
 
@@ -321,7 +324,7 @@ test('complete authentication flow with httpOnly cookies', function () {
     // Step 2: Login
     $response = $this->withHeaders([
         'X-XSRF-TOKEN' => $csrfToken,
-    ])->postJson('/v1/auth/token', [
+    ])->postJson('/v1/auth/login', [
         'email' => 'test@example.com',
         'password' => 'password',
     ]);
@@ -352,7 +355,7 @@ CSRF_TOKEN=$(grep XSRF-TOKEN cookies.txt | sed 's/.*XSRF-TOKEN\s*//' | cut -f1)
 
 # 3. Login with credentials
 curl -b cookies.txt -c cookies.txt \
-  -X POST http://api.secpal.dev/v1/auth/token \
+  -X POST http://api.secpal.dev/v1/auth/login \
   -H "Content-Type: application/json" \
   -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -d '{"email":"test@example.com","password":"password"}' \

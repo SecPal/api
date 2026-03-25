@@ -433,7 +433,7 @@ After provisioning, verify tenant isolation:
 
 ```bash
 # Login as admin
-curl -X POST https://api.secpal.dev/v1/auth/login \
+curl -X POST https://api.secpal.dev/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@customercorp.com",
@@ -473,7 +473,7 @@ curl -X GET https://api.secpal.dev/v1/organizational-units \
 
 ```bash
 # Admin should have all permissions
-curl -X GET https://api.secpal.dev/v1/users/me \
+curl -X GET https://api.secpal.dev/v1/me \
   -H "Authorization: Bearer $TOKEN"
 
 # Response includes roles

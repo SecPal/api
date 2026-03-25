@@ -358,7 +358,7 @@ await fetch(`${apiUrl}/sanctum/csrf-cookie`, {
 });
 
 // 2. Login
-await fetch(`${apiUrl}/v1/auth/token`, {
+await fetch(`${apiUrl}/v1/auth/login`, {
   method: "POST",
   credentials: "include",
   headers: {

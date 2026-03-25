@@ -45,7 +45,8 @@ SecPal uses **Laravel Sanctum** with dual authentication modes:
 ```bash
 # SPA: Get CSRF token, then login
 GET /sanctum/csrf-cookie
-POST /v1/auth/token { "email": "...", "password": "..." }
+POST /v1/auth/login { "email": "...", "password": "..." }
+POST /v1/auth/logout
 
 # API Clients: Get Bearer token
 POST /v1/auth/token { "email": "...", "password": "...", "device_name": "mobile" }

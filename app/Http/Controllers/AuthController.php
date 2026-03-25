@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers;
@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -47,8 +48,9 @@ class AuthController extends Controller
      * the session expires, as Laravel will automatically restore the session
      * from the remember_token cookie.
      *
-     * Security note: Users can explicitly log out via logoutSession()
-     * (e.g., /v1/auth/session/logout) to revoke the remember token.
+     * Security note: Users can explicitly log out via the canonical
+     * /v1/auth/logout endpoint. The legacy /v1/auth/session/logout alias
+     * also remains available for backward compatibility.
      *
      * @throws ValidationException
      */
@@ -86,39 +88,17 @@ class AuthController extends Controller
     }
 
     /**
-     * SPA Logout - End session (for web SPA).
+     * Legacy SPA logout alias.
      *
-     * Note: This requires the request to have a session.
-     * For token-based logout, use the logout() method.
-     *
-     * This also clears the remember_token to fully revoke the session,
-     * preventing automatic session restoration on subsequent requests.
+     * This preserves backward compatibility for existing SPA clients while
+     * delegating to the same session logout logic as /v1/auth/logout.
      */
     public function logoutSession(Request $request): JsonResponse
     {
-        /** @var User|null $user */
-        $user = Auth::guard('web')->user();
+        /** @var User $user */
+        $user = $request->user();
 
-        // Log logout before clearing session
-        if ($user) {
-            $this->activityLogService->logLogout($user);
-        }
-
-        // Clear remember token to prevent automatic session restoration
-        if ($user) {
-            $user->forceFill(['remember_token' => null])->save();
-        }
-
-        Auth::guard('web')->logout();
-
-        if ($request->hasSession()) {
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
-        }
-
-        return response()->json([
-            'message' => __('Logged out successfully'),
-        ]);
+        return $this->logoutCurrentSession($request, $user);
     }
 
     /**
@@ -157,11 +137,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token->plainTextToken,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-            ],
+            'user' => $this->buildUserAuthorizationData($user),
         ], 201);
     }
 
@@ -173,20 +149,23 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        // Log logout before revoking token
-        $this->activityLogService->logLogout($user);
+        if ($request->bearerToken() !== null) {
+            // Log logout before revoking token
+            $this->activityLogService->logLogout($user);
 
-        /** @var \Laravel\Sanctum\PersonalAccessToken|null $token */
-        $token = $user->currentAccessToken();
+            $token = $user->currentAccessToken();
 
-        // Token might already be deleted/invalid (e.g., concurrent logout)
-        if ($token !== null) {
-            $token->delete();
+            // Token might already be deleted/invalid (e.g., concurrent logout)
+            if ($token instanceof PersonalAccessToken) {
+                $token->delete();
+            }
+
+            return response()->json([
+                'message' => __('Logged out successfully'),
+            ]);
         }
 
-        return response()->json([
-            'message' => __('Token revoked successfully'),
-        ]);
+        return $this->logoutCurrentSession($request, $user);
     }
 
     /**
@@ -384,5 +363,26 @@ class AuthController extends Controller
             'permissions' => $permissions,
             'hasOrganizationalScopes' => $user->organizationalScopes->isNotEmpty(),
         ];
+    }
+
+    /**
+     * Invalidate the authenticated browser session and clear remember-me state.
+     */
+    private function logoutCurrentSession(Request $request, User $user): JsonResponse
+    {
+        $this->activityLogService->logLogout($user);
+
+        $user->forceFill(['remember_token' => null])->save();
+
+        Auth::guard('web')->logout();
+
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        return response()->json([
+            'message' => __('Logged out successfully'),
+        ]);
     }
 }
