@@ -92,11 +92,18 @@ class AuthController extends Controller
      *
      * This preserves backward compatibility for existing SPA clients while
      * delegating to the same session logout logic as /v1/auth/logout.
+     *
+     * Explicitly resolves the user via the web guard so Bearer-token clients
+     * receive a 401 instead of inadvertently clearing the remember-me state.
      */
     public function logoutSession(Request $request): JsonResponse
     {
-        /** @var User $user */
-        $user = $request->user();
+        /** @var User|null $user */
+        $user = Auth::guard('web')->user();
+
+        if ($user === null) {
+            return response()->json(['message' => __('Unauthenticated.')], 401);
+        }
 
         return $this->logoutCurrentSession($request, $user);
     }

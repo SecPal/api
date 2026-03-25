@@ -42,7 +42,7 @@ SecPal uses Laravel Sanctum's SPA authentication with httpOnly cookies for secur
      │<───────────────────────────│                            │
      │ Set-Cookie: secpal-session │                            │
      │                            │                            │
-    │ POST /v1/auth/login        │                            │
+     │ POST /v1/auth/login        │                            │
      │ Header: X-XSRF-TOKEN       │                            │
      │ Body: {email, password}    │                            │
      │───────────────────────────>│                            │

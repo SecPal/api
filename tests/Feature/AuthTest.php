@@ -383,6 +383,21 @@ describe('Token Revocation', function () {
 
         $response->assertUnauthorized();
     });
+
+    test('legacy session logout alias rejects bearer-token clients', function () {
+        $user = User::factory()->create([
+            'password' => bcrypt('password123'),
+        ]);
+
+        $token = $user->createToken('mobile-device')->plainTextToken;
+
+        $this->withHeaders(['Authorization' => "Bearer {$token}"])
+            ->postJson('/v1/auth/session/logout')
+            ->assertUnauthorized();
+
+        // Token must still be intact — legacy alias must not revoke it
+        expect($user->fresh()->tokens()->count())->toBe(1);
+    });
 });
 
 describe('Token Security', function () {
