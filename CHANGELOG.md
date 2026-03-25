@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - make `TenantKey::generateKek()` tolerate parallel KEK-directory creation and cover the missing-directory path so the API stays stable on the `laravel/sail` `1.55.0` Dependabot PR test matrix
+- tighten `BuildMerkleTreeBatch` Merkle proof return typing and add regression coverage so the API stays PHPStan-clean after the `phpstan/phpstan` `2.1.43` Dependabot update
 - couple `send_invitation` on `POST /v1/employees` to an explicit onboarding invitation service, generate the onboarding token before mail delivery, persist invitation delivery state on the employee record, and surface partial delivery failures in the API response instead of silently relying on the observer queue path
 - align employee creation validation with the frontend-required minimum dataset so `date_of_birth`, `position`, `contract_start_date`, and `organizational_unit_id` are now mandatory on `POST /v1/employees`
 - document the `EnforcesTenantRouteBinding` controller invariant so route-bound single-record actions can rely on the concern instead of re-checking tenant ownership manually
