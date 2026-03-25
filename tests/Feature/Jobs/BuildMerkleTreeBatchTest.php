@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -106,6 +106,30 @@ test('merkle proof verifies correctly after batching', function () {
     $logs->each(function ($log) {
         $log->refresh();
         expect($log->verifyMerkleProof())->toBeTrue();
+    });
+});
+
+test('merkle proofs stay as ordered sibling lists', function () {
+    $logs = collect(range(1, 3))->map(fn ($i) => Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'security',
+        'description' => "Proof shape log {$i}",
+    ]));
+
+    $job = new BuildMerkleTreeBatch;
+    $job->handle();
+
+    $logs->each(function ($log) {
+        $log->refresh();
+
+        expect($log->merkle_proof)->toBeArray()
+            ->and(array_values($log->merkle_proof))->toBe($log->merkle_proof);
+
+        foreach ($log->merkle_proof as $sibling) {
+            expect($sibling)->toHaveKeys(['hash', 'position']);
+            expect($sibling['hash'])->toBeString();
+            expect($sibling['position'])->toBeIn(['left', 'right']);
+        }
     });
 });
 

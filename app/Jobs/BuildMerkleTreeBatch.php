@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -153,7 +153,7 @@ class BuildMerkleTreeBatch implements ShouldQueue
      * 4. Generate proof for each leaf (sibling hashes + positions)
      *
      * @param  Collection<int, Activity>  $logs  Activity logs
-     * @return array{root: string, proofs: array<int, array<int, array{hash: string, position: string}>>}
+     * @return array{root: string, proofs: list<list<array{hash: string, position: 'left'|'right'}>>}
      */
     protected function buildTree(Collection $logs): array
     {
@@ -185,6 +185,7 @@ class BuildMerkleTreeBatch implements ShouldQueue
         $leafMapping = array_keys($leaves); // [0, 1, 2, 3]
 
         // Initialize proofs array
+        /** @var list<list<array{hash: string, position: 'left'|'right'}>> $proofs */
         $proofs = array_fill(0, $leafCount, []);
 
         // Build tree bottom-up until root
@@ -239,9 +240,12 @@ class BuildMerkleTreeBatch implements ShouldQueue
             throw new \RuntimeException('Merkle root must be string');
         }
 
+        /** @var list<list<array{hash: string, position: 'left'|'right'}>> $proofList */
+        $proofList = array_values($proofs);
+
         return [
             'root' => $root,
-            'proofs' => $proofs,
+            'proofs' => $proofList,
         ];
     }
 }
