@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\EmployeeQualification;
 use App\Models\Qualification;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -16,13 +17,9 @@ use Illuminate\Validation\Rule;
  */
 class AttachQualificationRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
-        // Authorization is handled by EmployeeQualificationPolicy
-        return true;
+        return $this->user()?->can('create', EmployeeQualification::class) ?? false;
     }
 
     /**

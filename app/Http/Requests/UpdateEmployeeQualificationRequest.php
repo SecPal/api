@@ -1,10 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests;
 
+use App\Models\EmployeeQualification;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,13 +16,13 @@ use Illuminate\Validation\Rule;
  */
 class UpdateEmployeeQualificationRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
-        // Authorization is handled by EmployeeQualificationPolicy
-        return true;
+        /** @var EmployeeQualification|null $employeeQualification */
+        $employeeQualification = $this->route('employeeQualification');
+
+        return $employeeQualification !== null
+            && ($this->user()?->can('update', $employeeQualification) ?? false);
     }
 
     /**

@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\Site;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,7 +25,10 @@ class UpdateSiteRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true; // Authorization handled by SitePolicy
+        /** @var Site|null $site */
+        $site = $this->route('site');
+
+        return $site !== null && ($this->user()?->can('update', $site) ?? false);
     }
 
     /**
@@ -36,7 +40,7 @@ class UpdateSiteRequest extends FormRequest
     {
         /** @var int $tenantId */
         $tenantId = $this->get('tenant_id');
-        /** @var \App\Models\Site $site */
+        /** @var Site $site */
         $site = $this->route('site');
 
         return [
@@ -93,7 +97,7 @@ class UpdateSiteRequest extends FormRequest
         $validator->after(function (\Illuminate\Validation\Validator $validator) {
             // Only validate if valid_until is provided but valid_from is not
             if ($this->has('valid_until') && ! $this->has('valid_from')) {
-                /** @var \App\Models\Site $site */
+                /** @var Site $site */
                 $site = $this->route('site');
                 $validUntil = $this->date('valid_until');
 

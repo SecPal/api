@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Assignment;
 
+use App\Models\CustomerAssignment;
+use App\Models\SiteAssignment;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -15,8 +17,8 @@ use Illuminate\Foundation\Http\FormRequest;
  * Validates updates to existing role assignments. All fields are optional
  * (PATCH semantics). Used for both CustomerAssignment and SiteAssignment updates.
  *
- * @see \App\Models\CustomerAssignment
- * @see \App\Models\SiteAssignment
+ * @see CustomerAssignment
+ * @see SiteAssignment
  * @see SecPal/api#315 Assignment API endpoints
  */
 class UpdateAssignmentRequest extends FormRequest
@@ -28,7 +30,10 @@ class UpdateAssignmentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var CustomerAssignment|SiteAssignment|null $assignment */
+        $assignment = $this->route('customerAssignment') ?? $this->route('siteAssignment');
+
+        return $assignment !== null && ($this->user()?->can('update', $assignment) ?? false);
     }
 
     /**

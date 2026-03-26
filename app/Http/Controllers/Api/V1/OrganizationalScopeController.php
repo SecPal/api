@@ -123,6 +123,8 @@ class OrganizationalScopeController extends Controller
      */
     public function update(UpdateOrganizationalScopeRequest $request, OrganizationalUnit $organizational_unit, string $scope): JsonResponse
     {
+        $this->authorize('manageScopes', $organizational_unit);
+
         // Load scope manually since route model binding doesn't auto-resolve nested models
         $scopeModel = UserInternalOrganizationalScope::find($scope);
 
@@ -138,9 +140,6 @@ class OrganizationalScopeController extends Controller
                 'message' => __('Scope not found for this organizational unit'),
             ], 404);
         }
-
-        $this->authorize('manageScopes', $organizational_unit);
-
         /** @var array{access_level?: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();
 
@@ -185,6 +184,8 @@ class OrganizationalScopeController extends Controller
      */
     public function destroy(OrganizationalUnit $organizational_unit, string $scope): JsonResponse|Response
     {
+        $this->authorize('manageScopes', $organizational_unit);
+
         // Load scope manually since route model binding doesn't auto-resolve nested models
         $scopeModel = UserInternalOrganizationalScope::find($scope);
 
@@ -200,9 +201,6 @@ class OrganizationalScopeController extends Controller
                 'message' => __('Scope not found for this organizational unit'),
             ], 404);
         }
-
-        $this->authorize('manageScopes', $organizational_unit);
-
         $scopeModel->delete();
 
         return response()->noContent();

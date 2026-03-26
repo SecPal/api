@@ -68,7 +68,7 @@ class CustomerAssignmentController extends Controller
      */
     public function store(StoreCustomerAssignmentRequest $request, Customer $customer): JsonResponse
     {
-        $this->authorize('update', $customer);
+        $this->authorize('create', [CustomerAssignment::class, $customer]);
 
         $validated = $request->validated();
         $validated['tenant_id'] = $request->input('tenant_id');
@@ -103,8 +103,7 @@ class CustomerAssignmentController extends Controller
      */
     public function update(UpdateAssignmentRequest $request, CustomerAssignment $customerAssignment): JsonResponse
     {
-        $customerAssignment->load('customer'); // Eager-load for authorization check
-        $this->authorize('update', $customerAssignment->customer);
+        $this->authorize('update', $customerAssignment);
 
         $customerAssignment->update($request->validated());
 
@@ -123,8 +122,7 @@ class CustomerAssignmentController extends Controller
      */
     public function destroy(CustomerAssignment $customerAssignment): JsonResponse
     {
-        $customerAssignment->load('customer'); // Eager-load for authorization check
-        $this->authorize('update', $customerAssignment->customer);
+        $this->authorize('delete', $customerAssignment);
 
         $customerAssignment->delete();
 

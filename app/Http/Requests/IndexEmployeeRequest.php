@@ -19,7 +19,7 @@ class IndexEmployeeRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->can('viewAny', Employee::class) ?? false;
     }
 
     /**
@@ -43,7 +43,6 @@ class IndexEmployeeRequest extends FormRequest
             'organizational_unit_id' => [
                 'nullable',
                 'uuid',
-                Rule::exists('organizational_units', 'id')->where('tenant_id', $tenantId),
             ],
             'search' => ['nullable', 'string', 'max:255'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],

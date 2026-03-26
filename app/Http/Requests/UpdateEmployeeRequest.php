@@ -22,8 +22,10 @@ class UpdateEmployeeRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by EmployeePolicy
-        return true;
+        /** @var Employee|null $employee */
+        $employee = $this->route('employee');
+
+        return $employee !== null && ($this->user()?->can('update', $employee) ?? false);
     }
 
     /**

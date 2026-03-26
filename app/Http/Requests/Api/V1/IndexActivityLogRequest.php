@@ -5,8 +5,8 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\Activity;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 /**
  * Request validation for activity log index filtering.
@@ -31,8 +31,7 @@ class IndexActivityLogRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization handled by ActivityPolicy in controller
-        return true;
+        return $this->user()?->can('viewAny', Activity::class) ?? false;
     }
 
     /**
@@ -57,7 +56,6 @@ class IndexActivityLogRequest extends FormRequest
             'organizational_unit_id' => [
                 'nullable',
                 'uuid',
-                Rule::exists('organizational_units', 'id')->where('tenant_id', $this->user()?->tenant_id),
             ],
 
             // Causer filtering

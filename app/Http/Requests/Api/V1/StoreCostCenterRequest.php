@@ -10,6 +10,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\CostCenter;
+use App\Models\Site;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,7 +22,10 @@ class StoreCostCenterRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var Site|null $site */
+        $site = $this->route('site');
+
+        return $site !== null && ($this->user()?->can('create', [CostCenter::class, $site]) ?? false);
     }
 
     /**
@@ -30,7 +35,7 @@ class StoreCostCenterRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var \App\Models\Site|null $site */
+        /** @var Site|null $site */
         $site = $this->route('site');
         /** @var string|null $siteId */
         $siteId = $site?->id;

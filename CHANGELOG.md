@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- move protected endpoint authorization into Form Request `authorize()` checks where controller-level policy checks previously happened too late, so unauthorized users now receive `403` before payload validation on affected site, employee, assignment, document, organizational-unit, qualification, customer, and scope endpoints
+- harden employee and site list filters to fail closed without leaking foreign-tenant resource existence, so cross-tenant UUID filters now return authorized empty result sets instead of tenant-scoped validation disclosures
 - make `TenantKey::generateKek()` tolerate parallel KEK-directory creation and cover the missing-directory path so the API stays stable on the `laravel/sail` `1.55.0` Dependabot PR test matrix
 - tighten `BuildMerkleTreeBatch` Merkle proof return typing and add regression coverage so the API stays PHPStan-clean after the `phpstan/phpstan` `2.1.43` Dependabot update
 - couple `send_invitation` on `POST /v1/employees` to an explicit onboarding invitation service, generate the onboarding token before mail delivery, persist invitation delivery state on the employee record, and surface partial delivery failures in the API response instead of silently relying on the observer queue path

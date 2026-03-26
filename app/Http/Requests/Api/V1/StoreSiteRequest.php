@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\Site;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -29,7 +30,7 @@ class StoreSiteRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true; // Authorization handled by SitePolicy
+        return $this->user()?->can('create', Site::class) ?? false;
     }
 
     /**

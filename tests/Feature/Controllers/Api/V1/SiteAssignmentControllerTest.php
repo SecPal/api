@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -396,7 +396,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks sites.assign.users permission', function (): void {
+    test('returns 403 when user lacks assignments.update permission', function (): void {
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
             'site_id' => $this->site->id,
@@ -408,7 +408,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
     });
 
     test('updates assignment role', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([
@@ -428,7 +428,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
     });
 
     test('updates assignment notes', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([
@@ -447,7 +447,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
     });
 
     test('updates validity period', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([
@@ -471,7 +471,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
     });
 
     test('allows partial updates (PATCH semantics)', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([
@@ -504,7 +504,7 @@ describe('DELETE /v1/site-assignments/{assignment}', function () {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks sites.assign.users permission', function (): void {
+    test('returns 403 when user lacks assignments.delete permission', function (): void {
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
             'site_id' => $this->site->id,
@@ -516,7 +516,7 @@ describe('DELETE /v1/site-assignments/{assignment}', function () {
     });
 
     test('deletes assignment permanently', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.delete');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $targetUser = User::factory()->create();
         $assignment = SiteAssignment::factory()->create([

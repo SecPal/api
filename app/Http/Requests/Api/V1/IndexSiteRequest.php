@@ -6,7 +6,6 @@
 namespace App\Http\Requests\Api\V1;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 /**
  * IndexSiteRequest validates site list filters.
@@ -38,12 +37,10 @@ class IndexSiteRequest extends FormRequest
             'customer_id' => [
                 'nullable',
                 'uuid',
-                Rule::exists('customers', 'id')->where('tenant_id', $tenantId),
             ],
             'organizational_unit_id' => [
                 'nullable',
                 'uuid',
-                Rule::exists('organizational_units', 'id')->where('tenant_id', $tenantId),
             ],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ];

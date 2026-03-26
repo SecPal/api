@@ -37,8 +37,20 @@ class StoreOrganizationalUnitRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by controller via policy
-        return true;
+        /** @var mixed $parentId */
+        $parentId = $this->input('parent_id');
+
+        if (! is_string($parentId) || $parentId === '') {
+            return $this->user()?->can('viewAny', OrganizationalUnit::class) ?? false;
+        }
+
+        $parent = OrganizationalUnit::query()->find($parentId);
+
+        if ($parent === null) {
+            return $this->user()?->can('viewAny', OrganizationalUnit::class) ?? false;
+        }
+
+        return $this->user()?->can('create', $parent) ?? false;
     }
 
     /**
