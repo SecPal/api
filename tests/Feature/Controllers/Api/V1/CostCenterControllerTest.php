@@ -167,7 +167,7 @@ describe('POST /v1/sites/{site}/cost-centers', function () {
     });
 
     test('validates required fields', function (): void {
-        $this->user->givePermissionTo('cost-centers.create');
+        $this->user->givePermissionTo(['cost-centers.create', 'sites.update']);
 
         $response = $this->withHeaders([
             'Authorization' => "Bearer {$this->token}",
@@ -179,7 +179,7 @@ describe('POST /v1/sites/{site}/cost-centers', function () {
     });
 
     test('validates code format and length', function (): void {
-        $this->user->givePermissionTo('cost-centers.create');
+        $this->user->givePermissionTo(['cost-centers.create', 'sites.update']);
 
         $response = $this->withHeaders([
             'Authorization' => "Bearer {$this->token}",
@@ -194,7 +194,7 @@ describe('POST /v1/sites/{site}/cost-centers', function () {
     });
 
     test('validates name max length', function (): void {
-        $this->user->givePermissionTo('cost-centers.create');
+        $this->user->givePermissionTo(['cost-centers.create', 'sites.update']);
 
         $response = $this->withHeaders([
             'Authorization' => "Bearer {$this->token}",
@@ -209,7 +209,7 @@ describe('POST /v1/sites/{site}/cost-centers', function () {
     });
 
     test('validates code uniqueness per site', function (): void {
-        $this->user->givePermissionTo('cost-centers.create');
+        $this->user->givePermissionTo(['cost-centers.create', 'sites.update']);
 
         CostCenter::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -488,7 +488,7 @@ describe('PUT /v1/sites/{site}/cost-centers/{costCenter}', function () {
     });
 
     test('validates code uniqueness on update', function (): void {
-        $this->user->givePermissionTo('cost-centers.update');
+        $this->user->givePermissionTo(['cost-centers.update', 'sites.update']);
 
         CostCenter::factory()->create([
             'tenant_id' => $this->tenant->id,
