@@ -38,11 +38,13 @@ use App\Policies\SiteAssignmentPolicy;
 use App\Policies\SitePolicy;
 use App\Services\SystemProcessExecutor;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -89,13 +91,30 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
-        // Onboarding completion rate limiter (3 attempts per 10 minutes by IP)
-        RateLimiter::for('onboarding', function (Request $request) {
-            return Limit::perMinutes(10, 3)->by($request->ip())->response(function () {
-                return response()->json([
-                    'message' => __('Too many onboarding attempts. Please try again later.'),
-                ], 429);
-            });
+        // Onboarding link validation should stay usable for legitimate reloads,
+        // so only business-level failures count toward the validate limiter.
+        RateLimiter::for('onboarding-validate', function (Request $request) {
+            return Limit::perMinutes(10, 3)
+                ->by($this->onboardingThrottleKey($request, 'validate'))
+                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountOnboardingAttempt($response))
+                ->response(function () {
+                    return response()->json([
+                        'message' => __('Too many onboarding attempts. Please try again later.'),
+                    ], 429);
+                });
+        });
+
+        // Onboarding completion keeps a separate bucket so validation refreshes
+        // do not block the actual account setup step.
+        RateLimiter::for('onboarding-complete', function (Request $request) {
+            return Limit::perMinutes(10, 3)
+                ->by($this->onboardingThrottleKey($request, 'complete'))
+                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountOnboardingAttempt($response))
+                ->response(function () {
+                    return response()->json([
+                        'message' => __('Too many onboarding attempts. Please try again later.'),
+                    ], 429);
+                });
         });
 
         // Register policy for Spatie Role model
@@ -153,5 +172,32 @@ class AppServiceProvider extends ServiceProvider
 
             return $policy->revokePermission($currentUser, $targetUser);
         });
+    }
+
+    private function onboardingThrottleKey(Request $request, string $scope): string
+    {
+        $tokenInput = $request->input('token', $request->query('token', ''));
+        $token = is_string($tokenInput) && $tokenInput !== '' ? $tokenInput : 'missing-token';
+
+        return $scope.'|'.$request->ip().'|'.hash('sha256', $token);
+    }
+
+    private function shouldCountOnboardingAttempt(SymfonyResponse $response): bool
+    {
+        if ($response->getStatusCode() === 403) {
+            return true;
+        }
+
+        if ($response->getStatusCode() !== 422) {
+            return false;
+        }
+
+        if (! $response instanceof JsonResponse) {
+            return true;
+        }
+
+        $data = $response->getData(true);
+
+        return ! is_array($data) || ! array_key_exists('errors', $data);
     }
 }
