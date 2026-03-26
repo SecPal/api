@@ -29,9 +29,6 @@ class IndexEmployeeRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var int|string|null $tenantId */
-        $tenantId = $this->input('tenant_id');
-
         return [
             'status' => ['nullable', Rule::in([
                 Employee::STATUS_APPLICANT,

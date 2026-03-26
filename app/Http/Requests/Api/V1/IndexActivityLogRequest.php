@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests\Api\V1;
@@ -83,7 +83,6 @@ class IndexActivityLogRequest extends FormRequest
     {
         return [
             'to_date.after_or_equal' => 'End date must be on or after start date.',
-            'organizational_unit_id.exists' => 'The selected organizational unit does not exist.',
             'per_page.max' => 'Maximum 100 items per page.',
         ];
     }

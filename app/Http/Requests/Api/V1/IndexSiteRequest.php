@@ -27,9 +27,6 @@ class IndexSiteRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var int|string|null $tenantId */
-        $tenantId = $this->input('tenant_id');
-
         return [
             'search' => ['nullable', 'string', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
