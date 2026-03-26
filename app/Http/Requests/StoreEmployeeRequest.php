@@ -21,8 +21,7 @@ class StoreEmployeeRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by EmployeePolicy
-        return true;
+        return $this->user()?->can('create', Employee::class) ?? false;
     }
 
     /**

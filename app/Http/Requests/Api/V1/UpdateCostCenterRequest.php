@@ -10,6 +10,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\CostCenter;
+use App\Models\Site;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,7 +22,14 @@ class UpdateCostCenterRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var Site|null $site */
+        $site = $this->route('site');
+        /** @var CostCenter|null $costCenter */
+        $costCenter = $this->route('costCenter');
+
+        return $site !== null
+            && $costCenter !== null
+            && ($this->user()?->can('update', [$costCenter, $site]) ?? false);
     }
 
     /**
@@ -30,9 +39,9 @@ class UpdateCostCenterRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var \App\Models\Site|null $site */
+        /** @var Site|null $site */
         $site = $this->route('site');
-        /** @var \App\Models\CostCenter|null $costCenter */
+        /** @var CostCenter|null $costCenter */
         $costCenter = $this->route('costCenter');
 
         /** @var string|null $siteId */

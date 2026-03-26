@@ -193,7 +193,7 @@ describe('GET /v1/sites', function () {
             ->assertJsonValidationErrors(['customer_id']);
     });
 
-    test('returns 422 for foreign-tenant customer_id filter', function (): void {
+    test('returns empty list for foreign-tenant customer_id filter', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
@@ -204,8 +204,9 @@ describe('GET /v1/sites', function () {
         $response = $this->withToken($this->token)
             ->getJson("/v1/sites?customer_id={$foreignCustomer->id}");
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['customer_id']);
+        $response->assertOk();
+        expect($response->json('data'))->toBeArray();
+        expect($response->json('data'))->toHaveCount(0);
     });
 
     test('filters sites by organizational_unit_id', function (): void {
@@ -245,7 +246,7 @@ describe('GET /v1/sites', function () {
             ->assertJsonValidationErrors(['organizational_unit_id']);
     });
 
-    test('returns 422 for foreign-tenant organizational_unit_id filter', function (): void {
+    test('returns empty list for foreign-tenant organizational_unit_id filter', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
@@ -256,8 +257,9 @@ describe('GET /v1/sites', function () {
         $response = $this->withToken($this->token)
             ->getJson("/v1/sites?organizational_unit_id={$foreignUnit->id}");
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['organizational_unit_id']);
+        $response->assertOk();
+        expect($response->json('data'))->toBeArray();
+        expect($response->json('data'))->toHaveCount(0);
     });
 
     test('searches sites by name', function (): void {

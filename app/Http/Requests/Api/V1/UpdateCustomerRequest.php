@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\Customer;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -22,7 +23,10 @@ class UpdateCustomerRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true; // Authorization handled by Policy
+        /** @var Customer|null $customer */
+        $customer = $this->route('customer');
+
+        return $customer !== null && ($this->user()?->can('update', $customer) ?? false);
     }
 
     /**

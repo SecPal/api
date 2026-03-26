@@ -1,12 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests\Api;
 
 use App\Models\OrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -37,8 +38,20 @@ class StoreOrganizationalUnitRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by controller via policy
-        return true;
+        /** @var mixed $parentId */
+        $parentId = $this->input('parent_id');
+
+        if (! is_string($parentId) || $parentId === '' || ! Str::isUuid($parentId)) {
+            return $this->user()?->can('viewAny', OrganizationalUnit::class) ?? false;
+        }
+
+        $parent = OrganizationalUnit::query()->find($parentId);
+
+        if ($parent === null) {
+            return $this->user()?->can('viewAny', OrganizationalUnit::class) ?? false;
+        }
+
+        return $this->user()?->can('create', $parent) ?? false;
     }
 
     /**

@@ -6,6 +6,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\OrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,7 +27,11 @@ class StoreOrganizationalScopeRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true; // Authorization handled by controller/policy
+        /** @var OrganizationalUnit|null $organizationalUnit */
+        $organizationalUnit = $this->route('organizational_unit');
+
+        return $organizationalUnit !== null
+            && ($this->user()?->can('manageScopes', $organizationalUnit) ?? false);
     }
 
     /**
@@ -36,7 +41,7 @@ class StoreOrganizationalScopeRequest extends FormRequest
      */
     public function rules(): array
     {
-        /** @var \App\Models\OrganizationalUnit|null $organizationalUnit */
+        /** @var OrganizationalUnit|null $organizationalUnit */
         $organizationalUnit = $this->route('organizational_unit');
         $organizationalUnitId = $organizationalUnit?->id;
 
