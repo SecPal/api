@@ -331,8 +331,9 @@ class Activity extends SpatieActivity
                 'subject_id' => $activity->subject_id,
                 'causer_type' => $activity->causer_type,
                 'causer_id' => $activity->causer_id,
-                'properties' => $activity->properties,
                 'event' => $activity->event,
+                'attribute_changes' => $activity->attribute_changes,
+                'properties' => $activity->properties,
                 'batch_uuid' => $activity->batch_uuid,
                 'created_at' => $activity->created_at->toIso8601String(), // Include timestamp for hash uniqueness
             ];
@@ -527,6 +528,8 @@ class Activity extends SpatieActivity
                     'subject_id' => $this->subject_id,
                     'causer_type' => $this->causer_type,
                     'causer_id' => $this->causer_id,
+                    'event' => $this->event,
+                    'attribute_changes' => $this->attribute_changes,
                     'properties' => $this->properties,
                     'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
                 ], JSON_THROW_ON_ERROR);
@@ -572,6 +575,8 @@ class Activity extends SpatieActivity
             'subject_id' => $this->subject_id,
             'causer_type' => $this->causer_type,
             'causer_id' => $this->causer_id,
+            'event' => $this->event,
+            'attribute_changes' => $this->attribute_changes,
             'properties' => $this->properties,
             'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
         ], JSON_THROW_ON_ERROR);

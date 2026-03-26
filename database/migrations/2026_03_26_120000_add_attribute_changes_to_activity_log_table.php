@@ -25,9 +25,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('activity_log', function (Blueprint $table) {
-            if (! Schema::hasColumn('activity_log', 'attribute_changes')) {
-                $table->json('attribute_changes')->nullable()->after('event');
-            }
+            $table->json('attribute_changes')->nullable()->after('event');
         });
     }
 
@@ -37,9 +35,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('activity_log', function (Blueprint $table) {
-            if (Schema::hasColumn('activity_log', 'attribute_changes')) {
-                $table->dropColumn('attribute_changes');
-            }
+            $table->dropColumn('attribute_changes');
         });
     }
 };
