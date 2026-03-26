@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Activity;
@@ -121,9 +121,9 @@ test('customer update logs changed fields', function (): void {
         ->first();
 
     expect($activity)->not->toBeNull()
-        ->and($activity->properties['attributes'])->toHaveKey('name')
-        ->and($activity->properties['attributes'])->toHaveKey('is_active')
-        ->and($activity->properties['attributes']['name'])->toBe('New Name');
+        ->and($activity->attribute_changes['attributes'])->toHaveKey('name')
+        ->and($activity->attribute_changes['attributes'])->toHaveKey('is_active')
+        ->and($activity->attribute_changes['attributes']['name'])->toBe('New Name');
 });
 
 test('site creation triggers activity log with 8-year retention', function (): void {
@@ -165,9 +165,9 @@ test('site update logs location and status changes', function (): void {
         ->first();
 
     expect($activity)->not->toBeNull()
-        ->and($activity->properties['attributes'])->toHaveKey('is_active')
-        ->and($activity->properties['attributes'])->toHaveKey('address')
-        ->and($activity->properties['attributes']['is_active'])->toBeFalse();
+        ->and($activity->attribute_changes['attributes'])->toHaveKey('is_active')
+        ->and($activity->attribute_changes['attributes'])->toHaveKey('address')
+        ->and($activity->attribute_changes['attributes']['is_active'])->toBeFalse();
 });
 
 test('activity logs are tenant-isolated', function (): void {
@@ -236,8 +236,8 @@ test('employee update with sensitive and non-sensitive fields creates properly c
     // First log: Spatie's "updated" log for management_level
     $spatieLog = $activities[0];
     expect($spatieLog->description)->toBe('updated')
-        ->and($spatieLog->properties)->toHaveKey('attributes')
-        ->and($spatieLog->properties['attributes'])->toHaveKey('management_level')
+        ->and($spatieLog->attribute_changes)->toHaveKey('attributes')
+        ->and($spatieLog->attribute_changes['attributes'])->toHaveKey('management_level')
         ->and($spatieLog->event_hash)->not->toBeNull('Spatie log should have event_hash');
 
     // Second log: GDPR log for email change

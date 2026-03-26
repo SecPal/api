@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Database\Factories;
@@ -38,6 +38,8 @@ class ActivityFactory extends Factory
             'subject_id' => null,
             'causer_type' => null,
             'causer_id' => null,
+            'event' => null,
+            'attribute_changes' => null,
             'properties' => null,
             'batch_uuid' => null,
             'ip_address' => fake()->ipv4(),
