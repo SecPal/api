@@ -5,6 +5,8 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Employee;
+use App\Models\EmployeeDocument;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,8 +22,11 @@ class UploadEmployeeDocumentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by EmployeeDocumentPolicy
-        return true;
+        /** @var Employee|null $employee */
+        $employee = $this->route('employee');
+
+        return $employee !== null
+            && ($this->user()?->can('create', [EmployeeDocument::class, $employee]) ?? false);
     }
 
     /**

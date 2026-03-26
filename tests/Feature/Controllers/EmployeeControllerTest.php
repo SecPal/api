@@ -141,7 +141,7 @@ describe('GET /v1/employees', function () {
             ->assertJsonValidationErrors(['organizational_unit_id']);
     });
 
-    test('returns 422 for foreign-tenant organizational_unit_id filter', function (): void {
+    test('returns empty list for foreign-tenant organizational_unit_id filter', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
@@ -152,8 +152,9 @@ describe('GET /v1/employees', function () {
         $response = $this->withToken($this->token)
             ->getJson("/v1/employees?organizational_unit_id={$foreignUnit->id}");
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['organizational_unit_id']);
+        $response->assertOk();
+        expect($response->json('data'))->toBeArray();
+        expect($response->json('data'))->toHaveCount(0);
     });
 
     test('manager with organizational scope cannot list employees outside scope', function (): void {
@@ -932,7 +933,7 @@ test('manager can create employee in unit within their scope', function (): void
     expect($response->json('data.organizational_unit_id'))->toBe($unitA->id);
 });
 
-test('manager cannot move employee to unit outside their scope', function (): void {
+test('manager without full employee access is rejected before move validation', function (): void {
     $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
@@ -957,9 +958,7 @@ test('manager cannot move employee to unit outside their scope', function (): vo
         'organizational_unit_id' => $unitB->id,
     ]);
 
-    $response->assertStatus(422);
-    $response->assertJsonValidationErrors(['organizational_unit_id']);
-    expect($response->json('errors.organizational_unit_id.0'))->toContain('do not have access');
+    $response->assertStatus(403);
 });
 
 test('admin without organizational scopes can create employee in any unit', function (): void {

@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Qualification;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,8 +22,7 @@ class StoreQualificationRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by QualificationPolicy
-        return true;
+        return $this->user()?->can('create', Qualification::class) ?? false;
     }
 
     /**

@@ -68,7 +68,7 @@ class SiteAssignmentController extends Controller
      */
     public function store(StoreSiteAssignmentRequest $request, Site $site): JsonResponse
     {
-        $this->authorize('update', $site);
+        $this->authorize('create', [SiteAssignment::class, $site]);
 
         $validated = $request->validated();
         $validated['tenant_id'] = $request->input('tenant_id');
@@ -103,8 +103,7 @@ class SiteAssignmentController extends Controller
      */
     public function update(UpdateAssignmentRequest $request, SiteAssignment $siteAssignment): JsonResponse
     {
-        $siteAssignment->load('site'); // Eager-load for authorization check
-        $this->authorize('update', $siteAssignment->site);
+        $this->authorize('update', $siteAssignment);
 
         $siteAssignment->update($request->validated());
 
@@ -123,8 +122,7 @@ class SiteAssignmentController extends Controller
      */
     public function destroy(SiteAssignment $siteAssignment): JsonResponse
     {
-        $siteAssignment->load('site'); // Eager-load for authorization check
-        $this->authorize('update', $siteAssignment->site);
+        $this->authorize('delete', $siteAssignment);
 
         $siteAssignment->delete();
 

@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\OrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,8 +19,11 @@ class UpdateOrganizationalUnitRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by controller via policy
-        return true;
+        /** @var OrganizationalUnit|null $organizationalUnit */
+        $organizationalUnit = $this->route('organizational_unit');
+
+        return $organizationalUnit !== null
+            && ($this->user()?->can('update', $organizationalUnit) ?? false);
     }
 
     /**

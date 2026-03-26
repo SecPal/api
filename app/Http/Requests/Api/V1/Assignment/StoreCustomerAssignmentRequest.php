@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Assignment;
 
+use App\Models\Customer;
+use App\Models\CustomerAssignment;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,7 +18,7 @@ use Illuminate\Validation\Rule;
  * Validates the creation of flexible user-to-customer role assignments.
  * Allows any role name (tenant-specific terminology) and optional validity period.
  *
- * @see \App\Models\CustomerAssignment
+ * @see CustomerAssignment
  * @see SecPal/api#315 Assignment API endpoints
  */
 class StoreCustomerAssignmentRequest extends FormRequest
@@ -28,7 +30,11 @@ class StoreCustomerAssignmentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var Customer|null $customer */
+        $customer = $this->route('customer');
+
+        return $customer !== null
+            && ($this->user()?->can('create', [CustomerAssignment::class, $customer]) ?? false);
     }
 
     /**

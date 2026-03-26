@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Qualification;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,8 +22,10 @@ class UpdateQualificationRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // Authorization is handled by QualificationPolicy
-        return true;
+        /** @var Qualification|null $qualification */
+        $qualification = $this->route('qualification');
+
+        return $qualification !== null && ($this->user()?->can('update', $qualification) ?? false);
     }
 
     /**

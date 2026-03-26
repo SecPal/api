@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Assignment;
 
+use App\Models\Site;
+use App\Models\SiteAssignment;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,7 +18,7 @@ use Illuminate\Validation\Rule;
  * Validates the creation of flexible user-to-site role assignments.
  * Allows any role name (tenant-specific terminology) and optional validity period.
  *
- * @see \App\Models\SiteAssignment
+ * @see SiteAssignment
  * @see SecPal/api#315 Assignment API endpoints
  */
 class StoreSiteAssignmentRequest extends FormRequest
@@ -28,7 +30,11 @@ class StoreSiteAssignmentRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        /** @var Site|null $site */
+        $site = $this->route('site');
+
+        return $site !== null
+            && ($this->user()?->can('create', [SiteAssignment::class, $site]) ?? false);
     }
 
     /**
