@@ -56,7 +56,7 @@ Route::prefix('v1')->group(function () {
     // SPA Login (session-based, for web browsers)
     // EnsureFrontendRequestsAreStateful middleware handles session/cookie middleware automatically
     Route::post('/auth/login', [AuthController::class, 'login'])
-        ->middleware([EnsureBrowserSessionLoginContext::class, 'throttle:login']);
+        ->middleware(['throttle:login', EnsureBrowserSessionLoginContext::class]);
     // Token Login (for mobile/native apps)
     Route::post('/auth/token', [AuthController::class, 'token'])
         ->middleware('throttle:login');

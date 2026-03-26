@@ -624,9 +624,10 @@ describe('Login Rate Limiting', function () {
         ]);
 
         // Make 5 failed login attempts with a real SPA request context.
+        $xsrfToken = issueSpaCsrfToken($this);
         for ($i = 0; $i < 5; $i++) {
             $this->withHeaders(spaHeaders([
-                'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+                'X-XSRF-TOKEN' => $xsrfToken,
             ]))
                 ->postJson('/v1/auth/login', [
                     'email' => 'session-test@example.com',
@@ -636,7 +637,7 @@ describe('Login Rate Limiting', function () {
 
         // 6th attempt should be rate limited
         $response = $this->withHeaders(spaHeaders([
-            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+            'X-XSRF-TOKEN' => $xsrfToken,
         ]))
             ->postJson('/v1/auth/login', [
                 'email' => 'session-test@example.com',
