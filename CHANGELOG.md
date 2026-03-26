@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- reject stateless misuse of `POST /v1/auth/login` before controller execution so the browser/session-only endpoint now returns a controlled JSON `400` directing API clients to `POST /v1/auth/token` instead of throwing `500 Session store not set on request`, while preserving the normal Sanctum/CSRF flow for real SPA logins
 - restore compatibility with `spatie/laravel-activitylog` `5.0.0` by migrating runtime usage to the v5 namespaces and config keys, switching activity-change assertions to `attribute_changes`, adding the required `activity_log.attribute_changes` schema column, extending the hash-chain payload (`ProcessActivityHashChain` job and `verifyChain()`) to include `event` and `attribute_changes` so tampering with change data is detectable, and removing the `Schema::hasColumn()` migration guards so schema drift fails loudly
 - move protected endpoint authorization into Form Request `authorize()` checks where controller-level policy checks previously happened too late, so unauthorized users now receive `403` before payload validation on affected site, employee, assignment, document, organizational-unit, qualification, customer, and scope endpoints
 - harden employee and site list filters to fail closed without leaking foreign-tenant resource existence, so cross-tenant UUID filters now return authorized empty result sets instead of tenant-scoped validation disclosures

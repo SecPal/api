@@ -14,6 +14,23 @@ describe('SPA Session Login', function () {
         clearLoginRateLimiter('spa@example.com');
     });
 
+    test('spa login rejects stateless api-style requests with a controlled 400 response', function () {
+        User::factory()->create([
+            'email' => 'spa@example.com',
+            'password' => bcrypt('password123'),
+        ]);
+
+        $response = $this->postJson('/v1/auth/login', [
+            'email' => 'spa@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertBadRequest()
+            ->assertJson([
+                'message' => 'This endpoint requires a browser session context. Use /v1/auth/token for API clients.',
+            ]);
+    });
+
     test('spa login sets remember token for long-lived sessions', function () {
         $user = User::factory()->create([
             'email' => 'spa@example.com',
@@ -606,9 +623,11 @@ describe('Login Rate Limiting', function () {
             'password' => bcrypt('password'),
         ]);
 
-        // Make 5 failed login attempts - use withSession to enable session
+        // Make 5 failed login attempts with a real SPA request context.
         for ($i = 0; $i < 5; $i++) {
-            $this->withSession([])
+            $this->withHeaders(spaHeaders([
+                'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+            ]))
                 ->postJson('/v1/auth/login', [
                     'email' => 'session-test@example.com',
                     'password' => 'wrong',
@@ -616,7 +635,9 @@ describe('Login Rate Limiting', function () {
         }
 
         // 6th attempt should be rate limited
-        $response = $this->withSession([])
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))
             ->postJson('/v1/auth/login', [
                 'email' => 'session-test@example.com',
                 'password' => 'wrong',

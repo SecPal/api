@@ -24,6 +24,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
+use App\Http\Middleware\EnsureBrowserSessionLoginContext;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -55,7 +56,7 @@ Route::prefix('v1')->group(function () {
     // SPA Login (session-based, for web browsers)
     // EnsureFrontendRequestsAreStateful middleware handles session/cookie middleware automatically
     Route::post('/auth/login', [AuthController::class, 'login'])
-        ->middleware('throttle:login');
+        ->middleware([EnsureBrowserSessionLoginContext::class, 'throttle:login']);
     // Token Login (for mobile/native apps)
     Route::post('/auth/token', [AuthController::class, 'token'])
         ->middleware('throttle:login');
