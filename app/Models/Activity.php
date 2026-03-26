@@ -43,6 +43,8 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  * @property string|null $subject_id
  * @property string|null $causer_type
  * @property string|null $causer_id
+ * @property string|null $event
+ * @property \Illuminate\Support\Collection<string, mixed>|null $attribute_changes
  * @property array<string, mixed>|null $properties
  * @property string|null $batch_uuid
  * @property string|null $ip_address
@@ -91,6 +93,8 @@ class Activity extends SpatieActivity
         'subject_id',
         'causer_type',
         'causer_id',
+        'event',
+        'attribute_changes',
         'properties',
         'batch_uuid',
         'ip_address',
@@ -110,22 +114,24 @@ class Activity extends SpatieActivity
     ];
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        'properties' => 'array',
-        'merkle_proof' => 'array',
-        'ots_submitted_at' => 'datetime',
-        'ots_confirmed_at' => 'datetime',
-        'is_orphaned_genesis' => 'boolean',
-        'orphaned_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'causer_id' => 'string',
-        'subject_id' => 'string',
-    ];
+    protected function casts(): array
+    {
+        return array_merge(parent::casts(), [
+            'merkle_proof' => 'array',
+            'ots_submitted_at' => 'datetime',
+            'ots_confirmed_at' => 'datetime',
+            'is_orphaned_genesis' => 'boolean',
+            'orphaned_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+            'causer_id' => 'string',
+            'subject_id' => 'string',
+        ]);
+    }
 
     /**
      * @param  Builder<static>  $query
@@ -325,8 +331,9 @@ class Activity extends SpatieActivity
                 'subject_id' => $activity->subject_id,
                 'causer_type' => $activity->causer_type,
                 'causer_id' => $activity->causer_id,
-                'properties' => $activity->properties,
                 'event' => $activity->event,
+                'attribute_changes' => $activity->attribute_changes,
+                'properties' => $activity->properties,
                 'batch_uuid' => $activity->batch_uuid,
                 'created_at' => $activity->created_at->toIso8601String(), // Include timestamp for hash uniqueness
             ];
@@ -521,6 +528,8 @@ class Activity extends SpatieActivity
                     'subject_id' => $this->subject_id,
                     'causer_type' => $this->causer_type,
                     'causer_id' => $this->causer_id,
+                    'event' => $this->event,
+                    'attribute_changes' => $this->attribute_changes,
                     'properties' => $this->properties,
                     'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
                 ], JSON_THROW_ON_ERROR);
@@ -566,6 +575,8 @@ class Activity extends SpatieActivity
             'subject_id' => $this->subject_id,
             'causer_type' => $this->causer_type,
             'causer_id' => $this->causer_id,
+            'event' => $this->event,
+            'attribute_changes' => $this->attribute_changes,
             'properties' => $this->properties,
             'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
         ], JSON_THROW_ON_ERROR);

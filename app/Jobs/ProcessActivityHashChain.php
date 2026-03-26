@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -157,6 +157,8 @@ class ProcessActivityHashChain implements ShouldQueue
                     'subject_id' => $this->activityData['subject_id'] ?? null,
                     'causer_type' => $this->activityData['causer_type'] ?? null,
                     'causer_id' => $this->activityData['causer_id'] ?? null,
+                    'event' => $this->activityData['event'] ?? null,
+                    'attribute_changes' => $this->activityData['attribute_changes'] ?? null,
                     'properties' => $this->activityData['properties'] ?? null,
                     'created_at' => $this->activityData['created_at'] ?? null, // Timestamp ensures hash uniqueness
                 ], JSON_THROW_ON_ERROR);

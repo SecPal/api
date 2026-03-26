@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -93,6 +93,8 @@ test('hash chain is deterministic', function () {
         'subject_id' => $log->subject_id,
         'causer_type' => $log->causer_type,
         'causer_id' => $log->causer_id,
+        'event' => $log->event,
+        'attribute_changes' => $log->attribute_changes,
         'properties' => $log->properties,
         'created_at' => $log->created_at?->toIso8601String(), // Timestamp ensures hash uniqueness
     ], JSON_THROW_ON_ERROR);

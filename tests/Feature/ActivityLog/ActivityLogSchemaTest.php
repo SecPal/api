@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -36,6 +36,17 @@ test('tenant isolation columns exist', function () {
     expect(Schema::hasColumns('activity_log', [
         'tenant_id',
         'organizational_unit_id',
+    ]))->toBeTrue();
+});
+
+/**
+ * Test core activity change-tracking columns exist.
+ */
+test('activity change tracking columns exist', function () {
+    expect(Schema::hasColumns('activity_log', [
+        'event',
+        'attribute_changes',
+        'properties',
     ]))->toBeTrue();
 });
 

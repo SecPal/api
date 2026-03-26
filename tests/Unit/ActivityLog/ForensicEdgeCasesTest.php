@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -180,6 +180,8 @@ test('edge case 3: illegitimate genesis detected', function () {
         'subject_id' => $log2->subject_id,
         'causer_type' => $log2->causer_type,
         'causer_id' => $log2->causer_id,
+        'event' => $log2->event,
+        'attribute_changes' => $log2->attribute_changes,
         'properties' => $log2->properties,
         'created_at' => $log2->created_at?->toIso8601String(),
     ], JSON_THROW_ON_ERROR);
@@ -234,6 +236,8 @@ test('edge case 4: illegitimate genesis with deleted batch activities', function
         'subject_id' => $logs[2]->subject_id,
         'causer_type' => $logs[2]->causer_type,
         'causer_id' => $logs[2]->causer_id,
+        'event' => $logs[2]->event,
+        'attribute_changes' => $logs[2]->attribute_changes,
         'properties' => $logs[2]->properties,
         'created_at' => $logs[2]->created_at?->toIso8601String(),
     ], JSON_THROW_ON_ERROR);

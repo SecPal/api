@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Activity;
@@ -204,8 +204,8 @@ test('only non-sensitive fields changed creates only Spatie log', function (): v
     // Should have only 1 log (Spatie), not 2
     expect($activities)->toHaveCount(1)
         ->and($activities[0]->description)->toBe('updated')
-        ->and($activities[0]->properties)->toHaveKey('attributes')
-        ->and($activities[0]->properties['attributes'])->toHaveKey('management_level');
+        ->and($activities[0]->attribute_changes)->toHaveKey('attributes')
+        ->and($activities[0]->attribute_changes['attributes'])->toHaveKey('management_level');
 });
 
 test('encrypted field with same value after trim does not trigger log', function (): void {
