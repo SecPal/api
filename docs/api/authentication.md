@@ -53,6 +53,8 @@ X-XSRF-TOKEN: <token-from-cookie>
 }
 ```
 
+`/v1/auth/login` is a first-party browser session endpoint. It is intended for requests that originate from the SecPal SPA, include the Sanctum session / CSRF cookie flow from `/sanctum/csrf-cookie`, and send the expected first-party browser headers such as `Origin` or `Referer`.
+
 **Response:**
 
 ```http
@@ -73,6 +75,8 @@ Set-Cookie: laravel_session=<session>; path=/; HttpOnly; Secure; SameSite=lax
 ```
 
 **Important:** For SPA mode, use `/v1/auth/login`. `/v1/auth/token` remains the official endpoint for Android, native, CLI, and other Bearer-token clients.
+
+Direct JSON/API-style calls that do not establish the browser session context are rejected with `400 Bad Request` and a JSON message directing API clients to `/v1/auth/token`, instead of falling through to a server error.
 
 #### Step 3: Authenticated Requests
 
@@ -147,6 +151,21 @@ fetch("/v1/organizational-units", {
 ```
 
 ### Error Handling
+
+#### 400 - Wrong Login Context
+
+If `/v1/auth/login` is called like a stateless API endpoint without the expected first-party browser/session context:
+
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{
+  "message": "This endpoint requires a browser session context. Use /v1/auth/token for API clients."
+}
+```
+
+**Solution:** Browser SPAs must initialize Sanctum via `/sanctum/csrf-cookie` and continue with cookie-based session auth. Android, native, CLI, and other stateless clients must use `/v1/auth/token`.
 
 #### 419 - CSRF Token Mismatch
 
