@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -239,8 +239,32 @@ test('handles URL-encoded special characters in email', function () {
         ]);
 });
 
-test('rate limits validation attempts', function () {
-    // Make 4 requests (limit is 3 per 10 minutes for onboarding throttle)
+test('does not rate limit repeated successful token validations', function () {
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'repeat@example.com',
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Repeat',
+        'last_name' => 'Visitor',
+        'email' => 'repeat@example.com',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    for ($i = 0; $i < 6; $i++) {
+        $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('repeat@example.com'));
+
+        $response->assertOk();
+    }
+});
+
+test('rate limits repeated failed validation attempts', function () {
+    // Failed validations should still be throttled to slow down abuse.
     for ($i = 0; $i < 4; $i++) {
         $response = getJson('/v1/onboarding/validate-token?token=invalid-token&email=test@example.com');
     }
