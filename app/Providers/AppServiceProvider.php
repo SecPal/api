@@ -176,10 +176,7 @@ class AppServiceProvider extends ServiceProvider
 
     private function onboardingThrottleKey(Request $request, string $scope): string
     {
-        $tokenInput = $request->input('token', $request->query('token', ''));
-        $token = is_string($tokenInput) && $tokenInput !== '' ? $tokenInput : 'missing-token';
-
-        return $scope.'|'.$request->ip().'|'.hash('sha256', $token);
+        return $scope.'|'.$request->ip();
     }
 
     private function shouldCountOnboardingAttempt(SymfonyResponse $response): bool
