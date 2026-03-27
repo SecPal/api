@@ -124,13 +124,7 @@ class StoreEmployeeRequest extends FormRequest
             'social_security_number' => ['nullable', 'string', 'max:255'],
 
             // Employment Status
-            'status' => ['required', Rule::in([
-                Employee::STATUS_APPLICANT,
-                Employee::STATUS_PRE_CONTRACT,
-                Employee::STATUS_ACTIVE,
-                Employee::STATUS_ON_LEAVE,
-                Employee::STATUS_TERMINATED,
-            ])],
+            'status' => ['required', Rule::in(Employee::VALID_STATUSES)],
             'position' => ['required', 'string', 'max:255'],
             'management_level' => ['required', 'integer', 'min:0', 'max:255'],
             'hire_date' => ['nullable', 'date'],
@@ -144,8 +138,13 @@ class StoreEmployeeRequest extends FormRequest
                 'sometimes',
                 'boolean',
                 function (string $attribute, mixed $value, \Closure $fail): void {
-                    if ((bool) $value && $this->input('status') !== Employee::STATUS_PRE_CONTRACT) {
-                        $fail(__('Invitation sending is only available for pre-contract employees.'));
+                    $statusInput = $this->input('status');
+                    $status = is_string($statusInput) ? $statusInput : '';
+
+                    if ((bool) $value && ! in_array($status, Employee::INVITABLE_STATUSES, true)) {
+                        $fail(__('Invitation sending is only available when employee status is pre_contract. Received: :status.', [
+                            'status' => $status !== '' ? $status : 'none',
+                        ]));
                     }
                 },
             ],
@@ -226,6 +225,9 @@ class StoreEmployeeRequest extends FormRequest
             'contract_type.required' => __('Contract type is required'),
             'contract_start_date.required' => __('Contract start date is required'),
             'status.required' => __('Employment status is required'),
+            'status.in' => __('Valid employee statuses are: :statuses.', [
+                'statuses' => implode(', ', Employee::VALID_STATUSES),
+            ]),
             'organizational_unit_id.required' => __('Organizational unit is required'),
             'send_invitation.boolean' => __('Invitation sending must be true or false'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),

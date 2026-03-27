@@ -30,19 +30,27 @@ class IndexEmployeeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['nullable', Rule::in([
-                Employee::STATUS_APPLICANT,
-                Employee::STATUS_PRE_CONTRACT,
-                Employee::STATUS_ACTIVE,
-                Employee::STATUS_ON_LEAVE,
-                Employee::STATUS_TERMINATED,
-            ])],
+            'status' => ['nullable', Rule::in(Employee::VALID_STATUSES)],
             'organizational_unit_id' => [
                 'nullable',
                 'uuid',
             ],
             'search' => ['nullable', 'string', 'max:255'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ];
+    }
+
+    /**
+     * Get custom messages for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'status.in' => __('Status filter must be one of: :statuses.', [
+                'statuses' => implode(', ', Employee::VALID_STATUSES),
+            ]),
         ];
     }
 }

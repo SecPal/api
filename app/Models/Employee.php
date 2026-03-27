@@ -151,6 +151,20 @@ class Employee extends Model
 
     public const STATUS_TERMINATED = 'terminated';
 
+    /** @var list<string> */
+    public const VALID_STATUSES = [
+        self::STATUS_APPLICANT,
+        self::STATUS_PRE_CONTRACT,
+        self::STATUS_ACTIVE,
+        self::STATUS_ON_LEAVE,
+        self::STATUS_TERMINATED,
+    ];
+
+    /** @var list<string> */
+    public const INVITABLE_STATUSES = [
+        self::STATUS_PRE_CONTRACT,
+    ];
+
     public const INVITATION_STATUS_NOT_REQUESTED = 'not_requested';
 
     public const INVITATION_STATUS_SENT = 'sent';
@@ -920,6 +934,11 @@ class Employee extends Model
             && $this->onboarding_completed
             && $this->contract_start_date
             && $this->contract_start_date->isPast();
+    }
+
+    public function canReceiveOnboardingInvitation(): bool
+    {
+        return in_array($this->status, self::INVITABLE_STATUSES, true);
     }
 
     public function canTerminate(): bool
