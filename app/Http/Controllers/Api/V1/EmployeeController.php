@@ -84,7 +84,7 @@ class EmployeeController extends Controller
     /**
      * Store a newly created employee.
      *
-     * POST /api/v1/employees
+     * POST /v1/employees
      *
      * Creates employee and triggers EmployeeObserver to create user account if status = pre_contract.
      * Onboarding invitations may only be requested while the employee is in pre_contract status.

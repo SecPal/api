@@ -142,9 +142,11 @@ class StoreEmployeeRequest extends FormRequest
                     $status = is_string($statusInput) ? $statusInput : '';
 
                     if ((bool) $value && ! in_array($status, Employee::INVITABLE_STATUSES, true)) {
-                        $fail(__('Invitation sending is only available when employee status is pre_contract. Received: :status.', [
-                            'status' => $status !== '' ? $status : 'none',
-                        ]));
+                        $fail(sprintf(
+                            'Invitation sending is only available when employee status is %s. Received: %s.',
+                            implode(', ', Employee::INVITABLE_STATUSES),
+                            $status !== '' ? $status : 'none',
+                        ));
                     }
                 },
             ],
