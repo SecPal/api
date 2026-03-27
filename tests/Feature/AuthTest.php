@@ -129,7 +129,7 @@ describe('SPA Session Login', function () {
             ->assertJson(['email' => 'spa@example.com']);
     });
 
-    test('spa logout clears remember token', function () {
+    test('spa logout via canonical endpoint clears remember token', function () {
         $email = 'spa-logout-'.Str::uuid().'@example.com';
 
         $user = User::factory()->create([
@@ -153,9 +153,36 @@ describe('SPA Session Login', function () {
         // Logout
         $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
-        ]))->postJson('/v1/auth/session/logout')->assertOk();
+        ]))->postJson('/v1/auth/logout')->assertOk();
 
         // Verify remember token is cleared
+        $user->refresh();
+        expect($user->remember_token)->toBeNull();
+    });
+
+    test('legacy session logout alias remains available for existing spa clients', function () {
+        $email = 'spa-legacy-logout-'.Str::uuid().'@example.com';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password123'),
+            'remember_token' => null,
+        ]);
+
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => $email,
+            'password' => 'password123',
+        ])->assertOk();
+
+        $user->refresh();
+        expect($user->remember_token)->not->toBeNull();
+
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/session/logout')->assertOk();
+
         $user->refresh();
         expect($user->remember_token)->toBeNull();
     });
@@ -311,6 +338,20 @@ describe('Protected Endpoints', function () {
 
         $response->assertUnauthorized();
     });
+
+    test('unsupported auth and self-service aliases remain undefined', function (string $path) {
+        $user = User::factory()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson($path)
+            ->assertNotFound();
+    })->with([
+        '/v1/auth/me',
+        '/v1/user',
+        '/v1/user/profile',
+        '/v1/profile',
+    ]);
 });
 
 describe('Token Revocation', function () {

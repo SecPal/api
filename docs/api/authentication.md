@@ -12,6 +12,15 @@ SecPal API uses **Laravel Sanctum** for authentication, supporting two modes:
 1. **httpOnly Cookie Authentication (SPA Mode)** - Recommended for browser-based SPAs (React PWA)
 2. **Bearer Token Authentication** - For API clients (mobile apps, third-party integrations)
 
+## Official Endpoint Responsibilities
+
+- `POST /v1/auth/login` is the browser-only session login endpoint for first-party SPA requests that completed the Sanctum CSRF/cookie flow.
+- `POST /v1/auth/token` is the stateless Bearer-token login endpoint for Android, native, CLI, and other API clients.
+- `POST /v1/auth/logout` is the canonical logout endpoint for both authenticated modes.
+- `GET /v1/me` is the canonical self-service endpoint for the authenticated caller.
+- `POST /v1/auth/session/logout` remains available only as a deprecated compatibility alias for older SPA clients.
+- `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile` are intentionally unsupported and return `404 Not Found`.
+
 ## httpOnly Cookie Authentication (SPA Mode)
 
 ### Security Benefits
@@ -96,9 +105,14 @@ Content-Type: application/json
 {
   "id": 1,
   "name": "John Doe",
-  "email": "user@example.com"
+  "email": "user@example.com",
+  "roles": ["Admin"],
+  "permissions": ["*"],
+  "hasOrganizationalScopes": true
 }
 ```
+
+`GET /v1/me` is the official self-service root for the authenticated caller. Similar-looking aliases such as `/v1/auth/me`, `/v1/user`, `/v1/user/profile`, or `/v1/profile` are not defined.
 
 #### Step 4: Logout
 
@@ -119,7 +133,7 @@ Content-Type: application/json
 }
 ```
 
-> **Note:** `/v1/auth/logout` is the canonical logout endpoint for both SPA session auth and Bearer-token auth. `/v1/auth/session/logout` remains available as a legacy compatibility alias for older SPA clients.
+> **Note:** `/v1/auth/logout` is the canonical logout endpoint for both SPA session auth and Bearer-token auth. `/v1/auth/session/logout` remains available only as a legacy compatibility alias for older SPA clients and should not be used by new clients.
 
 ### CSRF Token Handling
 
@@ -325,15 +339,15 @@ curl -X GET http://api.secpal.dev/sanctum/csrf-cookie \
   -c cookies.txt -b cookies.txt -i
 ```
 
-**Login:**
+**Token login (API clients):**
 
 ```bash
 curl -X POST http://api.secpal.dev/v1/auth/token \
-  -c cookies.txt -b cookies.txt \
   -H "Content-Type: application/json" \
-  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN cookies.txt | awk '{print $7}')" \
   -d '{"email":"test@example.com","password":"password123"}'
 ```
+
+**SPA login:** use `/v1/auth/login` only with the full Sanctum browser-session flow, including `/sanctum/csrf-cookie`, cookies, and first-party browser headers. For ad hoc CLI testing, prefer `POST /v1/auth/token`.
 
 **Authenticated request:**
 
@@ -348,7 +362,7 @@ See test examples:
 
 - `tests/Feature/Auth/SanctumCookieAuthTest.php` - httpOnly cookie tests
 - `tests/Feature/Auth/CsrfProtectionTest.php` - CSRF validation tests
-- `tests/Feature/AuthTest.php` - Bearer token tests
+- `tests/Feature/AuthTest.php` - auth surface, Bearer token tests, and unsupported alias regression coverage
 
 ## Migration Guide
 
