@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scripts/check-live-cors-health.sh` and `.github/workflows/live-cors-smoke.yml` - automated live smoke coverage for `GET /health` and `OPTIONS /health` CORS behavior on `api.secpal.dev` against the first-party `https://app.secpal.dev` origin
 - `app/Services/EmployeeDocumentStorageService.php` - encrypted-at-rest storage service for employee document uploads and downloads
 
 - `.github/instructions/php-laravel.instructions.md` - targeted Laravel, Pest, and native PHP runtime guidance for PHP work in this repo

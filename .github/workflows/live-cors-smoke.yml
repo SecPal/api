@@ -1,0 +1,29 @@
+---
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+
+name: Live CORS Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  live-cors-smoke:
+    name: Live CORS Smoke Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Check live API CORS headers
+        env:
+          API_URL: https://api.secpal.dev
+          SPA_ORIGIN: https://app.secpal.dev
+        run: ./scripts/check-live-cors-health.sh
