@@ -1,10 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Resources;
 
+use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -148,6 +149,11 @@ class EmployeeResource extends JsonResource
             'onboarding_completed_at' => $this->onboarding_completed_at?->toIso8601String(),
             'onboarding_invitation' => [
                 'status' => $this->onboarding_invitation_status ?? 'not_requested',
+                'available' => $this->canReceiveOnboardingInvitation(),
+                'eligible_statuses' => Employee::INVITABLE_STATUSES,
+                'rule_message' => $this->canReceiveOnboardingInvitation()
+                    ? 'Onboarding invitations can be requested while the employee remains in pre_contract status.'
+                    : 'Onboarding invitations are only available while the employee is in pre_contract status.',
                 'requested_at' => $this->onboarding_invitation_requested_at?->toIso8601String(),
                 'token_created_at' => $this->onboarding_invitation_token_created_at?->toIso8601String(),
                 'mail_sent_at' => $this->onboarding_invitation_mail_sent_at?->toIso8601String(),

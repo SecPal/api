@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
@@ -281,6 +281,33 @@ test('employee can terminate returns true for active and on leave', function () 
 
     $terminated = Employee::factory()->terminated()->create(['tenant_id' => $this->tenant->id]);
     expect($terminated->canTerminate())->toBeFalse();
+});
+
+test('onboarding invitations are only available for pre-contract employees', function () {
+    $applicant = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'status' => Employee::STATUS_APPLICANT,
+    ]);
+    $preContract = Employee::factory()->preContract()->create(['tenant_id' => $this->tenant->id]);
+    $active = Employee::factory()->active()->create(['tenant_id' => $this->tenant->id]);
+    $onLeave = Employee::factory()->onLeave()->create(['tenant_id' => $this->tenant->id]);
+    $terminated = Employee::factory()->terminated()->create(['tenant_id' => $this->tenant->id]);
+
+    expect($applicant->canReceiveOnboardingInvitation())->toBeFalse()
+        ->and($preContract->canReceiveOnboardingInvitation())->toBeTrue()
+        ->and($active->canReceiveOnboardingInvitation())->toBeFalse()
+        ->and($onLeave->canReceiveOnboardingInvitation())->toBeFalse()
+        ->and($terminated->canReceiveOnboardingInvitation())->toBeFalse()
+        ->and(Employee::VALID_STATUSES)->toBe([
+            Employee::STATUS_APPLICANT,
+            Employee::STATUS_PRE_CONTRACT,
+            Employee::STATUS_ACTIVE,
+            Employee::STATUS_ON_LEAVE,
+            Employee::STATUS_TERMINATED,
+        ])
+        ->and(Employee::INVITABLE_STATUSES)->toBe([
+            Employee::STATUS_PRE_CONTRACT,
+        ]);
 });
 
 test('employee scopes applicants and on leave work correctly', function () {

@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests;
@@ -113,13 +113,7 @@ class UpdateEmployeeRequest extends FormRequest
             'social_security_number' => ['sometimes', 'nullable', 'string', 'max:255'],
 
             // Employment Status
-            'status' => ['sometimes', 'required', Rule::in([
-                Employee::STATUS_APPLICANT,
-                Employee::STATUS_PRE_CONTRACT,
-                Employee::STATUS_ACTIVE,
-                Employee::STATUS_ON_LEAVE,
-                Employee::STATUS_TERMINATED,
-            ])],
+            'status' => ['sometimes', 'required', Rule::in(Employee::VALID_STATUSES)],
             'position' => ['sometimes', 'nullable', 'string', 'max:255'],
             'management_level' => ['sometimes', 'required', 'integer', 'min:0', 'max:255'],
             'hire_date' => ['sometimes', 'nullable', 'date'],
@@ -198,6 +192,9 @@ class UpdateEmployeeRequest extends FormRequest
         return [
             'email.email' => __('Email address must be valid'),
             'email.unique' => __('Email address is already in use'),
+            'status.in' => __('Valid employee statuses are: :statuses.', [
+                'statuses' => implode(', ', Employee::VALID_STATUSES),
+            ]),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
 
             // BWR-ID validation

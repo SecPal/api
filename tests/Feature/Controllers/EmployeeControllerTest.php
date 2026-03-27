@@ -460,7 +460,11 @@ describe('POST /v1/employees', function () {
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['send_invitation']);
+            ->assertJsonValidationErrors(['send_invitation'])
+            ->assertJsonPath(
+                'errors.send_invitation.0',
+                'Invitation sending is only available when employee status is pre_contract. Received: active.'
+            );
     });
 
     test('generates unique employee_number per tenant', function (): void {

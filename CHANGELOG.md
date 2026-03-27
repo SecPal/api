@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- centralized the official employee status set to `applicant`, `pre_contract`, `active`, `on_leave`, and `terminated`, reused that definition across employee create/update/list validation, clarified in API messages that onboarding invitations are only allowed while status is `pre_contract`, and documented the same admin-facing rule set in `README.md`
 - clarified the official auth/self-service surface so browser SPAs use `POST /v1/auth/login`, Android/native/API clients use `POST /v1/auth/token`, `GET /v1/me` remains the canonical self-service read endpoint, and `POST /v1/auth/logout` now cleanly logs out both session- and token-authenticated clients while `POST /v1/auth/session/logout` is retained only as a documented legacy alias
 - added regression coverage and API guide clarifications that keep guessed aliases such as `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile` intentionally unsupported while documenting `GET /v1/me` as the canonical self-service endpoint
 - aligned token-login responses with session-login responses by returning the same authorization context (`roles`, `permissions`, `hasOrganizationalScopes`) inside the `user` payload for Android/native/API clients
@@ -45,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- surface invitation eligibility directly in employee API resources and return a clearer `send_invitation` validation error when clients request onboarding for any non-`pre_contract` employee status
 - split onboarding token validation and completion into separate rate-limit buckets and count only business-level failures toward those buckets, so repeated successful link opens, reloads, and normal onboarding form corrections no longer burn through the same throttle state and valid onboarding links stop flipping into premature `429 Too many onboarding attempts`
 - reject stateless misuse of `POST /v1/auth/login` before controller execution so the browser/session-only endpoint now returns a controlled JSON `400` directing API clients to `POST /v1/auth/token` instead of throwing `500 Session store not set on request`, while preserving the normal Sanctum/CSRF flow for real SPA logins
 - restore compatibility with `spatie/laravel-activitylog` `5.0.0` by migrating runtime usage to the v5 namespaces and config keys, switching activity-change assertions to `attribute_changes`, adding the required `activity_log.attribute_changes` schema column, extending the hash-chain payload (`ProcessActivityHashChain` job and `verifyChain()`) to include `event` and `attribute_changes` so tampering with change data is detectable, and removing the `Schema::hasColumn()` migration guards so schema drift fails loudly

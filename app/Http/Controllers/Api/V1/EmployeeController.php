@@ -28,7 +28,7 @@ class EmployeeController extends Controller
      * GET /v1/employees
      *
      * Supports filtering by:
-     * - status (pre_contract, active, on_leave, terminated)
+     * - status (applicant, pre_contract, active, on_leave, terminated)
      * - organizational_unit_id
      * - search (name, email, employee_number)
      */
@@ -84,9 +84,10 @@ class EmployeeController extends Controller
     /**
      * Store a newly created employee.
      *
-     * POST /api/v1/employees
+     * POST /v1/employees
      *
      * Creates employee and triggers EmployeeObserver to create user account if status = pre_contract.
+     * Onboarding invitations may only be requested while the employee is in pre_contract status.
      */
     public function store(StoreEmployeeRequest $request, EmployeeOnboardingInvitationService $invitationService): JsonResponse
     {

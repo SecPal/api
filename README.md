@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal
+SPDX-FileCopyrightText: 2025-2026 SecPal
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -113,6 +113,22 @@ GET /v1/users/{id}/permissions
 - [Temporal Roles](docs/guides/temporal-roles.md)
 - [Direct Permissions](docs/guides/direct-permissions.md)
 - [API Reference](docs/api/rbac-endpoints.md)
+
+### 👥 Employee Status And Invitation Rules
+
+SecPal uses exactly five valid employee lifecycle statuses:
+
+- `applicant`: Candidate record only. No onboarding invitation and no onboarding portal access yet.
+- `pre_contract`: Contract preparation phase. This is the only status where onboarding is allowed and `send_invitation: true` may be used.
+- `active`: Employee is active. Onboarding invitations are no longer allowed.
+- `on_leave`: Employee is temporarily absent but still employed. Onboarding invitations are not allowed.
+- `terminated`: Employment has ended. Onboarding invitations are not allowed.
+
+Admin rule of thumb:
+
+- Use `pre_contract` if you want to invite the employee into onboarding.
+- Do not rely on form submission to discover the rule. The UI should explain the restriction before submit, and the API rejects `send_invitation: true` for every status other than `pre_contract`.
+- Filtering and validation use the same official status set: `applicant`, `pre_contract`, `active`, `on_leave`, `terminated`.
 
 ### 🔒 Envelope Encryption
 
