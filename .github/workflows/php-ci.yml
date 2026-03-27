@@ -120,7 +120,7 @@ jobs:
           echo "✅ app:validate-setup command is callable"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           # Token is optional for public repos (tokenless uploads supported)
           # Dependabot PRs cannot access secrets, so token may be empty
