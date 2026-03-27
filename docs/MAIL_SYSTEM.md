@@ -1,11 +1,11 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal
+SPDX-FileCopyrightText: 2025-2026 SecPal
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
 # Mail System Documentation
 
-Laravel + Mailpit Development Environment
+Laravel + Mailpit Email Testing
 
 ## Overview
 
@@ -13,12 +13,12 @@ SecPal uses Laravel's Mail system with Mailpit for local email testing. All emai
 
 ## Development Environment
 
-- **Service**: Mailpit (integrated with DDEV)
-- **UI Access**: <http://localhost:8026>
-- **SMTP Port**: 1025 (localhost)
+- **Service**: Mailpit local user service on the server
+- **SMTP Listener**: `127.0.0.1:1025`
+- **UI Listener**: `127.0.0.1:8025` (local-only unless securely proxied)
 - **Configuration**: See `.env.example`
 
-No additional setup required - Mailpit runs automatically with DDEV.
+Mailpit is no longer routed through DDEV. Keep the UI local-only by default and use an SSH tunnel or an authenticated reverse proxy if remote access is required.
 
 ## Configuration
 
@@ -213,11 +213,12 @@ test('email subject contains no PII', function () {
 
 ### Manual Testing with Mailpit
 
-1. Start DDEV: `ddev start`
-2. Open Mailpit UI: <http://localhost:8026>
-3. Trigger email in your application
-4. Check Mailpit UI for received email
-5. Verify:
+1. Confirm Mailpit is reachable on the server: `curl http://127.0.0.1:8025`
+2. If you need browser access from another machine, tunnel the UI locally: `ssh -L 8025:127.0.0.1:8025 <user>@<server>`
+3. Open Mailpit UI: <http://127.0.0.1:8025>
+4. Trigger email in your application
+5. Check Mailpit UI for received email
+6. Verify:
    - Subject line (no PII)
    - Links work correctly
    - Template renders properly
@@ -231,13 +232,13 @@ Emails are queued to the `database` queue driver by default.
 
 ```bash
 # Run queue worker
-ddev exec php artisan queue:work
+php artisan queue:work
 
 # Process one job and stop
-ddev exec php artisan queue:work --once
+php artisan queue:work --once
 
 # Process jobs for specific queue
-ddev exec php artisan queue:work --queue=emails
+php artisan queue:work --queue=emails
 ```
 
 ### Production
@@ -263,10 +264,10 @@ stopwaitsecs=3600
 
 ### Emails not appearing in Mailpit
 
-1. Check DDEV is running: `ddev status`
-2. Check Mailpit is accessible: `curl http://localhost:8026`
-3. Check mail config: `ddev exec php artisan config:show mail`
-4. Check queue: `ddev exec php artisan queue:work --once`
+1. Check Mailpit is accessible on the server: `curl http://127.0.0.1:8025`
+2. Check mail config: `php artisan config:show mail`
+3. Check queue: `php artisan queue:work --once`
+4. If you are connecting from another machine, confirm your SSH tunnel or reverse proxy still targets `127.0.0.1:8025`
 
 ### Emails sent immediately instead of queued
 
@@ -278,16 +279,16 @@ stopwaitsecs=3600
 
 ```bash
 # Check failed jobs
-ddev exec php artisan queue:failed
+php artisan queue:failed
 
 # Retry failed job
-ddev exec php artisan queue:retry <job-id>
+php artisan queue:retry <job-id>
 
 # Retry all failed jobs
-ddev exec php artisan queue:retry all
+php artisan queue:retry all
 
 # Clear failed jobs
-ddev exec php artisan queue:flush
+php artisan queue:flush
 ```
 
 ## Related Documentation

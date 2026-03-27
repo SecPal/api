@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 
 SPDX-License-Identifier: CC0-1.0
 -->
@@ -17,6 +17,8 @@ SPDX-License-Identifier: CC0-1.0
 
 This production test implemented email notifications for the password reset feature using strict TDD methodology. The test **discovered 2 documentation gaps** and validated the effectiveness of the Phase 1 learnings integration. All security checks passed, and the feature is production-ready.
 
+> Current runtime note (2026-03-27): Mailpit no longer runs through DDEV. The active server setup listens on `127.0.0.1:1025` for SMTP and `127.0.0.1:8025` for the UI, which should remain local-only unless exposed through a secure tunnel or proxy.
+
 ## Documentation Gaps Discovered (Now Fixed)
 
 **Note:** These gaps were discovered during implementation and **immediately fixed** before PR submission. They are documented here for learning purposes and to improve future Production Test phases.
@@ -30,7 +32,7 @@ This production test implemented email notifications for the password reset feat
 - **Time to Discovery:** < 5 minutes (noticed during environment review)
 - **Fix Applied:** Added comprehensive `mail:` section to `.github/copilot-config.yaml`
 - **Fix Details:**
-  - Mailpit access URL (<http://localhost:8026>)
+  - Mailpit access URL (`http://127.0.0.1:8025`, local-only)
   - Queue-based dispatch pattern
   - Security rules (no tokens in subjects, URL encoding, etc.)
   - Testing patterns with `Mail::fake()`
@@ -301,9 +303,9 @@ Updated mail configuration:
    - **Priority:** READY TO MERGE
 
 2. **Manual Testing:**
-   - Start DDEV: `ddev start`
+   - Confirm Mailpit UI is reachable on the server: `curl http://127.0.0.1:8025`
    - Request password reset via API
-   - Check Mailpit: <http://localhost:8026>
+   - Check Mailpit: <http://127.0.0.1:8025> (or through an SSH tunnel)
    - Verify email content and link
    - Test reset flow end-to-end
 
