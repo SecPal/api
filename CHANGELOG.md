@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - clarified the official auth/self-service surface so browser SPAs use `POST /v1/auth/login`, Android/native/API clients use `POST /v1/auth/token`, `GET /v1/me` remains the canonical self-service read endpoint, and `POST /v1/auth/logout` now cleanly logs out both session- and token-authenticated clients while `POST /v1/auth/session/logout` is retained only as a documented legacy alias
+- added regression coverage and API guide clarifications that keep guessed aliases such as `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile` intentionally unsupported while documenting `GET /v1/me` as the canonical self-service endpoint
 - aligned token-login responses with session-login responses by returning the same authorization context (`roles`, `permissions`, `hasOrganizationalScopes`) inside the `user` payload for Android/native/API clients
 - corrected API guides and deployment docs that previously mixed up SPA and token login flows or referenced stale `/api/v1/*`, `/v1/users/me`, and similar non-existent auth/self-service paths
 

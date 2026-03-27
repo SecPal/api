@@ -51,7 +51,19 @@ POST /v1/auth/logout
 # API Clients: Get Bearer token
 POST /v1/auth/token { "email": "...", "password": "...", "device_name": "mobile" }
 # Use: Authorization: Bearer {token}
+
+# Self-service (both session and Bearer auth)
+GET /v1/me
 ```
+
+### Official Auth / Self-Service Surface
+
+| Client type                           | Login endpoint        | Logout endpoint        | Self-service endpoint |
+| ------------------------------------- | --------------------- | ---------------------- | --------------------- |
+| Browser / first-party SPA             | `POST /v1/auth/login` | `POST /v1/auth/logout` | `GET /v1/me`          |
+| Android / native / CLI / integrations | `POST /v1/auth/token` | `POST /v1/auth/logout` | `GET /v1/me`          |
+
+The following guessed aliases are intentionally not part of the public surface and return `404 Not Found`: `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile`.
 
 **Documentation:** [Authentication API Guide](docs/api/authentication.md)
 
