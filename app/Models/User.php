@@ -321,6 +321,28 @@ class User extends Authenticatable
     }
 
     /**
+     * Determine whether the user may open the customer collection via scoped access.
+     *
+     * This intentionally checks access entitlements, not whether matching records
+     * currently exist. Users with active assignments or organizational scopes
+     * may therefore receive a filtered empty collection instead of a 403.
+     */
+    public function hasAccessibleCustomers(): bool
+    {
+        return $this->customerAssignments()
+            ->where('tenant_id', $this->tenant_id)
+            ->currentlyActive()
+            ->exists()
+            || $this->siteAssignments()
+                ->where('tenant_id', $this->tenant_id)
+                ->currentlyActive()
+                ->exists()
+            || $this->organizationalScopes()
+                ->whereHas('organizationalUnit', fn ($q) => $q->where('tenant_id', $this->tenant_id))
+                ->exists();
+    }
+
+    /**
      * Get all customers the user can access.
      *
      * Access is granted through:
@@ -331,21 +353,59 @@ class User extends Authenticatable
      */
     public function getAccessibleCustomers(): Collection
     {
+        return $this->accessibleCustomersQuery()->get();
+    }
+
+    /**
+     * Determine whether the user may open the site collection via scoped access.
+     *
+     * This intentionally checks access entitlements, not whether matching records
+     * currently exist. Users with active assignments or organizational scopes
+     * may therefore receive a filtered empty collection instead of a 403.
+     */
+    public function hasAccessibleSites(): bool
+    {
+        return $this->siteAssignments()
+            ->where('tenant_id', $this->tenant_id)
+            ->currentlyActive()
+            ->exists()
+            || $this->customerAssignments()
+                ->where('tenant_id', $this->tenant_id)
+                ->currentlyActive()
+                ->exists()
+            || $this->organizationalScopes()
+                ->whereHas('organizationalUnit', fn ($q) => $q->where('tenant_id', $this->tenant_id))
+                ->exists();
+    }
+
+    /**
+     * Build the base query for all customers the user can access.
+     *
+     * Access is granted through:
+     * - Direct customer assignments
+     * - Access to sites belonging to the customer (via organizational unit or site assignment)
+     *
+     * @return Builder<Customer>
+     */
+    private function accessibleCustomersQuery(): Builder
+    {
         $accessibleUnitIds = $this->getAccessibleOrganizationalUnitIds();
         $assignedSiteIds = $this->siteAssignments()->currentlyActive()->pluck('site_id')->toArray();
         $assignedCustomerIds = $this->customerAssignments()->currentlyActive()->pluck('customer_id')->toArray();
 
-        return Customer::where(function ($query) use ($assignedCustomerIds, $accessibleUnitIds, $assignedSiteIds) {
-            // Direct customer assignment
-            $query->whereIn('id', $assignedCustomerIds)
-                // Or has sites in accessible org units
-                ->orWhereHas('sites', function ($siteQuery) use ($accessibleUnitIds, $assignedSiteIds) {
-                    $siteQuery->where(function ($sq) use ($accessibleUnitIds, $assignedSiteIds) {
-                        $sq->whereIn('organizational_unit_id', $accessibleUnitIds)
-                            ->orWhereIn('id', $assignedSiteIds);
+        return Customer::query()
+            ->where('tenant_id', $this->tenant_id)
+            ->where(function ($query) use ($assignedCustomerIds, $accessibleUnitIds, $assignedSiteIds) {
+                // Direct customer assignment
+                $query->whereIn('id', $assignedCustomerIds)
+                    // Or has sites in accessible org units
+                    ->orWhereHas('sites', function ($siteQuery) use ($accessibleUnitIds, $assignedSiteIds) {
+                        $siteQuery->where(function ($sq) use ($accessibleUnitIds, $assignedSiteIds) {
+                            $sq->whereIn('organizational_unit_id', $accessibleUnitIds)
+                                ->orWhereIn('id', $assignedSiteIds);
+                        });
                     });
-                });
-        })->get();
+            });
     }
 
     /**
@@ -360,15 +420,32 @@ class User extends Authenticatable
      */
     public function getAccessibleSites(): Collection
     {
+        return $this->accessibleSitesQuery()->get();
+    }
+
+    /**
+     * Build the base query for all sites the user can access.
+     *
+     * Access is granted through:
+     * - Direct site assignments
+     * - Access to site's organizational unit
+     * - Assignment to site's customer (Key Accounts see all customer sites)
+     *
+     * @return Builder<Site>
+     */
+    private function accessibleSitesQuery(): Builder
+    {
         $accessibleUnitIds = $this->getAccessibleOrganizationalUnitIds();
         $assignedSiteIds = $this->siteAssignments()->currentlyActive()->pluck('site_id')->toArray();
         $assignedCustomerIds = $this->customerAssignments()->currentlyActive()->pluck('customer_id')->toArray();
 
-        return Site::where(function ($query) use ($accessibleUnitIds, $assignedSiteIds, $assignedCustomerIds) {
-            $query->whereIn('organizational_unit_id', $accessibleUnitIds)
-                ->orWhereIn('id', $assignedSiteIds)
-                ->orWhereIn('customer_id', $assignedCustomerIds);
-        })->get();
+        return Site::query()
+            ->where('tenant_id', $this->tenant_id)
+            ->where(function ($query) use ($accessibleUnitIds, $assignedSiteIds, $assignedCustomerIds) {
+                $query->whereIn('organizational_unit_id', $accessibleUnitIds)
+                    ->orWhereIn('id', $assignedSiteIds)
+                    ->orWhereIn('customer_id', $assignedCustomerIds);
+            });
     }
 
     /**

@@ -24,13 +24,18 @@ class SitePolicy
     /**
      * Determine whether the user can view any sites.
      *
-     * Users can always attempt to list sites (Need-to-Know filtering in controller).
-     * Users with sites.read permission see all sites.
-     * Users without permission only see assigned sites (filtered in controller).
+     * Users with sites.read permission can list the full collection.
+     * Users without that permission may only list the collection when they
+     * already have scoped access to at least one site via assignments, customer access,
+     * or organizational scopes.
      */
     public function viewAny(User $user): bool
     {
-        return true;
+        if ($user->can('sites.read')) {
+            return true;
+        }
+
+        return $user->hasAccessibleSites();
     }
 
     /**

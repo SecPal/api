@@ -3,6 +3,10 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Customer;
+use App\Models\CustomerAssignment;
+use App\Models\OrganizationalUnit;
+use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -82,6 +86,8 @@ describe('SPA Session Login', function () {
                     'roles',
                     'permissions',
                     'hasOrganizationalScopes',
+                    'hasCustomerAccess',
+                    'hasSiteAccess',
                 ],
             ])
             ->assertJson([
@@ -210,7 +216,7 @@ describe('Auth Token Generation', function () {
         $response->assertCreated()
             ->assertJsonStructure([
                 'token',
-                'user' => ['id', 'name', 'email'],
+                'user' => ['id', 'name', 'email', 'roles', 'permissions', 'hasOrganizationalScopes', 'hasCustomerAccess', 'hasSiteAccess'],
             ]);
 
         expect($response->json('user.email'))->toBe($email);
@@ -599,7 +605,7 @@ describe('Login Rate Limiting', function () {
         $response->assertCreated()
             ->assertJsonStructure([
                 'token',
-                'user' => ['id', 'name', 'email', 'roles', 'permissions', 'hasOrganizationalScopes'],
+                'user' => ['id', 'name', 'email', 'roles', 'permissions', 'hasOrganizationalScopes', 'hasCustomerAccess', 'hasSiteAccess'],
             ]);
     });
 
@@ -730,13 +736,15 @@ describe('Organizational Scopes Authorization', function () {
             ->assertJson([
                 'user' => [
                     'hasOrganizationalScopes' => false,
+                    'hasCustomerAccess' => false,
+                    'hasSiteAccess' => false,
                 ],
             ]);
     });
 
     test('hasOrganizationalScopes is true when user has scopes', function () {
         $tenant = App\Models\TenantKey::factory()->create();
-        $orgUnit = App\Models\OrganizationalUnit::factory()->create([
+        $orgUnit = OrganizationalUnit::factory()->create([
             'tenant_id' => $tenant->id,
         ]);
 
@@ -767,6 +775,54 @@ describe('Organizational Scopes Authorization', function () {
             ->assertJson([
                 'user' => [
                     'hasOrganizationalScopes' => true,
+                ],
+            ]);
+    });
+
+    test('hasCustomerAccess and hasSiteAccess are true when user has scoped customer-site access', function () {
+        $tenant = App\Models\TenantKey::factory()->create();
+        $orgUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+        $customer = Customer::factory()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        Site::factory()->create([
+            'tenant_id' => $tenant->id,
+            'customer_id' => $customer->id,
+            'organizational_unit_id' => $orgUnit->id,
+        ]);
+
+        $user = User::factory()->create([
+            'email' => 'scoped-access@example.com',
+            'password' => bcrypt('password123'),
+            'tenant_id' => $tenant->id,
+        ]);
+
+        CustomerAssignment::factory()->create([
+            'tenant_id' => $tenant->id,
+            'customer_id' => $customer->id,
+            'user_id' => $user->id,
+            'role' => 'Key Account',
+            'valid_from' => now()->subDay(),
+            'valid_until' => null,
+        ]);
+
+        clearLoginRateLimiter('scoped-access@example.com');
+
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => 'scoped-access@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'user' => [
+                    'hasCustomerAccess' => true,
+                    'hasSiteAccess' => true,
                 ],
             ]);
     });

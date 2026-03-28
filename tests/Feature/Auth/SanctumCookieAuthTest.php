@@ -29,7 +29,7 @@ describe('httpOnly Cookie Authentication Flow', function () {
         $response->assertCreated()
             ->assertJsonStructure([
                 'token',
-                'user' => ['id', 'name', 'email', 'roles', 'permissions', 'hasOrganizationalScopes'],
+                'user' => ['id', 'name', 'email', 'roles', 'permissions', 'hasOrganizationalScopes', 'hasCustomerAccess', 'hasSiteAccess'],
             ]);
     });
 

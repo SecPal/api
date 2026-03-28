@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- hardened `GET /v1/customers` and `GET /v1/sites` for low-privilege users so collection requests now fail closed with `403` when the caller has neither global read permission nor any effective scoped access, while still returning filtered `200` collections for assignment- and scope-based users; auth/self-service responses now also expose `hasCustomerAccess` and `hasSiteAccess` so frontend route gating can mirror the same policy intentionally
 - updated active API development and operations guides to use the current native PHP workflow instead of stale DDEV-first command examples, and marked older DDEV-era retrospectives as historical context where those references are intentionally retained
 - updated `docs/MAIL_SYSTEM.md` and `docs/PRODUCTION_TEST_PHASE2_EMAIL.md` to reflect the current direct-server Mailpit setup (`127.0.0.1:1025` SMTP, `127.0.0.1:8025` UI) instead of stale DDEV-routed instructions
 - centralized the official employee status set to `applicant`, `pre_contract`, `active`, `on_leave`, and `terminated`, reused that definition across employee create/update/list validation, clarified in API messages that onboarding invitations are only allowed while status is `pre_contract`, and documented the same admin-facing rule set in `README.md`

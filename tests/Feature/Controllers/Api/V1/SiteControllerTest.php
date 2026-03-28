@@ -67,11 +67,16 @@ describe('GET /v1/sites', function () {
         $response->assertStatus(401);
     });
 
-    test('returns empty list when user lacks sites.read permission and has no assignments', function (): void {
+    test('returns 403 when user lacks sites.read permission and has no scoped site access', function (): void {
         $response = $this->withToken($this->token)->getJson('/v1/sites');
-        $response->assertOk();
-        expect($response->json('data'))->toBeArray();
-        expect($response->json('data'))->toHaveCount(0);
+        $response->assertForbidden();
+    });
+
+    test('returns 403 before validating filters when user lacks sites.read permission and has no scoped site access', function (): void {
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/sites?customer_id=not-a-uuid');
+
+        $response->assertForbidden();
     });
 
     test('returns paginated sites with valid permission', function (): void {
@@ -339,6 +344,29 @@ describe('GET /v1/sites', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['id'])->toBe($site1->id);
+    });
+
+    test('user without permission can list sites via customer assignment', function (): void {
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+        ]);
+
+        App\Models\CustomerAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'user_id' => $this->user->id,
+            'role' => 'Key Account',
+            'valid_from' => now()->subDays(10),
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/sites');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data')[0]['id'])->toBe($site->id);
     });
 
     test('supports pagination with custom per_page', function (): void {

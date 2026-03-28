@@ -197,6 +197,8 @@ class AuthController extends Controller
      * - roles: List of assigned role names
      * - permissions: List of all permission names (from roles + direct assignments)
      * - hasOrganizationalScopes: Whether user has any organizational scope assignments
+     * - hasCustomerAccess: Whether user can access the customer collection globally or via scoped access
+     * - hasSiteAccess: Whether user can access the site collection globally or via scoped access
      *
      * The hasOrganizationalScopes flag is used by the frontend to determine
      * whether to show organization/customer management navigation items.
@@ -342,6 +344,8 @@ class AuthController extends Controller
      * - roles: List of assigned role names
      * - permissions: List of all permission names (from roles + direct assignments)
      * - hasOrganizationalScopes: Whether user has any organizational scope assignments
+     * - hasCustomerAccess: Whether user can access the customer collection globally or via scoped access
+     * - hasSiteAccess: Whether user can access the site collection globally or via scoped access
      *
      * The hasOrganizationalScopes flag is used by the frontend to determine
      * whether to show organization/customer management navigation items.
@@ -349,7 +353,7 @@ class AuthController extends Controller
      * Note: Admin users have maximum organizational scopes (0-255) granting
      * access to all leadership levels and non-leadership employees.
      *
-     * @return array{id: string, name: string, email: string, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool}
+     * @return array{id: string, name: string, email: string, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}
      */
     private function buildUserAuthorizationData(User $user): array
     {
@@ -362,6 +366,9 @@ class AuthController extends Controller
         /** @var list<string> $permissions */
         $permissions = $user->getAllPermissions()->pluck('name')->toArray();
 
+        $hasCustomerAccess = $user->can('customers.read') || $user->hasAccessibleCustomers();
+        $hasSiteAccess = $user->can('sites.read') || $user->hasAccessibleSites();
+
         return [
             'id' => $user->id,
             'name' => $user->name,
@@ -369,6 +376,8 @@ class AuthController extends Controller
             'roles' => $roles,
             'permissions' => $permissions,
             'hasOrganizationalScopes' => $user->organizationalScopes->isNotEmpty(),
+            'hasCustomerAccess' => $hasCustomerAccess,
+            'hasSiteAccess' => $hasSiteAccess,
         ];
     }
 

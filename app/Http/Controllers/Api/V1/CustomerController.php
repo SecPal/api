@@ -36,6 +36,7 @@ class CustomerController extends Controller
      * Returns paginated list of accessible customers based on:
      * - Direct customer assignments (currently active)
      * - Access via site organizational units
+     * - 403 when user has no effective collection access at all
      *
      * Supports filtering by:
      * - search (name, customer_number)
@@ -56,7 +57,7 @@ class CustomerController extends Controller
             ->where('tenant_id', $tenantId)
             ->with(['assignments.user']);
 
-        // Need-to-Know filtering: Users without customers.read only see assigned customers
+        // Need-to-Know filtering: users reaching this branch already have scoped collection access
         if (! $user->can('customers.read')) {
             // Pre-compute accessible unit IDs and assigned site IDs to avoid repeated execution
             $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();

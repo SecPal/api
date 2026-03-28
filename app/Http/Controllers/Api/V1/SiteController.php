@@ -38,6 +38,7 @@ class SiteController extends Controller
      * - Direct site assignments (currently active)
      * - Customer assignments (Key Account access)
      * - Access via site organizational units
+     * - 403 when user has no effective collection access at all
      *
      * Supports filtering by:
      * - search (name, site_number)
@@ -61,7 +62,7 @@ class SiteController extends Controller
             ->where('tenant_id', $tenantId)
             ->with(['customer', 'organizationalUnit', 'assignments.user']);
 
-        // Need-to-Know filtering: Users without sites.read only see assigned sites
+        // Need-to-Know filtering: users reaching this branch already have scoped collection access
         if (! $user->can('sites.read')) {
             // Pre-compute accessible unit IDs and assigned site IDs to avoid repeated execution
             $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();

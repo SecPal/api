@@ -49,6 +49,24 @@ test('users with sites.read permission can view any sites', function (): void {
     expect($this->policy->viewAny($user))->toBeTrue();
 });
 
+test('users without sites.read permission and without scoped access cannot view any sites', function (): void {
+    $user = User::factory()->create();
+
+    expect($this->policy->viewAny($user))->toBeFalse();
+});
+
+test('users with customer assignments can view any sites', function (): void {
+    $user = User::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+
+    App\Models\CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'customer_id' => $customer->id,
+    ]);
+
+    expect($this->policy->viewAny($user))->toBeTrue();
+});
+
 test('user assigned to site can view it', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
