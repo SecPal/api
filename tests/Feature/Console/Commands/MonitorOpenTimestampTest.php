@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -29,6 +29,7 @@ uses(RefreshDatabase::class);
 
 test('command runs health check', function () {
     $executor = Mockery::mock(ProcessExecutor::class);
+    $executor->shouldReceive('commandExists')->byDefault()->andReturn(true);
     $executor->shouldReceive('execute')
         ->andReturn(['stdout' => 'Python 3.11.2\n0.4.5', 'stderr' => '', 'exitCode' => 0]);
     $this->app->instance(ProcessExecutor::class, $executor);
@@ -54,6 +55,7 @@ test('command logs critical error when check fails', function () {
 
     // Mock ProcessExecutor to simulate failed check
     $executor = Mockery::mock(ProcessExecutor::class);
+    $executor->shouldReceive('commandExists')->byDefault()->andReturn(true);
     $executor->shouldReceive('execute')
         ->andReturn(['stdout' => '', 'stderr' => 'Check failed', 'exitCode' => 1]);
     $this->app->instance(ProcessExecutor::class, $executor);
@@ -66,6 +68,7 @@ test('command logs critical error when check fails', function () {
 test('command warns about high pending count', function () {
     // Mock ProcessExecutor for the ots:check command
     $executor = Mockery::mock(ProcessExecutor::class);
+    $executor->shouldReceive('commandExists')->byDefault()->andReturn(true);
     $executor->shouldReceive('execute')
         ->andReturn(['stdout' => 'Python 3.11.2\n0.4.5', 'stderr' => '', 'exitCode' => 0]);
     $this->app->instance(ProcessExecutor::class, $executor);
@@ -104,6 +107,7 @@ test('command warns about high pending count', function () {
 test('command does not warn when pending count below threshold', function () {
     // Mock ProcessExecutor for the ots:check command
     $executor = Mockery::mock(ProcessExecutor::class);
+    $executor->shouldReceive('commandExists')->byDefault()->andReturn(true);
     $executor->shouldReceive('execute')
         ->andReturn(['stdout' => 'Python 3.11.2\n0.4.5', 'stderr' => '', 'exitCode' => 0]);
     $this->app->instance(ProcessExecutor::class, $executor);
