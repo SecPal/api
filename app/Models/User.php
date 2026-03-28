@@ -329,8 +329,14 @@ class User extends Authenticatable
      */
     public function hasAccessibleCustomers(): bool
     {
-        return $this->customerAssignments()->currentlyActive()->exists()
-            || $this->siteAssignments()->currentlyActive()->exists()
+        return $this->customerAssignments()
+            ->where('tenant_id', $this->tenant_id)
+            ->currentlyActive()
+            ->exists()
+            || $this->siteAssignments()
+                ->where('tenant_id', $this->tenant_id)
+                ->currentlyActive()
+                ->exists()
             || $this->organizationalScopes()->exists();
     }
 
@@ -357,8 +363,14 @@ class User extends Authenticatable
      */
     public function hasAccessibleSites(): bool
     {
-        return $this->siteAssignments()->currentlyActive()->exists()
-            || $this->customerAssignments()->currentlyActive()->exists()
+        return $this->siteAssignments()
+            ->where('tenant_id', $this->tenant_id)
+            ->currentlyActive()
+            ->exists()
+            || $this->customerAssignments()
+                ->where('tenant_id', $this->tenant_id)
+                ->currentlyActive()
+                ->exists()
             || $this->organizationalScopes()->exists();
     }
 
