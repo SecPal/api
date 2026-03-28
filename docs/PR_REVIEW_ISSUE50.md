@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal <https://github.com/SecPal>
+SPDX-FileCopyrightText: 2025-2026 SecPal <https://github.com/SecPal>
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
@@ -8,6 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 **Review Date:** 2025-11-01
 **Issue:** [#50 - SecPal API: Multi-tenant security, field encryption & blind indexes](https://github.com/SecPal/api/issues/50)
 **PRs Reviewed:** #51 (PR-0), #52 (PR-1), #53 (PR-2), #54 (nitpick), #55 (PR-3), #57 (DDEV fix)
+
+> Historical note: This review document preserves the DDEV-based workflow and tooling state from late 2025. For the current API runtime workflow, use the native PHP commands documented in `DEVELOPMENT.md`.
 
 ---
 

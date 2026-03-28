@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2025 SecPal -->
+<!-- SPDX-FileCopyrightText: 2025-2026 SecPal -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # Role Management Guide
@@ -623,7 +623,7 @@ curl -X DELETE https://api.secpal.dev/v1/roles/6 \
 **To manually recreate:**
 
 ```bash
-ddev exec php artisan db:seed --class=RolesAndPermissionsSeeder
+php artisan db:seed --class=RolesAndPermissionsSeeder
 ```
 
 This is **idempotent** - safe to run multiple times.
@@ -711,8 +711,8 @@ Need to grant access?
 SecPal caches role/permission checks. Clear cache if unexpected permission issues:
 
 ```bash
-ddev exec php artisan cache:clear
-ddev exec php artisan permission:cache-reset
+php artisan cache:clear
+php artisan permission:cache-reset
 ```
 
 ---
@@ -845,10 +845,10 @@ Ensure the response includes the Admin role or the `roles.create`, `roles.update
 
 ```bash
 # Manually trigger expiration
-ddev exec php artisan roles:expire
+php artisan roles:expire
 
 # Check scheduler is running
-ddev exec php artisan schedule:list
+php artisan schedule:list
 ```
 
 Ensure `php artisan schedule:run` runs every minute (via cron or supervisor).

@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2025 SecPal Contributors -->
+<!-- SPDX-FileCopyrightText: 2025-2026 SecPal Contributors -->
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
 # Self-Review Checklist
@@ -12,19 +12,19 @@ This checklist ensures code quality and consistency **before** creating a PR.
 - [ ] **All tests pass locally**
 
   ```bash
-  ddev exec php artisan test
+  php artisan test
   ```
 
 - [ ] **PHPStan passes with no errors**
 
   ```bash
-  ddev exec vendor/bin/phpstan analyze
+  ./vendor/bin/phpstan analyze
   ```
 
 - [ ] **Pint code style passes**
 
   ```bash
-  ddev exec vendor/bin/pint --test --dirty
+  ./vendor/bin/pint --test --dirty
   ```
 
   ⚠️ **CRITICAL:** ALWAYS use `--test --dirty` to check changed files only!
@@ -32,13 +32,13 @@ This checklist ensures code quality and consistency **before** creating a PR.
   If fails, auto-fix with:
 
   ```bash
-  ddev exec vendor/bin/pint --dirty
+  ./vendor/bin/pint --dirty
   ```
 
   Then verify fix:
 
   ```bash
-  ddev exec vendor/bin/pint --test --dirty
+  ./vendor/bin/pint --test --dirty
   ```
 
   **Why:**
@@ -135,7 +135,7 @@ This checklist ensures code quality and consistency **before** creating a PR.
 
   ```bash
   # PHPStan will catch unused imports
-  ddev exec vendor/bin/phpstan analyze --level=9
+  ./vendor/bin/phpstan analyze --level=9
   ```
 
 - [ ] **No temporary files committed**
