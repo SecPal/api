@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -37,6 +37,7 @@ class CostCenterController extends Controller
      */
     public function index(Site $site): AnonymousResourceCollection
     {
+        $this->authorize('view', $site);
         $this->authorize('viewAny', CostCenter::class);
 
         $query = $site->costCenters();

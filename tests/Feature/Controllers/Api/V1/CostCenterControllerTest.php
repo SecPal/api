@@ -10,6 +10,7 @@ use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
+use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -68,6 +69,8 @@ describe('GET /v1/sites/{site}/cost-centers', function () {
     });
 
     test('returns 403 when user lacks cost-centers.read permission', function (): void {
+        $this->user->givePermissionTo('sites.read');
+
         $response = $this->withHeaders([
             'Authorization' => "Bearer {$this->token}",
             'X-Tenant-ID' => (string) $this->tenant->id,
@@ -76,8 +79,37 @@ describe('GET /v1/sites/{site}/cost-centers', function () {
         $response->assertStatus(403);
     });
 
-    test('returns empty list when site has no cost centers', function (): void {
+    test('returns 403 when user can read cost centers but cannot view parent site', function (): void {
         $this->user->givePermissionTo('cost-centers.read');
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer {$this->token}",
+            'X-Tenant-ID' => (string) $this->tenant->id,
+        ])->getJson("/v1/sites/{$this->site->id}/cost-centers");
+
+        $response->assertForbidden();
+    });
+
+    test('returns empty list when site has no cost centers', function (): void {
+        $this->user->givePermissionTo(['cost-centers.read', 'sites.read']);
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer {$this->token}",
+            'X-Tenant-ID' => (string) $this->tenant->id,
+        ])->getJson("/v1/sites/{$this->site->id}/cost-centers");
+
+        $response->assertOk()
+            ->assertJsonCount(0, 'data');
+    });
+
+    test('returns empty list when user has scoped access to the parent site', function (): void {
+        $this->user->givePermissionTo('cost-centers.read');
+
+        SiteAssignment::factory()->indefinite()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $this->site->id,
+            'user_id' => $this->user->id,
+        ]);
 
         $response = $this->withHeaders([
             'Authorization' => "Bearer {$this->token}",
@@ -89,7 +121,7 @@ describe('GET /v1/sites/{site}/cost-centers', function () {
     });
 
     test('lists cost centers for a site', function (): void {
-        $this->user->givePermissionTo('cost-centers.read');
+        $this->user->givePermissionTo(['cost-centers.read', 'sites.read']);
 
         CostCenter::factory(3)->create([
             'tenant_id' => $this->tenant->id,
@@ -120,7 +152,7 @@ describe('GET /v1/sites/{site}/cost-centers', function () {
     });
 
     test('filters cost centers by active status', function (): void {
-        $this->user->givePermissionTo('cost-centers.read');
+        $this->user->givePermissionTo(['cost-centers.read', 'sites.read']);
 
         CostCenter::factory()->create([
             'tenant_id' => $this->tenant->id,

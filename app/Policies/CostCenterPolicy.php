@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Policies;
@@ -21,7 +21,9 @@ use App\Models\User;
 class CostCenterPolicy
 {
     /**
-     * Determine whether the user can view any cost centers.
+     * Determine whether the user can open the cost center collection.
+     *
+     * Nested collection routes must also authorize access to the parent site.
      */
     public function viewAny(User $user): bool
     {
