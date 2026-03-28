@@ -50,10 +50,35 @@ test('users with customers.read permission can view any customers', function ():
     expect($this->policy->viewAny($user))->toBeTrue();
 });
 
-test('users without customers.read permission can still call viewAny', function (): void {
+test('users without customers.read permission and without scoped access cannot view any customers', function (): void {
     $user = User::factory()->create();
 
-    // viewAny always returns true - Need-to-Know filtering happens in controller
+    expect($this->policy->viewAny($user))->toBeFalse();
+});
+
+test('users with direct customer assignments can view any customers', function (): void {
+    $user = User::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+
+    CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'customer_id' => $customer->id,
+    ]);
+
+    expect($this->policy->viewAny($user))->toBeTrue();
+});
+
+test('users with site-scoped access can view any customers', function (): void {
+    $user = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+
+    SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'site_id' => $site->id,
+    ]);
+
     expect($this->policy->viewAny($user))->toBeTrue();
 });
 

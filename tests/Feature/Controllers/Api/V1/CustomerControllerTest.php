@@ -9,6 +9,7 @@
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\Site;
+use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -52,11 +53,9 @@ describe('GET /v1/customers', function () {
         $response->assertStatus(401);
     });
 
-    test('returns empty list when user lacks customers.read permission and has no assignments', function (): void {
+    test('returns 403 when user lacks customers.read permission and has no scoped customer access', function (): void {
         $response = $this->withToken($this->token)->getJson('/v1/customers');
-        $response->assertOk();
-        expect($response->json('data'))->toBeArray();
-        expect($response->json('data'))->toHaveCount(0);
+        $response->assertForbidden();
     });
 
     test('returns paginated customers with valid permission', function (): void {
@@ -159,6 +158,29 @@ describe('GET /v1/customers', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['id'])->toBe($customer1->id);
+    });
+
+    test('user without permission can list customers via scoped site access', function (): void {
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $site->id,
+            'user_id' => $this->user->id,
+            'role' => 'Site Manager',
+            'valid_from' => now()->subDays(10),
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/customers');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data')[0]['id'])->toBe($customer->id);
     });
 
     test('supports pagination with custom per_page', function (): void {

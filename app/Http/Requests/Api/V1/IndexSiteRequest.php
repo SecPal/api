@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Models\Site;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -17,7 +18,7 @@ class IndexSiteRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->can('viewAny', Site::class) ?? false;
     }
 
     /**

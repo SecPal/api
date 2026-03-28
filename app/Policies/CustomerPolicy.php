@@ -23,13 +23,17 @@ class CustomerPolicy
     /**
      * Determine whether the user can view any customers.
      *
-     * Users can always attempt to list customers (Need-to-Know filtering in controller).
-     * Users with customers.read permission see all customers.
-     * Users without permission only see assigned customers (filtered in controller).
+     * Users with customers.read permission can list the full collection.
+     * Users without that permission may only list the collection when they
+     * already have scoped access to at least one customer via assignment or site access.
      */
     public function viewAny(User $user): bool
     {
-        return true;
+        if ($user->can('customers.read')) {
+            return true;
+        }
+
+        return $user->hasAccessibleCustomers();
     }
 
     /**

@@ -23,6 +23,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
  * @covers \App\Models\User::getAccessibleOrganizationalUnitIds
  * @covers \App\Models\User::getAccessibleCustomers
  * @covers \App\Models\User::getAccessibleSites
+ * @covers \App\Models\User::hasAccessibleCustomers
+ * @covers \App\Models\User::hasAccessibleSites
  */
 uses(RefreshDatabase::class)->group('unit', 'models', 'user', 'access');
 
@@ -179,6 +181,14 @@ test('get accessible customers returns empty when no access', function () {
     expect($customers)->toHaveCount(0);
 });
 
+test('has accessible customers returns false when no access exists', function () {
+    $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
+    $unassignedCustomer = Customer::factory()->for($this->tenant, 'tenant')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($unassignedCustomer)->for($orgUnit, 'organizationalUnit')->create();
+
+    expect($this->user->hasAccessibleCustomers())->toBeFalse();
+});
+
 test('get accessible customers includes directly assigned customers', function () {
     $customer1 = Customer::factory()->for($this->tenant, 'tenant')->create();
     $customer2 = Customer::factory()->for($this->tenant, 'tenant')->create();
@@ -200,6 +210,17 @@ test('get accessible customers includes directly assigned customers', function (
     expect($customers->contains($customer1))->toBeTrue();
     expect($customers->contains($customer2))->toBeTrue();
     expect($customers->contains($customer3))->toBeFalse();
+});
+
+test('has accessible customers returns true for direct customer assignments', function () {
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+
+    CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $this->user->id,
+        'customer_id' => $customer->id,
+    ]);
+
+    expect($this->user->hasAccessibleCustomers())->toBeTrue();
 });
 
 test('get accessible customers includes customers with sites in accessible org units', function () {
@@ -287,6 +308,14 @@ test('get accessible sites returns empty when no access', function () {
     expect($sites)->toHaveCount(0);
 });
 
+test('has accessible sites returns false when no access exists', function () {
+    $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+
+    expect($this->user->hasAccessibleSites())->toBeFalse();
+});
+
 test('get accessible sites includes sites in accessible org units', function () {
     $orgUnit1 = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $orgUnit2 = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
@@ -353,6 +382,19 @@ test('get accessible sites includes sites from assigned customers', function () 
     expect($sites)->toHaveCount(2);
     expect($sites->contains($site1))->toBeTrue();
     expect($sites->contains($site2))->toBeTrue();
+});
+
+test('has accessible sites returns true for customer assignments', function () {
+    $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
+    $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+
+    CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $this->user->id,
+        'customer_id' => $customer->id,
+    ]);
+
+    expect($this->user->hasAccessibleSites())->toBeTrue();
 });
 
 test('get accessible sites combines all access paths', function () {
