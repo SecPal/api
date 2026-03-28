@@ -337,7 +337,9 @@ class User extends Authenticatable
                 ->where('tenant_id', $this->tenant_id)
                 ->currentlyActive()
                 ->exists()
-            || $this->organizationalScopes()->exists();
+            || $this->organizationalScopes()
+                ->whereHas('organizationalUnit', fn ($q) => $q->where('tenant_id', $this->tenant_id))
+                ->exists();
     }
 
     /**
@@ -371,7 +373,9 @@ class User extends Authenticatable
                 ->where('tenant_id', $this->tenant_id)
                 ->currentlyActive()
                 ->exists()
-            || $this->organizationalScopes()->exists();
+            || $this->organizationalScopes()
+                ->whereHas('organizationalUnit', fn ($q) => $q->where('tenant_id', $this->tenant_id))
+                ->exists();
     }
 
     /**
