@@ -69,6 +69,8 @@ describe('GET /v1/sites/{site}/cost-centers', function () {
     });
 
     test('returns 403 when user lacks cost-centers.read permission', function (): void {
+        $this->user->givePermissionTo('sites.read');
+
         $response = $this->withHeaders([
             'Authorization' => "Bearer {$this->token}",
             'X-Tenant-ID' => (string) $this->tenant->id,
@@ -103,13 +105,10 @@ describe('GET /v1/sites/{site}/cost-centers', function () {
     test('returns empty list when user has scoped access to the parent site', function (): void {
         $this->user->givePermissionTo('cost-centers.read');
 
-        SiteAssignment::factory()->create([
+        SiteAssignment::factory()->indefinite()->create([
             'tenant_id' => $this->tenant->id,
             'site_id' => $this->site->id,
             'user_id' => $this->user->id,
-            'role' => 'Site Manager',
-            'valid_from' => now()->subDay(),
-            'valid_until' => null,
         ]);
 
         $response = $this->withHeaders([
