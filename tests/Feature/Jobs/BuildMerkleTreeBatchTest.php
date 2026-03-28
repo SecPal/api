@@ -11,6 +11,7 @@ use App\Jobs\BuildMerkleTreeBatch;
 use App\Models\Activity;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 
@@ -22,6 +23,9 @@ uses(RefreshDatabase::class);
  */
 beforeEach(function () {
     Queue::fake([App\Jobs\SubmitMerkleRootToOpenTimestamp::class]);
+    $this->mock(OpenTimestampService::class)
+        ->shouldReceive('submit')
+        ->andReturn('mock-ots-proof');
     $this->tenant = TenantKey::factory()->create();
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->actingAs($this->user);
