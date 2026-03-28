@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- make `ots:check` fail fast when `python3`, `ots`, the `opentimestamps` Python module, or the required helper scripts are missing, prefer `pip3` over `pip` for update checks with a clear fallback, and cover the stricter runtime validation paths in the OpenTimestamp console command tests
 - surface invitation eligibility directly in employee API resources and return a clearer `send_invitation` validation error when clients request onboarding for any non-`pre_contract` employee status
 - split onboarding token validation and completion into separate rate-limit buckets and count only business-level failures toward those buckets, so repeated successful link opens, reloads, and normal onboarding form corrections no longer burn through the same throttle state and valid onboarding links stop flipping into premature `429 Too many onboarding attempts`
 - reject stateless misuse of `POST /v1/auth/login` before controller execution so the browser/session-only endpoint now returns a controlled JSON `400` directing API clients to `POST /v1/auth/token` instead of throwing `500 Session store not set on request`, while preserving the normal Sanctum/CSRF flow for real SPA logins

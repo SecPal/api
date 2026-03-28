@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -15,6 +15,14 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->executor = Mockery::mock(ProcessExecutor::class);
     $this->app->instance(ProcessExecutor::class, $this->executor);
+
+    $this->executor->shouldReceive('commandExists')->byDefault()->andReturnUsing(
+        static fn (string $command): bool => match ($command) {
+            'python3', 'ots', 'pip' => true,
+            'pip3' => false,
+            default => false,
+        }
+    );
 });
 
 test('command detects current version', function () {
