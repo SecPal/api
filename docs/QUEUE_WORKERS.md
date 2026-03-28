@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -44,32 +44,29 @@ SecPal uses Laravel queues for asynchronous processing of:
 ],
 ```
 
-## Development Setup (DDEV)
+## Local Development Setup
 
 **Local testing with queue worker:**
 
 ```bash
-# Terminal 1: Start DDEV
-ddev start
+# Terminal 1: Run queue worker from the API repository root
+php artisan queue:work --queue=activity-hash-chain,merkle,opentimestamp,default --verbose
 
-# Terminal 2: Run queue worker inside container
-ddev exec php artisan queue:work --queue=activity-hash-chain,merkle,opentimestamp,default --verbose
-
-# Terminal 3: Run application/tests
-ddev exec vendor/bin/pest
+# Terminal 2: Run application/tests
+php artisan test
 ```
 
 **Monitor queue:**
 
 ```bash
 # Check pending jobs
-ddev exec php artisan queue:monitor database:activity-hash-chain,database:merkle
+php artisan queue:monitor database:activity-hash-chain,database:merkle
 
 # Clear failed jobs
-ddev exec php artisan queue:flush
+php artisan queue:flush
 
 # Retry failed jobs
-ddev exec php artisan queue:retry all
+php artisan queue:retry all
 ```
 
 ## Production Setup
@@ -364,10 +361,10 @@ php artisan queue:monitor database:activity-hash-chain
 
 ```bash
 # Terminal 1: Start worker
-ddev exec php artisan queue:work --verbose
+php artisan queue:work --verbose
 
 # Terminal 2: Dispatch test job
-ddev exec php artisan tinker
+php artisan tinker
 >>> \App\Jobs\ProcessActivityHashChain::dispatch(1, ['id' => 1, 'tenant_id' => 1]);
 
 # Observe job execution in Terminal 1
@@ -377,7 +374,7 @@ ddev exec php artisan tinker
 
 ```bash
 # Run performance tests (validates 134 logs/sec throughput)
-ddev exec vendor/bin/pest tests/Performance/ActivityHashChainConcurrencyTest.php
+./vendor/bin/pest tests/Performance/ActivityHashChainConcurrencyTest.php
 ```
 
 ## References

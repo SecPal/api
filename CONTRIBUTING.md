@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal
+SPDX-FileCopyrightText: 2025-2026 SecPal
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
@@ -111,7 +111,7 @@ PREFLIGHT_RUN_TESTS=1 git push
 PREFLIGHT_FORCE_INSTALL=1 git push
 
 # Or run tests separately
-ddev exec php artisan test --parallel
+php artisan test --parallel
 ```
 
 **Excluded from PR size calculation:**

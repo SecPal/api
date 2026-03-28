@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -37,8 +37,8 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
    - `SubmitMerkleRootToOpenTimestamp`: Submits batch merkle roots to calendars
    - `UpgradeOpenTimestampProofs`: Polls for Bitcoin-anchored proofs
 
-4. **DDEV Docker Image** (`.ddev/web-build/Dockerfile.opentimestamps`)
-   - Installs `opentimestamps-client` Python package in development environment
+4. **Runtime installation guidance**
+   - Documents how to install `opentimestamps-client` in local shells, containers, and production environments
 
 ### Proof Selection from Multiple Calendars
 
@@ -129,22 +129,21 @@ Verified proofs are **immutable** - once a proof is Bitcoin-anchored and verifie
 
 ## Installation & Setup
 
-### Development (DDEV)
+### Local Development
 
-The `opentimestamps-client` CLI is automatically installed via custom Docker build:
-
-```bash
-# Already configured in .ddev/web-build/Dockerfile.opentimestamps
-# Triggered automatically on ddev restart
-ddev restart
-```
-
-Verify installation:
+Install the `opentimestamps-client` CLI in the same shell environment where you run `php artisan`:
 
 ```bash
-ddev exec ots --version
+python3 -m pip install --user opentimestamps-client
+# Note: ~/.local/bin must be on your PATH for the `ots` command to be found.
+# Add to your shell profile if needed: export PATH="$HOME/.local/bin:$PATH"
+
+# Verify installation
+ots --version
 # Expected output: v0.7.2 (or newer)
 ```
+
+If you use a containerized local environment, install the package into that container image and rebuild/restart the container using your normal runtime workflow.
 
 ### Production
 
@@ -295,10 +294,12 @@ Cache::flush(); // ⚠️ Clears ALL cache, use with caution
 **Solution**:
 
 ```bash
-# DDEV
-ddev restart  # Rebuilds image with opentimestamps-client
+# Local shell / container
+python3 -m pip install --user --upgrade opentimestamps-client
+# Ensure ~/.local/bin is on your PATH so `ots` is found
 
 # Production
+sudo -H python3 -m pip install --upgrade opentimestamps-client
 which ots  # Should return /usr/local/bin/ots or similar
 pip3 list | grep opentimestamps  # Should show opentimestamps-client
 ```

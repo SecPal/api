@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 
 SPDX-License-Identifier: CC0-1.0
 -->
@@ -11,6 +11,8 @@ SPDX-License-Identifier: CC0-1.0
 **Branch:** `feat/password-reset`
 **Test Duration:** ~60 minutes
 **Outcome:** ✅ SUCCESS (13/13 tests passing)
+
+> Historical note: This production test report captures the DDEV-based local setup and documentation gaps that existed in late 2025. For the current API runtime workflow, use the native PHP commands documented in `DEVELOPMENT.md`.
 
 ## Executive Summary
 

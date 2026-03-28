@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -53,7 +53,7 @@ This guide covers:
 
 - PHP 8.4+
 - Composer 2.x
-- PostgreSQL 15+ (or DDEV for local development)
+- PostgreSQL 16+
 - VS Code (recommended)
 
 ## Installation
@@ -134,9 +134,9 @@ Add these to your **global** VS Code settings (`Ctrl+Shift+P` → "Preferences: 
   "github.copilot.chat.modelContextProtocol.servers": {
     "laravel-boost-secpal": {
       "command": "sh",
-      "args": ["-c", "cd /absolute/path/to/your/SecPal/api && ddev exec php artisan boost:mcp"]
+      "args": ["-c", "cd /absolute/path/to/your/SecPal/api && php artisan boost:mcp"]
       // Note: Replace '/absolute/path/to/your/SecPal/api' with your actual project path!
-      // Example: "cd /home/youruser/code/SecPal/api && ddev exec php artisan boost:mcp"
+      // Example: "cd /home/youruser/code/SecPal/api && php artisan boost:mcp"
     }
   }
 }
@@ -144,7 +144,7 @@ Add these to your **global** VS Code settings (`Ctrl+Shift+P` → "Preferences: 
 
 **Why global?** Shell integration and MCP servers must be configured globally, not per-workspace.
 
-**Note for DDEV users:** The `cwd` field should NOT be included when using DDEV, as DDEV automatically manages the working directory context.
+**Note:** Keep the project path in the shell command so the MCP server starts from the API repository root.
 
 **Important:** After configuring MCP servers for the first time, you need to:
 
@@ -174,8 +174,8 @@ Laravel Boost provides AI context about your project structure, models, routes, 
 #### ⚠️ Important: Boost requires database access
 
 ```bash
-# Always run through DDEV (not directly with php artisan)
-ddev exec php artisan boost:update
+# Run from the API repository root
+php artisan boost:update
 
 # Why? Boost uses the database for:
 # - Caching scan results
@@ -195,16 +195,16 @@ ddev exec php artisan boost:update
 **⚠️ Auto-fixing required:** After `boost:update`, the generated `.github/copilot-instructions.md` needs to be auto-fixed for our linting rules:
 
 ```bash
-ddev exec php artisan boost:update                         # Generate guidelines
+php artisan boost:update                                  # Generate guidelines
 npx markdownlint-cli2 --fix .github/copilot-instructions.md  # Fix linting issues
 ```
 
 ### Boost Commands
 
 ```bash
-ddev exec php artisan boost:update   # Refresh project guidelines
-ddev exec php artisan boost:mcp      # Start MCP server (usually automatic via VS Code)
-ddev exec php artisan boost:install  # Initial Boost setup
+php artisan boost:update   # Refresh project guidelines
+php artisan boost:mcp      # Start MCP server (usually automatic via VS Code)
+php artisan boost:install  # Initial Boost setup
 ```
 
 ## Testing
@@ -230,16 +230,16 @@ ddev exec php artisan boost:install  # Initial Boost setup
 git diff HEAD~1 HEAD | less
 # Look for: code duplication, magic numbers, missing constants, unclear variable names
 
-# 2. Run tests (via DDEV for database access)
-ddev exec ./vendor/bin/pest
+# 2. Run tests
+php artisan test --parallel
 # All tests must pass. Fix intermittent failures (test isolation issues).
 
 # 3. Check code style
-ddev exec ./vendor/bin/pint
+./vendor/bin/pint
 # Must output "No files need formatting" or auto-fix and commit changes.
 
 # 4. Static analysis
-ddev exec ./vendor/bin/phpstan analyse
+./vendor/bin/phpstan analyse
 # Must show "0 errors". Use baseline for unavoidable vendor issues.
 
 # 5. Pre-push hooks will run automatically
@@ -314,7 +314,7 @@ git push
 
 ```bash
 # Catches race conditions and test isolation issues
-ddev . ./vendor/bin/pest --parallel
+php artisan test --parallel
 ```
 
 **Why?** Tests may pass sequentially but fail in parallel (Issue #50: PR #63)
@@ -328,7 +328,7 @@ grep -r "base64_encode.*generateBlindIndex" app/
 grep -r "strtolower(trim(" app/
 
 # Or use PHPStan:
-ddev . ./vendor/bin/phpstan analyse --no-progress
+./vendor/bin/phpstan analyse --no-progress
 ```
 
 **Action:** Extract duplicated code into traits, helpers, or methods.
@@ -356,9 +356,9 @@ hash_hmac(self::HMAC_ALGORITHM, $data, $key);
 
 ```bash
 # This runs automatically in pre-push hook:
-ddev . ./vendor/bin/pint           # PSR-12 style
-ddev . ./vendor/bin/phpstan analyse # Level 9 static analysis
-ddev . ./vendor/bin/pest            # All tests
+./vendor/bin/pint            # PSR-12 style
+./vendor/bin/phpstan analyse # Level 9 static analysis
+php artisan test             # All tests
 ```
 
 **Action:** Fix all errors before push.
@@ -399,9 +399,9 @@ test: add parallel execution tests
 
 ```bash
 # Run this before opening PR:
-ddev . ./vendor/bin/pest --parallel && \
-ddev . ./vendor/bin/pint && \
-ddev . ./vendor/bin/phpstan analyse && \
+php artisan test --parallel && \
+./vendor/bin/pint && \
+./vendor/bin/phpstan analyse && \
 echo "✅ Ready for PR!"
 ```
 

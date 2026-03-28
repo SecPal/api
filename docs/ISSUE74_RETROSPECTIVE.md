@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2025 SecPal Contributors -->
+<!-- SPDX-FileCopyrightText: 2025-2026 SecPal Contributors -->
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
 # PR #74 Retrospective: Password Reset Feature
@@ -7,6 +7,8 @@
 **PR:** [#74 - Password Reset Feature (Production Test Phase 1)](https://github.com/SecPal/api/pull/74)
 **Final Commit:** `f575a55` (merged to main)
 **Duration:** ~6 hours (session interruption + recovery)
+
+> Historical note: This retrospective describes the former DDEV-based local workflow that was current in late 2025. For the current API runtime workflow, use the native PHP commands documented in `DEVELOPMENT.md`.
 
 ---
 
