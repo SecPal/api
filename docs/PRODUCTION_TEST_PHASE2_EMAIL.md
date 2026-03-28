@@ -30,7 +30,7 @@ This production test implemented email notifications for the password reset feat
 - **Discovery:** Mail system wasn't mentioned in YAML config or instructions
 - **Root Cause:** Phase 1 focused on DDEV environment but not Mail service (Mailpit)
 - **Time to Discovery:** < 5 minutes (noticed during environment review)
-- **Fix Applied:** Added comprehensive `mail:` section to `.github/copilot-config.yaml`
+- **Fix Applied:** Added comprehensive `mail:` section to `copilot-config.yaml` in the `SecPal/.github` repository
 - **Fix Details:**
   - Mailpit access URL (`http://127.0.0.1:8025`, local-only)
   - Queue-based dispatch pattern
