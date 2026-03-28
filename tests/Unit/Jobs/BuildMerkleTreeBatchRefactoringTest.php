@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -13,6 +13,7 @@ use App\Models\Activity;
 use App\Models\Customer;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 
@@ -32,6 +33,9 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     Queue::fake([SubmitMerkleRootToOpenTimestamp::class]);
+    $this->mock(OpenTimestampService::class)
+        ->shouldReceive('submit')
+        ->andReturn('mock-ots-proof');
     $this->tenant = TenantKey::factory()->create();
     $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
