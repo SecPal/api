@@ -11,6 +11,7 @@ namespace App\Console\Commands;
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
 
 class CheckOpenTimestampStatus extends Command
 {
@@ -27,6 +28,7 @@ class CheckOpenTimestampStatus extends Command
 
         if (! $executor->commandExists('python3')) {
             $this->error('  ✗ Missing required command: python3');
+            $this->line('    Hint: Install Python 3 — see https://python.org/downloads/');
 
             return self::FAILURE;
         }
@@ -43,6 +45,7 @@ class CheckOpenTimestampStatus extends Command
 
         if (! $executor->commandExists('ots')) {
             $this->error('  ✗ Missing required command: ots');
+            $this->line('    Hint: Run: pip3 install opentimestamps');
 
             return self::FAILURE;
         }
@@ -50,9 +53,15 @@ class CheckOpenTimestampStatus extends Command
         $otsResult = $executor->execute(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5);
 
         if ($otsResult['exitCode'] !== 0) {
-            $this->error('  ✗ Missing required Python module: opentimestamps');
-
             $details = trim($otsResult['stderr'] ?: $otsResult['stdout'] ?: '');
+            $isMissing = str_contains($details, 'ModuleNotFoundError') || str_contains($details, 'ImportError');
+            $this->error($isMissing
+                ? '  ✗ Missing required Python module: opentimestamps'
+                : '  ✗ Unable to import Python module: opentimestamps'
+            );
+            if ($isMissing) {
+                $this->line('    Hint: Run: pip3 install opentimestamps');
+            }
             if ($details !== '') {
                 $this->line("    {$details}");
             }
@@ -65,7 +74,7 @@ class CheckOpenTimestampStatus extends Command
         foreach (['scripts/ots-stamp-hash.py', 'scripts/ots-verify.py'] as $scriptPath) {
             $absolutePath = base_path($scriptPath);
 
-            if (! is_file($absolutePath)) {
+            if (! File::exists($absolutePath)) {
                 $this->error("  ✗ Missing required helper script: {$scriptPath}");
 
                 return self::FAILURE;

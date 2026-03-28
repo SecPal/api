@@ -11,6 +11,7 @@ use App\Console\Commands\CheckOpenTimestampStatus;
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 
 /**
  * Test CheckOpenTimestampStatus command.
@@ -221,28 +222,24 @@ test('command fails fast when opentimestamps python module is missing', function
 });
 
 test('command fails fast when a required ots helper script is missing', function (string $relativePath): void {
-    $absolutePath = base_path($relativePath);
-    $backupPath = $absolutePath.'.bak-test';
+    File::partialMock()
+        ->shouldReceive('exists')
+        ->with(base_path($relativePath))
+        ->andReturn(false);
 
-    rename($absolutePath, $backupPath);
+    $this->executor
+        ->shouldReceive('execute')
+        ->with(['python3', '--version'], null, 5)
+        ->andReturn(['exitCode' => 0, 'stdout' => 'Python 3.11.2', 'stderr' => '']);
 
-    try {
-        $this->executor
-            ->shouldReceive('execute')
-            ->with(['python3', '--version'], null, 5)
-            ->andReturn(['exitCode' => 0, 'stdout' => 'Python 3.11.2', 'stderr' => '']);
+    $this->executor
+        ->shouldReceive('execute')
+        ->with(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5)
+        ->andReturn(['exitCode' => 0, 'stdout' => '0.4.5', 'stderr' => '']);
 
-        $this->executor
-            ->shouldReceive('execute')
-            ->with(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5)
-            ->andReturn(['exitCode' => 0, 'stdout' => '0.4.5', 'stderr' => '']);
-
-        $this->artisan(CheckOpenTimestampStatus::class)
-            ->expectsOutputToContain($relativePath)
-            ->assertExitCode(1);
-    } finally {
-        rename($backupPath, $absolutePath);
-    }
+    $this->artisan(CheckOpenTimestampStatus::class)
+        ->expectsOutputToContain($relativePath)
+        ->assertExitCode(1);
 })->with([
     'stamp script' => ['scripts/ots-stamp-hash.py'],
     'verify script' => ['scripts/ots-verify.py'],
