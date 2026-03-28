@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use App\Jobs\BuildMerkleTreeBatch;
+use App\Jobs\SubmitMerkleRootToOpenTimestamp;
 use App\Models\Activity;
 use App\Models\TenantKey;
 use App\Models\User;
