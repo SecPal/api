@@ -12,13 +12,13 @@ This checklist ensures code quality and consistency **before** creating a PR.
 - [ ] **All tests pass locally**
 
   ```bash
-  php artisan test
+  php artisan test --parallel
   ```
 
 - [ ] **PHPStan passes with no errors**
 
   ```bash
-  ./vendor/bin/phpstan analyze
+  ./vendor/bin/phpstan analyse
   ```
 
 - [ ] **Pint code style passes**
@@ -135,7 +135,7 @@ This checklist ensures code quality and consistency **before** creating a PR.
 
   ```bash
   # PHPStan will catch unused imports
-  ./vendor/bin/phpstan analyze --level=9
+  ./vendor/bin/phpstan analyse --level=9
   ```
 
 - [ ] **No temporary files committed**

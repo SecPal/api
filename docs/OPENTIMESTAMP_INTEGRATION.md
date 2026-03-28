@@ -135,6 +135,8 @@ Install the `opentimestamps-client` CLI in the same shell environment where you 
 
 ```bash
 python3 -m pip install --user opentimestamps-client
+# Note: ~/.local/bin must be on your PATH for the `ots` command to be found.
+# Add to your shell profile if needed: export PATH="$HOME/.local/bin:$PATH"
 
 # Verify installation
 ots --version
@@ -293,9 +295,11 @@ Cache::flush(); // ⚠️ Clears ALL cache, use with caution
 
 ```bash
 # Local shell / container
-python3 -m pip install --user opentimestamps-client
+python3 -m pip install --user --upgrade opentimestamps-client
+# Ensure ~/.local/bin is on your PATH so `ots` is found
 
 # Production
+sudo -H python3 -m pip install --upgrade opentimestamps-client
 which ots  # Should return /usr/local/bin/ots or similar
 pip3 list | grep opentimestamps  # Should show opentimestamps-client
 ```
