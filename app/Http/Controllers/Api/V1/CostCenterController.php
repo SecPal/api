@@ -37,6 +37,7 @@ class CostCenterController extends Controller
      */
     public function index(Site $site): AnonymousResourceCollection
     {
+        $this->authorize('view', $site);
         $this->authorize('viewAny', CostCenter::class);
 
         $query = $site->costCenters();

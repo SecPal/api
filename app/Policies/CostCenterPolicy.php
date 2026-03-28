@@ -21,7 +21,9 @@ use App\Models\User;
 class CostCenterPolicy
 {
     /**
-     * Determine whether the user can view any cost centers.
+     * Determine whether the user can open the cost center collection.
+     *
+     * Nested collection routes must also authorize access to the parent site.
      */
     public function viewAny(User $user): bool
     {
