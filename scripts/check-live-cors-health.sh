@@ -27,7 +27,7 @@ get_header_value() {
 get_status_code() {
     local headers="$1"
 
-    printf '%s\n' "$headers" | awk 'NR == 1 { print $2; exit }'
+    printf '%s\n' "$headers" | awk '/^HTTP\/[0-9.]+/ { code = $2 } END { if (code != "") print code }'
 }
 
 assert_equals() {
@@ -58,10 +58,17 @@ assert_contains() {
 
 echo "Checking live CORS behavior for ${HEALTH_URL} with Origin ${SPA_ORIGIN}"
 
-get_headers=$(curl --silent --show-error --location --retry 2 --retry-delay 2 \
-    --dump-header - --output /dev/null \
+get_tmp_headers="$(mktemp)"
+if ! curl --silent --show-error --fail-with-body --retry 2 --retry-delay 2 \
+    --dump-header "${get_tmp_headers}" --output /dev/null \
     --header "Origin: ${SPA_ORIGIN}" \
-    "${HEALTH_URL}")
+    "${HEALTH_URL}"; then
+    echo "ERROR: GET /health request failed"
+    rm -f "${get_tmp_headers}"
+    exit 1
+fi
+get_headers="$(cat "${get_tmp_headers}")"
+rm -f "${get_tmp_headers}"
 
 get_status=$(get_status_code "$get_headers")
 get_allow_origin=$(get_header_value "$get_headers" "Access-Control-Allow-Origin")
@@ -73,12 +80,19 @@ assert_equals "$get_allow_credentials" "true" "GET /health returned an unexpecte
 
 echo "GET /health CORS headers look correct"
 
-options_headers=$(curl --silent --show-error --location --retry 2 --retry-delay 2 \
+options_tmp_headers="$(mktemp)"
+if ! curl --silent --show-error --retry 2 --retry-delay 2 \
     --request OPTIONS \
-    --dump-header - --output /dev/null \
+    --dump-header "${options_tmp_headers}" --output /dev/null \
     --header "Origin: ${SPA_ORIGIN}" \
     --header "Access-Control-Request-Method: GET" \
-    "${HEALTH_URL}")
+    "${HEALTH_URL}"; then
+    echo "ERROR: OPTIONS /health request failed"
+    rm -f "${options_tmp_headers}"
+    exit 1
+fi
+options_headers="$(cat "${options_tmp_headers}")"
+rm -f "${options_tmp_headers}"
 
 options_status=$(get_status_code "$options_headers")
 options_allow_origin=$(get_header_value "$options_headers" "Access-Control-Allow-Origin")
