@@ -165,7 +165,7 @@ class AuthController extends Controller
             // Log logout before revoking token
             $this->activityLogService->logLogout($user);
 
-            // Token might already be deleted/invalid (e.g., concurrent logout)
+            // Idempotent token revocation; safe even if a concurrent logout already removed it
             $token->delete();
 
             return response()->json([

@@ -198,7 +198,18 @@ describe('SPA Session Login', function () {
         expect($user->remember_token)->toBeNull();
         expect($user->tokens()->count())->toBe(1);
 
+        // Clear the Authorization header from the logout request before the session-only check
         $this->flushHeaders();
+
+        // Reset cached auth guards so the next request reads fresh from the (now empty) session.
+        // In the Laravel test framework the AuthManager caches guard instances across requests
+        // in the same PHP process; forgetGuards() ensures the session-invalidation is visible.
+        $this->app->make('auth')->forgetGuards();
+
+        // Session is invalidated: a same-domain request with no Authorization header must return 401
+        $this->withHeaders(spaHeaders())
+            ->getJson('/v1/me')
+            ->assertUnauthorized();
 
         $this->withHeader('Authorization', 'Bearer '.$token->plainTextToken)
             ->getJson('/v1/me')
