@@ -21,6 +21,39 @@ SecPal API uses **Laravel Sanctum** for authentication, supporting two modes:
 - `POST /v1/auth/session/logout` remains available only as a deprecated compatibility alias for older SPA clients.
 - `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile` are intentionally unsupported and return `404 Not Found`.
 
+## Runtime Decision Matrix
+
+| Request shape                                                                                                | Expected endpoint                    | Success mode                                          | Wrong-context / failure semantics                       |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------- |
+| First-party SPA request after `/sanctum/csrf-cookie`, with stateful Sanctum cookies and `Origin` / `Referer` | `POST /v1/auth/login`                | Session login via Laravel `web` guard                 | Invalid credentials remain `422 Unprocessable Entity`   |
+| Stateless API / CLI / native request                                                                         | `POST /v1/auth/token`                | Personal access token minted for the requested device | Invalid credentials remain `422 Unprocessable Entity`   |
+| Direct API-style call to `POST /v1/auth/login` without browser session context                               | None; caller used the wrong endpoint | Rejected before controller execution                  | `400 Bad Request` with guidance to use `/v1/auth/token` |
+
+The `400` vs `422` distinction is intentional and should remain stable:
+
+- `400 Bad Request` means the caller chose the wrong login surface.
+- `422 Unprocessable Entity` means the caller reached the correct surface but supplied invalid data or credentials.
+
+## Logout Semantics
+
+`POST /v1/auth/logout` is protected by `auth:sanctum`, so the route accepts either a stateful SPA session or a Bearer token. The route is intentionally shared, but the side effect depends on the auth mode Sanctum actually resolved for the current request.
+
+- If Sanctum authenticated the request via a personal access token, logout revokes only the current token.
+- If Sanctum authenticated the request via the SPA session, logout invalidates the browser session and clears remember-me state.
+- `POST /v1/auth/session/logout` delegates to the same session logout logic and exists only for backward compatibility.
+
+### Mixed Requests
+
+Laravel Sanctum checks for a valid first-party session context before it falls back to a Bearer token. Because of that, requests that accidentally carry both cookies and an `Authorization` header must follow the auth context Sanctum resolved, not the mere presence of the header.
+
+This distinction is important for `POST /v1/auth/logout`:
+
+- a browser-authenticated request with an accidental `Authorization` header must still log out the browser session
+- an API-token-authenticated request must revoke only the current token
+- raw header sniffing such as `bearerToken() !== null` is not a safe way to decide logout behavior
+
+The current implementation uses the resolved `currentAccessToken()` state instead of the raw header so mixed requests do not silently drift into the wrong logout branch.
+
 ## httpOnly Cookie Authentication (SPA Mode)
 
 ### Security Benefits
@@ -134,6 +167,18 @@ Content-Type: application/json
 ```
 
 > **Note:** `/v1/auth/logout` is the canonical logout endpoint for both SPA session auth and Bearer-token auth. `/v1/auth/session/logout` remains available only as a legacy compatibility alias for older SPA clients and should not be used by new clients.
+
+For future maintenance, keep the canonical logout semantics aligned with the resolved auth context. A browser request that merely carries an extra `Authorization` header must not be treated as a token logout.
+
+## Regression Hotspots
+
+These areas are the most likely to re-mix session and token auth accidentally:
+
+- `routes/api.php`: removing `EnsureBrowserSessionLoginContext` from `POST /v1/auth/login`, or moving the route to a broader auth surface
+- `bootstrap/app.php`: changing the API middleware order around `EnsureFrontendRequestsAreStateful`, CSRF handling, or `RestoreSessionFromRememberToken`
+- `AuthController::logout()`: branching on raw headers instead of the auth context Sanctum resolved
+- CSRF configuration: exempting `POST /v1/auth/login` would weaken the browser/session boundary
+- protected route middleware: replacing `auth:sanctum` with a narrower guard would break the deliberate shared self-service/logout surface
 
 ### CSRF Token Handling
 

@@ -166,6 +166,48 @@ describe('SPA Session Login', function () {
         expect($user->remember_token)->toBeNull();
     });
 
+    test('spa logout clears the browser session even when an authorization header is present', function () {
+        $email = 'spa-mixed-logout-'.Str::uuid().'@example.com';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password123'),
+            'remember_token' => null,
+        ]);
+
+        $token = $user->createToken('mobile-app');
+
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => $email,
+            'password' => 'password123',
+        ])->assertOk();
+
+        $this->withHeaders(spaHeaders([
+            'Authorization' => 'Bearer '.$token->plainTextToken,
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/logout')
+            ->assertOk()
+            ->assertJson([
+                'message' => 'Logged out successfully',
+            ]);
+
+        $user->refresh();
+
+        expect($user->remember_token)->toBeNull();
+        expect($user->tokens()->count())->toBe(1);
+
+        $this->flushHeaders();
+
+        $this->withHeader('Authorization', 'Bearer '.$token->plainTextToken)
+            ->getJson('/v1/me')
+            ->assertOk()
+            ->assertJson([
+                'email' => $email,
+            ]);
+    });
+
     test('legacy session logout alias remains available for existing spa clients', function () {
         $email = 'spa-legacy-logout-'.Str::uuid().'@example.com';
 
