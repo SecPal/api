@@ -341,7 +341,7 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation trims surrounding whitespace from device name', function () {
-        $email = 'token-trimmed-device-'.Str::uuid().'@example.com';
+        $email = 'token-trimmed-device-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
@@ -359,7 +359,7 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation falls back to default device name when device name is blank', function () {
-        $email = 'token-blank-device-'.Str::uuid().'@example.com';
+        $email = 'token-blank-device-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,

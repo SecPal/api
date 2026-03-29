@@ -274,7 +274,7 @@ POST /v1/auth/token
 Content-Type: application/json
 
 {
-  "email": "user@example.com",
+  "email": "user@secpal.dev",
   "password": "password123",
   "device_name": "mobile-app"
 }
@@ -293,13 +293,17 @@ Content-Type: application/json
   "user": {
     "id": 1,
     "name": "John Doe",
-    "email": "user@example.com",
+    "email": "user@secpal.dev",
     "roles": ["Manager"],
     "permissions": ["employees.read"],
     "hasOrganizationalScopes": false
   }
 }
 ```
+
+`device_name` is optional. When it is omitted or sent as blank whitespace, the API falls back to `api-client`. Native clients should still send a meaningful device-specific value so issued tokens stay understandable during revocation and multi-device support.
+
+Personal access tokens currently do not expire automatically. Clients should treat explicit logout or revocation, credential changes, and `401 Unauthorized` responses as the points where they must re-authenticate.
 
 **Store the token securely:**
 
@@ -344,7 +348,7 @@ Authorization: Bearer 1|abc123def456...
 ### For API Client Developers
 
 1. **Store tokens securely** - use platform-specific secure storage
-2. **Implement token refresh logic** - re-authenticate when token expires
+2. **Implement re-authentication logic** - tokens do not auto-expire today, but clients must recover cleanly after revocation, logout, credential rotation, or future expiry-policy changes
 3. **Handle 401 errors** gracefully - prompt for re-authentication
 4. **Use device-specific names** - easier to manage multiple sessions
 
