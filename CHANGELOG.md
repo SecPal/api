@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- normalized `POST /v1/auth/token` device-name handling so surrounding whitespace is trimmed and blank values fall back to the documented `api-client` default, while the auth docs now also state explicitly that personal access tokens do not expire automatically unless the backend configuration changes
 - documented the final Customer/Site access matrix in the permission-system guide so predefined roles, scoped-access paths, expected API responses, and frontend visibility rules are explicit instead of implicit
 - hardened `GET /v1/customers` and `GET /v1/sites` for low-privilege users so collection requests now fail closed with `403` when the caller has neither global read permission nor any effective scoped access, while still returning filtered `200` collections for assignment- and scope-based users; auth/self-service responses now also expose `hasCustomerAccess` and `hasSiteAccess` so frontend route gating can mirror the same policy intentionally
 - aligned nested collection semantics outside the onboarding flow so official admin surfaces consistently use `403` for missing authorization, reserve `404` for unsupported, missing, or tenant-hidden resources, and keep `200` with an empty collection only for callers who are entitled to open that collection; `GET /v1/sites/{site}/cost-centers` now also requires visibility of the parent site before returning cost center data

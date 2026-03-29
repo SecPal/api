@@ -340,6 +340,42 @@ describe('Auth Token Generation', function () {
         expect($user->tokens()->first()?->name)->toBe('api-client');
     });
 
+    test('token generation trims surrounding whitespace from device name', function () {
+        $email = 'token-trimmed-device-'.Str::uuid().'@secpal.dev';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password123'),
+        ]);
+
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => $email,
+            'password' => 'password123',
+            'device_name' => '  android-phone  ',
+        ]);
+
+        $response->assertCreated();
+        expect($user->fresh()->tokens()->first()?->name)->toBe('android-phone');
+    });
+
+    test('token generation falls back to default device name when device name is blank', function () {
+        $email = 'token-blank-device-'.Str::uuid().'@secpal.dev';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password123'),
+        ]);
+
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => $email,
+            'password' => 'password123',
+            'device_name' => '   ',
+        ]);
+
+        $response->assertCreated();
+        expect($user->fresh()->tokens()->first()?->name)->toBe('api-client');
+    });
+
     test('user can generate multiple tokens for different devices', function () {
         $email = 'test-'.Str::uuid().'@example.com';
 

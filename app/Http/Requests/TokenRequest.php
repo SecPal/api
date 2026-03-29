@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests;
@@ -15,6 +15,24 @@ class TokenRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    /**
+     * Normalize optional device naming so API clients can omit it or send padded input safely.
+     */
+    protected function prepareForValidation(): void
+    {
+        $deviceName = $this->input('device_name');
+
+        if (! is_string($deviceName)) {
+            return;
+        }
+
+        $trimmedDeviceName = trim($deviceName);
+
+        $this->merge([
+            'device_name' => $trimmedDeviceName === '' ? null : $trimmedDeviceName,
+        ]);
     }
 
     /**
