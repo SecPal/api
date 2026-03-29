@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- aligned repo-local domain guidance, validation scripts, example configuration, and deployment docs with the current split of `secpal.app` for the public homepage and real email addresses, `api.secpal.dev` for the API, and `app.secpal.dev` for the PWA; password-reset mails now build their link from `FRONTEND_URL` instead of the API `APP_URL`
 - normalized `POST /v1/auth/token` device-name handling so surrounding whitespace is trimmed and blank values fall back to the documented `api-client` default, while the auth docs now also state explicitly that personal access tokens do not expire automatically unless the backend configuration changes
 - documented the final Customer/Site access matrix in the permission-system guide so predefined roles, scoped-access paths, expected API responses, and frontend visibility rules are explicit instead of implicit
 - hardened `GET /v1/customers` and `GET /v1/sites` for low-privilege users so collection requests now fail closed with `403` when the caller has neither global read permission nor any effective scoped access, while still returning filtered `200` collections for assignment- and scope-based users; auth/self-service responses now also expose `hasCustomerAccess` and `hasSiteAccess` so frontend route gating can mirror the same policy intentionally

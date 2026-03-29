@@ -31,6 +31,7 @@ SPDX-License-Identifier: CC0-1.0
         <env name="BROADCAST_CONNECTION" value="null" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
         <env name="APP_URL" value="https://api.secpal.dev" force="true"/>
+        <env name="FRONTEND_URL" value="https://app.secpal.dev" force="true"/>
         <env name="CORS_ALLOWED_ORIGINS" value="https://app.secpal.dev" force="true"/>
         <env name="DB_CONNECTION" value="pgsql"/>
         <env name="DB_DATABASE" value="testing"/>

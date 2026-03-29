@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -76,14 +76,18 @@ class PasswordResetMail extends Mailable
      */
     private function buildResetUrl(): string
     {
-        /** @var string $baseUrl */
-        $baseUrl = config('app.url');
+        $frontendUrl = config('app.frontend_url');
+
+        if (! is_string($frontendUrl)) {
+            throw new \RuntimeException('Frontend URL not configured');
+        }
+
         $email = urlencode($this->user->email);
         $token = urlencode($this->token);
 
         // Frontend will handle the reset form
-        // Example: https://secpal.app/auth/password-reset?email=user@example.com&token=xxx
-        return "{$baseUrl}/auth/password-reset?email={$email}&token={$token}";
+        // Example: https://app.secpal.dev/auth/password-reset?email=user@example.com&token=xxx
+        return "{$frontendUrl}/auth/password-reset?email={$email}&token={$token}";
     }
 
     /**
