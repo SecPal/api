@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `scripts/check-live-cors-health.sh` and `.github/workflows/live-cors-smoke.yml` - automated live smoke coverage for `GET /health` and `OPTIONS /health` CORS behavior on `api.secpal.dev` against the first-party `https://app.secpal.dev` origin
 - `app/Services/EmployeeDocumentStorageService.php` - encrypted-at-rest storage service for employee document uploads and downloads
+- persistent employee onboarding workflow state on API resources and onboarding transitions, including bootstrap completion, resumable draft progress, HR change requests, and resubmission after rejected forms so the pre-contract compliance flow has an explicit backend state foundation instead of relying on implicit lifecycle inference
 
 - `.github/instructions/php-laravel.instructions.md` - targeted Laravel, Pest, and native PHP runtime guidance for PHP work in this repo
 - `.github/instructions/github-workflows.instructions.md` - targeted workflow and Dependabot guidance for GitHub automation files in this repo

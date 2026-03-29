@@ -112,6 +112,11 @@ class EmployeeController extends Controller
             $data['onboarding_steps'] = Employee::getDefaultOnboardingSteps();
         }
 
+        // Set persistent workflow status for all lifecycle statuses
+        $lifecycleStatus = is_string($validated['status']) ? $validated['status'] : Employee::STATUS_ACTIVE;
+        $data['onboarding_workflow_status'] = Employee::defaultWorkflowStatusForLifecycleStatus($lifecycleStatus)
+            ?? Employee::WORKFLOW_STATUS_ACTIVE;
+
         // Merge remaining validated data
         $data = array_merge($data, $validated);
 
@@ -208,7 +213,10 @@ class EmployeeController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $employee->update(['status' => Employee::STATUS_ACTIVE]);
+        $employee->update([
+            'status' => Employee::STATUS_ACTIVE,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACTIVE,
+        ]);
 
         // Observer will handle user account activation and role assignment
 
