@@ -280,6 +280,8 @@ Content-Type: application/json
 }
 ```
 
+`device_name` is optional. When it is omitted or sent as blank whitespace, the API falls back to `api-client`. Native clients should still send a meaningful device-specific value so issued tokens stay understandable during revocation and multi-device support.
+
 **Response:**
 
 ```http
