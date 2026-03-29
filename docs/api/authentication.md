@@ -301,7 +301,7 @@ Content-Type: application/json
 }
 ```
 
-Personal access tokens currently do not expire automatically. Clients should treat explicit logout or revocation, credential changes, and `401 Unauthorized` responses as the points where they must re-authenticate.
+Personal access tokens currently do not expire automatically. Clients should treat explicit logout, token revocation, and `401 Unauthorized` responses as the primary signals that they need to re-authenticate. Credential changes (for example, password resets) do not automatically invalidate existing personal access tokens unless an endpoint explicitly revokes them, so clients MUST NOT assume tokens are revoked on credential change and MUST handle `401 Unauthorized` responses gracefully.
 
 **Store the token securely:**
 
@@ -346,7 +346,7 @@ Authorization: Bearer 1|abc123def456...
 ### For API Client Developers
 
 1. **Store tokens securely** - use platform-specific secure storage
-2. **Implement re-authentication logic** - tokens do not auto-expire today, but clients must recover cleanly after revocation, logout, credential rotation, or future expiry-policy changes
+2. **Implement re-authentication logic** - tokens do not auto-expire today and are not automatically revoked on password reset or credential rotation by default; clients must recover cleanly after explicit revocation, logout, 401 responses, or future expiry/credential-revocation policy changes
 3. **Handle 401 errors** gracefully - prompt for re-authentication
 4. **Use device-specific names** - easier to manage multiple sessions
 
