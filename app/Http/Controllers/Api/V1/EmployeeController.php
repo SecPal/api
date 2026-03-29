@@ -110,10 +110,12 @@ class EmployeeController extends Controller
         // Initialize onboarding steps if status = pre_contract
         if ($validated['status'] === Employee::STATUS_PRE_CONTRACT) {
             $data['onboarding_steps'] = Employee::getDefaultOnboardingSteps();
-            $data['onboarding_workflow_status'] = Employee::WORKFLOW_STATUS_INVITED;
-        } elseif ($validated['status'] === Employee::STATUS_ACTIVE) {
-            $data['onboarding_workflow_status'] = Employee::WORKFLOW_STATUS_ACTIVE;
         }
+
+        // Set persistent workflow status for all lifecycle statuses
+        $lifecycleStatus = is_string($validated['status']) ? $validated['status'] : Employee::STATUS_ACTIVE;
+        $data['onboarding_workflow_status'] = Employee::defaultWorkflowStatusForLifecycleStatus($lifecycleStatus)
+            ?? Employee::WORKFLOW_STATUS_ACTIVE;
 
         // Merge remaining validated data
         $data = array_merge($data, $validated);

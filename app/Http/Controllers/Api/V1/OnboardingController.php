@@ -457,34 +457,38 @@ class OnboardingController extends Controller
         $status = $validated['status'] ?? 'submitted';
         $submittedAt = $status === 'submitted' ? now() : null;
 
-        if ($existing) {
-            // Update existing draft
-            $existing->update([
-                'form_data' => $validated['form_data'],
-                'status' => $status,
-                'submitted_at' => $submittedAt,
-                'reviewed_by' => $existing->status === 'rejected' ? null : $existing->reviewed_by,
-                'reviewed_at' => $existing->status === 'rejected' ? null : $existing->reviewed_at,
-                'review_notes' => $existing->status === 'rejected' ? null : $existing->review_notes,
-            ]);
-            $existing->refresh();
-            $submission = $existing;
-        } else {
-            // Create new submission
-            $submission = OnboardingFormSubmission::create([
-                'employee_id' => $employee->id,
-                'form_template_id' => $validated['form_template_id'],
-                'form_data' => $validated['form_data'],
-                'status' => $status,
-                'submitted_at' => $submittedAt,
-            ]);
-        }
+        $submission = DB::transaction(function () use ($existing, $validated, $status, $submittedAt, $employee): OnboardingFormSubmission {
+            if ($existing) {
+                // Update existing draft
+                $existing->update([
+                    'form_data' => $validated['form_data'],
+                    'status' => $status,
+                    'submitted_at' => $submittedAt,
+                    'reviewed_by' => $existing->status === 'rejected' ? null : $existing->reviewed_by,
+                    'reviewed_at' => $existing->status === 'rejected' ? null : $existing->reviewed_at,
+                    'review_notes' => $existing->status === 'rejected' ? null : $existing->review_notes,
+                ]);
+                $existing->refresh();
+                $created = $existing;
+            } else {
+                // Create new submission
+                $created = OnboardingFormSubmission::create([
+                    'employee_id' => $employee->id,
+                    'form_template_id' => $validated['form_template_id'],
+                    'form_data' => $validated['form_data'],
+                    'status' => $status,
+                    'submitted_at' => $submittedAt,
+                ]);
+            }
 
-        $employee->update([
-            'onboarding_workflow_status' => $status === 'submitted'
-                ? Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW
-                : Employee::WORKFLOW_STATUS_IN_PROGRESS,
-        ]);
+            $employee->update([
+                'onboarding_workflow_status' => $status === 'submitted'
+                    ? Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW
+                    : Employee::WORKFLOW_STATUS_IN_PROGRESS,
+            ]);
+
+            return $created;
+        });
 
         $submission->load('formTemplate');
 
@@ -558,19 +562,21 @@ class OnboardingController extends Controller
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        $submission->update([
-            'status' => 'rejected',
-            'reviewed_by' => $user->id,
-            'reviewed_at' => now(),
-            'review_notes' => $request->input('reason'),
-        ]);
+        DB::transaction(function () use ($submission, $user, $request): void {
+            $submission->update([
+                'status' => 'rejected',
+                'reviewed_by' => $user->id,
+                'reviewed_at' => now(),
+                'review_notes' => $request->input('reason'),
+            ]);
 
-        /** @var Employee $employee */
-        $employee = $submission->employee()->firstOrFail();
+            /** @var Employee $employee */
+            $employee = $submission->employee()->firstOrFail();
 
-        $employee->update([
-            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CHANGES_REQUESTED,
-        ]);
+            $employee->update([
+                'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CHANGES_REQUESTED,
+            ]);
+        });
 
         /** @var OnboardingFormSubmission $fresh */
         $fresh = $submission->fresh();

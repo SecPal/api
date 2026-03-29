@@ -969,7 +969,8 @@ class Employee extends Model
 
     public function resolveOnboardingWorkflowStatus(): ?string
     {
-        if (is_string($this->onboarding_workflow_status) && $this->onboarding_workflow_status !== '') {
+        if (is_string($this->onboarding_workflow_status)
+            && in_array($this->onboarding_workflow_status, self::VALID_WORKFLOW_STATUSES, true)) {
             return $this->onboarding_workflow_status;
         }
 
