@@ -33,7 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(App\Http\Middleware\SecurityHeaders::class);
 
         // Apply Sanctum's stateful middleware to API routes for SPA authentication
-        // This enables session-based auth for requests from stateful SPA domains such as app.secpal.dev.
+        // This enables session-based auth for requests from stateful SPA domains (such as app.secpal.dev).
         // RestoreSessionFromRememberToken must run AFTER EnsureFrontendRequestsAreStateful
         // to restore sessions from remember tokens when session expires but remember cookie is valid
         // ForceJsonResponse ensures all API routes return JSON, never HTML (prevents HTML error pages on validation errors)

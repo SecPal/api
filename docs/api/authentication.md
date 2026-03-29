@@ -374,7 +374,7 @@ CORS_SUPPORTS_CREDENTIALS=true
 - [ ] `SESSION_SECURE_COOKIE=true` (HTTPS only)
 - [ ] `SANCTUM_STATEFUL_DOMAINS` includes `app.secpal.dev`
 - [ ] `CORS_ALLOWED_ORIGINS` includes the active frontend domain
-- [ ] `SESSION_DOMAIN` matches the active environment (for example `.secpal.dev` or `.secpal.app`)
+- [ ] `SESSION_DOMAIN` matches the active environment (for example `.secpal.dev`)
 - [ ] HTTPS configured with valid SSL certificate
 
 ## Testing

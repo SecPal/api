@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal
+// SPDX-FileCopyrightText: 2025-2026 SecPal
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -127,6 +127,7 @@ it('email contains valid reset token', function () {
 
 it('email contains secure reset url with encoded parameters', function () {
     Mail::fake();
+    config()->set('app.frontend_url', 'https://app.secpal.dev');
 
     $user = User::factory()->create([
         'email' => 'test+special@example.com',
@@ -142,7 +143,8 @@ it('email contains secure reset url with encoded parameters', function () {
         $resetUrl = $content->with['resetUrl'];
 
         // Verify URL is properly encoded
-        expect($resetUrl)->toContain('auth/password-reset')
+        expect($resetUrl)->toStartWith('https://app.secpal.dev/auth/password-reset?')
+            ->and($resetUrl)->toContain('auth/password-reset')
             ->and($resetUrl)->toContain('email=')
             ->and($resetUrl)->toContain('token=')
             // Special characters should be encoded
