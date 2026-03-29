@@ -38,7 +38,7 @@ Examples:
 1. **Lowercase only** - no uppercase letters
 2. **Dot separator** - use `.` not `-` or `_`
 3. **Resource first** - then action
-4. **Snake_case** - for multi-word resources (`work_instructions`)
+4. **Snake_case** - for multi-word resources (`work_instructions`); URL-aligned resources whose route path is hyphenated keep kebab-case (`cost-centers`)
 5. **Descriptive** - action describes what it does
 
 ### Valid Examples
@@ -156,8 +156,8 @@ Customers and Sites intentionally use a two-layer model:
 | Situation                                                  | `/v1/customers`                                                          | `/v1/sites`                                                 | Detail endpoint                                  | Frontend module visibility  |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------ | --------------------------- |
 | No global read permission and no scoped access             | `403 Forbidden`                                                          | `403 Forbidden`                                             | `403 Forbidden`                                  | Hidden / access denied      |
-| Global `customers.read` only                               | `200 OK` full customer collection                                        | No additional site access implied                           | Customer details allowed by global read          | Customers visible           |
-| Global `sites.read` only                                   | No additional customer access implied                                    | `200 OK` full site collection                               | Site details allowed by global read              | Sites visible               |
+| Global `customers.read` only                               | `200 OK` full customer collection                                        | `403 Forbidden`                                             | Customer details allowed by global read          | Customers visible           |
+| Global `sites.read` only                                   | `403 Forbidden`                                                          | `200 OK` full site collection                               | Site details allowed by global read              | Sites visible               |
 | Active customer assignment only                            | `200 OK` filtered customer collection                                    | `200 OK` filtered site collection for that customer's sites | Only assigned customer and its in-scope sites    | Customers and Sites visible |
 | Active site assignment only                                | `200 OK` filtered customer collection for owning customers               | `200 OK` filtered site collection                           | Only assigned site and owning customer in scope  | Customers and Sites visible |
 | Organizational scope only                                  | `200 OK` filtered customer collection for customers owning visible sites | `200 OK` filtered site collection for visible units         | Only records covered by the organizational scope | Customers and Sites visible |
