@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -294,6 +294,7 @@ describe('POST /v1/onboarding/submissions', function () {
 
         expect($response->json('data.status'))->toBe('draft');
         expect($response->json('data.submitted_at'))->toBeNull();
+        expect($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_IN_PROGRESS);
     });
 
     test('creates submission with submitted status and timestamp', function (): void {
@@ -309,6 +310,7 @@ describe('POST /v1/onboarding/submissions', function () {
         $response->assertStatus(201);
         expect($response->json('data.status'))->toBe('submitted');
         expect($response->json('data.submitted_at'))->not->toBeNull();
+        expect($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW);
     });
 
     test('updates existing draft submission', function (): void {
@@ -331,6 +333,34 @@ describe('POST /v1/onboarding/submissions', function () {
         $response->assertStatus(200);
         expect($response->json('data.id'))->toBe($submission->id);
         expect($response->json('data.form_data')['name'])->toBe('Updated');
+    });
+
+    test('allows rejected submission to be resubmitted', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'form_data' => ['name' => 'Original'],
+            'status' => 'rejected',
+            'review_notes' => 'Missing document',
+            'reviewed_at' => now(),
+            'reviewed_by' => $this->user->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $this->template->id,
+                'form_data' => ['name' => 'Corrected'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data.id'))->toBe($submission->id);
+        expect($response->json('data.status'))->toBe('submitted');
+        expect($response->json('data.review_notes'))->toBeNull();
+        expect($response->json('data.reviewed_at'))->toBeNull();
+        expect($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW);
     });
 
     test('does not update already submitted submission', function (): void {
@@ -479,6 +509,7 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
         expect($response->json('data.review_notes'))->toBe('Missing required documents');
         expect($response->json('data.reviewed_by'))->toBe($this->user->id);
         expect($response->json('data.reviewed_at'))->not->toBeNull();
+        expect($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_CHANGES_REQUESTED);
     });
 
     test('returns 422 when attempting to reject non-submitted submission', function (): void {

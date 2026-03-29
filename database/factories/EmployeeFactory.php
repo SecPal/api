@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Database\Factories;
@@ -78,6 +78,7 @@ class EmployeeFactory extends Factory
             'contract_type' => fake()->randomElement(['full_time', 'part_time', 'minijob', 'freelance']),
             'status' => Employee::STATUS_ACTIVE,
             'onboarding_completed_at' => fake()->dateTimeBetween('-6 months', 'now'),
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACTIVE,
             'management_level' => 0, // Default: non-management (0=Guards, 1-255=Management)
             'user_account_active' => false, // Explicit default to prevent dirty flag on updates
             // Don't set user_id by default - let tests control this
@@ -94,6 +95,7 @@ class EmployeeFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed_at' => null,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_INVITED,
             'hire_date' => null,
             'user_id' => null, // Observer will create user
             'user_account_active' => false,
@@ -108,6 +110,7 @@ class EmployeeFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => Employee::STATUS_ACTIVE,
             'onboarding_completed_at' => fake()->dateTimeBetween('-6 months', 'now'),
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACTIVE,
         ]);
     }
 
@@ -119,6 +122,7 @@ class EmployeeFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => Employee::STATUS_ON_LEAVE,
             'onboarding_completed_at' => fake()->dateTimeBetween('-1 year', '-6 months'),
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACTIVE,
         ]);
     }
 
@@ -132,6 +136,7 @@ class EmployeeFactory extends Factory
             'termination_date' => fake()->dateTimeBetween('-3 months', 'now'),
             'last_working_day' => fake()->dateTimeBetween('-3 months', 'now'),
             'onboarding_completed_at' => fake()->dateTimeBetween('-2 years', '-1 year'),
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACTIVE,
             // Note: employment_end_date and retention_period_end are auto-calculated by Observer
         ]);
     }

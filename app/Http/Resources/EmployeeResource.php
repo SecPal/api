@@ -147,6 +147,9 @@ class EmployeeResource extends JsonResource
             'onboarding_steps' => $this->onboarding_steps,
             'onboarding_started_at' => $this->onboarding_started_at?->toIso8601String(),
             'onboarding_completed_at' => $this->onboarding_completed_at?->toIso8601String(),
+            'onboarding_workflow' => [
+                'status' => $this->resolveOnboardingWorkflowStatus(),
+            ],
             'onboarding_invitation' => [
                 'status' => $this->onboarding_invitation_status ?? 'not_requested',
                 'available' => $this->canReceiveOnboardingInvitation(),

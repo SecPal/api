@@ -70,7 +70,8 @@ test('completes onboarding with valid token', function () {
     $employee->refresh();
     expect($employee->first_name)->toBe('John')
         ->and($employee->last_name)->toBe('Doe')
-        ->and($employee->onboarding_started_at)->not->toBeNull();
+        ->and($employee->onboarding_started_at)->not->toBeNull()
+        ->and($employee->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
 
     // Assert: Password set on user
     $user = $employee->user;
