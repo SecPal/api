@@ -98,6 +98,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property array<string, mixed>|null $onboarding_steps
  * @property ?\Illuminate\Support\Carbon $onboarding_started_at
  * @property ?\Illuminate\Support\Carbon $onboarding_completed_at
+ * @property string|null $onboarding_workflow_status invited|account_initialized|in_progress|submitted_for_review|changes_requested|contract_confirmed|ready_for_activation|active
  * @property string $onboarding_invitation_status not_requested|sent|created_not_sent|failed
  * @property ?\Illuminate\Support\Carbon $onboarding_invitation_requested_at
  * @property ?\Illuminate\Support\Carbon $onboarding_invitation_token_created_at
@@ -172,6 +173,34 @@ class Employee extends Model
     public const INVITATION_STATUS_CREATED_NOT_SENT = 'created_not_sent';
 
     public const INVITATION_STATUS_FAILED = 'failed';
+
+    public const WORKFLOW_STATUS_INVITED = 'invited';
+
+    public const WORKFLOW_STATUS_ACCOUNT_INITIALIZED = 'account_initialized';
+
+    public const WORKFLOW_STATUS_IN_PROGRESS = 'in_progress';
+
+    public const WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW = 'submitted_for_review';
+
+    public const WORKFLOW_STATUS_CHANGES_REQUESTED = 'changes_requested';
+
+    public const WORKFLOW_STATUS_CONTRACT_CONFIRMED = 'contract_confirmed';
+
+    public const WORKFLOW_STATUS_READY_FOR_ACTIVATION = 'ready_for_activation';
+
+    public const WORKFLOW_STATUS_ACTIVE = 'active';
+
+    /** @var list<string> */
+    public const VALID_WORKFLOW_STATUSES = [
+        self::WORKFLOW_STATUS_INVITED,
+        self::WORKFLOW_STATUS_ACCOUNT_INITIALIZED,
+        self::WORKFLOW_STATUS_IN_PROGRESS,
+        self::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+        self::WORKFLOW_STATUS_CHANGES_REQUESTED,
+        self::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
+        self::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+        self::WORKFLOW_STATUS_ACTIVE,
+    ];
 
     /**
      * Temporary storage for GDPR changed fields during model lifecycle.
@@ -284,6 +313,7 @@ class Employee extends Model
         'onboarding_steps',
         'onboarding_started_at',
         'onboarding_completed_at',
+        'onboarding_workflow_status',
         'onboarding_invitation_status',
         'onboarding_invitation_requested_at',
         'onboarding_invitation_token_created_at',
@@ -374,6 +404,7 @@ class Employee extends Model
             'user_account_deactivated_at' => 'datetime',
             'onboarding_started_at' => 'datetime',
             'onboarding_completed_at' => 'datetime',
+            'onboarding_workflow_status' => 'string',
             'onboarding_invitation_requested_at' => 'datetime',
             'onboarding_invitation_token_created_at' => 'datetime',
             'onboarding_invitation_mail_sent_at' => 'datetime',
@@ -936,6 +967,15 @@ class Employee extends Model
             && $this->contract_start_date->isPast();
     }
 
+    public function resolveOnboardingWorkflowStatus(): ?string
+    {
+        if (is_string($this->onboarding_workflow_status) && $this->onboarding_workflow_status !== '') {
+            return $this->onboarding_workflow_status;
+        }
+
+        return self::defaultWorkflowStatusForLifecycleStatus($this->status);
+    }
+
     public function canReceiveOnboardingInvitation(): bool
     {
         return in_array($this->status, self::INVITABLE_STATUSES, true);
@@ -944,6 +984,15 @@ class Employee extends Model
     public function canTerminate(): bool
     {
         return in_array($this->status, [self::STATUS_ACTIVE, self::STATUS_ON_LEAVE], true);
+    }
+
+    public static function defaultWorkflowStatusForLifecycleStatus(string $status): ?string
+    {
+        return match ($status) {
+            self::STATUS_PRE_CONTRACT => self::WORKFLOW_STATUS_INVITED,
+            self::STATUS_ACTIVE, self::STATUS_ON_LEAVE, self::STATUS_TERMINATED => self::WORKFLOW_STATUS_ACTIVE,
+            default => null,
+        };
     }
 
     // === SCOPES ===

@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers\Api\V1;
@@ -192,6 +192,7 @@ class OnboardingController extends Controller
             $employee->first_name = $firstName;
             $employee->last_name = $lastName;
             $employee->onboarding_started_at ??= now();
+            $employee->onboarding_workflow_status = Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED;
             $employee->save();
 
             // Enhanced activity logging if names changed
@@ -447,7 +448,7 @@ class OnboardingController extends Controller
             ], Response::HTTP_CONFLICT);
         }
 
-        if ($existing && in_array($existing->status, ['approved', 'rejected'], true)) {
+        if ($existing && $existing->status === 'approved') {
             return response()->json([
                 'message' => __('Form has already been reviewed and cannot be modified'),
             ], Response::HTTP_CONFLICT);
@@ -462,6 +463,9 @@ class OnboardingController extends Controller
                 'form_data' => $validated['form_data'],
                 'status' => $status,
                 'submitted_at' => $submittedAt,
+                'reviewed_by' => $existing->status === 'rejected' ? null : $existing->reviewed_by,
+                'reviewed_at' => $existing->status === 'rejected' ? null : $existing->reviewed_at,
+                'review_notes' => $existing->status === 'rejected' ? null : $existing->review_notes,
             ]);
             $existing->refresh();
             $submission = $existing;
@@ -475,6 +479,12 @@ class OnboardingController extends Controller
                 'submitted_at' => $submittedAt,
             ]);
         }
+
+        $employee->update([
+            'onboarding_workflow_status' => $status === 'submitted'
+                ? Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW
+                : Employee::WORKFLOW_STATUS_IN_PROGRESS,
+        ]);
 
         $submission->load('formTemplate');
 
@@ -553,6 +563,10 @@ class OnboardingController extends Controller
             'reviewed_by' => $user->id,
             'reviewed_at' => now(),
             'review_notes' => $request->input('reason'),
+        ]);
+
+        $submission->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CHANGES_REQUESTED,
         ]);
 
         /** @var OnboardingFormSubmission $fresh */

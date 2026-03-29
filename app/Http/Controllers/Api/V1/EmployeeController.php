@@ -110,6 +110,9 @@ class EmployeeController extends Controller
         // Initialize onboarding steps if status = pre_contract
         if ($validated['status'] === Employee::STATUS_PRE_CONTRACT) {
             $data['onboarding_steps'] = Employee::getDefaultOnboardingSteps();
+            $data['onboarding_workflow_status'] = Employee::WORKFLOW_STATUS_INVITED;
+        } elseif ($validated['status'] === Employee::STATUS_ACTIVE) {
+            $data['onboarding_workflow_status'] = Employee::WORKFLOW_STATUS_ACTIVE;
         }
 
         // Merge remaining validated data
@@ -208,7 +211,10 @@ class EmployeeController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $employee->update(['status' => Employee::STATUS_ACTIVE]);
+        $employee->update([
+            'status' => Employee::STATUS_ACTIVE,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACTIVE,
+        ]);
 
         // Observer will handle user account activation and role assignment
 

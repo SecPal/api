@@ -317,12 +317,14 @@ describe('POST /v1/employees', function () {
                     'last_name',
                     'email',
                     'status',
+                    'onboarding_workflow' => ['status'],
                 ],
             ]);
 
         $employeeNumber = $response->json('data.employee_number');
         expect($employeeNumber)->toMatch('/^EMP-\d{4}-\d{4}$/');
         expect($response->json('data.status'))->toBe(Employee::STATUS_PRE_CONTRACT);
+        expect($response->json('data.onboarding_workflow.status'))->toBe(Employee::WORKFLOW_STATUS_INVITED);
     });
 
     test('creates employee with user account via Observer', function (): void {
@@ -769,6 +771,7 @@ describe('POST /v1/employees/{employee}/activate', function () {
 
         $response->assertStatus(200);
         expect($response->json('data.status'))->toBe(Employee::STATUS_ACTIVE);
+        expect($response->json('data.onboarding_workflow.status'))->toBe(Employee::WORKFLOW_STATUS_ACTIVE);
     });
 
     test('returns 422 when onboarding not completed', function (): void {
