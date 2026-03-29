@@ -565,7 +565,10 @@ class OnboardingController extends Controller
             'review_notes' => $request->input('reason'),
         ]);
 
-        $submission->employee->update([
+        /** @var Employee $employee */
+        $employee = $submission->employee()->firstOrFail();
+
+        $employee->update([
             'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CHANGES_REQUESTED,
         ]);
 
