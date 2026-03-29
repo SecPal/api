@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2025 SecPal -->
+<!-- SPDX-FileCopyrightText: 2025-2026 SecPal -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # Permission System Guide
@@ -9,6 +9,7 @@ Understanding SecPal's permission naming, organization, and management.
 
 - [Permission Naming Convention](#permission-naming-convention)
 - [Resource Organization](#resource-organization)
+- [Customer & Site Access Model](#customer--site-access-model)
 - [Permission Matrix](#permission-matrix)
 - [Creating Custom Permissions](#creating-custom-permissions)
 - [Permission Lifecycle](#permission-lifecycle)
@@ -117,6 +118,53 @@ Domain-specific actions for workflows:
 
 ---
 
+## Customer & Site Access Model
+
+Customers and Sites intentionally use a two-layer model:
+
+1. Global collection permissions via `customers.read` and `sites.read`
+2. Scoped access via active customer assignments, site assignments, and organizational scopes
+
+### Global Access
+
+- `Admin` receives `customers.*` and `sites.*`
+- `Manager` receives `customers.read`, `customers.create`, `customers.update`, `sites.read`, `sites.create`, and `sites.update`
+- Custom roles can opt in explicitly by assigning the matching `customers.*` or `sites.*` permissions
+
+### Scoped Access
+
+- Active customer assignments open the customer collection for the assigned customer and the site collection for all sites of that customer
+- Active site assignments open the site collection for the assigned sites and the customer collection for the owning customers of those sites
+- Organizational scopes open the site collection for sites in accessible organizational units and the customer collection for customers owning those sites
+- Scoped collection access may legitimately return `200 OK` with an empty filtered collection when the entitlement exists but no currently matching records do
+
+### Explicit Default Role Position
+
+- `Guard`, `Client`, and `Works Council` do not receive Customer or Site module access by default through their predefined RBAC permissions
+- If one of those users must work with Customers or Sites, grant that access explicitly through direct permissions and/or active customer, site, or organizational-scope assignments
+- Do not rely on hidden UI fallbacks or mutation permissions to make the module discoverable; the frontend must mirror the backend's `hasCustomerAccess` and `hasSiteAccess` flags
+
+### Detail And Mutation Rules
+
+- Opening `/v1/customers` or `/v1/sites` does not imply access to every individual record; detail endpoints still require the concrete object to be in scope
+- `customers.create` and `sites.create` are explicit admin or manager-style permissions
+- `customers.update` and `sites.update` may also be granted through direct assignment to the concrete customer or site
+- `customers.delete` and `sites.delete` remain explicit destructive permissions and are never granted through scoped visibility alone
+
+### Expected Outcomes Matrix
+
+| Situation                                                  | `/v1/customers`                                                          | `/v1/sites`                                                 | Detail endpoint                                  | Frontend module visibility  |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------ | --------------------------- |
+| No global read permission and no scoped access             | `403 Forbidden`                                                          | `403 Forbidden`                                             | `403 Forbidden`                                  | Hidden / access denied      |
+| Global `customers.read` only                               | `200 OK` full customer collection                                        | No additional site access implied                           | Customer details allowed by global read          | Customers visible           |
+| Global `sites.read` only                                   | No additional customer access implied                                    | `200 OK` full site collection                               | Site details allowed by global read              | Sites visible               |
+| Active customer assignment only                            | `200 OK` filtered customer collection                                    | `200 OK` filtered site collection for that customer's sites | Only assigned customer and its in-scope sites    | Customers and Sites visible |
+| Active site assignment only                                | `200 OK` filtered customer collection for owning customers               | `200 OK` filtered site collection                           | Only assigned site and owning customer in scope  | Customers and Sites visible |
+| Organizational scope only                                  | `200 OK` filtered customer collection for customers owning visible sites | `200 OK` filtered site collection for visible units         | Only records covered by the organizational scope | Customers and Sites visible |
+| Scoped entitlement exists but currently matches no records | `200 OK` empty collection                                                | `200 OK` empty collection                                   | `403 Forbidden` for unrelated concrete objects   | Visible, empty-state UX     |
+
+---
+
 ## Permission Matrix
 
 Permissions assigned to predefined roles:
@@ -129,6 +177,10 @@ Permissions assigned to predefined roles:
 Permissions: * (all permissions)
 
 Or explicitly:
+- customers.*
+- sites.*
+- assignments.*
+- cost-centers.*
 - employees.*
 - shifts.*
 - work_instructions.*
@@ -145,6 +197,25 @@ Or explicitly:
 **Philosophy:** Branch-level management
 
 ```text
+Customers:
+- customers.read
+- customers.create
+- customers.update
+
+Sites:
+- sites.read
+- sites.create
+- sites.update
+
+Assignments:
+- assignments.create
+- assignments.update
+
+Cost Centers:
+- cost-centers.read
+- cost-centers.create
+- cost-centers.update
+
 Employees:
 - employees.read
 - employees.create
@@ -194,9 +265,13 @@ Work Instructions:
 
 ### Client Role
 
-**Philosophy:** Read-only customer access
+**Philosophy:** External stakeholder access without Customer/Site module visibility by default
 
 ```text
+Customers / Sites:
+- No default module permissions
+- Access only when explicit direct permissions or scoped assignments are granted intentionally
+
 Shifts:
 - shifts.read (location-specific - policy enforced)
 

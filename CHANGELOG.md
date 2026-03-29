@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- documented the final Customer/Site access matrix in the permission-system guide so predefined roles, scoped-access paths, expected API responses, and frontend visibility rules are explicit instead of implicit
 - hardened `GET /v1/customers` and `GET /v1/sites` for low-privilege users so collection requests now fail closed with `403` when the caller has neither global read permission nor any effective scoped access, while still returning filtered `200` collections for assignment- and scope-based users; auth/self-service responses now also expose `hasCustomerAccess` and `hasSiteAccess` so frontend route gating can mirror the same policy intentionally
 - aligned nested collection semantics outside the onboarding flow so official admin surfaces consistently use `403` for missing authorization, reserve `404` for unsupported, missing, or tenant-hidden resources, and keep `200` with an empty collection only for callers who are entitled to open that collection; `GET /v1/sites/{site}/cost-centers` now also requires visibility of the parent site before returning cost center data
 - updated active API development and operations guides to use the current native PHP workflow instead of stale DDEV-first command examples, and marked older DDEV-era retrospectives as historical context where those references are intentionally retained
