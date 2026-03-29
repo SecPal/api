@@ -63,6 +63,10 @@ GET /v1/me
 | Browser / first-party SPA             | `POST /v1/auth/login` | `POST /v1/auth/logout` | `GET /v1/me`          |
 | Android / native / CLI / integrations | `POST /v1/auth/token` | `POST /v1/auth/logout` | `GET /v1/me`          |
 
+`POST /v1/auth/login` is intentionally browser-only. Stateless API-style calls are rejected with `400 Bad Request`, while browser-context login failures such as invalid credentials continue to surface as `422 Unprocessable Entity`.
+
+`POST /v1/auth/logout` is the canonical logout endpoint for both auth modes. Its behavior follows the auth mechanism Sanctum actually resolved for the current request: Bearer-token requests revoke only the current token, while stateful SPA requests invalidate the browser session and clear remember-me state. If a request accidentally carries both cookies and an `Authorization` header, the resolved auth context wins; raw header presence alone must not change logout behavior.
+
 The following guessed aliases are intentionally not part of the public surface and return `404 Not Found`: `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile`.
 
 **Documentation:** [Authentication API Guide](docs/api/authentication.md)

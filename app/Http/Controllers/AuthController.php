@@ -149,23 +149,24 @@ class AuthController extends Controller
     }
 
     /**
-     * Revoke the current user's access token.
+     * Log out the authenticated caller from the auth mode Sanctum resolved.
+     *
+     * Token-authenticated requests revoke only the current personal access token.
+     * Stateful SPA requests invalidate the browser session and clear remember-me state.
      */
     public function logout(Request $request): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
 
-        if ($request->bearerToken() !== null) {
+        $token = $user->currentAccessToken();
+
+        if ($token instanceof PersonalAccessToken) {
             // Log logout before revoking token
             $this->activityLogService->logLogout($user);
 
-            $token = $user->currentAccessToken();
-
-            // Token might already be deleted/invalid (e.g., concurrent logout)
-            if ($token instanceof PersonalAccessToken) {
-                $token->delete();
-            }
+            // Idempotent token revocation; safe even if a concurrent logout already removed it
+            $token->delete();
 
             return response()->json([
                 'message' => __('Logged out successfully'),
