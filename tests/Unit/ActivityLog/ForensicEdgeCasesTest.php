@@ -584,3 +584,52 @@ test('regression: batch integrity checking detects deleted activities', function
     // MUST detect deletion
     expect($remaining->verifyMerkleProof())->toBeFalse('Deleted activities must be detected!');
 });
+
+test('regression: illegitimate genesis detected when earlier activity has different log_name', function () {
+    $this->actingAs($this->user);
+
+    // Create a real genesis for a different log_name (the chain is tenant-wide)
+    $log1 = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'authentication',
+        'description' => 'First tenant activity',
+    ]);
+
+    $log1->refresh();
+
+    // Manually insert a fake genesis for a second log_name
+    // (as if the hash-chain job assigned previous_hash=null instead of H1)
+    $log2 = new Activity([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'user-management',
+        'description' => 'Fake genesis in different log_name',
+    ]);
+    $log2->saveQuietly();
+
+    $logData = json_encode([
+        'tenant_id' => $log2->tenant_id,
+        'log_name' => $log2->log_name,
+        'description' => $log2->description,
+        'subject_type' => $log2->subject_type,
+        'subject_id' => $log2->subject_id,
+        'causer_type' => $log2->causer_type,
+        'causer_id' => $log2->causer_id,
+        'event' => $log2->event,
+        'attribute_changes' => $log2->attribute_changes,
+        'properties' => $log2->properties,
+        'created_at' => $log2->created_at?->toIso8601String(),
+    ], JSON_THROW_ON_ERROR);
+
+    DB::table('activity_log')
+        ->where('id', $log2->id)
+        ->update([
+            'previous_hash' => null, // Fake genesis — should link to log1's event_hash
+            'event_hash' => hash('sha256', $logData),
+        ]);
+
+    $log2->refresh();
+
+    // MUST be detected as illegitimate: the tenant hash chain is tenant-wide,
+    // so a null previous_hash is only valid for the absolute first tenant activity
+    expect($log2->verifyChainLink())->toBeFalse('Illegitimate genesis must be detected across log_names!');
+});

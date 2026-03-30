@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- returned `chain_link_valid` from `GET /v1/activity-logs/{activity}/verify` so the Activity Log detail dialog no longer leaves the hash-link verification dot stuck in pending when the chain has already been processed successfully; corrected genesis validation in `Activity::verifyChainLink()` to check all earlier tenant activities (not just same `log_name`) so the signal stays accurate when the tenant hash chain spans multiple log names
+
 ### Changed
 
 - aligned the API security-header baseline fully with the hardened PWA host by adding an API-safe CSP, `Permissions-Policy`, `Strict-Transport-Security` on secure requests, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`, `Cross-Origin-Embedder-Policy`, `Origin-Agent-Cluster`, and `X-Permitted-Cross-Domain-Policies` to global Laravel responses while documenting the one intentional value difference: the API keeps `Cross-Origin-Resource-Policy: same-site` so the first-party SPA on `app.secpal.dev` remains compatible

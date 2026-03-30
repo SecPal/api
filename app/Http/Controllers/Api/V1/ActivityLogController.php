@@ -128,6 +128,7 @@ class ActivityLogController extends Controller
                 'activity_id' => $activity->id,
                 'verification' => [
                     'chain_valid' => $activity->verifyChain(),
+                    'chain_link_valid' => $activity->verifyChainLink(),
                     'merkle_valid' => $activity->verifyMerkleProof(),
                     'ots_valid' => $activity->verifyOpenTimestamp(),
                 ],
