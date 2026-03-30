@@ -245,18 +245,18 @@ http {
 
 # Security Headers
 <IfModule mod_headers.c>
-  Header always set X-Frame-Options "DENY"
+    Header always set X-Frame-Options "DENY"
     Header always set X-Content-Type-Options "nosniff"
-  Header always set X-XSS-Protection "0"
+    Header always set X-XSS-Protection "0"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
-  Header always set Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'none'; object-src 'none'"
-  Header always set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), clipboard-read=(), clipboard-write=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
-  Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains"
-  Header always set Cross-Origin-Opener-Policy "same-origin"
-  Header always set Cross-Origin-Resource-Policy "same-site"
-  Header always set Cross-Origin-Embedder-Policy "require-corp"
-  Header always set Origin-Agent-Cluster "?1"
-  Header always set X-Permitted-Cross-Domain-Policies "none"
+    Header always set Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'none'; object-src 'none'"
+    Header always set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), clipboard-read=(), clipboard-write=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+    Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Cross-Origin-Resource-Policy "same-site"
+    Header always set Cross-Origin-Embedder-Policy "require-corp"
+    Header always set Origin-Agent-Cluster "?1"
+    Header always set X-Permitted-Cross-Domain-Policies "none"
 </IfModule>
 ```
 
