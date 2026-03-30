@@ -634,9 +634,8 @@ class Activity extends SpatieActivity
 
         // Genesis log check: If previous_hash is NULL, verify it's a LEGITIMATE genesis
         if ($this->previous_hash === null) {
-            // Check if there's an earlier activity with same log_name and tenant_id
+            // Check if there's any earlier activity for this tenant (chain is built tenant-wide)
             $earlierActivity = static::where('tenant_id', $this->tenant_id)
-                ->where('log_name', $this->log_name)
                 ->where('id', '<', $this->id)
                 ->orderBy('id', 'desc')
                 ->first();
@@ -648,7 +647,6 @@ class Activity extends SpatieActivity
 
             // Also check archive for earlier activities
             $archivedEarlier = ActivityArchive::where('tenant_id', $this->tenant_id)
-                ->where('log_name', $this->log_name)
                 ->where('id', '<', $this->id)
                 ->orderBy('id', 'desc')
                 ->first();
