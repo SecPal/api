@@ -647,6 +647,7 @@ describe('GET /v1/activity-logs/{activity}/verify', function () {
                     'activity_id',
                     'verification' => [
                         'chain_valid',
+                        'chain_link_valid',
                         'merkle_valid',
                         'ots_valid',
                     ],
@@ -661,6 +662,7 @@ describe('GET /v1/activity-logs/{activity}/verify', function () {
 
         expect($response->json('data.activity_id'))->toBe($activity->id);
         expect($response->json('data.verification.chain_valid'))->toBeTrue();
+        expect($response->json('data.verification.chain_link_valid'))->toBeTrue();
     });
 
     test('returns 404 for verification when activity belongs to different tenant', function (): void {
