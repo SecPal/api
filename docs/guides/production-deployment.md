@@ -138,14 +138,27 @@ server {
     error_log /var/log/nginx/secpal-api-error.log;
 
     # Security Headers (if not handled by Laravel middleware)
-    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-XSS-Protection "0" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'none'; object-src 'none'" always;
+    add_header Permissions-Policy "accelerometer=(), autoplay=(), camera=(), clipboard-read=(), clipboard-write=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()" always;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Resource-Policy "same-site" always;
+    add_header Cross-Origin-Embedder-Policy "require-corp" always;
+    add_header Origin-Agent-Cluster "?1" always;
+    add_header X-Permitted-Cross-Domain-Policies "none" always;
 
     # CORS is already handled by Laravel. Do not mirror it here with static
     # Access-Control-Allow-Origin headers, or disallowed origins may appear
     # half-authorized at the edge.
+
+    # The API host keeps the same cross-origin isolation header classes as the
+    # PWA, but `Cross-Origin-Resource-Policy` remains `same-site` instead of
+    # `same-origin` so the first-party SPA on app.secpal.dev can continue to
+    # fetch api.secpal.dev responses without weakening the general baseline.
 
     # Laravel Front Controller
     location / {
@@ -232,12 +245,27 @@ http {
 
 # Security Headers
 <IfModule mod_headers.c>
-    Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set X-Frame-Options "DENY"
     Header always set X-Content-Type-Options "nosniff"
-    Header always set X-XSS-Protection "1; mode=block"
+  Header always set X-XSS-Protection "0"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'none'; object-src 'none'"
+  Header always set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), clipboard-read=(), clipboard-write=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+  Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains"
+  Header always set Cross-Origin-Opener-Policy "same-origin"
+  Header always set Cross-Origin-Resource-Policy "same-site"
+  Header always set Cross-Origin-Embedder-Policy "require-corp"
+  Header always set Origin-Agent-Cluster "?1"
+  Header always set X-Permitted-Cross-Domain-Policies "none"
 </IfModule>
 ```
+
+### API vs. App Header Policy
+
+- `api.secpal.dev` should keep the same header classes as the app host: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Content-Security-Policy`, `Permissions-Policy`, `Strict-Transport-Security`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`, `Cross-Origin-Embedder-Policy`, `Origin-Agent-Cluster`, and `X-Permitted-Cross-Domain-Policies`.
+- The API host uses a stricter document policy than the PWA: `default-src 'none'` plus only the allowances needed for branded HTML error pages (`img-src 'self'`, `style-src 'unsafe-inline'`).
+- `Cross-Origin-Resource-Policy` should be `same-site` on the API so the first-party SPA on `app.secpal.dev` remains compatible while unrelated sites stay outside the baseline.
+- `Cross-Origin-Embedder-Policy`, `Origin-Agent-Cluster`, and `X-Permitted-Cross-Domain-Policies` are present on the API for consistency, but the API still does not mirror the app's broader asset policy because JSON responses and branded error pages need a tighter `default-src 'none'` baseline.
 
 ### VirtualHost Configuration
 
