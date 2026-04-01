@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- security audit document (`SECURITY_AUDIT_API_VALIDATION.md`) covering API validation, error handling, and request semantics with 3 HIGH, 6 MEDIUM, 5 LOW findings and 3 best-practice recommendations; includes prioritized fix order and negative test ideas
+
 ### Fixed
 
 - returned `chain_link_valid` from `GET /v1/activity-logs/{activity}/verify` so the Activity Log detail dialog no longer leaves the hash-link verification dot stuck in pending when the chain has already been processed successfully; corrected genesis validation in `Activity::verifyChainLink()` to check all earlier tenant activities (not just same `log_name`) so the signal stays accurate when the tenant hash chain spans multiple log names
