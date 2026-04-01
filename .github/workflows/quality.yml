@@ -39,7 +39,7 @@ jobs:
           node-version: "22"
 
       - name: Run Prettier check
-        run: npx --yes prettier@3.5.3 --check '**/*.{md,yml,yaml,json}'
+        run: npx --yes prettier@4.0.0-alpha.8 --check '**/*.{md,yml,yaml,json}'
 
   markdown-lint:
     name: Markdown Lint
