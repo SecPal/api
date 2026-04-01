@@ -68,6 +68,44 @@ test('logLogout creates authentication log', function (): void {
         ->and(Activity::getRetentionYearsForLogType($activity->log_name))->toBeIn([3, 8]);
 });
 
+test('logUserMfaEvent creates authentication log for self-service MFA actions', function (): void {
+    $activity = $this->service->logUserMfaEvent(
+        $this->user,
+        'mfa_enabled',
+        'Enabled multi-factor authentication',
+        ['method' => 'totp']
+    );
+
+    expect($activity)->toBeInstanceOf(Activity::class)
+        ->and($activity->log_name)->toBe('authentication')
+        ->and($activity->description)->toBe('Enabled multi-factor authentication')
+        ->and($activity->causer_id)->toBe((string) $this->user->id)
+        ->and($activity->subject_id)->toBe((string) $this->user->id)
+        ->and($activity->properties['event'])->toBe('mfa_enabled')
+        ->and($activity->properties['method'])->toBe('totp');
+});
+
+test('logAdminMfaReset creates authentication log with actor and target attribution', function (): void {
+    $targetUser = User::factory()->create();
+
+    $activity = $this->service->logAdminMfaReset(
+        $this->user,
+        $targetUser,
+        'Lost authenticator device',
+        ['had_pending_enrollment' => false]
+    );
+
+    expect($activity)->toBeInstanceOf(Activity::class)
+        ->and($activity->log_name)->toBe('authentication')
+        ->and($activity->description)->toBe('Admin reset multi-factor authentication')
+        ->and($activity->causer_id)->toBe((string) $this->user->id)
+        ->and($activity->subject_id)->toBe((string) $targetUser->id)
+        ->and($activity->properties['event'])->toBe('mfa_reset_by_admin')
+        ->and($activity->properties['target_user_id'])->toBe($targetUser->id)
+        ->and($activity->properties['reason'])->toBe('Lost authenticator device')
+        ->and($activity->properties['had_pending_enrollment'])->toBeFalse();
+});
+
 test('logRoleAssignment creates rbac_changes log', function (): void {
     $targetUser = User::factory()->create();
 

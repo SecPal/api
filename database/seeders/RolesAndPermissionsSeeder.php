@@ -193,6 +193,9 @@ class RolesAndPermissionsSeeder extends Seeder
                 'assign_direct',  // Phase 4: POST /users/{user}/permissions
                 'revoke_direct',  // Phase 4: DELETE /users/{user}/permissions/{permission}
             ],
+            'users' => [
+                'reset_mfa',      // MFA safeguards: DELETE /users/{user}/mfa
+            ],
             'works_council' => [
                 'access_employee_files',
                 'approve_shift_plans',
@@ -224,6 +227,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     'employees.*',
                     'shifts.*',
                     'work_instructions.*',
+                    'users.*',
                     'role.*',        // Phase 3: Role assignment permissions
                     'roles.*',       // Phase 4: Role management permissions
                     'permissions.*', // Phase 4: Permission management permissions

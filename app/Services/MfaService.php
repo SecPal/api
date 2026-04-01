@@ -11,6 +11,8 @@ use Laragear\TwoFactor\Events\TwoFactorRecoveryCodesDepleted;
 
 class MfaService
 {
+    public function __construct(private ActivityLogService $activityLogService) {}
+
     /**
      * Build the public MFA status payload for the authenticated user.
      *
@@ -131,6 +133,14 @@ class MfaService
 
         if (! $user->twoFactorAuth->containsUnusedRecoveryCodes()) {
             event(new TwoFactorRecoveryCodesDepleted($user));
+            $this->activityLogService->logUserMfaEvent(
+                $user,
+                'mfa_recovery_codes_depleted',
+                'Multi-factor recovery codes depleted',
+                [
+                    'recovery_codes_remaining' => 0,
+                ]
+            );
         }
 
         return true;

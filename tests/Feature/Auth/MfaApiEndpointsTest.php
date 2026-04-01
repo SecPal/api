@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Activity;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -152,6 +153,14 @@ test('authenticated user can start and confirm a TOTP enrollment', function () {
         ]);
 
     expect($confirmResponse->json('data.recovery_codes.codes'))->toHaveCount(10);
+
+    $enableAudit = Activity::query()
+        ->where('description', 'Enabled multi-factor authentication')
+        ->latest('id')
+        ->first();
+
+    expect($enableAudit)->not->toBeNull()
+        ->and($enableAudit?->properties['event'])->toBe('mfa_enabled');
 });
 
 test('authenticated user can read MFA status, regenerate recovery codes, and disable MFA', function () {
@@ -184,6 +193,15 @@ test('authenticated user can read MFA status, regenerate recovery codes, and dis
     $regenerateResponse->assertOk();
     expect($regenerateResponse->json('data.recovery_codes.codes'))->toHaveCount(10);
 
+    $regenerateAudit = Activity::query()
+        ->where('description', 'Regenerated multi-factor recovery codes')
+        ->latest('id')
+        ->first();
+
+    expect($regenerateAudit)->not->toBeNull()
+        ->and($regenerateAudit?->properties['event'])->toBe('mfa_recovery_codes_regenerated')
+        ->and($regenerateAudit?->properties['verification_method'])->toBe('recovery_code');
+
     $replacementRecoveryCode = $regenerateResponse->json('data.recovery_codes.codes.0');
 
     $disableResponse = $this->deleteJson('/v1/me/mfa', [
@@ -199,6 +217,55 @@ test('authenticated user can read MFA status, regenerate recovery codes, and dis
                 'recovery_codes_remaining' => 0,
             ],
         ]);
+
+    $disableAudit = Activity::query()
+        ->where('description', 'Disabled multi-factor authentication')
+        ->latest('id')
+        ->first();
+
+    expect($disableAudit)->not->toBeNull()
+        ->and($disableAudit?->properties['event'])->toBe('mfa_disabled')
+        ->and($disableAudit?->properties['verification_method'])->toBe('recovery_code');
+});
+
+test('consuming the final recovery code records an audit event when the backup set is depleted', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-depletion@secpal.dev',
+        'password' => bcrypt('password123'),
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    $recoveryCodes = $user->getRecoveryCodes()->pluck('code')->values();
+
+    foreach ($recoveryCodes->slice(0, 9) as $recoveryCode) {
+        expect($user->validateTwoFactorCode($recoveryCode))->toBeTrue();
+    }
+
+    $finalRecoveryCode = (string) $recoveryCodes->last();
+
+    $loginResponse = $this->postJson('/v1/auth/token', [
+        'email' => 'mfa-depletion@secpal.dev',
+        'password' => 'password123',
+        'device_name' => 'audit-check',
+    ]);
+
+    $loginResponse->assertStatus(202);
+
+    $this->postJson('/v1/auth/mfa-challenges/'.$loginResponse->json('challenge.id').'/verify', [
+        'method' => 'recovery_code',
+        'code' => $finalRecoveryCode,
+    ])->assertOk();
+
+    $depletionAudit = Activity::query()
+        ->where('description', 'Multi-factor recovery codes depleted')
+        ->latest('id')
+        ->first();
+
+    expect($depletionAudit)->not->toBeNull()
+        ->and($depletionAudit?->properties['event'])->toBe('mfa_recovery_codes_depleted')
+        ->and($depletionAudit?->properties['recovery_codes_remaining'])->toBe(0);
 });
 
 test('confirming an expired pending enrollment returns conflict', function () {

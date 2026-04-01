@@ -180,6 +180,45 @@ class ActivityLogService
     }
 
     /**
+     * Log a self-service MFA lifecycle event for a user.
+     *
+     * @param  array<string, mixed>  $properties
+     */
+    public function logUserMfaEvent(User $user, string $event, string $description, array $properties = []): ?Activity
+    {
+        return activity('authentication')
+            ->causedBy($user)
+            ->performedOn($user)
+            ->useLog('authentication')
+            ->withProperties(array_merge([
+                'event' => $event,
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+            ], $properties))
+            ->log($description);
+    }
+
+    /**
+     * Log an administrative MFA reset performed for another user.
+     *
+     * @param  array<string, mixed>  $properties
+     */
+    public function logAdminMfaReset(User $user, User $targetUser, string $reason, array $properties = []): ?Activity
+    {
+        return activity('authentication')
+            ->causedBy($user)
+            ->performedOn($targetUser)
+            ->useLog('authentication')
+            ->withProperties(array_merge([
+                'event' => 'mfa_reset_by_admin',
+                'target_user_id' => $targetUser->id,
+                'target_user_email' => $targetUser->email,
+                'reason' => $reason,
+            ], $properties))
+            ->log('Admin reset multi-factor authentication');
+    }
+
+    /**
      * Log role assignment to user.
      *
      * Security Level: 2 (rbac_changes)

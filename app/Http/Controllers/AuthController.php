@@ -5,6 +5,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\AdminResetUserMfaRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
 use App\Http\Requests\PasswordResetRequest;
@@ -21,6 +22,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -341,6 +343,16 @@ class AuthController extends Controller
 
         $user->refresh();
 
+        $this->activityLogService->logUserMfaEvent(
+            $user,
+            'mfa_enabled',
+            'Enabled multi-factor authentication',
+            [
+                'method' => 'totp',
+                'recovery_codes_remaining' => $user->getRemainingTwoFactorRecoveryCodesCount(),
+            ]
+        );
+
         return response()->json([
             'data' => [
                 'status' => $this->mfaService->buildStatusData($user),
@@ -380,6 +392,16 @@ class AuthController extends Controller
         $recoveryCodes = $this->mfaService->regenerateRecoveryCodes($user);
         $user->refresh();
 
+        $this->activityLogService->logUserMfaEvent(
+            $user,
+            'mfa_recovery_codes_regenerated',
+            'Regenerated multi-factor recovery codes',
+            [
+                'verification_method' => $validated['method'],
+                'recovery_codes_remaining' => $user->getRemainingTwoFactorRecoveryCodesCount(),
+            ]
+        );
+
         return response()->json([
             'data' => [
                 'status' => $this->mfaService->buildStatusData($user),
@@ -416,10 +438,65 @@ class AuthController extends Controller
             ]);
         }
 
+        $previousStatus = $this->mfaService->buildStatusData($user);
+
         $user->disableTwoFactorAuth();
         $user->refresh();
 
+        $this->activityLogService->logUserMfaEvent(
+            $user,
+            'mfa_disabled',
+            'Disabled multi-factor authentication',
+            [
+                'verification_method' => $validated['method'],
+                'previous_status' => $previousStatus,
+            ]
+        );
+
         return response()->json([
+            'data' => $this->mfaService->buildStatusData($user),
+        ]);
+    }
+
+    /**
+     * Allow privileged administrators to reset another user's MFA enrollment.
+     */
+    public function adminResetMfa(AdminResetUserMfaRequest $request, User $user): JsonResponse
+    {
+        Gate::authorize('resetMfa', $user);
+
+        /** @var User $admin */
+        $admin = $request->user();
+
+        $user->loadMissing('twoFactorAuth');
+
+        $previousStatus = $this->mfaService->buildStatusData($user);
+        $hadPendingEnrollment = $user->hasPendingTwoFactorEnrollment();
+
+        if (! $previousStatus['enabled'] && ! $hadPendingEnrollment) {
+            return response()->json([
+                'message' => __('Two-factor authentication is not configured for this account.'),
+            ], 409);
+        }
+
+        /** @var array{reason: string} $validated */
+        $validated = $request->validated();
+
+        $user->disableTwoFactorAuth();
+        $user->refresh();
+
+        $this->activityLogService->logAdminMfaReset(
+            $admin,
+            $user,
+            $validated['reason'],
+            [
+                'previous_status' => $previousStatus,
+                'had_pending_enrollment' => $hadPendingEnrollment,
+            ]
+        );
+
+        return response()->json([
+            'message' => __('Two-factor authentication has been reset for the user.'),
             'data' => $this->mfaService->buildStatusData($user),
         ]);
     }
