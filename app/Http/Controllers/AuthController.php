@@ -170,8 +170,6 @@ class AuthController extends Controller
             ]);
         }
 
-        $this->loginMfaChallengeService->forget($challengeId);
-
         if ($challenge['login_context'] === LoginMfaChallengeService::LOGIN_CONTEXT_SESSION) {
             if ($request->attributes->get('sanctum') !== true || ! $request->hasSession()) {
                 return response()->json([
@@ -179,8 +177,12 @@ class AuthController extends Controller
                 ], 409);
             }
 
+            $this->loginMfaChallengeService->forget($challengeId);
+
             return $this->completeSessionLogin($request, $user, mfaCompleted: true);
         }
+
+        $this->loginMfaChallengeService->forget($challengeId);
 
         return $this->completeTokenLogin($user, $challenge['device_name'] ?? 'api-client', mfaCompleted: true, createdStatus: 200);
     }
