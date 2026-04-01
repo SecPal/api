@@ -1,0 +1,28 @@
+---
+# SPDX-FileCopyrightText: 2026 SecPal
+# SPDX-License-Identifier: CC0-1.0
+
+name: Reusable - Prettier (local)
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  prettier:
+    name: Check Code Formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Run Prettier check
+        run: npx --yes prettier@4.0.0-alpha.8 --check '**/*.{md,yml,yaml,json}'
