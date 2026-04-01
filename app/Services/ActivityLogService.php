@@ -182,10 +182,18 @@ class ActivityLogService
     /**
      * Log a self-service MFA lifecycle event for a user.
      *
+     * Scoped to the user's primary organizational unit so visibility follows
+     * the same org-scope / leadership rules as other authentication events.
+     *
      * @param  array<string, mixed>  $properties
      */
     public function logUserMfaEvent(User $user, string $event, string $description, array $properties = []): ?Activity
     {
+        $user->loadMissing('organizationalScopes');
+        /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
+        $firstScope = $user->organizationalScopes->first();
+        $primaryOrgUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
+
         return activity('authentication')
             ->causedBy($user)
             ->performedOn($user)
@@ -195,16 +203,29 @@ class ActivityLogService
                 'user_id' => $user->id,
                 'user_email' => $user->email,
             ], $properties))
+            ->tap(function ($activity) use ($primaryOrgUnitId) {
+                /** @var \App\Models\Activity $activity */
+                $activity->organizational_unit_id = $primaryOrgUnitId;
+            })
             ->log($description);
     }
 
     /**
      * Log an administrative MFA reset performed for another user.
      *
+     * Scoped to the target user's primary organizational unit so the reset
+     * audit entry is subject to the same org-scope visibility rules as other
+     * authentication events, preventing cross-OU exposure.
+     *
      * @param  array<string, mixed>  $properties
      */
     public function logAdminMfaReset(User $user, User $targetUser, string $reason, array $properties = []): ?Activity
     {
+        $targetUser->loadMissing('organizationalScopes');
+        /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
+        $firstScope = $targetUser->organizationalScopes->first();
+        $targetOrgUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
+
         return activity('authentication')
             ->causedBy($user)
             ->performedOn($targetUser)
@@ -215,6 +236,10 @@ class ActivityLogService
                 'target_user_email' => $targetUser->email,
                 'reason' => $reason,
             ], $properties))
+            ->tap(function ($activity) use ($targetOrgUnitId) {
+                /** @var \App\Models\Activity $activity */
+                $activity->organizational_unit_id = $targetOrgUnitId;
+            })
             ->log('Admin reset multi-factor authentication');
     }
 
