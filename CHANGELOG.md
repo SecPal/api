@@ -15,17 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added the MFA phase-1 backend foundation by integrating `laragear/two-factor`, publishing a UUID-safe `two_factor_authentications` migration, wiring the `User` model into the package contract, and covering enrollment, recovery-code rotation, and disablement lifecycle behavior with focused tests
-
-### Fixed
-
-- Switched the API repo's Prettier PR check to a repo-local workflow job so API pull requests no longer depend on the currently unresolved shared `.github` composite Node setup action path during GitHub Actions resolution
-
-### Added
-
 - security audit document (`SECURITY_AUDIT_API_VALIDATION.md`) covering API validation, error handling, and request semantics with 3 HIGH, 6 MEDIUM, 5 LOW findings and 3 best-practice recommendations; includes prioritized fix order and negative test ideas
 
 ### Fixed
 
+- Switched the API repo's Prettier PR check to a repo-local workflow job so API pull requests no longer depend on the currently unresolved shared `.github` composite Node setup action path during GitHub Actions resolution
 - returned `chain_link_valid` from `GET /v1/activity-logs/{activity}/verify` so the Activity Log detail dialog no longer leaves the hash-link verification dot stuck in pending when the chain has already been processed successfully; corrected genesis validation in `Activity::verifyChainLink()` to check all earlier tenant activities (not just same `log_name`) so the signal stays accurate when the tenant hash chain spans multiple log names
 
 ### Changed
@@ -36,7 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - updated `docs/MAIL_SYSTEM.md` and `docs/PRODUCTION_TEST_PHASE2_EMAIL.md` to reflect the current direct-server Mailpit setup (`127.0.0.1:1025` SMTP, `127.0.0.1:8025` UI) instead of stale DDEV-routed instructions
 - centralized the official employee status set to `applicant`, `pre_contract`, `active`, `on_leave`, and `terminated`, reused that definition across employee create/update/list validation, clarified in API messages that onboarding invitations are only allowed while status is `pre_contract`, and documented the same admin-facing rule set in `README.md`
 - clarified the official auth/self-service surface so browser SPAs use `POST /v1/auth/login`, Android/native/API clients use `POST /v1/auth/token`, `GET /v1/me` remains the canonical self-service read endpoint, and `POST /v1/auth/logout` now cleanly logs out both session- and token-authenticated clients while `POST /v1/auth/session/logout` is retained only as a documented legacy alias
-- Switched the API repo's Prettier PR check to a repo-local workflow job so API pull requests no longer depend on the currently unresolved shared `.github` composite Node setup action path during GitHub Actions resolution
 - documented the auth-path decision matrix, the intentional `400` vs `422` login semantics, and the main regression hotspots around Sanctum stateful middleware, browser-context detection, CSRF boundaries, and shared logout behavior so future auth changes do not accidentally re-mix session and token login paths
 - added regression coverage and API guide clarifications that keep guessed aliases such as `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile` intentionally unsupported while documenting `GET /v1/me` as the canonical self-service endpoint
 - aligned token-login responses with session-login responses by returning the same authorization context (`roles`, `permissions`, `hasOrganizationalScopes`) inside the `user` payload for Android/native/API clients
