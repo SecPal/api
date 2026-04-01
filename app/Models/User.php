@@ -7,7 +7,7 @@ namespace App\Models;
 
 use App\Models\Concerns\EnforcesTenantRouteBinding;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Carbon\CarbonInterface;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -284,7 +284,7 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
     /**
      * Return when the current recovery-code batch was generated.
      */
-    public function getTwoFactorRecoveryCodesGeneratedAt(): ?CarbonInterface
+    public function getTwoFactorRecoveryCodesGeneratedAt(): ?DateTimeInterface
     {
         return $this->twoFactorAuth->recovery_codes_generated_at;
     }
