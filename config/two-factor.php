@@ -25,7 +25,7 @@ return [
     | Recovery Codes
     |--------------------------------------------------------------------------
     |
-    | This controls the Recovery Codes generation. Since is enabled by default,
+    | This controls the Recovery Codes generation. Since it is enabled by default,
     | users can always authenticate without their code generator. The length
     | and quantity of the codes can be configured to keep security tight.
     |
@@ -44,7 +44,7 @@ return [
     |
     | Authenticating with Two-Factor Codes can become very obnoxious when the
     | user does it every time. "Safe devices" allows to remember the device
-    | for a period of time which 2FA Codes won't be asked when login in.
+    | for a period of time which 2FA Codes won't be asked when logging in.
     |
     */
 
@@ -83,7 +83,7 @@ return [
     | the next request. If flash is "false" the input will be kept forever.
     |
     | You may set "flash" to "false" if you are using Livewire or Inertia,
-    | because, these may make request before the 2FA Code is sent again,
+    | because, these may make requests before the 2FA Code is sent again,
     | removing the credentials and invalidating the whole login flow.
     |
     */
@@ -114,7 +114,7 @@ return [
     | TOTP config
     |--------------------------------------------------------------------------
     |
-    | While this package uses recommended RFC 4226 and RDC 6238 settings, you
+    | While this package uses recommended RFC 4226 and RFC 6238 settings, you
     | can further configure how TOTP should work. These settings are saved
     | for each 2FA authentication, so it will only affect new accounts.
     |
