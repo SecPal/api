@@ -75,6 +75,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | API Login Challenges
+    |--------------------------------------------------------------------------
+    |
+    | Pending MFA login challenges are short-lived cache entries created after
+    | a caller passes the primary email/password step. This expiry controls how
+    | long the follow-up verification step may remain valid.
+    |
+    */
+
+    'challenge' => [
+        'expiration_minutes' => 10,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Two-Factor Login Helper
     |--------------------------------------------------------------------------
     |

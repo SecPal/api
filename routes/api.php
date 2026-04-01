@@ -60,6 +60,8 @@ Route::prefix('v1')->group(function () {
     // Token Login (for mobile/native apps)
     Route::post('/auth/token', [AuthController::class, 'token'])
         ->middleware('throttle:login');
+    Route::post('/auth/mfa-challenges/{challengeId}/verify', [AuthController::class, 'verifyMfaChallenge'])
+        ->middleware('throttle:mfa-challenge');
     Route::post('/auth/password/reset-request', [AuthController::class, 'passwordResetRequest'])
         ->middleware('throttle:password-reset');
     Route::post('/auth/password/reset', [AuthController::class, 'passwordReset'])
@@ -80,6 +82,15 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/me/language', [AuthController::class, 'updateLanguage']);
+        Route::get('/me/mfa', [AuthController::class, 'mfaStatus']);
+        Route::delete('/me/mfa', [AuthController::class, 'disableMfa'])
+            ->middleware('throttle:mfa');
+        Route::post('/me/mfa/totp/enrollment', [AuthController::class, 'startTotpEnrollment'])
+            ->middleware('throttle:mfa');
+        Route::post('/me/mfa/totp/enrollment/confirm', [AuthController::class, 'confirmTotpEnrollment'])
+            ->middleware('throttle:mfa');
+        Route::post('/me/mfa/recovery-codes/regenerate', [AuthController::class, 'regenerateRecoveryCodes'])
+            ->middleware('throttle:mfa');
 
         // Role Management CRUD API
         // Authorization: Route-level permission middleware + Policy (defense-in-depth)

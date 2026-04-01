@@ -6,13 +6,17 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\MfaVerificationCodeRequest;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\PasswordResetRequestRequest;
 use App\Http\Requests\TokenRequest;
+use App\Http\Requests\TotpCodeRequest;
 use App\Http\Requests\UpdateUserLanguageRequest;
 use App\Mail\PasswordResetMail;
 use App\Models\User;
 use App\Services\ActivityLogService;
+use App\Services\LoginMfaChallengeService;
+use App\Services\MfaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,7 +38,9 @@ class AuthController extends Controller
      * Activity log service for authentication events.
      */
     public function __construct(
-        private ActivityLogService $activityLogService
+        private ActivityLogService $activityLogService,
+        private LoginMfaChallengeService $loginMfaChallengeService,
+        private MfaService $mfaService,
     ) {}
 
     /**
@@ -58,33 +64,17 @@ class AuthController extends Controller
     {
         /** @var array{email: string, password: string} $credentials */
         $credentials = $request->validated();
+        $user = $this->validatePrimaryCredentials(
+            $credentials['email'],
+            $credentials['password'],
+            $request->integer('tenant_id') ?: null,
+        );
 
-        // Use web guard explicitly for session-based auth
-        // remember=true for PWA - maintains long-lived session via remember_token cookie
-        if (! Auth::guard('web')->attempt($credentials, remember: true)) {
-            // Log failed login attempt (service will find tenant_id by email)
-            $this->activityLogService->logLoginFailed(
-                $credentials['email'],
-                'invalid_credentials',
-                $request->integer('tenant_id') ?: null
-            );
-
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
-            ]);
+        if ($user->hasTwoFactorEnabled()) {
+            return $this->issueLoginChallenge($user, LoginMfaChallengeService::LOGIN_CONTEXT_SESSION);
         }
 
-        $request->session()->regenerate();
-
-        /** @var User $user */
-        $user = Auth::guard('web')->user();
-
-        // Log successful login
-        $this->activityLogService->logLoginSuccess($user);
-
-        return response()->json([
-            'user' => $this->buildUserAuthorizationData($user),
-        ]);
+        return $this->completeSessionLogin($request, $user);
     }
 
     /**
@@ -120,32 +110,81 @@ class AuthController extends Controller
     {
         /** @var array{email: string, password: string, device_name?: string} $validated */
         $validated = $request->validated();
+        $user = $this->validatePrimaryCredentials(
+            $validated['email'],
+            $validated['password'],
+            $request->integer('tenant_id') ?: null,
+        );
 
-        $user = User::where('email', $validated['email'])->first();
+        $deviceName = $validated['device_name'] ?? 'api-client';
 
-        if (! $user || ! Hash::check($validated['password'], $user->password)) {
-            // Log failed token generation attempt (service will find tenant_id by email)
-            $this->activityLogService->logLoginFailed(
-                $validated['email'],
-                'invalid_credentials',
-                $request->integer('tenant_id') ?: null
-            );
+        if ($user->hasTwoFactorEnabled()) {
+            return $this->issueLoginChallenge($user, LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN, $deviceName);
+        }
+
+        return $this->completeTokenLogin($user, $deviceName);
+    }
+
+    /**
+     * Complete a pending MFA login challenge.
+     *
+     * @throws ValidationException
+     */
+    public function verifyMfaChallenge(MfaVerificationCodeRequest $request, string $challengeId): JsonResponse
+    {
+        if (! Str::isUuid($challengeId)) {
+            return $this->resourceNotFoundResponse();
+        }
+
+        $challenge = $this->loginMfaChallengeService->find($challengeId);
+
+        if ($challenge === null) {
+            return $this->resourceNotFoundResponse();
+        }
+
+        /** @var User|null $user */
+        $user = User::find($challenge['user_id']);
+
+        if ($user === null) {
+            $this->loginMfaChallengeService->forget($challengeId);
+
+            return $this->resourceNotFoundResponse();
+        }
+
+        if (! $user->hasTwoFactorEnabled()) {
+            $this->loginMfaChallengeService->forget($challengeId);
+
+            return response()->json([
+                'message' => __('Two-factor authentication is no longer enabled for this account.'),
+            ], 409);
+        }
+
+        /** @var array{method: string, code: string} $validated */
+        $validated = $request->validated();
+
+        if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
+            $this->activityLogService->logLoginFailed($user->email, 'invalid_mfa_code', $user->tenant_id);
 
             throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
+                'code' => ['The provided multi-factor authentication code is invalid.'],
             ]);
         }
 
-        $deviceName = $validated['device_name'] ?? 'api-client';
-        $token = $user->createToken($deviceName);
+        if ($challenge['login_context'] === LoginMfaChallengeService::LOGIN_CONTEXT_SESSION) {
+            if ($request->attributes->get('sanctum') !== true || ! $request->hasSession()) {
+                return response()->json([
+                    'message' => __('This MFA challenge must be completed from a browser session context.'),
+                ], 409);
+            }
 
-        // Log successful token generation (API login)
-        $this->activityLogService->logLoginSuccess($user);
+            $this->loginMfaChallengeService->forget($challengeId);
 
-        return response()->json([
-            'token' => $token->plainTextToken,
-            'user' => $this->buildUserAuthorizationData($user),
-        ], 201);
+            return $this->completeSessionLogin($request, $user, mfaCompleted: true);
+        }
+
+        $this->loginMfaChallengeService->forget($challengeId);
+
+        return $this->completeTokenLogin($user, $challenge['device_name'] ?? 'api-client', mfaCompleted: true, createdStatus: 200);
     }
 
     /**
@@ -234,6 +273,154 @@ class AuthController extends Controller
             'data' => [
                 'preferred_locale' => $user->preferred_locale,
             ],
+        ]);
+    }
+
+    /**
+     * Get the authenticated user's MFA status.
+     */
+    public function mfaStatus(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json([
+            'data' => $this->mfaService->buildStatusData($user),
+        ]);
+    }
+
+    /**
+     * Start a new pending TOTP enrollment for the authenticated user.
+     */
+    public function startTotpEnrollment(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->hasTwoFactorEnabled()) {
+            return response()->json([
+                'message' => __('Two-factor authentication is already enabled for this account.'),
+            ], 409);
+        }
+
+        return response()->json([
+            'data' => $this->mfaService->prepareEnrollment($user),
+        ], 201);
+    }
+
+    /**
+     * Confirm the authenticated user's pending TOTP enrollment.
+     *
+     * @throws ValidationException
+     */
+    public function confirmTotpEnrollment(TotpCodeRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if (! $user->hasPendingTwoFactorEnrollment()) {
+            return response()->json([
+                'message' => __('No pending two-factor enrollment exists for this account.'),
+            ], 409);
+        }
+
+        if ($this->mfaService->pendingEnrollmentHasExpired($user)) {
+            return response()->json([
+                'message' => __('The pending two-factor enrollment has expired. Please start a new enrollment.'),
+            ], 409);
+        }
+
+        /** @var array{code: string} $validated */
+        $validated = $request->validated();
+
+        if (! $this->mfaService->confirmPendingEnrollment($user, $validated['code'])) {
+            throw ValidationException::withMessages([
+                'code' => ['The provided multi-factor authentication code is invalid.'],
+            ]);
+        }
+
+        $user->refresh();
+
+        return response()->json([
+            'data' => [
+                'status' => $this->mfaService->buildStatusData($user),
+                'recovery_codes' => [
+                    'codes' => $this->mfaService->revealRecoveryCodes($user),
+                    'generated_at' => $user->getTwoFactorRecoveryCodesGeneratedAt()?->format(DATE_ATOM),
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Replace the authenticated user's recovery codes after verifying MFA.
+     *
+     * @throws ValidationException
+     */
+    public function regenerateRecoveryCodes(MfaVerificationCodeRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if (! $user->hasTwoFactorEnabled()) {
+            return response()->json([
+                'message' => __('Two-factor authentication is not enabled for this account.'),
+            ], 409);
+        }
+
+        /** @var array{method: string, code: string} $validated */
+        $validated = $request->validated();
+
+        if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
+            throw ValidationException::withMessages([
+                'code' => ['The provided multi-factor authentication code is invalid.'],
+            ]);
+        }
+
+        $recoveryCodes = $this->mfaService->regenerateRecoveryCodes($user);
+        $user->refresh();
+
+        return response()->json([
+            'data' => [
+                'status' => $this->mfaService->buildStatusData($user),
+                'recovery_codes' => [
+                    'codes' => $recoveryCodes,
+                    'generated_at' => $user->getTwoFactorRecoveryCodesGeneratedAt()?->format(DATE_ATOM),
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Disable the authenticated user's MFA enrollment after verifying MFA.
+     *
+     * @throws ValidationException
+     */
+    public function disableMfa(MfaVerificationCodeRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if (! $user->hasTwoFactorEnabled()) {
+            return response()->json([
+                'message' => __('Two-factor authentication is not enabled for this account.'),
+            ], 409);
+        }
+
+        /** @var array{method: string, code: string} $validated */
+        $validated = $request->validated();
+
+        if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
+            throw ValidationException::withMessages([
+                'code' => ['The provided multi-factor authentication code is invalid.'],
+            ]);
+        }
+
+        $user->disableTwoFactorAuth();
+        $user->refresh();
+
+        return response()->json([
+            'data' => $this->mfaService->buildStatusData($user),
         ]);
     }
 
@@ -380,6 +567,106 @@ class AuthController extends Controller
             'hasCustomerAccess' => $hasCustomerAccess,
             'hasSiteAccess' => $hasSiteAccess,
         ];
+    }
+
+    /**
+     * Validate primary email/password credentials for either login flow.
+     *
+     * @throws ValidationException
+     */
+    private function validatePrimaryCredentials(string $email, string $password, ?int $tenantId = null): User
+    {
+        $user = User::where('email', $email)->first();
+
+        if (! $user || ! Hash::check($password, $user->password)) {
+            $this->activityLogService->logLoginFailed($email, 'invalid_credentials', $tenantId);
+
+            throw ValidationException::withMessages([
+                'email' => ['The provided credentials are incorrect.'],
+            ]);
+        }
+
+        return $user;
+    }
+
+    /**
+     * Return a pending MFA challenge instead of immediately completing login.
+     */
+    private function issueLoginChallenge(User $user, string $loginContext, ?string $deviceName = null): JsonResponse
+    {
+        return response()->json([
+            'challenge' => $this->loginMfaChallengeService->create($user, $loginContext, $deviceName),
+        ], 202);
+    }
+
+    /**
+     * Complete a stateful browser session login.
+     */
+    private function completeSessionLogin(Request $request, User $user, bool $mfaCompleted = false): JsonResponse
+    {
+        Auth::guard('web')->login($user, remember: true);
+        $request->session()->regenerate();
+
+        $this->activityLogService->logLoginSuccess($user);
+
+        if ($mfaCompleted) {
+            return response()->json($this->buildCompletedLoginResponse($user, LoginMfaChallengeService::LOGIN_CONTEXT_SESSION));
+        }
+
+        return response()->json([
+            'user' => $this->buildUserAuthorizationData($user),
+        ]);
+    }
+
+    /**
+     * Complete a token login.
+     */
+    private function completeTokenLogin(User $user, string $deviceName, bool $mfaCompleted = false, int $createdStatus = 201): JsonResponse
+    {
+        $token = $user->createToken($deviceName);
+
+        $this->activityLogService->logLoginSuccess($user);
+
+        if ($mfaCompleted) {
+            return response()->json(
+                $this->buildCompletedLoginResponse($user, LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN, $token->plainTextToken),
+                $createdStatus,
+            );
+        }
+
+        return response()->json([
+            'token' => $token->plainTextToken,
+            'user' => $this->buildUserAuthorizationData($user),
+        ], $createdStatus);
+    }
+
+    /**
+     * Build the final successful login payload returned after MFA challenge verification.
+     *
+     * @return array{user: array{id: string, name: string, email: string, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}, authentication: array{mode: string, mfa_completed: bool}, token?: string}
+     */
+    private function buildCompletedLoginResponse(User $user, string $mode, ?string $token = null): array
+    {
+        $response = [
+            'user' => $this->buildUserAuthorizationData($user),
+            'authentication' => [
+                'mode' => $mode,
+                'mfa_completed' => true,
+            ],
+        ];
+
+        if ($token !== null) {
+            $response['token'] = $token;
+        }
+
+        return $response;
+    }
+
+    private function resourceNotFoundResponse(): JsonResponse
+    {
+        return response()->json([
+            'message' => __('Resource not found.'),
+        ], 404);
     }
 
     /**

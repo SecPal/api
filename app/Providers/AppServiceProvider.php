@@ -91,6 +91,28 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
+        RateLimiter::for('mfa', function (Request $request) {
+            $scope = $request->route()?->uri() ?? $request->path();
+            $key = ($request->user()?->id ?: $request->ip()).'|'.$scope;
+
+            return Limit::perMinutes(10, 5)->by($key)->response(function () {
+                return response()->json([
+                    'message' => __('Too many MFA attempts. Please try again later.'),
+                ], 429);
+            });
+        });
+
+        RateLimiter::for('mfa-challenge', function (Request $request) {
+            $challengeId = (string) ($request->route('challengeId') ?? 'unknown');
+            $key = $request->ip().'|'.$challengeId;
+
+            return Limit::perMinutes(10, 5)->by($key)->response(function () {
+                return response()->json([
+                    'message' => __('Too many MFA attempts. Please try again later.'),
+                ], 429);
+            });
+        });
+
         // Onboarding link validation should stay usable for legitimate reloads,
         // so only business-level failures count toward the validate limiter.
         RateLimiter::for('onboarding-validate', function (Request $request) {
