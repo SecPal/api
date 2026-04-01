@@ -7,6 +7,7 @@ namespace App\Models;
 
 use App\Models\Concerns\EnforcesTenantRouteBinding;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -18,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection as SupportCollection;
+use Laragear\TwoFactor\Contracts\TwoFactorAuthenticatable;
+use Laragear\TwoFactor\TwoFactorAuthentication;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -41,11 +44,12 @@ use Spatie\Permission\Traits\HasRoles;
  * @property-read Collection<int, UserInternalOrganizationalScope> $organizationalScopes
  * @property-read Collection<int, OrganizationalUnit> $scopedOrganizationalUnits
  * @property-read Employee|null $employee
+ * @property-read \Laragear\TwoFactor\Models\TwoFactorAuthentication $twoFactorAuth
  */
-class User extends Authenticatable
+class User extends Authenticatable implements TwoFactorAuthenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use EnforcesTenantRouteBinding, HasApiTokens, HasFactory, HasRoles, HasUuids, Notifiable {
+    use EnforcesTenantRouteBinding, HasApiTokens, HasFactory, HasRoles, HasUuids, Notifiable, TwoFactorAuthentication {
         EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;
         HasUuids::resolveRouteBindingQuery as resolveUuidRouteBindingQuery;
     }
@@ -257,6 +261,32 @@ class User extends Authenticatable
     public function employee(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Employee::class, 'user_id');
+    }
+
+    /**
+     * Determine whether the user has a prepared but not yet confirmed MFA enrollment.
+     */
+    public function hasPendingTwoFactorEnrollment(): bool
+    {
+        return $this->twoFactorAuth->exists && $this->twoFactorAuth->isDisabled();
+    }
+
+    /**
+     * Return the number of unused recovery codes currently available.
+     */
+    public function getRemainingTwoFactorRecoveryCodesCount(): int
+    {
+        return (int) $this->getRecoveryCodes()
+            ->where('used_at', null)
+            ->count();
+    }
+
+    /**
+     * Return when the current recovery-code batch was generated.
+     */
+    public function getTwoFactorRecoveryCodesGeneratedAt(): ?CarbonInterface
+    {
+        return $this->twoFactorAuth->recovery_codes_generated_at;
     }
 
     /**

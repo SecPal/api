@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the MFA phase-1 backend foundation by integrating `laragear/two-factor`, publishing a UUID-safe `two_factor_authentications` migration, wiring the `User` model into the package contract, and covering enrollment, recovery-code rotation, and disablement lifecycle behavior with focused tests
+
+### Fixed
+
+- Switched the API repo's Prettier PR check to a repo-local workflow job so API pull requests no longer depend on the currently unresolved shared `.github` composite Node setup action path during GitHub Actions resolution
+
+### Added
+
 - security audit document (`SECURITY_AUDIT_API_VALIDATION.md`) covering API validation, error handling, and request semantics with 3 HIGH, 6 MEDIUM, 5 LOW findings and 3 best-practice recommendations; includes prioritized fix order and negative test ideas
 
 ### Fixed
@@ -23,17 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - reduced the repo-local Copilot always-on context by replacing the long runtime baseline and removing the auto-loaded overlay fallback, which lowers request size in large VS Code workspaces without dropping the API-specific governance rules
-
-- aligned the API security-header baseline fully with the hardened PWA host by adding an API-safe CSP, `Permissions-Policy`, `Strict-Transport-Security` on secure requests, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`, `Cross-Origin-Embedder-Policy`, `Origin-Agent-Cluster`, and `X-Permitted-Cross-Domain-Policies` to global Laravel responses while documenting the one intentional value difference: the API keeps `Cross-Origin-Resource-Policy: same-site` so the first-party SPA on `app.secpal.dev` remains compatible
-- aligned repo-local domain guidance, validation scripts, example configuration, and deployment docs with the current split of `secpal.app` for the public homepage and real email addresses, `api.secpal.dev` for the API, and `app.secpal.dev` for the PWA; password-reset mails now build their link from `FRONTEND_URL` instead of the API `APP_URL`; strengthened `check-domains.sh` violations allowlist with right-boundary anchors on named subdomain patterns so `myapi.secpal.dev`-style subdomains are correctly flagged; updated a bootstrap comment to avoid a domain name at end of sentence so the stricter check is not confused by the sentence-final period
-- normalized `POST /v1/auth/token` device-name handling so surrounding whitespace is trimmed and blank values fall back to the documented `api-client` default, while the auth docs now also state explicitly that personal access tokens do not expire automatically unless the backend configuration changes
-- documented the final Customer/Site access matrix in the permission-system guide so predefined roles, scoped-access paths, expected API responses, and frontend visibility rules are explicit instead of implicit
-- hardened `GET /v1/customers` and `GET /v1/sites` for low-privilege users so collection requests now fail closed with `403` when the caller has neither global read permission nor any effective scoped access, while still returning filtered `200` collections for assignment- and scope-based users; auth/self-service responses now also expose `hasCustomerAccess` and `hasSiteAccess` so frontend route gating can mirror the same policy intentionally
 - aligned nested collection semantics outside the onboarding flow so official admin surfaces consistently use `403` for missing authorization, reserve `404` for unsupported, missing, or tenant-hidden resources, and keep `200` with an empty collection only for callers who are entitled to open that collection; `GET /v1/sites/{site}/cost-centers` now also requires visibility of the parent site before returning cost center data
 - updated active API development and operations guides to use the current native PHP workflow instead of stale DDEV-first command examples, and marked older DDEV-era retrospectives as historical context where those references are intentionally retained
 - updated `docs/MAIL_SYSTEM.md` and `docs/PRODUCTION_TEST_PHASE2_EMAIL.md` to reflect the current direct-server Mailpit setup (`127.0.0.1:1025` SMTP, `127.0.0.1:8025` UI) instead of stale DDEV-routed instructions
 - centralized the official employee status set to `applicant`, `pre_contract`, `active`, `on_leave`, and `terminated`, reused that definition across employee create/update/list validation, clarified in API messages that onboarding invitations are only allowed while status is `pre_contract`, and documented the same admin-facing rule set in `README.md`
 - clarified the official auth/self-service surface so browser SPAs use `POST /v1/auth/login`, Android/native/API clients use `POST /v1/auth/token`, `GET /v1/me` remains the canonical self-service read endpoint, and `POST /v1/auth/logout` now cleanly logs out both session- and token-authenticated clients while `POST /v1/auth/session/logout` is retained only as a documented legacy alias
+- Switched the API repo's Prettier PR check to a repo-local workflow job so API pull requests no longer depend on the currently unresolved shared `.github` composite Node setup action path during GitHub Actions resolution
 - documented the auth-path decision matrix, the intentional `400` vs `422` login semantics, and the main regression hotspots around Sanctum stateful middleware, browser-context detection, CSRF boundaries, and shared logout behavior so future auth changes do not accidentally re-mix session and token login paths
 - added regression coverage and API guide clarifications that keep guessed aliases such as `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile` intentionally unsupported while documenting `GET /v1/me` as the canonical self-service endpoint
 - aligned token-login responses with session-login responses by returning the same authorization context (`roles`, `permissions`, `hasOrganizationalScopes`) inside the `user` payload for Android/native/API clients
