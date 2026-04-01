@@ -138,6 +138,8 @@ Route::prefix('v1')->group(function () {
             ->middleware('permission:permissions.revoke_direct');
         // Authorization: Policy-based (users can view own, Admin can view all)
         Route::get('/users/{user}/permissions/direct', [UserPermissionController::class, 'direct']);
+        Route::delete('/users/{user}/mfa', [AuthController::class, 'adminResetMfa'])
+            ->middleware(['permission:users.reset_mfa', 'throttle:mfa-admin-reset']);
 
         // Tenant-scoped Person endpoints
         Route::prefix('tenants/{tenant}')->middleware('tenant')->group(function () {

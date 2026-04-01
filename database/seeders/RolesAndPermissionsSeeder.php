@@ -48,11 +48,20 @@ class RolesAndPermissionsSeeder extends Seeder
                 ['guard_name' => 'sanctum']
             );
 
-            // Only sync permissions if role has none
-            // This prevents overwriting customized permissions
+            $permissionNames = $this->expandWildcardPermissions($roleConfig['permissions'], $permissions);
+
             if ($role->permissions()->count() === 0) {
-                $permissionNames = $this->expandWildcardPermissions($roleConfig['permissions'], $permissions);
+                // New install: full sync for the role
                 $role->syncPermissions($permissionNames);
+            } else {
+                // Existing install: grant any missing defined permissions without
+                // removing custom ones that may have been added post-install.
+                /** @var array<string> $existingPermissionNames */
+                $existingPermissionNames = $role->permissions()->pluck('name')->toArray();
+                $missing = array_diff($permissionNames, $existingPermissionNames);
+                if (! empty($missing)) {
+                    $role->givePermissionTo($missing);
+                }
             }
         }
     }
@@ -193,6 +202,9 @@ class RolesAndPermissionsSeeder extends Seeder
                 'assign_direct',  // Phase 4: POST /users/{user}/permissions
                 'revoke_direct',  // Phase 4: DELETE /users/{user}/permissions/{permission}
             ],
+            'users' => [
+                'reset_mfa',      // MFA safeguards: DELETE /users/{user}/mfa
+            ],
             'works_council' => [
                 'access_employee_files',
                 'approve_shift_plans',
@@ -224,6 +236,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     'employees.*',
                     'shifts.*',
                     'work_instructions.*',
+                    'users.*',
                     'role.*',        // Phase 3: Role assignment permissions
                     'roles.*',       // Phase 4: Role management permissions
                     'permissions.*', // Phase 4: Permission management permissions

@@ -113,6 +113,30 @@ class AppServiceProvider extends ServiceProvider
             });
         });
 
+        RateLimiter::for('mfa-admin-reset', function (Request $request) {
+            $actor = $request->user();
+            $actorId = $actor instanceof \App\Models\User
+                ? $actor->id
+                : (string) $request->ip();
+
+            $targetUser = $request->route('user');
+            if ($targetUser instanceof \App\Models\User) {
+                $targetId = $targetUser->id;
+            } elseif (is_string($targetUser) || is_int($targetUser)) {
+                $targetId = (string) $targetUser;
+            } else {
+                $targetId = 'unknown';
+            }
+
+            $key = $actorId.'|'.$targetId;
+
+            return Limit::perMinutes(10, 3)->by($key)->response(function () {
+                return response()->json([
+                    'message' => __('Too many MFA reset attempts. Please try again later.'),
+                ], 429);
+            });
+        });
+
         // Onboarding link validation should stay usable for legitimate reloads,
         // so only business-level failures count toward the validate limiter.
         RateLimiter::for('onboarding-validate', function (Request $request) {
@@ -165,6 +189,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Register gates for user permission management
         $this->registerUserPermissionGates();
+        $this->registerUserMfaGates();
     }
 
     /**
@@ -193,6 +218,21 @@ class AppServiceProvider extends ServiceProvider
             assert($targetUser instanceof \App\Models\User);
 
             return $policy->revokePermission($currentUser, $targetUser);
+        });
+    }
+
+    /**
+     * Register authorization gates for cross-user MFA administration.
+     */
+    private function registerUserMfaGates(): void
+    {
+        $policy = new \App\Policies\UserMfaPolicy;
+
+        Gate::define('resetMfa', function ($currentUser, $targetUser) use ($policy) {
+            assert($currentUser instanceof \App\Models\User);
+            assert($targetUser instanceof \App\Models\User);
+
+            return $policy->resetMfa($currentUser, $targetUser);
         });
     }
 
