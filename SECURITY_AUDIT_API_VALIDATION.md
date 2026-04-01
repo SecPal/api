@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2026 SecPal
-SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-License-Identifier: CC0-1.0
 -->
 
 # Security Audit: API Validation, Error Handling and Request Semantics
@@ -521,7 +521,7 @@ The frontend expects JSON for all API errors. The backend handler may deliver HT
 ## Prioritized Fix Order
 
 1. **H-1**: Fix `generateEmployeeNumber()` race condition with `lockForUpdate()` + DB unique constraint
-2. **H-2**: Add `per_page` cap for SiteController, CustomerController, OrganizationalUnitController
+2. **H-2**: Add `per_page` cap for CustomerController and OrganizationalUnitController
 3. **H-3** + **BP-1**: Create dedicated index form requests with filter validation for all list endpoints
 4. **M-5** + **BP-2**: Global JSON exception handler for all 404/500 on API routes
 5. **M-3**: Secure health-ready endpoint or hide details
