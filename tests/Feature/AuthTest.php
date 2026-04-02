@@ -9,6 +9,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -133,6 +134,27 @@ describe('SPA Session Login', function () {
         $this->withHeaders(spaHeaders())->getJson('/v1/me')
             ->assertOk()
             ->assertJson(['email' => 'spa@example.com']);
+    });
+
+    test('spa login still succeeds when MFA storage has not been migrated yet', function () {
+        User::factory()->create([
+            'email' => 'spa@example.com',
+            'password' => bcrypt('password123'),
+        ]);
+
+        Schema::drop('two_factor_authentications');
+
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => 'spa@example.com',
+            'password' => 'password123',
+        ])->assertOk()
+            ->assertJson([
+                'user' => [
+                    'email' => 'spa@example.com',
+                ],
+            ]);
     });
 
     test('spa logout via canonical endpoint clears remember token', function () {
@@ -274,6 +296,32 @@ describe('Auth Token Generation', function () {
 
         expect($response->json('user.email'))->toBe($email);
         expect($user->tokens()->count())->toBe(1);
+    });
+
+    test('token login still succeeds when MFA storage has not been migrated yet', function () {
+        $email = 'token-missing-mfa-storage-'.Str::uuid().'@example.com';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password123'),
+        ]);
+
+        Schema::drop('two_factor_authentications');
+
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => $email,
+            'password' => 'password123',
+            'device_name' => 'test-device',
+        ]);
+
+        $response->assertCreated()
+            ->assertJson([
+                'user' => [
+                    'email' => $email,
+                ],
+            ]);
+
+        expect($user->fresh()->tokens()->count())->toBe(1);
     });
 
     test('token generation fails with invalid email', function () {

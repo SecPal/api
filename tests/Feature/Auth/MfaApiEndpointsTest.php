@@ -7,6 +7,7 @@ use App\Models\Activity;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Laragear\TwoFactor\Models\TwoFactorAuthentication;
 
 uses(RefreshDatabase::class);
@@ -226,6 +227,27 @@ test('authenticated user can read MFA status, regenerate recovery codes, and dis
     expect($disableAudit)->not->toBeNull()
         ->and($disableAudit?->properties['event'])->toBe('mfa_disabled')
         ->and($disableAudit?->properties['verification_method'])->toBe('recovery_code');
+});
+
+test('mfa endpoints return a controlled 503 when MFA storage is unavailable', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-storage-missing@secpal.dev',
+    ]);
+
+    $this->actingAs($user, 'sanctum');
+    Schema::drop('two_factor_authentications');
+
+    $this->getJson('/v1/me/mfa')
+        ->assertStatus(503)
+        ->assertJson([
+            'message' => 'Multi-factor authentication is temporarily unavailable. Please try again later.',
+        ]);
+
+    $this->postJson('/v1/me/mfa/totp/enrollment')
+        ->assertStatus(503)
+        ->assertJson([
+            'message' => 'Multi-factor authentication is temporarily unavailable. Please try again later.',
+        ]);
 });
 
 test('consuming the final recovery code records an audit event when the backup set is depleted', function () {

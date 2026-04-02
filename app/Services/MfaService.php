@@ -7,11 +7,41 @@ namespace App\Services;
 
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Schema;
 use Laragear\TwoFactor\Events\TwoFactorRecoveryCodesDepleted;
 
 class MfaService
 {
+    private ?bool $twoFactorStorageAvailable = null;
+
     public function __construct(private ActivityLogService $activityLogService) {}
+
+    public function isStorageAvailable(): bool
+    {
+        return $this->twoFactorStorageAvailable ??= Schema::hasTable('two_factor_authentications');
+    }
+
+    public function hasEnabledTwoFactor(User $user): bool
+    {
+        if (! $this->isStorageAvailable()) {
+            return false;
+        }
+
+        $user->loadMissing('twoFactorAuth');
+
+        return $user->hasTwoFactorEnabled();
+    }
+
+    public function hasPendingEnrollment(User $user): bool
+    {
+        if (! $this->isStorageAvailable()) {
+            return false;
+        }
+
+        $user->loadMissing('twoFactorAuth');
+
+        return $user->hasPendingTwoFactorEnrollment();
+    }
 
     /**
      * Build the public MFA status payload for the authenticated user.
@@ -20,14 +50,27 @@ class MfaService
      */
     public function buildStatusData(User $user): array
     {
+        if (! $this->isStorageAvailable()) {
+            return [
+                'enabled' => false,
+                'method' => null,
+                'recovery_codes_remaining' => 0,
+                'recovery_codes_generated_at' => null,
+                'enrolled_at' => null,
+            ];
+        }
+
         $user->loadMissing('twoFactorAuth');
+        $hasEnabledTwoFactor = $user->hasTwoFactorEnabled();
+        /** @var \Laragear\TwoFactor\Models\TwoFactorAuthentication|null $twoFactorAuthentication */
+        $twoFactorAuthentication = $user->getRelation('twoFactorAuth');
 
         return [
-            'enabled' => $user->hasTwoFactorEnabled(),
-            'method' => $user->hasTwoFactorEnabled() ? 'totp' : null,
-            'recovery_codes_remaining' => $user->hasTwoFactorEnabled() ? $user->getRemainingTwoFactorRecoveryCodesCount() : 0,
+            'enabled' => $hasEnabledTwoFactor,
+            'method' => $hasEnabledTwoFactor ? 'totp' : null,
+            'recovery_codes_remaining' => $hasEnabledTwoFactor ? $user->getRemainingTwoFactorRecoveryCodesCount() : 0,
             'recovery_codes_generated_at' => $user->getTwoFactorRecoveryCodesGeneratedAt()?->format(DATE_ATOM),
-            'enrolled_at' => $user->twoFactorAuth->enabled_at?->format(DATE_ATOM),
+            'enrolled_at' => $twoFactorAuthentication?->enabled_at?->format(DATE_ATOM),
         ];
     }
 
@@ -55,11 +98,18 @@ class MfaService
      */
     public function pendingEnrollmentExpiresAt(User $user): ?CarbonImmutable
     {
-        if (! $user->hasPendingTwoFactorEnrollment() || $user->twoFactorAuth->created_at === null) {
+        if (! $this->hasPendingEnrollment($user)) {
             return null;
         }
 
-        return CarbonImmutable::instance($user->twoFactorAuth->created_at)
+        /** @var \Laragear\TwoFactor\Models\TwoFactorAuthentication|null $twoFactorAuthentication */
+        $twoFactorAuthentication = $user->getRelation('twoFactorAuth');
+
+        if ($twoFactorAuthentication?->created_at === null) {
+            return null;
+        }
+
+        return CarbonImmutable::instance($twoFactorAuthentication->created_at)
             ->addMinutes($this->pendingEnrollmentLifetimeMinutes());
     }
 
@@ -84,7 +134,7 @@ class MfaService
      */
     public function verifyEnabledTwoFactorCode(User $user, string $method, string $code): bool
     {
-        if (! $user->hasTwoFactorEnabled()) {
+        if (! $this->hasEnabledTwoFactor($user) || $user->twoFactorAuth === null) {
             return false;
         }
 
@@ -100,6 +150,10 @@ class MfaService
      */
     public function revealRecoveryCodes(User $user): array
     {
+        if (! $this->hasEnabledTwoFactor($user)) {
+            return [];
+        }
+
         /** @var list<string> $codes */
         $codes = $user->getRecoveryCodes()
             ->pluck('code')
@@ -114,6 +168,10 @@ class MfaService
      */
     public function regenerateRecoveryCodes(User $user): array
     {
+        if (! $this->hasEnabledTwoFactor($user)) {
+            return [];
+        }
+
         /** @var list<string> $codes */
         $codes = $user->generateRecoveryCodes()
             ->pluck('code')
@@ -125,6 +183,10 @@ class MfaService
 
     private function consumeRecoveryCode(User $user, string $code): bool
     {
+        if (! $this->hasEnabledTwoFactor($user) || $user->twoFactorAuth === null) {
+            return false;
+        }
+
         if (! $user->twoFactorAuth->setRecoveryCodeAsUsed($code)) {
             return false;
         }

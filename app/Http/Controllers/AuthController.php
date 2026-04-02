@@ -72,7 +72,7 @@ class AuthController extends Controller
             $request->integer('tenant_id') ?: null,
         );
 
-        if ($user->hasTwoFactorEnabled()) {
+        if ($this->mfaService->hasEnabledTwoFactor($user)) {
             return $this->issueLoginChallenge($user, LoginMfaChallengeService::LOGIN_CONTEXT_SESSION);
         }
 
@@ -120,7 +120,7 @@ class AuthController extends Controller
 
         $deviceName = $validated['device_name'] ?? 'api-client';
 
-        if ($user->hasTwoFactorEnabled()) {
+        if ($this->mfaService->hasEnabledTwoFactor($user)) {
             return $this->issueLoginChallenge($user, LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN, $deviceName);
         }
 
@@ -153,7 +153,13 @@ class AuthController extends Controller
             return $this->resourceNotFoundResponse();
         }
 
-        if (! $user->hasTwoFactorEnabled()) {
+        if (! $this->mfaService->isStorageAvailable()) {
+            $this->loginMfaChallengeService->forget($challengeId);
+
+            return $this->mfaUnavailableResponse();
+        }
+
+        if (! $this->mfaService->hasEnabledTwoFactor($user)) {
             $this->loginMfaChallengeService->forget($challengeId);
 
             return response()->json([
@@ -283,6 +289,10 @@ class AuthController extends Controller
      */
     public function mfaStatus(Request $request): JsonResponse
     {
+        if (! $this->mfaService->isStorageAvailable()) {
+            return $this->mfaUnavailableResponse();
+        }
+
         /** @var User $user */
         $user = $request->user();
 
@@ -296,10 +306,14 @@ class AuthController extends Controller
      */
     public function startTotpEnrollment(Request $request): JsonResponse
     {
+        if (! $this->mfaService->isStorageAvailable()) {
+            return $this->mfaUnavailableResponse();
+        }
+
         /** @var User $user */
         $user = $request->user();
 
-        if ($user->hasTwoFactorEnabled()) {
+        if ($this->mfaService->hasEnabledTwoFactor($user)) {
             return response()->json([
                 'message' => __('Two-factor authentication is already enabled for this account.'),
             ], 409);
@@ -317,10 +331,14 @@ class AuthController extends Controller
      */
     public function confirmTotpEnrollment(TotpCodeRequest $request): JsonResponse
     {
+        if (! $this->mfaService->isStorageAvailable()) {
+            return $this->mfaUnavailableResponse();
+        }
+
         /** @var User $user */
         $user = $request->user();
 
-        if (! $user->hasPendingTwoFactorEnrollment()) {
+        if (! $this->mfaService->hasPendingEnrollment($user)) {
             return response()->json([
                 'message' => __('No pending two-factor enrollment exists for this account.'),
             ], 409);
@@ -371,10 +389,14 @@ class AuthController extends Controller
      */
     public function regenerateRecoveryCodes(MfaVerificationCodeRequest $request): JsonResponse
     {
+        if (! $this->mfaService->isStorageAvailable()) {
+            return $this->mfaUnavailableResponse();
+        }
+
         /** @var User $user */
         $user = $request->user();
 
-        if (! $user->hasTwoFactorEnabled()) {
+        if (! $this->mfaService->hasEnabledTwoFactor($user)) {
             return response()->json([
                 'message' => __('Two-factor authentication is not enabled for this account.'),
             ], 409);
@@ -420,10 +442,14 @@ class AuthController extends Controller
      */
     public function disableMfa(MfaVerificationCodeRequest $request): JsonResponse
     {
+        if (! $this->mfaService->isStorageAvailable()) {
+            return $this->mfaUnavailableResponse();
+        }
+
         /** @var User $user */
         $user = $request->user();
 
-        if (! $user->hasTwoFactorEnabled()) {
+        if (! $this->mfaService->hasEnabledTwoFactor($user)) {
             return response()->json([
                 'message' => __('Two-factor authentication is not enabled for this account.'),
             ], 409);
@@ -463,6 +489,10 @@ class AuthController extends Controller
      */
     public function adminResetMfa(AdminResetUserMfaRequest $request, User $user): JsonResponse
     {
+        if (! $this->mfaService->isStorageAvailable()) {
+            return $this->mfaUnavailableResponse();
+        }
+
         Gate::authorize('resetMfa', $user);
 
         /** @var User $admin */
@@ -471,7 +501,7 @@ class AuthController extends Controller
         $user->loadMissing('twoFactorAuth');
 
         $previousStatus = $this->mfaService->buildStatusData($user);
-        $hadPendingEnrollment = $user->hasPendingTwoFactorEnrollment();
+        $hadPendingEnrollment = $this->mfaService->hasPendingEnrollment($user);
 
         if (! $previousStatus['enabled'] && ! $hadPendingEnrollment) {
             return response()->json([
@@ -744,6 +774,13 @@ class AuthController extends Controller
         return response()->json([
             'message' => __('Resource not found.'),
         ], 404);
+    }
+
+    private function mfaUnavailableResponse(): JsonResponse
+    {
+        return response()->json([
+            'message' => __('Multi-factor authentication is temporarily unavailable. Please try again later.'),
+        ], 503);
     }
 
     /**
