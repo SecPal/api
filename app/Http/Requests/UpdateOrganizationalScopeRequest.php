@@ -7,8 +7,10 @@
 namespace App\Http\Requests;
 
 use App\Models\OrganizationalUnit;
+use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 /**
  * Validation rules for updating an organizational scope assignment.
@@ -56,13 +58,6 @@ class UpdateOrganizationalScopeRequest extends FormRequest
                 'min:0',
                 'max:255',
                 'lte:max_viewable_rank',
-                function ($attribute, $value, $fail) {
-                    $maxRank = $this->input('max_viewable_rank');
-                    // Prevent mixing Guards (min=0) with Leadership (max>0)
-                    if ($value === 0 && $maxRank !== null && $maxRank > 0) {
-                        $fail('Guards (min=0) and Leadership (max>0) must use separate scopes. Use min=0, max=0 for Guards only.');
-                    }
-                },
             ],
             'max_viewable_rank' => [
                 'sometimes',
@@ -71,13 +66,6 @@ class UpdateOrganizationalScopeRequest extends FormRequest
                 'min:0',
                 'max:255',
                 'gte:min_viewable_rank',
-                function ($attribute, $value, $fail) {
-                    $minRank = $this->input('min_viewable_rank');
-                    // Prevent mixing Guards (min=0) with Leadership (max>0)
-                    if ($minRank === 0 && $value !== null && $value > 0) {
-                        $fail('Guards (min=0) and Leadership (max>0) must use separate scopes. Use min=0, max=0 for Guards only.');
-                    }
-                },
             ],
             'min_assignable_rank' => [
                 'sometimes',
@@ -86,13 +74,6 @@ class UpdateOrganizationalScopeRequest extends FormRequest
                 'min:0',
                 'max:255',
                 'lte:max_assignable_rank',
-                function ($attribute, $value, $fail) {
-                    $maxRank = $this->input('max_assignable_rank');
-                    // Prevent mixing Guards (min=0) with Leadership (max>0)
-                    if ($value === 0 && $maxRank !== null && $maxRank > 0) {
-                        $fail('Guards (min=0) and Leadership (max>0) must use separate scopes. Use min=0, max=0 for Guards only.');
-                    }
-                },
             ],
             'max_assignable_rank' => [
                 'sometimes',
@@ -101,16 +82,17 @@ class UpdateOrganizationalScopeRequest extends FormRequest
                 'min:0',
                 'max:255',
                 'gte:min_assignable_rank',
-                function ($attribute, $value, $fail) {
-                    $minRank = $this->input('min_assignable_rank');
-                    // Prevent mixing Guards (min=0) with Leadership (max>0)
-                    if ($minRank === 0 && $value !== null && $value > 0) {
-                        $fail('Guards (min=0) and Leadership (max>0) must use separate scopes. Use min=0, max=0 for Guards only.');
-                    }
-                },
             ],
             'allow_self_access' => ['sometimes', 'boolean'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $this->validateLeadershipRangePair($validator, 'min_viewable_rank', 'max_viewable_rank');
+            $this->validateLeadershipRangePair($validator, 'min_assignable_rank', 'max_assignable_rank');
+        });
     }
 
     /**
@@ -123,5 +105,58 @@ class UpdateOrganizationalScopeRequest extends FormRequest
         return [
             'access_level.in' => 'The access level must be one of: none, read, write, manage, admin.',
         ];
+    }
+
+    private function validateLeadershipRangePair(Validator $validator, string $minimumField, string $maximumField): void
+    {
+        $minimum = $this->effectiveIntegerValue($minimumField);
+        $maximum = $this->effectiveIntegerValue($maximumField);
+
+        if ($maximum !== null && $maximum > 0 && ($minimum === null || $minimum <= 0)) {
+            $validator->errors()->add(
+                $this->hasRequestField($minimumField) ? $minimumField : $maximumField,
+                'Leadership rank ranges require a minimum rank greater than 0 when the maximum rank is greater than 0. Use a separate guards-only scope instead.',
+            );
+        }
+    }
+
+    private function hasRequestField(string $field): bool
+    {
+        return array_key_exists($field, $this->all());
+    }
+
+    private function effectiveIntegerValue(string $field): ?int
+    {
+        if ($this->hasRequestField($field)) {
+            $value = $this->input($field);
+
+            if ($value === null || $value === '') {
+                return null;
+            }
+
+            return is_numeric($value) ? (int) $value : null;
+        }
+
+        $scope = $this->currentScope();
+
+        if ($scope === null) {
+            return null;
+        }
+
+        /** @var int|null $existingValue */
+        $existingValue = $scope->getAttribute($field);
+
+        return $existingValue;
+    }
+
+    private function currentScope(): ?UserInternalOrganizationalScope
+    {
+        $scope = $this->route('scope');
+
+        if ($scope instanceof UserInternalOrganizationalScope) {
+            return $scope;
+        }
+
+        return is_string($scope) ? UserInternalOrganizationalScope::find($scope) : null;
     }
 }
