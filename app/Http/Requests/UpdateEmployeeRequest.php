@@ -113,7 +113,7 @@ class UpdateEmployeeRequest extends FormRequest
             'social_security_number' => ['sometimes', 'nullable', 'string', 'max:255'],
 
             // Employment Status
-            'status' => ['sometimes', 'required', Rule::in(Employee::VALID_STATUSES)],
+            'status' => ['sometimes', 'prohibited'],
             'position' => ['sometimes', 'nullable', 'string', 'max:255'],
             'management_level' => ['sometimes', 'required', 'integer', 'min:0', 'max:255'],
             'hire_date' => ['sometimes', 'nullable', 'date'],
@@ -192,9 +192,7 @@ class UpdateEmployeeRequest extends FormRequest
         return [
             'email.email' => __('Email address must be valid'),
             'email.unique' => __('Email address is already in use'),
-            'status.in' => __('Valid employee statuses are: :statuses.', [
-                'statuses' => implode(', ', Employee::VALID_STATUSES),
-            ]),
+            'status.prohibited' => __('Employee status transitions must use the dedicated activate or terminate endpoints.'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
 
             // BWR-ID validation
