@@ -689,6 +689,80 @@ describe('PATCH /v1/employees/{employee}', function () {
         $response->assertStatus(200);
         expect($response->json('data.weekly_hours'))->toBe('35.00'); // decimal:2 cast returns string
     });
+
+    test('rejects direct status changes via patch', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 1,
+            'max_viewable_rank' => 255,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'status' => Employee::STATUS_TERMINATED,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['status']);
+
+        expect($employee->fresh()->status)->toBe(Employee::STATUS_ACTIVE);
+    });
+
+    test('rejects null status via patch', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 1,
+            'max_viewable_rank' => 255,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'status' => null,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['status']);
+
+        expect($employee->fresh()->status)->toBe(Employee::STATUS_ACTIVE);
+    });
 });
 
 describe('DELETE /v1/employees/{employee}', function () {
