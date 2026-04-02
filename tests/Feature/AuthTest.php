@@ -602,6 +602,32 @@ describe('Token Security', function () {
         // Database token should be hashed (64 chars for SHA-256)
         expect(strlen($tokenRecord->token))->toBe(64);
     });
+
+    test('token endpoint prefixes newly issued tokens for secret scanning', function () {
+        $email = 'token-prefix-'.Str::uuid().'@example.com';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password123'),
+        ]);
+
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => $email,
+            'password' => 'password123',
+        ]);
+
+        $response->assertCreated();
+
+        $plainTextToken = $response->json('token');
+        $tokenPrefix = config('sanctum.token_prefix');
+
+        [$tokenId, $tokenSecret] = explode('|', $plainTextToken, 2);
+
+        expect($tokenPrefix)->toBe('sec_');
+        expect($tokenId)->not->toBe('');
+        expect(Str::startsWith($tokenSecret, $tokenPrefix))->toBeTrue();
+        expect($user->tokens()->first()?->token)->not->toBe($plainTextToken);
+    });
 });
 
 describe('Login Rate Limiting', function () {
