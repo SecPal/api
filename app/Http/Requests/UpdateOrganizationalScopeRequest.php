@@ -149,14 +149,54 @@ class UpdateOrganizationalScopeRequest extends FormRequest
         return $existingValue;
     }
 
+    private ?UserInternalOrganizationalScope $resolvedScope = null;
+
+    private bool $resolvedScopeAttempted = false;
+
     private function currentScope(): ?UserInternalOrganizationalScope
     {
+        if ($this->resolvedScopeAttempted) {
+            return $this->resolvedScope;
+        }
+
+        $this->resolvedScopeAttempted = true;
+
+        $organizationalUnitId = $this->currentOrganizationalUnitId();
         $scope = $this->route('scope');
 
         if ($scope instanceof UserInternalOrganizationalScope) {
-            return $scope;
+            $scopeUnitId = $scope->getAttribute('organizational_unit_id');
+            $this->resolvedScope = $organizationalUnitId !== null
+                && is_scalar($scopeUnitId)
+                && (string) $scopeUnitId === $organizationalUnitId
+                ? $scope
+                : null;
+
+            return $this->resolvedScope;
         }
 
-        return is_string($scope) ? UserInternalOrganizationalScope::find($scope) : null;
+        if (! is_string($scope) || $organizationalUnitId === null) {
+            return null;
+        }
+
+        $this->resolvedScope = UserInternalOrganizationalScope::query()
+            ->whereKey($scope)
+            ->where('organizational_unit_id', $organizationalUnitId)
+            ->first();
+
+        return $this->resolvedScope;
+    }
+
+    private function currentOrganizationalUnitId(): ?string
+    {
+        $organizationalUnit = $this->route('organizational_unit');
+
+        if ($organizationalUnit instanceof OrganizationalUnit) {
+            $key = $organizationalUnit->getKey();
+
+            return is_scalar($key) ? (string) $key : null;
+        }
+
+        return is_string($organizationalUnit) ? $organizationalUnit : null;
     }
 }
