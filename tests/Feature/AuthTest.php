@@ -621,6 +621,9 @@ describe('Token Security', function () {
         $plainTextToken = $response->json('token');
         $tokenPrefix = config('sanctum.token_prefix');
 
+        expect($plainTextToken)->toBeString();
+        expect($plainTextToken)->toContain('|');
+
         [$tokenId, $tokenSecret] = explode('|', $plainTextToken, 2);
 
         expect($tokenPrefix)->toBe('sec_');
