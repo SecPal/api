@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- hardened organizational scope rank validation so create and partial update requests cannot combine guards-only rank filters with leadership ranges or introduce leadership ranges without a positive minimum bound
+- removed the stale Request-layer PHPStan ignore that no longer matched any real findings during preflight
 - rejected direct `status` writes on `PATCH /v1/employees/{employee}` so employee lifecycle transitions can no longer bypass the dedicated activate and terminate endpoints and their business-rule checks
 - switched API CI Prettier check to a local reusable workflow (`reusable-prettier.yml`) because GitHub Actions cannot resolve the shared `.github` composite action via `SecPal/.github/.github/actions/` due to the `.github/.github/` path ambiguity when the repository itself is named `.github`; the local workflow preserves the `Formatting Check / Check Code Formatting` check name required by branch protection
 - returned `chain_link_valid` from `GET /v1/activity-logs/{activity}/verify` so the Activity Log detail dialog no longer leaves the hash-link verification dot stuck in pending when the chain has already been processed successfully; corrected genesis validation in `Activity::verifyChainLink()` to check all earlier tenant activities (not just same `log_name`) so the signal stays accurate when the tenant hash chain spans multiple log names
