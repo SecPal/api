@@ -11,7 +11,7 @@
   "require": {
     "php": "^8.4",
     "laragear/two-factor": "^4.0",
-    "laravel/framework": "^13.0",
+    "laravel/framework": "^13.3",
     "laravel/sanctum": "^4.3",
     "laravel/tinker": "^3.0",
     "spatie/laravel-activitylog": "^5.0",
