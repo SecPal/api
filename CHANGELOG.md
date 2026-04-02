@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- prefixed newly issued Sanctum bearer tokens with `sec_` by default and documented `SANCTUM_TOKEN_PREFIX=sec_` in `.env.example` so committed API tokens are easier for secret-scanning tooling to detect
 - hardened organizational scope rank validation so create and partial update requests cannot combine guards-only rank filters with leadership ranges or introduce leadership ranges without a positive minimum bound
 - removed the stale Request-layer PHPStan ignore that no longer matched any real findings during preflight
 - rejected direct `status` writes on `PATCH /v1/employees/{employee}` so employee lifecycle transitions can no longer bypass the dedicated activate and terminate endpoints and their business-rule checks
