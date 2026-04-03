@@ -37,7 +37,7 @@ class UploadEmployeeDocumentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'], // 10MB max
+            'file' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png', 'mimetypes:application/pdf,image/jpeg,image/png'], // 10MB max
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'document_type' => ['required', Rule::in([
@@ -66,6 +66,7 @@ class UploadEmployeeDocumentRequest extends FormRequest
             'file.required' => __('File is required'),
             'file.max' => __('File must not exceed 10MB'),
             'file.mimes' => __('File must be PDF, JPG, JPEG, or PNG'),
+            'file.mimetypes' => __('File must be PDF, JPG, JPEG, or PNG'),
             'title.required' => __('Document title is required'),
             'document_type.required' => __('Document type is required'),
             'visible_to_employee.required' => __('Visibility setting is required'),
