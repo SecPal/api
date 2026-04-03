@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 return [
@@ -120,5 +120,18 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Password Reset Response Timing
+    |--------------------------------------------------------------------------
+    |
+    | The password reset request endpoint intentionally waits until at least
+    | this many milliseconds have elapsed before it returns. This reduces the
+    | small timing gap between existing and non-existing account paths.
+    |
+    */
+
+    'password_reset_min_response_time_ms' => 50,
 
 ];

@@ -508,6 +508,7 @@ class AuthController extends Controller
      */
     public function passwordResetRequest(PasswordResetRequestRequest $request): JsonResponse
     {
+        $startedAt = hrtime(true);
         $validated = $request->validated();
 
         $user = User::where('email', $validated['email'])->first();
@@ -532,10 +533,29 @@ class AuthController extends Controller
             Mail::to($user)->queue(new PasswordResetMail($user, $token));
         }
 
+        $this->enforcePasswordResetMinimumResponseTime($startedAt);
+
         // Always return same response to prevent email enumeration
         return response()->json([
             'message' => __('Password reset email sent if account exists'),
         ]);
+    }
+
+    private function enforcePasswordResetMinimumResponseTime(int $startedAt): void
+    {
+        $minimumDelaySetting = config('auth.password_reset_min_response_time_ms', 50);
+        $minimumDelayMilliseconds = is_int($minimumDelaySetting)
+            ? $minimumDelaySetting
+            : (is_numeric($minimumDelaySetting) ? (int) $minimumDelaySetting : 50);
+        $minimumDelayMilliseconds = max(0, $minimumDelayMilliseconds);
+        $minimumDelayNanoseconds = $minimumDelayMilliseconds * 1_000_000;
+        $elapsedNanoseconds = hrtime(true) - $startedAt;
+
+        if ($elapsedNanoseconds >= $minimumDelayNanoseconds) {
+            return;
+        }
+
+        usleep((int) ceil(($minimumDelayNanoseconds - $elapsedNanoseconds) / 1000));
     }
 
     /**
