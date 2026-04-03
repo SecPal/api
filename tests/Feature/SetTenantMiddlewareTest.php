@@ -14,10 +14,8 @@ use Illuminate\Support\Facades\Route;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    // Generate KEK if it doesn't exist
-    if (! file_exists(storage_path('app/keys/kek.key'))) {
-        TenantKey::generateKek();
-    }
+    TenantKey::setKekPath(getTestKekPath());
+    TenantKey::generateKek();
 
     // Register test routes that use tenant middleware
     Route::middleware(['tenant'])->group(function (): void {
@@ -29,6 +27,11 @@ beforeEach(function (): void {
             return ['success' => true, 'tenant_id' => request('tenant_id')];
         })->name('test.header');
     });
+});
+
+afterEach(function (): void {
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
 });
 
 describe('SetTenant Middleware', function (): void {
