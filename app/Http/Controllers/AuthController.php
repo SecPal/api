@@ -640,7 +640,21 @@ class AuthController extends Controller
             ], 400);
         }
 
-        DB::transaction(function () use ($user, $validated): void {
+        $invalidToken = false;
+
+        DB::transaction(function () use ($user, $validated, &$invalidToken): void {
+            // Re-fetch and lock the token row to prevent concurrent consumption (TOCTOU)
+            $lockedToken = DB::table('password_reset_tokens')
+                ->where('email', $validated['email'])
+                ->lockForUpdate()
+                ->first();
+
+            if (! $lockedToken || ! Hash::check($validated['token'], $lockedToken->token)) {
+                $invalidToken = true;
+
+                return;
+            }
+
             $user->forceFill([
                 'password' => Hash::make($validated['password']),
                 'remember_token' => null,
@@ -659,6 +673,12 @@ class AuthController extends Controller
                 ->where('email', $validated['email'])
                 ->delete();
         });
+
+        if ($invalidToken) {
+            return response()->json([
+                'message' => __('Invalid or expired reset token'),
+            ], 400);
+        }
 
         return response()->json([
             'message' => __('Password has been reset successfully'),
