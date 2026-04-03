@@ -9,7 +9,9 @@ use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Activity;
 
 uses(RefreshDatabase::class);
 
@@ -471,11 +473,21 @@ describe('Token Revocation', function () {
         $user = User::factory()->create([
             'email' => 'test@secpal.dev',
             'password' => bcrypt('password123'),
+            'remember_token' => 'persist-me',
         ]);
 
         $token1 = $user->createToken('device-1')->plainTextToken;
         $user->createToken('device-2');
         $user->createToken('device-3');
+
+        DB::table('sessions')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => $user->id,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Pest',
+            'payload' => base64_encode('logout-all-session'),
+            'last_activity' => now()->timestamp,
+        ]);
 
         expect($user->tokens()->count())->toBe(3);
 
@@ -485,7 +497,20 @@ describe('Token Revocation', function () {
         $response->assertOk()
             ->assertJson(['message' => 'All tokens revoked successfully']);
 
-        expect($user->fresh()->tokens()->count())->toBe(0);
+        $refreshedUser = $user->fresh();
+
+        expect($refreshedUser->tokens()->count())->toBe(0)
+            ->and($refreshedUser->remember_token)->toBeNull()
+            ->and(DB::table('sessions')->where('user_id', $user->id)->count())->toBe(0);
+
+        $activity = Activity::query()
+            ->where('log_name', 'authentication')
+            ->where('description', 'User logged out from all devices')
+            ->latest('id')
+            ->first();
+
+        expect($activity)->toBeInstanceOf(Activity::class)
+            ->and($activity->properties['event'])->toBe('logout_all');
     });
 
     test('logout successfully deletes token from database', function () {

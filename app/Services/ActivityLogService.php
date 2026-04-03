@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Services;
@@ -177,6 +177,35 @@ class ActivityLogService
                 $activity->organizational_unit_id = $primaryOrgUnitId;
             })
             ->log('User logged out');
+    }
+
+    /**
+     * Log user logout from all devices and sessions.
+     *
+     * Security Level: 2 (authentication)
+     * Logs to user's primary organizational unit for scope-based visibility.
+     */
+    public function logLogoutAll(User $user): ?Activity
+    {
+        $user->loadMissing('organizationalScopes');
+        /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
+        $firstScope = $user->organizationalScopes->first();
+        $primaryOrgUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
+
+        return activity('authentication')
+            ->causedBy($user)
+            ->performedOn($user)
+            ->useLog('authentication')
+            ->withProperties([
+                'event' => 'logout_all',
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+            ])
+            ->tap(function ($activity) use ($primaryOrgUnitId) {
+                /** @var \App\Models\Activity $activity */
+                $activity->organizational_unit_id = $primaryOrgUnitId;
+            })
+            ->log('User logged out from all devices');
     }
 
     /**

@@ -225,7 +225,28 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $user->tokens()->delete();
+        $usesSessionAuthentication = ! $user->currentAccessToken() instanceof PersonalAccessToken;
+
+        DB::transaction(function () use ($user) {
+            $this->activityLogService->logLogoutAll($user);
+
+            $user->tokens()->delete();
+
+            DB::table('sessions')
+                ->where('user_id', $user->getAuthIdentifier())
+                ->delete();
+
+            $user->forceFill(['remember_token' => null])->save();
+        });
+
+        if ($usesSessionAuthentication) {
+            Auth::guard('web')->logout();
+
+            if ($request->hasSession()) {
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+        }
 
         return response()->json([
             'message' => __('All tokens revoked successfully'),

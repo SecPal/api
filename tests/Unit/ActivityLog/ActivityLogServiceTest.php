@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Activity;
@@ -65,6 +65,17 @@ test('logLogout creates authentication log', function (): void {
         ->and($activity->description)->toBe('User logged out')
         ->and($activity->causer_id)->toBe((string) $this->user->id)
         ->and($activity->properties['event'])->toBe('logout')
+        ->and(Activity::getRetentionYearsForLogType($activity->log_name))->toBeIn([3, 8]);
+});
+
+test('logLogoutAll creates authentication log', function (): void {
+    $activity = $this->service->logLogoutAll($this->user);
+
+    expect($activity)->toBeInstanceOf(Activity::class)
+        ->and($activity->log_name)->toBe('authentication')
+        ->and($activity->description)->toBe('User logged out from all devices')
+        ->and($activity->causer_id)->toBe((string) $this->user->id)
+        ->and($activity->properties['event'])->toBe('logout_all')
         ->and(Activity::getRetentionYearsForLogType($activity->log_name))->toBeIn([3, 8]);
 });
 
