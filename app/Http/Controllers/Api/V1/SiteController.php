@@ -58,31 +58,9 @@ class SiteController extends Controller
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
 
-        $query = Site::query()
+        $query = $user->visibleSitesQuery()
             ->where('tenant_id', $tenantId)
             ->with(['customer', 'organizationalUnit', 'assignments.user']);
-
-        // Need-to-Know filtering: users reaching this branch already have scoped collection access
-        if (! $user->can('sites.read')) {
-            // Pre-compute accessible unit IDs and assigned site IDs to avoid repeated execution
-            $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();
-            $assignedSiteIds = $user->siteAssignments()
-                ->currentlyActive()
-                ->pluck('site_id')->toArray();
-
-            $assignedCustomerIds = $user->customerAssignments()
-                ->currentlyActive()
-                ->pluck('customer_id')->toArray();
-
-            $query->where(function ($q) use ($accessibleUnitIds, $assignedSiteIds, $assignedCustomerIds) {
-                // Direct assignment to site (currently active)
-                $q->whereIn('id', $assignedSiteIds)
-                    // Or access via customer assignment
-                    ->orWhereIn('customer_id', $assignedCustomerIds)
-                    // Or access via organizational unit
-                    ->orWhereIn('organizational_unit_id', $accessibleUnitIds);
-            });
-        }
 
         // Search filter
         if ($request->has('search')) {
