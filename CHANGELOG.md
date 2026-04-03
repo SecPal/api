@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- enabled encrypted session payloads by default via `SESSION_ENCRYPT=true`, updated the deployment and Sanctum SPA guides to match, and pinned the test environment to the same secure default so session-config coverage reflects production intent
 - added `Cache-Control: no-store, no-cache, must-revalidate, private` and `Pragma: no-cache` to the API security-header baseline so sensitive responses are less likely to persist in browser or intermediary caches
 - configured Sanctum personal access tokens to expire after `1440` minutes by default, documented `SANCTUM_TOKEN_EXPIRY_MINUTES` in `.env.example`, and added regression coverage that expired bearer tokens are rejected with `401 Unauthorized`
 - aligned `.env.example` with the production session default by documenting `SESSION_DRIVER=database`, so fresh deployments no longer advertise a cookie-session configuration that the runtime config does not actually default to
