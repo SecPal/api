@@ -75,6 +75,8 @@ describe('Security Headers Middleware', function () {
 
         $response->assertNotFound();
 
+        $cacheControl = (string) $response->headers->get('Cache-Control');
+
         expect((string) $response->headers->get('Content-Security-Policy'))
             ->toContain("default-src 'none'")
             ->and((string) $response->headers->get('Permissions-Policy'))
@@ -87,8 +89,16 @@ describe('Security Headers Middleware', function () {
             ->toBe('require-corp')
             ->and($response->headers->get('Origin-Agent-Cluster'))
             ->toBe('?1')
+            ->and($response->headers->get('Pragma'))
+            ->toBe('no-cache')
             ->and($response->headers->get('X-Permitted-Cross-Domain-Policies'))
             ->toBe('none');
+
+        expect($cacheControl)
+            ->toContain('no-store')
+            ->toContain('no-cache')
+            ->toContain('must-revalidate')
+            ->toContain('private');
     });
 
     test('all security headers are present on API routes', function () {
