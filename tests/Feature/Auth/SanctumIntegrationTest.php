@@ -212,7 +212,7 @@ describe('Integration: Session Performance', function () {
 });
 
 describe('Integration: Session Expiration', function () {
-    test('token expiration is configurable', function () {
+    test('token expiration defaults to 1440 minutes', function () {
         $expiration = config('sanctum.expiration');
         $lifetime = config('session.lifetime');
 
@@ -224,6 +224,7 @@ describe('Integration: Session Expiration', function () {
     });
 
     test('expired bearer tokens are rejected', function () {
+        $original = config('sanctum.expiration');
         Config::set('sanctum.expiration', 60);
 
         $user = User::factory()->create([
@@ -240,6 +241,8 @@ describe('Integration: Session Expiration', function () {
         $this->withToken($token->plainTextToken)
             ->getJson('/v1/me')
             ->assertUnauthorized();
+
+        Config::set('sanctum.expiration', $original);
     });
 
     test('session driver supports persistence', function () {
