@@ -12,7 +12,6 @@ use Tests\Support\TenantKeyReadabilityOverride;
 
 // HMAC_SHA256_OUTPUT_BYTES is 32 (SHA-256 output size in bytes)
 require_once __DIR__.'/../TestConstants.php';
-require_once __DIR__.'/../Support/TenantKeyReadabilityOverride.php';
 
 uses(RefreshDatabase::class);
 

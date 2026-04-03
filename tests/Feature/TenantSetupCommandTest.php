@@ -11,8 +11,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Tests\Support\TenantKeyReadabilityOverride;
 
-require_once __DIR__.'/../Support/TenantKeyReadabilityOverride.php';
-
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {

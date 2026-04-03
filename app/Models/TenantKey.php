@@ -129,6 +129,13 @@ class TenantKey extends Model
     protected static ?string $kekPath = null;
 
     /**
+     * Readable checker override (for test isolation only).
+     *
+     * @var (callable(string): bool)|null
+     */
+    private static mixed $readableChecker = null;
+
+    /**
      * Get the path to the KEK file.
      */
     public static function getKekPath(): string
@@ -142,6 +149,18 @@ class TenantKey extends Model
     public static function setKekPath(?string $path): void
     {
         static::$kekPath = $path;
+    }
+
+    /**
+     * Override the readable check for test isolation. Pass null to restore default behaviour.
+     *
+     * @internal Only for use in tests.
+     *
+     * @param  (callable(string): bool)|null  $checker
+     */
+    public static function setReadableChecker(?callable $checker): void
+    {
+        self::$readableChecker = $checker;
     }
 
     /**
@@ -205,8 +224,9 @@ class TenantKey extends Model
     public static function assertReadableKekFile(?string $path = null): void
     {
         $path ??= self::getKekPath();
+        $check = self::$readableChecker ?? \is_readable(...);
 
-        if (! is_readable($path)) {
+        if (! $check($path)) {
             throw new \RuntimeException('KEK file is not readable by this process at: '.$path);
         }
     }
