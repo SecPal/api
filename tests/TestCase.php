@@ -7,6 +7,7 @@ namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\PermissionRegistrar;
 
 abstract class TestCase extends BaseTestCase
@@ -32,6 +33,10 @@ abstract class TestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Prevent real network calls to HIBP so Password::uncompromised() always
+        // passes for test passwords without coupling tests to an external service.
+        Http::fake(['api.pwnedpasswords.com/*' => Http::response('', 200)]);
 
         Cache::flush();
         app(PermissionRegistrar::class)->setPermissionsTeamId(null);
