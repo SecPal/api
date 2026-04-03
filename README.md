@@ -353,7 +353,7 @@ git push --no-verify
 
 Before each commit/PR, ensure:
 
-- ✅ KEK file exists at `storage/keys/kek.key` with permissions `0600`
+- ✅ KEK file exists at `storage/app/keys/kek.key` with permissions `0600`
 - ✅ `.env` has `KEK_PATH` set correctly
 - ✅ Database connection is configured and migrations ran
 - ✅ `./vendor/bin/pint` passes (PSR-12) - **auto-checked**
@@ -515,7 +515,7 @@ SecPal implements **multi-tenant envelope encryption** with the following securi
 
 **Key Hierarchy:**
 
-- **KEK (Key Encryption Key)**: Master key stored in `storage/keys/kek.key` (mode 0600)
+- **KEK (Key Encryption Key)**: Master key stored in `storage/app/keys/kek.key` (mode 0600)
 - **Per-Tenant DEK**: Data Encryption Key for encrypting PII fields (email, phone, notes)
 - **Per-Tenant idx_key**: Index key for generating blind indexes (searchable without decryption)
 
