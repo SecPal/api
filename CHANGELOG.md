@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- configured Sanctum personal access tokens to expire after `1440` minutes by default, documented `SANCTUM_TOKEN_EXPIRY_MINUTES` in `.env.example`, and added regression coverage that expired bearer tokens are rejected with `401 Unauthorized`
 - aligned `.env.example` with the production session default by documenting `SESSION_DRIVER=database`, so fresh deployments no longer advertise a cookie-session configuration that the runtime config does not actually default to
 - prefixed newly issued Sanctum bearer tokens with `sec_` by default and documented `SANCTUM_TOKEN_PREFIX=sec_` in `.env.example` so committed API tokens are easier for secret-scanning tooling to detect
 - hardened organizational scope rank validation so create and partial update requests cannot combine guards-only rank filters with leadership ranges or introduce leadership ranges without a positive minimum bound
