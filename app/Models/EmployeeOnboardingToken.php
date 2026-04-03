@@ -143,7 +143,7 @@ class EmployeeOnboardingToken extends Model
         $legacyToken = self::whereNull('completed_at')
             ->where('expires_at', '>', now())
             ->whereNull('token_lookup_hash')
-            ->get()
+            ->cursor()
             ->first(fn (self $token): bool => Hash::check($plainToken, $token->token));
 
         if (! $legacyToken instanceof self) {
