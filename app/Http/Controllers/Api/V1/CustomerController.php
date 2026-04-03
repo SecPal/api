@@ -1,11 +1,12 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\IndexCustomerRequest;
 use App\Http\Requests\Api\V1\IndexCustomerSitesRequest;
 use App\Http\Requests\Api\V1\StoreCustomerRequest;
 use App\Http\Requests\Api\V1\UpdateCustomerRequest;
@@ -13,7 +14,6 @@ use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -45,7 +45,7 @@ class CustomerController extends Controller
      *
      * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection Paginated customer list with metadata
      */
-    public function index(Request $request)
+    public function index(IndexCustomerRequest $request)
     {
         $this->authorize('viewAny', Customer::class);
 
