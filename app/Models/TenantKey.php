@@ -147,7 +147,7 @@ class TenantKey extends Model
     /**
      * Load the Key Encryption Key (KEK) from storage.
      *
-     * @throws \RuntimeException if KEK file is missing or has insecure permissions
+     * @throws \RuntimeException if KEK file is missing, unreadable, or has insecure permissions
      */
     public static function loadKek(): string
     {
@@ -158,6 +158,7 @@ class TenantKey extends Model
         }
 
         self::assertSecureKekPermissions($path);
+        self::assertReadableKekFile($path);
 
         $kek = file_get_contents($path);
 
@@ -193,6 +194,20 @@ class TenantKey extends Model
                 $normalizedPermissions,
                 $path,
             ));
+        }
+    }
+
+    /**
+     * Ensure the KEK file can be read by the current process.
+     *
+     * @throws \RuntimeException if the KEK file is not readable
+     */
+    public static function assertReadableKekFile(?string $path = null): void
+    {
+        $path ??= self::getKekPath();
+
+        if (! is_readable($path)) {
+            throw new \RuntimeException('KEK file is not readable by this process at: '.$path);
         }
     }
 

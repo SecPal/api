@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- made `tenant:setup` fail fast with a targeted unreadable-KEK error instead of falling through to the generic invalid-file path when the current process cannot read the KEK file
 - equalized the password reset request response floor with a minimum configurable delay so existing-account and missing-account paths are harder to distinguish via timing measurements
 - sanitized employee document filenames before persisting them and before emitting `Content-Disposition`, so uploaded names can no longer inject or reshape download headers
 - aligned password resets with the onboarding password policy by defining a shared strong `Password::defaults()` baseline and reusing it in `PasswordResetRequest`, so reset flows no longer accept weaker passwords than initial account setup

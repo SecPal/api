@@ -9,6 +9,9 @@
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Tests\Support\TenantKeyReadabilityOverride;
+
+require_once __DIR__.'/../Support/TenantKeyReadabilityOverride.php';
 
 uses(RefreshDatabase::class);
 
@@ -16,11 +19,13 @@ beforeEach(function (): void {
     // Increment counter to ensure unique KEK file for this test
     incrementTestKekCounter();
 
+    TenantKeyReadabilityOverride::clear();
     cleanupTestKekFile();
     TenantKey::setKekPath(getTestKekPath());
 });
 
 afterEach(function (): void {
+    TenantKeyReadabilityOverride::clear();
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -103,6 +108,19 @@ describe('tenant:setup Command', function () {
         $this->artisan('tenant:setup')
             ->expectsOutputToContain('KEK file has insecure permissions')
             ->expectsOutputToContain('chmod 600')
+            ->assertExitCode(1);
+
+        expect(TenantKey::count())->toBe($countBefore);
+    });
+
+    test('fails with a targeted message when KEK file is not readable', function (): void {
+        TenantKey::generateKek();
+        TenantKeyReadabilityOverride::markUnreadable(TenantKey::getKekPath());
+
+        $countBefore = TenantKey::count();
+
+        $this->artisan('tenant:setup')
+            ->expectsOutputToContain('KEK file is not readable by this process')
             ->assertExitCode(1);
 
         expect(TenantKey::count())->toBe($countBefore);
