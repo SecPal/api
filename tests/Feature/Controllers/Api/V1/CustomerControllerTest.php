@@ -198,6 +198,16 @@ describe('GET /v1/customers', function () {
         expect($response->json('meta.per_page'))->toBe(5);
         expect($response->json('meta.total'))->toBe(20);
     });
+
+    test('returns 422 when per_page exceeds maximum', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/customers?per_page=1000');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['per_page']);
+    });
 });
 
 describe('POST /v1/customers', function () {
@@ -703,6 +713,95 @@ describe('GET /v1/customers/{customer}/sites', function () {
         expect($response->json('data'))->toHaveCount(3);
     });
 
+    test('returns only independently visible customer sites for scoped users', function (): void {
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $visibleSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $visibleSite->id,
+            'user_id' => $this->user->id,
+            'role' => 'Site Manager',
+            'valid_from' => now()->subDay(),
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}/sites");
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.id'))->toBe($visibleSite->id);
+    });
+
+    test('filters customer sites by type', function (): void {
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        CustomerAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'user_id' => $this->user->id,
+            'role' => 'Account Manager',
+        ]);
+
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'type' => 'permanent',
+        ]);
+
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'type' => 'temporary',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/customers/{$customer->id}/sites?type=temporary");
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.type'))->toBe('temporary');
+    });
+
+    test('filters customer sites by active status', function (): void {
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        CustomerAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'user_id' => $this->user->id,
+            'role' => 'Account Manager',
+        ]);
+
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'is_active' => true,
+        ]);
+
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'is_active' => false,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/customers/{$customer->id}/sites?is_active=0");
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.is_active'))->toBeFalse();
+    });
+
     test('supports custom per_page for sites', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
 
@@ -732,5 +831,17 @@ describe('GET /v1/customers/{customer}/sites', function () {
         $response->assertOk();
         expect($response->json('data'))->toBeArray();
         expect($response->json('data'))->toHaveCount(0);
+    });
+
+    test('returns 422 for invalid type filter on customer sites', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/customers/{$customer->id}/sites?type=invalid");
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['type']);
     });
 });

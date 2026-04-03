@@ -454,6 +454,23 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
     }
 
     /**
+     * Build the base query for all sites visible to this user.
+     *
+     * Users with the sites.read permission can view all tenant sites.
+     * Users without that permission are restricted to their scoped site access.
+     *
+     * @return Builder<Site>
+     */
+    public function visibleSitesQuery(): Builder
+    {
+        if ($this->can('sites.read')) {
+            return Site::query()->where('tenant_id', $this->tenant_id);
+        }
+
+        return $this->accessibleSitesQuery();
+    }
+
+    /**
      * Build the base query for all sites the user can access.
      *
      * Access is granted through:

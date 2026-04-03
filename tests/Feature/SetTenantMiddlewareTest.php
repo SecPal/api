@@ -1,22 +1,21 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 use App\Models\TenantKey;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    // Generate KEK if it doesn't exist
-    if (! file_exists(storage_path('app/keys/kek.key'))) {
-        TenantKey::generateKek();
-    }
+    TenantKey::setKekPath(getTestKekPath());
+    TenantKey::generateKek();
 
     // Register test routes that use tenant middleware
     Route::middleware(['tenant'])->group(function (): void {
@@ -28,6 +27,11 @@ beforeEach(function (): void {
             return ['success' => true, 'tenant_id' => request('tenant_id')];
         })->name('test.header');
     });
+});
+
+afterEach(function (): void {
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
 });
 
 describe('SetTenant Middleware', function (): void {
@@ -144,6 +148,47 @@ describe('SetTenant Middleware', function (): void {
         $response->assertStatus(200)
             ->assertJson([
                 'tenant_id' => $tenant->id,
+            ]);
+    });
+
+    it('allows an authenticated user to access their own tenant route', function (): void {
+        $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $user = User::factory()->create(['tenant_id' => $tenant->id]);
+
+        $response = $this->actingAs($user)->getJson("/tenants/{$tenant->id}/test");
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+                'tenant_id' => $tenant->id,
+            ]);
+    });
+
+    it('returns 403 when an authenticated user targets a different tenant in the path', function (): void {
+        $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $user = User::factory()->create(['tenant_id' => $tenant->id]);
+
+        $response = $this->actingAs($user)->getJson("/tenants/{$otherTenant->id}/test");
+
+        $response->assertForbidden()
+            ->assertJson([
+                'message' => 'Forbidden. You do not belong to the specified tenant.',
+            ]);
+    });
+
+    it('returns 403 when an authenticated user targets a different tenant via the X-Tenant header', function (): void {
+        $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $user = User::factory()->create(['tenant_id' => $tenant->id]);
+
+        $response = $this->actingAs($user)->getJson('/api/test', [
+            'X-Tenant' => (string) $otherTenant->id,
+        ]);
+
+        $response->assertForbidden()
+            ->assertJson([
+                'message' => 'Forbidden. You do not belong to the specified tenant.',
             ]);
     });
 });

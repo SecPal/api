@@ -1,18 +1,19 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\IndexCustomerRequest;
+use App\Http\Requests\Api\V1\IndexCustomerSitesRequest;
 use App\Http\Requests\Api\V1\StoreCustomerRequest;
 use App\Http\Requests\Api\V1\UpdateCustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -44,7 +45,7 @@ class CustomerController extends Controller
      *
      * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection Paginated customer list with metadata
      */
-    public function index(Request $request)
+    public function index(IndexCustomerRequest $request)
     {
         $this->authorize('viewAny', Customer::class);
 
@@ -228,15 +229,27 @@ class CustomerController extends Controller
      *
      * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection<int, SiteResource> Paginated site list
      */
-    public function sites(Request $request, Customer $customer)
+    public function sites(IndexCustomerSitesRequest $request, Customer $customer)
     {
         $this->authorize('view', $customer);
 
+        /** @var \App\Models\User $user */
+        $user = $request->user();
         $perPage = $request->integer('per_page', 15);
-        $sites = $customer->sites()
-            ->with(['organizationalUnit', 'assignments.user'])
-            ->paginate($perPage);
+        $sites = $user->can('customers.read')
+            ? $customer->sites()->with(['organizationalUnit', 'assignments.user'])
+            : $user->visibleSitesQuery()
+                ->where('customer_id', $customer->id)
+                ->with(['organizationalUnit', 'assignments.user']);
 
-        return SiteResource::collection($sites);
+        if ($request->has('is_active')) {
+            $sites->where('is_active', $request->boolean('is_active'));
+        }
+
+        if ($request->has('type')) {
+            $sites->where('type', $request->string('type')->toString());
+        }
+
+        return SiteResource::collection($sites->paginate($perPage));
     }
 }

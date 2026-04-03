@@ -21,6 +21,19 @@ use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
 
+function fakePdfUpload(string $name = 'document.pdf'): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent($name, implode("\n", [
+        '%PDF-1.4',
+        '1 0 obj',
+        '<< /Type /Catalog >>',
+        'endobj',
+        'trailer',
+        '<<>>',
+        '%%EOF',
+    ]));
+}
+
 /**
  * @property TenantKey $tenant
  * @property User $user
@@ -208,7 +221,7 @@ describe('POST /v1/employees/{employee}/documents', function () {
     test('uploads document with valid data', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.write');
 
-        $file = UploadedFile::fake()->createWithContent('contract.pdf', 'Employment contract payload');
+        $file = fakePdfUpload('contract.pdf');
 
         $response = $this->withToken($this->token)
             ->postJson("/v1/employees/{$this->employee->id}/documents", [
@@ -251,7 +264,7 @@ describe('POST /v1/employees/{employee}/documents', function () {
     test('sanitizes stored document filename metadata', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.write');
 
-        $file = UploadedFile::fake()->createWithContent('employee";notes.pdf', 'sanitized payload');
+        $file = fakePdfUpload('employee";notes.pdf');
 
         $response = $this->withToken($this->token)
             ->postJson("/v1/employees/{$this->employee->id}/documents", [
@@ -278,6 +291,7 @@ describe('POST /v1/employees/{employee}/documents', function () {
         $response = $this->withToken($this->token)
             ->postJson("/v1/employees/{$this->employee->id}/documents", [
                 'file' => $file,
+                'title' => 'Disguised Contract',
                 'document_type' => 'contract',
                 'visible_to_employee' => true,
             ]);
@@ -294,12 +308,42 @@ describe('POST /v1/employees/{employee}/documents', function () {
         $response = $this->withToken($this->token)
             ->postJson("/v1/employees/{$this->employee->id}/documents", [
                 'file' => $file,
+                'title' => 'Disguised Contract',
                 'document_type' => 'contract',
                 'visible_to_employee' => true,
             ]);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['file']);
+    });
+
+    test('returns 422 when file content does not match an allowed MIME type', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.write');
+
+        $path = tempnam(sys_get_temp_dir(), 'pdf');
+        expect($path)->not->toBeFalse();
+
+        $bytesWritten = file_put_contents($path, 'plain text disguised as a pdf');
+        expect($bytesWritten)->not->toBeFalse();
+
+        try {
+            $file = new UploadedFile($path, 'contract.pdf', 'application/pdf', null, true);
+
+            $response = $this->withToken($this->token)
+                ->postJson("/v1/employees/{$this->employee->id}/documents", [
+                    'file' => $file,
+                    'title' => 'Disguised Contract',
+                    'document_type' => 'contract',
+                    'visible_to_employee' => true,
+                ]);
+
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors(['file']);
+        } finally {
+            if (file_exists($path)) {
+                unlink($path);
+            }
+        }
     });
 });
 
@@ -395,7 +439,7 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
 
         $storageService = app(EmployeeDocumentStorageService::class);
         $storedFile = $storageService->store(
-            UploadedFile::fake()->createWithContent('test.pdf', 'PDF content'),
+            fakePdfUpload('test.pdf'),
             $this->employee
         );
 
@@ -414,14 +458,14 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
         $response->assertStatus(200);
         expect($response->headers->get('content-type'))->toBe('application/pdf');
         expect($response->headers->get('content-disposition'))->toContain('test.pdf');
-        expect($response->getContent())->toBe('PDF content');
+        expect($response->getContent())->toContain('%PDF-1.4');
     });
 
     test('sanitizes filename in content disposition header', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
 
         $storedFile = app(EmployeeDocumentStorageService::class)->store(
-            UploadedFile::fake()->createWithContent('download.pdf', 'safe content'),
+            fakePdfUpload('download.pdf'),
             $this->employee
         );
 
@@ -508,7 +552,7 @@ describe('DELETE /v1/employees/{employee}/documents/{document}', function () {
 
         $storageService = app(EmployeeDocumentStorageService::class);
         $storedFile = $storageService->store(
-            UploadedFile::fake()->createWithContent('delete.pdf', 'content'),
+            fakePdfUpload('delete.pdf'),
             $this->employee
         );
 
