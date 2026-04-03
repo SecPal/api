@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -248,6 +248,28 @@ describe('POST /v1/employees/{employee}/documents', function () {
         expect($decodedBlob)->toHaveKeys(['ciphertext', 'nonce']);
     });
 
+    test('sanitizes stored document filename metadata', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.write');
+
+        $file = UploadedFile::fake()->createWithContent('employee";notes.pdf', 'sanitized payload');
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$this->employee->id}/documents", [
+                'file' => $file,
+                'title' => 'Employee Notes',
+                'document_type' => 'contract',
+                'visible_to_employee' => true,
+            ]);
+
+        $response->assertStatus(201);
+
+        $storedFileName = (string) $response->json('data.file_name');
+
+        expect($storedFileName)
+            ->not->toContain('"')
+            ->not->toContain(';');
+    });
+
     test('returns 422 when file exceeds 10MB limit', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.write');
 
@@ -393,6 +415,36 @@ describe('GET /v1/employees/{employee}/documents/{document}/download', function 
         expect($response->headers->get('content-type'))->toBe('application/pdf');
         expect($response->headers->get('content-disposition'))->toContain('test.pdf');
         expect($response->getContent())->toBe('PDF content');
+    });
+
+    test('sanitizes filename in content disposition header', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
+
+        $storedFile = app(EmployeeDocumentStorageService::class)->store(
+            UploadedFile::fake()->createWithContent('download.pdf', 'safe content'),
+            $this->employee
+        );
+
+        $document = EmployeeDocument::factory()->create([
+            'employee_id' => $this->employee->id,
+            'uploaded_by' => $this->user->id,
+            'file_path' => $storedFile['file_path'],
+            'file_name' => "report\r\nInjected-Header: value\";2025.pdf",
+            'mime_type' => 'application/pdf',
+            'file_size' => $storedFile['file_size'],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$this->employee->id}/documents/{$document->id}/download");
+
+        $response->assertStatus(200);
+
+        $contentDisposition = (string) $response->headers->get('content-disposition');
+
+        expect($contentDisposition)
+            ->toContain('attachment; filename="reportInjected-Header: value__2025.pdf"')
+            ->not->toContain("\r")
+            ->not->toContain("\n");
     });
 
     test('returns 404 when document file does not exist', function (): void {
