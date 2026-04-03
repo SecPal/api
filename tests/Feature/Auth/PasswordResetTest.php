@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Activity;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +39,19 @@ it('allows user to reset password with valid token', function () {
     $user = User::factory()->create([
         'email' => 'test@example.com',
         'password' => Hash::make('old-password'),
+        'remember_token' => 'persist-me',
+    ]);
+
+    $user->createToken('device-1');
+    $user->createToken('device-2');
+
+    DB::table('sessions')->insert([
+        'id' => (string) Str::uuid(),
+        'user_id' => $user->id,
+        'ip_address' => '127.0.0.1',
+        'user_agent' => 'Pest',
+        'payload' => base64_encode('password-reset-session'),
+        'last_activity' => now()->timestamp,
     ]);
 
     $token = createPasswordResetToken($user);
@@ -55,7 +69,19 @@ it('allows user to reset password with valid token', function () {
         ]);
 
     $user->refresh();
-    expect(Hash::check('NewSecurePassword123!', $user->password))->toBeTrue();
+    expect(Hash::check('NewSecurePassword123!', $user->password))->toBeTrue()
+        ->and($user->tokens()->count())->toBe(0)
+        ->and($user->remember_token)->toBeNull()
+        ->and(DB::table('sessions')->where('user_id', $user->id)->count())->toBe(0);
+
+    $activity = Activity::query()
+        ->where('log_name', 'authentication')
+        ->where('description', 'User reset password and revoked active sessions')
+        ->latest('id')
+        ->first();
+
+    expect($activity)->toBeInstanceOf(Activity::class)
+        ->and($activity->properties['event'])->toBe('password_reset');
 });
 
 it('rejects expired token', function () {
