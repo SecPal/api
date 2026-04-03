@@ -19,9 +19,13 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\DB;
 use Laragear\TwoFactor\Contracts\TwoFactorAuthenticatable;
 use Laragear\TwoFactor\TwoFactorAuthentication;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Contracts\Permission as PermissionContract;
+use Spatie\Permission\Models\Permission as SpatiePermission;
+use Spatie\Permission\PermissionRegistrar;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
@@ -127,7 +131,9 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
         /** @var string $morphKey */
         $morphKey = config('permission.column_names.model_morph_key');
 
-        return $this->morphToMany(
+        $teamId = $this->resolvePermissionsTeamId();
+
+        $relation = $this->morphToMany(
             $roleClass,
             'model',
             $tableName,
@@ -149,6 +155,12 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
                 // Only return currently active roles using shared filtering logic
                 TemporalRoleUser::applyActiveFilter($query, 'model_has_roles.');
             });
+
+        if ($teamId !== null) {
+            $relation->wherePivot('tenant_id', $teamId);
+        }
+
+        return $relation;
     }
 
     /**
@@ -157,25 +169,52 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
      * This method queries the model_has_permissions pivot table directly
      * to bypass Spatie's role-based permission resolution.
      *
-     * @param  string|\Spatie\Permission\Contracts\Permission  $permission
+     * @param  string|PermissionContract  $permission
      */
     public function hasDirectPermission($permission): bool
     {
         if (is_string($permission)) {
             // Use Spatie's Permission model directly to avoid PHPStan complexity
-            $permission = \Spatie\Permission\Models\Permission::findByName($permission, $this->getDefaultGuardName());
+            $permission = SpatiePermission::findByName($permission, $this->getDefaultGuardName());
         }
 
-        if (! $permission instanceof \Spatie\Permission\Contracts\Permission) {
+        if (! $permission instanceof PermissionContract) {
             return false;
         }
 
+        $teamId = $this->resolvePermissionsTeamId();
+        $now = now();
+
         // Query pivot table directly to check for direct assignment
-        return \Illuminate\Support\Facades\DB::table('model_has_permissions')
+        $query = DB::table('model_has_permissions')
             ->where('model_type', $this->getMorphClass())
             ->where('model_id', $this->getKey())
             ->where('permission_id', $permission->id)
-            ->exists();
+            ->where(function ($query) use ($now) {
+                $query->whereNull('valid_from')
+                    ->orWhere('valid_from', '<=', $now);
+            })
+            ->where(function ($query) use ($now) {
+                $query->whereNull('valid_until')
+                    ->orWhere('valid_until', '>', $now);
+            });
+
+        if ($teamId !== null) {
+            $query->where('tenant_id', $teamId);
+        }
+
+        return $query->exists();
+    }
+
+    private function resolvePermissionsTeamId(): ?int
+    {
+        $teamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
+
+        if (is_int($teamId)) {
+            return $teamId;
+        }
+
+        return $this->tenant_id;
     }
 
     /**

@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -122,6 +122,25 @@ describe('TemporalRoleUser Pivot Model', function () {
             expect($roles->first()->id)->toBe($this->guardRole->id);
             expect($roles->first()->pivot->valid_from)->toBeNull();
             expect($roles->first()->pivot->valid_until)->toBeNull();
+        });
+
+        it('filters roles to the active permission team', function () {
+            $otherTenantKeys = TenantKey::generateEnvelopeKeys();
+            $otherTenant = TenantKey::create($otherTenantKeys);
+
+            assignTemporalRole($this->user, $this->managerRole, $this->tenant->id);
+
+            $this->registrar->setPermissionsTeamId($otherTenant->id);
+            $otherRole = Role::create(['name' => 'external-manager']);
+            assignTemporalRole($this->user, $otherRole, $otherTenant->id);
+
+            $this->registrar->setPermissionsTeamId($this->tenant->id);
+
+            $roleIds = $this->user->roles()->pluck('id');
+
+            expect($roleIds)->toHaveCount(1)
+                ->and($roleIds)->toContain($this->managerRole->id)
+                ->and($roleIds)->not->toContain($otherRole->id);
         });
     });
 
