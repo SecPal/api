@@ -21,7 +21,7 @@ class SecurityHeaders
 
     private const PERMISSIONS_POLICY = 'accelerometer=(), autoplay=(), camera=(), clipboard-read=(), clipboard-write=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()';
 
-    private const STRICT_TRANSPORT_SECURITY = 'max-age=63072000; includeSubDomains';
+    private const STRICT_TRANSPORT_SECURITY = 'max-age=63072000; includeSubDomains; preload';
 
     /**
      * Handle an incoming request.

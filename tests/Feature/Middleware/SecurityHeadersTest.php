@@ -37,7 +37,7 @@ describe('Security Headers Middleware', function () {
             'HTTPS' => 'on',
         ])->get('/sanctum/csrf-cookie');
 
-        expect($response->headers->get('Strict-Transport-Security'))->toBe('max-age=63072000; includeSubDomains');
+        expect($response->headers->get('Strict-Transport-Security'))->toBe('max-age=63072000; includeSubDomains; preload');
     });
 
     test('api responses include the full hardening baseline', function () {
