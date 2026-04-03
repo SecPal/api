@@ -210,3 +210,40 @@ it('deletes old reset tokens before creating new one', function () {
     // Should have sent 2 emails (total)
     Mail::assertQueued(PasswordResetMail::class, 2);
 });
+
+it('applies a minimum response delay regardless of account existence', function (bool $existingAccount, string $email) {
+    Mail::fake();
+    config()->set('auth.password_reset_min_response_time_ms', 30);
+
+    if ($existingAccount) {
+        User::factory()->create([
+            'email' => $email,
+        ]);
+    }
+
+    $startedAt = hrtime(true);
+
+    $response = $this->postJson('/v1/auth/password/reset-request', [
+        'email' => $email,
+    ]);
+
+    $elapsedMilliseconds = (hrtime(true) - $startedAt) / 1_000_000;
+
+    $response->assertOk()
+        ->assertJson([
+            'message' => 'Password reset email sent if account exists',
+        ]);
+
+    expect($elapsedMilliseconds)->toBeGreaterThanOrEqual(25.0);
+
+    if ($existingAccount) {
+        Mail::assertQueued(PasswordResetMail::class);
+
+        return;
+    }
+
+    Mail::assertNothingQueued();
+})->with([
+    'existing account' => [true, 'existing@example.com'],
+    'missing account' => [false, 'missing@example.com'],
+]);
