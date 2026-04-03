@@ -246,6 +246,39 @@ test('rate limits onboarding attempts', function () {
         ]);
 });
 
+test('validation throttle bucket does not block onboarding completion for the same invitee', function () {
+    for ($i = 0; $i < 4; $i++) {
+        $response = $this->getJson('/v1/onboarding/validate-token?token=invalid-token&email=separate@example.com');
+    }
+
+    $response->assertStatus(429);
+
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'separate@example.com',
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Separate',
+        'last_name' => 'Bucket',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $plainToken,
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Separate',
+        'last_name' => 'Bucket',
+    ])->assertOk();
+});
+
 // ===== SECURITY TESTS: Email Validation =====
 
 test('SECURITY: rejects valid token with wrong email', function () {
