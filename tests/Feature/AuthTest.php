@@ -9,7 +9,9 @@ use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\Models\Activity;
 
 uses(RefreshDatabase::class);
 
@@ -471,11 +473,21 @@ describe('Token Revocation', function () {
         $user = User::factory()->create([
             'email' => 'test@secpal.dev',
             'password' => bcrypt('password123'),
+            'remember_token' => 'persist-me',
         ]);
 
         $token1 = $user->createToken('device-1')->plainTextToken;
         $user->createToken('device-2');
         $user->createToken('device-3');
+
+        DB::table('sessions')->insert([
+            'id' => (string) Str::uuid(),
+            'user_id' => $user->id,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Pest',
+            'payload' => base64_encode('logout-all-session'),
+            'last_activity' => now()->timestamp,
+        ]);
 
         expect($user->tokens()->count())->toBe(3);
 
@@ -485,7 +497,58 @@ describe('Token Revocation', function () {
         $response->assertOk()
             ->assertJson(['message' => 'All tokens revoked successfully']);
 
-        expect($user->fresh()->tokens()->count())->toBe(0);
+        $refreshedUser = $user->fresh();
+
+        expect($refreshedUser->tokens()->count())->toBe(0)
+            ->and($refreshedUser->remember_token)->toBeNull()
+            ->and(DB::table('sessions')->where('user_id', $user->id)->count())->toBe(0);
+
+        $activity = Activity::query()
+            ->where('log_name', 'authentication')
+            ->where('description', 'User logged out from all devices')
+            ->latest('id')
+            ->first();
+
+        expect($activity)->toBeInstanceOf(Activity::class)
+            ->and($activity->properties['event'])->toBe('logout_all');
+    });
+
+    test('logout-all via spa session invalidates the browser session', function () {
+        $email = 'spa-logout-all-'.Str::uuid().'@secpal.dev';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password123'),
+            'remember_token' => 'persist-me',
+        ]);
+
+        // Log in via SPA to create a real session (no Bearer token)
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => $email,
+            'password' => 'password123',
+        ])->assertOk();
+
+        // Call logout-all via SPA session (currentAccessToken() returns null → session path)
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/logout-all')
+            ->assertOk()
+            ->assertJson(['message' => 'All tokens revoked successfully']);
+
+        $refreshedUser = $user->fresh();
+        expect($refreshedUser->remember_token)->toBeNull()
+            ->and(DB::table('sessions')->where('user_id', $user->id)->count())->toBe(0);
+
+        // Reset cached auth guards so the next request reads the invalidated session
+        $this->flushHeaders();
+        $this->app->make('auth')->forgetGuards();
+
+        // Session is fully invalidated: SPA request without Bearer must return 401
+        $this->withHeaders(spaHeaders())
+            ->getJson('/v1/me')
+            ->assertUnauthorized();
     });
 
     test('logout successfully deletes token from database', function () {

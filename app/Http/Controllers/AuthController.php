@@ -225,7 +225,39 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $user->tokens()->delete();
+        $usesSessionAuthentication = ! ($user->currentAccessToken() instanceof PersonalAccessToken);
+
+        DB::transaction(function () use ($user) {
+            $this->activityLogService->logLogoutAll($user);
+
+            $user->tokens()->delete();
+
+            DB::table('sessions')
+                ->where('user_id', $user->getAuthIdentifier())
+                ->delete();
+
+            $user->forceFill(['remember_token' => null])->save();
+        });
+
+        if ($usesSessionAuthentication) {
+            Auth::guard('web')->logout();
+
+            if ($request->hasSession()) {
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+
+            // Clear all resolved guard caches so that Auth::id() returns null when
+            // the session middleware writes the new session row to the sessions table.
+            // forgetGuards() clears AuthManager::$guards, but DatabaseSessionHandler
+            // resolves the user via the 'auth.driver' IoC singleton (Guard::class alias),
+            // which is cached independently of AuthManager::$guards. Without the
+            // forgetInstance call the Sanctum RequestGuard singleton would still return
+            // the authenticated user and the new session row would be written with the
+            // departing user's ID.
+            app('auth')->forgetGuards();
+            app()->forgetInstance('auth.driver');
+        }
 
         return response()->json([
             'message' => __('All tokens revoked successfully'),
