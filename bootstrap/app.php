@@ -22,7 +22,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => App\Http\Middleware\SetTenant::class,
             'tenant.inject' => App\Http\Middleware\InjectTenantId::class,
             'check.organizational.scope' => App\Http\Middleware\CheckOrganizationalScope::class,
-            'check.customer.scope' => App\Http\Middleware\CheckCustomerScope::class,
             'permission' => Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role' => Spatie\Permission\Middleware\RoleMiddleware::class,
             'ensure.pre_contract' => App\Http\Middleware\EnsurePreContract::class,
