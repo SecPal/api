@@ -160,7 +160,7 @@ class EmployeeDocumentController extends Controller
 
     private function sanitizeDocumentFilename(string $fileName): string
     {
-        $sanitized = preg_replace('/[\x00-\x1F\x7F]+/u', '', $fileName);
+        $sanitized = preg_replace('/[\x00-\x1F\x7F]+/', '', $fileName);
         $sanitized = is_string($sanitized) ? $sanitized : '';
         $sanitized = str_replace(['\\', '/', '"', ';'], '_', $sanitized);
         $sanitized = trim($sanitized);
