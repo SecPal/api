@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- stopped isolated API worktree test runs from emitting missing-`.env` phpdotenv warnings by creating a temporary bootstrap stub only for the lifetime of the test process when no local environment file exists
 - made `tenant:setup` fail fast with a targeted unreadable-KEK error instead of falling through to the generic invalid-file path when the current process cannot read the KEK file
 - equalized the password reset request response floor with a minimum configurable delay so existing-account and missing-account paths are harder to distinguish via timing measurements
 - sanitized employee document filenames before persisting them and before emitting `Content-Disposition`, so uploaded names can no longer inject or reshape download headers
