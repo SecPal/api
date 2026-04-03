@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- aligned password resets with the onboarding password policy by defining a shared strong `Password::defaults()` baseline and reusing it in `PasswordResetRequest`, so reset flows no longer accept weaker passwords than initial account setup
 - enabled encrypted session payloads by default via `SESSION_ENCRYPT=true`, updated the deployment and Sanctum SPA guides to match, and added regression coverage around the secure session-encryption default and config fallback so session-config behavior reflects production intent
 - hardened `.gitignore` so `.key` files are ignored both directly under `storage/` and in nested storage subdirectories, reducing the chance that key material is committed from deeper runtime paths
 - enforced `0600` KEK file permissions at runtime by making `TenantKey::loadKek()` reject insecure key files and aligning `tenant:setup` plus `app:validate-setup` to fail fast on permissive KEK modes

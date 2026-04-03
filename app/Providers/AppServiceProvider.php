@@ -43,6 +43,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
@@ -64,6 +65,11 @@ class AppServiceProvider extends ServiceProvider
     {
         Person::observe(PersonObserver::class);
         Employee::observe(EmployeeObserver::class);
+
+        Password::defaults(fn (): Password => Password::min(12)
+            ->mixedCase()
+            ->numbers()
+            ->symbols());
 
         // Define rate limiters (using cache, not Redis)
         RateLimiter::for('api', function (Request $request) {

@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal
+// SPDX-FileCopyrightText: 2025-2026 SecPal
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -45,8 +45,8 @@ it('allows user to reset password with valid token', function () {
     $response = $this->postJson('/v1/auth/password/reset', [
         'token' => $token,
         'email' => 'test@example.com',
-        'password' => 'new-secure-password-123',
-        'password_confirmation' => 'new-secure-password-123',
+        'password' => 'NewSecurePassword123!',
+        'password_confirmation' => 'NewSecurePassword123!',
     ]);
 
     $response->assertOk()
@@ -55,7 +55,7 @@ it('allows user to reset password with valid token', function () {
         ]);
 
     $user->refresh();
-    expect(Hash::check('new-secure-password-123', $user->password))->toBeTrue();
+    expect(Hash::check('NewSecurePassword123!', $user->password))->toBeTrue();
 });
 
 it('rejects expired token', function () {
@@ -68,8 +68,8 @@ it('rejects expired token', function () {
     $response = $this->postJson('/v1/auth/password/reset', [
         'token' => $expiredToken,
         'email' => 'test@example.com',
-        'password' => 'new-password-123',
-        'password_confirmation' => 'new-password-123',
+        'password' => 'NewSecurePassword123!',
+        'password_confirmation' => 'NewSecurePassword123!',
     ]);
 
     $response->assertStatus(400)
@@ -86,8 +86,8 @@ it('rejects invalid token', function () {
     $response = $this->postJson('/v1/auth/password/reset', [
         'token' => 'invalid-token-123',
         'email' => 'test@example.com',
-        'password' => 'new-password-123',
-        'password_confirmation' => 'new-password-123',
+        'password' => 'NewSecurePassword123!',
+        'password_confirmation' => 'NewSecurePassword123!',
     ]);
 
     $response->assertStatus(400)
@@ -107,14 +107,14 @@ it('requires password confirmation', function () {
     $response = $this->postJson('/v1/auth/password/reset', [
         'token' => 'some-token',
         'email' => 'test@example.com',
-        'password' => 'new-password-123',
+        'password' => 'NewSecurePassword123!',
     ]);
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['password']);
 });
 
-it('validates password requirements', function () {
+it('validates centralized password requirements', function () {
     $user = User::factory()->create([
         'email' => 'test@example.com',
     ]);
@@ -124,8 +124,8 @@ it('validates password requirements', function () {
     $response = $this->postJson('/v1/auth/password/reset', [
         'token' => $token,
         'email' => 'test@example.com',
-        'password' => 'short',
-        'password_confirmation' => 'short',
+        'password' => 'alllowercase1234',
+        'password_confirmation' => 'alllowercase1234',
     ]);
 
     $response->assertStatus(422)
@@ -143,16 +143,16 @@ it('ensures token can only be used once', function () {
     $this->postJson('/v1/auth/password/reset', [
         'token' => $token,
         'email' => 'test@example.com',
-        'password' => 'new-password-123',
-        'password_confirmation' => 'new-password-123',
+        'password' => 'NewSecurePassword123!',
+        'password_confirmation' => 'NewSecurePassword123!',
     ])->assertOk();
 
     // Second attempt with same token fails
     $response = $this->postJson('/v1/auth/password/reset', [
         'token' => $token,
         'email' => 'test@example.com',
-        'password' => 'another-password-456',
-        'password_confirmation' => 'another-password-456',
+        'password' => 'AnotherSecurePassword456!',
+        'password_confirmation' => 'AnotherSecurePassword456!',
     ]);
 
     $response->assertStatus(400)
@@ -170,16 +170,16 @@ it('rate limits password reset attempts', function () {
     collect(range(1, 5))->each(fn () => $this->postJson('/v1/auth/password/reset', [
         'token' => 'wrong-token',
         'email' => 'test@example.com',
-        'password' => 'new-password-123',
-        'password_confirmation' => 'new-password-123',
+        'password' => 'NewSecurePassword123!',
+        'password_confirmation' => 'NewSecurePassword123!',
     ])->assertStatus(400)); // Wrong token, but not rate limited
 
     // 6th request should be rate limited
     $response = $this->postJson('/v1/auth/password/reset', [
         'token' => 'wrong-token',
         'email' => 'test@example.com',
-        'password' => 'new-password-123',
-        'password_confirmation' => 'new-password-123',
+        'password' => 'NewSecurePassword123!',
+        'password_confirmation' => 'NewSecurePassword123!',
     ]);
 
     $response->assertStatus(429);
