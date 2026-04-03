@@ -69,7 +69,8 @@ class AppServiceProvider extends ServiceProvider
         Password::defaults(fn (): Password => Password::min(12)
             ->mixedCase()
             ->numbers()
-            ->symbols());
+            ->symbols()
+            ->uncompromised());
 
         // Define rate limiters (using cache, not Redis)
         RateLimiter::for('api', function (Request $request) {
