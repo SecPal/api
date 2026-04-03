@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -245,6 +245,19 @@ describe('GET /v1/tenants/{tenant}/persons/by-email', function () {
             ->assertJson([
                 'message' => 'Email query parameter is required',
             ]);
+    });
+
+    test('returns 422 when email query parameter is invalid', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'person.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/tenants/{$this->tenant->id}/persons/by-email?email=not-an-email");
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'message' => 'The given data was invalid.',
+            ])
+            ->assertJsonValidationErrors(['email']);
     });
 
     test('returns 404 when Person not found', function (): void {
