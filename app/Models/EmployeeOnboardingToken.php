@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -44,6 +44,7 @@ use Illuminate\Support\Str;
  * @property string $id UUID
  * @property string $employee_id UUID of employee
  * @property string $token Hashed token (bcrypt)
+ * @property string|null $token_lookup_hash Deterministic SHA-256 lookup hash for indexed lookups
  * @property \Illuminate\Support\Carbon $expires_at Token expiry timestamp
  * @property \Illuminate\Support\Carbon|null $completed_at Token completion timestamp
  * @property string|null $completed_from_ip IP address used for completion
@@ -69,6 +70,7 @@ class EmployeeOnboardingToken extends Model
     protected $fillable = [
         'employee_id',
         'token',
+        'token_lookup_hash',
         'expires_at',
         'completed_at',
         'completed_from_ip',
@@ -104,6 +106,7 @@ class EmployeeOnboardingToken extends Model
         $token = self::create([
             'employee_id' => $employee->id,
             'token' => Hash::make($plainToken),
+            'token_lookup_hash' => self::buildTokenLookupHash($plainToken),
             'expires_at' => now()->addDays(7),
         ]);
 
@@ -124,10 +127,39 @@ class EmployeeOnboardingToken extends Model
      */
     public static function findByPlainToken(string $plainToken): ?self
     {
-        return self::whereNull('completed_at')
+        $lookupHash = self::buildTokenLookupHash($plainToken);
+
+        /** @var EmployeeOnboardingToken<TFactory>|null $token */
+        $token = self::whereNull('completed_at')
             ->where('expires_at', '>', now())
-            ->get()
-            ->first(fn ($token) => Hash::check($plainToken, $token->token));
+            ->where('token_lookup_hash', $lookupHash)
+            ->first();
+
+        if ($token instanceof self && Hash::check($plainToken, $token->token)) {
+            return $token;
+        }
+
+        /** @var EmployeeOnboardingToken<TFactory>|null $legacyToken */
+        $legacyToken = self::whereNull('completed_at')
+            ->where('expires_at', '>', now())
+            ->whereNull('token_lookup_hash')
+            ->cursor()
+            ->first(fn (self $token): bool => Hash::check($plainToken, $token->token));
+
+        if (! $legacyToken instanceof self) {
+            return null;
+        }
+
+        $legacyToken->forceFill([
+            'token_lookup_hash' => $lookupHash,
+        ])->save();
+
+        return $legacyToken;
+    }
+
+    private static function buildTokenLookupHash(string $plainToken): string
+    {
+        return hash('sha256', $plainToken);
     }
 
     /**

@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -55,6 +55,16 @@ test('hashes token before storage', function () {
         ->and(Hash::check($plainToken, $model->token))->toBeTrue();
 });
 
+test('stores deterministic lookup hash alongside bcrypt token', function () {
+    $employee = Employee::factory()->preContract()->create();
+
+    $result = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $result['plain'];
+    $model = $result['model'];
+
+    expect($model->token_lookup_hash)->toBe(hash('sha256', $plainToken));
+});
+
 test('finds token by plain text', function () {
     $employee = Employee::factory()->preContract()->create();
     $result = EmployeeOnboardingToken::generate($employee);
@@ -74,6 +84,27 @@ test('returns null for invalid plain token', function () {
     $found = EmployeeOnboardingToken::findByPlainToken('invalid-token-12345678');
 
     expect($found)->toBeNull();
+});
+
+test('finds legacy token without lookup hash and backfills it', function () {
+    $employee = Employee::factory()->preContract()->create();
+    $plainToken = str_repeat('legacy-token-', 6);
+
+    $token = EmployeeOnboardingToken::create([
+        'employee_id' => $employee->id,
+        'token' => Hash::make($plainToken),
+        'token_lookup_hash' => null,
+        'expires_at' => now()->addDay(),
+    ]);
+
+    $found = EmployeeOnboardingToken::findByPlainToken($plainToken);
+
+    expect($found)->not->toBeNull()
+        ->and($found->id)->toBe($token->id);
+
+    $token->refresh();
+
+    expect($token->token_lookup_hash)->toBe(hash('sha256', $plainToken));
 });
 
 test('marks token as completed with audit trail', function () {

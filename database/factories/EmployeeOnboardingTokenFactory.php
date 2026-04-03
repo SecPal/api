@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Database\Factories;
@@ -21,10 +21,13 @@ class EmployeeOnboardingTokenFactory extends Factory
      */
     public function definition(): array
     {
+        $plainToken = 'test-token-'.fake()->uuid();
+
         // Default token expires in 7 days
         return [
             'employee_id' => Employee::factory(),
-            'token' => Hash::make('test-token-'.fake()->uuid()),
+            'token' => Hash::make($plainToken),
+            'token_lookup_hash' => hash('sha256', $plainToken),
             'expires_at' => now()->addDays(7),
             'completed_at' => null,
             'completed_from_ip' => null,
