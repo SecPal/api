@@ -203,7 +203,12 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
         return $query->exists();
     }
 
-    private function resolvePermissionsTeamId(): int
+    // tenant_id is annotated as int but can be null on transient model instances
+    // (e.g. partially constructed or factory-created users in tests that have not
+    // completed full DB setup).  Returning null lets callers use IS NULL semantics
+    // which matches no real rows, preserving deny-by-default without a TypeError.
+    /** @phpstan-ignore return.unusedType */
+    private function resolvePermissionsTeamId(): ?int
     {
         $teamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
 
