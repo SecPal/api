@@ -252,8 +252,14 @@ class TenantKey extends Model
 
         $kek = sodium_crypto_secretbox_keygen();
 
-        if (file_put_contents($path, $kek) === false) {
-            throw new \RuntimeException('Failed to write KEK file');
+        $previousUmask = umask(0077);
+
+        try {
+            if (file_put_contents($path, $kek) === false) {
+                throw new \RuntimeException('Failed to write KEK file');
+            }
+        } finally {
+            umask($previousUmask);
         }
 
         chmod($path, self::KEK_FILE_PERMISSIONS);
