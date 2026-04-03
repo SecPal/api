@@ -70,7 +70,10 @@ test('generate kek ignores a permissive process umask and restores it afterwards
     try {
         TenantKey::generateKek();
 
-        expect(fileperms(TenantKey::getKekPath()) & 0777)->toBe(0600)
+        $kekPath = TenantKey::getKekPath();
+        clearstatcache(true, $kekPath);
+
+        expect(fileperms($kekPath) & 0777)->toBe(0600)
             ->and(umask())->toBe(0000);
     } finally {
         umask($previousUmask);

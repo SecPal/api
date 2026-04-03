@@ -254,15 +254,46 @@ class TenantKey extends Model
 
         $previousUmask = umask(0077);
 
+        $handle = false;
+
         try {
-            if (file_put_contents($path, $kek) === false) {
+            $handle = fopen($path, 'xb');
+
+            if ($handle === false) {
+                throw new \RuntimeException('KEK file already exists or could not be created at: '.$path);
+            }
+
+            $bytesWritten = fwrite($handle, $kek);
+
+            if ($bytesWritten !== strlen($kek)) {
+                fclose($handle);
+                $handle = false;
+                @unlink($path);
+
                 throw new \RuntimeException('Failed to write KEK file');
             }
+
+            if (! fclose($handle)) {
+                $handle = false;
+                @unlink($path);
+
+                throw new \RuntimeException('Failed to finalize KEK file');
+            }
+
+            $handle = false;
         } finally {
             umask($previousUmask);
+
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
         }
 
-        chmod($path, self::KEK_FILE_PERMISSIONS);
+        if (! chmod($path, self::KEK_FILE_PERMISSIONS)) {
+            @unlink($path);
+
+            throw new \RuntimeException('Failed to set KEK file permissions');
+        }
     }
 
     /**
