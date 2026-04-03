@@ -248,9 +248,11 @@ class AppServiceProvider extends ServiceProvider
         $emailInput = $request->input('email');
         $email = is_string($emailInput) ? strtolower(trim($emailInput)) : '';
 
-        return $email === ''
+        $rawKey = $email === ''
             ? $scope.'|'.$request->ip()
             : $scope.'|'.$request->ip().'|'.$email;
+
+        return 'onboarding|'.hash('sha256', $rawKey);
     }
 
     private function shouldCountOnboardingAttempt(SymfonyResponse $response): bool

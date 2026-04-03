@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - validated employee document uploads by MIME type as well as file extension, so renamed plain-text files no longer pass PDF/JPEG/PNG checks
 - aligned nested customer site listings with site visibility rules and documented `type` / `is_active` filters
 - enforced authenticated tenant membership in the `tenant` middleware so `/v1/tenants/{tenant}/...` routes now reject cross-tenant access attempts with `403 Forbidden`
-- narrowed onboarding throttle keys to the invitee email plus endpoint scope so repeated failures for one onboarding link no longer rate-limit unrelated invitees or the separate completion step behind the same IP
+- narrowed onboarding throttle keys to distinct validate-vs-complete scopes plus client IP, and normalized invitee email when present, so repeated failures for one onboarding link no longer rate-limit unrelated invitees or share a bucket with the separate completion step behind the same IP
 - added a dedicated `keys:generate-kek` bootstrap command, made `keys:generate-tenant` fail fast with explicit KEK setup guidance, and aligned the API setup guide with the real `storage/app/keys` default plus `KEK_PATH` override support
 - stopped onboarding token validation from loading every active token into memory by storing an indexed deterministic lookup hash for new tokens and self-healing legacy rows on first successful use
 - replaced the remaining `@example.com` addresses in `tests/Feature/AuthTest.php` with `@secpal.dev` so the auth regression suite follows the repository domain policy for test data
