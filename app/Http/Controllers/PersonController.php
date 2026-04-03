@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -14,6 +14,7 @@ use App\Repositories\PersonRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * PersonController handles Person resource API endpoints.
@@ -74,6 +75,19 @@ class PersonController extends Controller
             return response()->json([
                 'message' => __('Email query parameter is required'),
             ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $validator = Validator::make([
+            'email' => $email,
+        ], [
+            'email' => ['string', 'email'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => __('The given data was invalid.'),
+                'errors' => $validator->errors()->toArray(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         /** @var int $tenantId */
