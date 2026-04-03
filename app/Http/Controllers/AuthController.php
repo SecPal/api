@@ -249,10 +249,14 @@ class AuthController extends Controller
 
             // Clear all resolved guard caches so that Auth::id() returns null when
             // the session middleware writes the new session row to the sessions table.
-            // Without this, the Sanctum guard's cached user would still be returned
-            // by Auth::id(), causing the new (empty) session to be stored with the
-            // user's ID despite the authenticated state having been fully cleared.
+            // forgetGuards() clears AuthManager::$guards, but DatabaseSessionHandler
+            // resolves the user via the 'auth.driver' IoC singleton (Guard::class alias),
+            // which is cached independently of AuthManager::$guards. Without the
+            // forgetInstance call the Sanctum RequestGuard singleton would still return
+            // the authenticated user and the new session row would be written with the
+            // departing user's ID.
             app('auth')->forgetGuards();
+            app()->forgetInstance('auth.driver');
         }
 
         return response()->json([
