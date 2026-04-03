@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- added `Cache-Control: no-store, no-cache, must-revalidate, private` and `Pragma: no-cache` to the API security-header baseline so sensitive responses are less likely to persist in browser or intermediary caches
 - aligned `.env.example` with the production session default by documenting `SESSION_DRIVER=database`, so fresh deployments no longer advertise a cookie-session configuration that the runtime config does not actually default to
 - prefixed newly issued Sanctum bearer tokens with `sec_` by default and documented `SANCTUM_TOKEN_PREFIX=sec_` in `.env.example` so committed API tokens are easier for secret-scanning tooling to detect
 - hardened organizational scope rank validation so create and partial update requests cannot combine guards-only rank filters with leadership ranges or introduce leadership ranges without a positive minimum bound
