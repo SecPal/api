@@ -23,6 +23,7 @@ beforeEach(function () {
 });
 
 afterEach(function () {
+    cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
 
