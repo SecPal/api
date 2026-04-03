@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers\Api\V1;
@@ -84,7 +84,7 @@ class EmployeeDocumentController extends Controller
             'description' => $validated['description'] ?? null,
             'document_type' => $validated['document_type'],
             'file_path' => $storedFile['file_path'],
-            'file_name' => $storedFile['file_name'],
+            'file_name' => $this->sanitizeDocumentFilename($storedFile['file_name']),
             'mime_type' => $storedFile['mime_type'],
             'file_size' => $storedFile['file_size'],
             'expiry_date' => $validated['expiry_date'] ?? null,
@@ -132,9 +132,11 @@ class EmployeeDocumentController extends Controller
             abort(Response::HTTP_NOT_FOUND, __('File not found'));
         }
 
+        $downloadFileName = $this->sanitizeDocumentFilename($document->file_name);
+
         return response($fileContent)
             ->header('Content-Type', $document->mime_type)
-            ->header('Content-Disposition', 'attachment; filename="'.$document->file_name.'"');
+            ->header('Content-Disposition', 'attachment; filename="'.$downloadFileName.'"');
     }
 
     /**
@@ -154,5 +156,15 @@ class EmployeeDocumentController extends Controller
         $document->delete();
 
         return response()->json(null, Response::HTTP_NO_CONTENT);
+    }
+
+    private function sanitizeDocumentFilename(string $fileName): string
+    {
+        $sanitized = preg_replace('/[\x00-\x1F\x7F]+/', '', $fileName);
+        $sanitized = is_string($sanitized) ? $sanitized : '';
+        $sanitized = str_replace(['\\', '/', '"', ';'], '_', $sanitized);
+        $sanitized = trim($sanitized);
+
+        return $sanitized !== '' ? $sanitized : 'document';
     }
 }
