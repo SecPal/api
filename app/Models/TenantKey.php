@@ -147,7 +147,7 @@ class TenantKey extends Model
     /**
      * Load the Key Encryption Key (KEK) from storage.
      *
-     * @throws \RuntimeException if KEK file is missing
+     * @throws \RuntimeException if KEK file is missing or has insecure permissions
      */
     public static function loadKek(): string
     {
@@ -189,8 +189,8 @@ class TenantKey extends Model
 
         if ($normalizedPermissions !== self::KEK_FILE_PERMISSIONS) {
             throw new \RuntimeException(sprintf(
-                'KEK file has insecure permissions: 0%s (expected 0600) at: %s',
-                decoct($normalizedPermissions),
+                'KEK file has insecure permissions: %04o (expected 0600) at: %s',
+                $normalizedPermissions,
                 $path,
             ));
         }
