@@ -1,13 +1,14 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\TenantKeyReadabilityOverride;
 
 // HMAC_SHA256_OUTPUT_BYTES is 32 (SHA-256 output size in bytes)
 require_once __DIR__.'/../TestConstants.php';
@@ -16,11 +17,13 @@ uses(RefreshDatabase::class);
 
 // Clean up KEK file before each test for isolation
 beforeEach(function (): void {
+    TenantKeyReadabilityOverride::clear();
     cleanupTestKekFile();
     TenantKey::setKekPath(getTestKekPath());
 });
 
 afterEach(function (): void {
+    TenantKeyReadabilityOverride::clear();
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -44,6 +47,15 @@ test('throws exception when KEK file is missing', function (): void {
 
     expect(fn () => TenantKey::generateEnvelopeKeys())
         ->toThrow(RuntimeException::class, 'KEK file not found');
+});
+
+test('throws targeted exception when KEK file is not readable', function (): void {
+    TenantKey::generateKek();
+    $kekPath = TenantKey::getKekPath();
+    TenantKeyReadabilityOverride::markUnreadable($kekPath);
+
+    expect(fn () => TenantKey::loadKek())
+        ->toThrow(RuntimeException::class, 'KEK file is not readable by this process');
 });
 
 test('generates envelope keys with correct structure', function (): void {

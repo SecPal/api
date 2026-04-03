@@ -96,6 +96,15 @@ class TenantSetupCommand extends Command
         }
 
         try {
+            TenantKey::assertReadableKekFile($kekPath);
+        } catch (\RuntimeException $e) {
+            $this->error('❌ '.$e->getMessage());
+            $this->newLine();
+
+            return Command::FAILURE;
+        }
+
+        try {
             // Step 3: Generate and wrap tenant keys
             $this->line('<fg=green>✅</> Generating and wrapping tenant keys...');
 

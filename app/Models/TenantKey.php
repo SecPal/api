@@ -129,6 +129,13 @@ class TenantKey extends Model
     protected static ?string $kekPath = null;
 
     /**
+     * Readable checker override (for test isolation only).
+     *
+     * @var (callable(string): bool)|null
+     */
+    private static mixed $readableChecker = null;
+
+    /**
      * Get the path to the KEK file.
      */
     public static function getKekPath(): string
@@ -145,9 +152,21 @@ class TenantKey extends Model
     }
 
     /**
+     * Override the readable check for test isolation. Pass null to restore default behaviour.
+     *
+     * @internal Only for use in tests.
+     *
+     * @param  (callable(string): bool)|null  $checker
+     */
+    public static function setReadableChecker(?callable $checker): void
+    {
+        self::$readableChecker = $checker;
+    }
+
+    /**
      * Load the Key Encryption Key (KEK) from storage.
      *
-     * @throws \RuntimeException if KEK file is missing or has insecure permissions
+     * @throws \RuntimeException if KEK file is missing, unreadable, or has insecure permissions
      */
     public static function loadKek(): string
     {
@@ -158,6 +177,7 @@ class TenantKey extends Model
         }
 
         self::assertSecureKekPermissions($path);
+        self::assertReadableKekFile($path);
 
         $kek = file_get_contents($path);
 
@@ -193,6 +213,21 @@ class TenantKey extends Model
                 $normalizedPermissions,
                 $path,
             ));
+        }
+    }
+
+    /**
+     * Ensure the KEK file can be read by the current process.
+     *
+     * @throws \RuntimeException if the KEK file is not readable
+     */
+    public static function assertReadableKekFile(?string $path = null): void
+    {
+        $path ??= self::getKekPath();
+        $check = self::$readableChecker ?? \is_readable(...);
+
+        if (! $check($path)) {
+            throw new \RuntimeException('KEK file is not readable by this process at: '.$path);
         }
     }
 
