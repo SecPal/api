@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -91,7 +91,7 @@ describe('tenant:setup Command', function () {
         expect(TenantKey::count())->toBe($countBefore);
     });
 
-    test('warns if KEK file has insecure permissions', function (): void {
+    test('fails if KEK file has insecure permissions', function (): void {
         // Generate KEK with correct permissions
         TenantKey::generateKek();
 
@@ -102,11 +102,10 @@ describe('tenant:setup Command', function () {
 
         $this->artisan('tenant:setup')
             ->expectsOutputToContain('KEK file has insecure permissions')
-            ->expectsOutputToContain('Recommended: 0600')
-            ->assertExitCode(0);
+            ->expectsOutputToContain('chmod 600')
+            ->assertExitCode(1);
 
-        // Should still create tenant despite warning
-        expect(TenantKey::count())->toBe($countBefore + 1);
+        expect(TenantKey::count())->toBe($countBefore);
     });
 
     test('generated keys can be unwrapped successfully', function (): void {
