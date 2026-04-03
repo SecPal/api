@@ -85,6 +85,43 @@ describe('Sanctum SPA Authentication Configuration', function () {
         expect($httpOnly)->toBeTrue();
     });
 
+    test('session encryption defaults to enabled when unset', function () {
+        $originalGetenv = getenv('SESSION_ENCRYPT');
+        $hadGetenv = $originalGetenv !== false;
+        $hadServer = array_key_exists('SESSION_ENCRYPT', $_SERVER);
+        $originalServer = $_SERVER['SESSION_ENCRYPT'] ?? null;
+        $hadEnv = array_key_exists('SESSION_ENCRYPT', $_ENV);
+        $originalEnv = $_ENV['SESSION_ENCRYPT'] ?? null;
+
+        putenv('SESSION_ENCRYPT');
+        unset($_SERVER['SESSION_ENCRYPT'], $_ENV['SESSION_ENCRYPT']);
+
+        try {
+            /** @var array{encrypt: bool} $sessionConfig */
+            $sessionConfig = require config_path('session.php');
+
+            expect($sessionConfig['encrypt'])->toBeTrue();
+        } finally {
+            if ($hadGetenv) {
+                putenv("SESSION_ENCRYPT={$originalGetenv}");
+            } else {
+                putenv('SESSION_ENCRYPT');
+            }
+
+            if ($hadServer) {
+                $_SERVER['SESSION_ENCRYPT'] = $originalServer;
+            } else {
+                unset($_SERVER['SESSION_ENCRYPT']);
+            }
+
+            if ($hadEnv) {
+                $_ENV['SESSION_ENCRYPT'] = $originalEnv;
+            } else {
+                unset($_ENV['SESSION_ENCRYPT']);
+            }
+        }
+    });
+
     test('session uses sameSite lax for CSRF protection', function () {
         $sameSite = config('session.same_site');
 

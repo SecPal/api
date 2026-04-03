@@ -515,7 +515,7 @@ curl -b cookies.txt \
 - [ ] **Session Security**
   - `SESSION_DRIVER=database` (or redis for scale)
   - `SESSION_LIFETIME=120` (or as required)
-  - `SESSION_ENCRYPT=false` (Laravel handles encryption)
+  - `SESSION_ENCRYPT=true` (encrypt the stored session payload)
 
 - [ ] **Sanctum Configuration**
   - Verify `sanctum.stateful` includes production domain
