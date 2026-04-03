@@ -323,22 +323,27 @@ describe('POST /v1/employees/{employee}/documents', function () {
         $path = tempnam(sys_get_temp_dir(), 'pdf');
         expect($path)->not->toBeFalse();
 
-        file_put_contents($path, 'plain text disguised as a pdf');
+        $bytesWritten = file_put_contents($path, 'plain text disguised as a pdf');
+        expect($bytesWritten)->not->toBeFalse();
 
-        $file = new UploadedFile($path, 'contract.pdf', 'application/pdf', null, true);
+        try {
+            $file = new UploadedFile($path, 'contract.pdf', 'application/pdf', null, true);
 
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/employees/{$this->employee->id}/documents", [
-                'file' => $file,
-                'title' => 'Disguised Contract',
-                'document_type' => 'contract',
-                'visible_to_employee' => true,
-            ]);
+            $response = $this->withToken($this->token)
+                ->postJson("/v1/employees/{$this->employee->id}/documents", [
+                    'file' => $file,
+                    'title' => 'Disguised Contract',
+                    'document_type' => 'contract',
+                    'visible_to_employee' => true,
+                ]);
 
-        @unlink($path);
-
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['file']);
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors(['file']);
+        } finally {
+            if (file_exists($path)) {
+                unlink($path);
+            }
+        }
     });
 });
 
