@@ -301,7 +301,7 @@ Content-Type: application/json
 }
 ```
 
-Personal access tokens currently do not expire automatically. Clients should treat explicit logout, token revocation, and `401 Unauthorized` responses as the primary signals that they need to re-authenticate. Credential changes (for example, password resets) do not automatically invalidate existing personal access tokens unless an endpoint explicitly revokes them, so clients MUST NOT assume tokens are revoked on credential change and MUST handle `401 Unauthorized` responses gracefully.
+Personal access tokens expire automatically after the configured server-side window. The default is `1440` minutes (24 hours) via `SANCTUM_TOKEN_EXPIRY_MINUTES`. Clients should treat explicit logout, token revocation, token expiry, and `401 Unauthorized` responses as signals that they need to re-authenticate. Credential changes (for example, password resets) do not automatically invalidate existing personal access tokens unless an endpoint explicitly revokes them, so clients MUST NOT assume tokens are revoked on credential change and MUST handle `401 Unauthorized` responses gracefully.
 
 **Store the token securely:**
 

@@ -216,11 +216,30 @@ describe('Integration: Session Expiration', function () {
         $expiration = config('sanctum.expiration');
         $lifetime = config('session.lifetime');
 
-        // Sanctum token expiration (null = no expiration for personal access tokens)
-        expect($expiration)->toBeNull(); // Expected for SPA auth
+        // Personal access tokens default to a 24-hour expiration window.
+        expect($expiration)->toBeInt()->toBe(1440);
 
         // Session lifetime for web guard
         expect($lifetime)->toBeInt()->toBe(120); // 2 hours
+    });
+
+    test('expired bearer tokens are rejected', function () {
+        Config::set('sanctum.expiration', 60);
+
+        $user = User::factory()->create([
+            'email' => 'expired-token@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $token = $user->createToken('mobile-device');
+
+        $token->accessToken->forceFill([
+            'created_at' => now()->subMinutes(61),
+        ])->save();
+
+        $this->withToken($token->plainTextToken)
+            ->getJson('/v1/me')
+            ->assertUnauthorized();
     });
 
     test('session driver supports persistence', function () {
