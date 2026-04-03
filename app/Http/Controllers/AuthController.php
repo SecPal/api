@@ -246,6 +246,13 @@ class AuthController extends Controller
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
             }
+
+            // Clear all resolved guard caches so that Auth::id() returns null when
+            // the session middleware writes the new session row to the sessions table.
+            // Without this, the Sanctum guard's cached user would still be returned
+            // by Auth::id(), causing the new (empty) session to be stored with the
+            // user's ID despite the authenticated state having been fully cleared.
+            app('auth')->forgetGuards();
         }
 
         return response()->json([

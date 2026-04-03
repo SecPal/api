@@ -514,7 +514,7 @@ describe('Token Revocation', function () {
     });
 
     test('logout-all via spa session invalidates the browser session', function () {
-        $email = 'spa-logout-all-'.Str::uuid().'@example.com';
+        $email = 'spa-logout-all-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
