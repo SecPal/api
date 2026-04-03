@@ -278,27 +278,27 @@ test('rate limits repeated failed validation attempts', function () {
 
 test('failed validation attempts for one email do not throttle a different invitee on the same IP', function () {
     for ($i = 0; $i < 4; $i++) {
-        $response = getJson('/v1/onboarding/validate-token?token=invalid-token&email=blocked@example.com');
+        $response = getJson('/v1/onboarding/validate-token?token=invalid-token&email=blocked@secpal.dev');
     }
 
     $response->assertStatus(429);
 
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'fresh@example.com',
+        'email' => 'fresh@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Fresh',
         'last_name' => 'Invitee',
-        'email' => 'fresh@example.com',
+        'email' => 'fresh@secpal.dev',
         'user_id' => $user->id,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email=fresh@example.com')
+    getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email=fresh@secpal.dev')
         ->assertOk();
 });

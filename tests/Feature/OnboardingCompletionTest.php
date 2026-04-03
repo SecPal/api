@@ -248,14 +248,14 @@ test('rate limits onboarding attempts', function () {
 
 test('validation throttle bucket does not block onboarding completion for the same invitee', function () {
     for ($i = 0; $i < 4; $i++) {
-        $response = $this->getJson('/v1/onboarding/validate-token?token=invalid-token&email=separate@example.com');
+        $response = $this->getJson('/v1/onboarding/validate-token?token=invalid-token&email=separate@secpal.dev');
     }
 
     $response->assertStatus(429);
 
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'separate@example.com',
+        'email' => 'separate@secpal.dev',
         'password' => Hash::make('temporary-password'),
     ]);
 
