@@ -180,34 +180,36 @@ DB_PASSWORD=your_password
 php artisan migrate
 ```
 
-### 5. Security: Generate Key Encryption Key (KEK)
+### 5. Security: Generate the KEK and bootstrap the first tenant
 
-SecPal uses envelope encryption for sensitive data. You must generate a KEK file before running the application:
+SecPal uses envelope encryption for sensitive data. Generate the root KEK first, then bootstrap the first tenant envelope keys:
 
 ```bash
-# Create the keys directory if it doesn't exist
-mkdir -p storage/keys
-
-# Generate a random 256-bit KEK and store it securely
-php -r "file_put_contents('storage/keys/kek.key', random_bytes(32));"
-chmod 0600 storage/keys/kek.key
+php artisan keys:generate-kek
+php artisan tenant:setup
 ```
 
-**IMPORTANT:** Never commit the KEK file! It's already in `.gitignore`.
+**IMPORTANT:** Never commit the KEK file. By default it is created at `storage/app/keys/kek.key` and is already ignored by Git.
 
-Add the KEK path to your `.env`:
+If you want a non-default location, set it explicitly in `.env` before running the command:
 
 ```env
-KEK_PATH=storage/keys/kek.key
+KEK_PATH=/absolute/path/to/kek.key
 ```
 
-> For development, use the relative path above. In production, set `KEK_PATH` to the absolute path of your KEK file (ideally outside the web root), and ensure file permissions are `0600`.
+Use `php artisan keys:generate-tenant` only after the KEK already exists and you need additional tenant envelope keys.
 
 #### Key Rotation
 
 SecPal provides Artisan commands for key lifecycle management:
 
 ```bash
+# Generate the root KEK used by all tenant envelope keys
+php artisan keys:generate-kek
+
+# Bootstrap the first tenant on a fresh deployment
+php artisan tenant:setup
+
 # Generate new tenant with envelope keys
 php artisan keys:generate-tenant
 

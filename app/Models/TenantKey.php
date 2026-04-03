@@ -140,7 +140,12 @@ class TenantKey extends Model
      */
     public static function getKekPath(): string
     {
-        return static::$kekPath ?? storage_path('app/keys/kek.key');
+        $configuredPath = config('app.kek_path');
+
+        return static::$kekPath
+            ?? (is_string($configuredPath) && $configuredPath !== ''
+                ? $configuredPath
+                : storage_path('app/keys/kek.key'));
     }
 
     /**
