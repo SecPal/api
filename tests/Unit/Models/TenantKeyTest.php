@@ -55,6 +55,15 @@ test('tenant key factory creates the kek directory when it is missing', function
         ->and(file_exists(TenantKey::getKekPath()))->toBeTrue();
 });
 
+test('load kek rejects insecure file permissions', function (): void {
+    TenantKey::generateKek();
+
+    chmod(TenantKey::getKekPath(), 0644);
+
+    expect(fn (): string => TenantKey::loadKek())
+        ->toThrow(RuntimeException::class, 'KEK file has insecure permissions');
+});
+
 test('tenant key factory can create with specific version', function (): void {
     $tenantKey = TenantKey::factory()->version(5)->create();
 

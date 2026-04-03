@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -85,13 +85,14 @@ class TenantSetupCommand extends Command
 
         $this->line('<fg=green>✅</> Checking KEK file... <fg=green>Found</>');
 
-        // Security check: KEK permissions
-        $perms = fileperms($kekPath) & 0777;
-        if ($perms !== 0600) {
-            $this->warn('⚠️  KEK file has insecure permissions: '.decoct($perms));
-            $this->line('   Recommended: 0600 (owner read/write only)');
+        try {
+            TenantKey::assertSecureKekPermissions($kekPath);
+        } catch (\RuntimeException $e) {
+            $this->error('❌ '.$e->getMessage());
             $this->line('   Run: chmod 600 '.$kekPath);
             $this->newLine();
+
+            return Command::FAILURE;
         }
 
         try {

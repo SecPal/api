@@ -37,6 +37,16 @@ class TenantKey extends Model
     private const KEY_DIRECTORY_PERMISSIONS = 0700;
 
     /**
+     * File system permissions required for the KEK file (owner read/write only)
+     */
+    private const KEK_FILE_PERMISSIONS = 0600;
+
+    /**
+     * Permission mask used to normalize file mode comparisons
+     */
+    private const FILE_PERMISSION_MASK = 0777;
+
+    /**
      * HMAC algorithm used for blind index generation
      */
     private const HMAC_ALGORITHM = 'sha256';
@@ -137,7 +147,7 @@ class TenantKey extends Model
     /**
      * Load the Key Encryption Key (KEK) from storage.
      *
-     * @throws \RuntimeException if KEK file is missing
+     * @throws \RuntimeException if KEK file is missing or has insecure permissions
      */
     public static function loadKek(): string
     {
@@ -147,6 +157,8 @@ class TenantKey extends Model
             throw new \RuntimeException('KEK file not found at: '.$path);
         }
 
+        self::assertSecureKekPermissions($path);
+
         $kek = file_get_contents($path);
 
         if ($kek === false || strlen($kek) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
@@ -154,6 +166,34 @@ class TenantKey extends Model
         }
 
         return $kek;
+    }
+
+    /**
+     * Ensure the KEK file permissions are restricted to the current owner.
+     *
+     * @throws \RuntimeException if KEK file permissions are too permissive
+     */
+    public static function assertSecureKekPermissions(?string $path = null): void
+    {
+        $path ??= self::getKekPath();
+
+        clearstatcache(true, $path);
+
+        $permissions = fileperms($path);
+
+        if ($permissions === false) {
+            throw new \RuntimeException('Unable to read KEK file permissions at: '.$path);
+        }
+
+        $normalizedPermissions = $permissions & self::FILE_PERMISSION_MASK;
+
+        if ($normalizedPermissions !== self::KEK_FILE_PERMISSIONS) {
+            throw new \RuntimeException(sprintf(
+                'KEK file has insecure permissions: %04o (expected 0600) at: %s',
+                $normalizedPermissions,
+                $path,
+            ));
+        }
     }
 
     /**
@@ -176,7 +216,7 @@ class TenantKey extends Model
             throw new \RuntimeException('Failed to write KEK file');
         }
 
-        chmod($path, 0600);
+        chmod($path, self::KEK_FILE_PERMISSIONS);
     }
 
     /**

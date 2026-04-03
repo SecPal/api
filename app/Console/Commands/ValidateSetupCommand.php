@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -142,7 +142,7 @@ class ValidateSetupCommand extends Command
     }
 
     /**
-     * Check KEK file existence and readability.
+     * Check KEK file existence, readability, and permissions.
      *
      * @return bool True if KEK file exists and is readable
      */
@@ -158,6 +158,14 @@ class ValidateSetupCommand extends Command
 
         if (! File::isReadable($kekPath)) {
             $this->line('❌ <fg=red>KEK file:</> Not readable at '.$kekPath);
+
+            return false;
+        }
+
+        try {
+            TenantKey::assertSecureKekPermissions($kekPath);
+        } catch (\RuntimeException $e) {
+            $this->line('❌ <fg=red>KEK file:</> '.$e->getMessage());
 
             return false;
         }

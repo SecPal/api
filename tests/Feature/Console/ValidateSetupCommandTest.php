@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -163,6 +163,28 @@ describe('app:validate-setup Command', function () {
             // On Windows, skip this test
             expect(true)->toBeTrue();
         }
+    });
+
+    it('detects insecure KEK file permissions', function () {
+        DB::table('tenant_keys')->insert([
+            'dek_wrapped' => base64_encode(random_bytes(32)),
+            'dek_nonce' => base64_encode(random_bytes(24)),
+            'idx_wrapped' => base64_encode(random_bytes(32)),
+            'idx_nonce' => base64_encode(random_bytes(24)),
+            'created_at' => now(),
+            'key_version' => 1,
+        ]);
+
+        TenantKey::generateKek();
+        chmod(TenantKey::getKekPath(), 0644);
+
+        $result = Artisan::call('app:validate-setup');
+        $output = Artisan::output();
+
+        expect($result)->toBe(1);
+        expect($output)->toContain('KEK file');
+        expect($output)->toContain('insecure permissions');
+        expect($output)->toContain('expected 0600');
     });
 
     it('checks storage directories are writable', function () {
