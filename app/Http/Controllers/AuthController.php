@@ -640,14 +640,25 @@ class AuthController extends Controller
             ], 400);
         }
 
-        // Update password
-        $user->password = Hash::make($validated['password']);
-        $user->save();
+        DB::transaction(function () use ($user, $validated): void {
+            $user->forceFill([
+                'password' => Hash::make($validated['password']),
+                'remember_token' => null,
+            ])->save();
 
-        // Delete used token (one-time use)
-        DB::table('password_reset_tokens')
-            ->where('email', $validated['email'])
-            ->delete();
+            $user->tokens()->delete();
+
+            DB::table('sessions')
+                ->where('user_id', $user->getAuthIdentifier())
+                ->delete();
+
+            $this->activityLogService->logPasswordReset($user);
+
+            // Delete used token (one-time use)
+            DB::table('password_reset_tokens')
+                ->where('email', $validated['email'])
+                ->delete();
+        });
 
         return response()->json([
             'message' => __('Password has been reset successfully'),
