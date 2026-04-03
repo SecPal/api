@@ -234,7 +234,7 @@ it('applies a minimum response delay regardless of account existence', function 
             'message' => 'Password reset email sent if account exists',
         ]);
 
-    expect($elapsedMilliseconds)->toBeGreaterThanOrEqual(25.0);
+    expect($elapsedMilliseconds)->toBeGreaterThanOrEqual(30.0);
 
     if ($existingAccount) {
         Mail::assertQueued(PasswordResetMail::class);
