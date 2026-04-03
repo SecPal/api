@@ -1,10 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Tests;
 
+use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -13,6 +14,8 @@ use Spatie\Permission\PermissionRegistrar;
 abstract class TestCase extends BaseTestCase
 {
     private static bool $postgresTestDatabasesEnsured = false;
+
+    private static ?string $temporaryBootstrapEnvironmentFile = null;
 
     /**
      * @var array<string, string>|null
@@ -24,6 +27,16 @@ abstract class TestCase extends BaseTestCase
         self::ensurePostgresTestDatabasesExist();
 
         parent::setUpBeforeClass();
+    }
+
+    public function createApplication(): Application
+    {
+        self::ensureBootstrapEnvironmentFileExists();
+
+        /** @var Application $app */
+        $app = parent::createApplication();
+
+        return $app;
     }
 
     /**
@@ -161,6 +174,54 @@ abstract class TestCase extends BaseTestCase
         }
 
         return $default;
+    }
+
+    protected static function bootstrapEnvironmentPath(): string
+    {
+        return dirname(__DIR__);
+    }
+
+    protected static function ensureBootstrapEnvironmentFileExists(): void
+    {
+        $environmentPath = static::bootstrapEnvironmentPath();
+        $defaultEnvironmentFile = $environmentPath.'/.env';
+
+        if (self::$temporaryBootstrapEnvironmentFile !== null) {
+            if (self::$temporaryBootstrapEnvironmentFile === $defaultEnvironmentFile && is_file($defaultEnvironmentFile)) {
+                return;
+            }
+
+            self::cleanupBootstrapEnvironmentFile();
+        }
+
+        if (is_file($defaultEnvironmentFile)) {
+            return;
+        }
+
+        $stubContents = "# Temporary test bootstrap stub to avoid phpdotenv missing-file warnings in isolated worktrees\n";
+
+        if (file_put_contents($defaultEnvironmentFile, $stubContents) === false) {
+            throw new \RuntimeException('Unable to create temporary test environment file at: '.$defaultEnvironmentFile);
+        }
+
+        self::$temporaryBootstrapEnvironmentFile = $defaultEnvironmentFile;
+
+        register_shutdown_function(static function (): void {
+            self::cleanupBootstrapEnvironmentFile();
+        });
+    }
+
+    protected static function cleanupBootstrapEnvironmentFile(): void
+    {
+        if (self::$temporaryBootstrapEnvironmentFile === null) {
+            return;
+        }
+
+        if (is_file(self::$temporaryBootstrapEnvironmentFile)) {
+            unlink(self::$temporaryBootstrapEnvironmentFile);
+        }
+
+        self::$temporaryBootstrapEnvironmentFile = null;
     }
 
     /**
