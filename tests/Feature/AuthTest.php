@@ -513,6 +513,44 @@ describe('Token Revocation', function () {
             ->and($activity->properties['event'])->toBe('logout_all');
     });
 
+    test('logout-all via spa session invalidates the browser session', function () {
+        $email = 'spa-logout-all-'.Str::uuid().'@example.com';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password123'),
+            'remember_token' => 'persist-me',
+        ]);
+
+        // Log in via SPA to create a real session (no Bearer token)
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => $email,
+            'password' => 'password123',
+        ])->assertOk();
+
+        // Call logout-all via SPA session (currentAccessToken() returns null → session path)
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/logout-all')
+            ->assertOk()
+            ->assertJson(['message' => 'All tokens revoked successfully']);
+
+        $refreshedUser = $user->fresh();
+        expect($refreshedUser->remember_token)->toBeNull()
+            ->and(DB::table('sessions')->where('user_id', $user->id)->count())->toBe(0);
+
+        // Reset cached auth guards so the next request reads the invalidated session
+        $this->flushHeaders();
+        $this->app->make('auth')->forgetGuards();
+
+        // Session is fully invalidated: SPA request without Bearer must return 401
+        $this->withHeaders(spaHeaders())
+            ->getJson('/v1/me')
+            ->assertUnauthorized();
+    });
+
     test('logout successfully deletes token from database', function () {
         $user = User::factory()->create();
         $token = $user->createToken('test-device')->plainTextToken;

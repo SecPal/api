@@ -225,7 +225,7 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $usesSessionAuthentication = ! $user->currentAccessToken() instanceof PersonalAccessToken;
+        $usesSessionAuthentication = ! ($user->currentAccessToken() instanceof PersonalAccessToken);
 
         DB::transaction(function () use ($user) {
             $this->activityLogService->logLogoutAll($user);
