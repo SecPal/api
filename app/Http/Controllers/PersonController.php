@@ -80,13 +80,13 @@ class PersonController extends Controller
         $validator = Validator::make([
             'email' => $email,
         ], [
-            'email' => ['required', 'string', 'email:rfc'],
+            'email' => ['string', 'email'],
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'message' => __('The given data was invalid.'),
-                'errors' => $validator->errors(),
+                'errors' => $validator->errors()->toArray(),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
