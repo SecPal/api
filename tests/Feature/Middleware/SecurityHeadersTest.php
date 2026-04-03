@@ -42,6 +42,7 @@ describe('Security Headers Middleware', function () {
 
     test('api responses include the full hardening baseline', function () {
         $response = $this->get('/health');
+        $cacheControl = (string) $response->headers->get('Cache-Control');
 
         expect($response->headers->get('Content-Security-Policy'))
             ->toBe("default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'none'; object-src 'none'")
@@ -55,8 +56,16 @@ describe('Security Headers Middleware', function () {
             ->toBe('require-corp')
             ->and($response->headers->get('Origin-Agent-Cluster'))
             ->toBe('?1')
+            ->and($response->headers->get('Pragma'))
+            ->toBe('no-cache')
             ->and($response->headers->get('X-Permitted-Cross-Domain-Policies'))
             ->toBe('none');
+
+        expect($cacheControl)
+            ->toContain('no-store')
+            ->toContain('no-cache')
+            ->toContain('must-revalidate')
+            ->toContain('private');
     });
 
     test('browser-facing html error responses keep the api header baseline', function () {
@@ -65,6 +74,8 @@ describe('Security Headers Middleware', function () {
         ])->get('/diese-seite-gibt-es-nicht');
 
         $response->assertNotFound();
+
+        $cacheControl = (string) $response->headers->get('Cache-Control');
 
         expect((string) $response->headers->get('Content-Security-Policy'))
             ->toContain("default-src 'none'")
@@ -78,16 +89,32 @@ describe('Security Headers Middleware', function () {
             ->toBe('require-corp')
             ->and($response->headers->get('Origin-Agent-Cluster'))
             ->toBe('?1')
+            ->and($response->headers->get('Pragma'))
+            ->toBe('no-cache')
             ->and($response->headers->get('X-Permitted-Cross-Domain-Policies'))
             ->toBe('none');
+
+        expect($cacheControl)
+            ->toContain('no-store')
+            ->toContain('no-cache')
+            ->toContain('must-revalidate')
+            ->toContain('private');
     });
 
     test('all security headers are present on API routes', function () {
         $response = $this->get('/health');
+        $cacheControl = (string) $response->headers->get('Cache-Control');
 
         expect($response->headers->get('X-Frame-Options'))->toBe('DENY')
             ->and($response->headers->get('X-Content-Type-Options'))->toBe('nosniff')
             ->and($response->headers->get('X-XSS-Protection'))->toBe('0')
-            ->and($response->headers->get('Referrer-Policy'))->toBe('strict-origin-when-cross-origin');
+            ->and($response->headers->get('Referrer-Policy'))->toBe('strict-origin-when-cross-origin')
+            ->and($response->headers->get('Pragma'))->toBe('no-cache');
+
+        expect($cacheControl)
+            ->toContain('no-store')
+            ->toContain('no-cache')
+            ->toContain('must-revalidate')
+            ->toContain('private');
     });
 });

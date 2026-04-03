@@ -44,6 +44,11 @@ class SecurityHeaders
         // Control referrer information sent with requests
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
+        // Prevent caching of responses handled by this middleware in browsers
+        // and intermediaries.
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        $response->headers->set('Pragma', 'no-cache');
+
         // API responses should deny browser capabilities and cross-origin window
         // relationships consistently with the PWA, while keeping API subresources
         // readable to the first-party app host on the same site.
