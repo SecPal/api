@@ -15,17 +15,17 @@ uses(RefreshDatabase::class);
 
 describe('SPA Session Login', function () {
     beforeEach(function () {
-        clearLoginRateLimiter('spa@example.com');
+        clearLoginRateLimiter('spa@secpal.dev');
     });
 
     test('spa login rejects stateless api-style requests with a controlled 400 response', function () {
         User::factory()->create([
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => bcrypt('password123'),
         ]);
 
         $response = $this->postJson('/v1/auth/login', [
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => 'password123',
         ]);
 
@@ -37,7 +37,7 @@ describe('SPA Session Login', function () {
 
     test('spa login sets remember token for long-lived sessions', function () {
         $user = User::factory()->create([
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => bcrypt('password123'),
             'remember_token' => null, // Ensure no remember token before login
         ]);
@@ -49,7 +49,7 @@ describe('SPA Session Login', function () {
         $response = $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
         ]))->postJson('/v1/auth/login', [
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => 'password123',
         ]);
 
@@ -66,14 +66,14 @@ describe('SPA Session Login', function () {
     test('spa login returns user data', function () {
         User::factory()->create([
             'name' => 'SPA User',
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => bcrypt('password123'),
         ]);
 
         $response = $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
         ]))->postJson('/v1/auth/login', [
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => 'password123',
         ]);
 
@@ -93,21 +93,21 @@ describe('SPA Session Login', function () {
             ->assertJson([
                 'user' => [
                     'name' => 'SPA User',
-                    'email' => 'spa@example.com',
+                    'email' => 'spa@secpal.dev',
                 ],
             ]);
     });
 
     test('spa login fails with invalid credentials', function () {
         User::factory()->create([
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => bcrypt('correct-password'),
         ]);
 
         $response = $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
         ]))->postJson('/v1/auth/login', [
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => 'wrong-password',
         ]);
 
@@ -117,7 +117,7 @@ describe('SPA Session Login', function () {
 
     test('spa login authenticates user via session', function () {
         User::factory()->create([
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => bcrypt('password123'),
         ]);
 
@@ -125,18 +125,18 @@ describe('SPA Session Login', function () {
         $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
         ]))->postJson('/v1/auth/login', [
-            'email' => 'spa@example.com',
+            'email' => 'spa@secpal.dev',
             'password' => 'password123',
         ])->assertOk();
 
         // Verify we can access protected endpoint via session (cookies are preserved in test)
         $this->withHeaders(spaHeaders())->getJson('/v1/me')
             ->assertOk()
-            ->assertJson(['email' => 'spa@example.com']);
+            ->assertJson(['email' => 'spa@secpal.dev']);
     });
 
     test('spa logout via canonical endpoint clears remember token', function () {
-        $email = 'spa-logout-'.Str::uuid().'@example.com';
+        $email = 'spa-logout-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
@@ -167,7 +167,7 @@ describe('SPA Session Login', function () {
     });
 
     test('spa logout clears the browser session even when an authorization header is present', function () {
-        $email = 'spa-mixed-logout-'.Str::uuid().'@example.com';
+        $email = 'spa-mixed-logout-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
@@ -220,7 +220,7 @@ describe('SPA Session Login', function () {
     });
 
     test('legacy session logout alias remains available for existing spa clients', function () {
-        $email = 'spa-legacy-logout-'.Str::uuid().'@example.com';
+        $email = 'spa-legacy-logout-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
@@ -249,11 +249,11 @@ describe('SPA Session Login', function () {
 
 describe('Auth Token Generation', function () {
     beforeEach(function () {
-        clearLoginRateLimiter('test@example.com');
+        clearLoginRateLimiter('test@secpal.dev');
     });
 
     test('user can generate token with valid credentials', function () {
-        $email = 'token-success-'.Str::uuid().'@example.com';
+        $email = 'token-success-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
@@ -278,7 +278,7 @@ describe('Auth Token Generation', function () {
 
     test('token generation fails with invalid email', function () {
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'nonexistent@example.com',
+            'email' => 'nonexistent@secpal.dev',
             'password' => 'password123',
         ]);
 
@@ -287,7 +287,7 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation fails with invalid password', function () {
-        $email = 'token-invalid-password-'.Str::uuid().'@example.com';
+        $email = 'token-invalid-password-'.Str::uuid().'@secpal.dev';
 
         User::factory()->create([
             'email' => $email,
@@ -313,7 +313,7 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation requires password', function () {
-        $email = 'token-missing-password-'.Str::uuid().'@example.com';
+        $email = 'token-missing-password-'.Str::uuid().'@secpal.dev';
 
         $response = $this->postJson('/v1/auth/token', [
             'email' => $email,
@@ -324,7 +324,7 @@ describe('Auth Token Generation', function () {
     });
 
     test('token generation uses default device name when not provided', function () {
-        $email = 'test-'.Str::uuid().'@example.com';
+        $email = 'test-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
@@ -377,7 +377,7 @@ describe('Auth Token Generation', function () {
     });
 
     test('user can generate multiple tokens for different devices', function () {
-        $email = 'test-'.Str::uuid().'@example.com';
+        $email = 'test-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
@@ -411,7 +411,7 @@ describe('Protected Endpoints', function () {
     test('protected endpoint works with valid token', function () {
         $user = User::factory()->create([
             'name' => 'John Doe',
-            'email' => 'john@example.com',
+            'email' => 'john@secpal.dev',
         ]);
 
         $token = $user->createToken('test-device')->plainTextToken;
@@ -423,7 +423,7 @@ describe('Protected Endpoints', function () {
             ->assertJson([
                 'id' => $user->id,
                 'name' => 'John Doe',
-                'email' => 'john@example.com',
+                'email' => 'john@secpal.dev',
             ]);
     });
 
@@ -452,7 +452,7 @@ describe('Protected Endpoints', function () {
 describe('Token Revocation', function () {
     test('user can logout and revoke current token', function () {
         $user = User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => bcrypt('password123'),
         ]);
 
@@ -469,7 +469,7 @@ describe('Token Revocation', function () {
 
     test('user can logout from all devices', function () {
         $user = User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => bcrypt('password123'),
         ]);
 
@@ -582,7 +582,7 @@ describe('Token Security', function () {
     });
 
     test('token is stored hashed in database', function () {
-        $email = 'test-'.Str::uuid().'@example.com';
+        $email = 'test-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
@@ -604,7 +604,7 @@ describe('Token Security', function () {
     });
 
     test('token endpoint prefixes newly issued tokens for secret scanning', function () {
-        $email = 'token-prefix-'.Str::uuid().'@example.com';
+        $email = 'token-prefix-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
             'email' => $email,
@@ -643,14 +643,14 @@ describe('Login Rate Limiting', function () {
 
     test('token endpoint is rate limited after 5 failed attempts', function () {
         User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => bcrypt('correct-password'),
         ]);
 
         // Make 5 failed token attempts (the limit)
         for ($i = 0; $i < 5; $i++) {
             $response = $this->postJson('/v1/auth/token', [
-                'email' => 'test@example.com',
+                'email' => 'test@secpal.dev',
                 'password' => 'wrong-password',
             ]);
 
@@ -659,7 +659,7 @@ describe('Login Rate Limiting', function () {
 
         // 6th attempt should be rate limited
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => 'wrong-password',
         ]);
 
@@ -669,32 +669,32 @@ describe('Login Rate Limiting', function () {
 
     test('rate limit is per email and IP combination', function () {
         User::factory()->create([
-            'email' => 'user1@example.com',
+            'email' => 'user1@secpal.dev',
             'password' => bcrypt('password'),
         ]);
         User::factory()->create([
-            'email' => 'user2@example.com',
+            'email' => 'user2@secpal.dev',
             'password' => bcrypt('password'),
         ]);
 
         // Exhaust rate limit for user1
         for ($i = 0; $i < 5; $i++) {
             $this->postJson('/v1/auth/token', [
-                'email' => 'user1@example.com',
+                'email' => 'user1@secpal.dev',
                 'password' => 'wrong',
             ]);
         }
 
         // user1 should be rate limited
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'user1@example.com',
+            'email' => 'user1@secpal.dev',
             'password' => 'wrong',
         ]);
         $response->assertTooManyRequests();
 
         // user2 should NOT be rate limited (different email)
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'user2@example.com',
+            'email' => 'user2@secpal.dev',
             'password' => 'wrong',
         ]);
         $response->assertUnprocessable(); // 422, not 429
@@ -702,21 +702,21 @@ describe('Login Rate Limiting', function () {
 
     test('successful login resets rate limit counter', function () {
         User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => bcrypt('correct-password'),
         ]);
 
         // Make 3 failed attempts (not exhausting the limit)
         for ($i = 0; $i < 3; $i++) {
             $this->postJson('/v1/auth/token', [
-                'email' => 'test@example.com',
+                'email' => 'test@secpal.dev',
                 'password' => 'wrong-password',
             ]);
         }
 
         // Successful login should work
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => 'correct-password',
         ]);
 
@@ -729,21 +729,21 @@ describe('Login Rate Limiting', function () {
 
     test('rate limit applies to email regardless of password', function () {
         User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => bcrypt('password'),
         ]);
 
         // Exhaust rate limit with different wrong passwords
         for ($i = 0; $i < 5; $i++) {
             $this->postJson('/v1/auth/token', [
-                'email' => 'test@example.com',
+                'email' => 'test@secpal.dev',
                 'password' => 'wrong'.$i,
             ]);
         }
 
         // 6th attempt with yet another password should still be blocked
         $response = $this->postJson('/v1/auth/token', [
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => 'different-wrong',
         ]);
 
@@ -752,7 +752,7 @@ describe('Login Rate Limiting', function () {
 
     test('same email from different IPs has separate rate limits', function () {
         User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => bcrypt('password'),
         ]);
 
@@ -760,7 +760,7 @@ describe('Login Rate Limiting', function () {
         for ($i = 0; $i < 5; $i++) {
             $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.1'])
                 ->postJson('/v1/auth/token', [
-                    'email' => 'test@example.com',
+                    'email' => 'test@secpal.dev',
                     'password' => 'wrong',
                 ]);
         }
@@ -768,7 +768,7 @@ describe('Login Rate Limiting', function () {
         // First IP should be rate limited
         $response = $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.1'])
             ->postJson('/v1/auth/token', [
-                'email' => 'test@example.com',
+                'email' => 'test@secpal.dev',
                 'password' => 'wrong',
             ]);
         $response->assertTooManyRequests();
@@ -776,7 +776,7 @@ describe('Login Rate Limiting', function () {
         // Different IP should NOT be rate limited for same email
         $response = $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.2'])
             ->postJson('/v1/auth/token', [
-                'email' => 'test@example.com',
+                'email' => 'test@secpal.dev',
                 'password' => 'wrong',
             ]);
         $response->assertUnprocessable(); // 422, not 429
@@ -784,7 +784,7 @@ describe('Login Rate Limiting', function () {
 
     test('session login endpoint is also rate limited', function () {
         User::factory()->create([
-            'email' => 'session-test@example.com',
+            'email' => 'session-test@secpal.dev',
             'password' => bcrypt('password'),
         ]);
 
@@ -795,7 +795,7 @@ describe('Login Rate Limiting', function () {
                 'X-XSRF-TOKEN' => $xsrfToken,
             ]))
                 ->postJson('/v1/auth/login', [
-                    'email' => 'session-test@example.com',
+                    'email' => 'session-test@secpal.dev',
                     'password' => 'wrong',
                 ]);
         }
@@ -805,7 +805,7 @@ describe('Login Rate Limiting', function () {
             'X-XSRF-TOKEN' => $xsrfToken,
         ]))
             ->postJson('/v1/auth/login', [
-                'email' => 'session-test@example.com',
+                'email' => 'session-test@secpal.dev',
                 'password' => 'wrong',
             ]);
 
@@ -833,20 +833,20 @@ describe('Unauthenticated Request Handling', function () {
 
 describe('Organizational Scopes Authorization', function () {
     beforeEach(function () {
-        clearLoginRateLimiter('noscope@example.com');
-        clearLoginRateLimiter('withscope@example.com');
+        clearLoginRateLimiter('noscope@secpal.dev');
+        clearLoginRateLimiter('withscope@secpal.dev');
     });
 
     test('hasOrganizationalScopes is false when user has no scopes', function () {
         $user = User::factory()->create([
-            'email' => 'noscope@example.com',
+            'email' => 'noscope@secpal.dev',
             'password' => bcrypt('password123'),
         ]);
 
         $response = $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
         ]))->postJson('/v1/auth/login', [
-            'email' => 'noscope@example.com',
+            'email' => 'noscope@secpal.dev',
             'password' => 'password123',
         ]);
 
@@ -867,7 +867,7 @@ describe('Organizational Scopes Authorization', function () {
         ]);
 
         $user = User::factory()->create([
-            'email' => 'withscope@example.com',
+            'email' => 'withscope@secpal.dev',
             'password' => bcrypt('password123'),
             'tenant_id' => $tenant->id,
         ]);
@@ -885,7 +885,7 @@ describe('Organizational Scopes Authorization', function () {
         $response = $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
         ]))->postJson('/v1/auth/login', [
-            'email' => 'withscope@example.com',
+            'email' => 'withscope@secpal.dev',
             'password' => 'password123',
         ]);
 
@@ -913,7 +913,7 @@ describe('Organizational Scopes Authorization', function () {
         ]);
 
         $user = User::factory()->create([
-            'email' => 'scoped-access@example.com',
+            'email' => 'scoped-access@secpal.dev',
             'password' => bcrypt('password123'),
             'tenant_id' => $tenant->id,
         ]);
@@ -927,12 +927,12 @@ describe('Organizational Scopes Authorization', function () {
             'valid_until' => null,
         ]);
 
-        clearLoginRateLimiter('scoped-access@example.com');
+        clearLoginRateLimiter('scoped-access@secpal.dev');
 
         $response = $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
         ]))->postJson('/v1/auth/login', [
-            'email' => 'scoped-access@example.com',
+            'email' => 'scoped-access@secpal.dev',
             'password' => 'password123',
         ]);
 
