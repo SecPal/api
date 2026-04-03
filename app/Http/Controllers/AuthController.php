@@ -644,6 +644,7 @@ class AuthController extends Controller
 
         DB::transaction(function () use ($user, $validated, &$invalidToken): void {
             // Re-fetch and lock the token row to prevent concurrent consumption (TOCTOU)
+            /** @var object{email: string, token: string, created_at: string}|null $lockedToken */
             $lockedToken = DB::table('password_reset_tokens')
                 ->where('email', $validated['email'])
                 ->lockForUpdate()
