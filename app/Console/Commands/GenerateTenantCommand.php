@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -39,6 +39,16 @@ class GenerateTenantCommand extends Command
     public function handle(): int
     {
         $this->info('Generating new tenant envelope keys...');
+
+        $kekPath = TenantKey::getKekPath();
+
+        if (! file_exists($kekPath)) {
+            $this->error('❌ KEK file not found at: '.$kekPath);
+            $this->comment('Generate KEK first with:');
+            $this->line('   php artisan keys:generate-kek');
+
+            return Command::FAILURE;
+        }
 
         try {
             $keys = TenantKey::generateEnvelopeKeys();
