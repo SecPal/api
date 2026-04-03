@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - added a dedicated `keys:generate-kek` bootstrap command, made `keys:generate-tenant` fail fast with explicit KEK setup guidance, and aligned the API setup guide with the real `storage/app/keys` default plus `KEK_PATH` override support
 - stopped onboarding token validation from loading every active token into memory by storing an indexed deterministic lookup hash for new tokens and self-healing legacy rows on first successful use
+- replaced the remaining `@example.com` addresses in `tests/Feature/AuthTest.php` with `@secpal.dev` so the auth regression suite follows the repository domain policy for test data
 - stopped isolated API worktree test runs from emitting missing-`.env` phpdotenv warnings by creating a temporary bootstrap stub only for the lifetime of the test process when no local environment file exists
 - made `tenant:setup` fail fast with a targeted unreadable-KEK error instead of falling through to the generic invalid-file path when the current process cannot read the KEK file
 - equalized the password reset request response floor with a minimum configurable delay so existing-account and missing-account paths are harder to distinguish via timing measurements
