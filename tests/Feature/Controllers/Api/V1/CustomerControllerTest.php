@@ -198,6 +198,16 @@ describe('GET /v1/customers', function () {
         expect($response->json('meta.per_page'))->toBe(5);
         expect($response->json('meta.total'))->toBe(20);
     });
+
+    test('returns 422 when per_page exceeds maximum', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/customers?per_page=1000');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['per_page']);
+    });
 });
 
 describe('POST /v1/customers', function () {
