@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -40,6 +40,12 @@ class SetTenant
             return response()->json([
                 'message' => __('Tenant not found. The specified tenant does not exist.'),
             ], 404);
+        }
+
+        if (($request->user()?->tenant_id) !== null && (int) $request->user()->tenant_id !== $tenantId) {
+            return response()->json([
+                'message' => __('Forbidden. You do not belong to the specified tenant.'),
+            ], 403);
         }
 
         // Set tenant for Spatie Permission (team-based permissions)
