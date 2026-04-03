@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 // Models used in organizational scope methods
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -156,9 +157,7 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
                 TemporalRoleUser::applyActiveFilter($query, 'model_has_roles.');
             });
 
-        if ($teamId !== null) {
-            $relation->wherePivot('tenant_id', $teamId);
-        }
+        $relation->wherePivot('tenant_id', $teamId);
 
         return $relation;
     }
@@ -190,23 +189,21 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
             ->where('model_type', $this->getMorphClass())
             ->where('model_id', $this->getKey())
             ->where('permission_id', $permission->id)
-            ->where(function ($query) use ($now) {
+            ->where(function (QueryBuilder $query) use ($now): void {
                 $query->whereNull('valid_from')
                     ->orWhere('valid_from', '<=', $now);
             })
-            ->where(function ($query) use ($now) {
+            ->where(function (QueryBuilder $query) use ($now): void {
                 $query->whereNull('valid_until')
                     ->orWhere('valid_until', '>', $now);
             });
 
-        if ($teamId !== null) {
-            $query->where('tenant_id', $teamId);
-        }
+        $query->where('tenant_id', $teamId);
 
         return $query->exists();
     }
 
-    private function resolvePermissionsTeamId(): ?int
+    private function resolvePermissionsTeamId(): int
     {
         $teamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
 
