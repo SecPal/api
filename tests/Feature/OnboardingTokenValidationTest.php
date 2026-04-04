@@ -30,28 +30,28 @@ afterEach(function () {
 test('validates token with correct email and returns employee data', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Max',
         'last_name' => 'Mustermann',
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('test@example.com'));
+    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('test@secpal.dev'));
 
     $response->assertOk()
         ->assertJson([
             'data' => [
                 'first_name' => 'Max',
                 'last_name' => 'Mustermann',
-                'email' => 'test@example.com',
+                'email' => 'test@secpal.dev',
             ],
         ]);
 });
@@ -59,14 +59,14 @@ test('validates token with correct email and returns employee data', function ()
 test('SECURITY: rejects valid token with wrong email', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'correct@example.com',
+        'email' => 'correct@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Max',
         'last_name' => 'Mustermann',
-        'email' => 'correct@example.com',
+        'email' => 'correct@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -74,7 +74,7 @@ test('SECURITY: rejects valid token with wrong email', function () {
     $plainToken = $tokenData['plain'];
 
     // Attacker tries to use valid token with different email
-    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('attacker@example.com'));
+    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('attacker@secpal.dev'));
 
     $response->assertStatus(422)
         ->assertJson([
@@ -85,14 +85,14 @@ test('SECURITY: rejects valid token with wrong email', function () {
 test('SECURITY: validates email case-sensitively', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Max',
         'last_name' => 'Mustermann',
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -100,7 +100,7 @@ test('SECURITY: validates email case-sensitively', function () {
     $plainToken = $tokenData['plain'];
 
     // Try with different case
-    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('TEST@EXAMPLE.COM'));
+    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('TEST@SECPAL.DEV'));
 
     $response->assertStatus(422)
         ->assertJson([
@@ -121,14 +121,14 @@ test('requires email parameter', function () {
 });
 
 test('requires token parameter', function () {
-    $response = getJson('/v1/onboarding/validate-token?email=test@example.com');
+    $response = getJson('/v1/onboarding/validate-token?email=test@secpal.dev');
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['token']);
 });
 
 test('rejects invalid token', function () {
-    $response = getJson('/v1/onboarding/validate-token?token=invalid-token&email=test@example.com');
+    $response = getJson('/v1/onboarding/validate-token?token=invalid-token&email=test@secpal.dev');
 
     $response->assertStatus(422)
         ->assertJson([
@@ -139,12 +139,12 @@ test('rejects invalid token', function () {
 test('rejects expired token', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -154,7 +154,7 @@ test('rejects expired token', function () {
     // Expire token
     $tokenData['model']->update(['expires_at' => now()->subDay()]);
 
-    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email=test@example.com');
+    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email=test@secpal.dev');
 
     $response->assertStatus(422)
         ->assertJson([
@@ -165,12 +165,12 @@ test('rejects expired token', function () {
 test('rejects already completed token', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -180,7 +180,7 @@ test('rejects already completed token', function () {
     // Mark token as completed
     $tokenData['model']->markAsCompleted('127.0.0.1', 'test-agent');
 
-    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email=test@example.com');
+    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email=test@secpal.dev');
 
     $response->assertStatus(422)
         ->assertJson([
@@ -191,13 +191,13 @@ test('rejects already completed token', function () {
 test('rejects token for non-pre-contract employee', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
         'status' => Employee::STATUS_ACTIVE, // Not PRE_CONTRACT
     ]);
@@ -205,7 +205,7 @@ test('rejects token for non-pre-contract employee', function () {
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email=test@example.com');
+    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email=test@secpal.dev');
 
     $response->assertStatus(403)
         ->assertJson([
@@ -216,26 +216,26 @@ test('rejects token for non-pre-contract employee', function () {
 test('handles URL-encoded special characters in email', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test+tag@example.com',
+        'email' => 'test+tag@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Test',
         'last_name' => 'User',
-        'email' => 'test+tag@example.com',
+        'email' => 'test+tag@secpal.dev',
         'user_id' => $user->id,
     ]);
 
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('test+tag@example.com'));
+    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('test+tag@secpal.dev'));
 
     $response->assertOk()
         ->assertJson([
             'data' => [
-                'email' => 'test+tag@example.com',
+                'email' => 'test+tag@secpal.dev',
             ],
         ]);
 });
@@ -243,14 +243,14 @@ test('handles URL-encoded special characters in email', function () {
 test('does not rate limit repeated successful token validations', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'repeat@example.com',
+        'email' => 'repeat@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Repeat',
         'last_name' => 'Visitor',
-        'email' => 'repeat@example.com',
+        'email' => 'repeat@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -258,7 +258,7 @@ test('does not rate limit repeated successful token validations', function () {
     $plainToken = $tokenData['plain'];
 
     for ($i = 0; $i < 6; $i++) {
-        $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('repeat@example.com'));
+        $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('repeat@secpal.dev'));
 
         $response->assertOk();
     }
@@ -267,7 +267,7 @@ test('does not rate limit repeated successful token validations', function () {
 test('rate limits repeated failed validation attempts', function () {
     // Failed validations should still be throttled to slow down abuse.
     for ($i = 0; $i < 4; $i++) {
-        $response = getJson('/v1/onboarding/validate-token?token=invalid-token&email=test@example.com');
+        $response = getJson('/v1/onboarding/validate-token?token=invalid-token&email=test@secpal.dev');
     }
 
     // 4th request should be rate limited

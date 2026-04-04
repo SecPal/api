@@ -90,7 +90,7 @@ test('completes onboarding with valid token', function () {
 test('rejects invalid token', function () {
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => 'invalid-token-that-does-not-exist',
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -105,7 +105,7 @@ test('rejects invalid token', function () {
 test('rejects expired token', function () {
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
@@ -115,7 +115,7 @@ test('rejects expired token', function () {
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -167,14 +167,14 @@ test('rejects onboarding for non-pre-contract employee', function () {
     // Create employee with status other than PRE_CONTRACT
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'status' => Employee::STATUS_ACTIVE,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -183,7 +183,7 @@ test('rejects onboarding for non-pre-contract employee', function () {
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -205,12 +205,12 @@ test('validates required fields', function () {
 test('validates password strength', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
@@ -218,7 +218,7 @@ test('validates password strength', function () {
 
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'weak', // Too weak password
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -233,7 +233,7 @@ test('rate limits onboarding attempts', function () {
     for ($i = 0; $i < 4; $i++) {
         $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
             'token' => 'invalid-token',
-            'email' => 'test@example.com',
+            'email' => 'test@secpal.dev',
             'password' => 'SecurePassword123!',
             'first_name' => 'John',
             'last_name' => 'Doe',
@@ -285,12 +285,12 @@ test('validation throttle bucket does not block onboarding completion for the sa
 test('SECURITY: rejects valid token with wrong email', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'correct@example.com',
+        'email' => 'correct@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
-        'email' => 'correct@example.com',
+        'email' => 'correct@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -300,7 +300,7 @@ test('SECURITY: rejects valid token with wrong email', function () {
     // Attacker tries to use valid token with different email
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'attacker@example.com', // Wrong email!
+        'email' => 'attacker@secpal.dev', // Wrong email!
         'password' => 'SecurePassword123!',
         'first_name' => 'Hacker',
         'last_name' => 'McHackface',
@@ -319,12 +319,12 @@ test('SECURITY: rejects valid token with wrong email', function () {
 test('SECURITY: validates email case-sensitively', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -334,7 +334,7 @@ test('SECURITY: validates email case-sensitively', function () {
     // Try with uppercase email
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'TEST@EXAMPLE.COM', // Wrong case
+        'email' => 'TEST@SECPAL.DEV', // Wrong case
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -347,19 +347,19 @@ test('SECURITY: validates email case-sensitively', function () {
 });
 
 test('SECURITY: prevents token hijacking scenario', function () {
-    // Scenario: Attacker intercepts token for victim@example.com
-    // Tries to use it to create account for attacker@example.com
+    // Scenario: Attacker intercepts token for victim@secpal.dev
+    // Tries to use it to create account for attacker@secpal.dev
 
     /** @var User $victimUser */
     $victimUser = User::factory()->create([
-        'email' => 'victim@example.com',
+        'email' => 'victim@secpal.dev',
     ]);
 
     /** @var Employee $victimEmployee */
     $victimEmployee = Employee::factory()->preContract()->create([
         'first_name' => 'Victim',
         'last_name' => 'User',
-        'email' => 'victim@example.com',
+        'email' => 'victim@secpal.dev',
         'user_id' => $victimUser->id,
     ]);
 
@@ -369,7 +369,7 @@ test('SECURITY: prevents token hijacking scenario', function () {
     // Attacker tries to complete onboarding with their own email
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $interceptedToken,
-        'email' => 'attacker@example.com',
+        'email' => 'attacker@secpal.dev',
         'password' => 'AttackerPassword123!',
         'first_name' => 'Attacker',
         'last_name' => 'McEvil',
@@ -385,7 +385,7 @@ test('SECURITY: prevents token hijacking scenario', function () {
     $victimEmployee->refresh();
     expect($victimEmployee->first_name)->toBe('Victim');
     expect($victimEmployee->last_name)->toBe('User');
-    expect($victimEmployee->email)->toBe('victim@example.com');
+    expect($victimEmployee->email)->toBe('victim@secpal.dev');
 
     // Verify victim's password was NOT changed
     $victimUser->refresh();
@@ -395,14 +395,14 @@ test('SECURITY: prevents token hijacking scenario', function () {
 test('logs name changes with enhanced activity log', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'OldFirst',
         'last_name' => 'OldLast',
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -412,7 +412,7 @@ test('logs name changes with enhanced activity log', function () {
     // Complete onboarding with different names
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'NewFirst',
         'last_name' => 'NewLast',
@@ -438,14 +438,14 @@ test('logs name changes with enhanced activity log', function () {
 test('does not log activity if names unchanged', function () {
     /** @var User $user */
     $user = User::factory()->create([
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
     ]);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'John',
         'last_name' => 'Doe',
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -455,7 +455,7 @@ test('does not log activity if names unchanged', function () {
     // Complete onboarding with same names
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -511,13 +511,13 @@ test('creates sanctum token after successful completion', function () {
 
 test('allows minor name correction (typo, >80% similar)', function () {
     /** @var User $user */
-    $user = User::factory()->create(['email' => 'test@example.com']);
+    $user = User::factory()->create(['email' => 'test@secpal.dev']);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hanns', // Typo
         'last_name' => 'Mueller', // Alternate spelling
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -527,7 +527,7 @@ test('allows minor name correction (typo, >80% similar)', function () {
     // Minor corrections should be allowed
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'Hans', // Corrected
         'last_name' => 'Müller', // Corrected with umlaut
@@ -555,13 +555,13 @@ test('allows medium name change with warning (50-80% similar)', function () {
     Illuminate\Support\Facades\Mail::fake();
 
     /** @var User $user */
-    $user = User::factory()->create(['email' => 'test@example.com']);
+    $user = User::factory()->create(['email' => 'test@secpal.dev']);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hans',
         'last_name' => 'Müller',
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -571,7 +571,7 @@ test('allows medium name change with warning (50-80% similar)', function () {
     // Medium change: Adding additional name
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'Hans-Peter', // Added hyphenated name
         'last_name' => 'Müller-Schmidt', // Added double name
@@ -595,13 +595,13 @@ test('allows medium name change with warning (50-80% similar)', function () {
 
 test('blocks major name change (<50% similar)', function () {
     /** @var User $user */
-    $user = User::factory()->create(['email' => 'test@example.com']);
+    $user = User::factory()->create(['email' => 'test@secpal.dev']);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hans',
         'last_name' => 'Müller',
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -611,7 +611,7 @@ test('blocks major name change (<50% similar)', function () {
     // Major change: Completely different name
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'Maria', // Completely different
         'last_name' => 'Schmidt', // Completely different
@@ -633,13 +633,13 @@ test('allows unchanged name without HR notification', function () {
     Illuminate\Support\Facades\Mail::fake();
 
     /** @var User $user */
-    $user = User::factory()->create(['email' => 'test@example.com']);
+    $user = User::factory()->create(['email' => 'test@secpal.dev']);
 
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'John',
         'last_name' => 'Doe',
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
 
@@ -649,7 +649,7 @@ test('allows unchanged name without HR notification', function () {
     // Complete with same names
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
-        'email' => 'test@example.com',
+        'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -668,7 +668,7 @@ test('synchronizes user name with employee name after onboarding', function () {
     /** @var User $user */
     $user = User::factory()->create([
         'name' => 'Max Mustermann', // Old name
-        'email' => 'max@example.com',
+        'email' => 'max@secpal.dev',
     ]);
 
     /** @var Employee $employee */
@@ -701,7 +701,7 @@ test('synchronizes user name with employee name after onboarding', function () {
     // Assert: User name was synchronized with employee name (BUG FIX)
     $user->refresh();
     expect($user->name)->toBe('Maximilian Mustermann')
-        ->and($user->email)->toBe('max@example.com');
+        ->and($user->email)->toBe('max@secpal.dev');
 
     // Assert: Response includes updated user name
     $response->assertJson([
@@ -804,7 +804,7 @@ test('automatically logs user in with session after onboarding (no token)', func
 
 // New test: only first name changes (medium severity)
 test('sends HR notification when only first name changes with medium severity', function () {
-    $user = User::factory()->create(['name' => '', 'email' => 'max@example.com']);
+    $user = User::factory()->create(['name' => '', 'email' => 'max@secpal.dev']);
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Max',
         'last_name' => 'Mustermann',
@@ -840,7 +840,7 @@ test('sends HR notification when only first name changes with medium severity', 
 
 // New test: only last name changes (medium severity)
 test('sends HR notification when only last name changes with medium severity', function () {
-    $user = User::factory()->create(['name' => '', 'email' => 'hans@example.com']);
+    $user = User::factory()->create(['name' => '', 'email' => 'hans@secpal.dev']);
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hans',
         'last_name' => 'Müller',
@@ -876,7 +876,7 @@ test('sends HR notification when only last name changes with medium severity', f
 
 // New test: mixed severity (first name minor, last name medium)
 test('sends HR notification when mixed severity changes occur', function () {
-    $user = User::factory()->create(['name' => '', 'email' => 'hanz@example.com']);
+    $user = User::factory()->create(['name' => '', 'email' => 'hanz@secpal.dev']);
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hanz',
         'last_name' => 'Schmidt',
