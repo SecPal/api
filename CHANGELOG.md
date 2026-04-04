@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- restored explicit repo-local Copilot governance by making TDD-first, quality-first, one-topic-per-PR, immediate issue creation for out-of-scope findings, and EPIC-plus-sub-issue requirements always-on again; the API runtime overlay now auto-loads repo-wide so these rules remain present while working
+- clarified the repo-local PR workflow so finished API work must be self-reviewed, committed, and pushed before any PR exists, and the first PR state must always be draft until the final PR-view self-review is clean
 - exposed `emailVerified` consistently in auth payloads, taught the seeded local Test User to remain verified on repeat seed runs, and unblocked the frontend from handling unverified accounts with a dedicated gate instead of surfacing raw route-level verification errors deep inside the app
 - added explicit `/v1/employees/{employee}/leave` and `/v1/employees/{employee}/return-from-leave` transitions that snapshot the employee's prior runtime role/direct-permission state, reduce on-leave access to a seeded read-only baseline, and restore the prior access model atomically when the employee returns; termination now also clears direct permissions so runtime access is fully revoked
 - encrypted employee phone storage at rest by moving the field to `phone_enc` plus tenant-scoped `phone_idx`, backfilling existing rows in a migration, and keeping the public API field name `phone` unchanged while documenting why employee and user email still remain plaintext for auth-critical lookups
