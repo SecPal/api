@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- encrypted employee phone storage at rest by moving the field to `phone_enc` plus tenant-scoped `phone_idx`, backfilling existing rows in a migration, and keeping the public API field name `phone` unchanged while documenting why employee and user email still remain plaintext for auth-critical lookups
 - moved employee activation and termination side effects into an explicit lifecycle service used by the employee controller and scheduled status-update command, so status changes now run inside a single transaction for role assignment or access revocation instead of relying on hidden observer-driven account mutations
 - issued Sanctum Bearer tokens from `POST /v1/auth/token` with the explicit `api-access` ability and enforced that ability across `auth:sanctum` protected API routes, so compromised or manually under-scoped tokens can no longer reach the authenticated API surface unless they carry the intended SecPal access scope
 - extended `/health/ready` with cache-backed scheduler and queue-worker heartbeat checks, so the API now reports stale background processing only when the scheduler stops pulsing or when pending `default` / forensic queue jobs no longer have a fresh worker heartbeat

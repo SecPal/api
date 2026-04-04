@@ -10,6 +10,7 @@ use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class)->group('unit', 'models', 'employee');
 
@@ -76,12 +77,29 @@ test('employee encrypts tax id and social security number', function () {
     expect($rawSsn)->toContain('"nonce"');
 });
 
+test('employee model encrypts and decrypts phone data', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'phone' => '+49 30 12345678',
+    ]);
+
+    expect($employee->getAttributeValue('phone_enc'))->not->toBeNull();
+    expect($employee->phone)->toBe('+49 30 12345678');
+
+    $rawPhone = $employee->getAttributes()['phone_enc'];
+
+    expect($rawPhone)->toContain('"ciphertext"');
+    expect($rawPhone)->toContain('"nonce"');
+    expect($rawPhone)->not->toContain('+49 30 12345678');
+});
+
 test('employee model generates blind indexes for searchable encrypted fields', function () {
     // Create employee without observer, then manually trigger blind index generation
     $employee = Employee::factory()->make([
         'tenant_id' => $this->tenant->id,
         'first_name' => 'Anna',
         'last_name' => 'Schmidt',
+        'phone' => '+49 (30) 1234-5678',
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
@@ -95,8 +113,45 @@ test('employee model generates blind indexes for searchable encrypted fields', f
     // Check blind indexes are generated (base64-encoded SHA256 HMAC = 44 chars)
     expect($employee->first_name_idx)->not->toBeNull();
     expect($employee->last_name_idx)->not->toBeNull();
+    expect($employee->phone_idx)->not->toBeNull();
     expect(strlen($employee->first_name_idx))->toBe(44);
     expect(strlen($employee->last_name_idx))->toBe(44);
+    expect(strlen($employee->phone_idx))->toBe(44);
+});
+
+test('employee phone blind index normalizes formatting differences', function () {
+    $observer = new App\Observers\EmployeeObserver;
+
+    $employeeA = Employee::factory()->make([
+        'tenant_id' => $this->tenant->id,
+        'phone' => '+49 30 12345678',
+    ]);
+    $observer->creating($employeeA);
+
+    $employeeB = Employee::factory()->make([
+        'tenant_id' => $this->tenant->id,
+        'phone' => '+49 (30) 1234 5678',
+    ]);
+    $observer->creating($employeeB);
+
+    expect($employeeA->phone_idx)->toBe($employeeB->phone_idx);
+});
+
+test('employees schema stores encrypted phone and no plaintext phone column', function () {
+    $columns = collect(DB::select(
+        <<<'SQL'
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'employees'
+          AND column_name IN ('phone', 'phone_enc', 'phone_idx')
+        ORDER BY column_name
+        SQL
+    ))->pluck('column_name')->all();
+
+    expect($columns)->toContain('phone_enc');
+    expect($columns)->toContain('phone_idx');
+    expect($columns)->not->toContain('phone');
 });
 
 test('employee date of birth accessor returns string not carbon object', function () {
