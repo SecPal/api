@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\LoginMfaChallengeService;
 use App\Services\MfaService;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -261,6 +262,54 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => __('All tokens revoked successfully'),
+        ]);
+    }
+
+    /**
+     * Send a fresh email verification notification to the authenticated user.
+     */
+    public function sendVerificationNotification(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => __('Email address is already verified.'),
+            ]);
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return response()->json([
+            'message' => __('Verification link sent successfully.'),
+        ], 202);
+    }
+
+    /**
+     * Verify an email address using a signed verification link.
+     */
+    public function verifyEmail(string $id, string $hash): JsonResponse
+    {
+        /** @var User|null $user */
+        $user = User::find($id);
+
+        if ($user === null || ! hash_equals($hash, sha1($user->getEmailForVerification()))) {
+            return $this->resourceNotFoundResponse();
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json([
+                'message' => __('Email address is already verified.'),
+            ]);
+        }
+
+        if ($user->markEmailAsVerified()) {
+            event(new Verified($user));
+        }
+
+        return response()->json([
+            'message' => __('Email address verified successfully.'),
         ]);
     }
 

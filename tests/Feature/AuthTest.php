@@ -8,8 +8,11 @@ use App\Models\CustomerAssignment;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity;
 
@@ -693,6 +696,56 @@ describe('Token Security', function () {
         expect($tokenId)->not->toBe('');
         expect(Str::startsWith($tokenSecret, $tokenPrefix))->toBeTrue();
         expect($user->tokens()->first()?->token)->not->toBe($plainTextToken);
+    });
+});
+
+describe('Email Verification', function () {
+    test('unverified users can request a fresh verification email', function () {
+        Notification::fake();
+
+        $user = User::factory()->unverified()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/v1/auth/email/verification-notification')
+            ->assertStatus(202)
+            ->assertJson([
+                'message' => 'Verification link sent successfully.',
+            ]);
+
+        Notification::assertSentTo($user, VerifyEmail::class);
+    });
+
+    test('signed verification links mark the user email as verified', function () {
+        $user = User::factory()->unverified()->create();
+
+        $url = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), [
+            'id' => $user->id,
+            'hash' => sha1($user->getEmailForVerification()),
+        ]);
+
+        $path = (string) parse_url($url, PHP_URL_PATH);
+        $query = (string) parse_url($url, PHP_URL_QUERY);
+
+        $this->getJson("{$path}?{$query}")
+            ->assertOk()
+            ->assertJson([
+                'message' => 'Email address verified successfully.',
+            ]);
+
+        expect($user->fresh()->hasVerifiedEmail())->toBeTrue();
+    });
+
+    test('unverified users cannot access verified-only protected routes', function () {
+        $user = User::factory()->unverified()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/v1/me/mfa')
+            ->assertForbidden()
+            ->assertJson([
+                'message' => 'Your email address is not verified.',
+            ]);
     });
 });
 

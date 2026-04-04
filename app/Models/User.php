@@ -6,8 +6,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\EnforcesTenantRouteBinding;
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use DateTimeInterface;
+use Illuminate\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -52,10 +53,10 @@ use Spatie\Permission\Traits\HasRoles;
  * @property-read Employee|null $employee
  * @property-read \Laragear\TwoFactor\Models\TwoFactorAuthentication $twoFactorAuth
  */
-class User extends Authenticatable implements TwoFactorAuthenticatable
+class User extends Authenticatable implements MustVerifyEmailContract, TwoFactorAuthenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use EnforcesTenantRouteBinding, HasApiTokens, HasFactory, HasRoles, HasUuids, Notifiable, TwoFactorAuthentication {
+    use EnforcesTenantRouteBinding, HasApiTokens, HasFactory, HasRoles, HasUuids, MustVerifyEmail, Notifiable, TwoFactorAuthentication {
         EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;
         HasUuids::resolveRouteBindingQuery as resolveUuidRouteBindingQuery;
     }

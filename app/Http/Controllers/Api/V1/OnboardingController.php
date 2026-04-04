@@ -258,6 +258,14 @@ class OnboardingController extends Controller
         // Refresh user to get updated name
         $user->refresh();
 
+        if (! $user->hasVerifiedEmail()) {
+            try {
+                $user->sendEmailVerificationNotification();
+            } catch (\Throwable $throwable) {
+                report($throwable);
+            }
+        }
+
         // Automatically log the user in (create session with cookie, like regular login)
         // This uses session-based auth (Sanctum SPA mode) instead of token-based auth
         Auth::guard('web')->login($user, remember: true);
