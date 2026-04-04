@@ -42,9 +42,16 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Test User',
                 'password' => bcrypt('password'),
+                'email_verified_at' => now(),
                 'tenant_id' => $tenantId,
             ]
         );
+
+        if (! $testUser->hasVerifiedEmail()) {
+            $testUser->forceFill([
+                'email_verified_at' => now(),
+            ])->save();
+        }
 
         // Assign Admin role to test user (within tenant context)
         if (! $testUser->hasRole('Admin')) {

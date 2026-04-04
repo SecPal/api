@@ -744,6 +744,7 @@ class AuthController extends Controller
      * - hasOrganizationalScopes: Whether user has any organizational scope assignments
      * - hasCustomerAccess: Whether user can access the customer collection globally or via scoped access
      * - hasSiteAccess: Whether user can access the site collection globally or via scoped access
+     * - emailVerified: Whether the user's email address has been verified
      *
      * The hasOrganizationalScopes flag is used by the frontend to determine
      * whether to show organization/customer management navigation items.
@@ -751,7 +752,7 @@ class AuthController extends Controller
      * Note: Admin users have maximum organizational scopes (0-255) granting
      * access to all leadership levels and non-leadership employees.
      *
-     * @return array{id: string, name: string, email: string, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}
+     * @return array{id: string, name: string, email: string, emailVerified: bool, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}
      */
     private function buildUserAuthorizationData(User $user): array
     {
@@ -771,6 +772,7 @@ class AuthController extends Controller
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
+            'emailVerified' => $user->hasVerifiedEmail(),
             'roles' => $roles,
             'permissions' => $permissions,
             'hasOrganizationalScopes' => $user->organizationalScopes->isNotEmpty(),
@@ -853,7 +855,7 @@ class AuthController extends Controller
     /**
      * Build the final successful login payload returned after MFA challenge verification.
      *
-     * @return array{user: array{id: string, name: string, email: string, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}, authentication: array{mode: string, mfa_completed: bool}, token?: string}
+     * @return array{user: array{id: string, name: string, email: string, emailVerified: bool, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}, authentication: array{mode: string, mfa_completed: bool}, token?: string}
      */
     private function buildCompletedLoginResponse(User $user, string $mode, ?string $token = null): array
     {
