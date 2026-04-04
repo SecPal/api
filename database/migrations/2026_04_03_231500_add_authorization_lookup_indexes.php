@@ -46,13 +46,6 @@ return new class extends Migration
                 'site_assignments_active_lookup_index'
             );
         });
-
-        Schema::table('user_internal_organizational_scopes', function (Blueprint $table): void {
-            $table->index(
-                ['user_id', 'organizational_unit_id'],
-                'user_internal_org_scopes_user_unit_index'
-            );
-        });
     }
 
     /**
@@ -60,10 +53,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('user_internal_organizational_scopes', function (Blueprint $table): void {
-            $table->dropIndex('user_internal_org_scopes_user_unit_index');
-        });
-
         Schema::table('site_assignments', function (Blueprint $table): void {
             $table->dropIndex('site_assignments_active_lookup_index');
         });

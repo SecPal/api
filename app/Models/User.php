@@ -344,8 +344,8 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
     {
         $teamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
 
-        if (is_int($teamId)) {
-            return $teamId;
+        if ($teamId !== null) {
+            return is_int($teamId) ? $teamId : (int) $teamId;
         }
 
         return $this->tenant_id;
@@ -359,9 +359,12 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
     private function resolveRolesForCurrentContext(): SupportCollection
     {
         if (app(PermissionRegistrar::class)->getPermissionsTeamId() === null) {
+            if (! $this->relationLoaded('roles')) {
+                $this->setRelation('roles', $this->roles()->get());
+            }
+
             /** @var SupportCollection<int, SpatieRole> $roles */
-            $roles = $this->roles()->get();
-            $this->setRelation('roles', $roles);
+            $roles = $this->roles;
 
             return $roles;
         }
