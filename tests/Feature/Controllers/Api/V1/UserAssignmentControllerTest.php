@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -98,6 +98,20 @@ describe('GET /v1/me/customer-assignments', function () {
         $customer = Customer::factory()->create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Acme Corp',
+            'billing_address' => [
+                'street' => 'Teststr. 123',
+                'city' => 'Berlin',
+                'postal_code' => '10115',
+                'country' => 'DE',
+            ],
+            'contact' => [
+                'name' => 'Ada Contact',
+                'email' => 'ada@secpal.dev',
+                'phone' => '+49 30 123456',
+                'position' => 'Facility Manager',
+            ],
+            'notes' => 'Customer-internal note',
+            'metadata' => ['tier' => 'gold'],
         ]);
 
         CustomerAssignment::factory()->create([
@@ -110,7 +124,37 @@ describe('GET /v1/me/customer-assignments', function () {
             ->getJson('/v1/me/customer-assignments');
 
         $response->assertOk();
-        expect($response->json('data')[0]['customer']['name'])->toBe('Acme Corp');
+        expect($response->json('data')[0]['customer'])->toMatchArray([
+            'name' => 'Acme Corp',
+            'billing_address' => [
+                'street' => 'Teststr. 123',
+                'city' => 'Berlin',
+                'postal_code' => '10115',
+                'country' => 'DE',
+            ],
+            'contact' => [
+                'name' => 'Ada Contact',
+                'email' => 'ada@secpal.dev',
+                'phone' => '+49 30 123456',
+                'position' => 'Facility Manager',
+            ],
+            'notes' => 'Customer-internal note',
+            'metadata' => ['tier' => 'gold'],
+            'deleted_at' => null,
+        ]);
+        expect($response->json('data')[0]['customer'])->toHaveKeys([
+            'id',
+            'customer_number',
+            'name',
+            'billing_address',
+            'contact',
+            'notes',
+            'metadata',
+            'is_active',
+            'created_at',
+            'updated_at',
+            'deleted_at',
+        ]);
     });
 
     test('filters by active_only parameter', function (): void {
@@ -246,12 +290,36 @@ describe('GET /v1/me/site-assignments', function () {
         $customer = Customer::factory()->create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Acme Corp',
+            'billing_address' => [
+                'street' => 'Client Street 5',
+                'city' => 'Berlin',
+                'postal_code' => '10115',
+                'country' => 'DE',
+            ],
         ]);
 
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $customer->id,
             'name' => 'Main Facility',
+            'type' => 'temporary',
+            'address' => [
+                'street' => 'Guard Lane 7',
+                'city' => 'Hamburg',
+                'postal_code' => '20095',
+                'country' => 'DE',
+            ],
+            'contact' => [
+                'name' => 'Bob Site',
+                'email' => 'bob.site@secpal.dev',
+                'phone' => '+49 40 987654',
+                'position' => 'Operations Lead',
+            ],
+            'access_instructions' => 'Gate 5, badge required',
+            'notes' => 'Site-internal note',
+            'metadata' => ['zone' => 'north'],
+            'valid_from' => '2026-04-01',
+            'valid_until' => now()->addWeek()->toDateString(),
         ]);
 
         SiteAssignment::factory()->create([
@@ -264,7 +332,52 @@ describe('GET /v1/me/site-assignments', function () {
             ->getJson('/v1/me/site-assignments');
 
         $response->assertOk();
-        expect($response->json('data')[0]['site']['name'])->toBe('Main Facility');
+        expect($response->json('data')[0]['site'])->toMatchArray([
+            'customer_id' => $customer->id,
+            'organizational_unit_id' => $site->organizational_unit_id,
+            'name' => 'Main Facility',
+            'type' => 'temporary',
+            'address' => [
+                'street' => 'Guard Lane 7',
+                'city' => 'Hamburg',
+                'postal_code' => '20095',
+                'country' => 'DE',
+            ],
+            'contact' => [
+                'name' => 'Bob Site',
+                'email' => 'bob.site@secpal.dev',
+                'phone' => '+49 40 987654',
+                'position' => 'Operations Lead',
+            ],
+            'access_instructions' => 'Gate 5, badge required',
+            'notes' => 'Site-internal note',
+            'metadata' => ['zone' => 'north'],
+            'is_expired' => false,
+            'deleted_at' => null,
+        ]);
+        expect($response->json('data')[0]['site'])->toHaveKeys([
+            'id',
+            'customer_id',
+            'organizational_unit_id',
+            'site_number',
+            'name',
+            'type',
+            'address',
+            'full_address',
+            'contact',
+            'access_instructions',
+            'notes',
+            'metadata',
+            'is_active',
+            'valid_from',
+            'valid_until',
+            'is_expired',
+            'customer',
+            'created_at',
+            'updated_at',
+            'deleted_at',
+        ]);
+        expect($response->json('data')[0]['site']['full_address'])->toBe('Guard Lane 7, 20095, Hamburg');
         expect($response->json('data')[0]['site']['customer']['name'])->toBe('Acme Corp');
     });
 

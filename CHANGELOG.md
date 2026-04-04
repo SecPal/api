@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- aligned the nested Api/V1 customer and site assignment payloads with the OpenAPI contract so `/v1/me/customer-assignments` and `/v1/me/site-assignments` now return the documented customer/site fields instead of truncated nested resource objects
 - replaced the remaining `@example.com` onboarding test fixtures with `@secpal.dev` so the onboarding suites follow the repository domain policy
 - removed the unused `check.customer.scope` middleware alias from bootstrap registration so the API no longer advertises a non-existent custom middleware
 - validated employee document uploads by MIME type as well as file extension, so renamed plain-text files no longer pass PDF/JPEG/PNG checks
