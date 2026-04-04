@@ -225,6 +225,31 @@ class RolesAndPermissionsSeeder extends Seeder
     private function getRoleDefinitions(): array
     {
         return [
+            'Employee' => [
+                'permissions' => [
+                    'employees.read',
+                    'employee.read',
+                    'employee.update',
+                    'employee_qualification.read',
+                    'employee_document.read',
+                    'qualification.read',
+                    'shifts.read',
+                    'shifts.update',
+                    'work_instructions.read',
+                    'work_instructions.acknowledge',
+                ],
+            ],
+            'Employee Read Only' => [
+                'permissions' => [
+                    'employees.read',
+                    'employee.read',
+                    'employee_qualification.read',
+                    'employee_document.read',
+                    'qualification.read',
+                    'shifts.read',
+                    'work_instructions.read',
+                ],
+            ],
             'Admin' => [
                 'permissions' => [
                     // Epic #210: Customer & Site Management

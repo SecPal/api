@@ -192,7 +192,7 @@ class UpdateEmployeeRequest extends FormRequest
         return [
             'email.email' => __('Email address must be valid'),
             'email.unique' => __('Email address is already in use'),
-            'status.missing' => __('Employee status transitions must use the dedicated activate or terminate endpoints.'),
+            'status.missing' => __('Employee status transitions must use the dedicated activate, leave, return-from-leave, or terminate endpoints.'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
 
             // BWR-ID validation

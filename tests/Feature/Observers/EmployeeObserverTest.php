@@ -30,6 +30,7 @@ beforeEach(function () {
 
     // Create test roles
     Role::create(['name' => 'Employee', 'guard_name' => 'sanctum']);
+    Role::create(['name' => 'Employee Read Only', 'guard_name' => 'sanctum']);
 
     // Create a test organizational unit
     $this->orgUnit = OrganizationalUnit::create([
@@ -263,6 +264,102 @@ test('employee observer does not deactivate user account when status changes to 
     // Existing runtime access should remain unchanged on a direct status write
     $user->refresh();
     expect($user->hasRole('Employee'))->toBeTrue();
+
+    Mail::assertNothingQueued();
+});
+
+test('employee observer does not reduce runtime access when status changes to on_leave directly', function () {
+    Mail::fake();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $user = $employee->user;
+    expect($user)->not->toBeNull();
+
+    DB::table('model_has_roles')->insert([
+        'role_id' => Role::where('name', 'Employee')->value('id'),
+        'model_type' => User::class,
+        'model_id' => $user->id,
+        'tenant_id' => $employee->tenant_id,
+        'valid_from' => now()->subMonth(),
+        'valid_until' => null,
+        'auto_revoke' => true,
+        'assigned_by' => null,
+        'reason' => 'Test setup',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $employee->status = Employee::STATUS_ACTIVE;
+    $employee->saveQuietly();
+
+    $employee->status = Employee::STATUS_ON_LEAVE;
+    $employee->save();
+
+    $user->refresh();
+
+    expect($user->hasRole('Employee'))->toBeTrue();
+    expect($user->hasRole('Employee Read Only'))->toBeFalse();
+    expect($employee->fresh()?->runtime_access_snapshot)->toBeNull();
+
+    Mail::assertNothingQueued();
+});
+
+test('employee observer does not restore runtime access when status changes from on_leave directly', function () {
+    Mail::fake();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $user = $employee->user;
+    expect($user)->not->toBeNull();
+
+    DB::table('model_has_roles')->insert([
+        'role_id' => Role::where('name', 'Employee Read Only')->value('id'),
+        'model_type' => User::class,
+        'model_id' => $user->id,
+        'tenant_id' => $employee->tenant_id,
+        'valid_from' => now()->subDay(),
+        'valid_until' => null,
+        'auto_revoke' => true,
+        'assigned_by' => null,
+        'reason' => 'Test setup',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $employee->forceFill([
+        'status' => Employee::STATUS_ON_LEAVE,
+        'runtime_access_snapshot' => [
+            'roles' => [[
+                'role_id' => Role::where('name', 'Employee')->value('id'),
+                'valid_from' => now()->subMonth()->toDateTimeString(),
+                'valid_until' => null,
+                'auto_revoke' => true,
+                'assigned_by' => null,
+                'reason' => 'Snapshot',
+                'created_at' => now()->subMonth()->toDateTimeString(),
+                'updated_at' => now()->subMonth()->toDateTimeString(),
+            ]],
+            'permissions' => [],
+        ],
+    ])->saveQuietly();
+
+    $employee->status = Employee::STATUS_ACTIVE;
+    $employee->save();
+
+    $user->refresh();
+
+    expect($user->hasRole('Employee'))->toBeFalse();
+    expect($user->hasRole('Employee Read Only'))->toBeTrue();
+    expect($employee->fresh()?->runtime_access_snapshot)->not->toBeNull();
 
     Mail::assertNothingQueued();
 });

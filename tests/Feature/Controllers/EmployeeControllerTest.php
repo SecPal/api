@@ -43,6 +43,10 @@ beforeEach(function (): void {
         'name' => 'Employee',
         'guard_name' => 'sanctum',
     ]);
+    Role::firstOrCreate([
+        'name' => 'Employee Read Only',
+        'guard_name' => 'sanctum',
+    ]);
 
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
@@ -974,6 +978,140 @@ describe('POST /v1/employees/{employee}/terminate', function () {
             ->postJson("/v1/employees/{$employee->id}/terminate", [
                 'termination_date' => now()->toDateString(),
             ]);
+
+        $response->assertStatus(422);
+    });
+});
+
+describe('POST /v1/employees/{employee}/leave', function () {
+    test('returns 401 when not authenticated', function (): void {
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->postJson("/v1/employees/{$employee->id}/leave");
+        $response->assertStatus(401);
+    });
+
+    test('returns 403 when user lacks employee.write permission', function (): void {
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/leave");
+
+        $response->assertStatus(403);
+    });
+
+    test('places an active employee on leave with read-only runtime access', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'onboarding_completed' => true,
+            'contract_start_date' => now()->subDay()->toDateString(),
+        ]);
+
+        $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/activate")
+            ->assertStatus(200);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/leave");
+
+        $response->assertStatus(200);
+        expect($response->json('data.status'))->toBe(Employee::STATUS_ON_LEAVE);
+        expect($employee->fresh()?->user?->hasRole('Employee Read Only'))->toBeTrue();
+        expect($employee->fresh()?->user?->hasRole('Employee'))->toBeFalse();
+    });
+
+    test('returns 422 when employee is not active', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/leave");
+
+        $response->assertStatus(422);
+    });
+});
+
+describe('POST /v1/employees/{employee}/return-from-leave', function () {
+    test('returns 401 when not authenticated', function (): void {
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ON_LEAVE,
+        ]);
+
+        $response = $this->postJson("/v1/employees/{$employee->id}/return-from-leave");
+        $response->assertStatus(401);
+    });
+
+    test('returns 403 when user lacks employee.write permission', function (): void {
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ON_LEAVE,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/return-from-leave");
+
+        $response->assertStatus(403);
+    });
+
+    test('restores the prior employee role when returning from leave', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'onboarding_completed' => true,
+            'contract_start_date' => now()->subDay()->toDateString(),
+        ]);
+
+        $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/activate")
+            ->assertStatus(200);
+
+        $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/leave")
+            ->assertStatus(200);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/return-from-leave");
+
+        $response->assertStatus(200);
+        expect($response->json('data.status'))->toBe(Employee::STATUS_ACTIVE);
+        expect($employee->fresh()?->user?->hasRole('Employee'))->toBeTrue();
+        expect($employee->fresh()?->user?->hasRole('Employee Read Only'))->toBeFalse();
+    });
+
+    test('returns 422 when employee is not on leave', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/return-from-leave");
 
         $response->assertStatus(422);
     });

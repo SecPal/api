@@ -287,3 +287,31 @@ test('only users with employee.write or employee.terminate permission can termin
     expect($this->policy->terminate($userWithPermission, $employee))->toBeTrue();
     expect($this->policy->terminate($userWithoutPermission, $employee))->toBeFalse();
 });
+
+test('only users with employee.write permission can place employees on leave', function (): void {
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    expect($this->policy->placeOnLeave($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->placeOnLeave($userWithoutPermission, $employee))->toBeFalse();
+});
+
+test('only users with employee.write permission can return employees from leave', function (): void {
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'status' => Employee::STATUS_ON_LEAVE,
+    ]);
+
+    expect($this->policy->returnFromLeave($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->returnFromLeave($userWithoutPermission, $employee))->toBeFalse();
+});
