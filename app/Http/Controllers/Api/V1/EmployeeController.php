@@ -223,6 +223,48 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Place an employee on leave and reduce runtime access to the read-only baseline.
+     */
+    public function placeOnLeave(Employee $employee): JsonResponse
+    {
+        $this->authorize('placeOnLeave', $employee);
+
+        if ($employee->status !== Employee::STATUS_ACTIVE) {
+            return response()->json([
+                'message' => __('Employee must be active to be placed on leave'),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        /** @var Employee $freshEmployee */
+        $freshEmployee = app(EmployeeLifecycleService::class)->placeOnLeave($employee);
+
+        return response()->json([
+            'data' => new EmployeeResource($freshEmployee),
+        ]);
+    }
+
+    /**
+     * Restore a previously on-leave employee to the active runtime access model.
+     */
+    public function returnFromLeave(Employee $employee): JsonResponse
+    {
+        $this->authorize('returnFromLeave', $employee);
+
+        if ($employee->status !== Employee::STATUS_ON_LEAVE) {
+            return response()->json([
+                'message' => __('Employee must be on leave to restore active access'),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        /** @var Employee $freshEmployee */
+        $freshEmployee = app(EmployeeLifecycleService::class)->returnFromLeave($employee);
+
+        return response()->json([
+            'data' => new EmployeeResource($freshEmployee),
+        ]);
+    }
+
+    /**
      * Terminate employee (transition to terminated status).
      *
      * POST /api/v1/employees/{employee}/terminate

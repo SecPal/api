@@ -9,6 +9,7 @@ use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
+use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\EmployeeLifecycleService;
@@ -31,7 +32,15 @@ beforeEach(function () {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
-    Role::create(['name' => 'Employee', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'employee.read', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'employee.update', 'guard_name' => 'sanctum']);
+    Permission::create(['name' => 'employee.delete', 'guard_name' => 'sanctum']);
+
+    $employeeRole = Role::create(['name' => 'Employee', 'guard_name' => 'sanctum']);
+    $employeeRole->givePermissionTo(['employee.read', 'employee.update']);
+
+    $readOnlyRole = Role::create(['name' => 'Employee Read Only', 'guard_name' => 'sanctum']);
+    $readOnlyRole->givePermissionTo(['employee.read']);
 
     $this->orgUnit = OrganizationalUnit::create([
         'tenant_id' => $this->tenant->id,
@@ -165,4 +174,122 @@ test('employee lifecycle service terminates employee and revokes runtime access 
     Mail::assertQueued(AccountDeactivatedMail::class, function ($mail) use ($terminatedEmployee) {
         return $mail->employee->id === $terminatedEmployee->id;
     });
+});
+
+test('employee lifecycle service places active employee on leave with read-only runtime access', function () {
+    Mail::fake();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_completed' => true,
+        'contract_start_date' => now()->subWeek(),
+    ]);
+
+    $activeEmployee = $this->service->activate($employee);
+    $user = $activeEmployee->user;
+
+    expect($user)->toBeInstanceOf(User::class);
+
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+
+    $onLeaveEmployee = $this->service->placeOnLeave($activeEmployee);
+
+    $user->refresh();
+
+    expect($onLeaveEmployee->status)->toBe(Employee::STATUS_ON_LEAVE);
+    expect($onLeaveEmployee->runtime_access_snapshot)->not->toBeNull();
+    expect($user->hasRole('Employee'))->toBeFalse();
+    expect($user->hasRole('Employee Read Only'))->toBeTrue();
+    expect($user->can('employee.read'))->toBeTrue();
+    expect($user->can('employee.update'))->toBeFalse();
+    expect($user->can('employee.delete'))->toBeFalse();
+});
+
+test('employee lifecycle service restores the prior runtime access model when returning from leave', function () {
+    Mail::fake();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_completed' => true,
+        'contract_start_date' => now()->subWeek(),
+    ]);
+
+    $activeEmployee = $this->service->activate($employee);
+    $user = $activeEmployee->user;
+
+    expect($user)->toBeInstanceOf(User::class);
+
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+
+    $onLeaveEmployee = $this->service->placeOnLeave($activeEmployee);
+    $restoredEmployee = $this->service->returnFromLeave($onLeaveEmployee);
+
+    $user->refresh();
+
+    expect($restoredEmployee->status)->toBe(Employee::STATUS_ACTIVE);
+    expect($restoredEmployee->runtime_access_snapshot)->toBeNull();
+    expect($user->hasRole('Employee'))->toBeTrue();
+    expect($user->hasRole('Employee Read Only'))->toBeFalse();
+    expect($user->can('employee.read'))->toBeTrue();
+    expect($user->can('employee.update'))->toBeTrue();
+    expect($user->can('employee.delete'))->toBeTrue();
+});
+
+test('employee lifecycle service clears on-leave access snapshots and direct permissions on termination', function () {
+    Mail::fake();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_completed' => true,
+        'contract_start_date' => now()->subWeek(),
+        'termination_date' => now()->toDateString(),
+    ]);
+
+    $activeEmployee = $this->service->activate($employee);
+    $user = $activeEmployee->user;
+
+    expect($user)->toBeInstanceOf(User::class);
+
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+
+    $onLeaveEmployee = $this->service->placeOnLeave($activeEmployee);
+    $terminatedEmployee = $this->service->terminate($onLeaveEmployee);
+
+    $user->refresh();
+
+    expect($terminatedEmployee->status)->toBe(Employee::STATUS_TERMINATED);
+    expect($terminatedEmployee->runtime_access_snapshot)->toBeNull();
+    expect(DB::table('model_has_roles')->where('model_id', $user->id)->count())->toBe(0);
+    expect(DB::table('model_has_permissions')->where('model_id', $user->id)->count())->toBe(0);
+    expect($user->can('employee.delete'))->toBeFalse();
+});
+
+test('employee lifecycle service rolls leave transition back when the read-only role is missing', function () {
+    Mail::fake();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_completed' => true,
+        'contract_start_date' => now()->subWeek(),
+    ]);
+
+    $activeEmployee = $this->service->activate($employee);
+
+    Role::where('name', 'Employee Read Only')->delete();
+
+    expect(fn () => $this->service->placeOnLeave($activeEmployee))
+        ->toThrow(RuntimeException::class, 'Role "Employee Read Only" not found.');
+
+    $activeEmployee->refresh();
+
+    expect($activeEmployee->status)->toBe(Employee::STATUS_ACTIVE);
+    expect($activeEmployee->runtime_access_snapshot)->toBeNull();
 });

@@ -266,6 +266,8 @@ Route::prefix('v1')->group(function () {
                 Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy']);
                 // Status transitions
                 Route::post('/employees/{employee}/activate', [EmployeeController::class, 'activate']);
+                Route::post('/employees/{employee}/leave', [EmployeeController::class, 'placeOnLeave']);
+                Route::post('/employees/{employee}/return-from-leave', [EmployeeController::class, 'returnFromLeave']);
                 Route::post('/employees/{employee}/terminate', [EmployeeController::class, 'terminate']);
             });
 

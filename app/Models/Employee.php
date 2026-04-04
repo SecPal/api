@@ -353,6 +353,7 @@ class Employee extends Model
         'hourly_rate_enc',
         'tax_id_enc',
         'social_security_number_enc',
+        'runtime_access_snapshot',
     ];
 
     /**
@@ -383,6 +384,7 @@ class Employee extends Model
             'nationalities' => 'array',
             'address_history' => 'array',
             'intended_activities' => 'array',
+            'runtime_access_snapshot' => 'array',
             // Dates
             'bwr_registered_at' => 'datetime',
             'bwr_submission_date' => 'date',

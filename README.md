@@ -125,7 +125,7 @@ SecPal uses exactly five valid employee lifecycle statuses:
 - `applicant`: Candidate record only. No onboarding invitation and no onboarding portal access yet.
 - `pre_contract`: Contract preparation phase. This is the only status where onboarding is allowed and `send_invitation: true` may be used.
 - `active`: Employee is active. Onboarding invitations are no longer allowed.
-- `on_leave`: Employee is temporarily absent but still employed. Onboarding invitations are not allowed.
+- `on_leave`: Employee is temporarily absent but still employed. Onboarding invitations are not allowed, and runtime access is reduced to the read-only baseline until the employee returns.
 - `terminated`: Employment has ended. Onboarding invitations are not allowed.
 
 Admin rule of thumb:

@@ -20,6 +20,8 @@ use App\Models\User;
  * - update: Own profile (limited fields) OR HR
  * - delete: HR only (soft delete)
  * - activate: HR only (change status to active)
+ * - placeOnLeave: HR only (change status to on_leave)
+ * - returnFromLeave: HR only (restore status to active)
  * - terminate: HR only (change status to terminated)
  */
 class EmployeePolicy
@@ -257,6 +259,30 @@ class EmployeePolicy
         }
 
         return $user->can('employee.write') || $user->can('employee.activate');
+    }
+
+    /**
+     * Determine if user can place an employee on leave.
+     */
+    public function placeOnLeave(User $user, Employee $employee): bool
+    {
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
+        return $user->can('employee.write');
+    }
+
+    /**
+     * Determine if user can restore an employee from leave.
+     */
+    public function returnFromLeave(User $user, Employee $employee): bool
+    {
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
+        return $user->can('employee.write');
     }
 
     /**
