@@ -66,10 +66,15 @@ abstract class TestCase extends BaseTestCase
 
     /**
      * Keep legacy Sanctum test authentication helpers compatible with ability-scoped API routes.
+     *
+     * When no guard is specified (the common Pest `actingAs()` pattern) or when
+     * 'sanctum' is explicitly requested, route through Sanctum::actingAs so tests
+     * receive a transient token that carries the api-access ability required by
+     * the authenticated API surface.
      */
     public function actingAs(Authenticatable $user, $guard = null)
     {
-        if ($guard === 'sanctum') {
+        if ($guard === null || $guard === 'sanctum') {
             Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
 
             return $this;

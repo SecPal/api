@@ -8,7 +8,6 @@ use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 
 /**
  * @property TenantKey $tenant
@@ -92,7 +91,7 @@ describe('OrganizationalScopeController', function () {
                 'access_level' => 'write',
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->getJson("/v1/organizational-units/{$this->company->id}/scopes");
 
@@ -111,7 +110,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('denies listing scopes without admin access', function (): void {
-            Sanctum::actingAs($this->regularUser);
+            $this->actingAs($this->regularUser);
 
             $response = $this->getJson("/v1/organizational-units/{$this->branch->id}/scopes");
 
@@ -128,7 +127,7 @@ describe('OrganizationalScopeController', function () {
 
     describe('store - POST /organizational-units/{unit}/scopes', function () {
         it('creates a scope assignment when user has admin access', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -155,7 +154,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('denies creating scope without admin access', function (): void {
-            Sanctum::actingAs($this->regularUser);
+            $this->actingAs($this->regularUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->branch->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -166,7 +165,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('validates required fields', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", []);
 
@@ -175,7 +174,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('validates access level is valid', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -194,7 +193,7 @@ describe('OrganizationalScopeController', function () {
                 'access_level' => 'read',
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -215,7 +214,7 @@ describe('OrganizationalScopeController', function () {
                 'include_descendants' => false,
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'access_level' => 'write',
@@ -234,7 +233,7 @@ describe('OrganizationalScopeController', function () {
                 'access_level' => 'read',
             ]);
 
-            Sanctum::actingAs($this->regularUser);
+            $this->actingAs($this->regularUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->branch->id}/scopes/{$scope->id}", [
                 'access_level' => 'write',
@@ -244,7 +243,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('returns 404 for non-existent scope', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/00000000-0000-0000-0000-000000000000", [
                 'access_level' => 'write',
@@ -262,7 +261,7 @@ describe('OrganizationalScopeController', function () {
                 'access_level' => 'write',
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}");
 
@@ -280,7 +279,7 @@ describe('OrganizationalScopeController', function () {
                 'access_level' => 'read',
             ]);
 
-            Sanctum::actingAs($this->regularUser);
+            $this->actingAs($this->regularUser);
 
             $response = $this->deleteJson("/v1/organizational-units/{$this->branch->id}/scopes/{$scope->id}");
 
@@ -288,7 +287,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('returns 404 for non-existent scope', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/00000000-0000-0000-0000-000000000000");
 
@@ -298,7 +297,7 @@ describe('OrganizationalScopeController', function () {
 
     describe('user scopes - GET /me/organizational-scopes', function () {
         it('returns the authenticated users organizational scopes', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->getJson('/v1/me/organizational-scopes');
 
@@ -323,7 +322,7 @@ describe('OrganizationalScopeController', function () {
 
     describe('rank range validation - Guards/Leadership separation', function () {
         it('rejects scope creation with max>0 and no minimum for viewing ranks', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -337,7 +336,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('rejects scope creation with min=0 and max>0 for viewing ranks', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -352,7 +351,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('rejects scope creation with min=0 and max>0 for assignable ranks', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -367,7 +366,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('rejects scope creation with max>0 and no minimum for assignable ranks', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -381,7 +380,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('accepts scope creation with min=0 and max=0 for Guards only', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -397,7 +396,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('accepts scope creation with min=1 and max=5 for Leadership only', function (): void {
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -420,7 +419,7 @@ describe('OrganizationalScopeController', function () {
                 'include_descendants' => false,
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'min_viewable_rank' => 0,
@@ -441,7 +440,7 @@ describe('OrganizationalScopeController', function () {
                 'max_viewable_rank' => 0,
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'max_viewable_rank' => 10,
@@ -461,7 +460,7 @@ describe('OrganizationalScopeController', function () {
                 'max_viewable_rank' => 10,
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'min_viewable_rank' => 0,
@@ -479,7 +478,7 @@ describe('OrganizationalScopeController', function () {
                 'include_descendants' => false,
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'min_assignable_rank' => 0,
@@ -500,7 +499,7 @@ describe('OrganizationalScopeController', function () {
                 'max_assignable_rank' => 0,
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'max_assignable_rank' => 8,
@@ -520,7 +519,7 @@ describe('OrganizationalScopeController', function () {
                 'max_assignable_rank' => 8,
             ]);
 
-            Sanctum::actingAs($this->adminUser);
+            $this->actingAs($this->adminUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'min_assignable_rank' => 0,
