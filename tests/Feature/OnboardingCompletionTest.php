@@ -14,8 +14,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 
-use function Pest\Laravel\postJson;
-
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
@@ -132,22 +130,25 @@ test('rejects expired token', function () {
         ]);
 });
 
-// TODO: Uncomment when Issue #419 is resolved (User account creation)
-// See: https://github.com/SecPal/frontend/issues/419
-/*
 test('rejects already used token', function () {
-    // TODO: Blocked by Issue #419 - Employee factory doesn't create User accounts
-    // This test requires a User account to be associated with the Employee
-    // Will be enabled once frontend User registration is implemented
-    $this->markTestSkipped('Requires User account functionality (Issue #419)');
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'test@secpal.dev',
+    ]);
 
-    $employee = Employee::factory()->preContract()->create();
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
     // Complete onboarding once
     $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
+        'email' => $user->email,
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
@@ -156,6 +157,7 @@ test('rejects already used token', function () {
     // Try to use same token again
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
+        'email' => $user->email,
         'password' => 'DifferentPassword456!',
         'first_name' => 'Jane',
         'last_name' => 'Smith',
@@ -166,7 +168,6 @@ test('rejects already used token', function () {
             'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
         ]);
 });
-*/
 
 test('rejects onboarding for non-pre-contract employee', function () {
     // Create employee with status other than PRE_CONTRACT
@@ -476,39 +477,6 @@ test('does not log activity if names unchanged', function () {
 
     expect($activity)->toBeNull();
 });
-
-// TODO: Uncomment when Issue #419 is resolved (User account creation)
-// See: https://github.com/SecPal/frontend/issues/419
-/*
-test('creates sanctum token after successful completion', function () {
-    // TODO: Blocked by Issue #419 - Employee factory doesn't create User accounts
-    // This test requires a User account to be associated with the Employee
-    // Will be enabled once frontend User registration is implemented
-    $this->markTestSkipped('Requires User account functionality (Issue #419)');
-
-    $employee = Employee::factory()->preContract()->create();
-    $tokenData = EmployeeOnboardingToken::generate($employee);
-    $plainToken = $tokenData['plain'];
-
-    $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
-        'token' => $plainToken,
-        'password' => 'SecurePassword123!',
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-    ]);
-
-    $response->assertOk();
-
-    // Extract token from response
-    $data = $response->json('data');
-    expect($data)->toHaveKey('token');
-    $sanctumToken = $data['token'];
-
-    // Use token to authenticate
-    $authResponse = $this->withToken($sanctumToken)->getJson('/v1/me');
-    $authResponse->assertOk();
-});
-*/
 
 // ============================================================================
 // Name Change Validation Tests (Hybrid Approach: Similarity + HR Notification)
