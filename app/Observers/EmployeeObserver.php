@@ -28,7 +28,8 @@ use Illuminate\Support\Str;
  *
  * Error Handling:
  * - User creation failures are logged but don't block employee creation
- * - Database operations use transactions for atomicity
+ * - Note: remaining observer side effects (retention period, activity log) are not transaction-wrapped;
+ *   activation and termination with transaction guarantees are handled by EmployeeLifecycleService
  */
 class EmployeeObserver
 {

@@ -34,7 +34,7 @@ class EmployeeLifecycleService
                 ]);
             }
 
-            $role = Role::where('name', 'Employee')->first();
+            $role = Role::where('name', 'Employee')->where('guard_name', 'sanctum')->first();
 
             if (! $role instanceof Role) {
                 throw new RuntimeException('Role "Employee" not found.');
@@ -76,7 +76,11 @@ class EmployeeLifecycleService
             ]);
 
             if ($user instanceof User) {
-                $user->roles()->detach();
+                DB::table('model_has_roles')
+                    ->where('model_type', User::class)
+                    ->where('model_id', $user->id)
+                    ->where('tenant_id', $employee->tenant_id)
+                    ->delete();
                 $user->tokens()->delete();
 
                 DB::table('sessions')
