@@ -1037,5 +1037,3 @@ describe('DELETE /v1/sites/{site}', function () {
         $response->assertStatus(404);
     });
 });
-
-// Note: Cost-centers endpoint tests will be implemented when CostCenter CRUD endpoints are created in a later issue
