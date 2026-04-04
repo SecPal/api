@@ -166,7 +166,9 @@ class EmployeeController extends Controller
 
         $employee->update($validated);
 
-        // Observer will handle status transitions (e.g., pre_contract → active)
+        // Note: lifecycle transitions (activate, placeOnLeave, returnFromLeave, terminate)
+        // are handled by dedicated endpoints. The observer handles passive side effects only
+        // (blind index recomputation, user account creation for pre_contract status).
 
         /** @var Employee $freshEmployee */
         $freshEmployee = $employee->fresh();

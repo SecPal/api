@@ -28,7 +28,10 @@ class EmployeeLifecycleService
      */
     public function activate(Employee $employee): Employee
     {
-        $activatedEmployee = DB::transaction(function () use ($employee): Employee {
+        /** @var User|null $activatedUser */
+        $activatedUser = null;
+
+        $activatedEmployee = DB::transaction(function () use ($employee, &$activatedUser): Employee {
             $employee = $this->refreshEmployee($employee);
 
             $user = $employee->user;
@@ -56,10 +59,17 @@ class EmployeeLifecycleService
                 'assigned_by' => null,
                 'reason' => 'Automatic role assignment on contract start',
             ]);
-            $this->refreshAuthorizationContext($user);
+
+            $activatedUser = $user;
 
             return $this->refreshEmployee($employee);
         });
+
+        // Cache invalidation runs after the DB transaction commits to prevent a window
+        // where a concurrent request caches the pre-commit state.
+        if ($activatedUser instanceof User) {
+            $this->refreshAuthorizationContext($activatedUser);
+        }
 
         $this->queueWelcomeMail($activatedEmployee);
 
@@ -71,7 +81,10 @@ class EmployeeLifecycleService
      */
     public function placeOnLeave(Employee $employee): Employee
     {
-        return DB::transaction(function () use ($employee): Employee {
+        /** @var User|null $affectedUser */
+        $affectedUser = null;
+
+        $result = DB::transaction(function () use ($employee, &$affectedUser): Employee {
             $employee = $this->refreshEmployee($employee);
 
             if ($employee->status !== Employee::STATUS_ACTIVE) {
@@ -111,10 +124,17 @@ class EmployeeLifecycleService
                 'runtime_access_snapshot' => $snapshot,
             ])->save();
 
-            $this->refreshAuthorizationContext($user);
+            $affectedUser = $user;
 
             return $this->refreshEmployee($employee);
         });
+
+        // Cache invalidation runs after the DB transaction commits.
+        if ($affectedUser instanceof User) {
+            $this->refreshAuthorizationContext($affectedUser);
+        }
+
+        return $result;
     }
 
     /**
@@ -122,7 +142,10 @@ class EmployeeLifecycleService
      */
     public function returnFromLeave(Employee $employee): Employee
     {
-        return DB::transaction(function () use ($employee): Employee {
+        /** @var User|null $affectedUser */
+        $affectedUser = null;
+
+        $result = DB::transaction(function () use ($employee, &$affectedUser): Employee {
             $employee = $this->refreshEmployee($employee);
 
             if ($employee->status !== Employee::STATUS_ON_LEAVE) {
@@ -149,10 +172,17 @@ class EmployeeLifecycleService
                 'runtime_access_snapshot' => null,
             ])->save();
 
-            $this->refreshAuthorizationContext($user);
+            $affectedUser = $user;
 
             return $this->refreshEmployee($employee);
         });
+
+        // Cache invalidation runs after the DB transaction commits.
+        if ($affectedUser instanceof User) {
+            $this->refreshAuthorizationContext($affectedUser);
+        }
+
+        return $result;
     }
 
     /**
@@ -160,7 +190,10 @@ class EmployeeLifecycleService
      */
     public function terminate(Employee $employee): Employee
     {
-        $terminatedEmployee = DB::transaction(function () use ($employee): Employee {
+        /** @var User|null $terminatedUser */
+        $terminatedUser = null;
+
+        $terminatedEmployee = DB::transaction(function () use ($employee, &$terminatedUser): Employee {
             $employee = $this->refreshEmployee($employee);
 
             /** @var User|null $user */
@@ -181,11 +214,16 @@ class EmployeeLifecycleService
                     ->where('user_id', $user->id)
                     ->delete();
 
-                $this->refreshAuthorizationContext($user);
+                $terminatedUser = $user;
             }
 
             return $this->refreshEmployee($employee);
         });
+
+        // Cache invalidation runs after the DB transaction commits.
+        if ($terminatedUser instanceof User) {
+            $this->refreshAuthorizationContext($terminatedUser);
+        }
 
         $this->queueDeactivationMail($terminatedEmployee);
 
