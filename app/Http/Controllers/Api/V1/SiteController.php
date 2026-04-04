@@ -12,7 +12,6 @@ use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -204,47 +203,5 @@ class SiteController extends Controller
         $site->delete();
 
         return response()->json(null, Response::HTTP_NO_CONTENT);
-    }
-
-    /**
-     * List cost centers for a site.
-     *
-     * GET /api/v1/sites/{site}/cost-centers
-     *
-     * Returns paginated list of cost centers belonging to the site.
-     * User must have view access to the site.
-     *
-     * @return JsonResponse Paginated cost center list (temporary manual pagination until CostCenterResource is created)
-     *
-     * @codeCoverageIgnore CostCenterResource will be created in a later issue
-     */
-    public function costCenters(Request $request, Site $site): JsonResponse
-    {
-        $this->authorize('view', $site);
-
-        $perPage = $request->integer('per_page', 15);
-        $costCenters = $site->costCenters()
-            ->with(['site'])
-            ->paginate($perPage);
-
-        // TODO: Replace with CostCenterResource::collection($costCenters) when available
-        return response()->json([
-            'data' => $costCenters->items(),
-            'links' => [
-                'first' => $costCenters->url(1),
-                'last' => $costCenters->url($costCenters->lastPage()),
-                'prev' => $costCenters->previousPageUrl(),
-                'next' => $costCenters->nextPageUrl(),
-            ],
-            'meta' => [
-                'current_page' => $costCenters->currentPage(),
-                'from' => $costCenters->firstItem(),
-                'last_page' => $costCenters->lastPage(),
-                'path' => $costCenters->path(),
-                'per_page' => $costCenters->perPage(),
-                'to' => $costCenters->lastItem(),
-                'total' => $costCenters->total(),
-            ],
-        ]);
     }
 }
