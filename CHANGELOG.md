@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- aligned the repo-local domain policy and validation script with the renamed Android application identifier `app.secpal`, removing the old identifier-only exception from current governance text
 - reduced the repo-local Copilot always-on context by replacing the long runtime baseline and removing the auto-loaded overlay fallback, which lowers request size in large VS Code workspaces without dropping the API-specific governance rules
 - aligned nested collection semantics outside the onboarding flow so official admin surfaces consistently use `403` for missing authorization, reserve `404` for unsupported, missing, or tenant-hidden resources, and keep `200` with an empty collection only for callers who are entitled to open that collection; `GET /v1/sites/{site}/cost-centers` now also requires visibility of the parent site before returning cost center data
 - updated active API development and operations guides to use the current native PHP workflow instead of stale DDEV-first command examples, and marked older DDEV-era retrospectives as historical context where those references are intentionally retained
