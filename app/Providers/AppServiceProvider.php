@@ -44,7 +44,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
-use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
@@ -257,10 +256,6 @@ class AppServiceProvider extends ServiceProvider
 
         Event::listen(ScheduledTaskStarting::class, function () use ($runtimeHeartbeatService) {
             $runtimeHeartbeatService->recordSchedulerHeartbeat();
-        });
-
-        Queue::before(function (JobProcessing $event) use ($runtimeHeartbeatService) {
-            $runtimeHeartbeatService->recordQueueHeartbeat($event->job->getQueue());
         });
 
         Queue::after(function (JobProcessed $event) use ($runtimeHeartbeatService) {

@@ -230,6 +230,48 @@ describe('Health Check Endpoints', function () {
                 ],
             ]);
         });
+
+        it('returns 503 when the scheduler heartbeat is stale', function () {
+            seedHealthReadinessPrerequisites();
+
+            app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat(now()->subMinutes(10));
+
+            $response = $this->getJson('/health/ready');
+
+            $response->assertStatus(503);
+            $response->assertJson([
+                'status' => 'not_ready',
+                'checks' => [
+                    'database' => 'ok',
+                    'tenant_keys' => 'ok',
+                    'kek_file' => 'ok',
+                    'scheduler' => 'stale',
+                    'queue_default_worker' => 'idle',
+                    'queue_forensics_worker' => 'idle',
+                ],
+            ]);
+        });
+
+        it('returns 503 when the default queue worker heartbeat is stale with pending jobs', function () {
+            seedHealthReadinessPrerequisites();
+
+            $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
+            $runtimeHeartbeatService->recordSchedulerHeartbeat();
+            $runtimeHeartbeatService->recordQueueHeartbeat('default', now()->subHours(2));
+            seedPendingJob('default');
+
+            $response = $this->getJson('/health/ready');
+
+            $response->assertStatus(503);
+            $response->assertJson([
+                'status' => 'not_ready',
+                'checks' => [
+                    'scheduler' => 'ok',
+                    'queue_default_worker' => 'stale',
+                    'queue_forensics_worker' => 'idle',
+                ],
+            ]);
+        });
     });
 
     describe('CORS for health endpoints', function () {

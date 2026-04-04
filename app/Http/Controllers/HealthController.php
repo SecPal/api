@@ -81,28 +81,40 @@ class HealthController extends Controller
             $allPassed = false;
         }
 
-        $schedulerCheck = $runtimeHeartbeatService->schedulerReadiness();
-        $checks['scheduler'] = $schedulerCheck['status'];
-        $details['scheduler'] = [
-            'last_heartbeat_at' => $schedulerCheck['last_heartbeat_at'],
-            'stale_after_seconds' => $schedulerCheck['stale_after_seconds'],
-        ];
+        try {
+            $schedulerCheck = $runtimeHeartbeatService->schedulerReadiness();
+            $checks['scheduler'] = $schedulerCheck['status'];
+            $details['scheduler'] = [
+                'last_heartbeat_at' => $schedulerCheck['last_heartbeat_at'],
+                'stale_after_seconds' => $schedulerCheck['stale_after_seconds'],
+            ];
 
-        if (! $schedulerCheck['healthy']) {
+            if (! $schedulerCheck['healthy']) {
+                $allPassed = false;
+            }
+        } catch (\Throwable) {
+            $checks['scheduler'] = 'error';
+            $details['scheduler'] = ['last_heartbeat_at' => null, 'stale_after_seconds' => null];
             $allPassed = false;
         }
 
-        foreach ($runtimeHeartbeatService->queueReadiness() as $checkName => $queueCheck) {
-            $checks[$checkName] = $queueCheck['status'];
-            $details[$checkName] = [
-                'last_heartbeat_at' => $queueCheck['last_heartbeat_at'],
-                'pending_jobs' => $queueCheck['pending_jobs'],
-                'stale_after_seconds' => $queueCheck['stale_after_seconds'],
-            ];
+        try {
+            foreach ($runtimeHeartbeatService->queueReadiness() as $checkName => $queueCheck) {
+                $checks[$checkName] = $queueCheck['status'];
+                $details[$checkName] = [
+                    'last_heartbeat_at' => $queueCheck['last_heartbeat_at'],
+                    'pending_jobs' => $queueCheck['pending_jobs'],
+                    'stale_after_seconds' => $queueCheck['stale_after_seconds'],
+                ];
 
-            if (! $queueCheck['healthy']) {
-                $allPassed = false;
+                if (! $queueCheck['healthy']) {
+                    $allPassed = false;
+                }
             }
+        } catch (\Throwable) {
+            $checks['queue'] = 'error';
+            $details['queue'] = ['last_heartbeat_at' => null, 'pending_jobs' => null, 'stale_after_seconds' => null];
+            $allPassed = false;
         }
 
         $status = $allPassed ? 'ready' : 'not_ready';
