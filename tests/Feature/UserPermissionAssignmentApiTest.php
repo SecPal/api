@@ -7,6 +7,7 @@ use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -167,6 +168,45 @@ test('admin can assign direct permission to user', function () {
         ->assertJsonPath('data.0.name', 'employees.export');
 
     expect($targetUser->fresh()->hasDirectPermission('employees.export'))->toBeTrue();
+});
+
+test('hasDirectPermission ignores assignments from another tenant context', function () {
+    ['tenant' => $tenant, 'registrar' => $registrar] = createUserPermissionAssignmentContext();
+
+    $user = createTenantUser($tenant);
+
+    $otherTenantKeys = TenantKey::generateEnvelopeKeys();
+    $otherTenant = TenantKey::create($otherTenantKeys);
+
+    givePermissionWithTenant($user, $otherTenant->id, 'employees.export');
+
+    $registrar->setPermissionsTeamId($tenant->id);
+
+    expect($user->fresh()->hasDirectPermission('employees.export'))->toBeFalse();
+});
+
+test('hasDirectPermission ignores expired direct assignments', function () {
+    ['tenant' => $tenant, 'registrar' => $registrar] = createUserPermissionAssignmentContext();
+
+    $user = createTenantUser($tenant);
+    $permission = Permission::findByName('employees.export', 'sanctum');
+
+    $registrar->setPermissionsTeamId($tenant->id);
+
+    DB::table('model_has_permissions')->insert([
+        'permission_id' => $permission->id,
+        'model_type' => $user->getMorphClass(),
+        'model_id' => $user->getKey(),
+        'tenant_id' => $tenant->id,
+        'valid_from' => now()->subDays(2),
+        'valid_until' => now()->subDay(),
+        'assigned_by' => null,
+        'reason' => 'expired test permission',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    expect($user->fresh()->hasDirectPermission('employees.export'))->toBeFalse();
 });
 
 test('admin gets 404 when assigning permission to cross-tenant user', function () {
