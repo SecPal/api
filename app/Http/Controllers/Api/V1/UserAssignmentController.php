@@ -99,14 +99,13 @@ class UserAssignmentController extends Controller
         $canUpdateAnyCustomer = $user->can('customers.update');
         $updateableCustomerLookup = $canUpdateAnyCustomer
             ? []
-            : array_fill_keys(
+            : array_fill_keys($this->normalizeLookupKeys(
                 $user->customerAssignments()
                     ->where('tenant_id', $tenantId)
                     ->currentlyActive()
                     ->pluck('customer_id')
-                    ->all(),
-                true,
-            );
+                    ->all()
+            ), true);
 
         foreach ($assignments as $assignment) {
             $customer = $assignment->customer;
@@ -132,25 +131,23 @@ class UserAssignmentController extends Controller
 
         $updateableSiteLookup = $canUpdateAnySite
             ? []
-            : array_fill_keys(
+            : array_fill_keys($this->normalizeLookupKeys(
                 $user->siteAssignments()
                     ->where('tenant_id', $tenantId)
                     ->currentlyActive()
                     ->pluck('site_id')
-                    ->all(),
-                true,
-            );
+                    ->all()
+            ), true);
 
         $updateableCustomerLookup = $canUpdateAnyCustomer
             ? []
-            : array_fill_keys(
+            : array_fill_keys($this->normalizeLookupKeys(
                 $user->customerAssignments()
                     ->where('tenant_id', $tenantId)
                     ->currentlyActive()
                     ->pluck('customer_id')
-                    ->all(),
-                true,
-            );
+                    ->all()
+            ), true);
 
         foreach ($assignments as $assignment) {
             $site = $assignment->site;
@@ -175,5 +172,22 @@ class UserAssignmentController extends Controller
                 $canUpdateAnyCustomer || isset($updateableCustomerLookup[$customer->id])
             );
         }
+    }
+
+    /**
+     * @param  array<mixed>  $ids
+     * @return list<string>
+     */
+    private function normalizeLookupKeys(array $ids): array
+    {
+        $normalized = [];
+
+        foreach ($ids as $id) {
+            if (is_string($id) || is_int($id) || $id instanceof \Stringable) {
+                $normalized[] = (string) $id;
+            }
+        }
+
+        return $normalized;
     }
 }
