@@ -43,8 +43,7 @@ class UserAssignmentController extends Controller
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
-        /** @var int $tenantId */
-        $tenantId = $request->get('tenant_id');
+        $tenantId = $request->integer('tenant_id');
 
         $assignments = $user->customerAssignments()
             ->where('tenant_id', $tenantId)
@@ -75,8 +74,7 @@ class UserAssignmentController extends Controller
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
-        /** @var int $tenantId */
-        $tenantId = $request->get('tenant_id');
+        $tenantId = $request->integer('tenant_id');
 
         $assignments = $user->siteAssignments()
             ->where('tenant_id', $tenantId)
@@ -97,12 +95,13 @@ class UserAssignmentController extends Controller
     private function hydrateCustomerUpdateFlags(EloquentCollection $assignments, \App\Models\User $user, int $tenantId): void
     {
         $canUpdateAnyCustomer = $user->can('customers.update');
-        $updateableCustomerLookup = $canUpdateAnyCustomer
+        $updatableCustomerLookup = $canUpdateAnyCustomer
             ? []
             : array_fill_keys($this->normalizeLookupKeys(
                 $user->customerAssignments()
                     ->where('tenant_id', $tenantId)
                     ->currentlyActive()
+                    ->distinct()
                     ->pluck('customer_id')
                     ->all()
             ), true);
@@ -116,7 +115,7 @@ class UserAssignmentController extends Controller
 
             $customer->setAttribute(
                 '_resource_can_update',
-                $canUpdateAnyCustomer || isset($updateableCustomerLookup[$customer->id])
+                $canUpdateAnyCustomer || isset($updatableCustomerLookup[$customer->id])
             );
         }
     }
@@ -129,22 +128,24 @@ class UserAssignmentController extends Controller
         $canUpdateAnySite = $user->can('sites.update');
         $canUpdateAnyCustomer = $user->can('customers.update');
 
-        $updateableSiteLookup = $canUpdateAnySite
+        $updatableSiteLookup = $canUpdateAnySite
             ? []
             : array_fill_keys($this->normalizeLookupKeys(
                 $user->siteAssignments()
                     ->where('tenant_id', $tenantId)
                     ->currentlyActive()
+                    ->distinct()
                     ->pluck('site_id')
                     ->all()
             ), true);
 
-        $updateableCustomerLookup = $canUpdateAnyCustomer
+        $updatableCustomerLookup = $canUpdateAnyCustomer
             ? []
             : array_fill_keys($this->normalizeLookupKeys(
                 $user->customerAssignments()
                     ->where('tenant_id', $tenantId)
                     ->currentlyActive()
+                    ->distinct()
                     ->pluck('customer_id')
                     ->all()
             ), true);
@@ -158,7 +159,7 @@ class UserAssignmentController extends Controller
 
             $site->setAttribute(
                 '_resource_can_update',
-                $canUpdateAnySite || isset($updateableSiteLookup[$site->id])
+                $canUpdateAnySite || isset($updatableSiteLookup[$site->id])
             );
 
             $customer = $site->customer;
@@ -169,7 +170,7 @@ class UserAssignmentController extends Controller
 
             $customer->setAttribute(
                 '_resource_can_update',
-                $canUpdateAnyCustomer || isset($updateableCustomerLookup[$customer->id])
+                $canUpdateAnyCustomer || isset($updatableCustomerLookup[$customer->id])
             );
         }
     }
