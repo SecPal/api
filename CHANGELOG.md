@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- replaced the onboarding form template factory's implicit `TenantKey::first()` fallback with an explicit `TenantKey::factory()` default so onboarding tests no longer depend on pre-seeded tenant state
 - replaced the remaining `@example.com` onboarding test fixtures with `@secpal.dev` so the onboarding suites follow the repository domain policy
 - removed the unused `check.customer.scope` middleware alias from bootstrap registration so the API no longer advertises a non-existent custom middleware
 - validated employee document uploads by MIME type as well as file extension, so renamed plain-text files no longer pass PDF/JPEG/PNG checks
