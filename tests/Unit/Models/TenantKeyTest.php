@@ -64,6 +64,22 @@ test('load kek rejects insecure file permissions', function (): void {
         ->toThrow(RuntimeException::class, 'KEK file has insecure permissions');
 });
 
+test('generate kek ignores a permissive process umask and restores it afterwards', function (): void {
+    $previousUmask = umask(0000);
+
+    try {
+        TenantKey::generateKek();
+
+        $kekPath = TenantKey::getKekPath();
+        clearstatcache(true, $kekPath);
+
+        expect(fileperms($kekPath) & 0777)->toBe(0600)
+            ->and(umask())->toBe(0000);
+    } finally {
+        umask($previousUmask);
+    }
+});
+
 test('tenant key factory can create with specific version', function (): void {
     $tenantKey = TenantKey::factory()->version(5)->create();
 

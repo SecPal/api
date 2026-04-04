@@ -37,6 +37,7 @@ beforeEach(function () {
 afterEach(function () {
     // Reset tenant context
     app(PermissionRegistrar::class)->setPermissionsTeamId(null);
+    cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
 

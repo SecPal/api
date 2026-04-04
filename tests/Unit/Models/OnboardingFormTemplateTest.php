@@ -20,6 +20,11 @@ beforeEach(function () {
     $this->tenant = TenantKey::create($keys);
 });
 
+afterEach(function () {
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
+});
+
 test('onboarding form template can be created with factory', function () {
     $template = OnboardingFormTemplate::factory()->create([
         'tenant_id' => $this->tenant->id,
