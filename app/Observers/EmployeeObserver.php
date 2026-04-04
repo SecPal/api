@@ -1,22 +1,18 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Observers;
 
-use App\Mail\AccountDeactivatedMail;
-use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Spatie\Permission\Models\Role;
 
 /**
  * EmployeeObserver handles automatic user account lifecycle and blind index computation.
@@ -24,17 +20,14 @@ use Spatie\Permission\Models\Role;
  * Responsibilities:
  * 1. Compute blind indexes for encrypted fields (first_name, last_name, date_of_birth)
  * 2. Create user accounts for pre_contract employees
- * 3. Activate/deactivate user accounts on status transitions
- * 4. Assign temporal roles based on contract dates
- * 5. Send lifecycle notification emails for post-onboarding account state changes
+ * 3. Provision pre-contract user accounts after persistence
  *
  * Status Transitions:
  * - creating: Generate blind indexes, create user account if pre_contract
- * - updating: Handle status changes (pre_contract → active → terminated)
+ * - updating: Recompute indexes and apply passive compliance side effects
  *
  * Error Handling:
  * - User creation failures are logged but don't block employee creation
- * - Email failures are logged but don't block status transitions
  * - Database operations use transactions for atomicity
  */
 class EmployeeObserver
@@ -80,9 +73,8 @@ class EmployeeObserver
      * Handle the Employee "updating" event.
      *
      * 1. Recompute blind indexes if encrypted fields changed
-     * 2. Handle status transitions for user account lifecycle
-     * 3. Handle BewachV §16 ID document auto-deletion on BWR registration
-     * 4. Handle BewachV §21 retention period calculation on termination
+     * 2. Handle BewachV §16 ID document auto-deletion on BWR registration
+     * 3. Handle BewachV §21 retention period calculation on termination
      */
     public function updating(Employee $employee): void
     {
@@ -101,58 +93,18 @@ class EmployeeObserver
             }
         }
 
-        // Handle status changes
+        // Handle passive status side effects
         if ($employee->isDirty('status')) {
             $oldStatus = $employee->getOriginal('status');
             $newStatus = $employee->status;
 
             // Only process if both are strings
             if (is_string($oldStatus) && is_string($newStatus)) {
-                $this->handleStatusTransition($employee, $oldStatus, $newStatus);
-
                 // Calculate retention period on termination (BewachV §21)
                 if ($newStatus === Employee::STATUS_TERMINATED) {
                     $this->calculateRetentionPeriod($employee);
                 }
             }
-        }
-    }
-
-    /**
-     * Handle status transitions for user account lifecycle.
-     *
-     * @param  string  $oldStatus  Previous status
-     * @param  string  $newStatus  New status
-     */
-    private function handleStatusTransition(Employee $employee, string $oldStatus, string $newStatus): void
-    {
-        // Transition: pre_contract → active
-        if ($oldStatus === Employee::STATUS_PRE_CONTRACT && $newStatus === Employee::STATUS_ACTIVE) {
-            $this->activateUserAccount($employee);
-        }
-
-        // Transition: active → terminated
-        if ($oldStatus === Employee::STATUS_ACTIVE && $newStatus === Employee::STATUS_TERMINATED) {
-            $this->deactivateUserAccount($employee);
-        }
-
-        // Transition: pre_contract → terminated (contract cancelled before start)
-        if ($oldStatus === Employee::STATUS_PRE_CONTRACT && $newStatus === Employee::STATUS_TERMINATED) {
-            $this->deactivateUserAccount($employee);
-        }
-
-        // Transition: on_leave → terminated (contract ended while on leave)
-        if ($oldStatus === Employee::STATUS_ON_LEAVE && $newStatus === Employee::STATUS_TERMINATED) {
-            $this->deactivateUserAccount($employee);
-        }
-
-        // Transitions for on_leave (future: implement read-only permissions)
-        if ($oldStatus === Employee::STATUS_ACTIVE && $newStatus === Employee::STATUS_ON_LEAVE) {
-            $this->handleOnLeave($employee);
-        }
-
-        if ($oldStatus === Employee::STATUS_ON_LEAVE && $newStatus === Employee::STATUS_ACTIVE) {
-            $this->restoreFromLeave($employee);
         }
     }
 
@@ -242,151 +194,6 @@ class EmployeeObserver
                 'error' => $e->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * Activate user account and assign role (pre_contract → active).
-     *
-     * - Assigns Employee role with temporal dates (valid_from = contract_start_date)
-     * - Updates user_account_active = true
-     * - Sends welcome email
-     *
-     * Error Handling:
-     * - Role assignment failures are logged but don't block activation
-     * - Email failures are logged but don't block activation
-     */
-    private function activateUserAccount(Employee $employee): void
-    {
-        $user = $employee->user;
-
-        if (! $user) {
-            Log::warning('Cannot activate user account: user not found', [
-                'employee_id' => $employee->id,
-            ]);
-
-            return;
-        }
-
-        try {
-            DB::transaction(function () use ($employee, $user) {
-                // Assign base role "Employee" with temporal dates
-                $role = Role::where('name', 'Employee')->first();
-
-                if ($role) {
-                    DB::table('model_has_roles')->insert([
-                        'role_id' => $role->id,
-                        'model_type' => User::class,
-                        'model_id' => $user->id,
-                        'tenant_id' => $employee->tenant_id,
-                        'valid_from' => $employee->contract_start_date,
-                        'valid_until' => $employee->termination_date, // NULL if no termination date
-                        'auto_revoke' => true,
-                        'assigned_by' => null, // System-assigned
-                        'reason' => 'Automatic role assignment on contract start',
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                } else {
-                    Log::error('Role "Employee" not found', [
-                        'employee_id' => $employee->id,
-                    ]);
-                }
-
-                // Update employee record without triggering observers again
-                $employee->updateQuietly([
-                    'user_account_active' => true,
-                    'user_account_activated_at' => now(),
-                ]);
-            });
-
-            // Send welcome email
-            Mail::to($user->email)->queue(new WelcomeActiveMail($employee));
-        } catch (\Exception $e) {
-            Log::error('User account activation failed', [
-                'employee_id' => $employee->id,
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * Deactivate user account (active → terminated).
-     *
-     * - Revokes ALL roles
-     * - Sets user_account_active = false
-     * - Deletes all sessions
-     * - Revokes all API tokens
-     * - Sends deactivation notice
-     */
-    private function deactivateUserAccount(Employee $employee): void
-    {
-        $user = $employee->user;
-
-        if (! $user) {
-            return;
-        }
-
-        try {
-            DB::transaction(function () use ($employee, $user) {
-                // Revoke ALL roles
-                $user->roles()->detach();
-
-                // Deactivate account without triggering observers again
-                $employee->updateQuietly([
-                    'user_account_active' => false,
-                    'user_account_deactivated_at' => now(),
-                ]);
-
-                // Delete all sessions
-                DB::table('sessions')
-                    ->where('user_id', $user->id)
-                    ->delete();
-
-                // Revoke all API tokens
-                $user->tokens()->delete();
-            });
-
-            // Send deactivation notice
-            Mail::to($user->email)->queue(new AccountDeactivatedMail($employee));
-        } catch (\Exception $e) {
-            Log::error('User account deactivation failed', [
-                'employee_id' => $employee->id,
-                'user_id' => $user->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * Handle on_leave status (future: limit permissions).
-     *
-     * Currently logs the change. Future implementation:
-     * - Switch to read-only role
-     * - Preserve role assignments for restoration
-     */
-    private function handleOnLeave(Employee $employee): void
-    {
-        Log::info('Employee on leave', [
-            'employee_id' => $employee->id,
-            'employee_number' => $employee->employee_number,
-        ]);
-        // Future: Implement read-only permissions
-    }
-
-    /**
-     * Restore from on_leave status.
-     *
-     * Currently logs the change. Future implementation:
-     * - Restore original role assignments
-     */
-    private function restoreFromLeave(Employee $employee): void
-    {
-        Log::info('Employee restored from leave', [
-            'employee_id' => $employee->id,
-            'employee_number' => $employee->employee_number,
-        ]);
-        // Future: Restore full permissions
     }
 
     /**

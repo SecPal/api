@@ -11,6 +11,7 @@ use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
+use App\Services\EmployeeLifecycleService;
 use App\Services\EmployeeOnboardingInvitationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -213,16 +214,8 @@ class EmployeeController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $employee->update([
-            'status' => Employee::STATUS_ACTIVE,
-            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACTIVE,
-        ]);
-
-        // Observer will handle user account activation and role assignment
-
         /** @var Employee $freshEmployee */
-        $freshEmployee = $employee->fresh();
-        $freshEmployee->load(['user']);
+        $freshEmployee = app(EmployeeLifecycleService::class)->activate($employee);
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
@@ -246,13 +239,8 @@ class EmployeeController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $employee->update(['status' => Employee::STATUS_TERMINATED]);
-
-        // Observer will handle user account deactivation
-
         /** @var Employee $freshEmployee */
-        $freshEmployee = $employee->fresh();
-        $freshEmployee->load(['user']);
+        $freshEmployee = app(EmployeeLifecycleService::class)->terminate($employee);
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
