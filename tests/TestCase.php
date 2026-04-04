@@ -5,10 +5,13 @@
 
 namespace Tests;
 
+use App\Models\User;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\PermissionRegistrar;
 
 abstract class TestCase extends BaseTestCase
@@ -59,6 +62,25 @@ abstract class TestCase extends BaseTestCase
         // when running with --parallel flag. Database naming convention:
         // Base: "testing" -> Parallel workers: "testing_test_1", "testing_test_2", etc.
         // No additional configuration needed - it's handled by Laravel automatically.
+    }
+
+    /**
+     * Keep legacy Sanctum test authentication helpers compatible with ability-scoped API routes.
+     *
+     * When no guard is specified (the common Pest `actingAs()` pattern) or when
+     * 'sanctum' is explicitly requested, route through Sanctum::actingAs so tests
+     * receive a transient token that carries the api-access ability required by
+     * the authenticated API surface.
+     */
+    public function actingAs(Authenticatable $user, $guard = null)
+    {
+        if ($guard === null || $guard === 'sanctum') {
+            Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+            return $this;
+        }
+
+        return parent::actingAs($user, $guard);
     }
 
     private static function ensurePostgresTestDatabasesExist(): void

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
 
@@ -15,7 +16,9 @@ describe('User Language Preference API', function () {
         /** @var User $user */
         $user = User::factory()->create(['preferred_locale' => null]);
 
-        $response = $this->actingAs($user)
+        Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+        $response = $this
             ->patchJson('/v1/me/language', [
                 'locale' => 'de',
             ]);
@@ -34,7 +37,9 @@ describe('User Language Preference API', function () {
         /** @var User $user */
         $user = User::factory()->create(['preferred_locale' => 'de']);
 
-        $response = $this->actingAs($user)
+        Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+        $response = $this
             ->patchJson('/v1/me/language', [
                 'locale' => 'en',
             ]);
@@ -47,7 +52,9 @@ describe('User Language Preference API', function () {
         /** @var User $user */
         $user = User::factory()->create(['preferred_locale' => 'de']);
 
-        $response = $this->actingAs($user)
+        Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+        $response = $this
             ->patchJson('/v1/me/language', [
                 'locale' => null,
             ]);
@@ -60,7 +67,9 @@ describe('User Language Preference API', function () {
         /** @var User $user */
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)
+        Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+        $response = $this
             ->patchJson('/v1/me/language', [
                 'locale' => 'fr', // French not supported
             ]);
@@ -73,7 +82,9 @@ describe('User Language Preference API', function () {
         /** @var User $user */
         $user = User::factory()->create(['preferred_locale' => 'de']);
 
-        $response = $this->actingAs($user)
+        Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+        $response = $this
             ->patchJson('/v1/me/language', [
                 'locale' => '',
             ]);
@@ -86,7 +97,9 @@ describe('User Language Preference API', function () {
         /** @var User $user */
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)
+        Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+        $response = $this
             ->patchJson('/v1/me/language', []);
 
         $response->assertStatus(422)
@@ -107,7 +120,9 @@ describe('User Language Preference API', function () {
         /** @var User $user2 */
         $user2 = User::factory()->create(['preferred_locale' => null]);
 
-        $response = $this->actingAs($user1)
+        Sanctum::actingAs($user1, [User::API_ACCESS_ABILITY]);
+
+        $response = $this
             ->patchJson('/v1/me/language', [
                 'locale' => 'de',
             ]);

@@ -833,7 +833,7 @@ class AuthController extends Controller
      */
     private function completeTokenLogin(User $user, string $deviceName, bool $mfaCompleted = false, int $createdStatus = 201): JsonResponse
     {
-        $token = $user->createToken($deviceName);
+        $token = $user->issueApiToken($deviceName);
 
         $this->activityLogService->logLoginSuccess($user);
 
