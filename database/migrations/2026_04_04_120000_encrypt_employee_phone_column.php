@@ -24,18 +24,30 @@ return new class extends Migration
             $table->string('phone_idx', 64)->nullable()->after('phone_enc');
         });
 
+        /** @var Illuminate\Database\Eloquent\Collection<int, TenantKey> $tenantKeys */
+        $tenantKeys = TenantKey::all()->keyBy('id');
+
         DB::table('employees')
             ->select(['id', 'tenant_id', 'phone'])
             ->whereNotNull('phone')
             ->orderBy('id')
-            ->chunk(100, function ($employees): void {
+            ->chunk(100, function ($employees) use ($tenantKeys): void {
                 foreach ($employees as $employee) {
                     if (! is_string($employee->phone) || $employee->phone === '') {
                         continue;
                     }
 
-                    /** @var TenantKey $tenantKey */
-                    $tenantKey = TenantKey::findOrFail($employee->tenant_id);
+                    $rawTenantId = $employee->tenant_id;
+                    if (! is_numeric($rawTenantId)) {
+                        throw new RuntimeException('Unexpected non-numeric tenant_id in employees table.');
+                    }
+
+                    $tenantId = (int) $rawTenantId;
+                    $tenantKey = $tenantKeys->get($tenantId);
+                    if (! $tenantKey instanceof TenantKey) {
+                        throw new RuntimeException("TenantKey not found for tenant {$tenantId}.");
+                    }
+
                     $encryptedPhone = $tenantKey->encrypt($employee->phone);
                     $encodedPhone = json_encode([
                         'ciphertext' => base64_encode($encryptedPhone['ciphertext']),

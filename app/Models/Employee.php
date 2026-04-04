@@ -246,7 +246,7 @@ class Employee extends Model
         'nationalities',
         // Contact
         'email',
-        'phone',
+        'phone', // plaintext field → triggers mutator → sets phone_enc → triggers cast
         'phone_enc',
         'phone_idx',
         // Structured Address
