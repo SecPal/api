@@ -316,15 +316,10 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
             $roles = $this->convertPipeToArray($roles);
         }
 
-        $requestedRoles = $this->normalizeRolesToComparisonKeys($roles);
-        $currentRoles = $this->resolveRoleNamesForCurrentContext($guard)
-            ->values()
-            ->all();
+        $rolesList = $this->normalizeRolesToList($roles);
+        $currentCount = $this->resolveRoleNamesForCurrentContext($guard)->count();
 
-        sort($requestedRoles);
-        sort($currentRoles);
-
-        return $requestedRoles === $currentRoles;
+        return count($rolesList) === $currentCount && $this->hasAllRoles($rolesList, $guard);
     }
 
     /**
@@ -454,29 +449,6 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
         }
 
         return [];
-    }
-
-    /**
-     * @param  mixed  $roles
-     * @return list<string>
-     */
-    private function normalizeRolesToComparisonKeys($roles): array
-    {
-        $comparisonKeys = [];
-
-        foreach ($this->normalizeRolesToList($roles) as $role) {
-            if ($role instanceof SpatieRole) {
-                $comparisonKeys[] = $role->name;
-
-                continue;
-            }
-
-            $comparisonKeys[] = (string) $role;
-        }
-
-        sort($comparisonKeys);
-
-        return array_values(array_unique($comparisonKeys));
     }
 
     private function normalizeRoleKey(mixed $roleKey): ?string
