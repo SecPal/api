@@ -245,7 +245,14 @@ class AppServiceProvider extends ServiceProvider
 
     private function onboardingThrottleKey(Request $request, string $scope): string
     {
-        return $scope.'|'.$request->ip();
+        $emailInput = $request->input('email');
+        $email = is_string($emailInput) ? strtolower(trim($emailInput)) : '';
+
+        $rawKey = $email === ''
+            ? $scope.'|'.$request->ip()
+            : $scope.'|'.$request->ip().'|'.$email;
+
+        return 'onboarding|'.hash('sha256', $rawKey);
     }
 
     private function shouldCountOnboardingAttempt(SymfonyResponse $response): bool

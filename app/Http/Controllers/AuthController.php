@@ -640,14 +640,46 @@ class AuthController extends Controller
             ], 400);
         }
 
-        // Update password
-        $user->password = Hash::make($validated['password']);
-        $user->save();
+        $invalidToken = false;
 
-        // Delete used token (one-time use)
-        DB::table('password_reset_tokens')
-            ->where('email', $validated['email'])
-            ->delete();
+        DB::transaction(function () use ($user, $validated, &$invalidToken): void {
+            // Re-fetch and lock the token row to prevent concurrent consumption (TOCTOU)
+            /** @var object{email: string, token: string, created_at: string}|null $lockedToken */
+            $lockedToken = DB::table('password_reset_tokens')
+                ->where('email', $validated['email'])
+                ->lockForUpdate()
+                ->first();
+
+            if (! $lockedToken || ! Hash::check($validated['token'], $lockedToken->token)) {
+                $invalidToken = true;
+
+                return;
+            }
+
+            $user->forceFill([
+                'password' => Hash::make($validated['password']),
+                'remember_token' => null,
+            ])->save();
+
+            $user->tokens()->delete();
+
+            DB::table('sessions')
+                ->where('user_id', $user->getAuthIdentifier())
+                ->delete();
+
+            $this->activityLogService->logPasswordReset($user);
+
+            // Delete used token (one-time use)
+            DB::table('password_reset_tokens')
+                ->where('email', $validated['email'])
+                ->delete();
+        });
+
+        if ($invalidToken) {
+            return response()->json([
+                'message' => __('Invalid or expired reset token'),
+            ], 400);
+        }
 
         return response()->json([
             'message' => __('Password has been reset successfully'),

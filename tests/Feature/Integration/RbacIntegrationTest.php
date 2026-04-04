@@ -42,6 +42,8 @@ beforeEach(function (): void {
 afterEach(function (): void {
     // Reset tenant context
     $this->registrar->setPermissionsTeamId(null);
+    cleanupTestKekFile();
+    TenantKey::setKekPath(null);
 });
 
 describe('Temporal Role Lifecycle Integration', function (): void {

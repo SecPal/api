@@ -79,6 +79,17 @@ test('logLogoutAll creates authentication log', function (): void {
         ->and(Activity::getRetentionYearsForLogType($activity->log_name))->toBeIn([3, 8]);
 });
 
+test('logPasswordReset creates authentication log', function (): void {
+    $activity = $this->service->logPasswordReset($this->user);
+
+    expect($activity)->toBeInstanceOf(Activity::class)
+        ->and($activity->log_name)->toBe('authentication')
+        ->and($activity->description)->toBe('User reset password and revoked active sessions')
+        ->and($activity->causer_id)->toBe((string) $this->user->id)
+        ->and($activity->properties['event'])->toBe('password_reset')
+        ->and(Activity::getRetentionYearsForLogType($activity->log_name))->toBeIn([3, 8]);
+});
+
 test('logUserMfaEvent creates authentication log for self-service MFA actions', function (): void {
     $activity = $this->service->logUserMfaEvent(
         $this->user,

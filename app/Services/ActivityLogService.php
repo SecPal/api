@@ -209,6 +209,35 @@ class ActivityLogService
     }
 
     /**
+     * Log a successful password reset with active-session revocation.
+     *
+     * Security Level: 2 (authentication)
+     * Logs to the user's primary organizational unit for scope-based visibility.
+     */
+    public function logPasswordReset(User $user): ?Activity
+    {
+        $user->loadMissing('organizationalScopes');
+        /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
+        $firstScope = $user->organizationalScopes->first();
+        $primaryOrgUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
+
+        return activity('authentication')
+            ->causedBy($user)
+            ->performedOn($user)
+            ->useLog('authentication')
+            ->withProperties([
+                'event' => 'password_reset',
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+            ])
+            ->tap(function ($activity) use ($primaryOrgUnitId) {
+                /** @var \App\Models\Activity $activity */
+                $activity->organizational_unit_id = $primaryOrgUnitId;
+            })
+            ->log('User reset password and revoked active sessions');
+    }
+
+    /**
      * Log a self-service MFA lifecycle event for a user.
      *
      * Scoped to the user's primary organizational unit so visibility follows
