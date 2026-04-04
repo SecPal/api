@@ -1,9 +1,10 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\TenantKey;
+use App\Services\RuntimeHeartbeatService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -49,6 +50,8 @@ describe('Health Check Endpoints', function () {
 
     describe('GET /health/ready', function () {
         it('returns 200 OK when fully configured', function () {
+            $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
+
             // Create tenant key directly in database
             // Note: tenant_keys uses base64-encoded strings in varchar(64), not binary data
             DB::table('tenant_keys')->insert([
@@ -62,6 +65,7 @@ describe('Health Check Endpoints', function () {
 
             // Generate KEK file for test
             TenantKey::generateKek();
+            $runtimeHeartbeatService->recordSchedulerHeartbeat();
 
             $response = $this->getJson('/health/ready');
 
@@ -72,11 +76,16 @@ describe('Health Check Endpoints', function () {
                     'database' => 'ok',
                     'tenant_keys' => 'ok',
                     'kek_file' => 'ok',
+                    'scheduler' => 'ok',
+                    'queue_default_worker' => 'idle',
+                    'queue_forensics_worker' => 'idle',
                 ],
             ]);
         });
 
         it('returns 503 when tenant key is missing', function () {
+            app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
+
             // No tenant key created
             // Generate KEK file for test
             TenantKey::generateKek();
@@ -90,11 +99,14 @@ describe('Health Check Endpoints', function () {
                     'database' => 'ok',
                     'tenant_keys' => 'missing',
                     'kek_file' => 'ok',
+                    'scheduler' => 'ok',
                 ],
             ]);
         });
 
         it('returns 503 when KEK file is missing', function () {
+            app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
+
             // Create tenant key directly in database
             // Note: tenant_keys uses base64-encoded strings in varchar(64), not binary data
             DB::table('tenant_keys')->insert([
@@ -118,6 +130,103 @@ describe('Health Check Endpoints', function () {
                     'database' => 'ok',
                     'tenant_keys' => 'ok',
                     'kek_file' => 'missing',
+                    'scheduler' => 'ok',
+                ],
+            ]);
+        });
+
+        it('returns 503 when the scheduler heartbeat is missing', function () {
+            seedHealthReadinessPrerequisites();
+
+            $response = $this->getJson('/health/ready');
+
+            $response->assertStatus(503);
+            $response->assertJson([
+                'status' => 'not_ready',
+                'checks' => [
+                    'database' => 'ok',
+                    'tenant_keys' => 'ok',
+                    'kek_file' => 'ok',
+                    'scheduler' => 'missing',
+                    'queue_default_worker' => 'idle',
+                    'queue_forensics_worker' => 'idle',
+                ],
+            ]);
+        });
+
+        it('returns 503 when the default queue has pending jobs without a fresh worker heartbeat', function () {
+            seedHealthReadinessPrerequisites();
+            app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
+            seedPendingJob('default');
+
+            $response = $this->getJson('/health/ready');
+
+            $response->assertStatus(503);
+            $response->assertJson([
+                'status' => 'not_ready',
+                'checks' => [
+                    'scheduler' => 'ok',
+                    'queue_default_worker' => 'missing',
+                    'queue_forensics_worker' => 'idle',
+                ],
+            ]);
+        });
+
+        it('returns 503 when the forensics queue has pending jobs without a fresh worker heartbeat', function () {
+            seedHealthReadinessPrerequisites();
+            app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
+            seedPendingJob('opentimestamp');
+
+            $response = $this->getJson('/health/ready');
+
+            $response->assertStatus(503);
+            $response->assertJson([
+                'status' => 'not_ready',
+                'checks' => [
+                    'scheduler' => 'ok',
+                    'queue_default_worker' => 'idle',
+                    'queue_forensics_worker' => 'missing',
+                ],
+            ]);
+        });
+
+        it('returns 200 when pending queue jobs still have a fresh worker heartbeat', function () {
+            seedHealthReadinessPrerequisites();
+
+            $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
+            $runtimeHeartbeatService->recordSchedulerHeartbeat();
+            $runtimeHeartbeatService->recordQueueHeartbeat('default');
+            seedPendingJob('default');
+
+            $response = $this->getJson('/health/ready');
+
+            $response->assertOk();
+            $response->assertJson([
+                'status' => 'ready',
+                'checks' => [
+                    'scheduler' => 'ok',
+                    'queue_default_worker' => 'ok',
+                    'queue_forensics_worker' => 'idle',
+                ],
+            ]);
+        });
+
+        it('keeps readiness green when queue workers are idle with stale heartbeats', function () {
+            seedHealthReadinessPrerequisites();
+
+            $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
+            $runtimeHeartbeatService->recordSchedulerHeartbeat();
+            $runtimeHeartbeatService->recordQueueHeartbeat('default', now()->subHour());
+
+            $response = $this->getJson('/health/ready');
+
+            $response->assertOk();
+            $response->assertJson([
+                'status' => 'ready',
+                'checks' => [
+                    'scheduler' => 'ok',
+                    'queue_default_worker' => 'idle',
+                    'queue_forensics_worker' => 'idle',
                 ],
             ]);
         });
@@ -155,6 +264,7 @@ describe('Health Check Endpoints', function () {
                 'created_at' => now(),
             ]);
             TenantKey::generateKek();
+            app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
 
             $response = $this->withHeaders([
                 'Origin' => 'https://app.secpal.dev',
@@ -202,3 +312,29 @@ describe('Health Check Endpoints', function () {
         });
     });
 });
+
+function seedHealthReadinessPrerequisites(): void
+{
+    DB::table('tenant_keys')->insert([
+        'dek_wrapped' => base64_encode(random_bytes(32)),
+        'dek_nonce' => base64_encode(random_bytes(24)),
+        'idx_wrapped' => base64_encode(random_bytes(32)),
+        'idx_nonce' => base64_encode(random_bytes(24)),
+        'key_version' => 1,
+        'created_at' => now(),
+    ]);
+
+    TenantKey::generateKek();
+}
+
+function seedPendingJob(string $queue): void
+{
+    DB::table('jobs')->insert([
+        'queue' => $queue,
+        'payload' => json_encode(['displayName' => 'App\\Jobs\\ExampleJob'], JSON_THROW_ON_ERROR),
+        'attempts' => 0,
+        'reserved_at' => null,
+        'available_at' => now()->subMinute()->getTimestamp(),
+        'created_at' => now()->subMinute()->getTimestamp(),
+    ]);
+}

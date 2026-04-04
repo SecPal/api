@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- extended `/health/ready` with cache-backed scheduler and queue-worker heartbeat checks, so the API now reports stale background processing only when the scheduler stops pulsing or when pending `default` / forensic queue jobs no longer have a fresh worker heartbeat
 - removed the dead `SiteController::costCenters()` fallback and its stale TODO now that `GET /v1/sites/{site}/cost-centers` is served by the dedicated `CostCenterController` with `CostCenterResource`, so the API no longer carries an unused manual-pagination implementation beside the real endpoint path
 - precomputed customer/site update visibility for `/v1/me/customer-assignments` and `/v1/me/site-assignments` so nested `Api/V1` customer/site resources stop triggering per-record policy queries during collection serialization, with regression coverage that keeps the assignment response query count bounded
 - enabled Laravel email verification on the `User` model, added signed verify/resend endpoints, enforced `verified` middleware on protected non-onboarding application routes, and now send a verification notification when onboarding completes so unverified accounts cannot immediately use the authenticated app surface

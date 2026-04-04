@@ -1,11 +1,12 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers;
 
 use App\Models\TenantKey;
+use App\Services\RuntimeHeartbeatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -39,10 +40,13 @@ class HealthController extends Controller
      * - Database connectivity
      * - Tenant keys exist
      * - KEK file is readable
+     * - Scheduler heartbeats are fresh
+     * - Queue workers stay fresh while backlog exists
      */
-    public function ready(): JsonResponse
+    public function ready(RuntimeHeartbeatService $runtimeHeartbeatService): JsonResponse
     {
         $checks = [];
+        $details = [];
         $allPassed = true;
 
         // Check 1: Database connectivity
@@ -77,12 +81,37 @@ class HealthController extends Controller
             $allPassed = false;
         }
 
+        $schedulerCheck = $runtimeHeartbeatService->schedulerReadiness();
+        $checks['scheduler'] = $schedulerCheck['status'];
+        $details['scheduler'] = [
+            'last_heartbeat_at' => $schedulerCheck['last_heartbeat_at'],
+            'stale_after_seconds' => $schedulerCheck['stale_after_seconds'],
+        ];
+
+        if (! $schedulerCheck['healthy']) {
+            $allPassed = false;
+        }
+
+        foreach ($runtimeHeartbeatService->queueReadiness() as $checkName => $queueCheck) {
+            $checks[$checkName] = $queueCheck['status'];
+            $details[$checkName] = [
+                'last_heartbeat_at' => $queueCheck['last_heartbeat_at'],
+                'pending_jobs' => $queueCheck['pending_jobs'],
+                'stale_after_seconds' => $queueCheck['stale_after_seconds'],
+            ];
+
+            if (! $queueCheck['healthy']) {
+                $allPassed = false;
+            }
+        }
+
         $status = $allPassed ? 'ready' : 'not_ready';
         $httpStatus = $allPassed ? 200 : 503;
 
         return response()->json([
             'status' => $status,
             'checks' => $checks,
+            'details' => $details,
             'timestamp' => now()->toIso8601String(),
         ], $httpStatus);
     }
