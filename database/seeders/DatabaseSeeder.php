@@ -46,6 +46,12 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        if (! $testUser->hasVerifiedEmail()) {
+            $testUser->forceFill([
+                'email_verified_at' => now(),
+            ])->save();
+        }
+
         // Assign Admin role to test user (within tenant context)
         if (! $testUser->hasRole('Admin')) {
             $testUser->assignRole('Admin');

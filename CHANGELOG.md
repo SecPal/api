@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- restored explicit repo-local Copilot governance by making TDD-first, quality-first, one-topic-per-PR, immediate issue creation for out-of-scope findings, and EPIC-plus-sub-issue requirements always-on again; the API runtime overlay now auto-loads repo-wide so these rules remain present while working
+- clarified the repo-local PR workflow so finished API work must be self-reviewed, committed, and pushed before any PR exists, and the first PR state must always be draft until the final PR-view self-review is clean
+- exposed `emailVerified` consistently in auth payloads, taught the seeded local Test User to remain verified on repeat seed runs, and unblocked the frontend from handling unverified accounts with a dedicated gate instead of surfacing raw route-level verification errors deep inside the app
 - added explicit `/v1/employees/{employee}/leave` and `/v1/employees/{employee}/return-from-leave` transitions that snapshot the employee's prior runtime role/direct-permission state, reduce on-leave access to a seeded read-only baseline, and restore the prior access model atomically when the employee returns; termination now also clears direct permissions so runtime access is fully revoked
 - encrypted employee phone storage at rest by moving the field to `phone_enc` plus tenant-scoped `phone_idx`, backfilling existing rows in a migration, and keeping the public API field name `phone` unchanged while documenting why employee and user email still remain plaintext for auth-critical lookups
 - moved employee activation and termination side effects into an explicit lifecycle service used by the employee controller and scheduled status-update command, so status changes now run inside a single transaction for role assignment or access revocation instead of relying on hidden observer-driven account mutations
@@ -69,7 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - aligned the repo-local domain policy and validation script with the renamed Android application identifier `app.secpal`, removing the old identifier-only exception from current governance text
-- reduced the repo-local Copilot always-on context by replacing the long runtime baseline and removing the auto-loaded overlay fallback, which lowers request size in large VS Code workspaces without dropping the API-specific governance rules
 - aligned nested collection semantics outside the onboarding flow so official admin surfaces consistently use `403` for missing authorization, reserve `404` for unsupported, missing, or tenant-hidden resources, and keep `200` with an empty collection only for callers who are entitled to open that collection; `GET /v1/sites/{site}/cost-centers` now also requires visibility of the parent site before returning cost center data
 - updated active API development and operations guides to use the current native PHP workflow instead of stale DDEV-first command examples, and marked older DDEV-era retrospectives as historical context where those references are intentionally retained
 - updated `docs/MAIL_SYSTEM.md` and `docs/PRODUCTION_TEST_PHASE2_EMAIL.md` to reflect the current direct-server Mailpit setup (`127.0.0.1:1025` SMTP, `127.0.0.1:8025` UI) instead of stale DDEV-routed instructions

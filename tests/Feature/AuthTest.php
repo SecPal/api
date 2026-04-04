@@ -88,6 +88,7 @@ describe('SPA Session Login', function () {
                     'id',
                     'name',
                     'email',
+                    'emailVerified',
                     'roles',
                     'permissions',
                     'hasOrganizationalScopes',
@@ -99,6 +100,7 @@ describe('SPA Session Login', function () {
                 'user' => [
                     'name' => 'SPA User',
                     'email' => 'spa@secpal.dev',
+                    'emailVerified' => true,
                 ],
             ]);
     });
@@ -274,10 +276,11 @@ describe('Auth Token Generation', function () {
         $response->assertCreated()
             ->assertJsonStructure([
                 'token',
-                'user' => ['id', 'name', 'email', 'roles', 'permissions', 'hasOrganizationalScopes', 'hasCustomerAccess', 'hasSiteAccess'],
+                'user' => ['id', 'name', 'email', 'emailVerified', 'roles', 'permissions', 'hasOrganizationalScopes', 'hasCustomerAccess', 'hasSiteAccess'],
             ]);
 
         expect($response->json('user.email'))->toBe($email);
+        expect($response->json('user.emailVerified'))->toBeTrue();
         expect($user->tokens()->count())->toBe(1);
         expect($user->tokens()->first()?->can(User::API_ACCESS_ABILITY))->toBeTrue();
     });
@@ -730,6 +733,34 @@ describe('Token Security', function () {
 });
 
 describe('Email Verification', function () {
+    test('auth payloads expose the email verification state for unverified browser sessions', function () {
+        User::factory()->unverified()->create([
+            'email' => 'unverified-spa@secpal.dev',
+            'password' => bcrypt('password123'),
+        ]);
+
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => 'unverified-spa@secpal.dev',
+            'password' => 'password123',
+        ])->assertOk()
+            ->assertJson([
+                'user' => [
+                    'email' => 'unverified-spa@secpal.dev',
+                    'emailVerified' => false,
+                ],
+            ]);
+
+        $this->withHeaders(spaHeaders())
+            ->getJson('/v1/me')
+            ->assertOk()
+            ->assertJson([
+                'email' => 'unverified-spa@secpal.dev',
+                'emailVerified' => false,
+            ]);
+    });
+
     test('unverified users can request a fresh verification email', function () {
         Notification::fake();
 
