@@ -15,11 +15,13 @@ SecPal API uses **Laravel Sanctum** for authentication, supporting two modes:
 ## Official Endpoint Responsibilities
 
 - `POST /v1/auth/login` is the browser-only session login endpoint for first-party SPA requests that completed the Sanctum CSRF/cookie flow.
-- `POST /v1/auth/token` is the stateless Bearer-token login endpoint for Android, native, CLI, and other API clients.
+- `POST /v1/auth/token` is the stateless Bearer-token login endpoint for Android, native, CLI, and other API clients, and issued tokens are scoped to the `api-access` Sanctum ability.
 - `POST /v1/auth/logout` is the canonical logout endpoint for both authenticated modes.
 - `GET /v1/me` is the canonical self-service endpoint for the authenticated caller.
 - `POST /v1/auth/session/logout` remains available only as a deprecated compatibility alias for older SPA clients.
 - `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile` are intentionally unsupported and return `404 Not Found`.
+
+All `auth:sanctum` protected API routes also require the `api-access` ability for Bearer tokens. First-party SPA session requests continue to work because Sanctum treats them as transient first-party requests rather than personal access token calls.
 
 ## Runtime Decision Matrix
 
@@ -281,6 +283,7 @@ Content-Type: application/json
 ```
 
 `device_name` is optional. When it is omitted or sent as blank whitespace, the API falls back to `api-client`. Native clients should still send a meaningful device-specific value so issued tokens stay understandable during revocation and multi-device support.
+Issued tokens currently receive the minimal `api-access` Sanctum ability. Clients should treat that ability as mandatory for accessing authenticated Bearer-token routes.
 
 **Response:**
 
@@ -289,7 +292,7 @@ HTTP/1.1 201 Created
 Content-Type: application/json
 
 {
-  "token": "1|abc123def456...",
+  "token": "1|sec_abc123def456...",
   "user": {
     "id": 1,
     "name": "John Doe",
@@ -315,8 +318,10 @@ Include token in `Authorization` header:
 
 ```http
 GET /v1/me
-Authorization: Bearer 1|abc123def456...
+Authorization: Bearer 1|sec_abc123def456...
 ```
+
+If a Bearer token is presented without the `api-access` ability, the API rejects the request with `403 Forbidden` even when the token itself is otherwise valid.
 
 #### Step 3: Logout
 
@@ -346,7 +351,7 @@ Authorization: Bearer 1|abc123def456...
 ### For API Client Developers
 
 1. **Store tokens securely** - use platform-specific secure storage
-2. **Implement re-authentication logic** - tokens do not auto-expire today and are not automatically revoked on password reset or credential rotation by default; clients must recover cleanly after explicit revocation, logout, 401 responses, or future expiry/credential-revocation policy changes
+2. **Implement re-authentication logic** - tokens expire server-side, protected Bearer-token routes require the `api-access` ability, and clients must recover cleanly after explicit revocation, logout, `401`, or `403` responses
 3. **Handle 401 errors** gracefully - prompt for re-authentication
 4. **Use device-specific names** - easier to manage multiple sessions
 
@@ -393,7 +398,7 @@ curl -X GET http://api.secpal.dev/sanctum/csrf-cookie \
 ```bash
 curl -X POST http://api.secpal.dev/v1/auth/token \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"password123"}'
+  -d '{"email":"test@secpal.dev","password":"password123"}'
 ```
 
 **SPA login:** use `/v1/auth/login` only with the full Sanctum browser-session flow, including `/sanctum/csrf-cookie`, cookies, and first-party browser headers. For ad hoc CLI testing, prefer `POST /v1/auth/token`.

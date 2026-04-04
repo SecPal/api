@@ -25,6 +25,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
 use App\Http\Middleware\EnsureBrowserSessionLoginContext;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -78,7 +79,7 @@ Route::prefix('v1')->group(function () {
         ->middleware(['throttle:onboarding-complete', 'web']);
 
     // Protected routes (require auth:sanctum)
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'ability:'.User::API_ACCESS_ABILITY])->group(function () {
         // Token logout (for Bearer token auth - mobile/native apps)
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         // Session logout (for SPA cookie auth)

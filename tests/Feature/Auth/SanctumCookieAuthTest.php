@@ -39,16 +39,40 @@ describe('httpOnly Cookie Authentication Flow', function () {
             'password' => Hash::make('password123'),
         ]);
 
-        // Authenticate via Sanctum (simulates having valid session)
-        $this->actingAs($user, 'sanctum');
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => 'test@example.com',
+            'password' => 'password123',
+        ])->assertOk();
 
         // Make authenticated request
-        $response = $this->getJson('/v1/me');
+        $response = $this->withHeaders(spaHeaders())->getJson('/v1/me');
 
         $response->assertOk()
             ->assertJson([
                 'id' => $user->id,
                 'email' => 'test@example.com',
+            ]);
+    });
+
+    test('session-authenticated requests still succeed after token ability enforcement', function () {
+        $user = User::factory()->create([
+            'email' => 'session-ability-'.Illuminate\Support\Str::uuid().'@secpal.dev',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ])->assertOk();
+
+        $this->withHeaders(spaHeaders())->getJson('/v1/me')
+            ->assertOk()
+            ->assertJson([
+                'email' => $user->email,
             ]);
     });
 
@@ -175,14 +199,15 @@ describe('Token-Based vs Cookie-Based Authentication', function () {
             'password' => Hash::make('password123'),
         ]);
 
-        // SPA flow: Get CSRF token, then authenticate
-        $this->get('/sanctum/csrf-cookie');
-
-        // Authenticate with actingAs (simulates session cookie)
-        $this->actingAs($user, 'sanctum');
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => 'test@example.com',
+            'password' => 'password123',
+        ])->assertOk();
 
         // Access protected endpoint without Bearer token
-        $response = $this->getJson('/v1/me');
+        $response = $this->withHeaders(spaHeaders())->getJson('/v1/me');
 
         $response->assertOk()
             ->assertJson([

@@ -279,6 +279,27 @@ describe('Auth Token Generation', function () {
 
         expect($response->json('user.email'))->toBe($email);
         expect($user->tokens()->count())->toBe(1);
+        expect($user->tokens()->first()?->can(User::API_ACCESS_ABILITY))->toBeTrue();
+    });
+
+    test('token endpoint issues tokens with the explicit api access ability only', function () {
+        $email = 'token-ability-'.Str::uuid().'@secpal.dev';
+
+        $user = User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('password123'),
+        ]);
+
+        $this->postJson('/v1/auth/token', [
+            'email' => $email,
+            'password' => 'password123',
+            'device_name' => 'ability-check',
+        ])->assertCreated();
+
+        $token = $user->fresh()->tokens()->sole();
+
+        expect($token->can(User::API_ACCESS_ABILITY))->toBeTrue()
+            ->and($token->can('employees.write'))->toBeFalse();
     });
 
     test('token generation fails with invalid email', function () {
@@ -430,6 +451,15 @@ describe('Protected Endpoints', function () {
                 'name' => 'John Doe',
                 'email' => 'john@secpal.dev',
             ]);
+    });
+
+    test('protected endpoint rejects bearer tokens without the required api access ability', function () {
+        $user = User::factory()->create();
+        $token = $user->createToken('limited-device', ['profile.read'])->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/v1/me')
+            ->assertForbidden();
     });
 
     test('protected endpoint rejects invalid token', function () {

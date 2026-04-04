@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Laragear\TwoFactor\Contracts\TwoFactorAuthenticatable;
 use Laragear\TwoFactor\TwoFactorAuthentication;
 use Laravel\Sanctum\HasApiTokens;
+use Laravel\Sanctum\NewAccessToken;
 use Spatie\Permission\Contracts\Permission as PermissionContract;
 use Spatie\Permission\Models\Permission as SpatiePermission;
 use Spatie\Permission\Models\Role as SpatieRole;
@@ -68,6 +69,8 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      * @var string
      */
     protected $guard_name = 'sanctum';
+
+    public const API_ACCESS_ABILITY = 'api-access';
 
     /**
      * The attributes that are mass assignable.
@@ -113,6 +116,14 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
     public function tenant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(TenantKey::class, 'tenant_id');
+    }
+
+    /**
+     * Issue a personal access token with the default SecPal API ability set.
+     */
+    public function issueApiToken(string $name): NewAccessToken
+    {
+        return $this->createToken($name, [self::API_ACCESS_ABILITY]);
     }
 
     /**
