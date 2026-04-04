@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Database\Factories;
@@ -20,18 +20,8 @@ class OnboardingFormTemplateFactory extends Factory
      */
     public function definition(): array
     {
-        // Get existing tenant from first test (created by setUp)
-        $tenant = TenantKey::first();
-        if (! $tenant) {
-            if (! file_exists(TenantKey::getKekPath())) {
-                TenantKey::generateKek();
-            }
-            $keys = TenantKey::generateEnvelopeKeys();
-            $tenant = TenantKey::create($keys);
-        }
-
         return [
-            'tenant_id' => $tenant->id,
+            'tenant_id' => TenantKey::factory(),
             'name' => fake()->sentence(3),
             'description' => fake()->sentence(),
             'form_schema' => [
