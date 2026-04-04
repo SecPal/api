@@ -14,6 +14,7 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
@@ -231,6 +232,33 @@ describe('GET /v1/me/customer-assignments', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['customer']['id'])->toBe($customer1->id);
+    });
+
+    test('bounds customer resource query count for assignment collections', function (): void {
+        foreach (range(1, 8) as $index) {
+            $customer = Customer::factory()->create([
+                'tenant_id' => $this->tenant->id,
+            ]);
+
+            CustomerAssignment::factory()->create([
+                'tenant_id' => $this->tenant->id,
+                'customer_id' => $customer->id,
+                'user_id' => $this->user->id,
+                'role' => "Account Manager {$index}",
+            ]);
+        }
+
+        DB::enableQueryLog();
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/me/customer-assignments');
+
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(8);
+        expect(count($queries))->toBeLessThan(12);
     });
 });
 
@@ -470,5 +498,37 @@ describe('GET /v1/me/site-assignments', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['site']['id'])->toBe($site1->id);
+    });
+
+    test('bounds site and nested customer resource query count for assignment collections', function (): void {
+        foreach (range(1, 8) as $index) {
+            $customer = Customer::factory()->create([
+                'tenant_id' => $this->tenant->id,
+            ]);
+
+            $site = Site::factory()->create([
+                'tenant_id' => $this->tenant->id,
+                'customer_id' => $customer->id,
+            ]);
+
+            SiteAssignment::factory()->create([
+                'tenant_id' => $this->tenant->id,
+                'site_id' => $site->id,
+                'user_id' => $this->user->id,
+                'role' => "Site Manager {$index}",
+            ]);
+        }
+
+        DB::enableQueryLog();
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/me/site-assignments');
+
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(8);
+        expect(count($queries))->toBeLessThanOrEqual(14);
     });
 });
