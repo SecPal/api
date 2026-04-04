@@ -9,8 +9,10 @@ use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
 use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 
 use function Pest\Laravel\postJson;
 
@@ -30,9 +32,11 @@ afterEach(function () {
 });
 
 test('completes onboarding with valid token', function () {
+    Notification::fake();
+
     // Arrange: Create pre-contract employee with user
     /** @var User $user */
-    $user = User::factory()->create([
+    $user = User::factory()->unverified()->create([
         'password' => Hash::make('temporary-password'), // Will be replaced during onboarding
     ]);
 
@@ -78,6 +82,7 @@ test('completes onboarding with valid token', function () {
     $user = $employee->user;
     expect($user)->not->toBeNull();
     expect(Hash::check('SecurePassword123!', $user->password))->toBeTrue();
+    Notification::assertSentTo($user, VerifyEmail::class);
 
     // Assert: Token marked as completed
     $tokenModel = $tokenData['model'];
