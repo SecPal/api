@@ -8,6 +8,7 @@ namespace App\Observers;
 use App\Models\Employee;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Traits\NormalizesPersonFields;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -18,7 +19,7 @@ use Illuminate\Support\Str;
  * EmployeeObserver handles automatic user account lifecycle and blind index computation.
  *
  * Responsibilities:
- * 1. Compute blind indexes for encrypted fields (first_name, last_name, date_of_birth)
+ * 1. Compute blind indexes for encrypted fields (first_name, last_name, date_of_birth, phone)
  * 2. Create user accounts for pre_contract employees
  * 3. Provision pre-contract user accounts after persistence
  *
@@ -33,6 +34,8 @@ use Illuminate\Support\Str;
  */
 class EmployeeObserver
 {
+    use NormalizesPersonFields;
+
     /**
      * Handle the Employee "creating" event.
      *
@@ -80,7 +83,7 @@ class EmployeeObserver
     public function updating(Employee $employee): void
     {
         // Recompute indexes if encrypted fields are dirty
-        if ($employee->isDirty(['first_name_enc', 'last_name_enc', 'date_of_birth_enc'])) {
+        if ($employee->isDirty(['first_name_enc', 'last_name_enc', 'date_of_birth_enc', 'phone_enc'])) {
             $this->updateBlindIndexes($employee);
         }
 
@@ -345,7 +348,7 @@ class EmployeeObserver
     }
 
     /**
-     * Update blind indexes for first_name, last_name, date_of_birth.
+     * Update blind indexes for first_name, last_name, date_of_birth, and phone.
      *
      * During create: _enc fields contain plaintext (before Cast encryption)
      * During update: _enc fields contain JSON (after Cast encryption)
@@ -404,6 +407,8 @@ class EmployeeObserver
         if ($firstName !== null) {
             $rawIdx = $tenantKey->generateBlindIndex(mb_strtolower($firstName));
             $employee->first_name_idx = base64_encode($rawIdx);
+        } else {
+            $employee->first_name_idx = null;
         }
 
         // Compute last_name_idx
@@ -411,6 +416,8 @@ class EmployeeObserver
         if ($lastName !== null) {
             $rawIdx = $tenantKey->generateBlindIndex(mb_strtolower($lastName));
             $employee->last_name_idx = base64_encode($rawIdx);
+        } else {
+            $employee->last_name_idx = null;
         }
 
         // Compute date_of_birth_idx
@@ -418,6 +425,16 @@ class EmployeeObserver
         if ($dateOfBirth !== null) {
             $rawIdx = $tenantKey->generateBlindIndex($dateOfBirth);
             $employee->date_of_birth_idx = base64_encode($rawIdx);
+        } else {
+            $employee->date_of_birth_idx = null;
+        }
+
+        $phone = $getPlaintext('phone_enc');
+        if ($phone !== null) {
+            $rawIdx = $tenantKey->generateBlindIndex($this->normalizePhone($phone));
+            $employee->phone_idx = base64_encode($rawIdx);
+        } else {
+            $employee->phone_idx = null;
         }
     }
 }

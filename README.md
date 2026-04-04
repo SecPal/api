@@ -530,6 +530,12 @@ SecPal implements **multi-tenant envelope encryption** with the following securi
 - Enable equality search without decryption
 - Tenant-isolated (same email in different tenants produces different indexes)
 
+**Employee Contact Data:**
+
+- `employees.phone` is stored encrypted as `phone_enc` with a tenant-scoped `phone_idx` blind index.
+- `employees.email` and `users.email` currently remain plaintext because authentication, onboarding-link validation, and global email uniqueness still rely on direct exact-value lookups.
+- Replacing plaintext employee/user email would require a separate global lookup-key design rather than the current tenant-isolated blind-index pattern.
+
 ### Security Considerations
 
 **✅ What SecPal Protects Against:**

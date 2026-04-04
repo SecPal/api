@@ -46,7 +46,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string|null $birth_state
  * @property array<int, string>|null $nationalities Array of ISO 3166-1 alpha-2 codes
  * @property string|null $email
- * @property string|null $phone
+ * @property string|null $phone_enc Encrypted phone number
+ * @property string|null $phone_idx Blind index for phone number
  * @property string|null $address_street_enc Encrypted street name
  * @property string|null $address_house_number_enc Encrypted house number
  * @property string|null $address_postal_code_enc Encrypted postal code
@@ -115,6 +116,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read string $last_name Decrypted last name
  * @property-read string|null $birth_name Decrypted birth name
  * @property-read string|null $date_of_birth Decrypted date of birth (string, not Carbon)
+ * @property-read string|null $phone Decrypted phone number
  * @property-read string|null $address_street Decrypted street
  * @property-read string|null $address_house_number Decrypted house number
  * @property-read string|null $address_postal_code Decrypted postal code
@@ -245,6 +247,8 @@ class Employee extends Model
         // Contact
         'email',
         'phone',
+        'phone_enc',
+        'phone_idx',
         // Structured Address
         'address_street', // plaintext → address_street_enc
         'address_street_enc',
@@ -338,6 +342,8 @@ class Employee extends Model
         'birth_name_enc',
         'date_of_birth_enc',
         'date_of_birth_idx',
+        'phone_enc',
+        'phone_idx',
         'address_street_enc',
         'address_house_number_enc',
         'address_postal_code_enc',
@@ -362,6 +368,7 @@ class Employee extends Model
             'last_name_enc' => \App\Casts\EncryptedWithDek::class,
             'birth_name_enc' => \App\Casts\EncryptedWithDek::class,
             'date_of_birth_enc' => \App\Casts\EncryptedWithDek::class,
+            'phone_enc' => \App\Casts\EncryptedWithDek::class,
             'address_street_enc' => \App\Casts\EncryptedWithDek::class,
             'address_house_number_enc' => \App\Casts\EncryptedWithDek::class,
             'address_postal_code_enc' => \App\Casts\EncryptedWithDek::class,
@@ -517,7 +524,7 @@ class Employee extends Model
             if ($employee->isDirty('email')) {
                 $changedFields[] = 'email';
             }
-            if ($employee->isDirty('phone')) {
+            if ($employee->isDirty('phone_enc') && $employee->hasActuallyChanged('phone')) {
                 $changedFields[] = 'phone';
             }
 
@@ -714,6 +721,14 @@ class Employee extends Model
     }
 
     /**
+     * Get decrypted phone number (via EncryptedWithDek cast).
+     */
+    public function getPhoneAttribute(): ?string
+    {
+        return $this->phone_enc;
+    }
+
+    /**
      * Get decrypted hourly rate (via EncryptedWithDek cast, returns float).
      */
     public function getHourlyRateAttribute(): ?float
@@ -771,6 +786,14 @@ class Employee extends Model
     public function setDateOfBirthAttribute(?string $value): void
     {
         $this->date_of_birth_enc = $value;
+    }
+
+    /**
+     * Set plaintext phone number - Cast handles encryption.
+     */
+    public function setPhoneAttribute(?string $value): void
+    {
+        $this->phone_enc = $value;
     }
 
     /**
