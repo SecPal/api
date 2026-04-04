@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -39,8 +39,8 @@ class CustomerAssignmentResource extends JsonResource
             'notes' => $this->resource->notes,
             'user' => new UserResource($this->whenLoaded('user')),
             'customer' => new CustomerResource($this->whenLoaded('customer')),
-            'created_at' => $this->resource->created_at->toISOString(),
-            'updated_at' => $this->resource->updated_at->toISOString(),
+            'created_at' => $this->resource->created_at->toIso8601String(),
+            'updated_at' => $this->resource->updated_at->toIso8601String(),
         ];
     }
 }

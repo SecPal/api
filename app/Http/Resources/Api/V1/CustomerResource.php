@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -30,13 +30,23 @@ class CustomerResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+        $canUpdate = $user?->can('update', $this->resource) ?? false;
+
         return [
             'id' => $this->resource->id,
             'customer_number' => $this->resource->customer_number,
             'name' => $this->resource->name,
+            'billing_address' => $this->resource->billing_address,
+            'contact' => $this->resource->contact,
+            'notes' => $canUpdate ? $this->resource->notes : null,
+            'metadata' => $this->resource->metadata,
             'is_active' => $this->resource->is_active,
-            'created_at' => $this->resource->created_at->toISOString(),
-            'updated_at' => $this->resource->updated_at->toISOString(),
+            'sites_count' => $this->whenCounted('sites'),
+            'created_at' => $this->resource->created_at->toIso8601String(),
+            'updated_at' => $this->resource->updated_at->toIso8601String(),
+            'deleted_at' => $this->resource->deleted_at?->toIso8601String(),
         ];
     }
 }

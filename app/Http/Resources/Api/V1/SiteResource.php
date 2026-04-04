@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -30,14 +30,31 @@ class SiteResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+        $canUpdate = $user?->can('update', $this->resource) ?? false;
+
         return [
             'id' => $this->resource->id,
+            'customer_id' => $this->resource->customer_id,
+            'organizational_unit_id' => $this->resource->organizational_unit_id,
             'site_number' => $this->resource->site_number,
             'name' => $this->resource->name,
+            'type' => $this->resource->type,
+            'address' => $this->resource->address,
+            'full_address' => $this->resource->full_address,
+            'contact' => $this->resource->contact,
+            'access_instructions' => $canUpdate ? $this->resource->access_instructions : null,
+            'notes' => $canUpdate ? $this->resource->notes : null,
+            'metadata' => $this->resource->metadata,
             'is_active' => $this->resource->is_active,
+            'is_expired' => $this->resource->is_expired,
+            'valid_from' => $this->resource->valid_from?->toDateString(),
+            'valid_until' => $this->resource->valid_until?->toDateString(),
             'customer' => $this->whenLoaded('customer', fn () => new CustomerResource($this->resource->customer)),
-            'created_at' => $this->resource->created_at->toISOString(),
-            'updated_at' => $this->resource->updated_at->toISOString(),
+            'created_at' => $this->resource->created_at->toIso8601String(),
+            'updated_at' => $this->resource->updated_at->toIso8601String(),
+            'deleted_at' => $this->resource->deleted_at?->toIso8601String(),
         ];
     }
 }
