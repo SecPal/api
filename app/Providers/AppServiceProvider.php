@@ -36,11 +36,17 @@ use App\Policies\QualificationPolicy;
 use App\Policies\RoleManagementPolicy;
 use App\Policies\SiteAssignmentPolicy;
 use App\Policies\SitePolicy;
+use App\Services\RuntimeHeartbeatService;
 use App\Services\SystemProcessExecutor;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Events\ScheduledTaskStarting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -197,6 +203,7 @@ class AppServiceProvider extends ServiceProvider
         // Register gates for user permission management
         $this->registerUserPermissionGates();
         $this->registerUserMfaGates();
+        $this->registerRuntimeHeartbeatHooks();
     }
 
     /**
@@ -240,6 +247,23 @@ class AppServiceProvider extends ServiceProvider
             assert($targetUser instanceof \App\Models\User);
 
             return $policy->resetMfa($currentUser, $targetUser);
+        });
+    }
+
+    private function registerRuntimeHeartbeatHooks(): void
+    {
+        $runtimeHeartbeatService = $this->app->make(RuntimeHeartbeatService::class);
+
+        Event::listen(ScheduledTaskStarting::class, function () use ($runtimeHeartbeatService) {
+            $runtimeHeartbeatService->recordSchedulerHeartbeat();
+        });
+
+        Queue::after(function (JobProcessed $event) use ($runtimeHeartbeatService) {
+            $runtimeHeartbeatService->recordQueueHeartbeat($event->job->getQueue());
+        });
+
+        Queue::failing(function (JobFailed $event) use ($runtimeHeartbeatService) {
+            $runtimeHeartbeatService->recordQueueHeartbeat($event->job->getQueue());
         });
     }
 
