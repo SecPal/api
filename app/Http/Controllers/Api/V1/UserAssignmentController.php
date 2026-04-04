@@ -10,6 +10,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\CustomerAssignmentResource;
 use App\Http\Resources\Api\V1\SiteAssignmentResource;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -42,12 +43,16 @@ class UserAssignmentController extends Controller
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
+        /** @var int $tenantId */
+        $tenantId = $request->get('tenant_id');
 
         $assignments = $user->customerAssignments()
-            ->where('tenant_id', $request->input('tenant_id'))
+            ->where('tenant_id', $tenantId)
             ->with(['user', 'customer'])
             ->when($request->boolean('active_only'), fn ($q) => $q->currentlyActive())
             ->get();
+
+        $this->hydrateCustomerUpdateFlags($assignments, $user, $tenantId);
 
         return response()->json([
             'data' => CustomerAssignmentResource::collection($assignments),
@@ -70,15 +75,105 @@ class UserAssignmentController extends Controller
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
+        /** @var int $tenantId */
+        $tenantId = $request->get('tenant_id');
 
         $assignments = $user->siteAssignments()
-            ->where('tenant_id', $request->input('tenant_id'))
+            ->where('tenant_id', $tenantId)
             ->with(['user', 'site', 'site.customer'])
             ->when($request->boolean('active_only'), fn ($q) => $q->currentlyActive())
             ->get();
 
+        $this->hydrateSiteUpdateFlags($assignments, $user, $tenantId);
+
         return response()->json([
             'data' => SiteAssignmentResource::collection($assignments),
         ]);
+    }
+
+    /**
+     * @param  EloquentCollection<int, \App\Models\CustomerAssignment>  $assignments
+     */
+    private function hydrateCustomerUpdateFlags(EloquentCollection $assignments, \App\Models\User $user, int $tenantId): void
+    {
+        $canUpdateAnyCustomer = $user->can('customers.update');
+        $updateableCustomerLookup = $canUpdateAnyCustomer
+            ? []
+            : array_fill_keys(
+                $user->customerAssignments()
+                    ->where('tenant_id', $tenantId)
+                    ->currentlyActive()
+                    ->pluck('customer_id')
+                    ->all(),
+                true,
+            );
+
+        foreach ($assignments as $assignment) {
+            $customer = $assignment->customer;
+
+            if ($customer === null) {
+                continue;
+            }
+
+            $customer->setAttribute(
+                '_resource_can_update',
+                $canUpdateAnyCustomer || isset($updateableCustomerLookup[$customer->id])
+            );
+        }
+    }
+
+    /**
+     * @param  EloquentCollection<int, \App\Models\SiteAssignment>  $assignments
+     */
+    private function hydrateSiteUpdateFlags(EloquentCollection $assignments, \App\Models\User $user, int $tenantId): void
+    {
+        $canUpdateAnySite = $user->can('sites.update');
+        $canUpdateAnyCustomer = $user->can('customers.update');
+
+        $updateableSiteLookup = $canUpdateAnySite
+            ? []
+            : array_fill_keys(
+                $user->siteAssignments()
+                    ->where('tenant_id', $tenantId)
+                    ->currentlyActive()
+                    ->pluck('site_id')
+                    ->all(),
+                true,
+            );
+
+        $updateableCustomerLookup = $canUpdateAnyCustomer
+            ? []
+            : array_fill_keys(
+                $user->customerAssignments()
+                    ->where('tenant_id', $tenantId)
+                    ->currentlyActive()
+                    ->pluck('customer_id')
+                    ->all(),
+                true,
+            );
+
+        foreach ($assignments as $assignment) {
+            $site = $assignment->site;
+
+            if ($site === null) {
+                continue;
+            }
+
+            $site->setAttribute(
+                '_resource_can_update',
+                $canUpdateAnySite || isset($updateableSiteLookup[$site->id])
+            );
+
+            $customer = $site->customer;
+
+            if ($customer === null) {
+                continue;
+            }
+
+            $customer->setAttribute(
+                '_resource_can_update',
+                $canUpdateAnyCustomer || isset($updateableCustomerLookup[$customer->id])
+            );
+        }
     }
 }

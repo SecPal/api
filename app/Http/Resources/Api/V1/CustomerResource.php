@@ -30,9 +30,7 @@ class CustomerResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var \App\Models\User|null $user */
-        $user = $request->user();
-        $canUpdate = $user?->can('update', $this->resource) ?? false;
+        $canUpdate = $this->resolveCanUpdate($request);
 
         return [
             'id' => $this->resource->id,
@@ -48,5 +46,19 @@ class CustomerResource extends JsonResource
             'updated_at' => $this->resource->updated_at->toIso8601String(),
             'deleted_at' => $this->resource->deleted_at?->toIso8601String(),
         ];
+    }
+
+    private function resolveCanUpdate(Request $request): bool
+    {
+        $precomputed = $this->resource->getAttribute('_resource_can_update');
+
+        if (is_bool($precomputed)) {
+            return $precomputed;
+        }
+
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+
+        return $user?->can('update', $this->resource) ?? false;
     }
 }
