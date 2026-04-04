@@ -142,6 +142,19 @@ describe('TemporalRoleUser Pivot Model', function () {
                 ->and($roleIds)->toContain($this->managerRole->id)
                 ->and($roleIds)->not->toContain($otherRole->id);
         });
+
+        it('resolves role helpers from the user tenant when no permission team is set', function () {
+            $tenantUser = User::factory()->create([
+                'tenant_id' => $this->tenant->id,
+            ]);
+
+            assignTemporalRole($tenantUser, $this->managerRole, $this->tenant->id);
+
+            $this->registrar->setPermissionsTeamId(null);
+
+            expect($tenantUser->hasRole('manager'))->toBeTrue()
+                ->and($tenantUser->getRoleNames()->all())->toBe(['manager']);
+        });
     });
 
     describe('Query Scopes', function () {

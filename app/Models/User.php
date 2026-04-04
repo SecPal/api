@@ -26,6 +26,7 @@ use Laragear\TwoFactor\TwoFactorAuthentication;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Contracts\Permission as PermissionContract;
 use Spatie\Permission\Models\Permission as SpatiePermission;
+use Spatie\Permission\Models\Role as SpatieRole;
 use Spatie\Permission\PermissionRegistrar;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -119,11 +120,11 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
      * This enables time-limited role assignments with automatic expiration.
      * Only currently active roles are returned by default.
      *
-     * @return MorphToMany<\Spatie\Permission\Models\Role, $this, TemporalRoleUser>
+     * @return MorphToMany<SpatieRole, $this, TemporalRoleUser>
      */
     public function roles(): MorphToMany
     {
-        /** @var class-string<\Spatie\Permission\Models\Role> $roleClass */
+        /** @var class-string<SpatieRole> $roleClass */
         $roleClass = config('permission.models.role');
 
         /** @var string $tableName */
@@ -203,6 +204,137 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
         return $query->exists();
     }
 
+    /**
+     * Determine if the model has (one of) the given role(s).
+     *
+     * When no explicit permissions team is set, Spatie's eager-loading path builds the
+     * roles relation on a blank model instance, which loses this user's tenant fallback.
+     * Querying through the concrete model instance preserves the intended tenant scoping.
+     *
+     * @param  mixed  $roles
+     */
+    public function hasRole($roles, ?string $guard = null): bool
+    {
+        $resolvedRoles = $this->resolveRolesForCurrentContext();
+        $filteredRoles = $this->filterRolesByGuard($resolvedRoles, $guard);
+
+        if (is_string($roles) && str_contains($roles, '|')) {
+            $roles = $this->convertPipeToArray($roles);
+        }
+
+        if ($roles instanceof \BackedEnum) {
+            $roles = $roles->value;
+        }
+
+        if (is_int($roles)) {
+            $requestedRoleId = (string) $roles;
+
+            return $filteredRoles->contains(
+                fn (SpatieRole $role): bool => $this->roleKeyMatches($role, $requestedRoleId)
+            );
+        }
+
+        if (is_string($roles)) {
+            if (PermissionRegistrar::isUid($roles)) {
+                $requestedRoleId = $roles;
+
+                return $filteredRoles->contains(
+                    fn (SpatieRole $role): bool => $this->roleKeyMatches($role, $requestedRoleId)
+                );
+            }
+
+            return $filteredRoles->contains(
+                fn (SpatieRole $role): bool => $role->name === $roles
+            );
+        }
+
+        if ($roles instanceof SpatieRole) {
+            $requestedRoleId = $this->normalizeRoleKey($roles->getKey());
+
+            if ($requestedRoleId === null) {
+                return false;
+            }
+
+            return $filteredRoles->contains(
+                fn (SpatieRole $role): bool => $this->roleKeyMatches($role, $requestedRoleId)
+            );
+        }
+
+        if (is_array($roles)) {
+            foreach ($roles as $role) {
+                if ($this->hasRole($role, $guard)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if ($roles instanceof SupportCollection) {
+            foreach ($roles as $role) {
+                if ($this->hasRole($role, $guard)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        throw new \TypeError('Unsupported type for $roles parameter to hasRole().');
+    }
+
+    /**
+     * Determine if the model has all of the given role(s).
+     *
+     * @param  mixed  $roles
+     */
+    public function hasAllRoles($roles, ?string $guard = null): bool
+    {
+        $roles = $this->normalizeEnumValue($roles);
+
+        if (is_string($roles) && str_contains($roles, '|')) {
+            $roles = $this->convertPipeToArray($roles);
+        }
+
+        foreach ($this->normalizeRolesToList($roles) as $role) {
+            if (! $this->hasRole($role, $guard)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Determine if the model has exactly all of the given role(s).
+     *
+     * @param  mixed  $roles
+     */
+    public function hasExactRoles($roles, ?string $guard = null): bool
+    {
+        if (is_string($roles) && str_contains($roles, '|')) {
+            $roles = $this->convertPipeToArray($roles);
+        }
+
+        $requestedRoles = $this->normalizeRolesToComparisonKeys($roles);
+        $currentRoles = $this->resolveRoleNamesForCurrentContext($guard)
+            ->values()
+            ->all();
+
+        sort($requestedRoles);
+        sort($currentRoles);
+
+        return $requestedRoles === $currentRoles;
+    }
+
+    /**
+     * @return SupportCollection<int, string>
+     */
+    public function getRoleNames(): SupportCollection
+    {
+        return $this->resolveRoleNamesForCurrentContext();
+    }
+
     // tenant_id is annotated as int but can be null on transient model instances
     // (e.g. partially constructed or factory-created users in tests that have not
     // completed full DB setup).  Returning null lets callers use IS NULL semantics
@@ -217,6 +349,147 @@ class User extends Authenticatable implements TwoFactorAuthenticatable
         }
 
         return $this->tenant_id;
+    }
+
+    /**
+     * Resolve the active roles collection for the current permission context.
+     *
+     * @return SupportCollection<int, SpatieRole>
+     */
+    private function resolveRolesForCurrentContext(): SupportCollection
+    {
+        if (app(PermissionRegistrar::class)->getPermissionsTeamId() === null) {
+            /** @var SupportCollection<int, SpatieRole> $roles */
+            $roles = $this->roles()->get();
+            $this->setRelation('roles', $roles);
+
+            return $roles;
+        }
+
+        $this->loadMissing('roles');
+
+        /** @var SupportCollection<int, SpatieRole> $roles */
+        $roles = $this->roles;
+
+        return $roles;
+    }
+
+    /**
+     * @param  SupportCollection<int, SpatieRole>  $roles
+     * @return SupportCollection<int, SpatieRole>
+     */
+    private function filterRolesByGuard(SupportCollection $roles, ?string $guard): SupportCollection
+    {
+        if ($guard === null) {
+            return $roles;
+        }
+
+        /** @var SupportCollection<int, SpatieRole> $filtered */
+        $filtered = $roles->filter(
+            fn (SpatieRole $role): bool => $role->guard_name === $guard
+        )->values();
+
+        return $filtered;
+    }
+
+    /**
+     * @return SupportCollection<int, string>
+     */
+    private function resolveRoleNamesForCurrentContext(?string $guard = null): SupportCollection
+    {
+        /** @var SupportCollection<int, string> $roleNames */
+        $roleNames = $this->filterRolesByGuard($this->resolveRolesForCurrentContext(), $guard)
+            ->map(fn (SpatieRole $role): string => $role->name)
+            ->values();
+
+        return $roleNames;
+    }
+
+    private function normalizeEnumValue(mixed $value): mixed
+    {
+        return $value instanceof \BackedEnum ? $value->value : $value;
+    }
+
+    /**
+     * @param  mixed  $roles
+     * @return list<int|string|SpatieRole>
+     */
+    private function normalizeRolesToList($roles): array
+    {
+        $roles = $this->normalizeEnumValue($roles);
+
+        if ($roles instanceof SupportCollection) {
+            $items = [];
+
+            foreach ($roles as $role) {
+                $normalizedRole = $this->normalizeEnumValue($role);
+
+                if (is_int($normalizedRole) || is_string($normalizedRole) || $normalizedRole instanceof SpatieRole) {
+                    $items[] = $normalizedRole;
+                }
+            }
+
+            return $items;
+        }
+
+        if (is_array($roles)) {
+            $items = [];
+
+            foreach (array_values($roles) as $role) {
+                $normalizedRole = $this->normalizeEnumValue($role);
+
+                if (is_int($normalizedRole) || is_string($normalizedRole) || $normalizedRole instanceof SpatieRole) {
+                    $items[] = $normalizedRole;
+                }
+            }
+
+            return $items;
+        }
+
+        if (is_int($roles) || is_string($roles) || $roles instanceof SpatieRole) {
+            return [$roles];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  mixed  $roles
+     * @return list<string>
+     */
+    private function normalizeRolesToComparisonKeys($roles): array
+    {
+        $comparisonKeys = [];
+
+        foreach ($this->normalizeRolesToList($roles) as $role) {
+            if ($role instanceof SpatieRole) {
+                $comparisonKeys[] = $role->name;
+
+                continue;
+            }
+
+            $comparisonKeys[] = (string) $role;
+        }
+
+        sort($comparisonKeys);
+
+        return array_values(array_unique($comparisonKeys));
+    }
+
+    private function normalizeRoleKey(mixed $roleKey): ?string
+    {
+        if (is_int($roleKey) || is_string($roleKey)) {
+            return (string) $roleKey;
+        }
+
+        return null;
+    }
+
+    private function roleKeyMatches(SpatieRole $role, string $requestedRoleId): bool
+    {
+        $resolvedRoleId = $this->normalizeRoleKey($role->getKey());
+
+        return $resolvedRoleId !== null && $resolvedRoleId === $requestedRoleId;
     }
 
     /**
