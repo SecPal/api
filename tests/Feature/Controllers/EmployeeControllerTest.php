@@ -16,6 +16,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Mail;
+use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
@@ -38,6 +39,10 @@ beforeEach(function (): void {
 
     // Run seeder to ensure predefined roles exist
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+    Role::firstOrCreate([
+        'name' => 'Employee',
+        'guard_name' => 'sanctum',
+    ]);
 
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
@@ -880,6 +885,30 @@ describe('POST /v1/employees/{employee}/activate', function () {
             ->postJson("/v1/employees/{$employee->id}/activate");
 
         $response->assertStatus(422);
+    });
+
+    test('returns 422 when employee has no linked user account', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'onboarding_completed' => true,
+            'contract_start_date' => now()->subDay()->toDateString(),
+        ]);
+
+        $employee->updateQuietly([
+            'user_id' => null,
+            'user_account_active' => false,
+            'user_account_activated_at' => null,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/activate");
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['employee']);
     });
 });
 

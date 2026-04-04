@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -11,6 +11,8 @@ use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
@@ -31,6 +33,8 @@ beforeEach(function () {
         'type' => 'department',
         'is_active' => true,
     ]);
+
+    Role::create(['name' => 'Employee', 'guard_name' => 'sanctum']);
 });
 
 afterEach(function () {
@@ -49,6 +53,7 @@ test('update employee status command activates employees whose contract starts t
         'date_of_birth' => '1990-01-01',
         'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->startOfDay(),
+        'onboarding_completed' => true,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
@@ -58,6 +63,7 @@ test('update employee status command activates employees whose contract starts t
     // Employee should be activated
     $employee->refresh();
     expect($employee->status)->toBe(Employee::STATUS_ACTIVE);
+    expect($employee->user?->hasRole('Employee'))->toBeTrue();
 });
 
 test('update employee status command deactivates employees whose contract ends today', function () {
@@ -85,6 +91,7 @@ test('update employee status command deactivates employees whose contract ends t
     // Employee should be terminated
     $employee->refresh();
     expect($employee->status)->toBe(Employee::STATUS_TERMINATED);
+    expect($employee->user?->roles()->count())->toBe(0);
 });
 
 test('update employee status command dry run does not change status', function () {
@@ -98,6 +105,7 @@ test('update employee status command dry run does not change status', function (
         'date_of_birth' => '1985-07-20',
         'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->startOfDay(),
+        'onboarding_completed' => true,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
@@ -123,12 +131,14 @@ test('update employee status command processes multiple employees', function () 
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->orgUnit->id,
             'contract_start_date' => now()->startOfDay(),
+            'onboarding_completed' => true,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->orgUnit->id,
             'contract_start_date' => now()->startOfDay(),
+            'onboarding_completed' => true,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),
     ]);
@@ -141,4 +151,38 @@ test('update employee status command processes multiple employees', function () 
         $employee->refresh();
         expect($employee->status)->toBe(Employee::STATUS_ACTIVE);
     });
+});
+
+test('update employee status command skips activation when onboarding is incomplete', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->startOfDay(),
+        'onboarding_completed' => false,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    Artisan::call('employees:update-status');
+
+    $employee->refresh();
+    expect($employee->status)->toBe(Employee::STATUS_PRE_CONTRACT);
+    expect(DB::table('model_has_roles')->where('model_id', $employee->user_id)->count())->toBe(0);
+});
+
+test('update employee status command terminates on-leave employees whose contract ends today', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->subMonths(3),
+        'termination_date' => now()->startOfDay(),
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $employee->status = Employee::STATUS_ON_LEAVE;
+    $employee->saveQuietly();
+
+    Artisan::call('employees:update-status');
+
+    $employee->refresh();
+    expect($employee->status)->toBe(Employee::STATUS_TERMINATED);
 });

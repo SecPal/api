@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\Employee;
+use App\Services\EmployeeLifecycleService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -20,11 +21,7 @@ use Illuminate\Support\Facades\Log;
  * - Activates employees whose contract_start_date is today or in the past
  * - Deactivates employees whose termination_date is today or in the past
  *
- * Status transitions trigger the EmployeeObserver which handles:
- * - User account creation/activation
- * - Role assignments
- * - Email notifications
- * - Session/token cleanup
+ * Status transitions are applied through the explicit employee lifecycle service.
  */
 class UpdateEmployeeStatus extends Command
 {
@@ -94,6 +91,7 @@ class UpdateEmployeeStatus extends Command
         $this->info('Processing activations...');
 
         $employees = Employee::where('status', Employee::STATUS_PRE_CONTRACT)
+            ->where('onboarding_completed', true)
             ->whereDate('contract_start_date', '<=', $today)
             ->get();
 
@@ -104,14 +102,14 @@ class UpdateEmployeeStatus extends Command
         }
 
         $count = 0;
+        $lifecycleService = app(EmployeeLifecycleService::class);
 
         foreach ($employees as $employee) {
             try {
                 $this->line("  Activating: {$employee->first_name} {$employee->last_name} (ID: {$employee->id})");
 
                 if (! $isDryRun) {
-                    $employee->status = Employee::STATUS_ACTIVE;
-                    $employee->save();
+                    $lifecycleService->activate($employee);
                 }
 
                 $count++;
@@ -137,7 +135,7 @@ class UpdateEmployeeStatus extends Command
     {
         $this->info('Processing deactivations...');
 
-        $employees = Employee::where('status', Employee::STATUS_ACTIVE)
+        $employees = Employee::whereIn('status', [Employee::STATUS_ACTIVE, Employee::STATUS_ON_LEAVE])
             ->whereDate('termination_date', '<=', $today)
             ->get();
 
@@ -148,14 +146,14 @@ class UpdateEmployeeStatus extends Command
         }
 
         $count = 0;
+        $lifecycleService = app(EmployeeLifecycleService::class);
 
         foreach ($employees as $employee) {
             try {
                 $this->line("  Deactivating: {$employee->first_name} {$employee->last_name} (ID: {$employee->id})");
 
                 if (! $isDryRun) {
-                    $employee->status = Employee::STATUS_TERMINATED;
-                    $employee->save();
+                    $lifecycleService->terminate($employee);
                 }
 
                 $count++;
