@@ -145,6 +145,28 @@ test('welcome active mail contains employee data', function () {
     expect($mail->employee->employee_number)->toBe('TEST-002');
 });
 
+test('employee lifecycle mail subjects resolve in English', function () {
+    app()->setLocale('en');
+
+    expect(__('emails.account_deactivated.subject'))->toBe('Account Deactivated')
+        ->and(__('emails.contract_ending_soon.subject'))->toBe('Your Contract Ends Soon')
+        ->and(__('emails.welcome_active.subject'))->toBe('Welcome to the Team!')
+        ->and(__('emails.qualification_expiring.qualification_fallback'))->toBe('Qualification')
+        ->and(__('emails.qualification_expiring.subject', ['qualification_name' => 'First Aid']))
+        ->toBe('Qualification Expiring Soon: First Aid');
+});
+
+test('employee lifecycle mail subjects resolve in German', function () {
+    app()->setLocale('de');
+
+    expect(__('emails.account_deactivated.subject'))->toBe('Konto deaktiviert')
+        ->and(__('emails.contract_ending_soon.subject'))->toBe('Ihr Vertrag endet bald')
+        ->and(__('emails.welcome_active.subject'))->toBe('Willkommen im Team!')
+        ->and(__('emails.qualification_expiring.qualification_fallback'))->toBe('Qualifikation')
+        ->and(__('emails.qualification_expiring.subject', ['qualification_name' => 'Erste Hilfe']))
+        ->toBe('Qualifikation läuft bald ab: Erste Hilfe');
+});
+
 test('account deactivated mail has correct content', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,

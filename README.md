@@ -574,7 +574,7 @@ This project adheres to the [Contributor Covenant Code of Conduct](CODE_OF_CONDU
 
 ## Translation
 
-SecPal uses [Translation.io](https://translation.io) for managing translations. Translation.io offers free unlimited accounts for open source projects.
+SecPal uses repo-native PO/Gettext catalogs managed through Polyglot. Translate the checked-in catalogs directly or with a gettext editor such as POedit; the Polyglot web UI must not be exposed in production.
 
 ## Related Repositories
 

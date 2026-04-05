@@ -10,13 +10,13 @@
   "license": "MIT",
   "require": {
     "php": "^8.4",
+    "codewiser/polyglot": "^2.1",
     "laragear/two-factor": "^4.0",
     "laravel/framework": "^13.3",
     "laravel/sanctum": "^4.3",
     "laravel/tinker": "^3.0",
     "spatie/laravel-activitylog": "^5.0",
-    "spatie/laravel-permission": "^7.2",
-    "tio/laravel": "^1.23"
+    "spatie/laravel-permission": "^7.2"
   },
   "require-dev": {
     "barryvdh/laravel-ide-helper": "^3.7",

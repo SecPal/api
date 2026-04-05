@@ -1,0 +1,998 @@
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+msgid ""
+msgstr ""
+"Project-Id-Version: SecPal\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-04-05 10:00+0000\n"
+"PO-Revision-Date: 2026-04-05 10:00+0000\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: /app/Http/Controllers/AuthController.php:98
+msgid "Unauthenticated."
+msgstr "Nicht authentifiziert."
+
+#: /app/Http/Controllers/AuthController.php:161
+msgid "Two-factor authentication is no longer enabled for this account."
+msgstr "Zwei-Faktor-Authentifizierung ist für dieses Konto nicht mehr aktiviert."
+
+#: /app/Http/Controllers/AuthController.php:179
+msgid "This MFA challenge must be completed from a browser session context."
+msgstr "Diese MFA-Herausforderung muss aus einem Browser-Sitzungskontext heraus abgeschlossen werden."
+
+#: /app/Http/Controllers/AuthController.php:214
+#: /app/Http/Controllers/AuthController.php:901
+msgid "Logged out successfully"
+msgstr "Erfolgreich abgemeldet"
+
+#: /app/Http/Controllers/AuthController.php:264
+msgid "All tokens revoked successfully"
+msgstr "Alle Token erfolgreich widerrufen"
+
+#: /app/Http/Controllers/AuthController.php:278
+#: /app/Http/Controllers/AuthController.php:303
+msgid "Email address is already verified."
+msgstr "E-Mail-Adresse ist bereits verifiziert."
+
+#: /app/Http/Controllers/AuthController.php:285
+msgid "Verification link sent successfully."
+msgstr "Bestätigungslink erfolgreich versendet."
+
+#: /app/Http/Controllers/AuthController.php:312
+msgid "Email address verified successfully."
+msgstr "E-Mail-Adresse erfolgreich verifiziert."
+
+#: /app/Http/Controllers/AuthController.php:385
+msgid "Two-factor authentication is already enabled for this account."
+msgstr "Zwei-Faktor-Authentifizierung ist für dieses Konto bereits aktiviert."
+
+#: /app/Http/Controllers/AuthController.php:406
+msgid "No pending two-factor enrollment exists for this account."
+msgstr "Es gibt keine ausstehende Zwei-Faktor-Registrierung für dieses Konto."
+
+#: /app/Http/Controllers/AuthController.php:412
+msgid "The pending two-factor enrollment has expired. Please start a new enrollment."
+msgstr "Die ausstehende Zwei-Faktor-Registrierung ist abgelaufen. Bitte starten Sie eine neue Registrierung."
+
+#: /app/Http/Controllers/AuthController.php:460
+#: /app/Http/Controllers/AuthController.php:509
+msgid "Two-factor authentication is not enabled for this account."
+msgstr "Zwei-Faktor-Authentifizierung ist für dieses Konto nicht aktiviert."
+
+#: /app/Http/Controllers/AuthController.php:559
+msgid "Two-factor authentication is not configured for this account."
+msgstr "Zwei-Faktor-Authentifizierung ist für dieses Konto nicht konfiguriert."
+
+#: /app/Http/Controllers/AuthController.php:580
+msgid "Two-factor authentication has been reset for the user."
+msgstr "Zwei-Faktor-Authentifizierung wurde für den Benutzer zurückgesetzt."
+
+#: /app/Http/Controllers/AuthController.php:621
+msgid "Password reset email sent if account exists"
+msgstr "Passwort-Zurücksetzen-E-Mail versendet, falls das Konto existiert"
+
+#: /app/Http/Controllers/AuthController.php:655
+#: /app/Http/Controllers/AuthController.php:667
+#: /app/Http/Controllers/AuthController.php:681
+#: /app/Http/Controllers/AuthController.php:688
+#: /app/Http/Controllers/AuthController.php:729
+msgid "Invalid or expired reset token"
+msgstr "Ungültiger oder abgelaufener Token zum Zurücksetzen des Passworts"
+
+#: /app/Http/Controllers/AuthController.php:734
+msgid "Password has been reset successfully"
+msgstr "Passwort wurde erfolgreich zurückgesetzt"
+
+#: /app/Http/Controllers/AuthController.php:880
+msgid "Resource not found."
+msgstr "Ressource nicht gefunden."
+
+#: /app/Http/Controllers/PersonController.php:76
+msgid "Email query parameter is required"
+msgstr "E-Mail-Abfrageparameter ist erforderlich"
+
+#: /app/Http/Controllers/PersonController.php:88
+msgid "The given data was invalid."
+msgstr "Die angegebenen Daten waren ungültig."
+
+#: /app/Http/Controllers/PersonController.php:100
+msgid "Person not found"
+msgstr "Person nicht gefunden"
+
+#: /app/Http/Controllers/RoleController.php:67
+msgid "Role already assigned to user"
+msgstr "Rolle ist bereits dem Benutzer zugewiesen"
+
+#: /app/Http/Controllers/RoleController.php:192
+#: /app/Http/Controllers/RoleController.php:239
+msgid "Role not assigned to user"
+msgstr "Rolle dem Benutzer nicht zugewiesen"
+
+#: /app/Http/Controllers/Api/V1/CustomerController.php:212
+msgid "Cannot delete customer with active sites."
+msgstr "Kunde mit aktiven Standorten kann nicht gelöscht werden."
+
+#: /app/Http/Controllers/Api/V1/EmployeeController.php:209
+msgid "Employee must be in pre_contract status to activate"
+msgstr "Mitarbeiter muss sich zum Aktivieren im Status pre_contract befinden"
+
+#: /app/Http/Controllers/Api/V1/EmployeeController.php:215
+msgid "Cannot activate: onboarding must be completed and contract start date must have passed"
+msgstr "Kann nicht aktiviert werden: Das Onboarding muss abgeschlossen sein und der Vertragsbeginn muss überschritten sein"
+
+#: /app/Http/Controllers/Api/V1/EmployeeController.php:236
+msgid "Employee must be active to be placed on leave"
+msgstr "Mitarbeiter muss aktiv sein, um beurlaubt zu werden"
+
+#: /app/Http/Controllers/Api/V1/EmployeeController.php:257
+msgid "Employee must be on leave to restore active access"
+msgstr "Mitarbeiter muss beurlaubt sein, um den aktiven Zugriff wiederherzustellen"
+
+#: /app/Http/Controllers/Api/V1/EmployeeController.php:282
+msgid "Cannot terminate: employee must be active or on_leave"
+msgstr "Kann nicht beendet werden: Mitarbeiter muss aktiv oder im Status on_leave sein"
+
+#: /app/Http/Controllers/Api/V1/EmployeeDocumentController.php:132
+msgid "File not found"
+msgstr "Datei nicht gefunden"
+
+#: /app/Http/Controllers/Api/V1/EmployeeQualificationController.php:74
+msgid "Qualification is already attached to this employee"
+msgstr "Qualifikation ist bereits mit diesem Mitarbeiter verknüpft"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:63
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:122
+msgid "Invalid or expired onboarding link. Please request a new invitation."
+msgstr "Ungültiger oder abgelaufener Onboarding-Link. Bitte fordern Sie eine neue Einladung an."
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:73
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:132
+msgid "Invalid onboarding link. Email does not match."
+msgstr "Ungültiger Onboarding-Link. E-Mail stimmt nicht überein."
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:79
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:138
+msgid "Onboarding is only available for pre-contract employees."
+msgstr "Onboarding ist nur für Mitarbeiter vor Vertragsabschluss möglich."
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:183
+msgid "Name change validation failed."
+msgstr "Namenänderungsvalidierung fehlgeschlagen."
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:236
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:254
+msgid "User account not found for employee."
+msgstr "Benutzerkonto für Mitarbeiter nicht gefunden."
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:287
+msgid "Onboarding completed successfully. Welcome to :app_name!"
+msgstr "Onboarding erfolgreich abgeschlossen. Willkommen bei :app_name!"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:323
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:403
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:435
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:805
+msgid "No employee record found for user"
+msgstr "Kein Mitarbeiterdatensatz für Benutzer gefunden"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:329
+msgid "Onboarding is only available for pre-contract employees"
+msgstr "Onboarding ist nur für Mitarbeiter vor Vertragsabschluss verfügbar"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:441
+msgid "Onboarding forms can only be submitted by pre-contract employees"
+msgstr "Onboarding-Formulare können nur von Vorvertragsangestellten eingereicht werden"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:455
+msgid "Form has already been submitted and is awaiting review"
+msgstr "Formular wurde bereits eingereicht und wartet auf Überprüfung"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:461
+msgid "Form has already been reviewed and cannot be modified"
+msgstr "Formular wurde bereits überprüft und kann nicht geändert werden"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:524
+msgid "Only submitted forms can be approved"
+msgstr "Nur eingereichte Formulare können genehmigt werden"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:562
+msgid "Only submitted forms can be rejected"
+msgstr "Nur eingereichte Formulare können abgelehnt werden"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:753
+msgid "First name"
+msgstr "Vorname"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:753
+msgid "Last name"
+msgstr "Nachname"
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:769
+msgid ":field change detected. HR will be notified for verification."
+msgstr ":field-Änderung erkannt. HR wird zur Überprüfung benachrichtigt."
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:778
+msgid ":field change too significant. Please contact HR if your name was entered incorrectly."
+msgstr ":field-Änderung ist zu erheblich. Bitte kontaktieren Sie die HR, wenn Ihr Name falsch eingegeben wurde."
+
+#: /app/Http/Controllers/Api/V1/OrganizationalScopeController.php:133
+#: /app/Http/Controllers/Api/V1/OrganizationalScopeController.php:194
+msgid "Scope not found"
+msgstr "Bereich nicht gefunden"
+
+#: /app/Http/Controllers/Api/V1/OrganizationalScopeController.php:140
+#: /app/Http/Controllers/Api/V1/OrganizationalScopeController.php:201
+msgid "Scope not found for this organizational unit"
+msgstr "Bereich für diese Organisationseinheit nicht gefunden"
+
+#: /app/Http/Controllers/Api/V1/OrganizationalUnitController.php:243
+msgid "Cannot delete: :count child unit exists"
+msgid_plural "Cannot delete: :count child units exist"
+msgstr[0] "Löschen nicht möglich: :count untergeordnete Einheit existiert"
+msgstr[1] "Löschen nicht möglich: :count untergeordnete Einheiten existieren"
+
+#: /app/Http/Controllers/Api/V1/OrganizationalUnitController.php:245
+msgid "Delete or move child units first"
+msgstr "Löschen oder verschieben Sie zuerst die untergeordneten Einheiten"
+
+#: /app/Http/Controllers/Api/V1/OrganizationalUnitController.php:334
+msgid "Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact an administrator to get direct access to this unit first."
+msgstr "Diese Einheit kann nicht zu einer Stammeinheit gemacht werden. Ihr Zugriff auf diese Einheit wird von der übergeordneten Hierarchie geerbt. Wenn Sie diese Einheit zur Stammeinheit machen, wird Ihr Zugriff aufgehoben. Bitte wenden Sie sich zunächst an einen Administrator, um direkten Zugriff auf diese Einheit zu erhalten."
+
+#: /app/Http/Controllers/Api/V1/PermissionManagementController.php:144
+msgid "Cannot delete permission while assigned to roles"
+msgstr "Berechtigung kann nicht gelöscht werden, während sie Rollen zugewiesen ist"
+
+#: /app/Http/Controllers/Api/V1/QualificationController.php:138
+msgid "System qualifications cannot be modified"
+msgstr "Systemqualifizierungen können nicht geändert werden"
+
+#: /app/Http/Controllers/Api/V1/QualificationController.php:168
+msgid "System qualifications cannot be deleted"
+msgstr "Systemqualifizierungen können nicht gelöscht werden"
+
+#: /app/Http/Controllers/Api/V1/RoleManagementController.php:138
+msgid "Cannot delete role while assigned to users"
+msgstr "Rolle kann nicht gelöscht werden, während sie Benutzern zugewiesen ist"
+
+#: /app/Http/Controllers/Api/V1/UserPermissionController.php:138
+msgid "Permissions assigned successfully"
+msgstr "Berechtigungen erfolgreich zugewiesen"
+
+#: /app/Http/Controllers/Api/V1/UserPermissionController.php:156
+msgid "User does not have this permission directly assigned"
+msgstr "Benutzer hat diese Berechtigung nicht direkt zugewiesen"
+
+#: /app/Http/Controllers/Api/V1/UserPermissionController.php:166
+msgid "Permission revoked successfully"
+msgstr "Berechtigung erfolgreich widerrufen"
+
+#: /app/Http/Middleware/CheckOrganizationalScope.php:51
+msgid "Authentication required"
+msgstr "Authentifizierung erforderlich"
+
+#: /app/Http/Middleware/CheckOrganizationalScope.php:57
+msgid "Organizational unit ID not provided"
+msgstr "ID der Organisationseinheit nicht angegeben"
+
+#: /app/Http/Middleware/CheckOrganizationalScope.php:62
+msgid "Invalid organizational unit ID format"
+msgstr "Ungültiges Format der ID der Organisationseinheit"
+
+#: /app/Http/Middleware/CheckOrganizationalScope.php:68
+msgid "Organizational unit not found"
+msgstr "Organisatorische Einheit nicht gefunden"
+
+#: /app/Http/Middleware/CheckOrganizationalScope.php:123
+msgid "Insufficient access level. Required: :level"
+msgstr "Unzureichende Zugriffsstufe. Erforderlich: :level"
+
+#: /app/Http/Middleware/EnsureNotPreContract.php:51
+msgid "Access denied. Please complete onboarding first before accessing operational features."
+msgstr "Zugriff verweigert. Bitte schließen Sie zuerst das Onboarding ab, bevor Sie auf operative Funktionen zugreifen."
+
+#: /app/Http/Middleware/EnsurePreContract.php:46
+msgid "Access denied. You must be an employee to access this resource."
+msgstr "Zugang verweigert. Sie müssen ein Mitarbeiter sein, um auf diese Ressource zugreifen zu können."
+
+#: /app/Http/Middleware/EnsurePreContract.php:51
+msgid "Access denied. Onboarding is only available for pre-contract employees."
+msgstr "Zugang verweigert. Onboarding ist nur für Mitarbeiter vor Vertragsabschluss verfügbar."
+
+#: /app/Http/Middleware/InjectTenantId.php:59
+msgid "User has no assigned tenant. Please contact system administrator."
+msgstr "Benutzer hat keinen zugewiesenen Mandanten. Bitte kontaktieren Sie den Systemadministrator."
+
+#: /app/Http/Middleware/SetTenant.php:34
+msgid "Tenant ID is required. Please provide tenant ID in path (/tenants/{tenant}) or X-Tenant header."
+msgstr "Die Mandanten-ID ist erforderlich. Bitte geben Sie die Mandanten-ID im Pfad (/tenants/{tenant}) oder im X-Tenant-Header an."
+
+#: /app/Http/Middleware/SetTenant.php:41
+msgid "Tenant not found. The specified tenant does not exist."
+msgstr "Mandant nicht gefunden. Der angegebene Mandant existiert nicht."
+
+#: /app/Http/Middleware/SetTenant.php:47
+msgid "Forbidden. You do not belong to the specified tenant."
+msgstr "Unzulässig. Sie gehören zum angegebenen Mandanten nicht."
+
+#: /app/Http/Requests/AttachQualificationRequest.php:75
+msgid "Qualification is required"
+msgstr "Qualifikation ist erforderlich"
+
+#: /app/Http/Requests/AttachQualificationRequest.php:76
+msgid "Selected qualification does not exist"
+msgstr "Die ausgewählte Qualifikation existiert nicht"
+
+#: /app/Http/Requests/AttachQualificationRequest.php:77
+msgid "Obtained date is required"
+msgstr "Erhaltungsdatum ist erforderlich"
+
+#: /app/Http/Requests/AttachQualificationRequest.php:78
+msgid "Obtained date cannot be in the future"
+msgstr "Erhaltungsdatum kann nicht in der Zukunft liegen"
+
+#: /app/Http/Requests/AttachQualificationRequest.php:79
+msgid "Expiry date must be after obtained date"
+msgstr "Ablaufdatum muss nach dem Erhaltungsdatum liegen"
+
+#: /app/Http/Requests/IndexEmployeeRequest.php:51
+msgid "Status filter must be one of: :statuses."
+msgstr "Statusfilter muss einer der folgenden sein: :statuses."
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:203
+#: /app/Http/Requests/UpdateEmployeeRequest.php:177
+msgid "You do not have access to the selected organizational unit."
+msgstr "Sie haben keinen Zugriff auf die ausgewählte Organisationseinheit."
+
+#. Basic fields
+#: /app/Http/Requests/StoreEmployeeRequest.php:220
+msgid "First name is required"
+msgstr "Vorname ist erforderlich"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:221
+msgid "Last name is required"
+msgstr "Nachname ist erforderlich"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:222
+msgid "Date of birth is required"
+msgstr "Geburtsdatum ist erforderlich"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:223
+msgid "Email address is required"
+msgstr "E-Mail-Adresse ist erforderlich"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:224
+#: /app/Http/Requests/UpdateEmployeeRequest.php:193
+msgid "Email address must be valid"
+msgstr "E-Mail-Adresse muss gültig sein"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:225
+#: /app/Http/Requests/UpdateEmployeeRequest.php:194
+msgid "Email address is already in use"
+msgstr "E-Mail-Adresse wird bereits verwendet"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:226
+msgid "Position is required"
+msgstr "Position ist erforderlich"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:227
+msgid "Contract type is required"
+msgstr "Vertragstyp ist erforderlich"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:228
+msgid "Contract start date is required"
+msgstr "Vertragsbeginn ist erforderlich"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:229
+msgid "Employment status is required"
+msgstr "Beschäftigungsstatus ist erforderlich"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:230
+msgid "Valid employee statuses are: :statuses."
+msgstr "Gültige Mitarbeiterstatus sind: :statuses."
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:233
+msgid "Organizational unit is required"
+msgstr "Organisationseinheit ist erforderlich"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:234
+msgid "Invitation sending must be true or false"
+msgstr "Einladungsversand muss wahr oder falsch sein"
+
+#: /app/Http/Requests/StoreEmployeeRequest.php:235
+#: /app/Http/Requests/UpdateEmployeeRequest.php:196
+msgid "Termination date must be after or equal to contract start date"
+msgstr "Kündigungsdatum muss nach oder gleich dem Vertragsbeginn sein"
+
+#: /app/Http/Requests/StoreQualificationRequest.php:62
+msgid "Qualification name is required"
+msgstr "Der Name der Qualifikation ist erforderlich"
+
+#: /app/Http/Requests/StoreQualificationRequest.php:63
+msgid "Category is required"
+msgstr "Kategorie ist erforderlich"
+
+#: /app/Http/Requests/StoreQualificationRequest.php:64
+msgid "Renewal requirement must be specified"
+msgstr "Erneuerungsanforderung muss angegeben werden"
+
+#: /app/Http/Requests/StoreQualificationRequest.php:65
+msgid "Mandatory status must be specified"
+msgstr "Obligatorischer Status muss angegeben werden"
+
+#: /app/Http/Requests/SubmitOnboardingFormRequest.php:48
+msgid "Form template is required"
+msgstr "Formularvorlage ist erforderlich"
+
+#: /app/Http/Requests/SubmitOnboardingFormRequest.php:49
+msgid "Selected form template does not exist"
+msgstr "Ausgewählte Formularvorlage existiert nicht"
+
+#: /app/Http/Requests/SubmitOnboardingFormRequest.php:50
+msgid "Form data is required"
+msgstr "Formulardaten sind erforderlich"
+
+#: /app/Http/Requests/SubmitOnboardingFormRequest.php:51
+msgid "Form data must be an array"
+msgstr "Formulardaten müssen ein Array sein"
+
+#: /app/Http/Requests/UpdateEmployeeRequest.php:195
+msgid "Employee status transitions must use the dedicated activate, leave, return-from-leave, or terminate endpoints."
+msgstr "Übergänge des Mitarbeiterstatus müssen die speziellen Endpunkte aktivieren, Urlaub, Rückkehr aus Urlaub oder beenden verwenden."
+
+#: /app/Http/Requests/UploadEmployeeDocumentRequest.php:66
+msgid "File is required"
+msgstr "Datei ist erforderlich"
+
+#: /app/Http/Requests/UploadEmployeeDocumentRequest.php:67
+msgid "File must not exceed 10MB"
+msgstr "Datei darf nicht größer als 10 MB sein"
+
+#: /app/Http/Requests/UploadEmployeeDocumentRequest.php:68
+#: /app/Http/Requests/UploadEmployeeDocumentRequest.php:69
+msgid "File must be PDF, JPG, JPEG, or PNG"
+msgstr "Datei muss PDF, JPG, JPEG oder PNG sein"
+
+#: /app/Http/Requests/UploadEmployeeDocumentRequest.php:70
+msgid "Document title is required"
+msgstr "Dokumenttitel ist erforderlich"
+
+#: /app/Http/Requests/UploadEmployeeDocumentRequest.php:71
+msgid "Document type is required"
+msgstr "Dokumenttyp ist erforderlich"
+
+#: /app/Http/Requests/UploadEmployeeDocumentRequest.php:72
+msgid "Visibility setting is required"
+msgstr "Sichtbarkeitseinstellung ist erforderlich"
+
+#: /app/Http/Requests/Api/V1/UpdateSiteRequest.php:108
+msgid "The valid until date must be after the existing valid from date."
+msgstr "Das Gültig-bis-Datum muss nach dem vorhandenen Gültig-ab-Datum liegen."
+
+#: /app/Mail/OnboardingInvitationMail.php:47
+msgid "Welcome to :app_name – Complete Your Onboarding"
+msgstr "Willkommen bei :app_name - Vervollständigen Sie Ihr Onboarding"
+
+#: /app/Mail/OnboardingInvitationMail.php:47
+msgid "Welcome – Complete Your Onboarding"
+msgstr "Willkommen - Vervollständigen Sie Ihr Onboarding"
+
+#: /app/Mail/OnboardingNameChangedMail.php:53
+msgid "HR Alert: Name Change During Onboarding – :app_name"
+msgstr "HR-Warnung: Namenänderung während des Onboardings – :app_name"
+
+#: /app/Mail/OnboardingNameChangedMail.php:53
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:14
+msgid "HR Alert: Name Change During Onboarding"
+msgstr "HR-Warnung: Namenänderung während des Onboardings"
+
+#: /app/Providers/AppServiceProvider.php:102
+msgid "Too many login attempts. Please try again in :seconds seconds."
+msgstr "Zu viele Anmeldeversuche. Bitte versuchen Sie es in :seconds Sekunden erneut."
+
+#: /app/Providers/AppServiceProvider.php:113
+#: /app/Providers/AppServiceProvider.php:124
+msgid "Too many MFA attempts. Please try again later."
+msgstr "Zu viele MFA-Versuche. Bitte versuchen Sie es später erneut."
+
+#: /app/Providers/AppServiceProvider.php:148
+msgid "Too many MFA reset attempts. Please try again later."
+msgstr "Zu viele Versuche zum Zurücksetzen der MFA. Bitte versuchen Sie es später erneut."
+
+#: /app/Providers/AppServiceProvider.php:161
+#: /app/Providers/AppServiceProvider.php:174
+msgid "Too many onboarding attempts. Please try again later."
+msgstr "Zu viele Onboarding-Versuche. Bitte versuchen Sie es später noch einmal."
+
+#: /app/Services/EmployeeLifecycleService.php:41
+msgid "Cannot activate: employee has no linked user account"
+msgstr "Kann nicht aktiviert werden: Mitarbeiter hat kein verknüpftes Benutzerkonto"
+
+#: /app/Services/EmployeeLifecycleService.php:92
+msgid "Cannot place on leave: employee must be active"
+msgstr "Kann nicht beurlaubt werden: Mitarbeiter muss aktiv sein"
+
+#: /app/Services/EmployeeLifecycleService.php:100
+msgid "Cannot place on leave: employee has no linked user account"
+msgstr "Kann nicht beurlaubt werden: Mitarbeiter hat kein verknüpftes Benutzerkonto"
+
+#: /app/Services/EmployeeLifecycleService.php:106
+msgid "Cannot place on leave: unresolved runtime access snapshot already exists"
+msgstr "Kann nicht beurlaubt werden: Es existiert bereits ein ungeklärter Laufzeitzugriffs-Snapshot"
+
+#: /app/Services/EmployeeLifecycleService.php:153
+msgid "Cannot return from leave: employee must currently be on leave"
+msgstr "Kann nicht aus der Beurlaubung zurückkehren: Mitarbeiter muss derzeit beurlaubt sein"
+
+#: /app/Services/EmployeeLifecycleService.php:161
+msgid "Cannot return from leave: employee has no linked user account"
+msgstr "Kann nicht aus der Beurlaubung zurückkehren: Mitarbeiter hat kein verknüpftes Benutzerkonto"
+
+#: /app/Services/EmployeeLifecycleService.php:353
+msgid "Cannot return from leave: employee has no runtime access snapshot to restore"
+msgstr "Kann nicht aus dem Urlaub zurückkehren: Mitarbeiter hat kein Laufzeit-Zugriffssnapshot zum Wiederherstellen"
+
+#: /app/Services/EmployeeLifecycleService.php:362
+msgid "Cannot return from leave: employee runtime access snapshot is invalid"
+msgstr "Kann nicht aus dem Urlaub zurückkehren: Laufzeit-Zugriffssnapshot des Mitarbeiters ist ungültig"
+
+#: /app/Services/EmployeeLifecycleService.php:448
+msgid "Cannot return from leave: employee runtime role snapshot is invalid"
+msgstr "Kann nicht aus dem Urlaub zurückkehren: Laufzeit-Rollensnapshot des Mitarbeiters ist ungültig"
+
+#: /app/Services/EmployeeLifecycleService.php:478
+msgid "Cannot return from leave: employee runtime permission snapshot is invalid"
+msgstr "Kann nicht aus dem Urlaub zurückkehren: Laufzeit-Berechtigungssnapshot des Mitarbeiters ist ungültig"
+
+#: /resources/views/emails/password-reset.blade.php:13
+msgid "Reset Your Password"
+msgstr "Passwort zurücksetzen"
+
+#: /resources/views/emails/password-reset.blade.php:16
+msgid "Hello"
+msgstr "Hallo"
+
+#: /resources/views/emails/password-reset.blade.php:18
+msgid "You requested a password reset for your SecPal account."
+msgstr "Sie haben eine Passwort-Zurücksetzung für Ihr SecPal-Konto angefordert."
+
+#: /resources/views/emails/password-reset.blade.php:21
+msgid "Click the button below to reset your password. This link will expire in :minutes minutes."
+msgstr "Klicken Sie auf die Schaltfläche unten, um Ihr Passwort zurückzusetzen. Dieser Link läuft in :minutes Minuten ab."
+
+#: /resources/views/emails/password-reset.blade.php:34
+#: /resources/views/emails/password-reset.blade.php:62
+msgid "Reset Password"
+msgstr "Passwort zurücksetzen"
+
+#: /resources/views/emails/password-reset.blade.php:47
+msgid "Security Notice:"
+msgstr "Sicherheitshinweis:"
+
+#: /resources/views/emails/password-reset.blade.php:48
+msgid "Never share this link with anyone"
+msgstr "Teilen Sie diesen Link niemals mit anderen"
+
+#: /resources/views/emails/password-reset.blade.php:50
+msgid "If you didn't request this reset, please ignore this email"
+msgstr "Wenn Sie diese Zurücksetzung nicht angefordert haben, ignorieren Sie diese E-Mail bitte"
+
+#: /resources/views/emails/password-reset.blade.php:52
+msgid "Your password will remain unchanged until you complete the reset process"
+msgstr "Ihr Passwort bleibt unverändert, bis Sie den Zurücksetzungsvorgang abschließen"
+
+#: /resources/views/emails/password-reset.blade.php:55
+msgid "Thanks"
+msgstr "Vielen Dank"
+
+#: /resources/views/emails/password-reset.blade.php:62
+msgid "If you're having trouble clicking the \":button\" button, copy and paste the URL below into your web browser:"
+msgstr "Falls Sie Probleme beim Klicken auf die Schaltfläche \":button\" haben, kopieren Sie die folgende URL und fügen Sie sie in Ihren Webbrowser ein:"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:14
+msgid "Account Deactivated"
+msgstr "Konto deaktiviert"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:17
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:17
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:17
+#: /resources/views/emails/employees/qualification-expiring.blade.php:17
+#: /resources/views/emails/employees/welcome-active.blade.php:17
+msgid "Hello :first_name,"
+msgstr "Hallo :first_name,"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:20
+msgid "Your user account has been deactivated."
+msgstr "Ihr Benutzerkonto wurde deaktiviert."
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:24
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:27
+msgid "Last Working Day"
+msgstr "Letzter Arbeitstag"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:29
+msgid "Last Day of Attendance"
+msgstr "Letzter Anwesenheitstag"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:33
+msgid "What This Means"
+msgstr "Was dies bedeutet"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:36
+msgid "You can no longer log in to the system"
+msgstr "Sie können sich nicht mehr bei dem System anmelden"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:38
+msgid "All active sessions have been ended"
+msgstr "Alle aktiven Sitzungen wurden beendet"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:40
+msgid "Your access to company data has been revoked"
+msgstr "Ihr Zugriff auf Unternehmensdaten wurde widerrufen"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:43
+msgid "Important Reminders"
+msgstr "Wichtige Erinnerungen"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:46
+msgid "Please remember to:"
+msgstr "Bitte denken Sie daran, zu:"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:48
+msgid "Return all company property (keys, badges, devices)"
+msgstr "Geben Sie sämtliches Firmeneigentum zurück (Schlüssel, Ausweise, Geräte)"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:50
+msgid "Destroy confidential documents"
+msgstr "Vernichten Sie vertrauliche Dokumente"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:52
+msgid "Maintain confidentiality obligations"
+msgstr "Wahren Sie weiterhin Ihre Vertraulichkeitspflichten"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:55
+msgid "If you have questions about contract termination or other matters, please contact us at :email."
+msgstr "Wenn Sie Fragen zur Vertragsbeendigung oder zu anderen Anliegen haben, kontaktieren Sie uns unter :email."
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:58
+msgid "We thank you for your work and wish you all the best for the future."
+msgstr "Wir danken Ihnen für Ihre Arbeit und wünschen Ihnen alles Gute für die Zukunft."
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:61
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:54
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:74
+#: /resources/views/emails/employees/qualification-expiring.blade.php:60
+#: /resources/views/emails/employees/welcome-active.blade.php:79
+msgid "Your HR Team"
+msgstr "Ihr HR-Team"
+
+#: /resources/views/emails/employees/account-deactivated.blade.php:66
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:59
+#: /resources/views/emails/employees/qualification-expiring.blade.php:65
+#: /resources/views/emails/employees/welcome-active.blade.php:84
+msgid "This email was generated automatically."
+msgstr "Diese E-Mail wurde automatisch generiert."
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:14
+msgid "Your Contract Ends Soon"
+msgstr "Ihr Vertrag endet bald"
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:20
+msgid "We would like to remind you that your employment contract ends soon."
+msgstr "Wir möchten Sie daran erinnern, dass Ihr Arbeitsvertrag bald endet."
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:23
+msgid "Contract End Date"
+msgstr "Vertragsendatum"
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:31
+msgid "Would You Like to Continue?"
+msgstr "Möchten Sie weitermachen?"
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:34
+msgid "If you are interested in extending your contract, please contact your supervisor or the HR department promptly."
+msgstr "Wenn Sie an einer Vertragsverlängerung interessiert sind, kontaktieren Sie bitte umgehend Ihren Vorgesetzten oder die HR-Abteilung."
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:37
+#: /resources/views/emails/employees/qualification-expiring.blade.php:42
+msgid "Next Steps"
+msgstr "Nächste Schritte"
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:40
+msgid "If your contract will not be extended:"
+msgstr "Wenn Ihr Vertrag nicht verlängert wird:"
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:42
+msgid "Your system access will be automatically deactivated on :date"
+msgstr "Ihr Systemzugriff wird automatisch am :date deaktiviert"
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:44
+msgid "Please schedule an appointment to return company property"
+msgstr "Vereinbaren Sie bitte einen Termin zur Rückgabe von Firmeneigentum"
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:46
+msgid "We will send you your employment certificate and other documents"
+msgstr "Wir senden Ihnen Ihr Arbeitszeugnis und andere Dokumente"
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:49
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:69
+#: /resources/views/emails/employees/welcome-active.blade.php:74
+msgid "If you have any questions, please contact us at :email."
+msgstr "Wenn Sie Fragen haben, kontaktieren Sie uns unter :email."
+
+#: /resources/views/emails/employees/contract-ending-soon.blade.php:52
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:72
+#: /resources/views/emails/employees/qualification-expiring.blade.php:58
+msgid "Best regards,"
+msgstr "Mit freundlichen Grüßen,"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:14
+msgid "Welcome to :app_name!"
+msgstr "Willkommen bei :app_name!"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:20
+msgid "we are excited to welcome you to our team soon!"
+msgstr "Wir freuen uns, Sie bald in unserem Team begrüßen zu dürfen!"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:23
+msgid "Your contract starts on **:date**."
+msgstr "Ihr Vertrag beginnt am **:date**."
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:26
+msgid "To prepare for your first day, please complete the onboarding process in our portal:"
+msgstr "Bitte schließen Sie zur Vorbereitung auf Ihren ersten Tag den Onboarding-Prozess in unserem Portal ab:"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:39
+msgid "Start Onboarding"
+msgstr "Onboarding starten"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:52
+msgid "What to expect:"
+msgstr "Was Sie erwartet:"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:55
+msgid "Complete personal information form"
+msgstr "Persönliches Informationsformular ausfüllen"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:57
+msgid "Provide bank account details"
+msgstr "Ihre Bankverbindung angeben"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:59
+msgid "Add emergency contact"
+msgstr "Notfallkontakt hinzufügen"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:61
+msgid "Digitally sign employment contract"
+msgstr "Arbeitsvertrag digital unterzeichnen"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:63
+msgid "Upload certificates (if applicable)"
+msgstr "Zertifikate hochladen (falls zutreffend)"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:66
+msgid "**Important:** Please complete the onboarding by **:deadline** at the latest."
+msgstr "**Wichtig:** Bitte schließen Sie das Onboarding spätestens bis **:deadline** ab."
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:79
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:120
+msgid "This email was generated automatically. Please do not reply directly to this email."
+msgstr "Diese E-Mail wurde automatisch generiert. Bitte antworten Sie nicht direkt auf diese E-Mail."
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:14
+msgid "Qualification Expiring Soon"
+msgstr "Qualifikation läuft bald ab"
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:20
+msgid "Your qualification **:qualification_name** expires soon."
+msgstr "Ihre Qualifikation **:qualification_name** läuft bald ab."
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:23
+msgid "Expiry Date"
+msgstr "Ablaufdatum"
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:27
+msgid "Certificate Number"
+msgstr "Zertifikatnummer"
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:32
+msgid "Issuing Authority"
+msgstr "Ausstellungsbehörde"
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:36
+msgid "Renewal Required"
+msgstr "Erneuerung erforderlich"
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:39
+msgid "Please take care of renewing or refreshing this qualification in a timely manner."
+msgstr "Bitte kümmern Sie sich rechtzeitig um die Erneuerung oder Auffrischung dieser Qualifikation."
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:45
+msgid "Schedule a refresher course"
+msgstr "Planen Sie einen Auffrischungskurs"
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:47
+msgid "Complete the course and obtain a new certificate"
+msgstr "Absolvieren Sie den Kurs und erhalten Sie ein neues Zertifikat"
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:49
+msgid "Upload the new certificate to our portal"
+msgstr "Laden Sie das neue Zertifikat in unser Portal hoch"
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:52
+msgid "**Important:** Without a valid qualification, certain activities cannot be performed."
+msgstr "**Wichtig:** Ohne gültige Qualifikation können bestimmte Tätigkeiten nicht ausgeführt werden."
+
+#: /resources/views/emails/employees/qualification-expiring.blade.php:55
+msgid "If you have questions about renewal or cost coverage, please contact us at :email."
+msgstr "Wenn Sie Fragen zur Erneuerung oder Kostentragung haben, kontaktieren Sie uns unter :email."
+
+#: /resources/views/emails/employees/welcome-active.blade.php:14
+msgid "Welcome to the Team!"
+msgstr "Willkommen im Team!"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:20
+msgid "welcome to :app_name! We are happy that you are starting your first day with us today."
+msgstr "Willkommen bei :app_name! Wir freuen uns, dass Sie heute Ihren ersten Tag mit uns beginnen."
+
+#: /resources/views/emails/employees/welcome-active.blade.php:23
+msgid "Your First Day"
+msgstr "Ihr erster Tag"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:26
+msgid "Position"
+msgstr "Position"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:28
+msgid "Organizational Unit"
+msgstr "Organisationseinheit"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:28
+msgid "Not assigned"
+msgstr "Nicht zugewiesen"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:30
+msgid "Employee Number"
+msgstr "Mitarbeiternummer"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:33
+msgid "Important Information"
+msgstr "Wichtige Informationen"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:36
+msgid "Your access to our system has been activated. You can now log in with your email address (:email)."
+msgstr "Ihr Zugriff auf unser System wurde aktiviert. Sie können sich jetzt mit Ihrer E-Mail-Adresse (:email) anmelden."
+
+#: /resources/views/emails/employees/welcome-active.blade.php:49
+msgid "Go to Portal"
+msgstr "Zum Portal gehen"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:62
+msgid "First Steps"
+msgstr "Erste Schritte"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:65
+msgid "Familiarize yourself with our portal"
+msgstr "Machen Sie sich mit unserem Portal vertraut"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:67
+msgid "Verify your personal information"
+msgstr "Überprüfen Sie Ihre persönlichen Informationen"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:69
+msgid "Upload any missing documents if necessary"
+msgstr "Laden Sie ggf. fehlende Dokumente hoch"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:71
+msgid "Contact your supervisor if you have questions"
+msgstr "Kontaktieren Sie Ihren Vorgesetzten, wenn Sie Fragen haben"
+
+#: /resources/views/emails/employees/welcome-active.blade.php:77
+msgid "Best regards and good luck!"
+msgstr "Mit freundlichen Grüßen und viel Erfolg!"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:17
+msgid "An employee has changed their name during onboarding completion."
+msgstr "Ein Mitarbeiter hat seinen Namen während des Onboarding-Abschlusses geändert."
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:20
+msgid "Employee Information"
+msgstr "Mitarbeiterinformationen"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:23
+msgid "Email"
+msgstr "E-Mail"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:25
+msgid "Status"
+msgstr "Status"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:27
+msgid "Contract Start"
+msgstr "Vertragsbeginn"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:27
+msgid "Not set"
+msgstr "Nicht gesetzt"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:30
+msgid "Name Changes"
+msgstr "Namenänderungen"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:34
+msgid "First Name"
+msgstr "Vorname"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:37
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:59
+msgid "Original"
+msgstr "Original"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:39
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:61
+msgid "Changed to"
+msgstr "Geändert in"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:41
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:63
+msgid "Similarity"
+msgstr "Ähnlichkeit"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:42
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:64
+msgid "Severity"
+msgstr "Schweregrad"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:44
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:66
+msgid "Minor (likely typo correction)"
+msgstr "Unbedeutend (wahrscheinliche Tippfehlerbehebung)"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:47
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:69
+msgid "Medium (significant change - please verify)"
+msgstr "Mittel (erhebliche Änderung - bitte überprüfen)"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:50
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:72
+msgid "Major (fundamental change)"
+msgstr "Erheblich (grundlegende Änderung)"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:56
+msgid "Last Name"
+msgstr "Nachname"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:77
+msgid "Action Required"
+msgstr "Maßnahme erforderlich"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:81
+msgid "Medium severity change detected. Please verify with employee and update personnel files if legitimate."
+msgstr "Änderung mit mittlerem Schweregrad erkannt. Bitte überprüfen Sie mit dem Mitarbeiter und aktualisieren Sie die Personalunterlagen, falls legitim."
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:83
+msgid "Minor change detected. Review activity log if needed."
+msgstr "Unbedeutende Änderung erkannt. Überprüfen Sie das Aktivitätsprotokoll bei Bedarf."
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:96
+msgid "View Employee Details"
+msgstr "Mitarbeiterdetails anzeigen"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:109
+msgid "Security Notice"
+msgstr "Sicherheitshinweis"
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:112
+msgid "This change was logged in the activity log with IP address and user agent for audit purposes."
+msgstr "Diese Änderung wurde zu Audit-Zwecken mit IP-Adresse und User-Agent im Aktivitätsprotokoll protokolliert."
+
+#: /resources/views/emails/hr/onboarding-name-changed.blade.php:115
+msgid "If this change appears suspicious, please contact the employee immediately to verify their identity."
+msgstr "Wenn diese Änderung verdächtig erscheint, stellen Sie bitte sofort Kontakt mit dem Mitarbeiter auf, um seine Identität zu überprüfen."
