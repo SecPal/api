@@ -10,7 +10,11 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 
 ## Always-On Rules
 
-- Run `git status --short --branch` before any write action. Never start implementation on local `main`, and stop if a dirty non-`main` branch contains unrelated work.
+- Run `git status --short --branch` before any write action. New work must start
+  from a clean, up-to-date local `main`: switch to `main`, pull with
+  fast-forward only, verify a clean state, then create the dedicated topic
+  branch. Never start implementation on local `main`, and stop if a dirty
+  non-`main` branch contains unrelated work.
 - TDD is mandatory for behavior and code changes. Write or update the smallest relevant failing Pest test FIRST, then implement, then refactor with tests green.
 - Quality first. Do not trade correctness, review depth, validation depth, or issue tracking for speed.
 - Keep one topic per change. 1 topic = 1 PR = 1 branch. Do not mix unrelated fixes, features, refactors, docs, or governance cleanup.
@@ -23,6 +27,11 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 - Never reply to Copilot review comments with GitHub comment tools. Fix the code, push, and resolve threads through the approved non-comment workflow.
 - Keep `SPDX-FileCopyrightText` years current in edited files or companion `.license` sidecars.
 - Domain policy is strict: `secpal.app` for the public homepage and real email addresses, `api.secpal.dev` for the API, `app.secpal.dev` for the PWA/frontend, `secpal.dev` for dev, staging, testing, and examples, and `app.secpal` only as the Android application identifier.
+- After every merge, immediately return the local repo to a ready state:
+  switch to `main`, pull with fast-forward only, delete the merged topic
+  branch, prune remotes, refresh Composer dependencies where applicable, run
+  the smallest relevant API readiness command, and confirm the working tree is
+  clean.
 
 ## Design Principles
 
