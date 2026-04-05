@@ -262,6 +262,18 @@ class EmployeePolicy
     }
 
     /**
+     * Determine if user can confirm a pre-contract onboarding dossier.
+     */
+    public function confirmOnboarding(User $user, Employee $employee): bool
+    {
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
+        return $user->can('onboarding.confirm');
+    }
+
+    /**
      * Determine if user can place an employee on leave.
      */
     public function placeOnLeave(User $user, Employee $employee): bool

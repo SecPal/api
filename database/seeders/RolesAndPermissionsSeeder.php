@@ -156,6 +156,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'update',
                 'delete',
                 'approve',
+                'confirm',
             ],
             'onboarding_template' => [
                 'read',
