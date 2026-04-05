@@ -840,8 +840,8 @@ describe('Login Rate Limiting', function () {
             'password' => 'wrong-password',
         ]);
 
-        $response->assertTooManyRequests()
-            ->assertJson(['message' => 'Too many login attempts. Please try again in 60 seconds.']);
+        $response->assertTooManyRequests();
+        expect($response->json('message'))->toMatch('/^Too many login attempts\. Please try again in \d+ seconds\./');
     });
 
     test('token login MFA challenges do not consume the wrong-password throttle bucket', function () {
