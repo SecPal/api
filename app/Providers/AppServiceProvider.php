@@ -88,7 +88,7 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(60, 5)->by($request->ip());
         });
 
-        // Login rate limiter (5 attempts per minute for the account and the concrete IP+account pair).
+        // Login rate limiter (5 attempts per 5 minutes for the account and the concrete IP+account pair).
         // This keeps the lockout independent from cookies / session churn while still partitioning per account.
         RateLimiter::for('login', function (Request $request) {
             return array_map(

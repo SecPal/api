@@ -129,7 +129,6 @@ function clearLoginRateLimiter(string $email, string $ip = '127.0.0.1'): void
         'login|credential|'.$ip.'|'.$normalizedEmail,
         $ip.'|'.$normalizedEmail,
     ] as $key) {
-        Illuminate\Support\Facades\RateLimiter::clear(md5('login'.$key));
         Illuminate\Support\Facades\RateLimiter::clear($key);
     }
 }
