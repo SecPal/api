@@ -268,6 +268,35 @@ test('login challenge verification accepts grouped lowercase recovery codes whil
     expect($user->fresh()->getRemainingTwoFactorRecoveryCodesCount())->toBe(9);
 });
 
+test('login challenge verification rejects recovery codes with arbitrary punctuation', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-normalized-invalid@secpal.dev',
+        'password' => bcrypt('password123'),
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    $rawRecoveryCode = (string) $user->getRecoveryCodes()->firstWhere('used_at', null)['code'];
+    $punctuatedRecoveryCode = substr($rawRecoveryCode, 0, 2).'!'.substr($rawRecoveryCode, 2, 2).'#'.substr($rawRecoveryCode, 4);
+
+    $loginResponse = $this->postJson('/v1/auth/token', [
+        'email' => 'mfa-normalized-invalid@secpal.dev',
+        'password' => 'password123',
+        'device_name' => 'normalized-recovery-invalid',
+    ]);
+
+    $loginResponse->assertStatus(202);
+
+    $this->postJson('/v1/auth/mfa-challenges/'.$loginResponse->json('challenge.id').'/verify', [
+        'method' => 'recovery_code',
+        'code' => $punctuatedRecoveryCode,
+    ])->assertStatus(422)
+        ->assertJsonValidationErrors(['code']);
+
+    expect($user->fresh()->getRemainingTwoFactorRecoveryCodesCount())->toBe(10);
+});
+
 test('recovery code regeneration accepts grouped lowercase recovery codes', function () {
     $user = User::factory()->create([
         'email' => 'mfa-normalized-regenerate@secpal.dev',
