@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the API Translation.io workflow with repo-native Polyglot-managed PO/Gettext catalogs, added a dedicated production blocker for the Polyglot web UI, and moved translated mail key subjects into checked-in language files so API translation maintenance now stays local and POedit-friendly.
 - clarified the repo-local branch-start and post-merge readiness workflow so new API work must start from a clean, updated local `main`, and post-merge cleanup now explicitly returns the repo to `main`, refreshes dependencies where applicable, runs a suitable readiness command, and confirms a clean working tree
 
 ### Fixed
