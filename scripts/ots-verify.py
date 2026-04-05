@@ -92,6 +92,7 @@ def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
         print(f"Error during verification: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
+        return False
 
 def main():
     if len(sys.argv) != 3:
