@@ -36,6 +36,7 @@ beforeEach(function (): void {
     Permission::firstOrCreate(['name' => 'onboarding.read', 'guard_name' => 'sanctum']);
     Permission::firstOrCreate(['name' => 'onboarding.write', 'guard_name' => 'sanctum']);
     Permission::firstOrCreate(['name' => 'onboarding.approve', 'guard_name' => 'sanctum']);
+    Permission::firstOrCreate(['name' => 'onboarding.confirm', 'guard_name' => 'sanctum']);
 
     $organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -537,5 +538,88 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
             ]);
 
         $response->assertStatus(422);
+    });
+});
+
+describe('POST /v1/admin/onboarding/employees/{employee}/confirm', function () {
+    test('returns 401 when not authenticated', function (): void {
+        $response = $this->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+
+        $response->assertStatus(401);
+    });
+
+    test('returns 403 when user lacks onboarding.confirm permission', function (): void {
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+
+        $response->assertStatus(403);
+    });
+
+    test('returns 422 when employee workflow is not submitted for review', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.confirm');
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+
+        $response->assertStatus(422);
+    });
+
+    test('returns 422 when onboarding dossier is not complete', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.confirm');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+            'onboarding_completed' => false,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+
+        $response->assertStatus(422);
+    });
+
+    test('confirms onboarding dossier and keeps contract confirmed when contract start is in the future', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.confirm');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+            'onboarding_completed' => true,
+            'contract_start_date' => now()->addWeek()->toDateString(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm", [
+                'notes' => 'Contract signed and reviewed.',
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data.onboarding_workflow.status'))->toBe(Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED);
+        expect($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED);
+
+        $activity = Spatie\Activitylog\Models\Activity::where('subject_id', $this->employee->id)
+            ->where('event', 'onboarding_contract_confirmed')
+            ->latest('id')
+            ->first();
+
+        expect($activity)->not->toBeNull();
+        expect($activity?->causer_id)->toBe($this->user->id);
+        expect($activity?->properties['to_workflow_status'] ?? null)->toBe(Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED);
+    });
+
+    test('confirms onboarding dossier and promotes employee to ready for activation when contract start has passed', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.confirm');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+            'onboarding_completed' => true,
+            'contract_start_date' => now()->subDay()->toDateString(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+
+        $response->assertStatus(200);
+        expect($response->json('data.onboarding_workflow.status'))->toBe(Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION);
+        expect($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION);
     });
 });

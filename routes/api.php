@@ -312,6 +312,7 @@ Route::prefix('v1')->group(function () {
             // HR admin endpoints
             Route::post('/admin/onboarding/submissions/{submission}/approve', [OnboardingController::class, 'approveSubmission']);
             Route::post('/admin/onboarding/submissions/{submission}/reject', [OnboardingController::class, 'rejectSubmission']);
+            Route::post('/admin/onboarding/employees/{employee}/confirm', [OnboardingController::class, 'confirmEmployeeOnboarding']);
         });
 
         // ==========================================================================
