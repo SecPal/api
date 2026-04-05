@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added the phase-1 MFA API endpoints for login challenges, TOTP enrollment confirmation, `/me/mfa` status, recovery-code regeneration, and authenticated MFA disablement so the frontend can build against real SecPal API behavior instead of only the contract
 - security audit document (`SECURITY_AUDIT_API_VALIDATION.md`) covering API validation, error handling, and request semantics with 3 HIGH, 6 MEDIUM, 5 LOW findings and 3 best-practice recommendations; includes prioritized fix order and negative test ideas
 
+### Changed
+
+- clarified the repo-local branch-start and post-merge readiness workflow so new API work must start from a clean, updated local `main`, and post-merge cleanup now explicitly returns the repo to `main`, refreshes dependencies where applicable, runs a suitable readiness command, and confirms a clean working tree
+
 ### Fixed
 
 - restored explicit repo-local Copilot governance by making TDD-first, quality-first, one-topic-per-PR, immediate issue creation for out-of-scope findings, and EPIC-plus-sub-issue requirements always-on again; the API runtime overlay now auto-loads repo-wide so these rules remain present while working
