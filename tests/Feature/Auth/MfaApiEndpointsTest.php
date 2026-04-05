@@ -154,6 +154,12 @@ test('authenticated user can start and confirm a TOTP enrollment', function () {
 
     expect($confirmResponse->json('data.recovery_codes.codes'))->toHaveCount(10);
 
+    collect($confirmResponse->json('data.recovery_codes.codes'))->each(
+        fn (mixed $code) => expect($code)
+            ->toBeString()
+            ->toMatch('/^[A-Z0-9]{8}$/')
+    );
+
     $enableAudit = Activity::query()
         ->where('description', 'Enabled multi-factor authentication')
         ->latest('id')
@@ -226,6 +232,98 @@ test('authenticated user can read MFA status, regenerate recovery codes, and dis
     expect($disableAudit)->not->toBeNull()
         ->and($disableAudit?->properties['event'])->toBe('mfa_disabled')
         ->and($disableAudit?->properties['verification_method'])->toBe('recovery_code');
+});
+
+test('login challenge verification accepts grouped lowercase recovery codes while keeping canonical payload codes ungrouped', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-normalized-login@secpal.dev',
+        'password' => bcrypt('password123'),
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    $rawRecoveryCode = (string) $user->getRecoveryCodes()->firstWhere('used_at', null)['code'];
+    $groupedLowercaseRecoveryCode = strtolower(substr($rawRecoveryCode, 0, 4).'-'.substr($rawRecoveryCode, 4));
+
+    $loginResponse = $this->postJson('/v1/auth/token', [
+        'email' => 'mfa-normalized-login@secpal.dev',
+        'password' => 'password123',
+        'device_name' => 'normalized-recovery-login',
+    ]);
+
+    $loginResponse->assertStatus(202);
+
+    $this->postJson('/v1/auth/mfa-challenges/'.$loginResponse->json('challenge.id').'/verify', [
+        'method' => 'recovery_code',
+        'code' => $groupedLowercaseRecoveryCode,
+    ])->assertOk()
+        ->assertJson([
+            'authentication' => [
+                'mode' => 'token',
+                'mfa_completed' => true,
+            ],
+        ]);
+
+    expect($user->fresh()->getRemainingTwoFactorRecoveryCodesCount())->toBe(9);
+});
+
+test('login challenge verification rejects recovery codes with arbitrary punctuation', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-normalized-invalid@secpal.dev',
+        'password' => bcrypt('password123'),
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    $rawRecoveryCode = (string) $user->getRecoveryCodes()->firstWhere('used_at', null)['code'];
+    $punctuatedRecoveryCode = substr($rawRecoveryCode, 0, 2).'!'.substr($rawRecoveryCode, 2, 2).'#'.substr($rawRecoveryCode, 4);
+
+    $loginResponse = $this->postJson('/v1/auth/token', [
+        'email' => 'mfa-normalized-invalid@secpal.dev',
+        'password' => 'password123',
+        'device_name' => 'normalized-recovery-invalid',
+    ]);
+
+    $loginResponse->assertStatus(202);
+
+    $this->postJson('/v1/auth/mfa-challenges/'.$loginResponse->json('challenge.id').'/verify', [
+        'method' => 'recovery_code',
+        'code' => $punctuatedRecoveryCode,
+    ])->assertStatus(422)
+        ->assertJsonValidationErrors(['code']);
+
+    expect($user->fresh()->getRemainingTwoFactorRecoveryCodesCount())->toBe(10);
+});
+
+test('recovery code regeneration accepts grouped lowercase recovery codes', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-normalized-regenerate@secpal.dev',
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    $this->actingAs($user, 'sanctum');
+
+    $rawRecoveryCode = (string) $user->fresh()->getRecoveryCodes()->firstWhere('used_at', null)['code'];
+    $groupedLowercaseRecoveryCode = strtolower(substr($rawRecoveryCode, 0, 4).'-'.substr($rawRecoveryCode, 4));
+
+    $response = $this->postJson('/v1/me/mfa/recovery-codes/regenerate', [
+        'method' => 'recovery_code',
+        'code' => $groupedLowercaseRecoveryCode,
+    ]);
+
+    $response->assertOk();
+
+    expect($response->json('data.recovery_codes.codes'))->toHaveCount(10);
+
+    collect($response->json('data.recovery_codes.codes'))->each(
+        fn (mixed $code) => expect($code)
+            ->toBeString()
+            ->toMatch('/^[A-Z0-9]{8}$/')
+    );
 });
 
 test('consuming the final recovery code records an audit event when the backup set is depleted', function () {

@@ -34,7 +34,7 @@ class MfaVerificationCodeRequest extends FormRequest
         $normalizedCode = trim($code);
 
         if ($normalizedMethod === 'recovery_code') {
-            $normalizedCode = strtoupper($normalizedCode);
+            $normalizedCode = strtoupper((string) preg_replace('/[\s-]+/', '', $normalizedCode));
         }
 
         $this->merge([
