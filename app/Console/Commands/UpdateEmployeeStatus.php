@@ -92,6 +92,7 @@ class UpdateEmployeeStatus extends Command
 
         $employees = Employee::where('status', Employee::STATUS_PRE_CONTRACT)
             ->where('onboarding_completed', true)
+            ->where('onboarding_workflow_status', Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION)
             ->whereDate('contract_start_date', '<=', $today)
             ->get();
 

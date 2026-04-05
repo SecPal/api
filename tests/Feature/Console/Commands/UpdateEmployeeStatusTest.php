@@ -54,6 +54,7 @@ test('update employee status command activates employees whose contract starts t
         'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->startOfDay(),
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
@@ -106,6 +107,7 @@ test('update employee status command dry run does not change status', function (
         'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->startOfDay(),
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
@@ -132,6 +134,7 @@ test('update employee status command processes multiple employees', function () 
             'organizational_unit_id' => $this->orgUnit->id,
             'contract_start_date' => now()->startOfDay(),
             'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),
         Employee::factory()->create([
@@ -139,6 +142,7 @@ test('update employee status command processes multiple employees', function () 
             'organizational_unit_id' => $this->orgUnit->id,
             'contract_start_date' => now()->startOfDay(),
             'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),
     ]);
@@ -167,6 +171,24 @@ test('update employee status command skips activation when onboarding is incompl
     $employee->refresh();
     expect($employee->status)->toBe(Employee::STATUS_PRE_CONTRACT);
     expect(DB::table('model_has_roles')->where('model_id', $employee->user_id)->count())->toBe(0);
+});
+
+test('update employee status command skips employees whose workflow is not ready for activation', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->startOfDay(),
+        'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    Artisan::call('employees:update-status');
+
+    $employee->refresh();
+
+    expect($employee->status)->toBe(Employee::STATUS_PRE_CONTRACT);
+    expect(Artisan::output())->not->toContain('Failed to activate employee');
 });
 
 test('update employee status command terminates on-leave employees whose contract ends today', function () {
