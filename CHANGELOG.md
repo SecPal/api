@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- normalized MFA recovery-code verification input by stripping presentation separators and uppercasing grouped entries before comparison, and added regression coverage that keeps the canonical API payload shape at raw 8-character uppercase alphanumeric codes
 - restored explicit repo-local Copilot governance by making TDD-first, quality-first, one-topic-per-PR, immediate issue creation for out-of-scope findings, and EPIC-plus-sub-issue requirements always-on again; the API runtime overlay now auto-loads repo-wide so these rules remain present while working
 - clarified the repo-local PR workflow so finished API work must be self-reviewed, committed, and pushed before any PR exists, and the first PR state must always be draft until the final PR-view self-review is clean
 - exposed `emailVerified` consistently in auth payloads, taught the seeded local Test User to remain verified on repeat seed runs, and unblocked the frontend from handling unverified accounts with a dedicated gate instead of surfacing raw route-level verification errors deep inside the app
