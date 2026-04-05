@@ -840,8 +840,56 @@ describe('Login Rate Limiting', function () {
             'password' => 'wrong-password',
         ]);
 
+        $response->assertTooManyRequests();
+        expect($response->json('message'))->toMatch('/^Too many login attempts\. Please try again in \d+ seconds\./');
+    });
+
+    test('token login MFA challenges do not consume the wrong-password throttle bucket', function () {
+        $user = User::factory()->create([
+            'email' => 'mfa-token-limit@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $user->createTwoFactorAuth();
+        expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+        for ($i = 0; $i < 6; $i++) {
+            $response = $this->postJson('/v1/auth/token', [
+                'email' => 'mfa-token-limit@secpal.dev',
+                'password' => 'correct-password',
+                'device_name' => 'android-phone',
+            ]);
+
+            $response->assertStatus(202)
+                ->assertHeader('X-RateLimit-Limit', '5')
+                ->assertHeader('X-RateLimit-Remaining', '5');
+        }
+    });
+
+    test('token login lockout responses include retry headers', function () {
+        User::factory()->create([
+            'email' => 'retry-token@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/v1/auth/token', [
+                'email' => 'retry-token@secpal.dev',
+                'password' => 'wrong-password',
+            ])->assertUnprocessable();
+        }
+
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => 'retry-token@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
         $response->assertTooManyRequests()
-            ->assertJson(['message' => 'Too many login attempts. Please try again in 60 seconds.']);
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
     });
 
     test('rate limit is per email and IP combination', function () {
@@ -987,6 +1035,60 @@ describe('Login Rate Limiting', function () {
             ]);
 
         $response->assertTooManyRequests();
+    });
+
+    test('session login MFA challenges do not consume the wrong-password throttle bucket', function () {
+        $user = User::factory()->create([
+            'email' => 'mfa-session-limit@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $user->createTwoFactorAuth();
+        expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+        $headers = spaCsrfHeaders($this);
+
+        for ($i = 0; $i < 6; $i++) {
+            $response = $this->withHeaders($headers)
+                ->postJson('/v1/auth/login', [
+                    'email' => 'mfa-session-limit@secpal.dev',
+                    'password' => 'correct-password',
+                ]);
+
+            $response->assertStatus(202)
+                ->assertHeader('X-RateLimit-Limit', '5')
+                ->assertHeader('X-RateLimit-Remaining', '5');
+        }
+    });
+
+    test('session login lockout responses include retry headers', function () {
+        User::factory()->create([
+            'email' => 'retry-session@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $headers = spaCsrfHeaders($this);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->withHeaders($headers)
+                ->postJson('/v1/auth/login', [
+                    'email' => 'retry-session@secpal.dev',
+                    'password' => 'wrong-password',
+                ])->assertUnprocessable();
+        }
+
+        $response = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'retry-session@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $response->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
     });
 });
 

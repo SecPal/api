@@ -117,6 +117,86 @@ test('token login returns an MFA challenge and issues a token only after recover
         ->and($user->fresh()->getRemainingTwoFactorRecoveryCodesCount())->toBe(9);
 });
 
+test('invalid TOTP challenge attempts are rate limited with retry headers', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-rate-limit-totp@secpal.dev',
+        'password' => bcrypt('password123'),
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    $loginResponse = $this->postJson('/v1/auth/token', [
+        'email' => 'mfa-rate-limit-totp@secpal.dev',
+        'password' => 'password123',
+        'device_name' => 'mfa-rate-limit-totp',
+    ]);
+
+    $loginResponse->assertStatus(202)
+        ->assertJsonPath('challenge.id', fn (mixed $value): bool => is_string($value) && $value !== '');
+
+    $challengeId = (string) $loginResponse->json('challenge.id');
+
+    for ($i = 0; $i < 5; $i++) {
+        $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
+            'method' => 'totp',
+            'code' => '000000',
+        ])->assertUnprocessable();
+    }
+
+    $response = $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
+        'method' => 'totp',
+        'code' => '000000',
+    ]);
+
+    $response->assertTooManyRequests()
+        ->assertHeader('X-RateLimit-Limit', '5')
+        ->assertHeader('X-RateLimit-Remaining', '0');
+
+    expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+        ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+});
+
+test('invalid recovery-code challenge attempts are rate limited with retry headers', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-rate-limit-recovery@secpal.dev',
+        'password' => bcrypt('password123'),
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    $loginResponse = $this->postJson('/v1/auth/token', [
+        'email' => 'mfa-rate-limit-recovery@secpal.dev',
+        'password' => 'password123',
+        'device_name' => 'mfa-rate-limit-recovery',
+    ]);
+
+    $loginResponse->assertStatus(202)
+        ->assertJsonPath('challenge.id', fn (mixed $value): bool => is_string($value) && $value !== '');
+
+    $challengeId = (string) $loginResponse->json('challenge.id');
+
+    for ($i = 0; $i < 5; $i++) {
+        $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
+            'method' => 'recovery_code',
+            'code' => 'ZZZZZZZZ',
+        ])->assertUnprocessable();
+    }
+
+    $response = $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
+        'method' => 'recovery_code',
+        'code' => 'ZZZZZZZZ',
+    ]);
+
+    $response->assertTooManyRequests()
+        ->assertHeader('X-RateLimit-Limit', '5')
+        ->assertHeader('X-RateLimit-Remaining', '0');
+
+    expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+        ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+});
+
 test('authenticated user can start and confirm a TOTP enrollment', function () {
     $user = User::factory()->create([
         'email' => 'mfa-enroll@secpal.dev',

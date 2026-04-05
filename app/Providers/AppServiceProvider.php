@@ -91,17 +91,19 @@ class AppServiceProvider extends ServiceProvider
         // Login rate limiter (5 attempts per minute by IP + email combination)
         // This applies to both session-based (/auth/login) and token-based (/auth/token) login
         RateLimiter::for('login', function (Request $request) {
-            // Rate limit by IP + email to prevent enumeration attacks while
-            // allowing multiple users from same IP (e.g., office network)
-            $emailInput = $request->input('email', '');
-            $email = is_string($emailInput) ? strtolower($emailInput) : '';
-            $key = $request->ip().'|'.$email;
+            return Limit::perMinute(5)
+                ->by($this->loginThrottleKey($request))
+                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountLoginAttempt($response))
+                ->response(function (Request $request, array $headers): JsonResponse {
+                    /** @var array<string, mixed> $headers */
+                    $headers = $headers;
 
-            return Limit::perMinute(5)->by($key)->response(function () {
-                return response()->json([
-                    'message' => __('Too many login attempts. Please try again in :seconds seconds.', ['seconds' => 60]),
-                ], 429);
-            });
+                    return $this->buildRateLimitedJsonResponse(
+                        $headers,
+                        'Too many login attempts. Please try again in :seconds seconds.',
+                        ['seconds' => $this->retryAfterSeconds($headers)],
+                    );
+                });
         });
 
         RateLimiter::for('mfa', function (Request $request) {
@@ -116,14 +118,18 @@ class AppServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('mfa-challenge', function (Request $request) {
-            $challengeId = (string) ($request->route('challengeId') ?? 'unknown');
-            $key = $request->ip().'|'.$challengeId;
+            return Limit::perMinutes(10, 5)
+                ->by($this->mfaChallengeThrottleKey($request))
+                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountMfaChallengeAttempt($response))
+                ->response(function (Request $request, array $headers): JsonResponse {
+                    /** @var array<string, mixed> $headers */
+                    $headers = $headers;
 
-            return Limit::perMinutes(10, 5)->by($key)->response(function () {
-                return response()->json([
-                    'message' => __('Too many MFA attempts. Please try again later.'),
-                ], 429);
-            });
+                    return $this->buildRateLimitedJsonResponse(
+                        $headers,
+                        'Too many MFA attempts. Please try again later.',
+                    );
+                });
         });
 
         RateLimiter::for('mfa-admin-reset', function (Request $request) {
@@ -277,6 +283,86 @@ class AppServiceProvider extends ServiceProvider
             : $scope.'|'.$request->ip().'|'.$email;
 
         return 'onboarding|'.hash('sha256', $rawKey);
+    }
+
+    private function loginThrottleKey(Request $request): string
+    {
+        $emailInput = $request->input('email', '');
+        $email = is_string($emailInput) ? strtolower(trim($emailInput)) : '';
+
+        return $request->ip().'|'.$email;
+    }
+
+    private function mfaChallengeThrottleKey(Request $request): string
+    {
+        $challengeId = (string) ($request->route('challengeId') ?? 'unknown');
+
+        return $request->ip().'|'.$challengeId;
+    }
+
+    /**
+     * @param  array<string, mixed>  $headers
+     * @param  array<string, bool|float|int|string|null>  $replace
+     */
+    private function buildRateLimitedJsonResponse(array $headers, string $message, array $replace = []): JsonResponse
+    {
+        return response()->json([
+            'message' => __($message, $replace),
+        ], 429, $headers);
+    }
+
+    /**
+     * @param  array<string, mixed>  $headers
+     */
+    private function retryAfterSeconds(array $headers): int
+    {
+        $retryAfter = $headers['Retry-After'] ?? null;
+
+        if (is_int($retryAfter)) {
+            return $retryAfter;
+        }
+
+        if (is_string($retryAfter) && is_numeric($retryAfter)) {
+            return (int) $retryAfter;
+        }
+
+        return 60;
+    }
+
+    private function shouldCountLoginAttempt(SymfonyResponse $response): bool
+    {
+        // Any 422 with an `email` field error on the login endpoint is an
+        // invalid-credential failure; MFA challenges return 202, successes 200.
+        return $this->responseHasValidationErrorForField($response, 'email');
+    }
+
+    private function shouldCountMfaChallengeAttempt(SymfonyResponse $response): bool
+    {
+        // Any 422 with a `code` field error on the MFA challenge endpoint is an
+        // invalid-code failure; successful verifications return 200.
+        return $this->responseHasValidationErrorForField($response, 'code');
+    }
+
+    private function responseHasValidationErrorForField(SymfonyResponse $response, string $field): bool
+    {
+        if ($response->getStatusCode() !== 422 || ! $response instanceof JsonResponse) {
+            return false;
+        }
+
+        $data = $response->getData(true);
+
+        if (! is_array($data)) {
+            return false;
+        }
+
+        $errors = $data['errors'] ?? null;
+        if (! is_array($errors)) {
+            return false;
+        }
+
+        $fieldErrors = $errors[$field] ?? null;
+
+        return is_array($fieldErrors) && $fieldErrors !== [];
     }
 
     private function shouldCountOnboardingAttempt(SymfonyResponse $response): bool
