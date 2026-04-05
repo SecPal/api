@@ -173,13 +173,31 @@ test('update employee status command skips activation when onboarding is incompl
     expect(DB::table('model_has_roles')->where('model_id', $employee->user_id)->count())->toBe(0);
 });
 
-test('update employee status command skips employees whose workflow is not ready for activation', function () {
+test('update employee status command promotes contract_confirmed employees to ready_for_activation and activates them', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->startOfDay(),
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    Artisan::call('employees:update-status');
+
+    $employee->refresh();
+
+    expect($employee->status)->toBe(Employee::STATUS_ACTIVE);
+    expect(Artisan::output())->not->toContain('Failed to activate employee');
+});
+
+test('update employee status command skips employees whose workflow is in_progress (not confirmed)', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->startOfDay(),
+        'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_IN_PROGRESS,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
