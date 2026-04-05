@@ -846,6 +846,7 @@ describe('POST /v1/employees/{employee}/activate', function () {
             'organizational_unit_id' => $this->organizationalUnit->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
             'contract_start_date' => now()->subDay()->toDateString(),
         ]);
 
@@ -865,6 +866,25 @@ describe('POST /v1/employees/{employee}/activate', function () {
             'organizational_unit_id' => $this->organizationalUnit->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+            'contract_start_date' => now()->subDay()->toDateString(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/activate");
+
+        $response->assertStatus(422);
+    });
+
+    test('returns 422 when onboarding workflow is not ready for activation', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
             'contract_start_date' => now()->subDay()->toDateString(),
         ]);
 
@@ -882,6 +902,7 @@ describe('POST /v1/employees/{employee}/activate', function () {
             'organizational_unit_id' => $this->organizationalUnit->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
             'contract_start_date' => now()->addWeek()->toDateString(),
         ]);
 
@@ -899,6 +920,7 @@ describe('POST /v1/employees/{employee}/activate', function () {
             'organizational_unit_id' => $this->organizationalUnit->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
             'contract_start_date' => now()->subDay()->toDateString(),
         ]);
 

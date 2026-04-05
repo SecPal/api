@@ -192,8 +192,8 @@ class OnboardingController extends Controller
             $employee->first_name = $firstName;
             $employee->last_name = $lastName;
             $employee->onboarding_started_at ??= now();
-            $employee->onboarding_workflow_status = Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED;
             $employee->save();
+            $employee->transitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
 
             // Enhanced activity logging if names changed
             if ($oldFirstName !== $firstName || $oldLastName !== $lastName) {
@@ -489,11 +489,11 @@ class OnboardingController extends Controller
                 ]);
             }
 
-            $employee->update([
-                'onboarding_workflow_status' => $status === 'submitted'
+            $employee->transitionOnboardingWorkflowTo(
+                $status === 'submitted'
                     ? Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW
                     : Employee::WORKFLOW_STATUS_IN_PROGRESS,
-            ]);
+            );
 
             return $created;
         });
@@ -581,9 +581,7 @@ class OnboardingController extends Controller
             /** @var Employee $employee */
             $employee = $submission->employee()->firstOrFail();
 
-            $employee->update([
-                'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CHANGES_REQUESTED,
-            ]);
+            $employee->transitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_CHANGES_REQUESTED);
         });
 
         /** @var OnboardingFormSubmission $fresh */

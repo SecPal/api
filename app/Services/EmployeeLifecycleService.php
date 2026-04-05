@@ -42,11 +42,18 @@ class EmployeeLifecycleService
                 ]);
             }
 
+            if (! $employee->canActivate()) {
+                throw ValidationException::withMessages([
+                    'employee' => __('Cannot activate: onboarding must be completed, workflow must be ready for activation, and contract start date must have passed'),
+                ]);
+            }
+
             $role = $this->resolveRole(self::EMPLOYEE_ROLE_NAME);
+
+            $employee->transitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_ACTIVE);
 
             $employee->forceFill([
                 'status' => Employee::STATUS_ACTIVE,
-                'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACTIVE,
                 'user_account_active' => true,
                 'user_account_activated_at' => now(),
                 'runtime_access_snapshot' => null,

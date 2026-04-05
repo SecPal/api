@@ -66,6 +66,7 @@ test('employee lifecycle service activates employee atomically', function () {
         'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subDay(),
     ]);
 
@@ -90,6 +91,7 @@ test('employee lifecycle service rolls activation back when employee role is mis
         'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subDay(),
     ]);
 
@@ -114,6 +116,7 @@ test('employee lifecycle service rejects activation when employee has no linked 
         'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subDay(),
     ]);
 
@@ -129,6 +132,28 @@ test('employee lifecycle service rejects activation when employee has no linked 
     $employee->refresh();
 
     expect($employee->status)->toBe(Employee::STATUS_PRE_CONTRACT);
+    Mail::assertNothingQueued();
+});
+
+test('employee lifecycle service rejects activation when onboarding workflow is not ready', function () {
+    Mail::fake();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
+        'contract_start_date' => now()->subDay(),
+    ]);
+
+    expect(fn () => $this->service->activate($employee))
+        ->toThrow(ValidationException::class);
+
+    $employee->refresh();
+
+    expect($employee->status)->toBe(Employee::STATUS_PRE_CONTRACT);
+    expect($employee->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED);
     Mail::assertNothingQueued();
 });
 
