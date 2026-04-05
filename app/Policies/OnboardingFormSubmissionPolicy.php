@@ -18,7 +18,7 @@ use App\Models\User;
  * - viewAny: Employee (own submissions) OR HR
  * - view: Employee (own) OR HR
  * - create: Employee (pre-contract status)
- * - update: Employee (own, if status = draft) OR HR
+ * - update: Employee (own, if status = draft) OR user with onboarding.write permission
  * - uploadFile: Employee (own, with onboarding.write permission)
  * - approve: HR only
  * - reject: HR only

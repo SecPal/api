@@ -50,7 +50,10 @@ class OnboardingSubmissionFileStorageService
             'nonce' => base64_encode($encrypted['nonce']),
         ], JSON_THROW_ON_ERROR);
 
-        Storage::disk('local')->put($path, $blob);
+        $stored = Storage::disk('local')->put($path, $blob);
+        if ($stored === false) {
+            throw new \RuntimeException('Failed to store encrypted onboarding submission file blob');
+        }
 
         return [
             'file_path' => $path,
@@ -67,6 +70,17 @@ class OnboardingSubmissionFileStorageService
         $sanitized = str_replace(['\\', '/', '"', ';'], '_', $sanitized);
         $sanitized = trim($sanitized);
 
-        return $sanitized !== '' ? $sanitized : 'document';
+        if ($sanitized === '') {
+            return 'document';
+        }
+
+        // Enforce the DB column limit while preserving extension when possible.
+        if (mb_strlen($sanitized) > 255) {
+            $ext = pathinfo($sanitized, PATHINFO_EXTENSION);
+            $base = mb_substr($sanitized, 0, $ext !== '' ? 254 - mb_strlen($ext) : 255);
+            $sanitized = $ext !== '' ? $base.'.'.$ext : $base;
+        }
+
+        return $sanitized;
     }
 }

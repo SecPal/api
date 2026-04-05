@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('onboarding_submission_files', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('onboarding_form_submission_id')->constrained('onboarding_form_submissions')->cascadeOnDelete();
-            $table->foreignUuid('uploaded_by')->constrained('users')->cascadeOnDelete();
+            $table->foreignUuid('uploaded_by')->constrained('users');
             $table->enum('document_type', ['contract', 'id_document', 'banking_details']);
             $table->string('file_path');
             $table->string('file_name');

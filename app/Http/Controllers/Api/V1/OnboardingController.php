@@ -547,20 +547,32 @@ class OnboardingController extends Controller
 
         /** @var \Illuminate\Http\UploadedFile $file */
         $file = $request->file('file');
-        $storedFile = $this->submissionFileStorageService->store($file, $submission);
 
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        $uploadedFile = OnboardingSubmissionFile::create([
-            'onboarding_form_submission_id' => $submission->id,
-            'uploaded_by' => $user->id,
-            'document_type' => $validated['document_type'],
-            'file_path' => $storedFile['file_path'],
-            'file_name' => $storedFile['file_name'],
-            'mime_type' => $storedFile['mime_type'],
-            'file_size' => $storedFile['file_size'],
-        ]);
+        $storedFilePath = null;
+
+        try {
+            $storedFile = $this->submissionFileStorageService->store($file, $submission);
+            $storedFilePath = $storedFile['file_path'];
+
+            $uploadedFile = DB::transaction(fn () => OnboardingSubmissionFile::create([
+                'onboarding_form_submission_id' => $submission->id,
+                'uploaded_by' => $user->id,
+                'document_type' => $validated['document_type'],
+                'file_path' => $storedFile['file_path'],
+                'file_name' => $storedFile['file_name'],
+                'mime_type' => $storedFile['mime_type'],
+                'file_size' => $storedFile['file_size'],
+            ]));
+        } catch (\Throwable $e) {
+            if ($storedFilePath !== null) {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($storedFilePath);
+            }
+
+            throw $e;
+        }
 
         return response()->json([
             'data' => [
