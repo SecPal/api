@@ -88,22 +88,13 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(60, 5)->by($request->ip());
         });
 
-        // Login rate limiter (5 attempts per minute by IP + email combination)
-        // This applies to both session-based (/auth/login) and token-based (/auth/token) login
+        // Login rate limiter (5 attempts per 5 minutes for the account and the concrete IP+account pair).
+        // This keeps the lockout independent from cookies / session churn while still partitioning per account.
         RateLimiter::for('login', function (Request $request) {
-            return Limit::perMinute(5)
-                ->by($this->loginThrottleKey($request))
-                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountLoginAttempt($response))
-                ->response(function (Request $request, array $headers): JsonResponse {
-                    /** @var array<string, mixed> $headers */
-                    $headers = $headers;
-
-                    return $this->buildRateLimitedJsonResponse(
-                        $headers,
-                        'Too many login attempts. Please try again in :seconds seconds.',
-                        ['seconds' => $this->retryAfterSeconds($headers)],
-                    );
-                });
+            return array_map(
+                fn (string $key): Limit => $this->buildLoginThrottleLimit($key),
+                $this->loginThrottleKeys($request),
+            );
         });
 
         RateLimiter::for('mfa', function (Request $request) {
@@ -285,12 +276,45 @@ class AppServiceProvider extends ServiceProvider
         return 'onboarding|'.hash('sha256', $rawKey);
     }
 
-    private function loginThrottleKey(Request $request): string
+    /**
+     * @return array<int, string>
+     */
+    private function loginThrottleKeys(Request $request): array
+    {
+        $email = $this->normalizedLoginThrottleEmail($request);
+
+        if ($email === '') {
+            return ['login|ip|'.$request->ip()];
+        }
+
+        return [
+            'login|account|'.$email,
+            'login|credential|'.$request->ip().'|'.$email,
+        ];
+    }
+
+    private function normalizedLoginThrottleEmail(Request $request): string
     {
         $emailInput = $request->input('email', '');
-        $email = is_string($emailInput) ? strtolower(trim($emailInput)) : '';
 
-        return $request->ip().'|'.$email;
+        return is_string($emailInput) ? strtolower(trim($emailInput)) : '';
+    }
+
+    private function buildLoginThrottleLimit(string $key): Limit
+    {
+        return Limit::perMinutes(5, 5)
+            ->by($key)
+            ->after(fn (SymfonyResponse $response): bool => $this->shouldCountLoginAttempt($response))
+            ->response(function (Request $request, array $headers): JsonResponse {
+                /** @var array<string, mixed> $headers */
+                $headers = $headers;
+
+                return $this->buildRateLimitedJsonResponse(
+                    $headers,
+                    'Too many login attempts. Please try again in :seconds seconds.',
+                    ['seconds' => $this->retryAfterSeconds($headers)],
+                );
+            });
     }
 
     private function mfaChallengeThrottleKey(Request $request): string
