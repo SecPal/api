@@ -94,11 +94,16 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)
                 ->by($this->loginThrottleKey($request))
                 ->after(fn (SymfonyResponse $response): bool => $this->shouldCountLoginAttempt($response))
-                ->response(fn (Request $request, array $headers): JsonResponse => $this->buildRateLimitedJsonResponse(
-                    $headers,
-                    'Too many login attempts. Please try again in :seconds seconds.',
-                    ['seconds' => (int) ($headers['Retry-After'] ?? 60)],
-                ));
+                ->response(function (Request $request, array $headers): JsonResponse {
+                    /** @var array<string, mixed> $headers */
+                    $headers = $headers;
+
+                    return $this->buildRateLimitedJsonResponse(
+                        $headers,
+                        'Too many login attempts. Please try again in :seconds seconds.',
+                        ['seconds' => $this->retryAfterSeconds($headers)],
+                    );
+                });
         });
 
         RateLimiter::for('mfa', function (Request $request) {
@@ -116,10 +121,15 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(10, 5)
                 ->by($this->mfaChallengeThrottleKey($request))
                 ->after(fn (SymfonyResponse $response): bool => $this->shouldCountMfaChallengeAttempt($response))
-                ->response(fn (Request $request, array $headers): JsonResponse => $this->buildRateLimitedJsonResponse(
-                    $headers,
-                    'Too many MFA attempts. Please try again later.',
-                ));
+                ->response(function (Request $request, array $headers): JsonResponse {
+                    /** @var array<string, mixed> $headers */
+                    $headers = $headers;
+
+                    return $this->buildRateLimitedJsonResponse(
+                        $headers,
+                        'Too many MFA attempts. Please try again later.',
+                    );
+                });
         });
 
         RateLimiter::for('mfa-admin-reset', function (Request $request) {
@@ -291,14 +301,32 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * @param  array<string, int|string>  $headers
-     * @param  array<string, int|string>  $replace
+     * @param  array<string, mixed>  $headers
+     * @param  array<string, bool|float|int|string|null>  $replace
      */
     private function buildRateLimitedJsonResponse(array $headers, string $message, array $replace = []): JsonResponse
     {
         return response()->json([
             'message' => __($message, $replace),
         ], 429, $headers);
+    }
+
+    /**
+     * @param  array<string, mixed>  $headers
+     */
+    private function retryAfterSeconds(array $headers): int
+    {
+        $retryAfter = $headers['Retry-After'] ?? null;
+
+        if (is_int($retryAfter)) {
+            return $retryAfter;
+        }
+
+        if (is_string($retryAfter) && is_numeric($retryAfter)) {
+            return (int) $retryAfter;
+        }
+
+        return 60;
     }
 
     private function shouldCountLoginAttempt(SymfonyResponse $response): bool
