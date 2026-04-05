@@ -132,6 +132,9 @@ test('invalid TOTP challenge attempts are rate limited with retry headers', func
         'device_name' => 'mfa-rate-limit-totp',
     ]);
 
+    $loginResponse->assertStatus(202)
+        ->assertJsonPath('challenge.id', fn (mixed $value): bool => is_string($value) && $value !== '');
+
     $challengeId = (string) $loginResponse->json('challenge.id');
 
     for ($i = 0; $i < 5; $i++) {
@@ -168,6 +171,9 @@ test('invalid recovery-code challenge attempts are rate limited with retry heade
         'password' => 'password123',
         'device_name' => 'mfa-rate-limit-recovery',
     ]);
+
+    $loginResponse->assertStatus(202)
+        ->assertJsonPath('challenge.id', fn (mixed $value): bool => is_string($value) && $value !== '');
 
     $challengeId = (string) $loginResponse->json('challenge.id');
 

@@ -331,23 +331,19 @@ class AppServiceProvider extends ServiceProvider
 
     private function shouldCountLoginAttempt(SymfonyResponse $response): bool
     {
-        return $this->responseHasValidationErrorForField(
-            $response,
-            'email',
-            'The provided credentials are incorrect.',
-        );
+        // Any 422 with an `email` field error on the login endpoint is an
+        // invalid-credential failure; MFA challenges return 202, successes 200.
+        return $this->responseHasValidationErrorForField($response, 'email');
     }
 
     private function shouldCountMfaChallengeAttempt(SymfonyResponse $response): bool
     {
-        return $this->responseHasValidationErrorForField(
-            $response,
-            'code',
-            'The provided multi-factor authentication code is invalid.',
-        );
+        // Any 422 with a `code` field error on the MFA challenge endpoint is an
+        // invalid-code failure; successful verifications return 200.
+        return $this->responseHasValidationErrorForField($response, 'code');
     }
 
-    private function responseHasValidationErrorForField(SymfonyResponse $response, string $field, string $message): bool
+    private function responseHasValidationErrorForField(SymfonyResponse $response, string $field): bool
     {
         if ($response->getStatusCode() !== 422 || ! $response instanceof JsonResponse) {
             return false;
@@ -366,7 +362,7 @@ class AppServiceProvider extends ServiceProvider
 
         $fieldErrors = $errors[$field] ?? null;
 
-        return is_array($fieldErrors) && in_array($message, $fieldErrors, true);
+        return is_array($fieldErrors) && $fieldErrors !== [];
     }
 
     private function shouldCountOnboardingAttempt(SymfonyResponse $response): bool
