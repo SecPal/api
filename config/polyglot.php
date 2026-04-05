@@ -14,7 +14,7 @@ return [
     | strings and web panel to manage translations.
     |
     | Enabled Polyglot replaces Laravel Translator service, bringing Gettext
-    | support to the Application. With full backward compatability.
+    | support to the Application. With full backward compatibility.
     |
     */
 

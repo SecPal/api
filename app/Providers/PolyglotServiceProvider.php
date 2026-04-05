@@ -15,7 +15,10 @@ class PolyglotServiceProvider extends PolyglotApplicationServiceProvider
     /**
      * Register the Polyglot gate.
      *
-     * This gate determines who can access Polyglot in non-local environments.
+     * The Polyglot web UI is not used — translation management is performed via
+     * CLI commands and direct PO file editing. This gate blocks all access so
+     * that the panel is never reachable, regardless of environment. The
+     * DisablePolyglotUi middleware additionally returns a 404 in production.
      */
     protected function gate(): void
     {
