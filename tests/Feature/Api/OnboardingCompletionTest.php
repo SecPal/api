@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
@@ -34,6 +34,7 @@ beforeEach(function () {
         'user_id' => $this->user->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => false,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED,
     ]);
 
     // Grant onboarding.write permission for submission tests

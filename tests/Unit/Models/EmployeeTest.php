@@ -192,10 +192,11 @@ test('employee status state machine methods work correctly', function () {
     expect($terminated->isActive())->toBeFalse();
 });
 
-test('employee can activate when onboarding complete and contract started', function () {
+test('employee can activate when onboarding is complete, workflow is ready, and contract has started', function () {
     $employee = Employee::factory()->create([
         'status' => 'pre_contract',
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subDay(),
     ]);
 
@@ -206,10 +207,44 @@ test('employee cannot activate when onboarding incomplete', function () {
     $employee = Employee::factory()->create([
         'status' => 'pre_contract',
         'onboarding_completed' => false,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subDay(),
     ]);
 
     expect($employee->canActivate())->toBeFalse();
+});
+
+test('employee cannot activate when onboarding workflow is not ready for activation', function () {
+    $employee = Employee::factory()->create([
+        'status' => 'pre_contract',
+        'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
+        'contract_start_date' => now()->subDay(),
+    ]);
+
+    expect($employee->canActivate())->toBeFalse();
+});
+
+test('employee onboarding workflow transitions follow the allowed state machine', function () {
+    $employee = Employee::factory()->create([
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED,
+    ]);
+
+    expect($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_IN_PROGRESS))->toBeTrue();
+    expect($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW))->toBeTrue();
+    expect($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_ACTIVE))->toBeFalse();
+});
+
+test('employee onboarding workflow readiness sync promotes contract confirmed employees with started contracts', function () {
+    $employee = Employee::factory()->create([
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
+        'contract_start_date' => now()->subDay(),
+    ]);
+
+    expect($employee->syncActivationReadinessWorkflow())->toBeTrue();
+    expect($employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION);
 });
 
 test('employee scopes filter correctly', function () {

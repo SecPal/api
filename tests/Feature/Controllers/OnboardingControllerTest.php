@@ -46,6 +46,7 @@ beforeEach(function (): void {
         'organizational_unit_id' => $organizationalUnit->id,
         'user_id' => $this->user->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED,
         'onboarding_steps' => [
             ['step' => 'personal_info', 'completed' => false],
             ['step' => 'documents', 'completed' => false],
@@ -412,6 +413,9 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/approve', function 
 
     test('approves submitted submission with valid permission', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.approve');
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+        ]);
 
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
@@ -476,6 +480,9 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
 
     test('returns 422 when reason is missing', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.approve');
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+        ]);
 
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
@@ -492,6 +499,9 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
 
     test('rejects submitted submission with reason', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.approve');
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+        ]);
 
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,

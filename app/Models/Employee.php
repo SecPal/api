@@ -204,6 +204,35 @@ class Employee extends Model
         self::WORKFLOW_STATUS_ACTIVE,
     ];
 
+    /** @var array<string, list<string>> */
+    public const ALLOWED_WORKFLOW_TRANSITIONS = [
+        self::WORKFLOW_STATUS_INVITED => [
+            self::WORKFLOW_STATUS_ACCOUNT_INITIALIZED,
+        ],
+        self::WORKFLOW_STATUS_ACCOUNT_INITIALIZED => [
+            self::WORKFLOW_STATUS_IN_PROGRESS,
+            self::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+        ],
+        self::WORKFLOW_STATUS_IN_PROGRESS => [
+            self::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+        ],
+        self::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW => [
+            self::WORKFLOW_STATUS_CHANGES_REQUESTED,
+            self::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
+        ],
+        self::WORKFLOW_STATUS_CHANGES_REQUESTED => [
+            self::WORKFLOW_STATUS_IN_PROGRESS,
+            self::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+        ],
+        self::WORKFLOW_STATUS_CONTRACT_CONFIRMED => [
+            self::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+        ],
+        self::WORKFLOW_STATUS_READY_FOR_ACTIVATION => [
+            self::WORKFLOW_STATUS_ACTIVE,
+        ],
+        self::WORKFLOW_STATUS_ACTIVE => [],
+    ];
+
     /**
      * Temporary storage for GDPR changed fields during model lifecycle.
      * Maps spl_object_id (as string) to array of changed field names.
@@ -984,9 +1013,74 @@ class Employee extends Model
         return $this->status === self::STATUS_TERMINATED;
     }
 
+    public function isReadyForActivation(): bool
+    {
+        return $this->resolveOnboardingWorkflowStatus() === self::WORKFLOW_STATUS_READY_FOR_ACTIVATION;
+    }
+
+    public function canTransitionOnboardingWorkflowTo(string $targetStatus): bool
+    {
+        if (! in_array($targetStatus, self::VALID_WORKFLOW_STATUSES, true)) {
+            return false;
+        }
+
+        $currentStatus = $this->resolveOnboardingWorkflowStatus();
+
+        if ($currentStatus === null) {
+            return false;
+        }
+
+        if ($currentStatus === $targetStatus) {
+            return true;
+        }
+
+        return in_array($targetStatus, self::ALLOWED_WORKFLOW_TRANSITIONS[$currentStatus] ?? [], true);
+    }
+
+    public function transitionOnboardingWorkflowTo(string $targetStatus): bool
+    {
+        if (! in_array($targetStatus, self::VALID_WORKFLOW_STATUSES, true)) {
+            throw new \InvalidArgumentException('Invalid onboarding workflow status: '.$targetStatus);
+        }
+
+        $currentStatus = $this->resolveOnboardingWorkflowStatus();
+
+        if ($currentStatus === $targetStatus) {
+            return false;
+        }
+
+        if (! $this->canTransitionOnboardingWorkflowTo($targetStatus)) {
+            throw new \LogicException(sprintf(
+                'Invalid onboarding workflow transition from %s to %s.',
+                $currentStatus ?? 'null',
+                $targetStatus,
+            ));
+        }
+
+        $this->forceFill([
+            'onboarding_workflow_status' => $targetStatus,
+        ])->save();
+
+        return true;
+    }
+
+    public function syncActivationReadinessWorkflow(): bool
+    {
+        if ($this->resolveOnboardingWorkflowStatus() !== self::WORKFLOW_STATUS_CONTRACT_CONFIRMED) {
+            return false;
+        }
+
+        if (! $this->contract_start_date || $this->contract_start_date->isFuture()) {
+            return false;
+        }
+
+        return $this->transitionOnboardingWorkflowTo(self::WORKFLOW_STATUS_READY_FOR_ACTIVATION);
+    }
+
     public function canActivate(): bool
     {
         return $this->status === self::STATUS_PRE_CONTRACT
+            && $this->isReadyForActivation()
             && $this->onboarding_completed
             && $this->contract_start_date
             && $this->contract_start_date->isPast();

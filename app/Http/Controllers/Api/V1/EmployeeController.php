@@ -212,7 +212,7 @@ class EmployeeController extends Controller
 
         if (! $employee->canActivate()) {
             return response()->json([
-                'message' => __('Cannot activate: onboarding must be completed and contract start date must have passed'),
+                'message' => __('Cannot activate: onboarding must be completed, workflow must be ready for activation, and contract start date must have passed'),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
