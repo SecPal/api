@@ -165,6 +165,7 @@ test('employee lifecycle service terminates employee and revokes runtime access 
         'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subMonths(2),
         'termination_date' => now()->toDateString(),
     ]);
@@ -209,6 +210,7 @@ test('employee lifecycle service places active employee on leave with read-only 
         'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subWeek(),
     ]);
 
@@ -240,6 +242,7 @@ test('employee lifecycle service restores the prior runtime access model when re
         'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subWeek(),
     ]);
 
@@ -272,6 +275,7 @@ test('employee lifecycle service clears on-leave access snapshots and direct per
         'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subWeek(),
         'termination_date' => now()->toDateString(),
     ]);
@@ -303,6 +307,7 @@ test('employee lifecycle service rolls leave transition back when the read-only 
         'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
         'contract_start_date' => now()->subWeek(),
     ]);
 

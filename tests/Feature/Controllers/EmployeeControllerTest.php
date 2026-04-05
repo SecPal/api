@@ -1038,6 +1038,7 @@ describe('POST /v1/employees/{employee}/leave', function () {
             'organizational_unit_id' => $this->organizationalUnit->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
             'contract_start_date' => now()->subDay()->toDateString(),
         ]);
 
@@ -1103,6 +1104,7 @@ describe('POST /v1/employees/{employee}/return-from-leave', function () {
             'organizational_unit_id' => $this->organizationalUnit->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
             'contract_start_date' => now()->subDay()->toDateString(),
         ]);
 
