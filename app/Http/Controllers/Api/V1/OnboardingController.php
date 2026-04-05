@@ -612,7 +612,7 @@ class OnboardingController extends Controller
     /**
      * Confirm a pre-contract onboarding dossier after HR/compliance review.
      *
-     * POST /api/v1/admin/onboarding/employees/{employee}/confirm
+     * POST /v1/admin/onboarding/employees/{employee}/confirm
      */
     public function confirmEmployeeOnboarding(Request $request, Employee $employee): JsonResponse
     {
@@ -627,24 +627,6 @@ class OnboardingController extends Controller
             $notes = null;
         }
 
-        if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
-            return response()->json([
-                'message' => __('Only pre-contract employees can be confirmed for onboarding'),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        if ($employee->resolveOnboardingWorkflowStatus() !== Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW) {
-            return response()->json([
-                'message' => __('Employee onboarding dossier must be submitted for review before confirmation'),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        if (! $employee->onboarding_completed) {
-            return response()->json([
-                'message' => __('Employee onboarding dossier must be complete before confirmation'),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
         /** @var \App\Models\User $user */
         $user = $request->user();
 
@@ -656,25 +638,49 @@ class OnboardingController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            $fromWorkflowStatus = $lockedEmployee->resolveOnboardingWorkflowStatus();
+
+            if ($lockedEmployee->status !== Employee::STATUS_PRE_CONTRACT) {
+                throw ValidationException::withMessages([
+                    'status' => __('Only pre-contract employees can be confirmed for onboarding'),
+                ]);
+            }
+
+            if ($fromWorkflowStatus !== Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW) {
+                throw ValidationException::withMessages([
+                    'onboarding_workflow_status' => __('Employee onboarding dossier must be submitted for review before confirmation'),
+                ]);
+            }
+
+            if (! $lockedEmployee->onboarding_completed) {
+                throw ValidationException::withMessages([
+                    'onboarding_completed' => __('Employee onboarding dossier must be complete before confirmation'),
+                ]);
+            }
+
             $lockedEmployee->transitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED);
             $lockedEmployee->refresh();
 
             $lockedEmployee->syncActivationReadinessWorkflow();
             $lockedEmployee->refresh();
 
-            activity('employee-onboarding')
-                ->causedBy($user)
-                ->performedOn($lockedEmployee)
-                ->event('onboarding_contract_confirmed')
-                ->withProperties([
-                    'action' => 'onboarding_contract_confirmed',
-                    'notes' => $notes,
-                    'confirmed_at' => now()->toIso8601String(),
-                    'from_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
-                    'to_workflow_status' => $lockedEmployee->resolveOnboardingWorkflowStatus(),
-                    'contract_start_date' => $lockedEmployee->contract_start_date?->toDateString(),
-                ])
-                ->log('HR confirmed onboarding dossier and contract state');
+            $toWorkflowStatus = $lockedEmployee->resolveOnboardingWorkflowStatus();
+
+            if ($toWorkflowStatus !== $fromWorkflowStatus) {
+                activity('employee-onboarding')
+                    ->causedBy($user)
+                    ->performedOn($lockedEmployee)
+                    ->event('onboarding_contract_confirmed')
+                    ->withProperties([
+                        'action' => 'onboarding_contract_confirmed',
+                        'notes' => $notes,
+                        'confirmed_at' => now()->toIso8601String(),
+                        'from_workflow_status' => $fromWorkflowStatus,
+                        'to_workflow_status' => $toWorkflowStatus,
+                        'contract_start_date' => $lockedEmployee->contract_start_date?->toDateString(),
+                    ])
+                    ->log('HR confirmed onboarding dossier and contract state');
+            }
 
             return $lockedEmployee;
         });
