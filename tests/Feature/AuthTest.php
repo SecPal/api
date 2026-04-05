@@ -844,6 +844,117 @@ describe('Login Rate Limiting', function () {
         expect($response->json('message'))->toMatch('/^Too many login attempts\. Please try again in \d+ seconds\./');
     });
 
+    test('token login reaches lockout even when attempts are spread over the lockout window', function () {
+        User::factory()->create([
+            'email' => 'slow-token-lockout@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        // Simulate ~30 seconds between each attempt — total time ≈150 seconds.
+        // With a 60-second window this would silently reset; the lockout window
+        // must be long enough to capture all five wrong-password attempts.
+        $expectedRemaining = ['4', '3', '2', '1', '0'];
+        foreach ($expectedRemaining as $expected) {
+            $response = $this->postJson('/v1/auth/token', [
+                'email' => 'slow-token-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertHeader('X-RateLimit-Remaining', $expected);
+
+            $this->travel(30)->seconds();
+        }
+
+        $lockout = $this->postJson('/v1/auth/token', [
+            'email' => 'slow-token-lockout@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $lockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $lockout->headers->get('Retry-After'))->toBeGreaterThan(0);
+    });
+
+    test('token login remaining counter progresses monotonically before the first lockout response', function () {
+        User::factory()->create([
+            'email' => 'token-sequence@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $expectedRemainingSequence = ['4', '3', '2', '1', '0'];
+
+        foreach ($expectedRemainingSequence as $expectedRemaining) {
+            $response = $this->postJson('/v1/auth/token', [
+                'email' => 'token-sequence@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertHeader('X-RateLimit-Limit', '5')
+                ->assertHeader('X-RateLimit-Remaining', $expectedRemaining);
+        }
+
+        $lockoutResponse = $this->postJson('/v1/auth/token', [
+            'email' => 'token-sequence@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $lockoutResponse->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $lockoutResponse->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($lockoutResponse->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
+
+    test('token endpoint is rate limited after 5 failed attempts for a non-existent account too', function () {
+        $email = 'definitely-no-account-'.Str::uuid().'@example.com';
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/v1/auth/token', [
+                'email' => $email,
+                'password' => 'wrong-password',
+            ])->assertUnprocessable()
+                ->assertJsonValidationErrors(['email']);
+        }
+
+        $response = $this->postJson('/v1/auth/token', [
+            'email' => $email,
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
+
+    test('token login keeps the same error envelope for existing and non-existent accounts', function () {
+        User::factory()->create([
+            'email' => 'known-token-user@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $existingResponse = $this->postJson('/v1/auth/token', [
+            'email' => 'known-token-user@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $unknownResponse = $this->postJson('/v1/auth/token', [
+            'email' => 'unknown-token-user-'.Str::uuid().'@example.com',
+            'password' => 'wrong-password',
+        ]);
+
+        $existingResponse->assertUnprocessable();
+        $unknownResponse->assertUnprocessable();
+
+        expect($unknownResponse->json())->toEqual($existingResponse->json());
+    });
+
     test('token login MFA challenges do not consume the wrong-password throttle bucket', function () {
         $user = User::factory()->create([
             'email' => 'mfa-token-limit@secpal.dev',
@@ -890,6 +1001,170 @@ describe('Login Rate Limiting', function () {
 
         expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
             ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
+
+    test('token login stays rate limited throughout the active cooldown window', function () {
+        User::factory()->create([
+            'email' => 'stable-token-lockout@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/v1/auth/token', [
+                'email' => 'stable-token-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ])->assertUnprocessable();
+        }
+
+        $firstLockout = $this->postJson('/v1/auth/token', [
+            'email' => 'stable-token-lockout@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $firstLockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $firstRetryAfter = (int) $firstLockout->headers->get('Retry-After');
+        expect($firstRetryAfter)->toBeGreaterThan(1);
+
+        $this->travel(2)->seconds();
+
+        $secondLockout = $this->postJson('/v1/auth/token', [
+            'email' => 'stable-token-lockout@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $secondLockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $secondRetryAfter = (int) $secondLockout->headers->get('Retry-After');
+        expect($secondRetryAfter)->toBeGreaterThan(0)
+            ->and($secondRetryAfter)->toBeLessThan($firstRetryAfter);
+
+        $this->travel(2)->seconds();
+
+        $thirdLockout = $this->postJson('/v1/auth/token', [
+            'email' => 'stable-token-lockout@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $thirdLockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $thirdRetryAfter = (int) $thirdLockout->headers->get('Retry-After');
+        expect($thirdRetryAfter)->toBeGreaterThan(0)
+            ->and($thirdRetryAfter)->toBeLessThan($secondRetryAfter);
+    });
+
+    test('token login resumes with a fresh counter after the cooldown expires', function () {
+        User::factory()->create([
+            'email' => 'token-cooldown-reset@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/v1/auth/token', [
+                'email' => 'token-cooldown-reset@secpal.dev',
+                'password' => 'wrong-password',
+            ])->assertUnprocessable();
+        }
+
+        $lockoutResponse = $this->postJson('/v1/auth/token', [
+            'email' => 'token-cooldown-reset@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $lockoutResponse->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $this->travel(301)->seconds();
+
+        $postCooldownAttemptOne = $this->postJson('/v1/auth/token', [
+            'email' => 'token-cooldown-reset@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $postCooldownAttemptOne->assertUnprocessable()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '4');
+
+        $postCooldownAttemptTwo = $this->postJson('/v1/auth/token', [
+            'email' => 'token-cooldown-reset@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $postCooldownAttemptTwo->assertUnprocessable()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '3');
+    });
+
+    test('session and token logins share the same pre-auth account lockout state', function () {
+        User::factory()->create([
+            'email' => 'cross-mode-lockout@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        for ($i = 0; $i < 3; $i++) {
+            $response = $this->postJson('/v1/auth/token', [
+                'email' => 'cross-mode-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertHeader('X-RateLimit-Limit', '5')
+                ->assertHeader('X-RateLimit-Remaining', (string) (4 - $i));
+        }
+
+        $headers = spaCsrfHeaders($this);
+
+        $sessionAttemptOne = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'cross-mode-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $sessionAttemptOne->assertUnprocessable()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '1');
+
+        $sessionAttemptTwo = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'cross-mode-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $sessionAttemptTwo->assertUnprocessable()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $tokenLockout = $this->postJson('/v1/auth/token', [
+            'email' => 'cross-mode-lockout@secpal.dev',
+            'password' => 'wrong-password',
+        ]);
+
+        $tokenLockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $tokenRetryAfter = (int) $tokenLockout->headers->get('Retry-After');
+        expect($tokenRetryAfter)->toBeGreaterThan(0);
+
+        $sessionLockout = $this->withHeaders(spaCsrfHeaders($this))
+            ->postJson('/v1/auth/login', [
+                'email' => 'cross-mode-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $sessionLockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $sessionRetryAfter = (int) $sessionLockout->headers->get('Retry-After');
+        expect($sessionRetryAfter)->toBeGreaterThan(0)
+            ->and($sessionRetryAfter)->toBeLessThanOrEqual($tokenRetryAfter);
     });
 
     test('rate limit is per email and IP combination', function () {
@@ -975,36 +1250,70 @@ describe('Login Rate Limiting', function () {
         $response->assertTooManyRequests();
     });
 
-    test('same email from different IPs has separate rate limits', function () {
+    test('same email from different IPs still hits the shared pre-auth account lockout', function () {
         User::factory()->create([
             'email' => 'test@secpal.dev',
             'password' => bcrypt('password'),
         ]);
 
-        // Exhaust rate limit from first IP
+        // Exhaust the shared pre-auth lockout bucket while the apparent client IP changes.
         for ($i = 0; $i < 5; $i++) {
-            $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.1'])
+            $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.'.($i + 1)])
                 ->postJson('/v1/auth/token', [
                     'email' => 'test@secpal.dev',
                     'password' => 'wrong',
-                ]);
+                ])->assertUnprocessable();
         }
 
-        // First IP should be rate limited
-        $response = $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.1'])
+        // A sixth attempt from a brand-new IP must still hit the same temporary lockout.
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.99'])
             ->postJson('/v1/auth/token', [
                 'email' => 'test@secpal.dev',
                 'password' => 'wrong',
             ]);
-        $response->assertTooManyRequests();
 
-        // Different IP should NOT be rate limited for same email
-        $response = $this->withServerVariables(['REMOTE_ADDR' => '192.168.1.2'])
-            ->postJson('/v1/auth/token', [
-                'email' => 'test@secpal.dev',
+        $response->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
+
+    test('session login lockout survives fresh csrf cookies and changing ips', function () {
+        User::factory()->create([
+            'email' => 'session-rotating@secpal.dev',
+            'password' => bcrypt('password'),
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $headers = spaHeaders([
+                'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+            ]);
+
+            $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.'.($i + 1)])
+                ->withHeaders($headers)
+                ->postJson('/v1/auth/login', [
+                    'email' => 'session-rotating@secpal.dev',
+                    'password' => 'wrong',
+                ])->assertUnprocessable();
+        }
+
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.99'])
+            ->withHeaders(spaHeaders([
+                'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+            ]))
+            ->postJson('/v1/auth/login', [
+                'email' => 'session-rotating@secpal.dev',
                 'password' => 'wrong',
             ]);
-        $response->assertUnprocessable(); // 422, not 429
+
+        $response->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
     });
 
     test('session login endpoint is also rate limited', function () {
@@ -1035,6 +1344,63 @@ describe('Login Rate Limiting', function () {
             ]);
 
         $response->assertTooManyRequests();
+    });
+
+    test('session login endpoint is also rate limited for a non-existent account', function () {
+        $email = 'definitely-no-session-account-'.Str::uuid().'@example.com';
+        $xsrfToken = issueSpaCsrfToken($this);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->withHeaders(spaHeaders([
+                'X-XSRF-TOKEN' => $xsrfToken,
+            ]))
+                ->postJson('/v1/auth/login', [
+                    'email' => $email,
+                    'password' => 'wrong',
+                ])->assertUnprocessable()
+                ->assertJsonValidationErrors(['email']);
+        }
+
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => $xsrfToken,
+        ]))
+            ->postJson('/v1/auth/login', [
+                'email' => $email,
+                'password' => 'wrong',
+            ]);
+
+        $response->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
+
+    test('session login keeps the same error envelope for existing and non-existent accounts', function () {
+        User::factory()->create([
+            'email' => 'known-session-user@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $headers = spaCsrfHeaders($this);
+
+        $existingResponse = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'known-session-user@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $unknownResponse = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'unknown-session-user-'.Str::uuid().'@example.com',
+                'password' => 'wrong-password',
+            ]);
+
+        $existingResponse->assertUnprocessable();
+        $unknownResponse->assertUnprocessable();
+
+        expect($unknownResponse->json())->toEqual($existingResponse->json());
     });
 
     test('session login MFA challenges do not consume the wrong-password throttle bucket', function () {
@@ -1089,6 +1455,150 @@ describe('Login Rate Limiting', function () {
 
         expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
             ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
+
+    test('session login reaches lockout even when attempts are spread over the lockout window', function () {
+        User::factory()->create([
+            'email' => 'slow-session-lockout@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $headers = spaCsrfHeaders($this);
+
+        $expectedRemaining = ['4', '3', '2', '1', '0'];
+        foreach ($expectedRemaining as $expected) {
+            $response = $this->withHeaders($headers)
+                ->postJson('/v1/auth/login', [
+                    'email' => 'slow-session-lockout@secpal.dev',
+                    'password' => 'wrong-password',
+                ]);
+
+            $response->assertUnprocessable()
+                ->assertHeader('X-RateLimit-Remaining', $expected);
+
+            $this->travel(30)->seconds();
+        }
+
+        $lockout = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'slow-session-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $lockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $lockout->headers->get('Retry-After'))->toBeGreaterThan(0);
+    });
+
+    test('session login stays rate limited throughout the active cooldown window', function () {
+        User::factory()->create([
+            'email' => 'stable-session-lockout@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $headers = spaCsrfHeaders($this);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->withHeaders($headers)
+                ->postJson('/v1/auth/login', [
+                    'email' => 'stable-session-lockout@secpal.dev',
+                    'password' => 'wrong-password',
+                ])->assertUnprocessable();
+        }
+
+        $firstLockout = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'stable-session-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $firstLockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $firstRetryAfter = (int) $firstLockout->headers->get('Retry-After');
+        expect($firstRetryAfter)->toBeGreaterThan(1);
+
+        $this->travel(2)->seconds();
+
+        $secondLockout = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'stable-session-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $secondLockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $secondRetryAfter = (int) $secondLockout->headers->get('Retry-After');
+        expect($secondRetryAfter)->toBeGreaterThan(0)
+            ->and($secondRetryAfter)->toBeLessThan($firstRetryAfter);
+
+        $this->travel(2)->seconds();
+
+        $thirdLockout = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'stable-session-lockout@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $thirdLockout->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $thirdRetryAfter = (int) $thirdLockout->headers->get('Retry-After');
+        expect($thirdRetryAfter)->toBeGreaterThan(0)
+            ->and($thirdRetryAfter)->toBeLessThan($secondRetryAfter);
+    });
+
+    test('session login resumes with a fresh counter after the cooldown expires', function () {
+        User::factory()->create([
+            'email' => 'session-cooldown-reset@secpal.dev',
+            'password' => bcrypt('correct-password'),
+        ]);
+
+        $headers = spaCsrfHeaders($this);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->withHeaders($headers)
+                ->postJson('/v1/auth/login', [
+                    'email' => 'session-cooldown-reset@secpal.dev',
+                    'password' => 'wrong-password',
+                ])->assertUnprocessable();
+        }
+
+        $lockoutResponse = $this->withHeaders($headers)
+            ->postJson('/v1/auth/login', [
+                'email' => 'session-cooldown-reset@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $lockoutResponse->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        $this->travel(301)->seconds();
+
+        $postCooldownAttemptOne = $this->withHeaders(spaCsrfHeaders($this))
+            ->postJson('/v1/auth/login', [
+                'email' => 'session-cooldown-reset@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $postCooldownAttemptOne->assertUnprocessable()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '4');
+
+        $postCooldownAttemptTwo = $this->withHeaders(spaCsrfHeaders($this))
+            ->postJson('/v1/auth/login', [
+                'email' => 'session-cooldown-reset@secpal.dev',
+                'password' => 'wrong-password',
+            ]);
+
+        $postCooldownAttemptTwo->assertUnprocessable()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '3');
     });
 });
 

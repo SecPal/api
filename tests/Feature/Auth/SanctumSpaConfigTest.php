@@ -136,6 +136,15 @@ describe('CORS Configuration for SPA', function () {
         expect($statefulDomains)->toContain('app.secpal.dev');
     });
 
+    test('cors config exposes login rate-limit headers to the SPA', function () {
+        expect(config('cors.exposed_headers'))->toBe([
+            'Retry-After',
+            'X-RateLimit-Remaining',
+            'X-RateLimit-Limit',
+            'X-RateLimit-Reset',
+        ]);
+    });
+
     test('cors config includes the base health endpoint path', function () {
         $corsPaths = config('cors.paths');
 
