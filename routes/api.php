@@ -307,6 +307,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/onboarding/templates/{template}', [OnboardingController::class, 'getTemplate']);
             Route::get('/onboarding/submissions', [OnboardingController::class, 'getSubmissions']);
             Route::post('/onboarding/submissions', [OnboardingController::class, 'submitForm']);
+            Route::post('/onboarding/submissions/{submission}/files', [OnboardingController::class, 'uploadSubmissionFile']);
             Route::get('/onboarding/completion-status', [OnboardingController::class, 'getCompletionStatus']);
 
             // HR admin endpoints

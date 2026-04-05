@@ -14,6 +14,8 @@ use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property TenantKey $tenant
@@ -384,6 +386,116 @@ describe('POST /v1/onboarding/submissions', function () {
         $response->assertStatus(409)
             ->assertJson(['message' => 'Form has already been submitted and is awaiting review']);
         expect(OnboardingFormSubmission::where('employee_id', $this->employee->id)->count())->toBe(1);
+    });
+});
+
+describe('POST /v1/onboarding/submissions/{submission}/files', function () {
+    test('returns 401 when not authenticated', function (): void {
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->post("/v1/onboarding/submissions/{$submission->id}/files", [
+            'file' => UploadedFile::fake()->create('contract.pdf', 100, 'application/pdf'),
+            'document_type' => 'contract',
+        ]);
+
+        $response->assertStatus(401);
+    });
+
+    test('returns 403 when user lacks onboarding.write permission', function (): void {
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->create('contract.pdf', 100, 'application/pdf'),
+                'document_type' => 'contract',
+            ]);
+
+        $response->assertStatus(403);
+    });
+
+    test('uploads a file for an employee draft submission', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->create('contract.pdf', 100, 'application/pdf'),
+                'document_type' => 'contract',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonStructure([
+                'data' => ['id', 'filename'],
+            ]);
+
+        expect($response->json('data.filename'))->toBe('contract.pdf');
+
+        $this->assertDatabaseHas('onboarding_submission_files', [
+            'onboarding_form_submission_id' => $submission->id,
+            'document_type' => 'contract',
+            'file_name' => 'contract.pdf',
+        ]);
+    });
+
+    test('returns 403 when uploading a file to another employee submission', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $otherUser = User::factory()->create();
+        $otherEmployee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->employee->organizational_unit_id,
+            'user_id' => $otherUser->id,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $otherEmployee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->create('contract.pdf', 100, 'application/pdf'),
+                'document_type' => 'contract',
+            ]);
+
+        $response->assertStatus(403);
+    });
+
+    test('returns 422 when attempting to upload a file to a submitted submission', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'submitted',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->create('contract.pdf', 100, 'application/pdf'),
+                'document_type' => 'contract',
+            ]);
+
+        $response->assertStatus(422);
     });
 });
 

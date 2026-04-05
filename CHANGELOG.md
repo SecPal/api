@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added the MFA phase-1 backend foundation by integrating `laragear/two-factor`, publishing a UUID-safe `two_factor_authentications` migration, wiring the `User` model into the package contract, and covering enrollment, recovery-code rotation, and disablement lifecycle behavior with focused tests
 - Added the phase-1 MFA API endpoints for login challenges, TOTP enrollment confirmation, `/me/mfa` status, recovery-code regeneration, and authenticated MFA disablement so the frontend can build against real SecPal API behavior instead of only the contract
 - security audit document (`SECURITY_AUDIT_API_VALIDATION.md`) covering API validation, error handling, and request semantics with 3 HIGH, 6 MEDIUM, 5 LOW findings and 3 best-practice recommendations; includes prioritized fix order and negative test ideas
+- added `POST /v1/onboarding/submissions/{submission}/files` endpoint for pre-contract employee dossier uploads, storing encrypted attachment blobs in tenant-scoped local storage, restricting uploads to the authenticated owner's own `draft` or `rejected` submission, and returning the uploaded file metadata expected by the onboarding frontend
 
 ### Changed
 
