@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- exposed the login rate-limit response headers via CORS on SPA auth requests, so the browser frontend can read `Retry-After` and `X-RateLimit-*` directly from `/v1/auth/login` instead of falling back to a speculative local lockout timer
+- hardened the pre-auth login lockout for `/v1/auth/login` and `/v1/auth/token` by enforcing the wrong-password throttle on both a shared account bucket and an IP-plus-account bucket, keeping MFA challenge issuance on valid passwords unchanged while making temporary `429` lockouts reproducible even when browser sessions or apparent client IPs change
 - aligned the scheduled `employees:update-status` activation query and related lifecycle/onboarding regressions with the explicit `ready_for_activation` workflow gate, so daily activation no longer attempts stale pre-contract records and the affected API tests reflect the same readiness rule as the lifecycle service
 - centralized the pre-contract onboarding workflow transition rules in the employee model, moved onboarding write paths and lifecycle activation onto that shared state machine, and blocked `POST /v1/employees/{employee}/activate` until onboarding is both dossier-complete and explicitly in `ready_for_activation`, so backend activation no longer treats `onboarding_completed` alone as sufficient readiness for internal access
 - added an explicit HR/compliance onboarding confirmation action for pre-contract employees, including dedicated `onboarding.confirm` authorization, auditable confirmation events, and automatic promotion from `contract_confirmed` to `ready_for_activation` when the contract start gate is already satisfied

@@ -122,7 +122,16 @@ function spaCsrfHeaders(Tests\TestCase $testCase): array
 
 function clearLoginRateLimiter(string $email, string $ip = '127.0.0.1'): void
 {
-    Illuminate\Support\Facades\RateLimiter::clear($ip.'|'.strtolower($email));
+    $normalizedEmail = strtolower(trim($email));
+
+    foreach ([
+        'login|account|'.$normalizedEmail,
+        'login|credential|'.$ip.'|'.$normalizedEmail,
+        $ip.'|'.$normalizedEmail,
+    ] as $key) {
+        Illuminate\Support\Facades\RateLimiter::clear(md5('login'.$key));
+        Illuminate\Support\Facades\RateLimiter::clear($key);
+    }
 }
 
 /**

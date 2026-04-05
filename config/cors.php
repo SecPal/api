@@ -76,7 +76,12 @@ return [
 
     'allowed_headers' => explode(',', (string) env('CORS_ALLOWED_HEADERS', 'Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN')),
 
-    'exposed_headers' => [],
+    'exposed_headers' => [
+        'Retry-After',
+        'X-RateLimit-Remaining',
+        'X-RateLimit-Limit',
+        'X-RateLimit-Reset',
+    ],
 
     'max_age' => (int) env('CORS_MAX_AGE', 86400),
 

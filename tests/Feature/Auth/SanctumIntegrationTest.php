@@ -37,6 +37,32 @@ describe('Integration: CORS and Security', function () {
         expect($response->headers->get('Access-Control-Allow-Origin'))->toBe('https://app.secpal.dev');
     });
 
+    test('spa login failures expose rate-limit headers to browser clients', function () {
+        clearLoginRateLimiter('test@example.com');
+
+        User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => Hash::make('correct-password'),
+        ]);
+
+        $response = $this->withHeaders(spaCsrfHeaders($this))->postJson('/v1/auth/login', [
+            'email' => 'test@example.com',
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertHeader('Access-Control-Allow-Origin', 'https://app.secpal.dev')
+            ->assertHeader('X-RateLimit-Remaining', '4');
+
+        $exposedHeaders = $response->headers->get('Access-Control-Expose-Headers');
+
+        expect($exposedHeaders)->not->toBeNull()
+            ->and($exposedHeaders)->toContain('Retry-After')
+            ->and($exposedHeaders)->toContain('X-RateLimit-Remaining')
+            ->and($exposedHeaders)->toContain('X-RateLimit-Limit')
+            ->and($exposedHeaders)->toContain('X-RateLimit-Reset');
+    });
+
     test('OPTIONS preflight request succeeds for whitelisted origin', function () {
         $response = $this->call('OPTIONS', '/v1/auth/token', [], [], [], [
             'HTTP_ORIGIN' => 'https://app.secpal.dev',
