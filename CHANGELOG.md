@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- added the missing `POST /v1/onboarding/submissions/{submission}/files` runtime endpoint for pre-contract employee dossier uploads, storing encrypted attachment blobs and returning the uploaded file metadata expected by the onboarding frontend
+- added the missing `POST /v1/onboarding/submissions/{submission}/files` runtime endpoint for pre-contract employee dossier uploads, storing encrypted attachment blobs, restricting uploads to the authenticated owner's own submission, and returning the uploaded file metadata expected by the onboarding frontend
 - aligned the scheduled `employees:update-status` activation query and related lifecycle/onboarding regressions with the explicit `ready_for_activation` workflow gate, so daily activation no longer attempts stale pre-contract records and the affected API tests reflect the same readiness rule as the lifecycle service
 - centralized the pre-contract onboarding workflow transition rules in the employee model, moved onboarding write paths and lifecycle activation onto that shared state machine, and blocked `POST /v1/employees/{employee}/activate` until onboarding is both dossier-complete and explicitly in `ready_for_activation`, so backend activation no longer treats `onboarding_completed` alone as sufficient readiness for internal access
 - added an explicit HR/compliance onboarding confirmation action for pre-contract employees, including dedicated `onboarding.confirm` authorization, auditable confirmation events, and automatic promotion from `contract_confirmed` to `ready_for_activation` when the contract start gate is already satisfied

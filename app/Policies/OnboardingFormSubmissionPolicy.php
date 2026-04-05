@@ -19,6 +19,7 @@ use App\Models\User;
  * - view: Employee (own) OR HR
  * - create: Employee (pre-contract status)
  * - update: Employee (own, if status = draft) OR HR
+ * - uploadFile: Employee (own, with onboarding.write permission)
  * - approve: HR only
  * - reject: HR only
  */
@@ -118,6 +119,23 @@ class OnboardingFormSubmissionPolicy
         }
 
         return false;
+    }
+
+    /**
+     * Determine if user can upload an attachment for a submission.
+     *
+     * Uploads are restricted to the authenticated pre-contract employee's own
+     * submission and still require the onboarding.write capability.
+     */
+    public function uploadFile(User $user, OnboardingFormSubmission $submission): bool
+    {
+        if (! $user->can('onboarding.write')) {
+            return false;
+        }
+
+        $employee = $submission->employee;
+
+        return $employee !== null && $user->id === $employee->user_id;
     }
 
     /**

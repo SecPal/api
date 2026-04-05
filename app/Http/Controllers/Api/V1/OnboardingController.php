@@ -534,7 +534,7 @@ class OnboardingController extends Controller
      */
     public function uploadSubmissionFile(UploadOnboardingSubmissionFileRequest $request, OnboardingFormSubmission $submission): JsonResponse
     {
-        $this->authorize('update', $submission);
+        $this->authorize('uploadFile', $submission);
 
         if (! in_array($submission->status, ['draft', 'rejected'], true)) {
             throw ValidationException::withMessages([

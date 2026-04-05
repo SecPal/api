@@ -17,7 +17,7 @@ class UploadOnboardingSubmissionFileRequest extends FormRequest
         $submission = $this->route('submission');
 
         return $submission !== null
-            && ($this->user()?->can('update', $submission) ?? false);
+            && ($this->user()?->can('uploadFile', $submission) ?? false);
     }
 
     /**

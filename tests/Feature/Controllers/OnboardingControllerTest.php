@@ -452,6 +452,33 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
         ]);
     });
 
+    test('returns 403 when uploading a file to another employee submission', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $otherUser = User::factory()->create();
+        $otherEmployee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->employee->organizational_unit_id,
+            'user_id' => $otherUser->id,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $otherEmployee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->create('contract.pdf', 100, 'application/pdf'),
+                'document_type' => 'contract',
+            ]);
+
+        $response->assertStatus(403);
+    });
+
     test('returns 422 when attempting to upload a file to a submitted submission', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
