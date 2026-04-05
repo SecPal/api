@@ -90,6 +90,16 @@ class UpdateEmployeeStatus extends Command
     {
         $this->info('Processing activations...');
 
+        // Promote contract_confirmed employees whose contract has started to ready_for_activation.
+        if (! $isDryRun) {
+            Employee::where('status', Employee::STATUS_PRE_CONTRACT)
+                ->where('onboarding_completed', true)
+                ->where('onboarding_workflow_status', Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED)
+                ->whereDate('contract_start_date', '<=', $today)
+                ->get()
+                ->each(static fn (Employee $employee) => $employee->syncActivationReadinessWorkflow());
+        }
+
         $employees = Employee::where('status', Employee::STATUS_PRE_CONTRACT)
             ->where('onboarding_completed', true)
             ->where('onboarding_workflow_status', Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION)

@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 /**
  * OnboardingController handles pre-contract employee onboarding workflows.
@@ -193,7 +194,9 @@ class OnboardingController extends Controller
             $employee->last_name = $lastName;
             $employee->onboarding_started_at ??= now();
             $employee->save();
-            $employee->transitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
+            if ($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED)) {
+                $employee->transitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
+            }
 
             // Enhanced activity logging if names changed
             if ($oldFirstName !== $firstName || $oldLastName !== $lastName) {
@@ -489,11 +492,17 @@ class OnboardingController extends Controller
                 ]);
             }
 
-            $employee->transitionOnboardingWorkflowTo(
-                $status === 'submitted'
-                    ? Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW
-                    : Employee::WORKFLOW_STATUS_IN_PROGRESS,
-            );
+            $targetWorkflowStatus = $status === 'submitted'
+                ? Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW
+                : Employee::WORKFLOW_STATUS_IN_PROGRESS;
+
+            if (! $employee->canTransitionOnboardingWorkflowTo($targetWorkflowStatus)) {
+                throw ValidationException::withMessages([
+                    'onboarding_workflow_status' => __('Cannot submit: onboarding workflow is not in an expected state for this action'),
+                ]);
+            }
+
+            $employee->transitionOnboardingWorkflowTo($targetWorkflowStatus);
 
             return $created;
         });
@@ -580,6 +589,12 @@ class OnboardingController extends Controller
 
             /** @var Employee $employee */
             $employee = $submission->employee()->firstOrFail();
+
+            if (! $employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_CHANGES_REQUESTED)) {
+                throw ValidationException::withMessages([
+                    'onboarding_workflow_status' => __('Cannot reject: employee workflow is not in submitted_for_review state'),
+                ]);
+            }
 
             $employee->transitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_CHANGES_REQUESTED);
         });
