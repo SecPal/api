@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SubmitOnboardingFormRequest;
+use App\Http\Requests\UploadOnboardingSubmissionFileRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Http\Resources\OnboardingFormSubmissionResource;
 use App\Http\Resources\OnboardingFormTemplateResource;
@@ -15,7 +16,9 @@ use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use App\Models\OnboardingSubmissionFile;
 use App\Services\OnboardingCompletionService;
+use App\Services\OnboardingSubmissionFileStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -39,6 +42,10 @@ use Illuminate\Validation\ValidationException;
  */
 class OnboardingController extends Controller
 {
+    public function __construct(
+        private readonly OnboardingSubmissionFileStorageService $submissionFileStorageService
+    ) {}
+
     /**
      * Validate onboarding token and return employee data for prefilling.
      *
@@ -518,6 +525,49 @@ class OnboardingController extends Controller
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($submission),
         ], $existing ? Response::HTTP_OK : Response::HTTP_CREATED);
+    }
+
+    /**
+     * Upload a file for an editable onboarding submission.
+     *
+     * POST /v1/onboarding/submissions/{submission}/files
+     */
+    public function uploadSubmissionFile(UploadOnboardingSubmissionFileRequest $request, OnboardingFormSubmission $submission): JsonResponse
+    {
+        $this->authorize('update', $submission);
+
+        if (! in_array($submission->status, ['draft', 'rejected'], true)) {
+            throw ValidationException::withMessages([
+                'status' => __('Files can only be uploaded while the onboarding submission is editable'),
+            ]);
+        }
+
+        /** @var array<string, mixed> $validated */
+        $validated = $request->validated();
+
+        /** @var \Illuminate\Http\UploadedFile $file */
+        $file = $request->file('file');
+        $storedFile = $this->submissionFileStorageService->store($file, $submission);
+
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        $uploadedFile = OnboardingSubmissionFile::create([
+            'onboarding_form_submission_id' => $submission->id,
+            'uploaded_by' => $user->id,
+            'document_type' => $validated['document_type'],
+            'file_path' => $storedFile['file_path'],
+            'file_name' => $storedFile['file_name'],
+            'mime_type' => $storedFile['mime_type'],
+            'file_size' => $storedFile['file_size'],
+        ]);
+
+        return response()->json([
+            'data' => [
+                'id' => $uploadedFile->id,
+                'filename' => $uploadedFile->file_name,
+            ],
+        ], Response::HTTP_CREATED);
     }
 
     /**
