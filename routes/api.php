@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Http\Controllers\Api\V1\ActivityLogController;
+use App\Http\Controllers\Api\V1\AndroidEnrollmentSessionController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CustomerAssignmentController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -81,6 +82,8 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:onboarding-validate');
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])
         ->middleware(['throttle:onboarding-complete', 'web']);
+    Route::post('/android/bootstrap/exchange', [AndroidEnrollmentSessionController::class, 'exchange'])
+        ->middleware('throttle:5,1');
 
     // Protected routes (require auth:sanctum)
     Route::middleware(['auth:sanctum', 'ability:'.User::API_ACCESS_ABILITY])->group(function () {
@@ -94,6 +97,15 @@ Route::prefix('v1')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
 
         Route::middleware('verified')->group(function () {
+            Route::get('/admin/android-enrollment-sessions', [AndroidEnrollmentSessionController::class, 'index'])
+                ->middleware('permission:android_enrollment.read');
+            Route::post('/admin/android-enrollment-sessions', [AndroidEnrollmentSessionController::class, 'store'])
+                ->middleware('permission:android_enrollment.write');
+            Route::get('/admin/android-enrollment-sessions/{session}', [AndroidEnrollmentSessionController::class, 'show'])
+                ->middleware('permission:android_enrollment.read');
+            Route::post('/admin/android-enrollment-sessions/{session}/revoke', [AndroidEnrollmentSessionController::class, 'revoke'])
+                ->middleware('permission:android_enrollment.write');
+
             Route::patch('/me/language', [AuthController::class, 'updateLanguage']);
             Route::get('/me/mfa', [AuthController::class, 'mfaStatus']);
             Route::get('/me/passkeys', [AuthController::class, 'listPasskeys']);
