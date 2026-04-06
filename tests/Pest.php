@@ -5,6 +5,8 @@
 
 use Tests\Support\TestKekCounter;
 
+const TEST_KEK_BASE_PATH = 'app/keys';
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -50,7 +52,7 @@ pest()->extend(Tests\TestCase::class)
  */
 function getTestKekPath(): string
 {
-    return storage_path('app/keys/kek-test-'.getmypid().'-'.TestKekCounter::get().'.key');
+    return storage_path(TEST_KEK_BASE_PATH.'/kek-test-'.getmypid().'-'.TestKekCounter::get().'.key');
 }
 
 /**
@@ -69,7 +71,9 @@ function cleanupTestKekFile(): void
 {
     $kekPath = getTestKekPath();
     if (file_exists($kekPath)) {
-        unlink($kekPath);
+        if (! @unlink($kekPath)) {
+            throw new RuntimeException(sprintf('Failed to delete KEK file at path "%s".', $kekPath));
+        }
     }
 }
 
@@ -95,16 +99,21 @@ function spaHeaders(array $headers = []): array
     ], $headers);
 }
 
+const SPA_XSRF_COOKIE_NAME = 'XSRF-TOKEN';
+
 function issueSpaCsrfToken(Tests\TestCase $testCase): string
 {
     $response = $testCase->withHeaders(spaHeaders())
         ->get('/sanctum/csrf-cookie');
 
     $xsrfCookie = collect($response->headers->getCookies())
-        ->first(fn ($cookie) => $cookie->getName() === 'XSRF-TOKEN');
+        ->first(fn ($cookie) => $cookie->getName() === SPA_XSRF_COOKIE_NAME);
 
     if ($xsrfCookie === null) {
-        throw new RuntimeException('Unable to issue SPA CSRF cookie for test request.');
+        throw new RuntimeException(
+            'Unable to issue SPA CSRF cookie: XSRF-TOKEN cookie not found in response from /sanctum/csrf-cookie. ' .
+            'This usually indicates incorrect SPA headers (Origin/Referer), missing Sanctum/CSRF middleware, or a misconfigured route.'
+        );
     }
 
     return urldecode($xsrfCookie->getValue());
@@ -120,15 +129,25 @@ function spaCsrfHeaders(Tests\TestCase $testCase): array
     ]);
 }
 
-function clearLoginRateLimiter(string $email, string $ip = '127.0.0.1'): void
+/**
+ * Get the rate limiter keys used for login attempts for a given email and IP.
+ *
+ * @return array<int, string>
+ */
+function getLoginRateLimiterKeys(string $email, string $ip = '127.0.0.1'): array
 {
     $normalizedEmail = strtolower(trim($email));
 
-    foreach ([
+    return [
         'login|account|'.$normalizedEmail,
         'login|credential|'.$ip.'|'.$normalizedEmail,
         $ip.'|'.$normalizedEmail,
-    ] as $key) {
+    ];
+}
+
+function clearLoginRateLimiter(string $email, string $ip = '127.0.0.1'): void
+{
+    foreach (getLoginRateLimiterKeys($email, $ip) as $key) {
         Illuminate\Support\Facades\RateLimiter::clear($key);
     }
 }

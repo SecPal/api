@@ -405,6 +405,7 @@ class AuthController extends Controller
                 $validated['credential'],
             );
         } catch (AuthenticatorResponseVerificationException $exception) {
+            $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
             throw $this->passkeyCredentialValidationException($exception);
         }
 

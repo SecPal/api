@@ -16,6 +16,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * @property TenantKey $tenant
@@ -450,6 +451,23 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
             'document_type' => 'contract',
             'file_name' => 'contract.pdf',
         ]);
+
+        // Verify that the encrypted blob was stored on disk with the expected JSON structure.
+        $fileId = $response->json('data.id');
+        $record = \DB::table('onboarding_submission_files')->where('id', $fileId)->first();
+        $this->assertNotNull($record);
+        $this->assertNotNull($record->file_path ?? null);
+
+        Storage::disk('local')->assertExists($record->file_path);
+
+        $raw = Storage::disk('local')->get($record->file_path);
+        $decoded = json_decode($raw, true);
+
+        $this->assertIsArray($decoded);
+        $this->assertArrayHasKey('ciphertext', $decoded);
+        $this->assertArrayHasKey('nonce', $decoded);
+        $this->assertNotEmpty($decoded['ciphertext']);
+        $this->assertNotEmpty($decoded['nonce']);
     });
 
     test('returns 403 when uploading a file to another employee submission', function (): void {
@@ -708,7 +726,7 @@ describe('POST /v1/admin/onboarding/employees/{employee}/confirm', function () {
         expect($response->json('data.onboarding_workflow.status'))->toBe(Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED);
         expect($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED);
 
-        $activity = Spatie\Activitylog\Models\Activity::where('subject_id', $this->employee->id)
+        $activity = Activity::where('subject_id', $this->employee->id)
             ->where('event', 'onboarding_contract_confirmed')
             ->latest('id')
             ->first();
