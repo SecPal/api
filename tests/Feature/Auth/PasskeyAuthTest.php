@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\PasskeyCredential;
 use App\Models\User;
 use App\Services\PasskeyChallengeService;
 use App\Services\PasskeyService;
@@ -38,9 +39,12 @@ describe('Passkey Authentication', function () {
 
     test('browser passkey login challenge creation is rate limited with retry headers', function () {
         for ($i = 0; $i < 5; $i++) {
-            $this->withHeaders(spaHeaders())
-                ->postJson('/v1/auth/passkeys/challenges')
-                ->assertCreated();
+            $response = $this->withHeaders(spaHeaders())
+                ->postJson('/v1/auth/passkeys/challenges');
+
+            $response->assertCreated()
+                ->assertHeader('X-RateLimit-Limit', '5')
+                ->assertHeader('X-RateLimit-Remaining', (string) (4 - $i));
         }
 
         $response = $this->withHeaders(spaHeaders())
@@ -93,6 +97,10 @@ describe('Passkey Authentication', function () {
     test('browser passkey login verification completes the browser session', function () {
         $user = User::factory()->create();
 
+        $credential = PasskeyCredential::factory()->create([
+            'user_id' => $user->id,
+        ]);
+
         $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
             'challenge' => 'test-challenge',
             'rp_id' => 'app.secpal.dev',
@@ -106,7 +114,7 @@ describe('Passkey Authentication', function () {
             ->once()
             ->andReturn([
                 'user' => $user,
-                'credential' => new App\Models\PasskeyCredential,
+                'credential' => $credential,
             ]);
 
         $response = $this->withHeaders(spaCsrfHeaders($this))
@@ -176,23 +184,31 @@ describe('Passkey Authentication', function () {
         $this->withHeaders(spaHeaders())
             ->getJson('/v1/me')
             ->assertUnauthorized();
+
+        // Ensure the authentication challenge has been forgotten after a failed verification attempt
+        $retrievedChallenge = app(PasskeyChallengeService::class)->findAuthenticationChallenge($challenge['challenge_id']);
+
+        expect($retrievedChallenge)->toBeNull();
     });
 
     test('invalid browser passkey verification attempts are rate limited with retry headers', function () {
-        $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
-            'challenge' => 'test-challenge',
-            'rp_id' => 'app.secpal.dev',
-            'timeout' => 60000,
-            'user_verification' => 'preferred',
-        ], 'conditional');
-
         /** @var PasskeyService&Mockery\MockInterface $mockService */
         $mockService = $this->mock(PasskeyService::class);
         $mockService->shouldReceive('verifyAuthentication')
             ->times(5)
             ->andThrow(AuthenticatorResponseVerificationException::create('The passkey assertion is invalid.'));
 
+        // The security fix forgets the challenge after each failed attempt, so each
+        // iteration needs a fresh challenge. The rate limiter is keyed off the IP,
+        // so it accumulates across all requests regardless of the challenge ID.
         for ($i = 0; $i < 5; $i++) {
+            $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+                'challenge' => 'test-challenge-'.$i,
+                'rp_id' => 'app.secpal.dev',
+                'timeout' => 60000,
+                'user_verification' => 'preferred',
+            ], 'conditional');
+
             $this->withHeaders(spaCsrfHeaders($this))
                 ->postJson('/v1/auth/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
                     'credential' => [
@@ -209,8 +225,17 @@ describe('Passkey Authentication', function () {
                 ->assertUnprocessable();
         }
 
+        // The 6th request hits the rate limiter before the controller even looks up the
+        // challenge, so any UUID is sufficient here.
+        $exhaustedChallenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+            'challenge' => 'test-challenge-exhausted',
+            'rp_id' => 'app.secpal.dev',
+            'timeout' => 60000,
+            'user_verification' => 'preferred',
+        ], 'conditional');
+
         $response = $this->withHeaders(spaCsrfHeaders($this))
-            ->postJson('/v1/auth/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
+            ->postJson('/v1/auth/passkeys/challenges/'.$exhaustedChallenge['challenge_id'].'/verify', [
                 'credential' => [
                     'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
                     'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
@@ -280,9 +305,12 @@ describe('Passkey Management', function () {
         $token = $user->issueApiToken('test-suite')->plainTextToken;
 
         for ($i = 0; $i < 5; $i++) {
-            $this->withToken($token)
-                ->postJson('/v1/me/passkeys/challenges/registration')
-                ->assertCreated();
+            $response = $this->withToken($token)
+                ->postJson('/v1/me/passkeys/challenges/registration');
+
+            $response->assertCreated()
+                ->assertHeader('X-RateLimit-Limit', '5')
+                ->assertHeader('X-RateLimit-Remaining', (string) (4 - $i));
         }
 
         $response = $this->withToken($token)
@@ -439,6 +467,78 @@ describe('Passkey Management', function () {
             ]);
 
         expect($response->json('data.credential.id'))->toBe('Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE')
+            ->and($response->json('data.total_passkeys'))->toBe(1);
+    });
+
+    test('valid passkey registration without preexisting credential registers a new passkey', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $challenge = app(PasskeyChallengeService::class)->createRegistrationChallenge($user, [
+            'challenge' => 'test-registration-challenge',
+            'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
+            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
+            'timeout' => 60000,
+            'exclude_credentials' => [],
+            'authenticator_selection' => ['resident_key' => 'preferred', 'user_verification' => 'preferred'],
+            'attestation' => 'none',
+        ]);
+
+        /** @var PasskeyService&Mockery\MockInterface $mockService */
+        $mockService = $this->mock(PasskeyService::class);
+
+        $mockService->shouldReceive('verifyRegistration')
+            ->once()
+            ->andReturnUsing(function (User $registrationUser, array $storedOptions, array $credentialPayload, ?string $label = null) use ($user) {
+                return PasskeyCredential::factory()->create([
+                    'user_id' => $user->id,
+                    'credential_id' => 'Bx9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'label' => 'Touch ID',
+                ]);
+            });
+
+        $mockService->shouldReceive('formatCredentialSummary')
+            ->once()
+            ->andReturnUsing(function ($credential) {
+                return [
+                    'id' => $credential->credential_id,
+                    'label' => $credential->label,
+                    'created_at' => $credential->created_at->toIso8601String(),
+                    'last_used_at' => null,
+                    'transports' => $credential->transports,
+                    'authenticator_attachment' => null,
+                    'aaguid' => null,
+                    'user_verified' => false,
+                    'backup_eligible' => false,
+                    'backup_state' => false,
+                ];
+            });
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', [
+                'credential' => [
+                    'id' => 'Bx9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'raw_id' => 'Bx9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'type' => 'public-key',
+                    'response' => [
+                        'client_data_json' => 'Zm9v',
+                        'attestation_object' => 'YmFy',
+                        'transports' => ['internal'],
+                    ],
+                ],
+                'label' => 'Touch ID',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonStructure([
+                'data' => [
+                    'credential' => ['id', 'label', 'created_at', 'transports'],
+                    'total_passkeys',
+                ],
+            ]);
+
+        expect($response->json('data.credential.id'))->toBe('Bx9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE')
             ->and($response->json('data.total_passkeys'))->toBe(1);
     });
 

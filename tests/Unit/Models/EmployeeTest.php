@@ -11,6 +11,7 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class)->group('unit', 'models', 'employee');
 
@@ -18,9 +19,6 @@ uses(RefreshDatabase::class)->group('unit', 'models', 'employee');
  * @property TenantKey $tenant
  */
 beforeEach(function () {
-    // Disable EmployeeObserver for unit tests - we test the model in isolation
-    Employee::unsetEventDispatcher();
-
     // Create KEK and tenant (no factory for TenantKey)
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
@@ -34,12 +32,14 @@ afterEach(function () {
 });
 
 test('employee model encrypts and decrypts personal data using enc fields', function () {
-    $employee = Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'first_name' => 'Max',
-        'last_name' => 'Mustermann',
-        'date_of_birth' => '1990-05-15',
-    ]);
+    $employee = Employee::withoutEvents(function () {
+        return Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'first_name' => 'Max',
+            'last_name' => 'Mustermann',
+            'date_of_birth' => '1990-05-15',
+        ]);
+    });
 
     // Check encrypted fields exist in database
     expect($employee->getAttributeValue('first_name_enc'))->not->toBeNull();
@@ -53,11 +53,13 @@ test('employee model encrypts and decrypts personal data using enc fields', func
 });
 
 test('employee encrypts tax id and social security number', function () {
-    $employee = Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'tax_id' => '12345678901',
-        'social_security_number' => '65 123456 A 123',
-    ]);
+    $employee = Employee::withoutEvents(function () {
+        return Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'tax_id' => '12345678901',
+            'social_security_number' => '65 123456 A 123',
+        ]);
+    });
 
     // Check encrypted fields exist in database
     expect($employee->getAttributeValue('tax_id_enc'))->not->toBeNull();
@@ -78,10 +80,12 @@ test('employee encrypts tax id and social security number', function () {
 });
 
 test('employee model encrypts and decrypts phone data', function () {
-    $employee = Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'phone' => '+49 30 12345678',
-    ]);
+    $employee = Employee::withoutEvents(function () {
+        return Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'phone' => '+49 30 12345678',
+        ]);
+    });
 
     expect($employee->getAttributeValue('phone_enc'))->not->toBeNull();
     expect($employee->phone)->toBe('+49 30 12345678');
@@ -94,21 +98,14 @@ test('employee model encrypts and decrypts phone data', function () {
 });
 
 test('employee model generates blind indexes for searchable encrypted fields', function () {
-    // Create employee without observer, then manually trigger blind index generation
-    $employee = Employee::factory()->make([
+    // Create employee and trigger blind index generation via the model's observer
+    $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'first_name' => 'Anna',
         'last_name' => 'Schmidt',
         'phone' => '+49 (30) 1234-5678',
         'status' => Employee::STATUS_ACTIVE,
     ]);
-
-    // Manually generate blind indexes by calling the observer's method
-    $observer = new App\Observers\EmployeeObserver;
-    $observer->creating($employee);
-
-    // Save the employee
-    $employee->save();
 
     // Check blind indexes are generated (base64-encoded SHA256 HMAC = 44 chars)
     expect($employee->first_name_idx)->not->toBeNull();
@@ -290,7 +287,7 @@ test('employee relationships load correctly', function () {
 
     $qualification = Qualification::factory()->create(['tenant_id' => $this->tenant->id]);
     $employee->qualifications()->attach($qualification->id, [
-        'id' => (string) Illuminate\Support\Str::uuid(),
+        'id' => Str::uuid()->toString(),
         'obtained_date' => now(),
     ]);
 

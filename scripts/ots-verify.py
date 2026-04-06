@@ -19,12 +19,13 @@ from pathlib import Path
 from io import BytesIO
 
 try:
-    from opentimestamps.core.timestamp import DetachedTimestampFile, BitcoinBlockHeaderAttestation
+    from opentimestamps.core.timestamp import DetachedTimestampFile
     from opentimestamps.core.notary import BitcoinBlockHeaderAttestation
     from opentimestamps.core.serialize import StreamDeserializationContext
 except ImportError as e:
-    print(f"Error: opentimestamps library not installed: {e}", file=sys.stderr)
-    print("Install with: pip install opentimestamps-client", file=sys.stderr)
+    print("Error: Failed to import the 'opentimestamps' library or required submodules.", file=sys.stderr)
+    print(f"Details: {e}", file=sys.stderr)
+    print("A common fix is to install or update it with: pip install --upgrade opentimestamps-client", file=sys.stderr)
     sys.exit(2)
 
 def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
