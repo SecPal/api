@@ -64,7 +64,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/passkeys/challenges', [AuthController::class, 'startPasskeyAuthenticationChallenge'])
         ->middleware('throttle:passkey-challenge');
     Route::post('/auth/passkeys/challenges/{challengeId}/verify', [AuthController::class, 'verifyPasskeyAuthenticationChallenge'])
-        ->middleware('throttle:mfa-challenge');
+        ->middleware('throttle:passkey-verify');
     Route::post('/auth/mfa-challenges/{challengeId}/verify', [AuthController::class, 'verifyMfaChallenge'])
         ->middleware('throttle:mfa-challenge');
     Route::post('/auth/password/reset-request', [AuthController::class, 'passwordResetRequest'])
@@ -100,7 +100,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/me/passkeys/challenges/registration', [AuthController::class, 'startPasskeyRegistrationChallenge'])
                 ->middleware('throttle:passkey-challenge');
             Route::post('/me/passkeys/challenges/registration/{challengeId}/verify', [AuthController::class, 'verifyPasskeyRegistrationChallenge'])
-                ->middleware('throttle:mfa-challenge');
+                ->middleware('throttle:passkey-verify');
             Route::delete('/me/passkeys/{credentialId}', [AuthController::class, 'deletePasskey']);
             Route::delete('/me/mfa', [AuthController::class, 'disableMfa'])
                 ->middleware('throttle:mfa');

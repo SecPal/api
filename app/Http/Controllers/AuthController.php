@@ -460,6 +460,10 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
 
+        if (! Str::isUuid($challengeId)) {
+            return $this->resourceNotFoundResponse();
+        }
+
         $challenge = $this->passkeyChallengeService->findRegistrationChallenge($challengeId);
 
         if ($challenge === null || $challenge['user_id'] !== $user->id) {

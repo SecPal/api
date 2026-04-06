@@ -130,7 +130,7 @@ class PasskeyChallengeService
     {
         $minutes = config('passkeys.challenge_expiration_minutes', 10);
 
-        return is_int($minutes) ? $minutes : 10;
+        return is_int($minutes) && $minutes > 0 ? $minutes : 10;
     }
 
     private function authenticationCacheKey(string $challengeId): string

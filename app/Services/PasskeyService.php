@@ -7,6 +7,7 @@ namespace App\Services;
 
 use App\Models\PasskeyCredential;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use ParagonIE\ConstantTime\Base64UrlSafe;
 use Symfony\Component\Serializer\Serializer;
@@ -194,13 +195,7 @@ class PasskeyService
             throw AuthenticatorResponseVerificationException::create('Invalid assertion response.');
         }
 
-        $credential = PasskeyCredential::query()
-            ->where('credential_id', Base64UrlSafe::encodeUnpadded($publicKeyCredential->rawId))
-            ->first();
-
-        if (! $credential instanceof PasskeyCredential) {
-            throw AuthenticatorResponseVerificationException::create('The passkey credential is invalid.');
-        }
+        $credentialId = Base64UrlSafe::encodeUnpadded($publicKeyCredential->rawId);
 
         /** @var PublicKeyCredentialRequestOptions $requestOptions */
         $requestOptions = $this->serializer->denormalize(
@@ -208,32 +203,48 @@ class PasskeyService
             PublicKeyCredentialRequestOptions::class,
         );
 
-        $updatedSource = $this->assertionValidator->check(
-            $credential->toPublicKeyCredentialSource(),
-            $publicKeyCredential->response,
-            $requestOptions,
-            $this->relyingPartyId(),
-            $publicKeyCredential->response->userHandle,
-        );
+        $assertionResponse = $publicKeyCredential->response;
 
-        $credential->forceFill([
-            'counter' => $updatedSource->counter,
-            'user_verified' => $updatedSource->uvInitialized ?? $credential->user_verified,
-            'backup_eligible' => $updatedSource->backupEligible ?? $credential->backup_eligible,
-            'backup_state' => $updatedSource->backupStatus ?? $credential->backup_state,
-            'last_used_at' => now(),
-        ])->save();
+        /** @var array{user: User, credential: PasskeyCredential} $result */
+        $result = DB::transaction(function () use ($credentialId, $assertionResponse, $requestOptions): array {
+            $credential = PasskeyCredential::query()
+                ->where('credential_id', $credentialId)
+                ->lockForUpdate()
+                ->first();
 
-        $user = $credential->user()->first();
+            if (! $credential instanceof PasskeyCredential) {
+                throw AuthenticatorResponseVerificationException::create('The passkey credential is invalid.');
+            }
 
-        if (! $user instanceof User) {
-            throw AuthenticatorResponseVerificationException::create('The passkey credential owner is invalid.');
-        }
+            $updatedSource = $this->assertionValidator->check(
+                $credential->toPublicKeyCredentialSource(),
+                $assertionResponse,
+                $requestOptions,
+                $this->relyingPartyId(),
+                $assertionResponse->userHandle,
+            );
 
-        return [
-            'user' => $user,
-            'credential' => $credential,
-        ];
+            $credential->forceFill([
+                'counter' => $updatedSource->counter,
+                'user_verified' => $updatedSource->uvInitialized ?? $credential->user_verified,
+                'backup_eligible' => $updatedSource->backupEligible ?? $credential->backup_eligible,
+                'backup_state' => $updatedSource->backupStatus ?? $credential->backup_state,
+                'last_used_at' => now(),
+            ])->save();
+
+            $user = $credential->user()->first();
+
+            if (! $user instanceof User) {
+                throw AuthenticatorResponseVerificationException::create('The passkey credential owner is invalid.');
+            }
+
+            return [
+                'user' => $user,
+                'credential' => $credential,
+            ];
+        });
+
+        return $result;
     }
 
     /**

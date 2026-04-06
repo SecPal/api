@@ -140,6 +140,21 @@ class AppServiceProvider extends ServiceProvider
                 });
         });
 
+        RateLimiter::for('passkey-verify', function (Request $request) {
+            return Limit::perMinutes(10, 5)
+                ->by($this->mfaChallengeThrottleKey($request))
+                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountMfaChallengeAttempt($response))
+                ->response(function (Request $request, array $headers): JsonResponse {
+                    /** @var array<string, mixed> $headers */
+                    $headers = $headers;
+
+                    return $this->buildRateLimitedJsonResponse(
+                        $headers,
+                        'Too many passkey attempts. Please try again later.',
+                    );
+                });
+        });
+
         RateLimiter::for('mfa-admin-reset', function (Request $request) {
             $actor = $request->user();
             $actorId = $actor instanceof \App\Models\User
