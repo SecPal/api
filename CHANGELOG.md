@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed parallel-test KEK file conflicts in `EmployeeTest` by calling `incrementTestKekCounter()` in the `beforeEach` hook before setting the KEK path
+- Fixed `EmployeeObserver` instantiation in `EmployeeTest` to use the service container (`app()`) instead of direct `new` to ensure proper dependency injection
+
 ### Added
 
 - added the phase-2 passkey backend foundation with WebAuthn-backed browser sign-in and self-service passkey management endpoints, persisted passkey credentials plus challenge state, and regression coverage for session establishment, validation failures, and throttled invalid passkey verification attempts
