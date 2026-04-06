@@ -16,8 +16,9 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
+ * @property string $id
  * @property int $tenant_id
- * @property int $created_by
+ * @property string $created_by
  * @property string|null $device_label
  * @property string $enrollment_mode
  * @property string $update_channel

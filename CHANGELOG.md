@@ -15,13 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added the initial Android enrollment API slice for Epic SecPal/.github#327, including tenant-bound enrollment session storage, private QR/bootstrap token issuance, admin create/list/read/revoke endpoints, a public bootstrap exchange endpoint, and audited provisioning lifecycle events
-
-### Changed
-
-- aligned the API repo-local domain policy and validation script with the canonical Android artifact host `apk.secpal.app` so Android enrollment and release metadata URLs now pass governance checks
-
-### Added
-
 - added the phase-2 passkey backend foundation with WebAuthn-backed browser sign-in and self-service passkey management endpoints, persisted passkey credentials plus challenge state, and regression coverage for session establishment, validation failures, and throttled invalid passkey verification attempts
 - added a policy-protected admin MFA reset path at `DELETE /v1/users/{user}/mfa`, dedicated `users.reset_mfa` permission seeding, explicit MFA reset throttling, and authentication audit entries for MFA enable/disable, recovery-code regeneration, recovery-code depletion, and admin-triggered resets
 - Added the MFA phase-1 backend foundation by integrating `laragear/two-factor`, publishing a UUID-safe `two_factor_authentications` migration, wiring the `User` model into the package contract, and covering enrollment, recovery-code rotation, and disablement lifecycle behavior with focused tests

@@ -16,6 +16,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 class AndroidEnrollmentSessionController extends Controller
 {
@@ -161,17 +162,28 @@ class AndroidEnrollmentSessionController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        if (! $session->isPending()) {
+        $exchanged = DB::transaction(function () use ($session, $request): bool {
+            /** @var AndroidEnrollmentSession|null $locked */
+            $locked = AndroidEnrollmentSession::lockForUpdate()->find($session->id);
+
+            if (! $locked instanceof AndroidEnrollmentSession || ! $locked->isPending()) {
+                return false;
+            }
+
+            $locked->markAsExchanged(
+                $request->ip() ?? 'unknown',
+                $request->userAgent() ?? 'unknown',
+            );
+
+            return true;
+        });
+
+        if (! $exchanged) {
             return response()->json([
                 'message' => __('Android bootstrap token can no longer be exchanged.'),
                 'code' => 'CONFLICT',
             ], Response::HTTP_CONFLICT);
         }
-
-        $session->markAsExchanged(
-            $request->ip() ?? 'unknown',
-            $request->userAgent() ?? 'unknown',
-        );
 
         activity('android_provisioning')
             ->performedOn($session)

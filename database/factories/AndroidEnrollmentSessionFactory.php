@@ -28,7 +28,9 @@ class AndroidEnrollmentSessionFactory extends Factory
 
         return [
             'tenant_id' => TenantKey::factory(),
-            'created_by' => User::factory(),
+            'created_by' => User::factory()->state(fn (array $attributes): array => [
+                'tenant_id' => $attributes['tenant_id'],
+            ]),
             'device_label' => fake()->words(3, true),
             'enrollment_mode' => 'device_owner',
             'update_channel' => 'managed_device',
