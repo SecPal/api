@@ -9,6 +9,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Observers\EmployeeObserver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -19,6 +20,7 @@ uses(RefreshDatabase::class)->group('unit', 'models', 'employee');
  * @property TenantKey $tenant
  */
 beforeEach(function () {
+    incrementTestKekCounter();
     // Create KEK and tenant (no factory for TenantKey)
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
@@ -117,7 +119,7 @@ test('employee model generates blind indexes for searchable encrypted fields', f
 });
 
 test('employee phone blind index normalizes formatting differences', function () {
-    $observer = new App\Observers\EmployeeObserver;
+    $observer = app(EmployeeObserver::class);
 
     $employeeA = Employee::factory()->make([
         'tenant_id' => $this->tenant->id,
