@@ -396,6 +396,8 @@ describe('Passkey Management', function () {
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['credential']);
+
+        expect(app(PasskeyChallengeService::class)->findRegistrationChallenge($challenge['challenge_id']))->toBeNull();
     });
 
     test('valid passkey registration verification creates a credential and returns its summary', function () {
