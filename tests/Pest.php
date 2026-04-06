@@ -111,7 +111,7 @@ function issueSpaCsrfToken(Tests\TestCase $testCase): string
 
     if ($xsrfCookie === null) {
         throw new RuntimeException(
-            'Unable to issue SPA CSRF cookie: XSRF-TOKEN cookie not found in response from /sanctum/csrf-cookie. ' .
+            'Unable to issue SPA CSRF cookie: '.SPA_XSRF_COOKIE_NAME.' cookie not found in response from /sanctum/csrf-cookie. ' .
             'This usually indicates incorrect SPA headers (Origin/Referer), missing Sanctum/CSRF middleware, or a misconfigured route.'
         );
     }

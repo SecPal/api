@@ -15,6 +15,7 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Models\Activity;
 
@@ -454,7 +455,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
 
         // Verify that the encrypted blob was stored on disk with the expected JSON structure.
         $fileId = $response->json('data.id');
-        $record = \DB::table('onboarding_submission_files')->where('id', $fileId)->first();
+        $record = DB::table('onboarding_submission_files')->where('id', $fileId)->first();
         $this->assertNotNull($record);
         $this->assertNotNull($record->file_path ?? null);
 

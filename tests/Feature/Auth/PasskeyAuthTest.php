@@ -479,14 +479,10 @@ describe('Passkey Management', function () {
         $mockService->shouldReceive('verifyRegistration')
             ->once()
             ->andReturnUsing(function () use ($user) {
-                return $user->passkeyCredentials()->create([
+                return PasskeyCredential::factory()->create([
+                    'user_id' => $user->id,
                     'credential_id' => 'Bx9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
                     'label' => 'Touch ID',
-                    'transports' => ['internal'],
-                    'attestation_type' => 'none',
-                    'credential_public_key' => 'dGVzdA',
-                    'user_handle' => 'dGVzdA',
-                    'counter' => 0,
                 ]);
             });
 
