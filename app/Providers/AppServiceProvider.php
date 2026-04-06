@@ -358,11 +358,15 @@ class AppServiceProvider extends ServiceProvider
 
     private function passkeyVerifyThrottleKey(Request $request): string
     {
-        // Keyed by IP only (not challenge ID): the forgetAuthenticationChallenge()
-        // security fix deletes challenges after each failed attempt, so the
-        // IP+challengeId key used by mfaChallengeThrottleKey would never accumulate
-        // more than one attempt per challenge and the rate limit would never trigger.
-        return $request->ip().'|passkey-verify';
+        // Keyed by IP and route scope (not challenge ID): the
+        // forgetAuthenticationChallenge() security fix deletes challenges after each
+        // failed attempt, so the IP+challengeId key used by mfaChallengeThrottleKey
+        // would never accumulate more than one attempt per challenge. Using the route
+        // URI as scope keeps auth-verify and registration-verify buckets separate so
+        // failed registrations cannot throttle authentication attempts (and vice versa).
+        $scope = $request->route()?->uri() ?? $request->path();
+
+        return $request->ip().'|'.$scope;
     }
 
     /**

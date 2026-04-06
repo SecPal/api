@@ -8,6 +8,7 @@ namespace Database\Factories;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use ParagonIE\ConstantTime\Base64UrlSafe;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PasskeyCredential>
@@ -29,8 +30,8 @@ class PasskeyCredentialFactory extends Factory
             'authenticator_attachment' => null,
             'aaguid' => null,
             'attestation_type' => 'none',
-            'credential_public_key' => base64_encode(random_bytes(64)),
-            'user_handle' => base64_encode(random_bytes(16)),
+            'credential_public_key' => Base64UrlSafe::encodeUnpadded(random_bytes(64)),
+            'user_handle' => Base64UrlSafe::encodeUnpadded(random_bytes(16)),
             'counter' => 0,
             'user_verified' => false,
             'backup_eligible' => false,

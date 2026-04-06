@@ -490,7 +490,7 @@ describe('Passkey Management', function () {
 
         $mockService->shouldReceive('verifyRegistration')
             ->once()
-            ->andReturnUsing(function () use ($user) {
+            ->andReturnUsing(function (User $registrationUser, array $storedOptions, array $credentialPayload, ?string $label = null) use ($user) {
                 return PasskeyCredential::factory()->create([
                     'user_id' => $user->id,
                     'credential_id' => 'Bx9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',

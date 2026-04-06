@@ -138,10 +138,13 @@ function getLoginRateLimiterKeys(string $email, string $ip = '127.0.0.1'): array
 {
     $normalizedEmail = strtolower(trim($email));
 
+    if ($normalizedEmail === '') {
+        return ['login|ip|'.$ip];
+    }
+
     return [
         'login|account|'.$normalizedEmail,
         'login|credential|'.$ip.'|'.$normalizedEmail,
-        $ip.'|'.$normalizedEmail,
     ];
 }
 
