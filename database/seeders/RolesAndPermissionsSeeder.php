@@ -158,6 +158,10 @@ class RolesAndPermissionsSeeder extends Seeder
                 'approve',
                 'confirm',
             ],
+            'android_enrollment' => [
+                'read',
+                'write',
+            ],
             'onboarding_template' => [
                 'read',
                 'write',
@@ -277,6 +281,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     // Epic #385: Activity Logging & Audit Trail (Issue #396)
                     'activity_log.*',
                     'onboarding.*',
+                    'android_enrollment.*',
                     'onboarding_template.*',
                     'reports.*',
                 ],
@@ -325,6 +330,8 @@ class RolesAndPermissionsSeeder extends Seeder
                     'activity_log.read_system', // View activities from admin/system users (Issue #440)
                     'onboarding.read',
                     'onboarding.write',
+                    'android_enrollment.read',
+                    'android_enrollment.write',
                 ],
             ],
             'Guard' => [
