@@ -12,11 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- strengthened Copilot governance: require test-impact analysis and same-commit test updates when a fix alters observable behavior, explicitly recommend `PREFLIGHT_RUN_TESTS=1` for behavioral or security changes, and mandate `--body-file` for programmatic PR creation to prevent shell escaping issues
-- added a behavior-change reminder to the preflight skip-tests hint so the pre-push hook explicitly warns about enabling tests for security or state-lifecycle fixes
-
 ### Added
 
 - added the phase-2 passkey backend foundation with WebAuthn-backed browser sign-in and self-service passkey management endpoints, persisted passkey credentials plus challenge state, and regression coverage for session establishment, validation failures, and throttled invalid passkey verification attempts
@@ -28,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- strengthened Copilot governance: require test-impact analysis and same-commit test updates when a fix alters observable behavior, explicitly recommend `PREFLIGHT_RUN_TESTS=1` for behavioral or security changes, and mandate `--body-file` for GitHub CLI (`gh pr create` or `gh pr edit`) to prevent shell escaping issues
+- added a behavior-change reminder to the preflight skip-tests hint so the pre-push hook explicitly warns about enabling tests for security or state-lifecycle fixes
 - Replaced the API Translation.io workflow with repo-native Polyglot-managed PO/Gettext catalogs, added a dedicated production blocker for the Polyglot web UI, and moved translated mail key subjects into checked-in language files so API translation maintenance now stays local and POedit-friendly.
 - clarified the repo-local branch-start and post-merge readiness workflow so new API work must start from a clean, updated local `main`, and post-merge cleanup now explicitly returns the repo to `main`, refreshes dependencies where applicable, runs a suitable readiness command, and confirms a clean working tree
 

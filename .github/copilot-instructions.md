@@ -48,7 +48,7 @@ Do not assume instructions from sibling repositories or comment-based inheritanc
 - When local review finds zero issues, commit and push the finished branch before opening any PR.
 - The first PR state must be draft. Do not open a normal PR first.
 - Mark a draft PR ready only after the final self-review in the PR view still finds zero issues.
-- When creating or editing PRs programmatically, write multi-line body content to a file and use `--body-file` to prevent shell escaping issues.
+- When using GitHub CLI (`gh pr create` or `gh pr edit`) to create or edit PRs, write multi-line body content to a file and use `--body-file` to prevent shell escaping issues.
 
 ## Required Validation
 
