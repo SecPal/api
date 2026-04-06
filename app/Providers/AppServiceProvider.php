@@ -123,6 +123,23 @@ class AppServiceProvider extends ServiceProvider
                 });
         });
 
+        RateLimiter::for('passkey-challenge', function (Request $request) {
+            $scope = $request->route()?->uri() ?? $request->path();
+            $actorKey = $request->user()?->id ?: $request->ip();
+
+            return Limit::perMinutes(10, 5)
+                ->by($actorKey.'|'.$scope)
+                ->response(function (Request $request, array $headers): JsonResponse {
+                    /** @var array<string, mixed> $headers */
+                    $headers = $headers;
+
+                    return $this->buildRateLimitedJsonResponse(
+                        $headers,
+                        'Too many passkey attempts. Please try again later.',
+                    );
+                });
+        });
+
         RateLimiter::for('mfa-admin-reset', function (Request $request) {
             $actor = $request->user();
             $actorId = $actor instanceof \App\Models\User
@@ -362,9 +379,11 @@ class AppServiceProvider extends ServiceProvider
 
     private function shouldCountMfaChallengeAttempt(SymfonyResponse $response): bool
     {
-        // Any 422 with a `code` field error on the MFA challenge endpoint is an
-        // invalid-code failure; successful verifications return 200.
-        return $this->responseHasValidationErrorForField($response, 'code');
+        // Any 422 with a `code` or `credential` field error on an MFA or
+        // passkey challenge verification endpoint is a business-level failure;
+        // successful verifications return 200.
+        return $this->responseHasValidationErrorForField($response, 'code')
+            || $this->responseHasValidationErrorForField($response, 'credential');
     }
 
     private function responseHasValidationErrorForField(SymfonyResponse $response, string $field): bool

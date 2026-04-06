@@ -8,16 +8,21 @@ namespace App\Http\Controllers;
 use App\Http\Requests\AdminResetUserMfaRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
+use App\Http\Requests\PasskeyAuthenticationVerificationRequest;
+use App\Http\Requests\PasskeyRegistrationVerificationRequest;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\PasswordResetRequestRequest;
 use App\Http\Requests\TokenRequest;
 use App\Http\Requests\TotpCodeRequest;
 use App\Http\Requests\UpdateUserLanguageRequest;
 use App\Mail\PasswordResetMail;
+use App\Models\PasskeyCredential;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use App\Services\LoginMfaChallengeService;
 use App\Services\MfaService;
+use App\Services\PasskeyChallengeService;
+use App\Services\PasskeyService;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,6 +34,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
+use Webauthn\Exception\AuthenticatorResponseVerificationException;
 
 class AuthController extends Controller
 {
@@ -44,6 +50,8 @@ class AuthController extends Controller
         private ActivityLogService $activityLogService,
         private LoginMfaChallengeService $loginMfaChallengeService,
         private MfaService $mfaService,
+        private PasskeyChallengeService $passkeyChallengeService,
+        private PasskeyService $passkeyService,
     ) {}
 
     /**
@@ -335,6 +343,185 @@ class AuthController extends Controller
         $user = $request->user();
 
         return response()->json($this->buildUserAuthorizationData($user));
+    }
+
+    /**
+     * Start a browser passkey authentication challenge.
+     */
+    public function startPasskeyAuthenticationChallenge(Request $request): JsonResponse
+    {
+        if (($contextResponse = $this->requireBrowserSessionContext($request)) !== null) {
+            return $contextResponse;
+        }
+
+        $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
+            $this->passkeyService->buildAuthenticationOptions(),
+            (string) config('passkeys.authentication_mediation', 'conditional'),
+        );
+
+        return response()->json([
+            'data' => [
+                'challenge_id' => $challenge['challenge_id'],
+                'public_key' => $this->passkeyService->formatApiPayload($challenge['public_key']),
+                'mediation' => $challenge['mediation'],
+                'expires_at' => $challenge['expires_at'],
+            ],
+        ], 201);
+    }
+
+    /**
+     * Verify a browser passkey authentication challenge and establish a session.
+     */
+    public function verifyPasskeyAuthenticationChallenge(
+        PasskeyAuthenticationVerificationRequest $request,
+        string $challengeId
+    ): JsonResponse {
+        if (($contextResponse = $this->requireBrowserSessionContext($request)) !== null) {
+            return $contextResponse;
+        }
+
+        $challenge = $this->passkeyChallengeService->findAuthenticationChallenge($challengeId);
+
+        if ($challenge === null) {
+            return $this->resourceNotFoundResponse();
+        }
+
+        /** @var array{credential: array<string, mixed>} $validated */
+        $validated = $request->validated();
+
+        try {
+            $result = $this->passkeyService->verifyAuthentication(
+                $challenge['public_key'],
+                $validated['credential'],
+            );
+        } catch (AuthenticatorResponseVerificationException $exception) {
+            throw $this->passkeyCredentialValidationException($exception);
+        }
+
+        $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
+
+        return $this->completeSessionLogin($request, $result['user'], mfaCompleted: true, method: 'passkey');
+    }
+
+    /**
+     * Return the authenticated user's enrolled passkeys.
+     */
+    public function listPasskeys(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $user->loadMissing('passkeyCredentials');
+
+        return response()->json([
+            'data' => $this->passkeyService->listCredentials($user),
+        ]);
+    }
+
+    /**
+     * Start a passkey registration challenge for the authenticated user.
+     */
+    public function startPasskeyRegistrationChallenge(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $user->loadMissing('passkeyCredentials');
+
+        $challenge = $this->passkeyChallengeService->createRegistrationChallenge(
+            $user,
+            $this->passkeyService->buildRegistrationOptions($user),
+        );
+
+        return response()->json([
+            'data' => [
+                'challenge_id' => $challenge['challenge_id'],
+                'public_key' => $this->passkeyService->formatApiPayload($challenge['public_key']),
+                'expires_at' => $challenge['expires_at'],
+            ],
+        ], 201);
+    }
+
+    /**
+     * Verify a passkey registration challenge for the authenticated user.
+     */
+    public function verifyPasskeyRegistrationChallenge(
+        PasskeyRegistrationVerificationRequest $request,
+        string $challengeId
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        $challenge = $this->passkeyChallengeService->findRegistrationChallenge($challengeId);
+
+        if ($challenge === null || $challenge['user_id'] !== $user->id) {
+            return $this->resourceNotFoundResponse();
+        }
+
+        /** @var array{credential: array<string, mixed>, label?: string|null} $validated */
+        $validated = $request->validated();
+
+        try {
+            $credential = $this->passkeyService->verifyRegistration(
+                $user,
+                $challenge['public_key'],
+                $validated['credential'],
+                $validated['label'] ?? null,
+            );
+        } catch (AuthenticatorResponseVerificationException $exception) {
+            throw $this->passkeyCredentialValidationException($exception);
+        }
+
+        $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
+
+        $this->activityLogService->logUserMfaEvent(
+            $user,
+            'passkey_registered',
+            'Registered a passkey credential',
+            [
+                'credential_id' => $credential->credential_id,
+                'label' => $credential->label,
+            ],
+        );
+
+        return response()->json([
+            'data' => [
+                'credential' => $this->passkeyService->formatCredentialSummary($credential->fresh()),
+                'total_passkeys' => $user->passkeyCredentials()->count(),
+            ],
+        ], 201);
+    }
+
+    /**
+     * Delete one enrolled passkey from the authenticated user.
+     */
+    public function deletePasskey(Request $request, string $credentialId): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $credential = $user->passkeyCredentials()
+            ->where('credential_id', $credentialId)
+            ->first();
+
+        if (! $credential instanceof PasskeyCredential) {
+            return $this->resourceNotFoundResponse();
+        }
+
+        $result = $this->passkeyService->deleteCredential($user, $credentialId);
+
+        $this->activityLogService->logUserMfaEvent(
+            $user,
+            'passkey_deleted',
+            'Deleted a passkey credential',
+            [
+                'credential_id' => $credentialId,
+                'label' => $credential->label,
+            ],
+        );
+
+        return response()->json([
+            'message' => __('Passkey deleted successfully.'),
+            'data' => $result,
+        ]);
     }
 
     /**
@@ -814,7 +1001,7 @@ class AuthController extends Controller
     /**
      * Complete a stateful browser session login.
      */
-    private function completeSessionLogin(Request $request, User $user, bool $mfaCompleted = false): JsonResponse
+    private function completeSessionLogin(Request $request, User $user, bool $mfaCompleted = false, ?string $method = null): JsonResponse
     {
         Auth::guard('web')->login($user, remember: true);
         $request->session()->regenerate();
@@ -822,7 +1009,7 @@ class AuthController extends Controller
         $this->activityLogService->logLoginSuccess($user);
 
         if ($mfaCompleted) {
-            return response()->json($this->buildCompletedLoginResponse($user, LoginMfaChallengeService::LOGIN_CONTEXT_SESSION));
+            return response()->json($this->buildCompletedLoginResponse($user, LoginMfaChallengeService::LOGIN_CONTEXT_SESSION, method: $method));
         }
 
         return response()->json([
@@ -855,9 +1042,9 @@ class AuthController extends Controller
     /**
      * Build the final successful login payload returned after MFA challenge verification.
      *
-     * @return array{user: array{id: string, name: string, email: string, emailVerified: bool, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}, authentication: array{mode: string, mfa_completed: bool}, token?: string}
+     * @return array{user: array{id: string, name: string, email: string, emailVerified: bool, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}, authentication: array{mode: string, mfa_completed: bool, method?: string}, token?: string}
      */
-    private function buildCompletedLoginResponse(User $user, string $mode, ?string $token = null): array
+    private function buildCompletedLoginResponse(User $user, string $mode, ?string $token = null, ?string $method = null): array
     {
         $response = [
             'user' => $this->buildUserAuthorizationData($user),
@@ -867,6 +1054,10 @@ class AuthController extends Controller
             ],
         ];
 
+        if ($method !== null) {
+            $response['authentication']['method'] = $method;
+        }
+
         if ($token !== null) {
             $response['token'] = $token;
         }
@@ -874,11 +1065,31 @@ class AuthController extends Controller
         return $response;
     }
 
+    private function requireBrowserSessionContext(Request $request): ?JsonResponse
+    {
+        if ($request->attributes->get('sanctum') === true && $request->hasSession()) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => __('This endpoint requires a browser session context. Use the SecPal web app origin to continue.'),
+        ], 409);
+    }
+
     private function resourceNotFoundResponse(): JsonResponse
     {
         return response()->json([
             'message' => __('Resource not found.'),
         ], 404);
+    }
+
+    private function passkeyCredentialValidationException(AuthenticatorResponseVerificationException $exception): ValidationException
+    {
+        $message = trim($exception->getMessage());
+
+        return ValidationException::withMessages([
+            'credential' => [$message !== '' ? $message : 'The passkey credential could not be verified.'],
+        ]);
     }
 
     /**

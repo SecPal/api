@@ -61,6 +61,10 @@ Route::prefix('v1')->group(function () {
     // Token Login (for mobile/native apps)
     Route::post('/auth/token', [AuthController::class, 'token'])
         ->middleware('throttle:login');
+    Route::post('/auth/passkeys/challenges', [AuthController::class, 'startPasskeyAuthenticationChallenge'])
+        ->middleware('throttle:passkey-challenge');
+    Route::post('/auth/passkeys/challenges/{challengeId}/verify', [AuthController::class, 'verifyPasskeyAuthenticationChallenge'])
+        ->middleware('throttle:mfa-challenge');
     Route::post('/auth/mfa-challenges/{challengeId}/verify', [AuthController::class, 'verifyMfaChallenge'])
         ->middleware('throttle:mfa-challenge');
     Route::post('/auth/password/reset-request', [AuthController::class, 'passwordResetRequest'])
@@ -92,6 +96,12 @@ Route::prefix('v1')->group(function () {
         Route::middleware('verified')->group(function () {
             Route::patch('/me/language', [AuthController::class, 'updateLanguage']);
             Route::get('/me/mfa', [AuthController::class, 'mfaStatus']);
+            Route::get('/me/passkeys', [AuthController::class, 'listPasskeys']);
+            Route::post('/me/passkeys/challenges/registration', [AuthController::class, 'startPasskeyRegistrationChallenge'])
+                ->middleware('throttle:passkey-challenge');
+            Route::post('/me/passkeys/challenges/registration/{challengeId}/verify', [AuthController::class, 'verifyPasskeyRegistrationChallenge'])
+                ->middleware('throttle:mfa-challenge');
+            Route::delete('/me/passkeys/{credentialId}', [AuthController::class, 'deletePasskey']);
             Route::delete('/me/mfa', [AuthController::class, 'disableMfa'])
                 ->middleware('throttle:mfa');
             Route::post('/me/mfa/totp/enrollment', [AuthController::class, 'startTotpEnrollment'])

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the phase-2 passkey backend foundation with WebAuthn-backed browser sign-in and self-service passkey management endpoints, persisted passkey credentials plus challenge state, and regression coverage for session establishment, validation failures, and throttled invalid passkey verification attempts
 - added a policy-protected admin MFA reset path at `DELETE /v1/users/{user}/mfa`, dedicated `users.reset_mfa` permission seeding, explicit MFA reset throttling, and authentication audit entries for MFA enable/disable, recovery-code regeneration, recovery-code depletion, and admin-triggered resets
 - Added the MFA phase-1 backend foundation by integrating `laragear/two-factor`, publishing a UUID-safe `two_factor_authentications` migration, wiring the `User` model into the package contract, and covering enrollment, recovery-code rotation, and disablement lifecycle behavior with focused tests
 - Added the phase-1 MFA API endpoints for login challenges, TOTP enrollment confirmation, `/me/mfa` status, recovery-code regeneration, and authenticated MFA disablement so the frontend can build against real SecPal API behavior instead of only the contract
