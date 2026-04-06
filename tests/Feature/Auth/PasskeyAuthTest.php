@@ -3,8 +3,8 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use App\Models\User;
 use App\Models\PasskeyCredential;
+use App\Models\User;
 use App\Services\PasskeyChallengeService;
 use App\Services\PasskeyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -192,20 +192,23 @@ describe('Passkey Authentication', function () {
     });
 
     test('invalid browser passkey verification attempts are rate limited with retry headers', function () {
-        $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
-            'challenge' => 'test-challenge',
-            'rp_id' => 'app.secpal.dev',
-            'timeout' => 60000,
-            'user_verification' => 'preferred',
-        ], 'conditional');
-
         /** @var PasskeyService&Mockery\MockInterface $mockService */
         $mockService = $this->mock(PasskeyService::class);
         $mockService->shouldReceive('verifyAuthentication')
             ->times(5)
             ->andThrow(AuthenticatorResponseVerificationException::create('The passkey assertion is invalid.'));
 
+        // The security fix forgets the challenge after each failed attempt, so each
+        // iteration needs a fresh challenge. The rate limiter is keyed off the IP,
+        // so it accumulates across all requests regardless of the challenge ID.
         for ($i = 0; $i < 5; $i++) {
+            $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+                'challenge' => 'test-challenge-'.$i,
+                'rp_id' => 'app.secpal.dev',
+                'timeout' => 60000,
+                'user_verification' => 'preferred',
+            ], 'conditional');
+
             $this->withHeaders(spaCsrfHeaders($this))
                 ->postJson('/v1/auth/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
                     'credential' => [
@@ -222,8 +225,17 @@ describe('Passkey Authentication', function () {
                 ->assertUnprocessable();
         }
 
+        // The 6th request hits the rate limiter before the controller even looks up the
+        // challenge, so any UUID is sufficient here.
+        $exhaustedChallenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+            'challenge' => 'test-challenge-exhausted',
+            'rp_id' => 'app.secpal.dev',
+            'timeout' => 60000,
+            'user_verification' => 'preferred',
+        ], 'conditional');
+
         $response = $this->withHeaders(spaCsrfHeaders($this))
-            ->postJson('/v1/auth/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
+            ->postJson('/v1/auth/passkeys/challenges/'.$exhaustedChallenge['challenge_id'].'/verify', [
                 'credential' => [
                     'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
                     'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
