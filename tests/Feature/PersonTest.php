@@ -223,7 +223,7 @@ describe('PersonRepository - Blind Index Search', function () {
         $person->phone_plain = '123';
         $person->save();
 
-        $repo = new App\Repositories\PersonRepository;
+        $repo = app(App\Repositories\PersonRepository::class);
         $found = $repo->findByEmail($this->tenant->id, 'test@example.com');
 
         expect($found)->not->toBeNull();
@@ -237,7 +237,7 @@ describe('PersonRepository - Blind Index Search', function () {
         $person->phone_plain = '123';
         $person->save();
 
-        $repo = new App\Repositories\PersonRepository;
+        $repo = app(App\Repositories\PersonRepository::class);
         $found = $repo->findByEmail($this->tenant->id, 'test@example.com');
 
         expect($found)->not->toBeNull();
@@ -245,7 +245,7 @@ describe('PersonRepository - Blind Index Search', function () {
     });
 
     test('findByEmail returns null when not found', function (): void {
-        $repo = new App\Repositories\PersonRepository;
+        $repo = app(App\Repositories\PersonRepository::class);
         $found = $repo->findByEmail($this->tenant->id, 'nonexistent@example.com');
 
         expect($found)->toBeNull();
@@ -258,7 +258,7 @@ describe('PersonRepository - Blind Index Search', function () {
         $person->phone_plain = '+49 123 456789';
         $person->save();
 
-        $repo = new App\Repositories\PersonRepository;
+        $repo = app(App\Repositories\PersonRepository::class);
         $found = $repo->findByPhone($this->tenant->id, '49123456789');
 
         expect($found)->not->toBeNull();
@@ -272,7 +272,7 @@ describe('PersonRepository - Blind Index Search', function () {
         $person->phone_plain = '49123456789';
         $person->save();
 
-        $repo = new App\Repositories\PersonRepository;
+        $repo = app(App\Repositories\PersonRepository::class);
         $found = $repo->findByPhone($this->tenant->id, '+49 (123) 456-789');
 
         expect($found)->not->toBeNull();
@@ -282,7 +282,7 @@ describe('PersonRepository - Blind Index Search', function () {
 
 describe('PersonRepository - Create or Update', function () {
     test('createOrUpdate creates new Person when email not found', function (): void {
-        $repo = new App\Repositories\PersonRepository;
+        $repo = app(App\Repositories\PersonRepository::class);
 
         $person = $repo->createOrUpdate($this->tenant->id, [
             'email_plain' => 'new@example.com',
@@ -305,7 +305,7 @@ describe('PersonRepository - Create or Update', function () {
         $existing->note_plain = 'Old note';
         $existing->save();
 
-        $repo = new App\Repositories\PersonRepository;
+        $repo = app(App\Repositories\PersonRepository::class);
 
         $updated = $repo->createOrUpdate($this->tenant->id, [
             'email_plain' => 'existing@example.com',
@@ -319,7 +319,7 @@ describe('PersonRepository - Create or Update', function () {
     });
 
     test('createOrUpdate throws exception when email_plain missing', function (): void {
-        $repo = new App\Repositories\PersonRepository;
+        $repo = app(App\Repositories\PersonRepository::class);
 
         expect(fn () => $repo->createOrUpdate($this->tenant->id, [
             'phone_plain' => '123',
@@ -367,7 +367,7 @@ describe('Person Model - Tenant Isolation', function () {
         $person2->phone_plain = '456';
         $person2->save();
 
-        $repo = new App\Repositories\PersonRepository;
+        $repo = app(App\Repositories\PersonRepository::class);
 
         // Search in tenant1 -> returns person1
         $found1 = $repo->findByEmail($this->tenant->id, 'test@example.com');
