@@ -15,6 +15,27 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
+/**
+ * @property int $tenant_id
+ * @property int $created_by
+ * @property string|null $device_label
+ * @property string $enrollment_mode
+ * @property string $update_channel
+ * @property string $release_metadata_url
+ * @property array<string, mixed> $provisioning_profile
+ * @property string $bootstrap_token
+ * @property string $bootstrap_token_lookup_hash
+ * @property \Illuminate\Support\Carbon $bootstrap_token_expires_at
+ * @property \Illuminate\Support\Carbon|null $exchanged_at
+ * @property string|null $exchanged_from_ip
+ * @property string|null $exchanged_user_agent
+ * @property \Illuminate\Support\Carbon|null $revoked_at
+ * @property string|null $revocation_reason
+ * @property string|null $notes
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read string $status
+ */
 class AndroidEnrollmentSession extends Model
 {
     /** @use HasFactory<\Database\Factories\AndroidEnrollmentSessionFactory> */
@@ -61,13 +82,21 @@ class AndroidEnrollmentSession extends Model
     protected $appends = ['status'];
 
     /**
+     * @param array{
+     *     device_label?: string|null,
+     *     enrollment_mode?: string,
+     *     update_channel?: string,
+     *     provisioning_profile?: array<string, mixed>,
+     *     expires_in_minutes?: int,
+     *     notes?: string|null
+     * } $attributes
      * @return array{model: self, plain: string}
      */
     public static function generate(User $creator, array $attributes = []): array
     {
         $plainToken = Str::random(64);
-        $channel = (string) ($attributes['update_channel'] ?? 'managed_device');
-        $expiresInMinutes = (int) ($attributes['expires_in_minutes'] ?? 15);
+        $channel = $attributes['update_channel'] ?? 'managed_device';
+        $expiresInMinutes = $attributes['expires_in_minutes'] ?? 15;
 
         $session = self::create([
             'tenant_id' => $creator->tenant_id,
@@ -137,9 +166,9 @@ class AndroidEnrollmentSession extends Model
     public function provisioningQrPayload(string $plainToken): array
     {
         return [
-            'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME' => (string) config('android.device_admin_component_name', 'app.secpal/.SecPalDeviceAdminReceiver'),
-            'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION' => (string) config('android.package_download_url', 'https://apk.secpal.app/releases/app.secpal-latest.apk'),
-            'android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM' => (string) config('android.signing_certificate_checksum', 'm2N7N0F4Q2ZwS0V0bDhlWlU4a1pMRTNwckE3WlJtWm9Kc2J0S2x2dz0='),
+            'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME' => self::stringConfig('android.device_admin_component_name', 'app.secpal/.SecPalDeviceAdminReceiver'),
+            'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION' => self::stringConfig('android.package_download_url', 'https://apk.secpal.app/releases/app.secpal-latest.apk'),
+            'android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM' => self::stringConfig('android.signing_certificate_checksum', 'm2N7N0F4Q2ZwS0V0bDhlWlU4a1pMRTNwckE3WlJtWm9Kc2J0S2x2dz0='),
             'android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE' => [
                 'bootstrap_token' => $plainToken,
                 'enrollment_session_id' => $this->id,
@@ -154,7 +183,7 @@ class AndroidEnrollmentSession extends Model
             'enrollment_session_id' => $this->id,
             'tenant_id' => $this->tenant_id,
             'tenant_name' => 'Tenant '.$this->tenant_id,
-            'api_base_url' => (string) config('android.api_base_url', 'https://api.secpal.dev/v1'),
+            'api_base_url' => self::stringConfig('android.api_base_url', 'https://api.secpal.dev/v1'),
             'update_channel' => $this->update_channel,
             'release_metadata_url' => $this->release_metadata_url,
             'provisioning_profile' => $this->provisioning_profile,
@@ -173,6 +202,7 @@ class AndroidEnrollmentSession extends Model
         return $this->belongsTo(TenantKey::class, 'tenant_id');
     }
 
+    /** @return Attribute<string, never> */
     protected function status(): Attribute
     {
         return Attribute::get(function (): string {
@@ -199,8 +229,15 @@ class AndroidEnrollmentSession extends Model
 
     private static function buildReleaseMetadataUrl(string $channel): string
     {
-        $artifactBaseUrl = rtrim((string) config('android.artifact_base_url', 'https://apk.secpal.app'), '/');
+        $artifactBaseUrl = rtrim(self::stringConfig('android.artifact_base_url', 'https://apk.secpal.app'), '/');
 
         return sprintf('%s/android/channels/%s/latest.json', $artifactBaseUrl, $channel);
+    }
+
+    private static function stringConfig(string $key, string $default): string
+    {
+        $value = config($key, $default);
+
+        return is_string($value) ? $value : $default;
     }
 }

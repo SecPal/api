@@ -38,12 +38,15 @@ class AndroidEnrollmentSessionController extends Controller
 
         $status = $validated['status'] ?? null;
         if (is_string($status) && $status !== '') {
-            match ($status) {
-                'pending' => $query->whereNull('revoked_at')->whereNull('exchanged_at')->where('bootstrap_token_expires_at', '>', now()),
-                'exchanged' => $query->whereNotNull('exchanged_at'),
-                'revoked' => $query->whereNotNull('revoked_at'),
-                'expired' => $query->whereNull('revoked_at')->whereNull('exchanged_at')->where('bootstrap_token_expires_at', '<=', now()),
-            };
+            if ($status === 'pending') {
+                $query->whereNull('revoked_at')->whereNull('exchanged_at')->where('bootstrap_token_expires_at', '>', now());
+            } elseif ($status === 'exchanged') {
+                $query->whereNotNull('exchanged_at');
+            } elseif ($status === 'revoked') {
+                $query->whereNotNull('revoked_at');
+            } elseif ($status === 'expired') {
+                $query->whereNull('revoked_at')->whereNull('exchanged_at')->where('bootstrap_token_expires_at', '<=', now());
+            }
         }
 
         $sessions = $query->paginate((int) ($validated['per_page'] ?? 15));
@@ -74,7 +77,7 @@ class AndroidEnrollmentSessionController extends Controller
         $user = $request->user();
         abort_unless($user instanceof User, Response::HTTP_UNAUTHORIZED);
 
-        $issued = AndroidEnrollmentSession::generate($user, $request->validated());
+        $issued = AndroidEnrollmentSession::generate($user, $request->validatedPayload());
         $session = $issued['model'];
 
         activity('android_provisioning')
@@ -127,7 +130,7 @@ class AndroidEnrollmentSessionController extends Controller
             ], Response::HTTP_CONFLICT);
         }
 
-        $reason = (string) $request->validated('reason');
+        $reason = $request->string('reason')->toString();
         $model->revoke($reason);
 
         activity('android_provisioning')
@@ -146,7 +149,7 @@ class AndroidEnrollmentSessionController extends Controller
 
     public function exchange(ExchangeAndroidBootstrapTokenRequest $request): JsonResponse
     {
-        $plainToken = (string) $request->validated('bootstrap_token');
+        $plainToken = $request->string('bootstrap_token')->toString();
         $session = AndroidEnrollmentSession::lookupByPlainToken($plainToken);
 
         if (! $session instanceof AndroidEnrollmentSession) {
@@ -174,10 +177,10 @@ class AndroidEnrollmentSessionController extends Controller
             ->performedOn($session)
             ->withProperties([
                 'event' => 'android_bootstrap_exchanged',
-                'package_name' => $request->validated('package_name'),
-                'package_version_name' => $request->validated('package_version_name'),
-                'package_version_code' => $request->validated('package_version_code'),
-                'device_name' => $request->validated('device_name'),
+                'package_name' => $request->string('package_name')->toString(),
+                'package_version_name' => $request->filled('package_version_name') ? $request->string('package_version_name')->toString() : null,
+                'package_version_code' => $request->filled('package_version_code') ? $request->integer('package_version_code') : null,
+                'device_name' => $request->filled('device_name') ? $request->string('device_name')->toString() : null,
             ])
             ->log('Completed Android bootstrap exchange');
 
@@ -197,7 +200,7 @@ class AndroidEnrollmentSessionController extends Controller
             'update_channel' => $session->update_channel,
             'release_metadata_url' => $session->release_metadata_url,
             'provisioning_profile' => $session->provisioning_profile,
-            'bootstrap_token_expires_at' => $session->bootstrap_token_expires_at?->toIso8601String(),
+            'bootstrap_token_expires_at' => $session->bootstrap_token_expires_at->toIso8601String(),
             'bootstrap_token_last_eight' => $session->bootstrap_token_lookup_hash !== null
                 ? strtoupper(substr($session->bootstrap_token_lookup_hash, -8))
                 : null,

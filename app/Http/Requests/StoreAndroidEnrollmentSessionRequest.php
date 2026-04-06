@@ -36,4 +36,52 @@ class StoreAndroidEnrollmentSessionRequest extends FormRequest
             'provisioning_profile.allowed_packages.*' => ['string', 'regex:/^[A-Za-z0-9_.]+$/'],
         ];
     }
+
+    /**
+     * @return array{
+     *     device_label?: string,
+     *     enrollment_mode?: string,
+     *     update_channel: string,
+     *     provisioning_profile: array<string, mixed>,
+     *     expires_in_minutes?: int,
+     *     notes?: string
+     * }
+     */
+    public function validatedPayload(): array
+    {
+        $validated = $this->validated();
+        $provisioningProfile = $validated['provisioning_profile'] ?? [];
+        $normalizedProvisioningProfile = [];
+
+        if (is_array($provisioningProfile)) {
+            foreach ($provisioningProfile as $key => $value) {
+                if (is_string($key)) {
+                    $normalizedProvisioningProfile[$key] = $value;
+                }
+            }
+        }
+
+        $payload = [
+            'update_channel' => $this->string('update_channel')->toString(),
+            'provisioning_profile' => $normalizedProvisioningProfile,
+        ];
+
+        if ($this->filled('device_label')) {
+            $payload['device_label'] = $this->string('device_label')->toString();
+        }
+
+        if ($this->filled('enrollment_mode')) {
+            $payload['enrollment_mode'] = $this->string('enrollment_mode')->toString();
+        }
+
+        if ($this->filled('expires_in_minutes')) {
+            $payload['expires_in_minutes'] = $this->integer('expires_in_minutes');
+        }
+
+        if ($this->filled('notes')) {
+            $payload['notes'] = $this->string('notes')->toString();
+        }
+
+        return $payload;
+    }
 }
