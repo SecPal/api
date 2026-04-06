@@ -406,6 +406,7 @@ class AuthController extends Controller
             );
         } catch (AuthenticatorResponseVerificationException $exception) {
             $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
+
             throw $this->passkeyCredentialValidationException($exception);
         }
 
@@ -482,6 +483,8 @@ class AuthController extends Controller
                 $validated['label'] ?? null,
             );
         } catch (AuthenticatorResponseVerificationException $exception) {
+            $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
+
             throw $this->passkeyCredentialValidationException($exception);
         }
 

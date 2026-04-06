@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- invalidate passkey registration challenges on verification failure so failed attempts cannot be replayed; the authentication challenge path was already fixed in an earlier PR but the registration path was missed
 - Replaced 12 direct `new App\...` instantiations in test files with `app(ClassName::class)` container resolution so tests remain correct if those classes gain constructor dependencies
 - Added `incrementTestKekCounter()` to all 84 remaining test `beforeEach` hooks that use `getTestKekPath()`, preventing KEK file path collisions during parallel test execution with Paratest
 - Fixed parallel-test KEK file conflicts in `EmployeeTest` by calling `incrementTestKekCounter()` in the `beforeEach` hook before setting the KEK path
