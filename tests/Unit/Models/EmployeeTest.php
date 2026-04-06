@@ -19,6 +19,7 @@ uses(RefreshDatabase::class)->group('unit', 'models', 'employee');
 /**
  * @property TenantKey $tenant
  */
+    incrementTestKekCounter();
 beforeEach(function () {
     incrementTestKekCounter();
     // Create KEK and tenant (no factory for TenantKey)
