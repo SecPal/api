@@ -20,6 +20,7 @@ uses(RefreshDatabase::class);
  * @property string $token
  */
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

@@ -27,6 +27,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     config()->set('app.frontend_url', 'https://app.secpal.dev');
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

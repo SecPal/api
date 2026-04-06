@@ -69,6 +69,7 @@ function createTenantUser(TenantKey $tenant): User
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 });

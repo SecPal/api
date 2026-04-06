@@ -26,6 +26,7 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     Mail::fake();
 
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

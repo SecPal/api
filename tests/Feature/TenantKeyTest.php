@@ -19,6 +19,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     TenantKeyReadabilityOverride::clear();
     cleanupTestKekFile();
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
 });
 

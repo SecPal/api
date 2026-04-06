@@ -23,6 +23,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     // Setup TenantKey for encrypted fields
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

@@ -23,6 +23,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     Storage::fake('local');
 
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 

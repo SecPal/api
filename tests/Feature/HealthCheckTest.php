@@ -13,6 +13,7 @@ uses(RefreshDatabase::class);
 describe('Health Check Endpoints', function () {
     beforeEach(function () {
         cleanupTestKekFile();
+        incrementTestKekCounter();
         TenantKey::setKekPath(getTestKekPath());
     });
 

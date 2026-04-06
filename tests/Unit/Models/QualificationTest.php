@@ -14,6 +14,7 @@ uses(RefreshDatabase::class);
  * @property TenantKey $tenant
  */
 beforeEach(function () {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

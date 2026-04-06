@@ -22,6 +22,7 @@ uses(RefreshDatabase::class)->group('integration', 'rbac');
 
 beforeEach(function (): void {
     // Set up tenant for permission system
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

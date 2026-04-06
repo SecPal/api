@@ -20,6 +20,7 @@ uses(RefreshDatabase::class)->group('unit', 'models', 'site');
  * @property TenantKey $tenant
  */
 beforeEach(function () {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
 
     // Ensure KEK exists
