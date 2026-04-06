@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replaced 12 direct `new App\...` instantiations in test files with `app(ClassName::class)` container resolution so tests remain correct if those classes gain constructor dependencies
 - Added `incrementTestKekCounter()` to all 84 remaining test `beforeEach` hooks that use `getTestKekPath()`, preventing KEK file path collisions during parallel test execution with Paratest
 - Fixed parallel-test KEK file conflicts in `EmployeeTest` by calling `incrementTestKekCounter()` in the `beforeEach` hook before setting the KEK path
 - Fixed `EmployeeObserver` instantiation in `EmployeeTest` to use the service container (`app()`) instead of direct `new` to ensure proper dependency injection
