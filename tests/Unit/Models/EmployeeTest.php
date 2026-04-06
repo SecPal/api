@@ -117,7 +117,7 @@ test('employee model generates blind indexes for searchable encrypted fields', f
     expect(strlen($employee->last_name_idx))->toBe(44);
     expect(strlen($employee->phone_idx))->toBe(44);
 });
-
+    $observer = app(\App\Observers\EmployeeObserver::class);
 test('employee phone blind index normalizes formatting differences', function () {
     $observer = app(EmployeeObserver::class);
 
