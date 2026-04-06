@@ -354,9 +354,15 @@ class AuthController extends Controller
             return $contextResponse;
         }
 
+        $mediation = config('passkeys.authentication_mediation', 'conditional');
+
+        if (! is_string($mediation) || $mediation === '') {
+            $mediation = 'conditional';
+        }
+
         $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
             $this->passkeyService->buildAuthenticationOptions(),
-            (string) config('passkeys.authentication_mediation', 'conditional'),
+            $mediation,
         );
 
         return response()->json([
@@ -484,7 +490,9 @@ class AuthController extends Controller
 
         return response()->json([
             'data' => [
-                'credential' => $this->passkeyService->formatCredentialSummary($credential->fresh()),
+                'credential' => $this->passkeyService->formatCredentialSummary(
+                    $credential->fresh() instanceof PasskeyCredential ? $credential->fresh() : $credential,
+                ),
                 'total_passkeys' => $user->passkeyCredentials()->count(),
             ],
         ], 201);

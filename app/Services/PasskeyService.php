@@ -9,7 +9,7 @@ use App\Models\PasskeyCredential;
 use App\Models\User;
 use Illuminate\Support\Str;
 use ParagonIE\ConstantTime\Base64UrlSafe;
-use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Serializer\Serializer;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
 use Webauthn\AuthenticatorAssertionResponse;
@@ -31,7 +31,7 @@ use Webauthn\PublicKeyCredentialUserEntity;
 
 class PasskeyService
 {
-    private SerializerInterface $serializer;
+    private Serializer $serializer;
 
     private AuthenticatorAttestationResponseValidator $attestationValidator;
 
@@ -52,7 +52,13 @@ class PasskeyService
 
         $serializerFactory = new WebauthnSerializerFactory($attestationStatementSupportManager);
 
-        $this->serializer = $serializerFactory->create();
+        $serializer = $serializerFactory->create();
+
+        if (! $serializer instanceof Serializer) {
+            throw new \RuntimeException('The WebAuthn serializer factory did not return a concrete serializer instance.');
+        }
+
+        $this->serializer = $serializer;
         $this->attestationValidator = AuthenticatorAttestationResponseValidator::create(
             $ceremonyStepManagerFactory->creationCeremony(),
         );
@@ -66,11 +72,13 @@ class PasskeyService
      */
     public function buildAuthenticationOptions(): array
     {
+        $timeout = $this->challengeTimeoutMs();
+
         $options = PublicKeyCredentialRequestOptions::create(
             random_bytes(32),
             rpId: $this->relyingPartyId(),
             userVerification: $this->userVerification(),
-            timeout: $this->challengeTimeoutMs(),
+            timeout: $timeout,
         );
 
         return $this->normalizeOptions($options);
@@ -81,6 +89,8 @@ class PasskeyService
      */
     public function buildRegistrationOptions(User $user): array
     {
+        $timeout = $this->challengeTimeoutMs();
+
         $options = PublicKeyCredentialCreationOptions::create(
             PublicKeyCredentialRpEntity::create($this->relyingPartyName(), $this->relyingPartyId()),
             PublicKeyCredentialUserEntity::create($user->email, $user->id, $user->name),
@@ -98,7 +108,7 @@ class PasskeyService
             $user->passkeyCredentials
                 ->map(fn (PasskeyCredential $credential): PublicKeyCredentialDescriptor => $credential->toPublicKeyCredentialSource()->getPublicKeyCredentialDescriptor())
                 ->all(),
-            $this->challengeTimeoutMs(),
+            $timeout,
         );
 
         return $this->normalizeOptions($options);
@@ -109,13 +119,21 @@ class PasskeyService
      */
     public function listCredentials(User $user): array
     {
-        return $user->passkeyCredentials
-            ->sortBy('created_at')
-            ->values()
-            ->map(fn (PasskeyCredential $credential): array => $this->formatCredentialSummary($credential))
-            ->all();
+        /** @var list<array<string, mixed>> $credentials */
+        $credentials = array_values(
+            $user->passkeyCredentials
+                ->sortBy('created_at')
+                ->map(fn (PasskeyCredential $credential): array => $this->formatCredentialSummary($credential))
+                ->all(),
+        );
+
+        return $credentials;
     }
 
+    /**
+     * @param  array<string, mixed>  $storedOptions
+     * @param  array<string, mixed>  $credentialPayload
+     */
     public function verifyRegistration(User $user, array $storedOptions, array $credentialPayload, ?string $label = null): PasskeyCredential
     {
         $publicKeyCredential = $this->deserializeCredential($credentialPayload);
@@ -124,6 +142,7 @@ class PasskeyService
             throw AuthenticatorResponseVerificationException::create('Invalid attestation response.');
         }
 
+        /** @var PublicKeyCredentialCreationOptions $creationOptions */
         $creationOptions = $this->serializer->denormalize(
             $storedOptions,
             PublicKeyCredentialCreationOptions::class,
@@ -163,6 +182,8 @@ class PasskeyService
     }
 
     /**
+     * @param  array<string, mixed>  $storedOptions
+     * @param  array<string, mixed>  $credentialPayload
      * @return array{user: User, credential: PasskeyCredential}
      */
     public function verifyAuthentication(array $storedOptions, array $credentialPayload): array
@@ -181,6 +202,7 @@ class PasskeyService
             throw AuthenticatorResponseVerificationException::create('The passkey credential is invalid.');
         }
 
+        /** @var PublicKeyCredentialRequestOptions $requestOptions */
         $requestOptions = $this->serializer->denormalize(
             $storedOptions,
             PublicKeyCredentialRequestOptions::class,
@@ -234,12 +256,18 @@ class PasskeyService
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $credentialPayload
+     */
     private function deserializeCredential(array $credentialPayload): PublicKeyCredential
     {
-        return $this->serializer->denormalize(
+        /** @var PublicKeyCredential $publicKeyCredential */
+        $publicKeyCredential = $this->serializer->denormalize(
             $this->keysToCamelCase($credentialPayload),
             PublicKeyCredential::class,
         );
+
+        return $publicKeyCredential;
     }
 
     /**
@@ -259,6 +287,7 @@ class PasskeyService
      */
     public function formatApiPayload(array $payload): array
     {
+        /** @var array<string, mixed> $formatted */
         $formatted = $this->keysToSnakeCase($payload);
 
         if (isset($formatted['authenticator_selection']) && is_array($formatted['authenticator_selection'])) {
@@ -288,8 +317,8 @@ class PasskeyService
     }
 
     /**
-     * @param  array<string, mixed>|list<mixed>  $payload
-     * @return array<string, mixed>|list<mixed>
+     * @param  array<array-key, mixed>  $payload
+     * @return array<array-key, mixed>
      */
     private function keysToSnakeCase(array $payload): array
     {
@@ -311,8 +340,8 @@ class PasskeyService
     }
 
     /**
-     * @param  array<string, mixed>|list<mixed>  $payload
-     * @return array<string, mixed>|list<mixed>
+     * @param  array<array-key, mixed>  $payload
+     * @return array<array-key, mixed>
      */
     private function keysToCamelCase(array $payload): array
     {
@@ -382,6 +411,9 @@ class PasskeyService
         return is_string($rpName) && $rpName !== '' ? $rpName : 'SecPal';
     }
 
+    /**
+     * @return positive-int
+     */
     private function challengeTimeoutMs(): int
     {
         $timeout = config('passkeys.challenge_timeout_ms', 60000);

@@ -48,8 +48,15 @@ class PasskeyChallengeService
             return null;
         }
 
+        if (array_is_list($challenge['public_key'])) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $publicKey */
+        $publicKey = $challenge['public_key'];
+
         return [
-            'public_key' => $challenge['public_key'],
+            'public_key' => $publicKey,
         ];
     }
 
@@ -93,9 +100,12 @@ class PasskeyChallengeService
         $userId = $challenge['user_id'] ?? null;
         $publicKey = $challenge['public_key'] ?? null;
 
-        if (! is_string($userId) || ! is_array($publicKey)) {
+        if (! is_string($userId) || ! is_array($publicKey) || array_is_list($publicKey)) {
             return null;
         }
+
+        /** @var array<string, mixed> $publicKey */
+        $publicKey = $publicKey;
 
         return [
             'user_id' => $userId,
