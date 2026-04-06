@@ -161,6 +161,7 @@ if [ -f composer.json ]; then
       fi
     else
       echo "ℹ️  Skipping tests in pre-push hook (enable via PREFLIGHT_RUN_TESTS=1)" >&2
+      echo "   ⚠️  Enable for behavior, security, or state-lifecycle changes" >&2
       echo "   Tests will run in CI pipeline" >&2
     fi
   fi
