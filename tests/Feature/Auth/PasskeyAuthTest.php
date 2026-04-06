@@ -396,6 +396,8 @@ describe('Passkey Management', function () {
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['credential']);
+
+        expect(app(PasskeyChallengeService::class)->findRegistrationChallenge($challenge['challenge_id']))->toBeNull();
     });
 
     test('valid passkey registration verification creates a credential and returns its summary', function () {
@@ -546,7 +548,8 @@ describe('Passkey Management', function () {
         $user = User::factory()->create();
         $token = $user->issueApiToken('test-suite')->plainTextToken;
 
-        $challenge = app(PasskeyChallengeService::class)->createRegistrationChallenge($user, [
+        $challengeService = app(PasskeyChallengeService::class);
+        $challengeOptions = [
             'challenge' => 'test-registration-challenge',
             'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
             'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
@@ -555,7 +558,7 @@ describe('Passkey Management', function () {
             'exclude_credentials' => [],
             'authenticator_selection' => ['resident_key' => 'preferred', 'user_verification' => 'preferred'],
             'attestation' => 'none',
-        ]);
+        ];
 
         /** @var PasskeyService&Mockery\MockInterface $mockService */
         $mockService = $this->mock(PasskeyService::class);
@@ -577,12 +580,17 @@ describe('Passkey Management', function () {
             'label' => 'Touch ID',
         ];
 
+        // Each failed attempt invalidates the challenge (forgetRegistrationChallenge),
+        // so a fresh challenge is needed per iteration. The rate limiter accumulates
+        // across challenges because it is keyed by IP + route scope.
         for ($i = 0; $i < 5; $i++) {
+            $challenge = $challengeService->createRegistrationChallenge($user, $challengeOptions);
             $this->withToken($token)
                 ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', $payload)
                 ->assertUnprocessable();
         }
 
+        $challenge = $challengeService->createRegistrationChallenge($user, $challengeOptions);
         $response = $this->withToken($token)
             ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', $payload);
 
