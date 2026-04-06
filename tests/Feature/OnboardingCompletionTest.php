@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Notification;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

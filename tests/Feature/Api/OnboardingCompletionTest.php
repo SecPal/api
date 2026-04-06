@@ -19,6 +19,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     // Setup TenantKey for encryption and permission system
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

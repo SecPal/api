@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 

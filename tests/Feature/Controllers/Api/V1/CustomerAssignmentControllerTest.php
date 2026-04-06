@@ -23,6 +23,7 @@ uses(RefreshDatabase::class);
  * @property Customer $customer
  */
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

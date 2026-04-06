@@ -29,6 +29,7 @@ use Spatie\Activitylog\Models\Activity;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

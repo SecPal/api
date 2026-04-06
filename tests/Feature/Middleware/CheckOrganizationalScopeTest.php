@@ -23,6 +23,7 @@ use Illuminate\Http\Response;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

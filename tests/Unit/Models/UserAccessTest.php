@@ -33,6 +33,7 @@ uses(RefreshDatabase::class)->group('unit', 'models', 'user', 'access');
  * @property User $user
  */
 beforeEach(function () {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
 
     if (! file_exists(TenantKey::getKekPath())) {

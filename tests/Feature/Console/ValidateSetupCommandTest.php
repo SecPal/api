@@ -17,6 +17,7 @@ uses(RefreshDatabase::class);
 describe('app:validate-setup Command', function () {
     beforeEach(function () {
         // Use process-specific KEK file for parallel test isolation
+        incrementTestKekCounter();
         TenantKey::setKekPath(getTestKekPath());
     });
 

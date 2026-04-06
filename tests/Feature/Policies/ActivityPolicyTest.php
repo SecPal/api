@@ -24,6 +24,7 @@ uses(RefreshDatabase::class)->group('serial');
  * @property OrganizationalUnit $orgUnit
  */
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

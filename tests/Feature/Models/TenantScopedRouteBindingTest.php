@@ -46,6 +46,7 @@ function createTenantRouteBindingContext(): array
 }
 
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 });

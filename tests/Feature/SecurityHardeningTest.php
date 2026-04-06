@@ -19,6 +19,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     // Use process-specific KEK file for test isolation
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 

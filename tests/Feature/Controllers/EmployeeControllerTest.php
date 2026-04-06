@@ -28,6 +28,7 @@ uses(RefreshDatabase::class);
  * @property OrganizationalUnit $organizationalUnit
  */
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

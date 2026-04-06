@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Validator;
 uses(RefreshDatabase::class)->group('bewachv', 'validation', 'feature');
 
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 

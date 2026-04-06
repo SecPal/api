@@ -41,6 +41,7 @@ function fakePdfUpload(string $name = 'document.pdf'): UploadedFile
  * @property Employee $employee
  */
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();

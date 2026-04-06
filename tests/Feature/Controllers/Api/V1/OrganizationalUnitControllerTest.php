@@ -27,6 +27,7 @@ uses(RefreshDatabase::class);
  */
 beforeEach(function () {
     // Use process-specific KEK file for parallel test isolation
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 
