@@ -142,7 +142,7 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('passkey-verify', function (Request $request) {
             return Limit::perMinutes(10, 5)
-                ->by($this->mfaChallengeThrottleKey($request))
+                ->by($this->passkeyVerifyThrottleKey($request))
                 ->after(fn (SymfonyResponse $response): bool => $this->shouldCountMfaChallengeAttempt($response))
                 ->response(function (Request $request, array $headers): JsonResponse {
                     /** @var array<string, mixed> $headers */
@@ -354,6 +354,15 @@ class AppServiceProvider extends ServiceProvider
         $challengeId = (string) ($request->route('challengeId') ?? 'unknown');
 
         return $request->ip().'|'.$challengeId;
+    }
+
+    private function passkeyVerifyThrottleKey(Request $request): string
+    {
+        // Keyed by IP only (not challenge ID): the forgetAuthenticationChallenge()
+        // security fix deletes challenges after each failed attempt, so the
+        // IP+challengeId key used by mfaChallengeThrottleKey would never accumulate
+        // more than one attempt per challenge and the rate limit would never trigger.
+        return $request->ip().'|passkey-verify';
     }
 
     /**
