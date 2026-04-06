@@ -386,6 +386,10 @@ class AuthController extends Controller
             return $contextResponse;
         }
 
+        if (! Str::isUuid($challengeId)) {
+            return $this->resourceNotFoundResponse();
+        }
+
         $challenge = $this->passkeyChallengeService->findAuthenticationChallenge($challengeId);
 
         if ($challenge === null) {
@@ -488,10 +492,12 @@ class AuthController extends Controller
             ],
         );
 
+        $freshCredential = $credential->fresh();
+
         return response()->json([
             'data' => [
                 'credential' => $this->passkeyService->formatCredentialSummary(
-                    $credential->fresh() instanceof PasskeyCredential ? $credential->fresh() : $credential,
+                    $freshCredential instanceof PasskeyCredential ? $freshCredential : $credential,
                 ),
                 'total_passkeys' => $user->passkeyCredentials()->count(),
             ],
@@ -514,7 +520,7 @@ class AuthController extends Controller
             return $this->resourceNotFoundResponse();
         }
 
-        $result = $this->passkeyService->deleteCredential($user, $credentialId);
+        $result = $this->passkeyService->deleteCredential($user, $credential);
 
         $this->activityLogService->logUserMfaEvent(
             $user,

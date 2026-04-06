@@ -6,7 +6,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use ParagonIE\ConstantTime\Base64UrlSafe;
@@ -36,8 +35,7 @@ use Webauthn\TrustPath\EmptyTrustPath;
  */
 class PasskeyCredential extends Model
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, HasUuids;
+    use HasUuids;
 
     /**
      * @var list<string>

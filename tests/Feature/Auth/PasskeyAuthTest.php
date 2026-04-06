@@ -54,6 +54,24 @@ describe('Passkey Authentication', function () {
             ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
     });
 
+    test('non-uuid browser passkey login challenge id cannot be verified', function () {
+        $response = $this->withHeaders(spaHeaders())
+            ->postJson('/v1/auth/passkeys/challenges/not-a-uuid/verify', [
+                'credential' => [
+                    'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'type' => 'public-key',
+                    'response' => [
+                        'client_data_json' => 'Zm9v',
+                        'authenticator_data' => 'YmFy',
+                        'signature' => 'YmF6',
+                    ],
+                ],
+            ]);
+
+        $response->assertNotFound();
+    });
+
     test('unknown browser passkey login challenge cannot be verified', function () {
         $response = $this->withHeaders(spaHeaders())
             ->postJson('/v1/auth/passkeys/challenges/550e8400-e29b-41d4-a716-446655440099/verify', [
@@ -360,5 +378,59 @@ describe('Passkey Management', function () {
             ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE');
 
         $response->assertNotFound();
+    });
+
+    test('authenticated users can list their enrolled passkeys', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $credential = $user->passkeyCredentials()->create([
+            'credential_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+            'label' => 'Touch ID',
+            'transports' => ['internal'],
+            'attestation_type' => 'none',
+            'credential_public_key' => 'dGVzdA',
+            'user_handle' => 'dGVzdA',
+            'counter' => 0,
+        ]);
+
+        $response = $this->withToken($token)
+            ->getJson('/v1/me/passkeys');
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    ['id', 'label', 'created_at', 'transports'],
+                ],
+            ]);
+
+        expect($response->json('data.0.id'))->toBe($credential->credential_id)
+            ->and($response->json('data.0.label'))->toBe('Touch ID');
+    });
+
+    test('authenticated users can delete their own passkey credential', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $user->passkeyCredentials()->create([
+            'credential_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+            'label' => 'Touch ID',
+            'transports' => ['internal'],
+            'attestation_type' => 'none',
+            'credential_public_key' => 'dGVzdA',
+            'user_handle' => 'dGVzdA',
+            'counter' => 0,
+        ]);
+
+        $response = $this->withToken($token)
+            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE');
+
+        $response->assertOk()
+            ->assertJson([
+                'message' => 'Passkey deleted successfully.',
+                'data' => ['remaining_passkeys' => 0],
+            ]);
+
+        expect($user->passkeyCredentials()->count())->toBe(0);
     });
 });

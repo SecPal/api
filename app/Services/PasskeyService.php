@@ -239,16 +239,8 @@ class PasskeyService
     /**
      * @return array{remaining_passkeys: int}
      */
-    public function deleteCredential(User $user, string $credentialId): array
+    public function deleteCredential(User $user, PasskeyCredential $credential): array
     {
-        $credential = $user->passkeyCredentials()
-            ->where('credential_id', $credentialId)
-            ->first();
-
-        if (! $credential instanceof PasskeyCredential) {
-            abort(404);
-        }
-
         $credential->delete();
 
         return [
