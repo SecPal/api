@@ -21,6 +21,7 @@ use function Pest\Laravel\postJson;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
 });
