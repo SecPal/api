@@ -16,7 +16,8 @@
     "laravel/sanctum": "^4.3",
     "laravel/tinker": "^3.0",
     "spatie/laravel-activitylog": "^5.0",
-    "spatie/laravel-permission": "^7.2"
+    "spatie/laravel-permission": "^7.2",
+    "web-auth/webauthn-lib": "^5.2"
   },
   "require-dev": {
     "barryvdh/laravel-ide-helper": "^3.7",

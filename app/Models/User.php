@@ -119,6 +119,14 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
     }
 
     /**
+     * @return HasMany<PasskeyCredential, $this>
+     */
+    public function passkeyCredentials(): HasMany
+    {
+        return $this->hasMany(PasskeyCredential::class);
+    }
+
+    /**
      * Issue a personal access token with the default SecPal API ability set.
      */
     public function issueApiToken(string $name): NewAccessToken
