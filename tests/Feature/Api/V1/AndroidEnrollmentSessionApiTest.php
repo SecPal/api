@@ -120,7 +120,7 @@ test('authorized user can create android enrollment session and receives private
         ->and($session?->created_by)->toBe($admin->id)
         ->and($session?->bootstrap_token_lookup_hash)->not->toBeNull();
 
-    $bootstrapToken = $response->json('data.provisioning_qr_payload.android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE.bootstrap_token');
+    $bootstrapToken = $response->json('data.provisioning_qr_payload')['android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE']['bootstrap_token'] ?? null;
 
     expect(is_string($bootstrapToken))->toBeTrue()
         ->and(Hash::check($bootstrapToken, $session?->bootstrap_token ?? ''))->toBeTrue();
