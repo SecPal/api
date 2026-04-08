@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - fixed passkey login challenge returning an empty `allow_credentials` array that caused browsers to reject the WebAuthn discoverable-credential flow with "Resident credentials or empty `allowCredentials` lists are not supported"; the API now omits the field when empty so browsers correctly trigger the resident-key prompt
+- improved TOTP anti-replay UX: recovery-code regeneration and MFA disablement now return a specific "code was already used recently" validation message instead of a generic "invalid code" when the submitted TOTP code was consumed by a recent action in the same time window
 
 ### Added
 

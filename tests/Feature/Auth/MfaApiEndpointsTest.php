@@ -484,3 +484,85 @@ test('starting a new enrollment while MFA is already enabled returns conflict', 
             'message' => 'Two-factor authentication is already enabled for this account.',
         ]);
 });
+
+test('recovery code regeneration returns a specific message when TOTP code was recently consumed', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-replay-regenerate@secpal.dev',
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    // Clear the cache entry left by confirmTwoFactorAuth so we start fresh
+    Cache::flush();
+
+    $this->actingAs($user->fresh(), 'sanctum');
+
+    // Consume a TOTP code via validation (simulates a recent MFA verify)
+    $freshCode = $user->fresh()->makeTwoFactorCode();
+    expect($user->fresh()->twoFactorAuth->validateCode($freshCode))->toBeTrue();
+
+    // Immediately attempt recovery regeneration with the same code — anti-replay blocks it
+    $this->postJson('/v1/me/mfa/recovery-codes/regenerate', [
+        'method' => 'totp',
+        'code' => $freshCode,
+    ])->assertStatus(422)
+        ->assertJsonValidationErrors(['code'])
+        ->assertJson([
+            'errors' => [
+                'code' => ['This code was already used recently. Please wait for a new code from your authenticator app.'],
+            ],
+        ]);
+});
+
+test('recovery code regeneration succeeds with a TOTP code that was not recently consumed', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-noreplay-regenerate@secpal.dev',
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    // Clear the cache entry left by confirmTwoFactorAuth so the current code is usable
+    Cache::flush();
+
+    $this->actingAs($user->fresh(), 'sanctum');
+
+    $response = $this->postJson('/v1/me/mfa/recovery-codes/regenerate', [
+        'method' => 'totp',
+        'code' => $user->fresh()->makeTwoFactorCode(),
+    ]);
+
+    $response->assertOk();
+    expect($response->json('data.recovery_codes.codes'))->toHaveCount(10);
+});
+
+test('disabling MFA returns a specific message when TOTP code was recently consumed', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-replay-disable@secpal.dev',
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    // Clear the cache entry left by confirmTwoFactorAuth so we start fresh
+    Cache::flush();
+
+    $this->actingAs($user->fresh(), 'sanctum');
+
+    // Consume a TOTP code
+    $freshCode = $user->fresh()->makeTwoFactorCode();
+    expect($user->fresh()->twoFactorAuth->validateCode($freshCode))->toBeTrue();
+
+    // Immediately attempt to disable with the same code
+    $this->deleteJson('/v1/me/mfa', [
+        'method' => 'totp',
+        'code' => $freshCode,
+    ])->assertStatus(422)
+        ->assertJsonValidationErrors(['code'])
+        ->assertJson([
+            'errors' => [
+                'code' => ['This code was already used recently. Please wait for a new code from your authenticator app.'],
+            ],
+        ]);
+});
