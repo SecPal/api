@@ -538,9 +538,13 @@ class OnboardingController extends Controller
         $this->authorize('update', $submission);
 
         if (! in_array($submission->status, ['draft', 'rejected'], true)) {
-            return response()->json([
-                'message' => __('Form has already been submitted and is awaiting review'),
-            ], Response::HTTP_CONFLICT);
+            $message = match ($submission->status) {
+                'submitted' => __('Form has already been submitted and is awaiting review'),
+                'approved' => __('Form has already been reviewed and approved'),
+                default => __('Form cannot be updated in its current state'),
+            };
+
+            return response()->json(['message' => $message], Response::HTTP_CONFLICT);
         }
 
         /** @var Employee|null $employee */
@@ -552,20 +556,29 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
+            return response()->json([
+                'message' => __('This action is only available for pre-contract employees'),
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         /** @var array<string, mixed> $validated */
         $validated = $request->validated();
-        $status = $validated['status'] ?? $submission->status;
-        $submittedAt = $status === 'submitted' ? now() : null;
         $wasRejected = $submission->status === 'rejected';
+        $status = array_key_exists('status', $validated)
+            ? $validated['status']
+            : ($wasRejected ? 'draft' : $submission->status);
+        $submittedAt = $status === 'submitted' ? now() : null;
+        $shouldResetReview = $wasRejected && $status !== 'rejected';
 
-        $submission = DB::transaction(function () use ($employee, $status, $submittedAt, $submission, $validated, $wasRejected): OnboardingFormSubmission {
+        $submission = DB::transaction(function () use ($employee, $status, $submittedAt, $submission, $validated, $shouldResetReview): OnboardingFormSubmission {
             $submission->update([
                 'form_data' => $validated['form_data'] ?? $submission->form_data,
                 'status' => $status,
                 'submitted_at' => $submittedAt,
-                'reviewed_by' => $wasRejected ? null : $submission->reviewed_by,
-                'reviewed_at' => $wasRejected ? null : $submission->reviewed_at,
-                'review_notes' => $wasRejected ? null : $submission->review_notes,
+                'reviewed_by' => $shouldResetReview ? null : $submission->reviewed_by,
+                'reviewed_at' => $shouldResetReview ? null : $submission->reviewed_at,
+                'review_notes' => $shouldResetReview ? null : $submission->review_notes,
             ]);
 
             $targetWorkflowStatus = $status === 'submitted'

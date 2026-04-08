@@ -530,6 +530,67 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
         $response->assertStatus(409)
             ->assertJson(['message' => 'Form has already been submitted and is awaiting review']);
     });
+
+    test('returns 409 with approved message for approved submission', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'approved',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => ['name' => 'Attempt Update'],
+            ]);
+
+        $response->assertStatus(409)
+            ->assertJson(['message' => 'Form has already been reviewed and approved']);
+    });
+
+    test('defaults rejected status to draft when status is not provided', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'rejected',
+            'review_notes' => 'Needs correction',
+            'reviewed_at' => now(),
+            'reviewed_by' => $this->user->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => ['name' => 'Corrected'],
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data.status'))->toBe('draft')
+            ->and($response->json('data.form_data')['name'])->toBe('Corrected')
+            ->and($response->json('data.review_notes'))->toBeNull()
+            ->and($response->json('data.reviewed_at'))->toBeNull();
+    });
+
+    test('returns 403 for non-pre-contract employee', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $this->employee->update(['status' => Employee::STATUS_ACTIVE]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => ['name' => 'Updated'],
+            ]);
+
+        $response->assertStatus(403);
+    });
 });
 
 describe('POST /v1/onboarding/submissions/{submission}/files', function () {
