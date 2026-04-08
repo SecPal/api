@@ -297,6 +297,12 @@ class PasskeyService
             $formatted['authenticator_selection']['require_resident_key'] = $this->requireResidentKey();
         }
 
+        // Omit empty allow_credentials so browsers use the discoverable credential flow
+        // instead of rejecting an empty array as unsupported.
+        if (array_key_exists('allow_credentials', $formatted) && $formatted['allow_credentials'] === []) {
+            unset($formatted['allow_credentials']);
+        }
+
         return $formatted;
     }
 

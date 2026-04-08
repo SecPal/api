@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- fixed passkey login challenge returning an empty `allow_credentials` array that caused browsers to reject the WebAuthn discoverable-credential flow with "Resident credentials or empty `allowCredentials` lists are not supported"; the API now omits the field when empty so browsers correctly trigger the resident-key prompt
+
 ### Added
 
 - Added the initial Android enrollment API slice for Epic SecPal/.github#327, including tenant-bound enrollment session storage, private QR/bootstrap token issuance, admin create/list/read/revoke endpoints, a public bootstrap exchange endpoint, and audited provisioning lifecycle events
