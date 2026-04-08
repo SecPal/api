@@ -156,6 +156,7 @@ test('only pre contract employees with onboarding.write can create submissions',
 
 test('employee can update own submissions', function (): void {
     $user = User::factory()->create();
+    givePermissionWithTenant($user, $this->tenant->id, 'onboarding.write');
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
         'status' => 'pre_contract',
@@ -183,7 +184,7 @@ test('employee cannot update other employees submissions', function (): void {
     expect($this->policy->update($user, $submission))->toBeFalse();
 });
 
-test('users with onboarding.write can update all submissions', function (): void {
+test('users with onboarding.write cannot update other employees submissions', function (): void {
     $userWithPermission = User::factory()->create();
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.write');
 
@@ -196,7 +197,7 @@ test('users with onboarding.write can update all submissions', function (): void
         'form_template_id' => $template->id,
     ]);
 
-    expect($this->policy->update($userWithPermission, $submission))->toBeTrue();
+    expect($this->policy->update($userWithPermission, $submission))->toBeFalse();
 });
 
 test('only users with onboarding.delete can delete submissions', function (): void {
