@@ -6,37 +6,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Str;
-use Tests\TestCase;
-
-final class TestCaseBootstrapEnvironmentProbe extends TestCase
-{
-    private static ?string $probeEnvironmentPath = null;
-
-    public static function useProbeEnvironmentPath(string $path): void
-    {
-        self::$probeEnvironmentPath = $path;
-    }
-
-    public static function createBootstrapEnvironmentStub(): void
-    {
-        parent::ensureBootstrapEnvironmentFileExists();
-    }
-
-    public static function removeBootstrapEnvironmentStub(): void
-    {
-        parent::cleanupBootstrapEnvironmentFile();
-    }
-
-    public static function clearProbeEnvironmentPath(): void
-    {
-        self::$probeEnvironmentPath = null;
-    }
-
-    protected static function bootstrapEnvironmentPath(): string
-    {
-        return self::$probeEnvironmentPath ?? parent::bootstrapEnvironmentPath();
-    }
-}
+use Tests\Support\TestCaseBootstrapEnvironmentProbe;
 
 afterEach(function (): void {
     TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
