@@ -674,6 +674,12 @@ class AuthController extends Controller
         $validated = $request->validated();
 
         if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
+            if ($validated['method'] === 'totp' && $this->mfaService->isTotpCodeRecentlyUsed($user, $validated['code'])) {
+                throw ValidationException::withMessages([
+                    'code' => ['This code was already used recently. Please wait for a new code from your authenticator app.'],
+                ]);
+            }
+
             throw ValidationException::withMessages([
                 'code' => ['The provided multi-factor authentication code is invalid.'],
             ]);
@@ -723,6 +729,12 @@ class AuthController extends Controller
         $validated = $request->validated();
 
         if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
+            if ($validated['method'] === 'totp' && $this->mfaService->isTotpCodeRecentlyUsed($user, $validated['code'])) {
+                throw ValidationException::withMessages([
+                    'code' => ['This code was already used recently. Please wait for a new code from your authenticator app.'],
+                ]);
+            }
+
             throw ValidationException::withMessages([
                 'code' => ['The provided multi-factor authentication code is invalid.'],
             ]);

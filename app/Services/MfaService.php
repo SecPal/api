@@ -96,6 +96,26 @@ class MfaService
     }
 
     /**
+     * Determine whether a TOTP code was recently consumed by the anti-replay cache.
+     */
+    public function isTotpCodeRecentlyUsed(User $user, string $code): bool
+    {
+        if (! $user->hasTwoFactorEnabled()) {
+            return false;
+        }
+
+        /** @var string|null $store */
+        $store = config('two-factor.cache.store');
+        /** @var string $prefix */
+        $prefix = config('two-factor.cache.prefix', '2fa.code');
+        /** @var string|int $key */
+        $key = $user->twoFactorAuth->getKey();
+        $cacheKey = $prefix.'|'.$key.'|'.$code;
+
+        return cache()->store($store)->has($cacheKey);
+    }
+
+    /**
      * @return list<string>
      */
     public function revealRecoveryCodes(User $user): array
