@@ -37,6 +37,15 @@ describe('Passkey Authentication', function () {
             ->and($response->json('data.mediation'))->toBe('conditional');
     });
 
+    test('browser passkey login challenge omits allow_credentials for discoverable credential flow', function () {
+        $response = $this->withHeaders(spaHeaders())
+            ->postJson('/v1/auth/passkeys/challenges');
+
+        $response->assertCreated();
+
+        expect($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
+    });
+
     test('browser passkey login challenge creation is rate limited with retry headers', function () {
         for ($i = 0; $i < 5; $i++) {
             $response = $this->withHeaders(spaHeaders())
