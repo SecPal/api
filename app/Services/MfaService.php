@@ -106,13 +106,28 @@ class MfaService
 
         /** @var string|null $store */
         $store = config('two-factor.cache.store');
+
+        return cache()->store($store)->has($this->buildTotpAntiReplayCacheKey($user, $code));
+    }
+
+    /**
+     * Build the Laragear TwoFactor anti-replay cache key for a consumed TOTP code.
+     *
+     * This intentionally mirrors the upstream internal key format currently used by
+     * Laragear TwoFactor's anti-replay cache implementation:
+     * `{prefix}|{twoFactorAuth key}|{code}`.
+     *
+     * Review this method against the upstream package implementation whenever the
+     * `laragear/two-factor` dependency is upgraded.
+     */
+    private function buildTotpAntiReplayCacheKey(User $user, string $code): string
+    {
         /** @var string $prefix */
         $prefix = config('two-factor.cache.prefix', '2fa.code');
         /** @var string|int $key */
         $key = $user->twoFactorAuth->getKey();
-        $cacheKey = $prefix.'|'.$key.'|'.$code;
 
-        return cache()->store($store)->has($cacheKey);
+        return $prefix.'|'.$key.'|'.$code;
     }
 
     /**

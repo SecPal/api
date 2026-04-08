@@ -674,11 +674,7 @@ class AuthController extends Controller
         $validated = $request->validated();
 
         if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
-            if ($validated['method'] === 'totp' && $this->mfaService->isTotpCodeRecentlyUsed($user, $validated['code'])) {
-                throw ValidationException::withMessages([
-                    'code' => ['This code was already used recently. Please wait for a new code from your authenticator app.'],
-                ]);
-            }
+            $this->throwIfTotpCodeRecentlyUsed($user, $validated['method'], $validated['code']);
 
             throw ValidationException::withMessages([
                 'code' => ['The provided multi-factor authentication code is invalid.'],
@@ -729,11 +725,7 @@ class AuthController extends Controller
         $validated = $request->validated();
 
         if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
-            if ($validated['method'] === 'totp' && $this->mfaService->isTotpCodeRecentlyUsed($user, $validated['code'])) {
-                throw ValidationException::withMessages([
-                    'code' => ['This code was already used recently. Please wait for a new code from your authenticator app.'],
-                ]);
-            }
+            $this->throwIfTotpCodeRecentlyUsed($user, $validated['method'], $validated['code']);
 
             throw ValidationException::withMessages([
                 'code' => ['The provided multi-factor authentication code is invalid.'],
@@ -1124,6 +1116,20 @@ class AuthController extends Controller
         return ValidationException::withMessages([
             'credential' => [$message !== '' ? $message : 'The passkey credential could not be verified.'],
         ]);
+    }
+
+    /**
+     * Throw a ValidationException if the submitted TOTP code was recently consumed by the anti-replay cache.
+     *
+     * @throws ValidationException
+     */
+    private function throwIfTotpCodeRecentlyUsed(User $user, string $method, string $code): void
+    {
+        if ($method === 'totp' && $this->mfaService->isTotpCodeRecentlyUsed($user, $code)) {
+            throw ValidationException::withMessages([
+                'code' => ['This code was already used recently. Please wait for a new code from your authenticator app.'],
+            ]);
+        }
     }
 
     /**
