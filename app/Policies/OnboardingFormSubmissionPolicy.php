@@ -18,7 +18,7 @@ use App\Models\User;
  * - viewAny: Employee (own submissions) OR HR
  * - view: Employee (own) OR HR
  * - create: Employee (pre-contract status)
- * - update: Employee (own, if status = draft) OR user with onboarding.write permission
+ * - update: Employee (own, with onboarding.write permission; controller enforces editable states)
  * - uploadFile: Employee (own, with onboarding.write permission)
  * - approve: HR only
  * - reject: HR only
@@ -98,27 +98,19 @@ class OnboardingFormSubmissionPolicy
     /**
      * Determine if user can update a submission.
      *
-     * Employee can update own submissions if status is draft.
-     * Users with onboarding.update permission can update any submission.
+     * Only the authenticated employee can update their own submissions, and
+     * they still need onboarding.write permission. The controller decides
+     * whether the current submission state is still editable.
      */
     public function update(User $user, OnboardingFormSubmission $submission): bool
     {
-        // Users with onboarding.write permission can update any submission
-        if ($user->can('onboarding.write')) {
-            return true;
-        }
-
         $employee = $submission->employee;
         if ($employee === null) {
             return false;
         }
 
-        // Employee can update own submissions if status is draft
-        if ($user->id === $employee->user_id && $submission->status === 'draft') {
-            return true;
-        }
-
-        return false;
+        return $user->can('onboarding.write')
+            && $user->id === $employee->user_id;
     }
 
     /**

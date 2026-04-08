@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SubmitOnboardingFormRequest;
+use App\Http\Requests\UpdateOnboardingSubmissionRequest;
 use App\Http\Requests\UploadOnboardingSubmissionFileRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Http\Resources\OnboardingFormSubmissionResource;
@@ -525,6 +526,74 @@ class OnboardingController extends Controller
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($submission),
         ], $existing ? Response::HTTP_OK : Response::HTTP_CREATED);
+    }
+
+    /**
+     * Update an editable onboarding submission.
+     *
+     * PATCH /v1/onboarding/submissions/{submission}
+     */
+    public function updateSubmission(UpdateOnboardingSubmissionRequest $request, OnboardingFormSubmission $submission): JsonResponse
+    {
+        $this->authorize('update', $submission);
+
+        if (! in_array($submission->status, ['draft', 'rejected'], true)) {
+            return response()->json([
+                'message' => __('Form has already been submitted and is awaiting review'),
+            ], Response::HTTP_CONFLICT);
+        }
+
+        /** @var Employee|null $employee */
+        $employee = $submission->employee;
+
+        if (! $employee) {
+            return response()->json([
+                'message' => __('No employee record found for submission'),
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        /** @var array<string, mixed> $validated */
+        $validated = $request->validated();
+        $status = $validated['status'] ?? $submission->status;
+        $submittedAt = $status === 'submitted' ? now() : null;
+        $wasRejected = $submission->status === 'rejected';
+
+        $submission = DB::transaction(function () use ($employee, $status, $submittedAt, $submission, $validated, $wasRejected): OnboardingFormSubmission {
+            $submission->update([
+                'form_data' => $validated['form_data'] ?? $submission->form_data,
+                'status' => $status,
+                'submitted_at' => $submittedAt,
+                'reviewed_by' => $wasRejected ? null : $submission->reviewed_by,
+                'reviewed_at' => $wasRejected ? null : $submission->reviewed_at,
+                'review_notes' => $wasRejected ? null : $submission->review_notes,
+            ]);
+
+            $targetWorkflowStatus = $status === 'submitted'
+                ? Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW
+                : Employee::WORKFLOW_STATUS_IN_PROGRESS;
+
+            if (! $employee->canTransitionOnboardingWorkflowTo($targetWorkflowStatus)) {
+                throw ValidationException::withMessages([
+                    'onboarding_workflow_status' => __('Cannot submit: onboarding workflow is not in an expected state for this action'),
+                ]);
+            }
+
+            $employee->transitionOnboardingWorkflowTo($targetWorkflowStatus);
+
+            $submission->refresh();
+
+            return $submission;
+        });
+
+        $submission->load('formTemplate');
+
+        if ($status === 'submitted') {
+            app(OnboardingCompletionService::class)->checkCompletion($employee);
+        }
+
+        return response()->json([
+            'data' => new OnboardingFormSubmissionResource($submission),
+        ]);
     }
 
     /**
