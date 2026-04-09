@@ -42,7 +42,8 @@ describe('PasskeyService::formatApiPayload', function () {
             ->and($formatted['user'])->toHaveKey('display_name')
             ->and($formatted['authenticator_selection'])->toHaveKey('resident_key')
             ->and($formatted['authenticator_selection'])->toHaveKey('user_verification')
-            ->and($formatted)->not->toHaveKey('exclude_credentials', 'empty excludeCredentials should be omitted');
+            ->and($formatted)->toHaveKey('exclude_credentials')
+            ->and($formatted['exclude_credentials'])->toBe([]);
     });
 
     test('authentication options omit allow_credentials when empty for discoverable credential flow', function () {
