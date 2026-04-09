@@ -91,6 +91,10 @@ test('authorized user can create android enrollment session and receives private
         ->assertJsonPath('data.session.enrollment_mode', 'device_owner')
         ->assertJsonPath('data.session.update_channel', 'managed_device')
         ->assertJsonPath('data.session.device_label', 'Front desk kiosk')
+        ->assertJsonPath(
+            'data.provisioning_qr_payload.android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION',
+            'https://apk.secpal.app/android/channels/managed_device/app.secpal-latest.apk'
+        )
         ->assertJsonStructure([
             'data' => [
                 'session' => [
