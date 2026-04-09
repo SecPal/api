@@ -15,6 +15,7 @@ describe('PasskeyService::formatApiPayload', function () {
             'challenge' => 'dGVzdC1jaGFsbGVuZ2U',
             'rp' => [
                 'id' => 'app.secpal.dev',
+                'icon' => null,
                 'name' => 'SecPal',
             ],
             'user' => [
@@ -27,6 +28,7 @@ describe('PasskeyService::formatApiPayload', function () {
                 ['type' => 'public-key', 'alg' => -257],
             ],
             'authenticatorSelection' => [
+                'authenticatorAttachment' => null,
                 'residentKey' => 'preferred',
                 'userVerification' => 'preferred',
             ],
@@ -42,8 +44,9 @@ describe('PasskeyService::formatApiPayload', function () {
             ->and($formatted['user'])->toHaveKey('display_name')
             ->and($formatted['authenticator_selection'])->toHaveKey('resident_key')
             ->and($formatted['authenticator_selection'])->toHaveKey('user_verification')
-            ->and($formatted)->toHaveKey('exclude_credentials')
-            ->and($formatted['exclude_credentials'])->toBe([]);
+            ->and($formatted['authenticator_selection'])->not->toHaveKey('authenticator_attachment', 'null authenticator_attachment must be stripped')
+            ->and($formatted['rp'])->not->toHaveKey('icon', 'null rp.icon must be stripped')
+            ->and($formatted)->not->toHaveKey('exclude_credentials', 'empty excludeCredentials must be omitted');
     });
 
     test('authentication options omit allow_credentials when empty for discoverable credential flow', function () {

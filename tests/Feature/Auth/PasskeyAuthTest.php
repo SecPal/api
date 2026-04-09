@@ -297,7 +297,6 @@ describe('Passkey Management', function () {
                         'user' => ['id', 'name', 'display_name'],
                         'pub_key_cred_params',
                         'timeout',
-                        'exclude_credentials',
                         'authenticator_selection',
                         'attestation',
                     ],
@@ -306,7 +305,10 @@ describe('Passkey Management', function () {
             ]);
 
         expect($response->json('data.public_key.rp.id'))->toBe('app.secpal.dev')
-            ->and($response->json('data.public_key.attestation'))->toBe('none');
+            ->and($response->json('data.public_key.attestation'))->toBe('none')
+            ->and($response->json('data.public_key'))->not->toHaveKey('exclude_credentials', 'empty exclude_credentials must be omitted')
+            ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('authenticator_attachment', 'null authenticator_attachment must be omitted')
+            ->and($response->json('data.public_key.rp'))->not->toHaveKey('icon', 'null rp.icon must be omitted');
     });
 
     test('authenticated users are rate limited when starting passkey registration challenges', function () {

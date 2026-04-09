@@ -295,12 +295,29 @@ class PasskeyService
 
         if (isset($formatted['authenticator_selection']) && is_array($formatted['authenticator_selection'])) {
             $formatted['authenticator_selection']['require_resident_key'] = $this->requireResidentKey();
+
+            // Strip null authenticator_attachment so browsers don't receive the
+            // invalid enum value "null" from JSON null → DOMString coercion.
+            if (array_key_exists('authenticator_attachment', $formatted['authenticator_selection'])
+                && $formatted['authenticator_selection']['authenticator_attachment'] === null) {
+                unset($formatted['authenticator_selection']['authenticator_attachment']);
+            }
         }
 
-        // Omit empty allow_credentials so browsers use the discoverable credential flow
-        // instead of rejecting an empty array as unsupported.
+        // Strip the deprecated icon field that webauthn-lib serializes as null.
+        if (isset($formatted['rp']) && is_array($formatted['rp'])
+            && array_key_exists('icon', $formatted['rp']) && $formatted['rp']['icon'] === null) {
+            unset($formatted['rp']['icon']);
+        }
+
+        // Omit empty credential lists so browsers don't choke on zero-length
+        // arrays where the field should be absent per the WebAuthn spec intent.
         if (array_key_exists('allow_credentials', $formatted) && $formatted['allow_credentials'] === []) {
             unset($formatted['allow_credentials']);
+        }
+
+        if (array_key_exists('exclude_credentials', $formatted) && $formatted['exclude_credentials'] === []) {
+            unset($formatted['exclude_credentials']);
         }
 
         return $formatted;
