@@ -71,13 +71,17 @@ class PasskeyService
     /**
      * @return array<string, mixed>
      */
-    public function buildAuthenticationOptions(): array
+    public function buildAuthenticationOptions(?User $user = null): array
     {
         $timeout = $this->challengeTimeoutMs();
+        $allowCredentials = $user?->passkeyCredentials
+            ->map(fn (PasskeyCredential $credential): PublicKeyCredentialDescriptor => $credential->toPublicKeyCredentialSource()->getPublicKeyCredentialDescriptor())
+            ->all() ?? [];
 
         $options = PublicKeyCredentialRequestOptions::create(
             random_bytes(32),
             rpId: $this->relyingPartyId(),
+            allowCredentials: $allowCredentials,
             userVerification: $this->userVerification(),
             timeout: $timeout,
         );
@@ -294,7 +298,9 @@ class PasskeyService
         $formatted = $this->keysToSnakeCase($payload);
 
         if (isset($formatted['authenticator_selection']) && is_array($formatted['authenticator_selection'])) {
-            $formatted['authenticator_selection']['require_resident_key'] = $this->requireResidentKey();
+            if ($this->requireResidentKey()) {
+                $formatted['authenticator_selection']['require_resident_key'] = true;
+            }
 
             // Strip null authenticator_attachment so browsers don't receive the
             // invalid enum value "null" from JSON null → DOMString coercion.

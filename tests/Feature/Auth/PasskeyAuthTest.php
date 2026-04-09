@@ -9,6 +9,7 @@ use App\Services\PasskeyChallengeService;
 use App\Services\PasskeyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Webauthn\Exception\AuthenticatorResponseVerificationException;
+use Webauthn\Exception\InvalidDataException;
 
 uses(RefreshDatabase::class);
 
@@ -35,6 +36,74 @@ describe('Passkey Authentication', function () {
         expect($response->json('data.public_key.rp_id'))->toBe('app.secpal.dev')
             ->and($response->json('data.public_key.user_verification'))->toBe('preferred')
             ->and($response->json('data.mediation'))->toBe('conditional');
+    });
+
+    test('browser passkey login challenge returns allow_credentials for an email-scoped fallback', function () {
+        $user = User::factory()->create([
+            'email' => 'test@secpal.dev',
+        ]);
+        $credential = PasskeyCredential::factory()->create([
+            'user_id' => $user->id,
+        ]);
+
+        $response = $this->withHeaders(spaHeaders())
+            ->postJson('/v1/auth/passkeys/challenges', [
+                'email' => ' TEST@SECPAL.DEV ',
+            ]);
+
+        $response->assertCreated();
+
+        expect($response->json('data.mediation'))->toBe('optional')
+            ->and($response->json('data.public_key.allow_credentials'))->toBeArray()
+            ->and($response->json('data.public_key.allow_credentials.0.id'))->toBe($credential->credential_id)
+            ->and($response->json('data.public_key.allow_credentials.0.type'))->toBe('public-key');
+    });
+
+    test('email-scoped passkey login lookup stays consistent with the passkey management list', function () {
+        $user = User::factory()->create([
+            'email' => 'test@secpal.dev',
+        ]);
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+        $credential = $user->passkeyCredentials()->create([
+            'credential_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+            'label' => 'Touch ID',
+            'transports' => ['internal'],
+            'attestation_type' => 'none',
+            'credential_public_key' => 'dGVzdA',
+            'user_handle' => 'dGVzdA',
+            'counter' => 0,
+        ]);
+
+        $listResponse = $this->withToken($token)
+            ->getJson('/v1/me/passkeys');
+
+        $listResponse->assertOk();
+
+        $challengeResponse = $this->withHeaders(spaHeaders())
+            ->postJson('/v1/auth/passkeys/challenges', [
+                'email' => $user->email,
+            ]);
+
+        $challengeResponse->assertCreated();
+
+        expect($listResponse->json('data.0.id'))->toBe($credential->credential_id)
+            ->and($challengeResponse->json('data.public_key.allow_credentials.0.id'))->toBe($credential->credential_id);
+    });
+
+    test('browser passkey login challenge rejects email-scoped fallback when the account has no enrolled passkeys', function () {
+        User::factory()->create([
+            'email' => 'test@secpal.dev',
+        ]);
+
+        $response = $this->withHeaders(spaHeaders())
+            ->postJson('/v1/auth/passkeys/challenges', [
+                'email' => 'test@secpal.dev',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+
+        expect($response->json('errors.email.0'))->toBe('Passkey sign-in is not available for the provided email address.');
     });
 
     test('browser passkey login challenge omits allow_credentials for discoverable credential flow', function () {
@@ -200,6 +269,74 @@ describe('Passkey Authentication', function () {
         expect($retrievedChallenge)->toBeNull();
     });
 
+    test('InvalidDataException during passkey authentication verification returns validation errors', function () {
+        $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+            'challenge' => 'test-challenge',
+            'rp_id' => 'app.secpal.dev',
+            'timeout' => 60000,
+            'user_verification' => 'preferred',
+        ], 'conditional');
+
+        /** @var PasskeyService&Mockery\MockInterface $mockService */
+        $mockService = $this->mock(PasskeyService::class);
+        $mockService->shouldReceive('verifyAuthentication')
+            ->once()
+            ->andThrow(InvalidDataException::create(null, 'Invalid attestation object. Presence of extra bytes.'));
+
+        $response = $this->withHeaders(spaCsrfHeaders($this))
+            ->postJson('/v1/auth/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
+                'credential' => [
+                    'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'type' => 'public-key',
+                    'response' => [
+                        'client_data_json' => 'Zm9v',
+                        'authenticator_data' => 'YmFy',
+                        'signature' => 'YmF6',
+                    ],
+                ],
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['credential']);
+
+        expect(app(PasskeyChallengeService::class)->findAuthenticationChallenge($challenge['challenge_id']))->toBeNull();
+    });
+
+    test('unexpected Throwable during passkey authentication verification returns validation errors', function () {
+        $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+            'challenge' => 'test-challenge',
+            'rp_id' => 'app.secpal.dev',
+            'timeout' => 60000,
+            'user_verification' => 'preferred',
+        ], 'conditional');
+
+        /** @var PasskeyService&Mockery\MockInterface $mockService */
+        $mockService = $this->mock(PasskeyService::class);
+        $mockService->shouldReceive('verifyAuthentication')
+            ->once()
+            ->andThrow(new RuntimeException('Undefined array key "clientDataJSON"'));
+
+        $response = $this->withHeaders(spaCsrfHeaders($this))
+            ->postJson('/v1/auth/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
+                'credential' => [
+                    'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'type' => 'public-key',
+                    'response' => [
+                        'client_data_json' => 'Zm9v',
+                        'authenticator_data' => 'YmFy',
+                        'signature' => 'YmF6',
+                    ],
+                ],
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['credential']);
+
+        expect(app(PasskeyChallengeService::class)->findAuthenticationChallenge($challenge['challenge_id']))->toBeNull();
+    });
+
     test('invalid browser passkey verification attempts are rate limited with retry headers', function () {
         /** @var PasskeyService&Mockery\MockInterface $mockService */
         $mockService = $this->mock(PasskeyService::class);
@@ -306,6 +443,8 @@ describe('Passkey Management', function () {
 
         expect($response->json('data.public_key.rp.id'))->toBe('app.secpal.dev')
             ->and($response->json('data.public_key.attestation'))->toBe('none')
+            ->and($response->json('data.public_key.authenticator_selection.resident_key'))->toBe('preferred')
+            ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('require_resident_key', 'deprecated require_resident_key should be omitted when false')
             ->and($response->json('data.public_key'))->not->toHaveKey('exclude_credentials', 'empty exclude_credentials must be omitted')
             ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('authenticator_attachment', 'null authenticator_attachment must be omitted')
             ->and($response->json('data.public_key.rp'))->not->toHaveKey('icon', 'null rp.icon must be omitted');
@@ -403,6 +542,48 @@ describe('Passkey Management', function () {
                     ],
                 ],
                 'label' => 'Work MacBook Touch ID',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['credential']);
+
+        expect(app(PasskeyChallengeService::class)->findRegistrationChallenge($challenge['challenge_id']))->toBeNull();
+    });
+
+    test('unexpected Throwable during passkey registration verification returns validation errors', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $challenge = app(PasskeyChallengeService::class)->createRegistrationChallenge($user, [
+            'challenge' => 'test-registration-challenge',
+            'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
+            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
+            'timeout' => 60000,
+            'exclude_credentials' => [],
+            'authenticator_selection' => ['resident_key' => 'preferred', 'user_verification' => 'preferred'],
+            'attestation' => 'none',
+        ]);
+
+        /** @var PasskeyService&Mockery\MockInterface $mockService */
+        $mockService = $this->mock(PasskeyService::class);
+        $mockService->shouldReceive('verifyRegistration')
+            ->once()
+            ->andThrow(new RuntimeException('Undefined array key "clientDataJSON"'));
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', [
+                'credential' => [
+                    'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'type' => 'public-key',
+                    'response' => [
+                        'client_data_json' => 'Zm9v',
+                        'attestation_object' => 'YmFy',
+                        'transports' => ['internal'],
+                    ],
+                ],
+                'label' => 'Touch ID',
             ]);
 
         $response->assertUnprocessable()
