@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- fixed passkey registration and login verification failing with "Undefined array key clientDataJSON" because `Str::camel('client_data_json')` produces `clientDataJson` (lowercase json) while the webauthn-lib denormalizer expects `clientDataJSON` (uppercase JSON); added an explicit override map in `PasskeyService::keysToCamelCase()` with targeted unit tests
 - fixed passkey login challenge returning an empty `allow_credentials` array that caused browsers to reject the WebAuthn discoverable-credential flow with "Resident credentials or empty `allowCredentials` lists are not supported"; the API now omits the field when empty so browsers correctly trigger the resident-key prompt
 - improved TOTP anti-replay UX: recovery-code regeneration and MFA disablement now return a specific "code was already used recently" validation message instead of a generic "invalid code" when the submitted TOTP code was consumed by a recent action in the same time window
 

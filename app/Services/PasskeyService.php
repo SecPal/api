@@ -349,6 +349,15 @@ class PasskeyService
     }
 
     /**
+     * WebAuthn property names whose acronym casing Str::camel() cannot infer.
+     *
+     * @var array<string, string>
+     */
+    private const CAMEL_CASE_OVERRIDES = [
+        'client_data_json' => 'clientDataJSON',
+    ];
+
+    /**
      * @param  array<array-key, mixed>  $payload
      * @return array<array-key, mixed>
      */
@@ -365,7 +374,7 @@ class PasskeyService
                 continue;
             }
 
-            $result[Str::camel($key)] = $normalizedValue;
+            $result[self::CAMEL_CASE_OVERRIDES[$key] ?? Str::camel($key)] = $normalizedValue;
         }
 
         return $result;
