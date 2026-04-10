@@ -1736,12 +1736,18 @@ describe('Organizational Scopes Authorization', function () {
 });
 
 describe('Tenant-Scoped Roles And Permissions In Authorization Data', function () {
-    test('me endpoint returns tenant-scoped roles and permissions', function () {
-        // Set up process-specific KEK for parallel test isolation
+    beforeEach(function (): void {
         incrementTestKekCounter();
         App\Models\TenantKey::setKekPath(getTestKekPath());
         App\Models\TenantKey::generateKek();
+    });
 
+    afterEach(function (): void {
+        cleanupTestKekFile();
+        App\Models\TenantKey::setKekPath(null);
+    });
+
+    test('me endpoint returns tenant-scoped roles and permissions', function () {
         // Create tenant
         $keys = App\Models\TenantKey::generateEnvelopeKeys();
         $tenant = App\Models\TenantKey::create($keys);
@@ -1756,8 +1762,10 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
         $user->assignRole('Admin');
 
         // Reset team context and flush permission cache — simulates a fresh
-        // request where /v1/me has no tenant middleware (the root cause of
-        // issue SecPal/frontend#822)
+        // authentication request where the authenticated user is only set
+        // inside the controller action, so tenant-scoped authorization data
+        // is resolved before the tenant context is re-established (the root
+        // cause of issue SecPal/frontend#822)
         $registrar->setPermissionsTeamId(null);
         $registrar->forgetCachedPermissions();
         $user->unsetRelation('roles')->unsetRelation('permissions');
@@ -1769,15 +1777,10 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
 
         $response->assertOk()
             ->assertJsonPath('roles', fn (array $roles) => in_array('Admin', $roles, true))
-            ->assertJsonPath('permissions', fn (array $perms) => count($perms) > 0);
+            ->assertJsonPath('permissions', fn (array $perms) => in_array('customers.read', $perms, true));
     });
 
     test('login response returns tenant-scoped roles and permissions', function () {
-        // Set up process-specific KEK for parallel test isolation
-        incrementTestKekCounter();
-        App\Models\TenantKey::setKekPath(getTestKekPath());
-        App\Models\TenantKey::generateKek();
-
         // Create tenant
         $keys = App\Models\TenantKey::generateEnvelopeKeys();
         $tenant = App\Models\TenantKey::create($keys);
@@ -1796,7 +1799,9 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
         $user->assignRole('Admin');
 
         // Reset team context and flush permission cache — simulates a fresh
-        // request where login routes have no tenant middleware
+        // authentication request where the authenticated user is only set
+        // inside the controller action, so tenant-scoped authorization data
+        // is resolved before the tenant context is re-established
         $registrar->setPermissionsTeamId(null);
         $registrar->forgetCachedPermissions();
         $user->unsetRelation('roles')->unsetRelation('permissions');
@@ -1812,6 +1817,6 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
 
         $response->assertOk()
             ->assertJsonPath('user.roles', fn (array $roles) => in_array('Admin', $roles, true))
-            ->assertJsonPath('user.permissions', fn (array $perms) => count($perms) > 0);
+            ->assertJsonPath('user.permissions', fn (array $perms) => in_array('customers.read', $perms, true));
     });
 });
