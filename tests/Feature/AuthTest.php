@@ -1734,3 +1734,84 @@ describe('Organizational Scopes Authorization', function () {
             ]);
     });
 });
+
+describe('Tenant-Scoped Roles And Permissions In Authorization Data', function () {
+    test('me endpoint returns tenant-scoped roles and permissions', function () {
+        // Set up process-specific KEK for parallel test isolation
+        incrementTestKekCounter();
+        App\Models\TenantKey::setKekPath(getTestKekPath());
+        App\Models\TenantKey::generateKek();
+
+        // Create tenant
+        $keys = App\Models\TenantKey::generateEnvelopeKeys();
+        $tenant = App\Models\TenantKey::create($keys);
+
+        // Set tenant context and seed roles/permissions
+        $registrar = app(Spatie\Permission\PermissionRegistrar::class);
+        $registrar->setPermissionsTeamId($tenant->id);
+        Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+
+        // Create user with tenant and assign Admin role
+        $user = User::factory()->create(['tenant_id' => $tenant->id]);
+        $user->assignRole('Admin');
+
+        // Reset team context and flush permission cache — simulates a fresh
+        // request where /v1/me has no tenant middleware (the root cause of
+        // issue SecPal/frontend#822)
+        $registrar->setPermissionsTeamId(null);
+        $registrar->forgetCachedPermissions();
+        $user->unsetRelation('roles')->unsetRelation('permissions');
+
+        // Act: call /v1/me without tenant middleware
+        $token = $user->createToken('test-device')->plainTextToken;
+        $response = $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/v1/me');
+
+        $response->assertOk()
+            ->assertJsonPath('roles', fn (array $roles) => in_array('Admin', $roles, true))
+            ->assertJsonPath('permissions', fn (array $perms) => count($perms) > 0);
+    });
+
+    test('login response returns tenant-scoped roles and permissions', function () {
+        // Set up process-specific KEK for parallel test isolation
+        incrementTestKekCounter();
+        App\Models\TenantKey::setKekPath(getTestKekPath());
+        App\Models\TenantKey::generateKek();
+
+        // Create tenant
+        $keys = App\Models\TenantKey::generateEnvelopeKeys();
+        $tenant = App\Models\TenantKey::create($keys);
+
+        // Set tenant context and seed roles/permissions
+        $registrar = app(Spatie\Permission\PermissionRegistrar::class);
+        $registrar->setPermissionsTeamId($tenant->id);
+        Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+
+        // Create user with tenant and assign Admin role
+        $user = User::factory()->create([
+            'email' => 'tenant-roles@secpal.dev',
+            'password' => bcrypt('password123'),
+            'tenant_id' => $tenant->id,
+        ]);
+        $user->assignRole('Admin');
+
+        // Reset team context and flush permission cache — simulates a fresh
+        // request where login routes have no tenant middleware
+        $registrar->setPermissionsTeamId(null);
+        $registrar->forgetCachedPermissions();
+        $user->unsetRelation('roles')->unsetRelation('permissions');
+
+        clearLoginRateLimiter('tenant-roles@secpal.dev');
+
+        $response = $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => 'tenant-roles@secpal.dev',
+            'password' => 'password123',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('user.roles', fn (array $roles) => in_array('Admin', $roles, true))
+            ->assertJsonPath('user.permissions', fn (array $perms) => count($perms) > 0);
+    });
+});

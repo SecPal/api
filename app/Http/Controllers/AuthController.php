@@ -969,6 +969,18 @@ class AuthController extends Controller
      */
     private function buildUserAuthorizationData(User $user): array
     {
+        // Ensure the Spatie Permission team context is set before querying
+        // roles and permissions.  Authentication routes (login, passkey verify,
+        // MFA verify) execute before the global InjectTenantId middleware can
+        // resolve an authenticated user, leaving the PermissionRegistrar with
+        // a null team.  Eager-loading then builds the roles relation on a blank
+        // model instance whose tenant_id is null, resulting in empty results.
+        // Setting the team explicitly from the concrete user prevents this.
+        if ($user->tenant_id !== null) {
+            app(\Spatie\Permission\PermissionRegistrar::class)
+                ->setPermissionsTeamId($user->tenant_id);
+        }
+
         // Eager load relationships to reduce database queries
         $user->load(['roles', 'permissions', 'organizationalScopes']);
 
