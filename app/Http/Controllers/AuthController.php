@@ -369,7 +369,7 @@ class AuthController extends Controller
 
         if (is_string($email) && $email !== '') {
             $user = User::query()
-                ->where('email', $email)
+                ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
                 ->first();
 
             if ($user instanceof User) {
@@ -436,7 +436,10 @@ class AuthController extends Controller
         } catch (\Throwable $exception) {
             $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
 
+            report($exception);
+
             Log::warning('Passkey authentication verification failed with unexpected error', [
+                'exception_class' => $exception::class,
                 'error' => $exception->getMessage(),
             ]);
 
@@ -524,7 +527,10 @@ class AuthController extends Controller
         } catch (\Throwable $exception) {
             $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
 
+            report($exception);
+
             Log::warning('Passkey registration verification failed with unexpected error', [
+                'exception_class' => $exception::class,
                 'error' => $exception->getMessage(),
             ]);
 
