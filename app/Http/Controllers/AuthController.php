@@ -8,6 +8,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\AdminResetUserMfaRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
+use App\Http\Requests\PasskeyAuthenticationChallengeRequest;
 use App\Http\Requests\PasskeyAuthenticationVerificationRequest;
 use App\Http\Requests\PasskeyRegistrationVerificationRequest;
 use App\Http\Requests\PasswordResetRequest;
@@ -30,11 +31,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
-use Webauthn\Exception\AuthenticatorResponseVerificationException;
+use Webauthn\Exception\WebauthnException;
 
 class AuthController extends Controller
 {
@@ -348,11 +350,16 @@ class AuthController extends Controller
     /**
      * Start a browser passkey authentication challenge.
      */
-    public function startPasskeyAuthenticationChallenge(Request $request): JsonResponse
+    public function startPasskeyAuthenticationChallenge(PasskeyAuthenticationChallengeRequest $request): JsonResponse
     {
         if (($contextResponse = $this->requireBrowserSessionContext($request)) !== null) {
             return $contextResponse;
         }
+
+        /** @var array{email?: string|null} $validated */
+        $validated = $request->validated();
+        $email = $validated['email'] ?? null;
+        $user = null;
 
         $mediation = config('passkeys.authentication_mediation', 'conditional');
 
@@ -360,8 +367,26 @@ class AuthController extends Controller
             $mediation = 'conditional';
         }
 
+        if (is_string($email) && $email !== '') {
+            $user = User::query()
+                ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
+                ->first();
+
+            if ($user instanceof User) {
+                $user->loadMissing('passkeyCredentials');
+            }
+
+            if (! $user instanceof User || $user->passkeyCredentials->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'email' => ['Passkey sign-in is not available for the provided email address.'],
+                ]);
+            }
+
+            $mediation = 'optional';
+        }
+
         $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
-            $this->passkeyService->buildAuthenticationOptions(),
+            $this->passkeyService->buildAuthenticationOptions($user),
             $mediation,
         );
 
@@ -404,10 +429,23 @@ class AuthController extends Controller
                 $challenge['public_key'],
                 $validated['credential'],
             );
-        } catch (AuthenticatorResponseVerificationException $exception) {
+        } catch (WebauthnException $exception) {
             $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
 
             throw $this->passkeyCredentialValidationException($exception);
+        } catch (\Throwable $exception) {
+            $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
+
+            report($exception);
+
+            Log::warning('Passkey authentication verification failed with unexpected error', [
+                'exception_class' => $exception::class,
+                'error' => $exception->getMessage(),
+            ]);
+
+            throw ValidationException::withMessages([
+                'credential' => ['The passkey credential could not be verified.'],
+            ]);
         }
 
         $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
@@ -482,10 +520,23 @@ class AuthController extends Controller
                 $validated['credential'],
                 $validated['label'] ?? null,
             );
-        } catch (AuthenticatorResponseVerificationException $exception) {
+        } catch (WebauthnException $exception) {
             $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
 
             throw $this->passkeyCredentialValidationException($exception);
+        } catch (\Throwable $exception) {
+            $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
+
+            report($exception);
+
+            Log::warning('Passkey registration verification failed with unexpected error', [
+                'exception_class' => $exception::class,
+                'error' => $exception->getMessage(),
+            ]);
+
+            throw ValidationException::withMessages([
+                'credential' => ['The passkey credential could not be verified.'],
+            ]);
         }
 
         $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
@@ -1109,7 +1160,7 @@ class AuthController extends Controller
         ], 404);
     }
 
-    private function passkeyCredentialValidationException(AuthenticatorResponseVerificationException $exception): ValidationException
+    private function passkeyCredentialValidationException(WebauthnException $exception): ValidationException
     {
         $message = trim($exception->getMessage());
 
