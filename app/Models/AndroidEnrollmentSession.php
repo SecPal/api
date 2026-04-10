@@ -174,7 +174,7 @@ class AndroidEnrollmentSession extends Model
 
         return [
             'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME' => self::stringConfig('android.device_admin_component_name', 'app.secpal/.SecPalDeviceAdminReceiver'),
-            'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION' => self::stringConfig('android.package_download_url', $packageDownloadUrl),
+            'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION' => $packageDownloadUrl,
             'android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM' => self::stringConfig('android.signing_certificate_checksum', 'm2N7N0F4Q2ZwS0V0bDhlWlU4a1pMRTNwckE3WlJtWm9Kc2J0S2x2dz0='),
             'android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE' => [
                 'bootstrap_token' => $plainToken,

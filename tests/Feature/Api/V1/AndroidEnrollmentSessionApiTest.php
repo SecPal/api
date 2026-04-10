@@ -142,6 +142,24 @@ test('authorized user can create android enrollment session and receives private
         ->and($activity?->properties['event'])->toBe('android_enrollment_session_created');
 });
 
+test('provisioning payload download URL reflects the session update_channel', function (): void {
+    ['admin' => $admin] = createAndroidEnrollmentApiContext();
+
+    actingAs($admin, 'sanctum');
+
+    $response = postJson('/v1/admin/android-enrollment-sessions', [
+        'device_label' => 'BYOD device',
+        'update_channel' => 'direct_apk',
+        'expires_in_minutes' => 15,
+        'provisioning_profile' => androidProvisioningProfile(),
+    ]);
+
+    $response->assertCreated();
+
+    expect($response->json('data.provisioning_qr_payload')['android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION'] ?? null)
+        ->toBe('https://apk.secpal.app/android/channels/direct_apk/app.secpal-latest.apk');
+});
+
 test('reader can list sessions without receiving raw bootstrap tokens', function (): void {
     ['admin' => $admin, 'reader' => $reader] = createAndroidEnrollmentApiContext();
 
