@@ -6,26 +6,26 @@
 return [
     'templates' => [
         'personal_information_form' => [
-            'name' => 'Persoenliche Informationen',
-            'description' => 'BewachV Paragraf 16 erforderliche Informationen fuer das Bewacherregister',
+            'name' => 'Persönliche Informationen',
+            'description' => 'BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister',
             'schema' => [
-                'title' => 'Persoenliche Informationen',
+                'title' => 'Persönliche Informationen',
                 'description' => 'BewachV Paragraf 16 erforderliche Informationen',
             ],
             'fields' => [
                 'gender' => [
                     'title' => 'Geschlecht',
                     'enum' => [
-                        'male' => 'Maennlich',
+                        'male' => 'Männlich',
                         'female' => 'Weiblich',
                         'diverse' => 'Divers',
                     ],
                 ],
                 'birth_name' => ['title' => 'Geburtsname'],
-                'previous_names' => ['title' => 'Fruehere Namen'],
-                'nationalities' => ['title' => 'Staatsangehoerigkeiten'],
+                'previous_names' => ['title' => 'Frühere Namen'],
+                'nationalities' => ['title' => 'Staatsangehörigkeiten'],
                 'intended_activities' => [
-                    'title' => 'Beabsichtigte Taetigkeiten (Paragraf 34a GewO)',
+                    'title' => 'Beabsichtigte Tätigkeiten (Paragraf 34a GewO)',
                     'enum' => [
                         'door_control' => 'Einlasskontrolle',
                         'event_security' => 'Veranstaltungsschutz',
@@ -40,10 +40,10 @@ return [
         ],
         'bank_account_details' => [
             'name' => 'Bankverbindung',
-            'description' => 'Kontodaten fuer die Gehaltszahlung',
+            'description' => 'Kontodaten für die Gehaltszahlung',
             'schema' => [
                 'title' => 'Bankverbindung',
-                'description' => 'Fuer die Gehaltszahlung',
+                'description' => 'Für die Gehaltszahlung',
             ],
             'fields' => [
                 'iban' => ['title' => 'IBAN'],
@@ -54,10 +54,10 @@ return [
         ],
         'emergency_contact' => [
             'name' => 'Notfallkontakt',
-            'description' => 'Ansprechpartner fuer Notfaelle',
+            'description' => 'Ansprechpartner für Notfälle',
             'schema' => [
                 'title' => 'Notfallkontakt',
-                'description' => 'Ansprechpartner fuer Notfaelle',
+                'description' => 'Ansprechpartner für Notfälle',
             ],
             'fields' => [
                 'contact_1_name' => ['title' => 'Kontakt 1: Name'],

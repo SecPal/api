@@ -180,10 +180,10 @@ describe('GET /v1/onboarding/templates', function () {
         $response->assertOk();
 
         $templates = collect($response->json('data'));
-        $personalInformationTemplate = $templates->firstWhere('name', 'Persoenliche Informationen');
+        $personalInformationTemplate = $templates->firstWhere('name', 'Persönliche Informationen');
 
         expect($personalInformationTemplate)->not->toBeNull()
-            ->and($personalInformationTemplate['description'])->toBe('BewachV Paragraf 16 erforderliche Informationen fuer das Bewacherregister');
+            ->and($personalInformationTemplate['description'])->toBe('BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister');
     });
 });
 
@@ -234,11 +234,11 @@ describe('GET /v1/onboarding/templates/{template}', function () {
             ->getJson("/v1/onboarding/templates/{$template->id}");
 
         $response->assertOk()
-            ->assertJsonPath('data.name', 'Persoenliche Informationen')
-            ->assertJsonPath('data.description', 'BewachV Paragraf 16 erforderliche Informationen fuer das Bewacherregister')
-            ->assertJsonPath('data.form_schema.title', 'Persoenliche Informationen')
+            ->assertJsonPath('data.name', 'Persönliche Informationen')
+            ->assertJsonPath('data.description', 'BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister')
+            ->assertJsonPath('data.form_schema.title', 'Persönliche Informationen')
             ->assertJsonPath('data.form_schema.properties.gender.title', 'Geschlecht')
-            ->assertJsonPath('data.form_schema.properties.gender.enumNames.0', 'Maennlich')
+            ->assertJsonPath('data.form_schema.properties.gender.enumNames.0', 'Männlich')
             ->assertJsonPath('data.form_schema.properties.intended_activities.items.enumNames.3', 'Geld- und Werttransport');
     });
 

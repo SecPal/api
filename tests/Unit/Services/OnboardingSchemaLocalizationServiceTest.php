@@ -31,7 +31,7 @@ test('it localizes schema labels descriptions and enum names for known system te
     $localized = app(OnboardingSchemaLocalizationService::class)->localizeTemplate($template, 'de');
 
     expect($localized['name'])->toBe('Notfallkontakt')
-        ->and($localized['description'])->toBe('Ansprechpartner fuer Notfaelle')
+        ->and($localized['description'])->toBe('Ansprechpartner für Notfälle')
         ->and($localized['form_schema']['title'])->toBe('Notfallkontakt')
         ->and($localized['form_schema']['properties']['contact_1_relationship']['title'])->toBe('Kontakt 1: Beziehung')
         ->and($localized['form_schema']['properties']['contact_1_relationship']['enumNames'])->toBe([
