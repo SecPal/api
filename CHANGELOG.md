@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- verified employee email uniqueness enforcement with regression coverage against the unique plaintext `employees.email` column used by `StoreEmployeeRequest`
+
 - added a dedicated `health` rate limiter for `/health`, `/health/live`, and `/health/ready` so unauthenticated health probes now return `429` after repeated abuse from the same IP and route bucket
 
 - switched role and permission management writes to validated request payloads so those controllers no longer read raw input after form-request validation
