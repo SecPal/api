@@ -5,7 +5,7 @@ SPDX-License-Identifier: CC0-1.0
 
 # SecPal API
 
-> Laravel backend API for SecPal - Digital guard book and security service management
+> Laravel backend API for SecPal — operations software for German private security services.
 
 [![Quality Gates](https://github.com/SecPal/api/actions/workflows/quality.yml/badge.svg)](https://github.com/SecPal/api/actions/workflows/quality.yml)
 [![PR Size](https://github.com/SecPal/api/actions/workflows/pr-size.yml/badge.svg)](https://github.com/SecPal/api/actions/workflows/pr-size.yml)
@@ -14,7 +14,7 @@ SPDX-License-Identifier: CC0-1.0
 
 ## About
 
-SecPal API is the backend service for the SecPal platform, built with Laravel 13 and PostgreSQL. It provides a RESTful API for managing security service operations, guard books, and related functionality.
+SecPal API is the Laravel 13 backend for SecPal — the operations software for German private security services. It provides the RESTful API powering the guard book, shift planning, and operational workflows.
 
 ## Tech Stack
 
