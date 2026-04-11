@@ -200,7 +200,7 @@ class CustomerController extends Controller
      * Soft deletes the customer. Blocked if customer has active sites.
      * Requires 'customers.delete' permission.
      *
-     * @return JsonResponse 204 No Content on success, 409 Conflict if has active sites
+     * @return Response|JsonResponse 204 No Content on success, 409 Conflict if has active sites
      */
     public function destroy(Customer $customer): Response|JsonResponse
     {
