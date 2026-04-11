@@ -179,3 +179,63 @@ test('it deletes every expired employee across multiple chunks', function (): vo
 
     expect(Employee::query()->count())->toBe(0);
 });
+
+test('it skips and logs suspicious file paths that fall outside the employees/ prefix', function (): void {
+    $tenant = TenantKey::factory()->create();
+
+    $employee = Employee::factory()
+        ->for($tenant, 'tenant')
+        ->terminated()
+        ->create([
+            'status' => Employee::STATUS_TERMINATED,
+            'employment_end_date' => now()->subYears(4)->toDateString(),
+            'retention_period_end' => now()->subDay()->toDateString(),
+            'id_document_copy_path' => '../etc/passwd',
+        ]);
+
+    Storage::disk('local')->put('employees/safe.enc', 'safe-content');
+
+    Log::spy();
+
+    $this->artisan('employees:delete-expired')
+        ->expectsOutputToContain('Deleted 1 expired employee record(s)')
+        ->assertSuccessful();
+
+    $this->assertDatabaseMissing('employees', ['id' => $employee->id]);
+
+    Log::shouldHaveReceived('warning')
+        ->once()
+        ->withArgs(fn (string $msg) => str_contains($msg, 'suspicious'));
+
+    Storage::disk('local')->assertExists('employees/safe.enc');
+});
+
+test('it clears password reset tokens for the pre-anonymization email', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'email' => 'jane.doe@secpal.dev',
+    ]);
+
+    DB::table('password_reset_tokens')->insert([
+        'email' => $user->email,
+        'token' => Hash::make('some-token'),
+        'created_at' => now()->subMinutes(10),
+    ]);
+
+    $employee = Employee::factory()
+        ->for($tenant, 'tenant')
+        ->terminated()
+        ->create([
+            'user_id' => $user->id,
+            'status' => Employee::STATUS_TERMINATED,
+            'employment_end_date' => now()->subYears(4)->toDateString(),
+            'retention_period_end' => now()->subDay()->toDateString(),
+        ]);
+
+    $this->artisan('employees:delete-expired')
+        ->expectsOutputToContain('Deleted 1 expired employee record(s)')
+        ->assertSuccessful();
+
+    expect(DB::table('password_reset_tokens')->where('email', 'jane.doe@secpal.dev')->exists())->toBeFalse();
+});

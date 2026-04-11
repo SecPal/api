@@ -175,34 +175,79 @@ class ExpiredEmployeeDeletionService
         $deletedFiles = 0;
 
         foreach ($paths as $path) {
-            if (! $storage->exists($path)) {
+            $safePath = $this->validateEmployeeStoragePath($path);
+
+            if ($safePath === null) {
+                Log::warning('Refused to delete suspicious employee retention file path from local storage', [
+                    'file_path' => $path,
+                ]);
+
                 continue;
             }
 
-            if ($storage->delete($path)) {
+            if (! $storage->exists($safePath)) {
+                continue;
+            }
+
+            if ($storage->delete($safePath)) {
                 $deletedFiles++;
 
                 continue;
             }
 
             Log::warning('Failed to delete expired employee retention file from local storage', [
-                'file_path' => $path,
+                'file_path' => $safePath,
             ]);
         }
 
         return $deletedFiles;
     }
 
+    private function validateEmployeeStoragePath(string $path): ?string
+    {
+        $normalized = str_replace('\\', '/', ltrim(trim($path), '/'));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        // Reject absolute paths (Unix or Windows drive-letter)
+        if (str_starts_with($path, '/') || (strlen($path) >= 3 && $path[1] === ':')) {
+            return null;
+        }
+
+        // Reject directory traversal
+        foreach (explode('/', $normalized) as $segment) {
+            if ($segment === '.' || $segment === '..') {
+                return null;
+            }
+        }
+
+        // Enforce employees/ prefix allowlist
+        if (! str_starts_with($normalized, 'employees/')) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
     private function anonymizeLinkedUser(User $user): void
     {
-        DB::table('model_has_roles')
+        $raw = config('permission.table_names.model_has_roles', 'model_has_roles');
+        $modelHasRolesTable = is_string($raw) ? $raw : 'model_has_roles';
+        $raw = config('permission.table_names.model_has_permissions', 'model_has_permissions');
+        $modelHasPermissionsTable = is_string($raw) ? $raw : 'model_has_permissions';
+        $raw = config('permission.column_names.model_morph_key', 'model_id');
+        $modelMorphKey = is_string($raw) ? $raw : 'model_id';
+
+        DB::table($modelHasRolesTable)
             ->where('model_type', User::class)
-            ->where('model_id', $user->id)
+            ->where($modelMorphKey, $user->id)
             ->delete();
 
-        DB::table('model_has_permissions')
+        DB::table($modelHasPermissionsTable)
             ->where('model_type', User::class)
-            ->where('model_id', $user->id)
+            ->where($modelMorphKey, $user->id)
             ->delete();
 
         DB::table('user_internal_organizational_scopes')
@@ -228,6 +273,12 @@ class ExpiredEmployeeDeletionService
 
         $user->tokens()->delete();
         $user->passkeyCredentials()->delete();
+
+        // Clear password reset tokens for the current (pre-anonymization) email to prevent
+        // token reuse if the address is later registered again.
+        DB::table('password_reset_tokens')
+            ->where('email', $user->email)
+            ->delete();
 
         $user->forceFill([
             'name' => 'Deleted User',
