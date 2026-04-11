@@ -47,6 +47,21 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
+describe('Seeded Sensitive Employee Access', function (): void {
+    test('employees.read_sensitive is granted only to the HR role', function (): void {
+        $hrRole = Role::findByName('HR', 'sanctum');
+
+        expect($hrRole->hasPermissionTo('employees.read_sensitive'))->toBeTrue();
+        expect(Role::findByName('Admin', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
+        expect(Role::findByName('Manager', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
+        expect(Role::findByName('Works Council', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
+        expect(Role::findByName('Employee', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
+        expect(Role::findByName('Employee Read Only', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
+        expect(Role::findByName('Guard', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
+        expect(Role::findByName('Client', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
+    });
+});
+
 describe('Temporal Role Lifecycle Integration', function (): void {
     test('complete temporal role lifecycle: assign → active → expire → auto-revoke', function (): void {
         $guard = User::factory()->create();

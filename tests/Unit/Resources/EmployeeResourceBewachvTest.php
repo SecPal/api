@@ -8,13 +8,31 @@ declare(strict_types=1);
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 
 uses(RefreshDatabase::class)->group('bewachv', 'resource', 'unit');
+
+function employeeResourceRequest(bool $canReadSensitive = false): Request
+{
+    $request = Request::create('/v1/employees/test', 'GET');
+
+    $request->setUserResolver(static fn (): object => new class($canReadSensitive)
+    {
+        public function __construct(private readonly bool $canReadSensitive) {}
+
+        public function can(string $permission): bool
+        {
+            return $permission === 'employees.read_sensitive' && $this->canReadSensitive;
+        }
+    });
+
+    return $request;
+}
 
 test('EmployeeResource includes all BewachV fields', function () {
     $employee = Employee::factory()->withCompleteBewachvData()->create();
     $resource = new EmployeeResource($employee);
-    $array = $resource->toArray(request());
+    $array = $resource->toArray(employeeResourceRequest(true));
 
     // BWR tracking
     expect($array)->toHaveKey('bwr_id')
@@ -75,7 +93,7 @@ test('EmployeeResource formats dates consistently', function () {
     ]);
 
     $resource = new EmployeeResource($employee);
-    $array = $resource->toArray(request());
+    $array = $resource->toArray(employeeResourceRequest(true));
 
     // Dates should be serialized as strings or Carbon instances
     expect($array['bwr_registered_at'])->not->toBeNull()
@@ -95,6 +113,23 @@ test('EmployeeResource handles null BewachV fields gracefully', function () {
         ->and($array)->toHaveKey('birth_country')
         ->and($array)->toHaveKey('nationalities')
         ->and($array)->toHaveKey('address_history');
+});
+
+test('EmployeeResource omits regulated identifiers without employees.read_sensitive', function () {
+    $employee = Employee::factory()->withCompleteBewachvData()->create();
+
+    $resource = new EmployeeResource($employee);
+    $array = $resource->resolve(employeeResourceRequest(false));
+
+    expect($array)->not->toHaveKeys([
+        'tax_id',
+        'social_security_number',
+        'id_document_number',
+        'health_insurance_number',
+        'work_permit_number',
+        'residence_permit_number',
+        'sachkunde_ihk_number',
+    ]);
 });
 
 test('EmployeeResource includes computed structured_address property', function () {
@@ -130,7 +165,7 @@ test('EmployeeResource preserves BWR-ID leading zeros', function () {
 test('EmployeeResource does not expose encrypted field names', function () {
     $employee = Employee::factory()->withCompleteBewachvData()->create();
     $resource = new EmployeeResource($employee);
-    $array = $resource->toArray(request());
+    $array = $resource->toArray(employeeResourceRequest(true));
 
     // Encrypted fields should not have _enc suffix in API
     expect($array)->not->toHaveKey('birth_name_enc')
