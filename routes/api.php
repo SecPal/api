@@ -40,15 +40,17 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/health/live', [HealthController::class, 'live']);
-Route::get('/health/ready', [HealthController::class, 'ready']);
+Route::middleware('throttle:health')->group(function () {
+    Route::get('/health/live', [HealthController::class, 'live']);
+    Route::get('/health/ready', [HealthController::class, 'ready']);
 
-Route::get('/health', function () {
-    return response()->json([
-        'status' => 'ok',
-        'timestamp' => now()->toIso8601String(),
-        'service' => 'SecPal API',
-    ]);
+    Route::get('/health', function () {
+        return response()->json([
+            'status' => 'ok',
+            'timestamp' => now()->toIso8601String(),
+            'service' => 'SecPal API',
+        ]);
+    });
 });
 
 // API v1 routes

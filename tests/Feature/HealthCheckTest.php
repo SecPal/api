@@ -6,7 +6,9 @@
 use App\Models\TenantKey;
 use App\Services\RuntimeHeartbeatService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
@@ -60,6 +62,34 @@ describe('Health Check Endpoints', function () {
                 ]);
 
             expect($response->json())->not->toHaveKey('version');
+        });
+    });
+
+    describe('rate limiting', function () {
+        it('applies the health throttle middleware to every public health endpoint', function (string $path): void {
+            $route = Route::getRoutes()->match(Request::create($path, 'GET'));
+
+            expect($route->gatherMiddleware())->toContain('throttle:health');
+        })->with([
+            '/health',
+            '/health/live',
+            '/health/ready',
+        ]);
+
+        it('returns 429 after too many health requests from the same IP', function () {
+            $server = ['REMOTE_ADDR' => '203.0.113.10'];
+
+            foreach (range(1, 60) as $attempt) {
+                $this->call('GET', '/health', [], [], [], $server)->assertOk();
+            }
+
+            $response = $this->call('GET', '/health', [], [], [], $server);
+
+            $response->assertTooManyRequests();
+            $response->assertJson([
+                'message' => 'Too many health check requests. Please try again later.',
+            ]);
+            expect($response->headers->get('Retry-After'))->not->toBeNull();
         });
     });
 
