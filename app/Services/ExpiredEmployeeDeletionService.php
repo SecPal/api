@@ -6,6 +6,9 @@
 namespace App\Services;
 
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
+use App\Models\OnboardingFormSubmission;
+use App\Models\OnboardingSubmissionFile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -72,13 +75,7 @@ class ExpiredEmployeeDeletionService
             /** @var Employee|null $employee */
             $employee = Employee::query()
                 ->withTrashed()
-                ->with([
-                    'documents' => fn ($query) => $query->withTrashed(),
-                    'onboardingSubmissions' => fn ($query) => $query->withTrashed()->with([
-                        'files' => fn ($fileQuery) => $fileQuery->withTrashed(),
-                    ]),
-                    'user.passkeyCredentials',
-                ])
+                ->with('user.passkeyCredentials')
                 ->where('tenant_id', $tenantId)
                 ->whereKey($employeeId)
                 ->lockForUpdate()
@@ -145,19 +142,26 @@ class ExpiredEmployeeDeletionService
             $paths[] = $employee->id_document_copy_path;
         }
 
-        foreach ($employee->documents as $document) {
-            if (is_string($document->file_path) && $document->file_path !== '') {
-                $paths[] = $document->file_path;
-            }
-        }
+        $documentPaths = EmployeeDocument::query()
+            ->withTrashed()
+            ->where('employee_id', $employee->id)
+            ->pluck('file_path')
+            ->filter(fn (mixed $path): bool => is_string($path) && $path !== '')
+            ->all();
 
-        foreach ($employee->onboardingSubmissions as $submission) {
-            foreach ($submission->files as $file) {
-                if (is_string($file->file_path) && $file->file_path !== '') {
-                    $paths[] = $file->file_path;
-                }
-            }
-        }
+        $submissionIds = OnboardingFormSubmission::query()
+            ->withTrashed()
+            ->where('employee_id', $employee->id)
+            ->pluck('id');
+
+        $submissionFilePaths = OnboardingSubmissionFile::query()
+            ->withTrashed()
+            ->whereIn('onboarding_form_submission_id', $submissionIds)
+            ->pluck('file_path')
+            ->filter(fn (mixed $path): bool => is_string($path) && $path !== '')
+            ->all();
+
+        $paths = [...$paths, ...$documentPaths, ...$submissionFilePaths];
 
         return array_values(array_unique($paths));
     }
