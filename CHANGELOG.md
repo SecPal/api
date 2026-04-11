@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- removed stale and historical documentation: one-time PR artefacts (`PR_DESCRIPTION_DRAFT.md`), DDEV-era retrospectives and production-test reports (`ISSUE50_RETROSPECTIVE.md`, `ISSUE74_RETROSPECTIVE.md`, `PRODUCTION_TEST_PASSWORD_RESET.md`, `PRODUCTION_TEST_PHASE2_EMAIL.md`, `PR_REVIEW_ISSUE50.md`), superseded workflow guides (`EPIC_WORKFLOW.md`, `EPIC_IMPLEMENTATION_SUMMARY.md`, `SELF_REVIEW_CHECKLIST.md`), and the PHPStan workaround note (`ISSUE_PHPSTAN_SANCTUM_TYPES.md`) and obsolete reminder prompt file (`COPILOT_REMINDER_PATTERNS.md`)
+
 ### Fixed
 
 - fixed `buildUserAuthorizationData` returning empty roles and permissions on authentication routes (login, passkey verify, MFA verify) because the global `InjectTenantId` middleware cannot resolve a user before authentication completes, leaving the Spatie PermissionRegistrar with a null team context; the method now explicitly sets the team from the user's `tenant_id` before eager-loading (fixes SecPal/frontend#822)
