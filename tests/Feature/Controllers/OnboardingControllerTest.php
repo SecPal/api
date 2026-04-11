@@ -166,6 +166,25 @@ describe('GET /v1/onboarding/templates', function () {
 
         expect($response->json('data'))->toHaveCount(3); // 2 created + 1 in beforeEach
     });
+
+    test('localizes template list metadata using request locale', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+
+        $this->artisan('db:seed', ['--class' => Database\Seeders\OnboardingFormTemplatesSeeder::class])
+            ->assertSuccessful();
+
+        $response = $this->withToken($this->token)
+            ->withHeader('Accept-Language', 'de-DE,de;q=0.9,en;q=0.8')
+            ->getJson('/v1/onboarding/templates');
+
+        $response->assertOk();
+
+        $templates = collect($response->json('data'));
+        $personalInformationTemplate = $templates->firstWhere('name', 'Persoenliche Informationen');
+
+        expect($personalInformationTemplate)->not->toBeNull()
+            ->and($personalInformationTemplate['description'])->toBe('BewachV Paragraf 16 erforderliche Informationen fuer das Bewacherregister');
+    });
 });
 
 describe('GET /v1/onboarding/templates/{template}', function () {
@@ -197,6 +216,53 @@ describe('GET /v1/onboarding/templates/{template}', function () {
                     'is_required',
                 ],
             ]);
+    });
+
+    test('localizes system template schema using accept language header', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+
+        $this->artisan('db:seed', ['--class' => Database\Seeders\OnboardingFormTemplatesSeeder::class])
+            ->assertSuccessful();
+
+        $template = OnboardingFormTemplate::query()
+            ->whereNull('tenant_id')
+            ->where('name', 'Personal Information Form')
+            ->firstOrFail();
+
+        $response = $this->withToken($this->token)
+            ->withHeader('Accept-Language', 'de-DE,de;q=0.9,en;q=0.8')
+            ->getJson("/v1/onboarding/templates/{$template->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.name', 'Persoenliche Informationen')
+            ->assertJsonPath('data.description', 'BewachV Paragraf 16 erforderliche Informationen fuer das Bewacherregister')
+            ->assertJsonPath('data.form_schema.title', 'Persoenliche Informationen')
+            ->assertJsonPath('data.form_schema.properties.gender.title', 'Geschlecht')
+            ->assertJsonPath('data.form_schema.properties.gender.enumNames.0', 'Maennlich')
+            ->assertJsonPath('data.form_schema.properties.intended_activities.items.enumNames.3', 'Geld- und Werttransport');
+    });
+
+    test('prefers user locale over accept language header when localizing templates', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+
+        $this->user->forceFill(['preferred_locale' => 'de'])->save();
+
+        $this->artisan('db:seed', ['--class' => Database\Seeders\OnboardingFormTemplatesSeeder::class])
+            ->assertSuccessful();
+
+        $template = OnboardingFormTemplate::query()
+            ->whereNull('tenant_id')
+            ->where('name', 'Bank Account Details')
+            ->firstOrFail();
+
+        $response = $this->withToken($this->token)
+            ->withHeader('Accept-Language', 'en-US,en;q=0.9')
+            ->getJson("/v1/onboarding/templates/{$template->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.name', 'Bankverbindung')
+            ->assertJsonPath('data.form_schema.title', 'Bankverbindung')
+            ->assertJsonPath('data.form_schema.properties.account_holder.title', 'Kontoinhaber');
     });
 });
 
