@@ -44,6 +44,10 @@ Schedule::job(App\Jobs\UpgradeOpenTimestampProofs::class)->hourly()->name('ots-p
 // BewachV §21 Abs. 4 + GDPR Article 5(1)(e) compliance
 Schedule::command('activity:apply-retention')->dailyAt('02:00')->name('activity-retention');
 
+// Schedule: Delete expired terminated employee data daily at 02:30
+// Runs after activity retention so the deletion event itself starts a fresh retention window.
+Schedule::command('employees:delete-expired')->dailyAt('02:30')->name('employee-retention-deletion');
+
 // Schedule: Monitor OpenTimestamp health every 6 hours
 // Checks library version, calendar server availability, and functionality
 // Logs warnings if servers are down or updates are available
