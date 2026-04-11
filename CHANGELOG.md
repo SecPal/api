@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the `employees:delete-expired` retention command for BewachV §21 / GDPR employee erasure, including tenant-scoped dry-run support, hard deletion of expired terminated employee records, local storage cleanup for employee and onboarding uploads, linked-user anonymization, and a daily scheduler hook after activity retention processing
 - Added the initial Android enrollment API slice for Epic SecPal/.github#327, including tenant-bound enrollment session storage, private QR/bootstrap token issuance, admin create/list/read/revoke endpoints, a public bootstrap exchange endpoint, and audited provisioning lifecycle events
 - added `PATCH /v1/onboarding/submissions/{submission}` so authenticated pre-contract employees can update their own draft or rejected onboarding submissions by id without resending `form_template_id`; omitting `status` on a rejected submission now defaults to draft; state-specific 409 messages are returned for submitted and approved submissions; and a pre-contract employee guard is enforced for consistency with the existing upsert path
 - added the phase-2 passkey backend foundation with WebAuthn-backed browser sign-in and self-service passkey management endpoints, persisted passkey credentials plus challenge state, and regression coverage for session establishment, validation failures, and throttled invalid passkey verification attempts
