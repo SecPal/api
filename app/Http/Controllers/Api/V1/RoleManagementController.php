@@ -48,12 +48,14 @@ class RoleManagementController extends Controller
     {
         Gate::authorize('create', Role::class);
 
+        $validated = $request->validated();
+
         /** @var string $name */
-        $name = $request->input('name');
+        $name = $validated['name'];
         $role = Role::create(['name' => $name]);
 
         /** @var array<int, string> $permissions */
-        $permissions = $request->input('permissions', []);
+        $permissions = $validated['permissions'] ?? [];
         if (! empty($permissions)) {
             $role->syncPermissions($permissions);
         }
@@ -97,16 +99,18 @@ class RoleManagementController extends Controller
         $role = Role::findOrFail($id);
         Gate::authorize('update', $role);
 
-        if ($request->filled('name')) {
+        $validated = $request->validated();
+
+        if (array_key_exists('name', $validated)) {
             /** @var string $name */
-            $name = $request->input('name');
+            $name = $validated['name'];
             $role->name = $name;
             $role->save();
         }
 
-        if ($request->has('permissions')) {
+        if (array_key_exists('permissions', $validated)) {
             /** @var array<int, string> $permissions */
-            $permissions = $request->input('permissions', []);
+            $permissions = $validated['permissions'] ?? [];
             $role->syncPermissions($permissions);
         }
 

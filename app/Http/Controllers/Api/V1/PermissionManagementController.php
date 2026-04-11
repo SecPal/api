@@ -58,11 +58,13 @@ class PermissionManagementController extends Controller
     {
         Gate::authorize('create', Permission::class);
 
+        $validated = $request->validated();
+
         /** @var string $name */
-        $name = $request->input('name');
+        $name = $validated['name'];
 
         /** @var string|null $description */
-        $description = $request->input('description');
+        $description = $validated['description'] ?? null;
 
         /** @var Permission $permission */
         $permission = Permission::create([
@@ -111,9 +113,11 @@ class PermissionManagementController extends Controller
         $permission = Permission::findOrFail($id);
         Gate::authorize('update', $permission);
 
-        if ($request->filled('description')) {
+        $validated = $request->validated();
+
+        if (array_key_exists('description', $validated)) {
             /** @var string $description */
-            $description = $request->input('description');
+            $description = $validated['description'];
             $permission->description = $description;
             $permission->save();
         }
