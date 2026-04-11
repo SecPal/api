@@ -2,6 +2,7 @@
 SPDX-FileCopyrightText: 2025 SecPal Contributors
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
+<!-- markdownlint-disable MD034 MD036 MD040 -->
 
 # Activity Logging Legal Verification Guide
 
@@ -72,13 +73,11 @@ Under **ZPO §371, §371a**, electronic documents are admissible if:
 Activity logs can be exported in three formats:
 
 1. **PDF with Signatures (Human-Readable)**
-
    - Includes: Timestamp, Actor, Event, Description, Verification Status
    - Signed with X.509 certificate (optional)
    - Best for: Judges, non-technical audiences
 
 2. **JSON with Cryptographic Proofs (Machine-Readable)**
-
    - Includes: Full log properties, hash chain, Merkle proof, OpenTimestamp proof
    - Best for: Expert witnesses, independent verification
 
@@ -118,7 +117,6 @@ Activity logs can be exported in three formats:
    ```
 
 3. **Compare Hashes:**
-
    - **If match:** Log is authentic
    - **If mismatch:** Log has been tampered with
 
@@ -447,21 +445,18 @@ Bad attestation: Proof does not match Bitcoin block
 **SecPal Chain of Custody:**
 
 1. **Evidence Creation (Automated)**
-
    - Activity log created automatically upon user action
    - Timestamp: `created_at` field (database TIMESTAMP)
    - Actor: `causer_id` (authenticated user)
    - Hash: Calculated immediately (SHA256)
 
 2. **Evidence Storage (Tamper-Proof)**
-
    - PostgreSQL database with append-only logging
    - Hash chain links each log to predecessor
    - Merkle tree batching (hourly for Level 2+3)
    - Bitcoin anchoring (daily for Level 3)
 
 3. **Evidence Export (Auditable)**
-
    - Export command logs to `activity_log` (meta-logging)
    - Exported by: Admin user (logged)
    - Export timestamp: Recorded

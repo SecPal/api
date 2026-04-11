@@ -2,6 +2,7 @@
 SPDX-FileCopyrightText: 2025 SecPal Contributors
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
+<!-- markdownlint-disable MD034 MD036 MD040 -->
 
 # Activity Logging Admin Guide
 
