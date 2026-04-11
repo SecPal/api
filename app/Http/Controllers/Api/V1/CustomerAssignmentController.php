@@ -120,12 +120,12 @@ class CustomerAssignmentController extends Controller
      *
      * @return JsonResponse Empty response (204 No Content)
      */
-    public function destroy(CustomerAssignment $customerAssignment): JsonResponse
+    public function destroy(CustomerAssignment $customerAssignment): Response|JsonResponse
     {
         $this->authorize('delete', $customerAssignment);
 
         $customerAssignment->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 }

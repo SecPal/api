@@ -184,13 +184,13 @@ class EmployeeController extends Controller
      *
      * DELETE /api/v1/employees/{employee}
      */
-    public function destroy(Employee $employee): JsonResponse
+    public function destroy(Employee $employee): Response|JsonResponse
     {
         $this->authorize('delete', $employee);
 
         $employee->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 
     /**

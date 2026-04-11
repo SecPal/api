@@ -188,7 +188,7 @@ class SiteController extends Controller
      *
      * @return JsonResponse 204 No Content on success
      */
-    public function destroy(Site $site): JsonResponse
+    public function destroy(Site $site): Response|JsonResponse
     {
         $this->authorize('delete', $site);
 
@@ -202,6 +202,6 @@ class SiteController extends Controller
 
         $site->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 }

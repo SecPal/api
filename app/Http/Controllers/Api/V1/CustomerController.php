@@ -202,7 +202,7 @@ class CustomerController extends Controller
      *
      * @return JsonResponse 204 No Content on success, 409 Conflict if has active sites
      */
-    public function destroy(Customer $customer): JsonResponse
+    public function destroy(Customer $customer): Response|JsonResponse
     {
         $this->authorize('delete', $customer);
 
@@ -216,7 +216,7 @@ class CustomerController extends Controller
 
         $customer->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 
     /**

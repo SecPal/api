@@ -120,12 +120,12 @@ class SiteAssignmentController extends Controller
      *
      * @return JsonResponse Empty response (204 No Content)
      */
-    public function destroy(SiteAssignment $siteAssignment): JsonResponse
+    public function destroy(SiteAssignment $siteAssignment): Response|JsonResponse
     {
         $this->authorize('delete', $siteAssignment);
 
         $siteAssignment->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 }

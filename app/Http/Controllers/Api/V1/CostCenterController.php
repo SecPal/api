@@ -18,6 +18,7 @@ use App\Models\CostCenter;
 use App\Models\Site;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * CostCenterController handles CostCenter resource CRUD operations.
@@ -106,12 +107,12 @@ class CostCenterController extends Controller
     /**
      * Remove the specified cost center from storage.
      */
-    public function destroy(Site $site, CostCenter $costCenter): JsonResponse
+    public function destroy(Site $site, CostCenter $costCenter): Response|JsonResponse
     {
         $this->authorize('delete', $costCenter);
 
         $costCenter->delete();
 
-        return response()->json(null, 204);
+        return response()->noContent();
     }
 }

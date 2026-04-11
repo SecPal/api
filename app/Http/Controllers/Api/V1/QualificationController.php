@@ -159,7 +159,7 @@ class QualificationController extends Controller
      *
      * System qualifications cannot be deleted via API.
      */
-    public function destroy(Qualification $qualification): JsonResponse
+    public function destroy(Qualification $qualification): Response|JsonResponse
     {
         $this->authorize('delete', $qualification);
 
@@ -171,6 +171,6 @@ class QualificationController extends Controller
 
         $qualification->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 }

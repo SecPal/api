@@ -531,7 +531,7 @@ describe('DELETE /v1/site-assignments/{assignment}', function () {
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/site-assignments/{$assignmentId}");
 
-        $response->assertStatus(204);
+        $response->assertNoContent();
 
         expect(SiteAssignment::find($assignmentId))->toBeNull();
     });
