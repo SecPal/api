@@ -1,0 +1,237 @@
+<?php
+
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+namespace App\Services;
+
+use App\Models\Employee;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+class ExpiredEmployeeDeletionService
+{
+    /**
+     * @return array{matched: int, deleted: int, users_anonymized: int, files_deleted: int}
+     */
+    public function deleteExpiredEmployees(?int $tenantId = null, bool $dryRun = false): array
+    {
+        $query = $this->expiredEmployeesQuery($tenantId);
+
+        $stats = [
+            'matched' => (clone $query)->count(),
+            'deleted' => 0,
+            'users_anonymized' => 0,
+            'files_deleted' => 0,
+        ];
+
+        if ($dryRun || $stats['matched'] === 0) {
+            return $stats;
+        }
+
+        $query
+            ->orderBy('id')
+            ->chunkById(50, function ($employees) use (&$stats): void {
+                foreach ($employees as $employee) {
+                    $result = $this->deleteExpiredEmployee($employee->id, $employee->tenant_id);
+
+                    $stats['deleted'] += $result['deleted'];
+                    $stats['users_anonymized'] += $result['users_anonymized'];
+                    $stats['files_deleted'] += $this->deleteStoredPaths($result['file_paths']);
+                }
+            }, 'id');
+
+        return $stats;
+    }
+
+    /**
+     * @return Builder<Employee>
+     */
+    public function expiredEmployeesQuery(?int $tenantId = null): Builder
+    {
+        return Employee::query()
+            ->withTrashed()
+            ->where('status', Employee::STATUS_TERMINATED)
+            ->whereNotNull('retention_period_end')
+            ->whereDate('retention_period_end', '<', Carbon::today()->toDateString())
+            ->when($tenantId !== null, fn (Builder $query) => $query->where('tenant_id', $tenantId));
+    }
+
+    /**
+     * @return array{deleted: int, users_anonymized: int, file_paths: list<string>}
+     */
+    private function deleteExpiredEmployee(string $employeeId, int $tenantId): array
+    {
+        return DB::transaction(function () use ($employeeId, $tenantId): array {
+            /** @var Employee|null $employee */
+            $employee = Employee::query()
+                ->withTrashed()
+                ->with([
+                    'documents' => fn ($query) => $query->withTrashed(),
+                    'onboardingSubmissions' => fn ($query) => $query->withTrashed()->with([
+                        'files' => fn ($fileQuery) => $fileQuery->withTrashed(),
+                    ]),
+                    'user.passkeyCredentials',
+                ])
+                ->where('tenant_id', $tenantId)
+                ->whereKey($employeeId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $employee instanceof Employee || ! $this->isEligibleForDeletion($employee)) {
+                return [
+                    'deleted' => 0,
+                    'users_anonymized' => 0,
+                    'file_paths' => [],
+                ];
+            }
+
+            $filePaths = $this->collectStoredPaths($employee);
+            $usersAnonymized = 0;
+
+            if ($employee->user instanceof User) {
+                $this->anonymizeLinkedUser($employee->user);
+                $employee->user()->dissociate();
+                $employee->saveQuietly();
+                $usersAnonymized = 1;
+            }
+
+            activity('employee_changes')
+                ->performedOn($employee)
+                ->withProperties([
+                    'action' => 'employee_retention_delete',
+                    'employee_id' => $employee->id,
+                    'employee_number' => $employee->employee_number,
+                    'tenant_id' => $employee->tenant_id,
+                    'employment_end_date' => $employee->employment_end_date?->toDateString(),
+                    'retention_period_end' => $employee->retention_period_end?->toDateString(),
+                    'legal_basis' => 'BewachV § 21 Abs. 4 / GDPR Art. 17',
+                    'deleted_file_count' => count($filePaths),
+                    'linked_user_anonymized' => $usersAnonymized === 1,
+                ])
+                ->log('Employee data deleted after retention period');
+
+            $employee->forceDelete();
+
+            return [
+                'deleted' => 1,
+                'users_anonymized' => $usersAnonymized,
+                'file_paths' => $filePaths,
+            ];
+        });
+    }
+
+    private function isEligibleForDeletion(Employee $employee): bool
+    {
+        return $employee->status === Employee::STATUS_TERMINATED
+            && $employee->retention_period_end !== null
+            && $employee->retention_period_end->isBefore(Carbon::today());
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function collectStoredPaths(Employee $employee): array
+    {
+        $paths = [];
+
+        if (is_string($employee->id_document_copy_path) && $employee->id_document_copy_path !== '') {
+            $paths[] = $employee->id_document_copy_path;
+        }
+
+        foreach ($employee->documents as $document) {
+            if (is_string($document->file_path) && $document->file_path !== '') {
+                $paths[] = $document->file_path;
+            }
+        }
+
+        foreach ($employee->onboardingSubmissions as $submission) {
+            foreach ($submission->files as $file) {
+                if (is_string($file->file_path) && $file->file_path !== '') {
+                    $paths[] = $file->file_path;
+                }
+            }
+        }
+
+        return array_values(array_unique($paths));
+    }
+
+    /**
+     * @param  list<string>  $paths
+     */
+    private function deleteStoredPaths(array $paths): int
+    {
+        $storage = Storage::disk('local');
+        $deletedFiles = 0;
+
+        foreach ($paths as $path) {
+            if (! $storage->exists($path)) {
+                continue;
+            }
+
+            if ($storage->delete($path)) {
+                $deletedFiles++;
+
+                continue;
+            }
+
+            Log::warning('Failed to delete expired employee retention file from local storage', [
+                'file_path' => $path,
+            ]);
+        }
+
+        return $deletedFiles;
+    }
+
+    private function anonymizeLinkedUser(User $user): void
+    {
+        DB::table('model_has_roles')
+            ->where('model_type', User::class)
+            ->where('model_id', $user->id)
+            ->delete();
+
+        DB::table('model_has_permissions')
+            ->where('model_type', User::class)
+            ->where('model_id', $user->id)
+            ->delete();
+
+        DB::table('user_internal_organizational_scopes')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('customer_assignments')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('site_assignments')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('sessions')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('two_factor_authentications')
+            ->where('authenticatable_type', User::class)
+            ->where('authenticatable_id', $user->id)
+            ->delete();
+
+        $user->tokens()->delete();
+        $user->passkeyCredentials()->delete();
+
+        $user->forceFill([
+            'name' => 'Deleted User',
+            'email' => 'deleted-user+'.$user->id.'@secpal.dev',
+            'email_verified_at' => null,
+            'password' => Hash::make(Str::random(64)),
+            'remember_token' => null,
+            'preferred_locale' => null,
+        ])->save();
+    }
+}
