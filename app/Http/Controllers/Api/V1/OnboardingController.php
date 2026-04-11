@@ -717,6 +717,7 @@ class OnboardingController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        /** @var array{reason: string} $validated */
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
         ]);
