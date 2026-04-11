@@ -48,7 +48,6 @@ Route::get('/health', function () {
         'status' => 'ok',
         'timestamp' => now()->toIso8601String(),
         'service' => 'SecPal API',
-        'version' => config('app.version', '1.0.0'),
     ]);
 });
 

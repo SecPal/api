@@ -45,6 +45,7 @@ class HealthController extends Controller
      */
     public function ready(RuntimeHeartbeatService $runtimeHeartbeatService): JsonResponse
     {
+        // Track internal component readiness without exposing infrastructure details publicly.
         $checks = [];
         $details = [];
         $allPassed = true;
@@ -122,8 +123,6 @@ class HealthController extends Controller
 
         return response()->json([
             'status' => $status,
-            'checks' => $checks,
-            'details' => $details,
             'timestamp' => now()->toIso8601String(),
         ], $httpStatus);
     }
