@@ -87,14 +87,6 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            $previous = $e->getPrevious();
-            $isModelNotFound = $previous instanceof ModelNotFoundException
-                || str_starts_with($e->getMessage(), 'No query results for model [');
-
-            if (! $isModelNotFound) {
-                return null;
-            }
-
             return response()->json([
                 'message' => 'Resource not found.',
             ], 404);
