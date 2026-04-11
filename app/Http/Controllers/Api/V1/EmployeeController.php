@@ -14,6 +14,7 @@ use App\Models\Employee;
 use App\Models\TenantKey;
 use App\Services\EmployeeLifecycleService;
 use App\Services\EmployeeOnboardingInvitationService;
+use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -72,9 +73,10 @@ class EmployeeController extends Controller
         if ($request->has('search')) {
             /** @var string $search */
             $search = $request->input('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('email', 'like', "%{$search}%")
-                    ->orWhere('employee_number', 'like', "%{$search}%");
+            $escapedSearch = LikePattern::escape($search);
+            $query->where(function ($q) use ($escapedSearch) {
+                $q->where('email', 'like', "%{$escapedSearch}%")
+                    ->orWhere('employee_number', 'like', "%{$escapedSearch}%");
             });
         }
 

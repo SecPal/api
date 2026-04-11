@@ -316,6 +316,22 @@ describe('GET /v1/sites', function () {
         expect($response->json('data')[0]['site_number'])->toBe($site1->site_number);
     });
 
+    test('treats wildcard-only site search input as a literal string', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/sites?search='.urlencode('%%%%%'));
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(0);
+    });
+
     test('user without permission only sees assigned sites', function (): void {
         // User without sites.read permission
         $site1 = Site::factory()->create([
