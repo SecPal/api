@@ -14,7 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- converted all findings from the 2026-03-31 security audit (`SECURITY_AUDIT_API_VALIDATION.md`) to GitHub Issues (#834–#847) tracked under Epic #848; the source document has been removed from the repository root
+- converted all findings from the 2026-03-31 security audit to GitHub Issues (#834–#847) tracked under Epic #848
+
+### Removed
+
+- removed `SECURITY_AUDIT_API_VALIDATION.md` from the repository root after converting its findings to tracked GitHub Issues
 
 ### Fixed
 
