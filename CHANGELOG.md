@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- corrected the Composer package metadata license from the inherited Laravel skeleton `MIT` value to `AGPL-3.0-or-later` so repository metadata matches the actual SecPal API licensing
 - strengthened Copilot governance: require test-impact analysis and same-commit test updates when a fix alters observable behavior, explicitly recommend `PREFLIGHT_RUN_TESTS=1` for behavioral or security changes, and mandate `--body-file` for GitHub CLI (`gh pr create` or `gh pr edit`) to prevent shell escaping issues
 - added a behavior-change reminder to the preflight skip-tests hint so the pre-push hook explicitly warns about enabling tests for security or state-lifecycle fixes
 - Replaced the API Translation.io workflow with repo-native Polyglot-managed PO/Gettext catalogs, added a dedicated production blocker for the Polyglot web UI, and moved translated mail key subjects into checked-in language files so API translation maintenance now stays local and POedit-friendly.
