@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - switched role and permission management writes to validated request payloads so those controllers no longer read raw input after form-request validation
+- reduced the public health surface by removing the `/health` version field and by limiting `/health/ready` responses to the readiness status plus timestamp instead of exposing database, key-management, scheduler, and queue-worker details
 - standardized API V1 delete endpoints on `response()->noContent()` so successful `204` responses are implemented consistently across employee, document, qualification, assignment, customer, site, organizational-unit, and cost-center deletes
 - fixed `buildUserAuthorizationData` returning empty roles and permissions on authentication routes (login, passkey verify, MFA verify) because the global `InjectTenantId` middleware cannot resolve a user before authentication completes, leaving the Spatie PermissionRegistrar with a null team context; the method now explicitly sets the team from the user's `tenant_id` before eager-loading (fixes SecPal/frontend#822)
 - fixed the passkey browser-session model mismatch by keeping registration compatibility-friendly (`resident_key: preferred`) while omitting deprecated `require_resident_key` when it is false, and by letting `/v1/auth/passkeys/challenges` take an optional email address that returns `allow_credentials` for email-scoped fallback sign-in when discoverable credentials are unavailable in the browser or authenticator

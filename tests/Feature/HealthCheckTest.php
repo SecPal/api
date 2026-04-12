@@ -49,6 +49,20 @@ describe('Health Check Endpoints', function () {
         });
     });
 
+    describe('GET /health', function () {
+        it('returns public health metadata without exposing the application version', function () {
+            $response = $this->getJson('/health');
+
+            $response->assertOk()
+                ->assertJson([
+                    'status' => 'ok',
+                    'service' => 'SecPal API',
+                ]);
+
+            expect($response->json())->not->toHaveKey('version');
+        });
+    });
+
     describe('GET /health/ready', function () {
         it('returns 200 OK when fully configured', function () {
             $runtimeHeartbeatService = app(RuntimeHeartbeatService::class);
@@ -70,18 +84,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertOk();
-            $response->assertJson([
-                'status' => 'ready',
-                'checks' => [
-                    'database' => 'ok',
-                    'tenant_keys' => 'ok',
-                    'kek_file' => 'ok',
-                    'scheduler' => 'ok',
-                    'queue_default_worker' => 'idle',
-                    'queue_forensics_worker' => 'idle',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 200, 'ready');
         });
 
         it('returns 503 when tenant key is missing', function () {
@@ -93,16 +96,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertStatus(503);
-            $response->assertJson([
-                'status' => 'not_ready',
-                'checks' => [
-                    'database' => 'ok',
-                    'tenant_keys' => 'missing',
-                    'kek_file' => 'ok',
-                    'scheduler' => 'ok',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 503, 'not_ready');
         });
 
         it('returns 503 when KEK file is missing', function () {
@@ -124,16 +118,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertStatus(503);
-            $response->assertJson([
-                'status' => 'not_ready',
-                'checks' => [
-                    'database' => 'ok',
-                    'tenant_keys' => 'ok',
-                    'kek_file' => 'missing',
-                    'scheduler' => 'ok',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 503, 'not_ready');
         });
 
         it('returns 503 when the scheduler heartbeat is missing', function () {
@@ -141,18 +126,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertStatus(503);
-            $response->assertJson([
-                'status' => 'not_ready',
-                'checks' => [
-                    'database' => 'ok',
-                    'tenant_keys' => 'ok',
-                    'kek_file' => 'ok',
-                    'scheduler' => 'missing',
-                    'queue_default_worker' => 'idle',
-                    'queue_forensics_worker' => 'idle',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 503, 'not_ready');
         });
 
         it('returns 503 when the default queue has pending jobs without a fresh worker heartbeat', function () {
@@ -162,15 +136,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertStatus(503);
-            $response->assertJson([
-                'status' => 'not_ready',
-                'checks' => [
-                    'scheduler' => 'ok',
-                    'queue_default_worker' => 'missing',
-                    'queue_forensics_worker' => 'idle',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 503, 'not_ready');
         });
 
         it('returns 503 when the forensics queue has pending jobs without a fresh worker heartbeat', function () {
@@ -180,15 +146,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertStatus(503);
-            $response->assertJson([
-                'status' => 'not_ready',
-                'checks' => [
-                    'scheduler' => 'ok',
-                    'queue_default_worker' => 'idle',
-                    'queue_forensics_worker' => 'missing',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 503, 'not_ready');
         });
 
         it('returns 200 when pending queue jobs still have a fresh worker heartbeat', function () {
@@ -201,15 +159,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertOk();
-            $response->assertJson([
-                'status' => 'ready',
-                'checks' => [
-                    'scheduler' => 'ok',
-                    'queue_default_worker' => 'ok',
-                    'queue_forensics_worker' => 'idle',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 200, 'ready');
         });
 
         it('keeps readiness green when queue workers are idle with stale heartbeats', function () {
@@ -221,15 +171,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertOk();
-            $response->assertJson([
-                'status' => 'ready',
-                'checks' => [
-                    'scheduler' => 'ok',
-                    'queue_default_worker' => 'idle',
-                    'queue_forensics_worker' => 'idle',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 200, 'ready');
         });
 
         it('returns 503 when the scheduler heartbeat is stale', function () {
@@ -239,18 +181,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertStatus(503);
-            $response->assertJson([
-                'status' => 'not_ready',
-                'checks' => [
-                    'database' => 'ok',
-                    'tenant_keys' => 'ok',
-                    'kek_file' => 'ok',
-                    'scheduler' => 'stale',
-                    'queue_default_worker' => 'idle',
-                    'queue_forensics_worker' => 'idle',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 503, 'not_ready');
         });
 
         it('returns 503 when the default queue worker heartbeat is stale with pending jobs', function () {
@@ -263,15 +194,7 @@ describe('Health Check Endpoints', function () {
 
             $response = $this->getJson('/health/ready');
 
-            $response->assertStatus(503);
-            $response->assertJson([
-                'status' => 'not_ready',
-                'checks' => [
-                    'scheduler' => 'ok',
-                    'queue_default_worker' => 'stale',
-                    'queue_forensics_worker' => 'idle',
-                ],
-            ]);
+            assertPublicReadinessResponse($response, 503, 'not_ready');
         });
     });
 
@@ -380,4 +303,15 @@ function seedPendingJob(string $queue): void
         'available_at' => now()->subMinute()->getTimestamp(),
         'created_at' => now()->subMinute()->getTimestamp(),
     ]);
+}
+
+function assertPublicReadinessResponse(Illuminate\Testing\TestResponse $response, int $statusCode, string $status): void
+{
+    $response->assertStatus($statusCode)
+        ->assertJson([
+            'status' => $status,
+        ]);
+
+    expect($response->json())->not->toHaveKey('checks')
+        ->not->toHaveKey('details');
 }
