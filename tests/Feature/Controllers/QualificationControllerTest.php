@@ -120,6 +120,16 @@ describe('GET /v1/qualifications', function () {
         expect($response->json('data')[0]['category'])->toBe('first_aid');
     });
 
+    test('returns 422 for an invalid category filter', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'qualification.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/qualifications?category=not-a-real-category');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['category']);
+    });
+
     test('filters by is_mandatory', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'qualification.read');
 

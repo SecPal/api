@@ -134,6 +134,16 @@ describe('GET /v1/sites/{site}/assignments', function () {
         expect($response->json('data')[0]['role'])->toBe('Site Manager');
     });
 
+    test('returns 422 when role filter is not a string', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/sites/{$this->site->id}/assignments?role[0]=Site%20Manager");
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['role']);
+    });
+
     test('filters assignments by active status', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 

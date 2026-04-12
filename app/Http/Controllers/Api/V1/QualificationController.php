@@ -6,12 +6,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\IndexQualificationRequest;
 use App\Http\Requests\StoreQualificationRequest;
 use App\Http\Requests\UpdateQualificationRequest;
 use App\Http\Resources\QualificationResource;
 use App\Models\Qualification;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -33,9 +33,12 @@ class QualificationController extends Controller
      * - category
      * - is_mandatory (boolean)
      */
-    public function index(Request $request): JsonResponse
+    public function index(IndexQualificationRequest $request): JsonResponse
     {
         $this->authorize('viewAny', Qualification::class);
+
+        /** @var array{category?: string, is_mandatory?: mixed, is_system_qualification?: mixed} $validated */
+        $validated = $request->validated();
 
         /** @var int $tenantId */
         $tenantId = $request->input('tenant_id');
@@ -47,8 +50,8 @@ class QualificationController extends Controller
         });
 
         // Filter by is_system_qualification
-        if ($request->has('is_system_qualification')) {
-            $isSystem = filter_var($request->input('is_system_qualification'), FILTER_VALIDATE_BOOLEAN);
+        if (array_key_exists('is_system_qualification', $validated)) {
+            $isSystem = $request->boolean('is_system_qualification');
             if ($isSystem) {
                 $query->where('is_system_qualification', true)->whereNull('tenant_id');
             } else {
@@ -57,13 +60,13 @@ class QualificationController extends Controller
         }
 
         // Filter by category
-        if ($request->has('category')) {
-            $query->where('category', $request->input('category'));
+        if (array_key_exists('category', $validated)) {
+            $query->where('category', $validated['category']);
         }
 
         // Filter by is_mandatory
-        if ($request->has('is_mandatory')) {
-            $query->where('is_mandatory', filter_var($request->input('is_mandatory'), FILTER_VALIDATE_BOOLEAN));
+        if (array_key_exists('is_mandatory', $validated)) {
+            $query->where('is_mandatory', $request->boolean('is_mandatory'));
         }
 
         $qualifications = $query->orderBy('sort_order')->orderBy('name')->get();

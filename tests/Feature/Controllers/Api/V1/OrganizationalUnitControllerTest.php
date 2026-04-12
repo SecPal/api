@@ -149,6 +149,20 @@ describe('OrganizationalUnitController - List', function () {
             ->assertJsonPath('data.0.type', 'department');
     });
 
+    test('list organizational units returns 422 for an invalid type filter', function () {
+        $response = getJson('/v1/organizational-units?type=not-a-real-type');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['type']);
+    });
+
+    test('list organizational units returns 422 for an invalid parent_id filter', function () {
+        $response = getJson('/v1/organizational-units?parent_id=not-a-uuid');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['parent_id']);
+    });
+
     test('list organizational units includes parent data when accessible', function () {
         // Arrange: Create child unit under root
         $child = OrganizationalUnit::factory()->create([
