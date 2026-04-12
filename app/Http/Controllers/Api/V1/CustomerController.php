@@ -13,6 +13,7 @@ use App\Http\Requests\Api\V1\UpdateCustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
+use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
@@ -95,9 +96,10 @@ class CustomerController extends Controller
         // Search filter
         if ($request->has('search')) {
             $search = $request->string('search')->toString();
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
-                    ->orWhere('customer_number', 'ilike', "%{$search}%");
+            $escapedSearch = LikePattern::escape($search);
+            $query->where(function ($q) use ($escapedSearch) {
+                $q->where('name', 'ilike', "%{$escapedSearch}%")
+                    ->orWhere('customer_number', 'ilike', "%{$escapedSearch}%");
             });
         }
 

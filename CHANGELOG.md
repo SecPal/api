@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- escaped `\\`, `%`, and `_` in customer, site, and employee search terms through a shared LIKE-pattern helper so wildcard-only search input no longer expands into broad `LIKE` / `ILIKE` scans on those endpoints
+
 - capped `/v1/organizational-units` pagination with a dedicated index request so oversized `per_page` values are rejected with `422` instead of allowing unbounded result windows
 
 - switched onboarding submission rejection to persist the validated `reason` payload instead of re-reading raw request input after inline validation

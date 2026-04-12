@@ -222,6 +222,22 @@ describe('GET /v1/employees', function () {
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['email'])->toBe('john.doe@example.com');
     });
+
+    test('treats wildcard-only employee search input as a literal string', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'email' => 'john.doe@secpal.dev',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees?search='.urlencode('%%%%%'));
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(0);
+    });
 });
 
 describe('POST /v1/employees', function () {

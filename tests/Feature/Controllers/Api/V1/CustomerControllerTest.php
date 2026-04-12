@@ -139,6 +139,20 @@ describe('GET /v1/customers', function () {
         expect($response->json('data')[0]['customer_number'])->toBe($customer1->customer_number);
     });
 
+    test('treats wildcard-only customer search input as a literal string', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/customers?search='.urlencode('%%%%%'));
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(0);
+    });
+
     test('user without permission only sees assigned customers', function (): void {
         // User without customers.read permission
         $customer1 = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
