@@ -641,6 +641,84 @@ describe('GET /v1/employees/{employee}', function () {
             ]);
     });
 
+    test('omits sensitive identifiers for managers without employees.read_sensitive', function (): void {
+        $this->user->assignRole('Manager');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'management_level' => 0,
+            'tax_id' => '12345678901',
+            'social_security_number' => '65 123456 A 123',
+            'id_document_number' => 'L01X00T47',
+            'health_insurance_number' => 'AOK123456789',
+            'work_permit_number' => 'WP-123456',
+            'residence_permit_number' => 'RP-123456',
+            'sachkunde_ihk_number' => 'IHK-123456',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$employee->id}");
+
+        $response->assertOk();
+        expect($response->json('data'))->not->toHaveKeys([
+            'tax_id',
+            'social_security_number',
+            'id_document_number',
+            'health_insurance_number',
+            'work_permit_number',
+            'residence_permit_number',
+            'sachkunde_ihk_number',
+        ]);
+    });
+
+    test('returns sensitive identifiers for HR users with employees.read_sensitive', function (): void {
+        $this->user->assignRole('HR');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'management_level' => 0,
+            'tax_id' => '12345678901',
+            'social_security_number' => '65 123456 A 123',
+            'id_document_number' => 'L01X00T47',
+            'health_insurance_number' => 'AOK123456789',
+            'work_permit_number' => 'WP-123456',
+            'residence_permit_number' => 'RP-123456',
+            'sachkunde_ihk_number' => 'IHK-123456',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$employee->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.tax_id', '12345678901')
+            ->assertJsonPath('data.social_security_number', '65 123456 A 123')
+            ->assertJsonPath('data.id_document_number', 'L01X00T47')
+            ->assertJsonPath('data.health_insurance_number', 'AOK123456789')
+            ->assertJsonPath('data.work_permit_number', 'WP-123456')
+            ->assertJsonPath('data.residence_permit_number', 'RP-123456')
+            ->assertJsonPath('data.sachkunde_ihk_number', 'IHK-123456');
+    });
+
     test('returns 404 when user tries to access employee from different tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 

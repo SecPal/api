@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- restricted regulated employee identifiers in `EmployeeResource` behind a new `employees.read_sensitive` permission, seeded a dedicated `HR` role for that access, and stopped non-HR viewers with ordinary employee read access from receiving decrypted tax, social-security, permit, health-insurance, ID-document, and Sachkunde identifier fields
+
 - verified employee email uniqueness enforcement with regression coverage against the unique plaintext `employees.email` column used by `StoreEmployeeRequest`
 
 - added a dedicated `health` rate limiter for `/health`, `/health/live`, and `/health/ready` so unauthenticated health probes now return `429` after repeated abuse from the same IP and route bucket
