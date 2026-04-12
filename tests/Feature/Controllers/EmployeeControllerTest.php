@@ -1103,6 +1103,18 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             'causer_type' => User::class,
             'causer_id' => $this->user->id,
         ]);
+
+        $activity = Activity::query()
+            ->where('subject_type', Employee::class)
+            ->where('subject_id', $employee->id)
+            ->where('description', 'BWR export generated')
+            ->latest()
+            ->first();
+
+        expect($activity)->not->toBeNull()
+            ->and($activity?->properties->get('file_path'))->toBeString()
+            ->and($activity?->properties->get('file_size_bytes'))->toBeInt()
+            ->and($activity?->properties->get('file_size_bytes'))->toBeGreaterThan(0);
     });
 
     test('returns 422 when employee is not ready for bwr export', function (): void {
