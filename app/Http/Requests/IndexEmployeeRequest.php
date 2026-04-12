@@ -31,6 +31,7 @@ class IndexEmployeeRequest extends FormRequest
     {
         return [
             'status' => ['nullable', Rule::in(Employee::VALID_STATUSES)],
+            'compliance_status' => ['nullable', Rule::in(['warning', 'critical', 'expired'])],
             'organizational_unit_id' => [
                 'nullable',
                 'uuid',
@@ -51,6 +52,7 @@ class IndexEmployeeRequest extends FormRequest
             'status.in' => __('Status filter must be one of: :statuses.', [
                 'statuses' => implode(', ', Employee::VALID_STATUSES),
             ]),
+            'compliance_status.in' => __('Compliance status filter must be one of: warning, critical, expired.'),
         ];
     }
 }

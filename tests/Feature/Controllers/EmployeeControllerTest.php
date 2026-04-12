@@ -223,6 +223,81 @@ describe('GET /v1/employees', function () {
         expect($response->json('data')[0]['email'])->toBe('john.doe@example.com');
     });
 
+    test('returns employees with compliance alerts for dashboard overview', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        Employee::factory()->withExpiringComplianceCertifications()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+            'email' => 'alert@example.com',
+        ]);
+
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+            'email' => 'clear@example.com',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees/compliance-alerts');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data');
+
+        expect($response->json('data.0.email'))->toBe('alert@example.com')
+            ->and(collect($response->json('data.0.expiring_documents'))->pluck('status')->all())
+            ->toContain('expired');
+    });
+
+    test('filters employee compliance alerts by alert status', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        Employee::factory()->withComplianceCertifications()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+            'email' => 'warning@example.com',
+            'firearms_license_expiry' => now()->addDays(20)->toDateString(),
+            'first_aid_cert_expiry' => now()->addDays(45)->toDateString(),
+            'evacuation_cert_expiry' => now()->addDays(50)->toDateString(),
+            'additional_certifications' => [
+                [
+                    'name' => 'Badge',
+                    'issued_date' => now()->subMonth()->toDateString(),
+                    'expiry_date' => now()->addDays(18)->toDateString(),
+                    'issuer' => 'Customer Security',
+                ],
+            ],
+        ]);
+
+        Employee::factory()->withExpiringComplianceCertifications()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+            'email' => 'critical@example.com',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees/compliance-alerts?compliance_status=warning');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data');
+
+        expect($response->json('data.0.email'))->toBe('warning@example.com');
+    });
+
+    test('returns 422 for invalid employee compliance alert status filter', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees/compliance-alerts?compliance_status=blocked');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['compliance_status']);
+    });
+
     test('treats wildcard-only employee search input as a literal string', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
