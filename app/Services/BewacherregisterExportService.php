@@ -36,6 +36,29 @@ class BewacherregisterExportService
         ];
     }
 
+    /**
+     * @return array{disk: string, path: string, file_name: string}
+     */
+    public function exportXml(Employee $employee, string $exportedBy): array
+    {
+        $this->assertReadyForExport($employee);
+
+        $fileName = sprintf(
+            'bwr_export_%s_%s.xml',
+            str_replace('/', '-', $employee->employee_number),
+            now()->format('Ymd_His')
+        );
+        $path = $this->pathFor($employee, $fileName);
+
+        Storage::disk('local')->put($path, $this->generateXml($this->buildExportData($employee, $exportedBy)));
+
+        return [
+            'disk' => 'local',
+            'path' => $path,
+            'file_name' => $fileName,
+        ];
+    }
+
     public function downloadPath(Employee $employee, string $fileName): string
     {
         return $this->pathFor($employee, $this->sanitizeFileName($fileName));
@@ -194,6 +217,26 @@ class BewacherregisterExportService
         return $csv;
     }
 
+    /**
+     * @param  array<string, string>  $data
+     */
+    private function generateXml(array $data): string
+    {
+        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><bewacherregisterExport/>');
+
+        foreach ($data as $key => $value) {
+            $xml->addChild($key, htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8'));
+        }
+
+        $renderedXml = $xml->asXML();
+
+        if (! is_string($renderedXml)) {
+            throw new \RuntimeException('Failed to generate XML export content.');
+        }
+
+        return $renderedXml;
+    }
+
     private function pathFor(Employee $employee, string $fileName): string
     {
         return 'bwr_exports/'.$employee->id.'/'.$fileName;
@@ -203,6 +246,6 @@ class BewacherregisterExportService
     {
         $sanitized = preg_replace('/[^A-Za-z0-9._-]+/', '_', $fileName);
 
-        return is_string($sanitized) && $sanitized !== '' ? $sanitized : 'bwr_export.csv';
+        return is_string($sanitized) && $sanitized !== '' ? $sanitized : 'bwr_export.xml';
     }
 }
