@@ -59,7 +59,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $shouldRenderApiJson = static function (Request $request): bool {
-            return $request->is('v1/*') || $request->expectsJson();
+            return $request->is('v1', 'v1/*') || $request->expectsJson();
         };
 
         // Return JSON 401 response for unauthenticated API requests
@@ -84,14 +84,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (NotFoundHttpException $e, Request $request) use ($shouldRenderApiJson) {
             if (! $shouldRenderApiJson($request)) {
-                return null;
-            }
-
-            $previous = $e->getPrevious();
-            $isModelNotFound = $previous instanceof ModelNotFoundException
-                || str_starts_with($e->getMessage(), 'No query results for model [');
-
-            if (! $isModelNotFound) {
                 return null;
             }
 

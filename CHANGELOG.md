@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- normalized generic API `404` responses to `{"message":"Resource not found."}` for unknown `/v1/*` routes in all debug modes, preventing default Laravel HTML or stack-trace payloads from leaking through
+
 - escaped `\\`, `%`, and `_` in customer, site, and employee search terms through a shared LIKE-pattern helper so wildcard-only search input no longer expands into broad `LIKE` / `ILIKE` scans on those endpoints
 
 - capped `/v1/organizational-units` pagination with a dedicated index request so oversized `per_page` values are rejected with `422` instead of allowing unbounded result windows

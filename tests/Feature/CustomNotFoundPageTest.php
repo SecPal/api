@@ -100,7 +100,7 @@ describe('Custom error pages', function () {
 
         $response->assertNotFound();
 
-        expect($response->json('message'))->toBeString()->toContain('could not be found');
+        expect($response->json('message'))->toBeString()->toBe('Resource not found.');
         expect((string) $response->headers->get('Content-Type'))->toContain('application/json');
     });
 });
