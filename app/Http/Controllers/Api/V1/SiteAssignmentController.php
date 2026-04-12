@@ -12,8 +12,11 @@ use App\Http\Requests\Api\V1\Assignment\IndexSiteAssignmentRequest;
 use App\Http\Requests\Api\V1\Assignment\StoreSiteAssignmentRequest;
 use App\Http\Requests\Api\V1\Assignment\UpdateAssignmentRequest;
 use App\Http\Resources\Api\V1\SiteAssignmentResource;
+use App\Models\Employee;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Models\User;
+use App\Services\EmployeeComplianceService;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -70,13 +73,26 @@ class SiteAssignmentController extends Controller
      *
      * @return JsonResponse SiteAssignmentResource (201 Created) or error (409 Conflict)
      */
-    public function store(StoreSiteAssignmentRequest $request, Site $site): JsonResponse
+    public function store(StoreSiteAssignmentRequest $request, Site $site, EmployeeComplianceService $complianceService): JsonResponse
     {
         $this->authorize('create', [SiteAssignment::class, $site]);
 
         $validated = $request->validated();
         $validated['tenant_id'] = $request->input('tenant_id');
         $validated['site_id'] = $site->id;
+
+        /** @var User $targetUser */
+        $targetUser = User::query()->with('employee')->findOrFail($validated['user_id']);
+        $blockingDocuments = $targetUser->employee instanceof Employee
+            ? $complianceService->blockingDocuments($targetUser->employee)
+            : collect();
+
+        if ($blockingDocuments->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Employee cannot be assigned while critical compliance documents are expired or due within 7 days.',
+                'blocking_documents' => $blockingDocuments->all(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         // Check for existing assignment with same user+role
         $existing = SiteAssignment::where('site_id', $site->id)

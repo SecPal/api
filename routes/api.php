@@ -283,6 +283,7 @@ Route::prefix('v1')->group(function () {
             // Employees (HR module)
             Route::middleware('tenant.inject')->group(function () {
                 Route::get('/employees', [EmployeeController::class, 'index']);
+                Route::get('/employees/compliance-alerts', [EmployeeController::class, 'complianceAlerts']);
                 Route::post('/employees', [EmployeeController::class, 'store']);
                 Route::get('/employees/{employee}', [EmployeeController::class, 'show']);
                 Route::patch('/employees/{employee}', [EmployeeController::class, 'update']);

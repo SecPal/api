@@ -12,10 +12,13 @@ use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
 use App\Models\TenantKey;
+use App\Services\EmployeeComplianceService;
 use App\Services\EmployeeLifecycleService;
 use App\Services\EmployeeOnboardingInvitationService;
 use App\Support\LikePattern;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
@@ -34,12 +37,54 @@ class EmployeeController extends Controller
      * Supports filtering by:
      * - status (applicant, pre_contract, active, on_leave, terminated)
      * - organizational_unit_id
-     * - search (name, email, employee_number)
+     * - search (email, employee_number)
      */
-    public function index(IndexEmployeeRequest $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
+    public function index(IndexEmployeeRequest $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Employee::class);
 
+        $employees = $this->buildEmployeeIndexQuery($request)
+            ->with(['user', 'organizationalUnit'])
+            ->paginate($request->integer('per_page', 15));
+
+        return EmployeeResource::collection($employees);
+    }
+
+    /**
+     * Display employees with active compliance alerts for overview use cases.
+     */
+    public function complianceAlerts(IndexEmployeeRequest $request, EmployeeComplianceService $complianceService): AnonymousResourceCollection
+    {
+        $this->authorize('viewAny', Employee::class);
+
+        /** @var string|null $complianceStatus */
+        $complianceStatus = $request->input('compliance_status');
+
+        $employees = $this->buildEmployeeIndexQuery($request)
+            ->whereIn('status', [
+                Employee::STATUS_PRE_CONTRACT,
+                Employee::STATUS_ACTIVE,
+                Employee::STATUS_ON_LEAVE,
+            ])
+            ->with(['user', 'organizationalUnit'])
+            ->paginate($request->integer('per_page', 15));
+
+        $employees->setCollection(
+            $employees->getCollection()
+                ->filter(fn (Employee $employee): bool => $complianceService->hasAlerts($employee, $complianceStatus))
+                ->values()
+        );
+
+        return EmployeeResource::collection($employees);
+    }
+
+    /**
+     * Build the common employee index query with tenant, scope, and filter handling.
+     *
+     * @return Builder<Employee>
+     */
+    private function buildEmployeeIndexQuery(IndexEmployeeRequest $request): Builder
+    {
         /** @var \App\Models\User $user */
         $user = $request->user();
 
@@ -69,7 +114,7 @@ class EmployeeController extends Controller
             $query->where('organizational_unit_id', $request->input('organizational_unit_id'));
         }
 
-        // Search by name, email, or employee_number
+        // Search by email or employee_number
         if ($request->has('search')) {
             /** @var string $search */
             $search = $request->input('search');
@@ -80,10 +125,7 @@ class EmployeeController extends Controller
             });
         }
 
-        $employees = $query->with(['user', 'organizationalUnit'])
-            ->paginate($request->integer('per_page', 15));
-
-        return EmployeeResource::collection($employees);
+        return $query;
     }
 
     /**
