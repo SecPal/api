@@ -330,6 +330,23 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
             ->toContain('employees.create')
             ->toHaveCount(2);
     });
+
+    test('returns 422 when permissions is explicitly null', function (): void {
+        $this->user->givePermissionTo('roles.update');
+        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role->givePermissionTo('employees.read');
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/roles/{$role->id}", [
+                'permissions' => null,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['permissions']);
+
+        // Permissions must not be cleared by a null payload.
+        expect($role->fresh()->permissions->pluck('name'))->toContain('employees.read');
+    });
 });
 
 describe('DELETE /v1/roles/{id} - Delete Role', function () {

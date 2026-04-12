@@ -110,7 +110,7 @@ class RoleManagementController extends Controller
 
         if (array_key_exists('permissions', $validated)) {
             /** @var array<int, string> $permissions */
-            $permissions = $validated['permissions'] ?? [];
+            $permissions = $validated['permissions'];
             $role->syncPermissions($permissions);
         }
 
