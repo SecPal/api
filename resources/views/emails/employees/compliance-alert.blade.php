@@ -26,7 +26,7 @@
 @foreach ($documents as $document)
 **{{ $document['label'] }}**
 {{ __('Expiry Date') }}: {{ \Illuminate\Support\Carbon::parse($document['expiry'])->format('d.m.Y') }}
-{{ __('Status') }}: {{ ucfirst($document['status']) }}
+{{ __('Status') }}: {{ __('emails.compliance_alert.severities.'.$document['status']) }}
 
 @if (! $loop->last)
 

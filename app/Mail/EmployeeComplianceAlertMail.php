@@ -15,6 +15,10 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
+/**
+ * Queued mail to notify an employee when one or more compliance documents
+ * reach a warning (30 days), critical (7 days), or expired (-1 day) milestone.
+ */
 class EmployeeComplianceAlertMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;

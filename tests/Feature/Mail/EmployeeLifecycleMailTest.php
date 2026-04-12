@@ -340,3 +340,19 @@ test('employee compliance alert mail keeps severity and document data', function
     expect($mail->documents)->toBe($documents);
     expect($mail->severity)->toBe('expired');
 });
+
+test('employee compliance alert mail envelope subject contains translated severity', function () {
+    app()->setLocale('en');
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'email' => 'envelope.test@example.com',
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $mail = new EmployeeComplianceAlertMail($employee, [], 'critical');
+
+    $subject = $mail->envelope()->subject;
+    expect($subject)->toBe('Compliance documents require attention: critical');
+});

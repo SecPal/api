@@ -49,41 +49,47 @@ class SendEmployeeComplianceAlertNotifications extends Command
             $this->warn('DRY RUN MODE - No emails will be queued');
         }
 
-        $employees = Employee::where('status', Employee::STATUS_ACTIVE)
-            ->with('user')
-            ->get();
-
         $notifications = 0;
+        $errors = 0;
         $severityCounts = [
             'warning' => 0,
             'critical' => 0,
             'expired' => 0,
         ];
 
-        foreach ($employees as $employee) {
-            $documents = $this->notificationDocuments($complianceService, $employee);
+        Employee::where('status', Employee::STATUS_ACTIVE)
+            ->whereNotNull('user_id')
+            ->whereNotNull('email')
+            ->with('user')
+            ->chunkById(100, function ($employees) use ($complianceService, $isDryRun, &$notifications, &$errors, &$severityCounts): void {
+                foreach ($employees as $employee) {
+                    $documents = $this->notificationDocuments($complianceService, $employee);
 
-            if ($documents->isEmpty()) {
-                continue;
-            }
+                    if ($documents->isEmpty()) {
+                        continue;
+                    }
 
-            if (! $employee->user || ! is_string($employee->email) || trim($employee->email) === '') {
-                $this->warn("  Skipping: Employee {$employee->id} has no user account or email");
+                    $severity = (string) $documents->first()['status'];
 
-                continue;
-            }
+                    $this->line("  Notifying: {$employee->first_name} {$employee->last_name} (ID: {$employee->id}) - {$severity}");
 
-            $severity = (string) $documents->first()['status'];
+                    try {
+                        if (! $isDryRun) {
+                            Mail::to($employee->email)->queue(new EmployeeComplianceAlertMail($employee, $documents->all(), $severity));
+                        }
 
-            $this->line("  Notifying: {$employee->first_name} {$employee->last_name} (ID: {$employee->id}) - {$severity}");
-
-            if (! $isDryRun) {
-                Mail::to($employee->email)->queue(new EmployeeComplianceAlertMail($employee, $documents->all(), $severity));
-            }
-
-            $notifications++;
-            $severityCounts[$severity]++;
-        }
+                        $notifications++;
+                        $severityCounts[$severity]++;
+                    } catch (\Throwable $e) {
+                        $errors++;
+                        $this->error("  Failed to queue notification for employee {$employee->id}: {$e->getMessage()}");
+                        Log::error('Failed to queue compliance alert notification', [
+                            'employee_id' => $employee->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            });
 
         $this->newLine();
         $this->info('Summary:');
@@ -91,6 +97,10 @@ class SendEmployeeComplianceAlertNotifications extends Command
         $this->line('  Warning: '.$severityCounts['warning']);
         $this->line('  Critical: '.$severityCounts['critical']);
         $this->line('  Expired: '.$severityCounts['expired']);
+
+        if ($errors > 0) {
+            $this->warn("  Errors: {$errors}");
+        }
 
         if ($isDryRun) {
             $this->warn('DRY RUN MODE - No actual emails were queued');
@@ -102,6 +112,7 @@ class SendEmployeeComplianceAlertNotifications extends Command
             'warning' => $severityCounts['warning'],
             'critical' => $severityCounts['critical'],
             'expired' => $severityCounts['expired'],
+            'errors' => $errors,
             'dry_run' => $isDryRun,
         ]);
 
@@ -128,7 +139,7 @@ class SendEmployeeComplianceAlertNotifications extends Command
             return $documents;
         }
 
-        $severity = $this->highestSeverity($documents);
+        $severity = $this->highestSeverity($complianceService, $documents);
 
         return $documents
             ->filter(fn (array $document): bool => $document['status'] === $severity)
@@ -138,24 +149,14 @@ class SendEmployeeComplianceAlertNotifications extends Command
     /**
      * @param  Collection<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}>  $documents
      */
-    private function highestSeverity(Collection $documents): string
+    private function highestSeverity(EmployeeComplianceService $complianceService, Collection $documents): string
     {
         /** @var string $severity */
         $severity = $documents
-            ->sortByDesc(fn (array $document): int => $this->severityWeight((string) $document['status']))
+            ->sortByDesc(fn (array $document): int => $complianceService->severity((string) $document['status']))
             ->pluck('status')
             ->first();
 
         return $severity;
-    }
-
-    private function severityWeight(string $status): int
-    {
-        return match ($status) {
-            'expired' => 3,
-            'critical' => 2,
-            'warning' => 1,
-            default => 0,
-        };
     }
 }

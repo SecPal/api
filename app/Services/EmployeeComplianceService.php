@@ -63,7 +63,7 @@ class EmployeeComplianceService
         return $status;
     }
 
-    private function severity(string $status): int
+    public function severity(string $status): int
     {
         return match ($status) {
             'expired' => 3,
