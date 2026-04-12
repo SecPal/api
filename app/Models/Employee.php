@@ -93,6 +93,18 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string|null $work_permit_copy_path Storage path for uploaded work permit copy
  * @property string|null $work_permit_issued_by
  * @property ?\Illuminate\Support\Carbon $work_permit_copy_deleted_at
+ * @property string|null $firearms_license_number_enc Encrypted firearms license number
+ * @property string|null $firearms_license_number
+ * @property ?\Illuminate\Support\Carbon $firearms_license_expiry
+ * @property string|null $firearms_license_issued_by
+ * @property string|null $first_aid_cert_number
+ * @property ?\Illuminate\Support\Carbon $first_aid_cert_date
+ * @property ?\Illuminate\Support\Carbon $first_aid_cert_expiry
+ * @property ?\Illuminate\Support\Carbon $fire_safety_cert_date
+ * @property ?\Illuminate\Support\Carbon $fire_safety_cert_expiry
+ * @property ?\Illuminate\Support\Carbon $evacuation_cert_date
+ * @property ?\Illuminate\Support\Carbon $evacuation_cert_expiry
+ * @property array<int, array{name: string, number?: ?string, issued_date?: ?string, expiry_date?: ?string, issuer?: ?string}>|null $additional_certifications
  * @property string $residence_permit_type unlimited|limited|none
  * @property string|null $residence_permit_number
  * @property ?\Illuminate\Support\Carbon $residence_permit_expiry
@@ -382,6 +394,18 @@ class Employee extends Model
         'work_permit_expiry',
         'work_permit_issued_by',
         'work_permit_copy_deleted_at',
+        'firearms_license_number_enc',
+        'firearms_license_number',
+        'firearms_license_expiry',
+        'firearms_license_issued_by',
+        'first_aid_cert_number',
+        'first_aid_cert_date',
+        'first_aid_cert_expiry',
+        'fire_safety_cert_date',
+        'fire_safety_cert_expiry',
+        'evacuation_cert_date',
+        'evacuation_cert_expiry',
+        'additional_certifications',
         'residence_permit_type',
         'residence_permit_number',
         'residence_permit_expiry',
@@ -429,6 +453,7 @@ class Employee extends Model
         'address_supplement_enc',
         'id_document_number_enc',
         'work_permit_number_enc',
+        'firearms_license_number_enc',
         'hourly_rate_enc',
         'tax_id_enc',
         'social_security_number_enc',
@@ -456,6 +481,7 @@ class Employee extends Model
             'address_supplement_enc' => \App\Casts\EncryptedWithDek::class,
             'id_document_number_enc' => \App\Casts\EncryptedWithDek::class,
             'work_permit_number_enc' => \App\Casts\EncryptedWithDek::class,
+            'firearms_license_number_enc' => \App\Casts\EncryptedWithDek::class,
             'hourly_rate_enc' => \App\Casts\EncryptedWithDek::class,
             'tax_id_enc' => \App\Casts\EncryptedWithDek::class,
             'social_security_number_enc' => \App\Casts\EncryptedWithDek::class,
@@ -464,6 +490,7 @@ class Employee extends Model
             'nationalities' => 'array',
             'address_history' => 'array',
             'intended_activities' => 'array',
+            'additional_certifications' => 'array',
             'runtime_access_snapshot' => 'array',
             // Dates
             'bwr_registered_at' => 'datetime',
@@ -481,6 +508,13 @@ class Employee extends Model
             'id_document_copy_deleted_at' => 'datetime',
             'work_permit_expiry' => 'date',
             'work_permit_copy_deleted_at' => 'datetime',
+            'firearms_license_expiry' => 'date',
+            'first_aid_cert_date' => 'date',
+            'first_aid_cert_expiry' => 'date',
+            'fire_safety_cert_date' => 'date',
+            'fire_safety_cert_expiry' => 'date',
+            'evacuation_cert_date' => 'date',
+            'evacuation_cert_expiry' => 'date',
             'residence_permit_expiry' => 'date',
             'criminal_record_check_date' => 'date',
             // Decimals
@@ -639,6 +673,9 @@ class Employee extends Model
             }
             if ($employee->isDirty('work_permit_number_enc') && $employee->hasActuallyChanged('work_permit_number')) {
                 $changedFields[] = 'work_permit_number';
+            }
+            if ($employee->isDirty('firearms_license_number_enc') && $employee->hasActuallyChanged('firearms_license_number')) {
+                $changedFields[] = 'firearms_license_number';
             }
             if ($employee->isDirty('hourly_rate_enc') && $employee->hasActuallyChanged('hourly_rate')) {
                 $changedFields[] = 'hourly_rate';
@@ -1037,6 +1074,22 @@ class Employee extends Model
     }
 
     /**
+     * Get decrypted firearms license number (via EncryptedWithDek cast).
+     */
+    public function getFirearmsLicenseNumberAttribute(): ?string
+    {
+        return $this->firearms_license_number_enc;
+    }
+
+    /**
+     * Set plaintext firearms license number - Cast handles encryption.
+     */
+    public function setFirearmsLicenseNumberAttribute(?string $value): void
+    {
+        $this->firearms_license_number_enc = $value;
+    }
+
+    /**
      * Get complete structured address as formatted string.
      *
      * @return string|null Formatted address or null if no address data
@@ -1103,6 +1156,11 @@ class Employee extends Model
         $this->appendExpiringDocument($documents, 'work_permit', 'Work Permit', $this->work_permit_expiry);
         $this->appendExpiringDocument($documents, 'residence_permit', 'Residence Permit', $this->residence_permit_expiry);
         $this->appendExpiringDocument($documents, 'id_document', 'ID Document', $this->id_document_expiry);
+        $this->appendExpiringDocument($documents, 'firearms_license', 'Firearms License', $this->firearms_license_expiry);
+        $this->appendExpiringDocument($documents, 'first_aid_certificate', 'First Aid Certificate', $this->first_aid_cert_expiry);
+        $this->appendExpiringDocument($documents, 'fire_safety_certificate', 'Fire Safety Certificate', $this->fire_safety_cert_expiry);
+        $this->appendExpiringDocument($documents, 'evacuation_certificate', 'Evacuation Certificate', $this->evacuation_cert_expiry);
+        $this->appendExpiringAdditionalCertifications($documents);
 
         /** @var SupportCollection<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}> $collection */
         $collection = collect($documents)->sortBy('expiry')->values();
@@ -1131,6 +1189,40 @@ class Employee extends Model
             'status' => $daysUntilExpiry < 0 ? 'expired' : ($daysUntilExpiry <= 7 ? 'critical' : 'warning'),
             'days_until_expiry' => $daysUntilExpiry,
         ];
+    }
+
+    /**
+     * @param  array<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}>  $documents
+     */
+    private function appendExpiringAdditionalCertifications(array &$documents): void
+    {
+        if (! is_array($this->additional_certifications)) {
+            return;
+        }
+
+        foreach ($this->additional_certifications as $certification) {
+            if (! is_array($certification)) {
+                continue;
+            }
+
+            $expiry = $certification['expiry_date'] ?? null;
+            if (! is_string($expiry) || $expiry === '') {
+                continue;
+            }
+
+            try {
+                $expiryDate = \Illuminate\Support\Carbon::parse($expiry)->startOfDay();
+            } catch (\Throwable) {
+                continue;
+            }
+
+            $label = $certification['name'] ?? 'Additional Certification';
+            if (! is_string($label) || trim($label) === '') {
+                $label = 'Additional Certification';
+            }
+
+            $this->appendExpiringDocument($documents, 'additional_certification', $label, $expiryDate);
+        }
     }
 
     // === STATUS STATE MACHINE ===

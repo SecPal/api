@@ -312,6 +312,79 @@ test('UpdateEmployeeRequest enforces work permit rules when patching employee in
     expect($validValidator->passes())->toBeTrue();
 });
 
+test('certification expiry dates must be after their issue dates', function () {
+    $validator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'certifications@example.com',
+        'first_aid_cert_date' => '2026-04-10',
+        'first_aid_cert_expiry' => '2026-04-09',
+        'fire_safety_cert_date' => '2026-04-10',
+        'fire_safety_cert_expiry' => '2026-04-08',
+        'evacuation_cert_date' => '2026-04-10',
+        'evacuation_cert_expiry' => '2026-04-07',
+    ]));
+
+    expect($validator->fails())->toBeTrue()
+        ->and($validator->errors()->has('first_aid_cert_expiry'))->toBeTrue()
+        ->and($validator->errors()->has('fire_safety_cert_expiry'))->toBeTrue()
+        ->and($validator->errors()->has('evacuation_cert_expiry'))->toBeTrue();
+});
+
+test('additional certifications require structured nested data', function () {
+    $validator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'additional-certs@example.com',
+        'additional_certifications' => [
+            [
+                'name' => 'Site Access Badge',
+                'issued_date' => '2026-04-10',
+                'expiry_date' => '2026-04-09',
+            ],
+            [
+                'number' => 'MISSING-NAME',
+            ],
+        ],
+    ]));
+
+    expect($validator->fails())->toBeTrue()
+        ->and($validator->errors()->has('additional_certifications.0.expiry_date'))->toBeTrue()
+        ->and($validator->errors()->has('additional_certifications.1.name'))->toBeTrue();
+
+    $validValidator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'additional-certs-valid@example.com',
+        'additional_certifications' => [
+            [
+                'name' => 'Site Access Badge',
+                'number' => 'BADGE-123',
+                'issued_date' => '2026-04-01',
+                'expiry_date' => '2026-05-01',
+                'issuer' => 'Customer Security',
+            ],
+        ],
+    ]));
+
+    expect($validValidator->passes())->toBeTrue();
+});
+
+test('update request validates additional certifications and firearms expiry fields', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->organizationalUnit->id,
+    ]);
+
+    $validator = makeUpdateEmployeeValidator($this, $employee, [
+        'firearms_license_expiry' => '2026-04-01',
+        'additional_certifications' => [
+            [
+                'name' => 'Weapons Safe Handling',
+                'issued_date' => '2026-04-10',
+                'expiry_date' => '2026-04-09',
+            ],
+        ],
+    ]);
+
+    expect($validator->fails())->toBeTrue()
+        ->and($validator->errors()->has('additional_certifications.0.expiry_date'))->toBeTrue();
+});
+
 test('validation messages are in German', function () {
     $request = new StoreEmployeeRequest;
 

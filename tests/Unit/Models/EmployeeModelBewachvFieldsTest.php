@@ -61,6 +61,18 @@ test('it encrypts and decrypts work permit number', function () {
     expect($this->employee->work_permit_number)->toEqual($permitNumber);
 });
 
+test('it encrypts and decrypts firearms license number', function () {
+    $licenseNumber = 'WL-778899';
+    $this->employee->firearms_license_number = $licenseNumber;
+    $this->employee->save();
+
+    expect($this->employee->getAttributes()['firearms_license_number_enc'])->not->toEqual($licenseNumber)
+        ->and($this->employee->getAttributes()['firearms_license_number_enc'])->not->toBeNull();
+
+    $this->employee->refresh();
+    expect($this->employee->firearms_license_number)->toEqual($licenseNumber);
+});
+
 test('it formats structured address correctly', function () {
     $this->employee->update([
         'address_street' => 'Hauptstraße',
@@ -148,6 +160,42 @@ test('it returns expiring compliance documents within 30 days', function () {
     expect($documents)->toBeInstanceOf(Illuminate\Support\Collection::class)
         ->and($documents->pluck('type')->all())->toContain('work_permit', 'residence_permit')
         ->and($documents->pluck('type')->all())->not->toContain('id_document');
+});
+
+test('it aggregates expiring employee certifications and additional certifications', function () {
+    $this->employee->update([
+        'firearms_license_number' => 'WL-12345',
+        'firearms_license_expiry' => now()->addDays(4)->toDateString(),
+        'firearms_license_issued_by' => 'Polizeipraesidium Berlin',
+        'first_aid_cert_number' => 'FA-987',
+        'first_aid_cert_date' => now()->subYear()->toDateString(),
+        'first_aid_cert_expiry' => now()->addDays(15)->toDateString(),
+        'fire_safety_cert_date' => now()->subYear()->toDateString(),
+        'fire_safety_cert_expiry' => now()->addDays(40)->toDateString(),
+        'evacuation_cert_date' => now()->subYear()->toDateString(),
+        'evacuation_cert_expiry' => now()->subDay()->toDateString(),
+        'additional_certifications' => [
+            [
+                'name' => 'Site Access Badge',
+                'number' => 'BADGE-7',
+                'issued_date' => now()->subMonth()->toDateString(),
+                'expiry_date' => now()->addDays(2)->toDateString(),
+                'issuer' => 'Customer Security',
+            ],
+            [
+                'name' => 'Long-term Clearance',
+                'issued_date' => now()->subMonth()->toDateString(),
+                'expiry_date' => now()->addDays(60)->toDateString(),
+                'issuer' => 'Customer Security',
+            ],
+        ],
+    ]);
+
+    $documents = $this->employee->fresh()->expiring_documents;
+
+    expect($documents->pluck('type')->all())
+        ->toContain('firearms_license', 'first_aid_certificate', 'evacuation_certificate', 'additional_certification')
+        ->not->toContain('fire_safety_certificate');
 });
 
 test('it casts address history to array', function () {

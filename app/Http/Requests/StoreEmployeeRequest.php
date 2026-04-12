@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\InteractsWithCertificationValidation;
 use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
 use Illuminate\Foundation\Http\FormRequest;
@@ -17,6 +18,7 @@ use Illuminate\Validation\Rule;
  */
 class StoreEmployeeRequest extends FormRequest
 {
+    use InteractsWithCertificationValidation;
     use InteractsWithWorkPermitValidation;
 
     /**
@@ -34,7 +36,7 @@ class StoreEmployeeRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        return array_merge([
             // Personal Data (will be encrypted)
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
@@ -228,7 +230,7 @@ class StoreEmployeeRequest extends FormRequest
                     }
                 },
             ],
-        ];
+        ], $this->certificationValidationRules());
     }
 
     /**
@@ -238,7 +240,7 @@ class StoreEmployeeRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
+        return array_merge([
             // Basic fields
             'first_name.required' => __('First name is required'),
             'last_name.required' => __('Last name is required'),
@@ -294,6 +296,6 @@ class StoreEmployeeRequest extends FormRequest
             'work_permit_issued_by.required' => 'Ausstellende Behörde der Arbeitserlaubnis ist verpflichtend.',
             'work_permit_expiry.required' => 'Ablaufdatum der Arbeitserlaubnis ist für befristete Arbeitserlaubnisse verpflichtend.',
             'work_permit_expiry.after' => 'Ablaufdatum der Arbeitserlaubnis muss in der Zukunft liegen.',
-        ];
+        ], $this->certificationValidationMessages());
     }
 }
