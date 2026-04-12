@@ -45,8 +45,6 @@ This guide covers:
 - **Security by Design** - Input validation always, never log sensitive data
 - **Convention over Configuration** - Follow Laravel conventions & PSR-12
 
-**📋 Copilot Reminder Patterns:** See [`docs/COPILOT_REMINDER_PATTERNS.md`](./docs/COPILOT_REMINDER_PATTERNS.md) for prompts to keep Copilot aligned with these principles.
-
 ---
 
 ## Prerequisites
@@ -458,23 +456,10 @@ The Epic and Sub-Issue templates are **organization-wide** (in `SecPal/.github`)
 
 ### Full Documentation
 
-See [docs/EPIC_WORKFLOW.md](./docs/EPIC_WORKFLOW.md) for complete guide including:
-
-- When to use epics vs regular issues
-- How to create and link sub-issues
-- Project board automation
-- Real-world example (Issue #50 retrospective)
-- Best practices and FAQ
-
-**Related Documentation:**
-
-- [EPIC_WORKFLOW.md](./docs/EPIC_WORKFLOW.md) - Complete workflow guide
-- [ISSUE50_RETROSPECTIVE.md](./docs/ISSUE50_RETROSPECTIVE.md) - Case study
-- [EPIC_IMPLEMENTATION_SUMMARY.md](./docs/EPIC_IMPLEMENTATION_SUMMARY.md) - Quick reference
+For complete Epic workflow guidance, refer to the SecPal `.github` repository docs or the GitHub Issues interface directly.
 
 ## Documentation
 
 - [Database Schema](./docs/database-schema.md)
 - [Encryption Strategy](./docs/ENCRYPTION_STRATEGY.md)
 - [Database Decisions](./docs/DATABASE_DECISIONS.md)
-- [Epic Workflow](./docs/EPIC_WORKFLOW.md) - Multi-PR feature tracking
