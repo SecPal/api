@@ -45,86 +45,53 @@ class HealthController extends Controller
      */
     public function ready(RuntimeHeartbeatService $runtimeHeartbeatService): JsonResponse
     {
-        $checks = [];
-        $details = [];
         $allPassed = true;
 
-        // Check 1: Database connectivity
+        // Database connectivity
         try {
             DB::connection()->getPdo();
-            $checks['database'] = 'ok';
-        } catch (\Exception $e) {
-            $checks['database'] = 'error';
+        } catch (\Exception) {
             $allPassed = false;
         }
 
-        // Check 2: Tenant keys exist
+        // Tenant keys exist
         try {
-            $tenantKeyCount = TenantKey::count();
-            if ($tenantKeyCount > 0) {
-                $checks['tenant_keys'] = 'ok';
-            } else {
-                $checks['tenant_keys'] = 'missing';
+            if (TenantKey::count() === 0) {
                 $allPassed = false;
             }
-        } catch (\Exception $e) {
-            $checks['tenant_keys'] = 'error';
+        } catch (\Exception) {
             $allPassed = false;
         }
 
-        // Check 3: KEK file is readable
+        // KEK file is readable
         $kekPath = TenantKey::getKekPath();
-        if (File::exists($kekPath) && File::isReadable($kekPath)) {
-            $checks['kek_file'] = 'ok';
-        } else {
-            $checks['kek_file'] = 'missing';
+        if (! File::exists($kekPath) || ! File::isReadable($kekPath)) {
             $allPassed = false;
         }
 
+        // Scheduler heartbeat
         try {
-            $schedulerCheck = $runtimeHeartbeatService->schedulerReadiness();
-            $checks['scheduler'] = $schedulerCheck['status'];
-            $details['scheduler'] = [
-                'last_heartbeat_at' => $schedulerCheck['last_heartbeat_at'],
-                'stale_after_seconds' => $schedulerCheck['stale_after_seconds'],
-            ];
-
-            if (! $schedulerCheck['healthy']) {
+            if (! $runtimeHeartbeatService->schedulerReadiness()['healthy']) {
                 $allPassed = false;
             }
         } catch (\Throwable) {
-            $checks['scheduler'] = 'error';
-            $details['scheduler'] = ['last_heartbeat_at' => null, 'stale_after_seconds' => null];
             $allPassed = false;
         }
 
+        // Queue worker heartbeats
         try {
-            foreach ($runtimeHeartbeatService->queueReadiness() as $checkName => $queueCheck) {
-                $checks[$checkName] = $queueCheck['status'];
-                $details[$checkName] = [
-                    'last_heartbeat_at' => $queueCheck['last_heartbeat_at'],
-                    'pending_jobs' => $queueCheck['pending_jobs'],
-                    'stale_after_seconds' => $queueCheck['stale_after_seconds'],
-                ];
-
+            foreach ($runtimeHeartbeatService->queueReadiness() as $queueCheck) {
                 if (! $queueCheck['healthy']) {
                     $allPassed = false;
                 }
             }
         } catch (\Throwable) {
-            $checks['queue'] = 'error';
-            $details['queue'] = ['last_heartbeat_at' => null, 'pending_jobs' => null, 'stale_after_seconds' => null];
             $allPassed = false;
         }
 
-        $status = $allPassed ? 'ready' : 'not_ready';
-        $httpStatus = $allPassed ? 200 : 503;
-
         return response()->json([
-            'status' => $status,
-            'checks' => $checks,
-            'details' => $details,
+            'status' => $allPassed ? 'ready' : 'not_ready',
             'timestamp' => now()->toIso8601String(),
-        ], $httpStatus);
+        ], $allPassed ? 200 : 503);
     }
 }
