@@ -586,7 +586,7 @@ describe('DELETE /v1/sites/{site}/cost-centers/{costCenter}', function () {
             'X-Tenant-ID' => (string) $this->tenant->id,
         ])->deleteJson("/v1/sites/{$this->site->id}/cost-centers/{$costCenter->id}");
 
-        $response->assertStatus(204);
+        $response->assertNoContent();
 
         $this->assertSoftDeleted('cost_centers', [
             'id' => $costCenter->id,

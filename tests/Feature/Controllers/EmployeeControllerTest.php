@@ -809,7 +809,7 @@ describe('DELETE /v1/employees/{employee}', function () {
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/employees/{$employee->id}");
 
-        $response->assertStatus(204);
+        $response->assertNoContent();
         expect(Employee::withTrashed()->find($employee->id)->deleted_at)->not->toBeNull();
     });
 });

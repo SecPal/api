@@ -138,12 +138,12 @@ class EmployeeQualificationController extends Controller
      *
      * DELETE /api/v1/employee-qualifications/{employeeQualification}
      */
-    public function destroy(EmployeeQualification $employeeQualification): JsonResponse
+    public function destroy(EmployeeQualification $employeeQualification): Response
     {
         $this->authorize('delete', $employeeQualification);
 
         $employeeQualification->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 }
