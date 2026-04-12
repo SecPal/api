@@ -246,6 +246,6 @@ class BewacherregisterExportService
     {
         $sanitized = preg_replace('/[^A-Za-z0-9._-]+/', '_', $fileName);
 
-        return is_string($sanitized) && $sanitized !== '' ? $sanitized : 'bwr_export.xml';
+        return is_string($sanitized) && $sanitized !== '' ? $sanitized : 'bwr_export.csv';
     }
 }
