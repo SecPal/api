@@ -97,7 +97,9 @@ test('exports a BWR-ready employee to CSV storage', function (): void {
     expect($csv)->toContain('last_name;first_name;birth_name')
         ->and($csv)->toContain('Export;Taylor;"Taylor Birthname"')
         ->and($csv)->toContain('object_protection, event_security')
-        ->and($csv)->toContain('HR Admin');
+        ->and($csv)->toContain('HR Admin')
+        ->and($export)->toHaveKey('file_size_bytes')
+        ->and($export['file_size_bytes'])->toBe(strlen($csv));
 });
 
 test('exports a BWR-ready employee to XML storage', function (): void {
@@ -117,7 +119,9 @@ test('exports a BWR-ready employee to XML storage', function (): void {
         ->and($xml)->toContain('<bewacherregisterExport>')
         ->and($xml)->toContain('<last_name>Export</last_name>')
         ->and($xml)->toContain('<first_name>Taylor</first_name>')
-        ->and($xml)->toContain('<exported_by>HR Admin</exported_by>');
+        ->and($xml)->toContain('<exported_by>HR Admin</exported_by>')
+        ->and($export)->toHaveKey('file_size_bytes')
+        ->and($export['file_size_bytes'])->toBe(strlen($xml));
 });
 
 test('export throws when required BWR fields are missing', function (): void {

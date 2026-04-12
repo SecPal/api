@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Storage;
 class BewacherregisterExportService
 {
     /**
-     * @return array{disk: string, path: string, file_name: string}
+     * @return array{disk: string, path: string, file_name: string, file_size_bytes: int}
      */
     public function exportCsv(Employee $employee, string $exportedBy): array
     {
@@ -27,17 +27,20 @@ class BewacherregisterExportService
         );
         $path = $this->pathFor($employee, $fileName);
 
-        Storage::disk('local')->put($path, $this->generateCsv($this->buildExportData($employee, $exportedBy)));
+        $content = $this->generateCsv($this->buildExportData($employee, $exportedBy));
+
+        Storage::disk('local')->put($path, $content);
 
         return [
             'disk' => 'local',
             'path' => $path,
             'file_name' => $fileName,
+            'file_size_bytes' => strlen($content),
         ];
     }
 
     /**
-     * @return array{disk: string, path: string, file_name: string}
+     * @return array{disk: string, path: string, file_name: string, file_size_bytes: int}
      */
     public function exportXml(Employee $employee, string $exportedBy): array
     {
@@ -50,12 +53,15 @@ class BewacherregisterExportService
         );
         $path = $this->pathFor($employee, $fileName);
 
-        Storage::disk('local')->put($path, $this->generateXml($this->buildExportData($employee, $exportedBy)));
+        $content = $this->generateXml($this->buildExportData($employee, $exportedBy));
+
+        Storage::disk('local')->put($path, $content);
 
         return [
             'disk' => 'local',
             'path' => $path,
             'file_name' => $fileName,
+            'file_size_bytes' => strlen($content),
         ];
     }
 

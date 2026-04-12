@@ -275,6 +275,7 @@ class EmployeeController extends Controller
                 'format' => $format,
                 'file_name' => $export['file_name'],
                 'file_path' => $export['path'],
+                'file_size_bytes' => $export['file_size_bytes'],
                 'old_bwr_status' => 'not_registered',
                 'new_bwr_status' => 'pending',
             ])
