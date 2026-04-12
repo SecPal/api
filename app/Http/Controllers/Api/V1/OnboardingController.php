@@ -717,19 +717,20 @@ class OnboardingController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $request->validate([
+        /** @var array{reason: string} $validated */
+        $validated = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
         ]);
 
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        DB::transaction(function () use ($submission, $user, $request): void {
+        DB::transaction(function () use ($submission, $user, $validated): void {
             $submission->update([
                 'status' => 'rejected',
                 'reviewed_by' => $user->id,
                 'reviewed_at' => now(),
-                'review_notes' => $request->input('reason'),
+                'review_notes' => $validated['reason'],
             ]);
 
             /** @var Employee $employee */

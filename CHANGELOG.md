@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- switched onboarding submission rejection to persist the validated `reason` payload instead of re-reading raw request input after inline validation
+
 - restricted regulated employee identifiers in `EmployeeResource` behind a new `employees.read_sensitive` permission, seeded a dedicated `HR` role for that access, and stopped non-HR viewers with ordinary employee read access from receiving decrypted tax, social-security, permit, health-insurance, ID-document, and Sachkunde identifier fields
 
 - verified employee email uniqueness enforcement with regression coverage against the unique plaintext `employees.email` column used by `StoreEmployeeRequest`
