@@ -126,6 +126,13 @@ describe('OrganizationalUnitController - List', function () {
             ->assertJsonPath('meta.per_page', 10);
     });
 
+    test('list organizational units returns 422 when per_page exceeds maximum', function () {
+        $response = getJson('/v1/organizational-units?per_page=1000');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['per_page']);
+    });
+
     test('list organizational units can filter by type', function () {
         // Arrange: Create units as children of root
         $dept = OrganizationalUnit::factory()->create([

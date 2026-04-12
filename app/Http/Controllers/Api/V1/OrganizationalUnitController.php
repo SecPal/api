@@ -6,6 +6,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\IndexOrganizationalUnitRequest;
 use App\Http\Requests\Api\StoreOrganizationalUnitRequest;
 use App\Http\Requests\Api\UpdateOrganizationalUnitRequest;
 use App\Http\Resources\OrganizationalUnitResource;
@@ -32,7 +33,7 @@ class OrganizationalUnitController extends Controller
      * Returns ONLY units the authenticated user has access to (Need-to-Know principle).
      * Uses the user's organizational scopes to filter results.
      */
-    public function index(Request $request): JsonResponse
+    public function index(IndexOrganizationalUnitRequest $request): JsonResponse
     {
         $this->authorize('viewAny', OrganizationalUnit::class);
 
@@ -91,8 +92,9 @@ class OrganizationalUnitController extends Controller
 
         $units = $query->paginate($request->integer('per_page', 15));
 
-        // Store accessible IDs in request for Resource to use (Need-to-Know filtering)
-        $request->attributes->set('accessible_unit_ids', $accessibleIds);
+        // Store accessible IDs in global request for OrganizationalUnitResource to use (Need-to-Know filtering).
+        // The resource receives the global request instance (not the injected FormRequest), so request() is used here.
+        request()->attributes->set('accessible_unit_ids', $accessibleIds);
 
         return response()->json([
             'data' => OrganizationalUnitResource::collection($units),
