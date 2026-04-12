@@ -92,8 +92,8 @@ class OrganizationalUnitController extends Controller
 
         $units = $query->paginate($request->integer('per_page', 15));
 
-        // Store accessible IDs in request for Resource to use (Need-to-Know filtering)
-        $request->attributes->set('accessible_unit_ids', $accessibleIds);
+        // Store accessible IDs in global request for OrganizationalUnitResource to use (Need-to-Know filtering).
+        // The resource receives the global request instance (not the injected FormRequest), so request() is used here.
         request()->attributes->set('accessible_unit_ids', $accessibleIds);
 
         return response()->json([
