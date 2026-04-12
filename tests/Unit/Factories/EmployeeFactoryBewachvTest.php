@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
@@ -90,6 +90,24 @@ test('withAddressHistory creates historical addresses', function () {
             ->and($address['postal_code'])->toBeString()
             ->and($address['country'])->toMatch('/^[A-Z]{2}$/');
     }
+});
+
+test('withNonEuWorkPermit creates permit compliant non EU employee data', function () {
+    $employee = Employee::factory()->withNonEuWorkPermit()->create();
+
+    expect($employee->requiresWorkPermit())->toBeTrue()
+        ->and($employee->work_permit_type)->toBeIn(['temporary', 'permanent', 'blue_card', 'seasonal', 'student'])
+        ->and($employee->work_permit_number)->not->toBeNull()
+        ->and($employee->work_permit_issued_by)->not->toBeNull()
+        ->and($employee->hasValidWorkAuthorization())->toBeTrue();
+});
+
+test('withExpiringWorkPermit creates a permit that expires within 30 days', function () {
+    $employee = Employee::factory()->withExpiringWorkPermit()->create();
+
+    expect($employee->work_permit_expiry)->not->toBeNull()
+        ->and($employee->work_permit_expiry->isBefore(now()->addDays(31)))->toBeTrue()
+        ->and($employee->expiring_documents->pluck('type')->all())->toContain('work_permit');
 });
 
 test('terminated factory state sets employment end date', function () {

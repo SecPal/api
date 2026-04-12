@@ -166,7 +166,7 @@ class EmployeeFactory extends Factory
     public function withCompleteBewachvData(): static
     {
         $germanCities = ['Berlin', 'Hamburg', 'München', 'Köln', 'Frankfurt', 'Stuttgart', 'Düsseldorf'];
-        $europeanCountries = ['DE', 'PL', 'RO', 'TR', 'IT', 'GR', 'BG'];
+        $europeanCountries = ['DE', 'PL', 'RO', 'IT', 'GR', 'BG'];
 
         return $this->state(fn (array $attributes) => [
             // BWR Registration
@@ -181,7 +181,7 @@ class EmployeeFactory extends Factory
             'previous_names' => fake()->optional(0.2)->randomElements([fake()->lastName(), fake()->lastName()], 1), // 20% have previous names
             'birth_city' => fake()->randomElement($germanCities),
             'birth_country' => fake()->randomElement($europeanCountries),
-            'nationalities' => fake()->randomElement([['DE'], ['DE', 'PL'], ['DE', 'TR']]), // Dual citizenship
+            'nationalities' => fake()->randomElement([['DE'], ['DE', 'PL'], ['DE', 'IT']]), // Dual citizenship
 
             // Structured Address
             'address_street' => fake()->streetName(),
@@ -272,10 +272,53 @@ class EmployeeFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'sachkunde_type' => fake()->randomElement(['§34a_old', '§34a_new', 'none']),
-            'sachkunde_certificate_number' => fake()->bothify('SK-#######'),
+            'sachkunde_certificate' => fake()->bothify('SK-#######'),
             'sachkunde_issued_date' => fake()->date('Y-m-d', '-2 years'),
-            'work_permit' => fake()->boolean(80), // 80% have work permit
-            'work_permit_expiry' => fake()->date('Y-m-d', '+1 year'),
+        ]);
+    }
+
+    /**
+     * Indicate that the employee is a non-EU worker with a valid work permit.
+     */
+    public function withNonEuWorkPermit(): static
+    {
+        $permitType = fake()->randomElement([
+            Employee::WORK_PERMIT_TYPE_TEMPORARY,
+            Employee::WORK_PERMIT_TYPE_PERMANENT,
+            Employee::WORK_PERMIT_TYPE_BLUE_CARD,
+            Employee::WORK_PERMIT_TYPE_SEASONAL,
+            Employee::WORK_PERMIT_TYPE_STUDENT,
+        ]);
+
+        return $this->state(function (array $attributes) use ($permitType): array {
+            $nationality = fake()->randomElement(['TR', 'RS', 'UA', 'IN']);
+
+            return [
+                'birth_country' => $nationality,
+                'nationalities' => [$nationality],
+                'work_permit_type' => $permitType,
+                'work_permit_number' => fake()->bothify('WP-######'),
+                'work_permit_expiry' => $permitType === Employee::WORK_PERMIT_TYPE_PERMANENT
+                    ? null
+                    : fake()->dateTimeBetween('+2 months', '+2 years'),
+                'work_permit_copy_path' => 'work_permits/'.fake()->uuid().'.pdf',
+                'work_permit_issued_by' => fake()->randomElement([
+                    'Auslaenderbehoerde Berlin',
+                    'Auslaenderbehoerde Hamburg',
+                    'Auslaenderbehoerde Muenchen',
+                ]),
+            ];
+        });
+    }
+
+    /**
+     * Indicate that the employee has a work permit expiring soon.
+     */
+    public function withExpiringWorkPermit(): static
+    {
+        return $this->withNonEuWorkPermit()->state(fn (array $attributes) => [
+            'work_permit_type' => Employee::WORK_PERMIT_TYPE_TEMPORARY,
+            'work_permit_expiry' => fake()->dateTimeBetween('+1 day', '+30 days'),
         ]);
     }
 

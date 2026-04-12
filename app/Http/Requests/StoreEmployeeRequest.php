@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -16,6 +17,8 @@ use Illuminate\Validation\Rule;
  */
 class StoreEmployeeRequest extends FormRequest
 {
+    use InteractsWithWorkPermitValidation;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -168,9 +171,29 @@ class StoreEmployeeRequest extends FormRequest
             'sachkunde_issued_date' => ['nullable', 'date'], // Certificate issue date
 
             // Work & Residence Permits
-            'work_permit_type' => ['nullable', Rule::in(['unlimited', 'limited', 'none'])],
-            'work_permit_number' => ['nullable', 'string', 'max:255'],
-            'work_permit_expiry' => ['nullable', 'date'],
+            'work_permit_type' => [
+                Rule::requiredIf(fn (): bool => $this->requiresWorkPermitForCurrentPayload()),
+                'nullable',
+                Rule::in(Employee::VALID_WORK_PERMIT_TYPES),
+            ],
+            'work_permit_number' => [
+                Rule::requiredIf(fn (): bool => $this->requiresWorkPermitDetailsForCurrentPayload()),
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'work_permit_expiry' => [
+                Rule::requiredIf(fn (): bool => $this->requiresWorkPermitExpiryForCurrentPayload()),
+                'nullable',
+                'date',
+                'after:today',
+            ],
+            'work_permit_issued_by' => [
+                Rule::requiredIf(fn (): bool => $this->requiresWorkPermitDetailsForCurrentPayload()),
+                'nullable',
+                'string',
+                'max:255',
+            ],
             'residence_permit_type' => ['nullable', Rule::in(['unlimited', 'limited', 'none'])],
             'residence_permit_number' => ['nullable', 'string', 'max:255'],
             'residence_permit_expiry' => ['nullable', 'date'],
@@ -263,6 +286,14 @@ class StoreEmployeeRequest extends FormRequest
             'address_history.*.city.required' => 'Stadt für Adresshistorie erforderlich.',
             'address_history.*.postal_code.required' => 'PLZ für Adresshistorie erforderlich.',
             'address_history.*.country.required' => 'Land für Adresshistorie erforderlich.',
+
+            // Work permits
+            'work_permit_type.required' => 'Arbeitserlaubnis-Typ ist für nicht freizügigkeitsberechtigte Staatsangehörigkeiten verpflichtend.',
+            'work_permit_type.in' => 'Arbeitserlaubnis-Typ ist ungültig.',
+            'work_permit_number.required' => 'Nummer der Arbeitserlaubnis ist verpflichtend.',
+            'work_permit_issued_by.required' => 'Ausstellende Behörde der Arbeitserlaubnis ist verpflichtend.',
+            'work_permit_expiry.required' => 'Ablaufdatum der Arbeitserlaubnis ist für befristete Arbeitserlaubnisse verpflichtend.',
+            'work_permit_expiry.after' => 'Ablaufdatum der Arbeitserlaubnis muss in der Zukunft liegen.',
         ];
     }
 }

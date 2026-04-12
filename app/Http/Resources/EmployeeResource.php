@@ -130,9 +130,15 @@ class EmployeeResource extends JsonResource
             'work_permit_type' => $this->work_permit_type,
             'work_permit_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->work_permit_number),
             'work_permit_expiry' => $this->work_permit_expiry?->toDateString(),
+            'work_permit_copy_path' => $this->work_permit_copy_path,
+            'work_permit_issued_by' => $this->work_permit_issued_by,
+            'work_permit_copy_deleted_at' => $this->work_permit_copy_deleted_at?->toIso8601String(),
             'residence_permit_type' => $this->residence_permit_type,
             'residence_permit_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->residence_permit_number),
             'residence_permit_expiry' => $this->residence_permit_expiry?->toDateString(),
+            'requires_work_permit' => $this->requiresWorkPermit(),
+            'has_valid_work_authorization' => $this->hasValidWorkAuthorization(),
+            'expiring_documents' => $this->expiring_documents->all(),
 
             // Criminal Record
             'criminal_record_status' => $this->criminal_record_status,
