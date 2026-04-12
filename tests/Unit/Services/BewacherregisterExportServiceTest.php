@@ -133,3 +133,12 @@ test('export preserves seven digit BWR ids including leading zeroes', function (
 
     expect($csv)->toContain('0001234');
 });
+
+test('export throws when id_document_expiry is in the past', function (): void {
+    $employee = makeBwrReadyEmployee($this->tenant, $this->organizationalUnit, [
+        'id_document_expiry' => now()->subDay()->toDateString(),
+    ]);
+
+    expect(fn () => $this->service->exportCsv($employee, 'HR Admin'))
+        ->toThrow(RuntimeException::class, 'id_document_expiry_expired');
+});

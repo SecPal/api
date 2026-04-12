@@ -51,6 +51,10 @@ class BewacherregisterExportService
             }
         }
 
+        if ($employee->id_document_expiry !== null && $employee->id_document_expiry->lt(today())) {
+            $errors[] = 'id_document_expiry_expired';
+        }
+
         if ($employee->requiresWorkPermit() && ! $employee->hasValidWorkAuthorization()) {
             $errors[] = 'valid_work_authorization';
         }
@@ -147,20 +151,20 @@ class BewacherregisterExportService
     }
 
     /**
-     * @param  array<int, array{from: string, to: string, street: string, house_number: string, postal_code: string, city: string, country: string, state?: ?string}>  $history
+     * @param  array<int, array{from?: string, to?: string, street?: string, house_number?: string, postal_code?: string, city?: string, country?: string, state?: string|null}>  $history
      */
     private function formatAddressHistory(array $history): string
     {
         return collect($history)
             ->map(fn (array $address): string => sprintf(
                 '%s - %s: %s %s, %s %s, %s',
-                $address['from'],
-                $address['to'],
-                $address['street'],
-                $address['house_number'],
-                $address['postal_code'],
-                $address['city'],
-                $address['country'],
+                $address['from'] ?? '',
+                $address['to'] ?? '',
+                $address['street'] ?? '',
+                $address['house_number'] ?? '',
+                $address['postal_code'] ?? '',
+                $address['city'] ?? '',
+                $address['country'] ?? '',
             ))
             ->implode("\n");
     }

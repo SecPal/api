@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class ExportEmployeeBwrRequest extends FormRequest
 {
@@ -22,8 +21,6 @@ class ExportEmployeeBwrRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'format' => ['sometimes', 'string', Rule::in(['csv'])],
-        ];
+        return [];
     }
 }
