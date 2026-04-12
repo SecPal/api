@@ -28,6 +28,7 @@ class IndexOrganizationalUnitRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'type' => ['nullable', 'string', Rule::in(['holding', 'company', 'region', 'branch', 'division', 'department', 'custom'])],
             'parent_id' => [
                 'nullable',
@@ -40,6 +41,16 @@ class IndexOrganizationalUnitRequest extends FormRequest
                     $fail('The '.$attribute.' field must be a valid UUID or "null".');
                 },
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'per_page.max' => 'Maximum 100 items per page.',
         ];
     }
 }
