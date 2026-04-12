@@ -362,7 +362,7 @@ describe('DELETE /v1/qualifications/{qualification}', function () {
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/qualifications/{$qualification->id}");
 
-        $response->assertStatus(204);
+        $response->assertNoContent();
         expect(Qualification::withTrashed()->find($qualification->id)->deleted_at)->not->toBeNull();
     });
 
