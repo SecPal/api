@@ -91,4 +91,20 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => 'Resource not found.',
             ], 404);
         });
+
+        $exceptions->render(function (Throwable $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            $status = method_exists($e, 'getStatusCode')
+                ? $e->getStatusCode()
+                : 500;
+
+            return response()->json([
+                'message' => $status >= 500
+                    ? 'Internal server error.'
+                    : ($e->getMessage() !== '' ? $e->getMessage() : 'Request failed.'),
+            ], $status);
+        });
     })->create();

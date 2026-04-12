@@ -23,7 +23,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- normalized unexpected API exceptions behind a final JSON catch-all so `/v1/*` requests now return a stable `message` payload even with `APP_DEBUG=true`, while 500 responses always use `Internal server error.` instead of leaking stack traces or internal exception details
+
 - normalized generic API `404` responses to `{"message":"Resource not found."}` for unknown `/v1/*` routes in all debug modes, preventing default Laravel HTML or stack-trace payloads from leaking through
+
+- escaped `\\`, `%`, and `_` in customer, site, and employee search terms through a shared LIKE-pattern helper so wildcard-only search input no longer expands into broad `LIKE` / `ILIKE` scans on those endpoints
+
+- capped `/v1/organizational-units` pagination with a dedicated index request so oversized `per_page` values are rejected with `422` instead of allowing unbounded result windows
+
+- switched onboarding submission rejection to persist the validated `reason` payload instead of re-reading raw request input after inline validation
+
+- restricted regulated employee identifiers in `EmployeeResource` behind a new `employees.read_sensitive` permission, seeded a dedicated `HR` role for that access, and stopped non-HR viewers with ordinary employee read access from receiving decrypted tax, social-security, permit, health-insurance, ID-document, and Sachkunde identifier fields
+
+- verified employee email uniqueness enforcement with regression coverage against the unique plaintext `employees.email` column used by `StoreEmployeeRequest`
+
+- added a dedicated `health` rate limiter for `/health`, `/health/live`, and `/health/ready` so unauthenticated health probes now return `429` after repeated abuse from the same IP and route bucket
+
+- switched role and permission management writes to validated request payloads so those controllers no longer read raw input after form-request validation
+- reduced the public health surface by removing the `/health` version field and by limiting `/health/ready` responses to the readiness status plus timestamp instead of exposing database, key-management, scheduler, and queue-worker details
+- standardized API V1 delete endpoints on `response()->noContent()` so successful `204` responses are implemented consistently across employee, document, qualification, assignment, customer, site, organizational-unit, and cost-center deletes
+- serialized employee number generation per tenant inside the employee create transaction, locking the tenant row plus the current-year employee number lookup so concurrent `POST /v1/employees` requests cannot derive duplicate `employee_number` values; the existing global unique constraint on `employee_number` remains in place as a last-resort safeguard (note: the constraint is currently global across tenants, not scoped per tenant — tracked in SecPal/api#867)
 - fixed `buildUserAuthorizationData` returning empty roles and permissions on authentication routes (login, passkey verify, MFA verify) because the global `InjectTenantId` middleware cannot resolve a user before authentication completes, leaving the Spatie PermissionRegistrar with a null team context; the method now explicitly sets the team from the user's `tenant_id` before eager-loading (fixes SecPal/frontend#822)
 - fixed the passkey browser-session model mismatch by keeping registration compatibility-friendly (`resident_key: preferred`) while omitting deprecated `require_resident_key` when it is false, and by letting `/v1/auth/passkeys/challenges` take an optional email address that returns `allow_credentials` for email-scoped fallback sign-in when discoverable credentials are unavailable in the browser or authenticator
 - aligned Android provisioning QR payload download URLs with the per-session `apk.secpal.app/android/channels/{channel}/app.secpal-latest.apk` endpoint model by computing the URL unconditionally from `android.artifact_base_url` + `update_channel`; removed the obsolete `android.package_download_url` config key whose hardcoded `managed_device` default was silently overriding the per-channel computation for all other channels
