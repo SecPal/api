@@ -146,7 +146,7 @@ class EmployeeDocumentController extends Controller
      *
      * Deletes file from storage and database record (soft delete).
      */
-    public function destroy(Employee $employee, EmployeeDocument $document): Response|JsonResponse
+    public function destroy(Employee $employee, EmployeeDocument $document): Response
     {
         $this->authorize('delete', $document);
 

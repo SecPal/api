@@ -107,7 +107,7 @@ class CostCenterController extends Controller
     /**
      * Remove the specified cost center from storage.
      */
-    public function destroy(Site $site, CostCenter $costCenter): Response|JsonResponse
+    public function destroy(Site $site, CostCenter $costCenter): Response
     {
         $this->authorize('delete', $costCenter);
 
