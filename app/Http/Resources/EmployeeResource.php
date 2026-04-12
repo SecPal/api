@@ -87,7 +87,7 @@ class EmployeeResource extends JsonResource
 
             // BewachV § 16 Abs. 2 Nr. 11: ID Document
             'id_document_type' => $this->id_document_type,
-            'id_document_number' => $this->when($canReadSensitiveIdentifiers, $this->id_document_number),
+            'id_document_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->id_document_number),
             'id_document_expiry' => $this->id_document_expiry?->toDateString(),
             'id_document_copy_path' => $this->id_document_copy_path,
             'id_document_copy_deleted_at' => $this->id_document_copy_deleted_at?->toIso8601String(),
@@ -97,8 +97,8 @@ class EmployeeResource extends JsonResource
             'retention_period_end' => $this->retention_period_end,
 
             // Tax & Social Security (decrypted)
-            'tax_id' => $this->when($canReadSensitiveIdentifiers, $this->tax_id),
-            'social_security_number' => $this->when($canReadSensitiveIdentifiers, $this->social_security_number),
+            'tax_id' => $this->when($canReadSensitiveIdentifiers, fn () => $this->tax_id),
+            'social_security_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->social_security_number),
 
             // Employment Status
             'status' => $this->status,
@@ -116,22 +116,22 @@ class EmployeeResource extends JsonResource
             // Health Insurance
             'health_insurance_type' => $this->health_insurance_type,
             'health_insurance_provider' => $this->health_insurance_provider,
-            'health_insurance_number' => $this->when($canReadSensitiveIdentifiers, $this->health_insurance_number),
+            'health_insurance_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->health_insurance_number),
 
             // Legal Requirements (BewachV § 34a - Sachkunde)
             // Note: Sachkunde qualification NEVER expires - valid for life!
             'sachkunde_type' => $this->sachkunde_type,
             'sachkunde_certificate' => $this->sachkunde_certificate,
-            'sachkunde_ihk_number' => $this->when($canReadSensitiveIdentifiers, $this->sachkunde_ihk_number),
+            'sachkunde_ihk_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->sachkunde_ihk_number),
             'sachkunde_exam_date' => $this->sachkunde_exam_date?->format('Y-m-d'),
             'sachkunde_issued_date' => $this->sachkunde_issued_date?->format('Y-m-d'),
 
             // Work & Residence Permits
             'work_permit_type' => $this->work_permit_type,
-            'work_permit_number' => $this->when($canReadSensitiveIdentifiers, $this->work_permit_number),
+            'work_permit_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->work_permit_number),
             'work_permit_expiry' => $this->work_permit_expiry?->toDateString(),
             'residence_permit_type' => $this->residence_permit_type,
-            'residence_permit_number' => $this->when($canReadSensitiveIdentifiers, $this->residence_permit_number),
+            'residence_permit_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->residence_permit_number),
             'residence_permit_expiry' => $this->residence_permit_expiry?->toDateString(),
 
             // Criminal Record
