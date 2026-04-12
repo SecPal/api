@@ -37,6 +37,9 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('viewAny', OrganizationalUnit::class);
 
+        /** @var array{parent_id?: string, type?: string} $validated */
+        $validated = $request->validated();
+
         /** @var \App\Models\User $user */
         $user = $request->user();
 
@@ -57,13 +60,13 @@ class OrganizationalUnitController extends Controller
             ->where('tenant_id', $tenantId);
 
         // Filter by type if provided
-        if ($request->has('type')) {
-            $query->where('type', $request->input('type'));
+        if (array_key_exists('type', $validated)) {
+            $query->where('type', $validated['type']);
         }
 
         // Filter by parent_id if provided
-        if ($request->has('parent_id')) {
-            $parentId = $request->input('parent_id');
+        if (array_key_exists('parent_id', $validated)) {
+            $parentId = $validated['parent_id'];
             if ($parentId === 'null' || $parentId === null) {
                 // Get root units (units without accessible parents)
                 $query->whereIn('id', $rootUnitIds);
@@ -92,8 +95,8 @@ class OrganizationalUnitController extends Controller
 
         $units = $query->paginate($request->integer('per_page', 15));
 
-        // Store accessible IDs in global request for OrganizationalUnitResource to use (Need-to-Know filtering).
-        // The resource receives the global request instance (not the injected FormRequest), so request() is used here.
+        // Store accessible IDs in request for Resource to use (Need-to-Know filtering)
+        $request->attributes->set('accessible_unit_ids', $accessibleIds);
         request()->attributes->set('accessible_unit_ids', $accessibleIds);
 
         return response()->json([

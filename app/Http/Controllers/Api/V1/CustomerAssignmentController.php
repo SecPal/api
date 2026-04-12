@@ -8,13 +8,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Assignment\IndexCustomerAssignmentRequest;
 use App\Http\Requests\Api\V1\Assignment\StoreCustomerAssignmentRequest;
 use App\Http\Requests\Api\V1\Assignment\UpdateAssignmentRequest;
 use App\Http\Resources\Api\V1\CustomerAssignmentResource;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -42,13 +42,16 @@ class CustomerAssignmentController extends Controller
      *
      * @return JsonResponse Array of CustomerAssignmentResource
      */
-    public function index(Request $request, Customer $customer): JsonResponse
+    public function index(IndexCustomerAssignmentRequest $request, Customer $customer): JsonResponse
     {
         $this->authorize('view', $customer);
 
+        /** @var array{active_only?: mixed, role?: string} $validated */
+        $validated = $request->validated();
+
         $assignments = $customer->assignments()
             ->with(['user', 'customer'])
-            ->when($request->has('role'), fn ($q) => $q->where('role', $request->input('role')))
+            ->when(array_key_exists('role', $validated), fn ($q) => $q->where('role', $validated['role']))
             ->when($request->boolean('active_only'), fn ($q) => $q->currentlyActive())
             ->get();
 

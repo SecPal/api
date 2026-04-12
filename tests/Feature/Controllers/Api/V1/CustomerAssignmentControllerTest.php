@@ -128,6 +128,16 @@ describe('GET /v1/customers/{customer}/assignments', function () {
         expect($response->json('data')[0]['role'])->toBe('Key Account Manager');
     });
 
+    test('returns 422 when role filter is not a string', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/customers/{$this->customer->id}/assignments?role[0]=Key%20Account%20Manager");
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['role']);
+    });
+
     test('filters assignments by active status', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
 
