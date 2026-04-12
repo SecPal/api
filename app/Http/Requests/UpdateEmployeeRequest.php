@@ -145,24 +145,24 @@ class UpdateEmployeeRequest extends FormRequest
 
             // Work & Residence Permits
             'work_permit_type' => [
-                Rule::requiredIf(fn (): bool => $this->touchesWorkPermitContext() && $this->requiresWorkPermitForCurrentPayload()),
+                Rule::requiredIf(fn (): bool => $this->touchesWorkPermitContext() && $this->requiresWorkPermitForCurrentPayload() && $this->mergedWorkPermitTypeIsNoneOrBlank()),
                 'nullable',
                 Rule::in(Employee::VALID_WORK_PERMIT_TYPES),
             ],
             'work_permit_number' => [
-                Rule::requiredIf(fn (): bool => $this->touchesWorkPermitContext() && $this->requiresWorkPermitDetailsForCurrentPayload()),
+                Rule::requiredIf(fn (): bool => $this->touchesWorkPermitContext() && $this->requiresWorkPermitDetailsForCurrentPayload() && $this->mergedValueIsBlank('work_permit_number')),
                 'nullable',
                 'string',
                 'max:255',
             ],
             'work_permit_expiry' => [
-                Rule::requiredIf(fn (): bool => $this->touchesWorkPermitContext() && $this->requiresWorkPermitExpiryForCurrentPayload()),
+                Rule::requiredIf(fn (): bool => $this->touchesWorkPermitContext() && $this->requiresWorkPermitExpiryForCurrentPayload() && $this->mergedEmployeeValue('work_permit_expiry') === null),
                 'nullable',
                 'date',
                 'after:today',
             ],
             'work_permit_issued_by' => [
-                Rule::requiredIf(fn (): bool => $this->touchesWorkPermitContext() && $this->requiresWorkPermitDetailsForCurrentPayload()),
+                Rule::requiredIf(fn (): bool => $this->touchesWorkPermitContext() && $this->requiresWorkPermitDetailsForCurrentPayload() && $this->mergedValueIsBlank('work_permit_issued_by')),
                 'nullable',
                 'string',
                 'max:255',

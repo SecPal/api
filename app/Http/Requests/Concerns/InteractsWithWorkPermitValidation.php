@@ -73,4 +73,22 @@ trait InteractsWithWorkPermitValidation
             && in_array($type, Employee::WORK_PERMIT_TYPES_REQUIRING_EXPIRY, true)
             && $this->requiresWorkPermitForCurrentPayload();
     }
+
+    private function mergedValueIsBlank(string $field): bool
+    {
+        $value = $this->mergedEmployeeValue($field);
+
+        if ($value === null) {
+            return true;
+        }
+
+        return is_string($value) && trim($value) === '';
+    }
+
+    private function mergedWorkPermitTypeIsNoneOrBlank(): bool
+    {
+        $type = $this->mergedWorkPermitType();
+
+        return $type === null || $type === Employee::WORK_PERMIT_TYPE_NONE;
+    }
 }

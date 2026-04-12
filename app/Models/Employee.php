@@ -1120,7 +1120,7 @@ class Employee extends Model
         }
 
         $daysUntilExpiry = (int) now()->startOfDay()->diffInDays($expiry->copy()->startOfDay(), false);
-        if ($daysUntilExpiry > 30) {
+        if ($daysUntilExpiry < -30 || $daysUntilExpiry > 30) {
             return;
         }
 
