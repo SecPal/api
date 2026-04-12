@@ -60,7 +60,7 @@ class OrganizationalUnitController extends Controller
             ->where('tenant_id', $tenantId);
 
         // Filter by type if provided
-        if (array_key_exists('type', $validated)) {
+        if (array_key_exists('type', $validated) && $validated['type'] !== null) {
             $query->where('type', $validated['type']);
         }
 
@@ -95,8 +95,7 @@ class OrganizationalUnitController extends Controller
 
         $units = $query->paginate($request->integer('per_page', 15));
 
-        // Store accessible IDs in request for Resource to use (Need-to-Know filtering)
-        $request->attributes->set('accessible_unit_ids', $accessibleIds);
+        // Store accessible IDs on the container request for OrganizationalUnitResource to use (Need-to-Know filtering)
         request()->attributes->set('accessible_unit_ids', $accessibleIds);
 
         return response()->json([

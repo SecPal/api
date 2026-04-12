@@ -130,6 +130,28 @@ describe('GET /v1/qualifications', function () {
             ->assertJsonValidationErrors(['category']);
     });
 
+    test('does not filter by null when category is sent as empty string', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'qualification.read');
+
+        Qualification::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'category' => 'first_aid',
+        ]);
+
+        Qualification::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'category' => 'fire_safety',
+        ]);
+
+        // Sending ?category= coerces to null via the nullable rule;
+        // the filter must be skipped so all qualifications are returned.
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/qualifications?category=');
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(2);
+    });
+
     test('filters by is_mandatory', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'qualification.read');
 

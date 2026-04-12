@@ -60,7 +60,7 @@ class QualificationController extends Controller
         }
 
         // Filter by category
-        if (array_key_exists('category', $validated)) {
+        if (array_key_exists('category', $validated) && $validated['category'] !== null) {
             $query->where('category', $validated['category']);
         }
 

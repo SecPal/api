@@ -163,6 +163,21 @@ describe('OrganizationalUnitController - List', function () {
             ->assertJsonValidationErrors(['type']);
     });
 
+    test('list organizational units does not filter by null when type is sent as empty string', function () {
+        $dept = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'type' => 'department',
+        ]);
+        $dept->setParent($this->rootUnit);
+
+        // Sending ?type= coerces to null via the nullable rule;
+        // the filter must be skipped so all accessible units are returned.
+        $response = getJson('/v1/organizational-units?type=');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(2); // rootUnit + dept
+    });
+
     test('list organizational units returns 422 for an invalid parent_id filter', function () {
         $response = getJson('/v1/organizational-units?parent_id=not-a-uuid');
 
