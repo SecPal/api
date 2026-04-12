@@ -323,6 +323,60 @@ class EmployeeFactory extends Factory
     }
 
     /**
+     * Indicate that the employee has tracked compliance certifications.
+     */
+    public function withComplianceCertifications(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'firearms_license_number' => fake()->bothify('WL-######'),
+            'firearms_license_expiry' => fake()->dateTimeBetween('+2 months', '+2 years'),
+            'firearms_license_issued_by' => fake()->randomElement([
+                'Polizeipraesidium Berlin',
+                'Polizeipraesidium Hamburg',
+                'Polizeipraesidium Muenchen',
+            ]),
+            'first_aid_cert_number' => fake()->bothify('FA-#####'),
+            'first_aid_cert_date' => fake()->dateTimeBetween('-2 years', '-6 months'),
+            'first_aid_cert_expiry' => fake()->dateTimeBetween('+2 months', '+2 years'),
+            'fire_safety_cert_date' => fake()->dateTimeBetween('-2 years', '-6 months'),
+            'fire_safety_cert_expiry' => fake()->dateTimeBetween('+2 months', '+2 years'),
+            'evacuation_cert_date' => fake()->dateTimeBetween('-2 years', '-6 months'),
+            'evacuation_cert_expiry' => fake()->dateTimeBetween('+2 months', '+2 years'),
+            'additional_certifications' => [
+                [
+                    'name' => 'Site Access Badge',
+                    'number' => fake()->bothify('BADGE-##'),
+                    'issued_date' => fake()->date('Y-m-d', '-6 months'),
+                    'expiry_date' => fake()->date('Y-m-d', '+1 year'),
+                    'issuer' => 'Customer Security',
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Indicate that the employee has compliance certifications expiring within 30 days.
+     */
+    public function withExpiringComplianceCertifications(): static
+    {
+        return $this->withComplianceCertifications()->state(fn (array $attributes) => [
+            'firearms_license_expiry' => fake()->dateTimeBetween('+1 day', '+15 days'),
+            'first_aid_cert_expiry' => fake()->dateTimeBetween('+1 day', '+20 days'),
+            'fire_safety_cert_expiry' => fake()->dateTimeBetween('+40 days', '+80 days'),
+            'evacuation_cert_expiry' => fake()->dateTimeBetween('-10 days', '-1 day'),
+            'additional_certifications' => [
+                [
+                    'name' => 'Site Access Badge',
+                    'number' => fake()->bothify('BADGE-##'),
+                    'issued_date' => fake()->dateTimeBetween('-6 months', '-1 month')->format('Y-m-d'),
+                    'expiry_date' => fake()->dateTimeBetween('+1 day', '+5 days')->format('Y-m-d'),
+                    'issuer' => 'Customer Security',
+                ],
+            ],
+        ]);
+    }
+
+    /**
      * Indicate that the employee has a linked user account.
      */
     public function withUser(): static

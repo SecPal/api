@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\InteractsWithCertificationValidation;
 use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
 use Illuminate\Foundation\Http\FormRequest;
@@ -18,6 +19,7 @@ use Illuminate\Validation\Rule;
  */
 class UpdateEmployeeRequest extends FormRequest
 {
+    use InteractsWithCertificationValidation;
     use InteractsWithWorkPermitValidation;
 
     /**
@@ -40,7 +42,7 @@ class UpdateEmployeeRequest extends FormRequest
     {
         $employeeId = $this->route('employee');
 
-        return [
+        return array_merge([
             // Personal Data (will be encrypted)
             'first_name' => ['sometimes', 'required', 'string', 'max:255'],
             'last_name' => ['sometimes', 'required', 'string', 'max:255'],
@@ -202,7 +204,7 @@ class UpdateEmployeeRequest extends FormRequest
                     }
                 },
             ],
-        ];
+        ], $this->certificationValidationRules(true));
     }
 
     /**
@@ -212,7 +214,7 @@ class UpdateEmployeeRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
+        return array_merge([
             'email.email' => __('Email address must be valid'),
             'email.unique' => __('Email address is already in use'),
             'status.missing' => __('Employee status transitions must use the dedicated activate, leave, return-from-leave, or terminate endpoints.'),
@@ -241,7 +243,7 @@ class UpdateEmployeeRequest extends FormRequest
             'work_permit_issued_by.required' => 'Ausstellende Behörde der Arbeitserlaubnis ist verpflichtend.',
             'work_permit_expiry.required' => 'Ablaufdatum der Arbeitserlaubnis ist für befristete Arbeitserlaubnisse verpflichtend.',
             'work_permit_expiry.after' => 'Ablaufdatum der Arbeitserlaubnis muss in der Zukunft liegen.',
-        ];
+        ], $this->certificationValidationMessages());
     }
 
     private function touchesWorkPermitContext(): bool

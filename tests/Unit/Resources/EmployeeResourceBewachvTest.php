@@ -94,6 +94,19 @@ test('EmployeeResource includes all BewachV fields', function () {
         ->and($array)->toHaveKey('requires_work_permit')
         ->and($array)->toHaveKey('has_valid_work_authorization')
         ->and($array)->toHaveKey('expiring_documents');
+
+    // Certification tracking
+    expect($array)->toHaveKey('firearms_license_number')
+        ->and($array)->toHaveKey('firearms_license_expiry')
+        ->and($array)->toHaveKey('firearms_license_issued_by')
+        ->and($array)->toHaveKey('first_aid_cert_number')
+        ->and($array)->toHaveKey('first_aid_cert_date')
+        ->and($array)->toHaveKey('first_aid_cert_expiry')
+        ->and($array)->toHaveKey('fire_safety_cert_date')
+        ->and($array)->toHaveKey('fire_safety_cert_expiry')
+        ->and($array)->toHaveKey('evacuation_cert_date')
+        ->and($array)->toHaveKey('evacuation_cert_expiry')
+        ->and($array)->toHaveKey('additional_certifications');
 });
 
 test('EmployeeResource formats dates consistently', function () {
@@ -156,6 +169,28 @@ test('EmployeeResource includes work authorization compliance context', function
         ->and($array['work_permit_number'])->toBe($employee->work_permit_number)
         ->and($array['expiring_documents'])->toBeArray()
         ->and(collect($array['expiring_documents'])->pluck('type')->all())->toContain('work_permit');
+});
+
+test('EmployeeResource includes certification expiry context', function () {
+    $employee = Employee::factory()->withComplianceCertifications()->create([
+        'firearms_license_expiry' => now()->addDays(5)->toDateString(),
+        'additional_certifications' => [
+            [
+                'name' => 'Site Access Badge',
+                'number' => 'BADGE-11',
+                'issued_date' => now()->subMonth()->toDateString(),
+                'expiry_date' => now()->addDays(3)->toDateString(),
+                'issuer' => 'Customer Security',
+            ],
+        ],
+    ]);
+
+    $resource = new EmployeeResource($employee);
+    $array = $resource->resolve(employeeResourceRequest(true));
+
+    expect($array['firearms_license_number'])->toBe($employee->firearms_license_number)
+        ->and($array['additional_certifications'])->toBeArray()
+        ->and(collect($array['expiring_documents'])->pluck('type')->all())->toContain('firearms_license', 'additional_certification');
 });
 
 test('EmployeeResource includes computed structured_address property', function () {

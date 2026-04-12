@@ -110,6 +110,22 @@ test('withExpiringWorkPermit creates a permit that expires within 30 days', func
         ->and($employee->expiring_documents->pluck('type')->all())->toContain('work_permit');
 });
 
+test('withComplianceCertifications creates employee certification tracking data', function () {
+    $employee = Employee::factory()->withComplianceCertifications()->create();
+
+    expect($employee->firearms_license_number)->not->toBeNull()
+        ->and($employee->firearms_license_issued_by)->not->toBeNull()
+        ->and($employee->first_aid_cert_number)->not->toBeNull()
+        ->and($employee->additional_certifications)->toBeArray();
+});
+
+test('withExpiringComplianceCertifications creates expiring certification records', function () {
+    $employee = Employee::factory()->withExpiringComplianceCertifications()->create();
+
+    expect($employee->expiring_documents->pluck('type')->all())
+        ->toContain('firearms_license', 'first_aid_certificate', 'additional_certification');
+});
+
 test('terminated factory state sets employment end date', function () {
     $employee = Employee::factory()->terminated()->create();
 
