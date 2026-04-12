@@ -186,9 +186,9 @@ class SiteController extends Controller
      * Note: Will be blocked by active cost centers check once CostCenter CRUD is implemented.
      * Requires 'sites.delete' permission.
      *
-     * @return JsonResponse 204 No Content on success
+     * @return Response 204 No Content on success
      */
-    public function destroy(Site $site): JsonResponse
+    public function destroy(Site $site): Response
     {
         $this->authorize('delete', $site);
 
@@ -202,6 +202,6 @@ class SiteController extends Controller
 
         $site->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 }

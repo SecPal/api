@@ -448,7 +448,7 @@ describe('DELETE /v1/employee-qualifications/{employeeQualification}', function 
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/employee-qualifications/{$pivot->id}");
 
-        $response->assertStatus(204);
+        $response->assertNoContent();
         expect(EmployeeQualification::find($pivot->id))->toBeNull();
     });
 });

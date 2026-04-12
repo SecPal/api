@@ -118,14 +118,14 @@ class CustomerAssignmentController extends Controller
      * Permanently removes the assignment. Authorization checks that user can
      * update the parent customer.
      *
-     * @return JsonResponse Empty response (204 No Content)
+     * @return Response Empty response (204 No Content)
      */
-    public function destroy(CustomerAssignment $customerAssignment): JsonResponse
+    public function destroy(CustomerAssignment $customerAssignment): Response
     {
         $this->authorize('delete', $customerAssignment);
 
         $customerAssignment->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 }

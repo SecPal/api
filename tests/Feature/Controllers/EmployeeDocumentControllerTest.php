@@ -569,7 +569,7 @@ describe('DELETE /v1/employees/{employee}/documents/{document}', function () {
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/employees/{$this->employee->id}/documents/{$document->id}");
 
-        $response->assertStatus(204);
+        $response->assertNoContent();
         Storage::disk('local')->assertMissing($document->file_path);
         expect(EmployeeDocument::withTrashed()->find($document->id)->deleted_at)->not->toBeNull();
     });

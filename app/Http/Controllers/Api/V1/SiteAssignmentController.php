@@ -118,14 +118,14 @@ class SiteAssignmentController extends Controller
      * Permanently removes the assignment. Authorization checks that user can
      * update the parent site.
      *
-     * @return JsonResponse Empty response (204 No Content)
+     * @return Response Empty response (204 No Content)
      */
-    public function destroy(SiteAssignment $siteAssignment): JsonResponse
+    public function destroy(SiteAssignment $siteAssignment): Response
     {
         $this->authorize('delete', $siteAssignment);
 
         $siteAssignment->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 }

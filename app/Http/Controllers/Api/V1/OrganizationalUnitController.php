@@ -228,7 +228,7 @@ class OrganizationalUnitController extends Controller
      *
      * @see https://github.com/SecPal/api/issues/284 Edge-case decision: blocking mode
      */
-    public function destroy(OrganizationalUnit $organizational_unit): JsonResponse
+    public function destroy(OrganizationalUnit $organizational_unit): Response|JsonResponse
     {
         $this->authorize('delete', $organizational_unit);
 
@@ -248,7 +248,7 @@ class OrganizationalUnitController extends Controller
 
         $organizational_unit->delete();
 
-        return response()->json(null, Response::HTTP_NO_CONTENT);
+        return response()->noContent();
     }
 
     /**
