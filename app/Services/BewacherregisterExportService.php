@@ -225,7 +225,7 @@ class BewacherregisterExportService
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><bewacherregisterExport/>');
 
         foreach ($data as $key => $value) {
-            $xml->addChild($key, htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8'));
+            $xml->addChild($key, $value);
         }
 
         $renderedXml = $xml->asXML();
