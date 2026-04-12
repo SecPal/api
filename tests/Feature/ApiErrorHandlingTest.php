@@ -53,3 +53,20 @@ it('passes validation exceptions through the catch-all as 422 with an errors fie
 
     expect($response->headers->get('content-type'))->toContain('application/json');
 })->with([true, false]);
+
+it('passes HttpResponseException through the catch-all preserving the wrapped response status', function (bool $debug): void {
+    config(['app.debug' => $debug]);
+
+    Route::middleware('api')->get('/v1/test-http-response-exception', function (): never {
+        throw new Illuminate\Http\Exceptions\HttpResponseException(
+            response()->json(['message' => 'Too Many Attempts.'], 429)
+        );
+    });
+
+    $response = $this->getJson('/v1/test-http-response-exception');
+
+    $response->assertStatus(429)
+        ->assertJson(['message' => 'Too Many Attempts.']);
+
+    expect($response->headers->get('content-type'))->toContain('application/json');
+})->with([true, false]);
