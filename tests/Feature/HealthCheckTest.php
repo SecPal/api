@@ -305,7 +305,7 @@ function seedPendingJob(string $queue): void
     ]);
 }
 
-function assertPublicReadinessResponse($response, int $statusCode, string $status): void
+function assertPublicReadinessResponse(Illuminate\Testing\TestResponse $response, int $statusCode, string $status): void
 {
     $response->assertStatus($statusCode)
         ->assertJson([
