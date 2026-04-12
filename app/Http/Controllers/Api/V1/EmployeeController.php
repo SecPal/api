@@ -297,7 +297,7 @@ class EmployeeController extends Controller
             abort(Response::HTTP_NOT_FOUND);
         }
 
-        $content = Storage::disk('local')->get($path);
+        $content = Storage::disk('local')->get($path) ?? '';
 
         return response($content)
             ->header('Content-Type', 'text/csv; charset=UTF-8')

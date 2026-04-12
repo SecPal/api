@@ -114,8 +114,6 @@ class BewacherregisterExportService
      */
     private function buildExportData(Employee $employee, string $exportedBy): array
     {
-        $employee->loadMissing('tenant');
-
         $appName = config('app.name');
         $employerName = is_string($appName) && $appName !== '' ? $appName : 'SecPal';
 
