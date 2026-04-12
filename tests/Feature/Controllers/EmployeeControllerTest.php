@@ -1112,9 +1112,9 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             ->first();
 
         expect($activity)->not->toBeNull()
-            ->and($activity?->properties->get('file_path'))->toBeString()
-            ->and($activity?->properties->get('file_size_bytes'))->toBeInt()
-            ->and($activity?->properties->get('file_size_bytes'))->toBeGreaterThan(0);
+            ->and($activity?->properties?->get('file_path'))->toBeString()
+            ->and($activity?->properties?->get('file_size_bytes'))->toBeInt()
+            ->and($activity?->properties?->get('file_size_bytes'))->toBeGreaterThan(0);
     });
 
     test('returns 422 when employee is not ready for bwr export', function (): void {
