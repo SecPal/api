@@ -288,6 +288,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('/employees/{employee}', [EmployeeController::class, 'show']);
                 Route::patch('/employees/{employee}', [EmployeeController::class, 'update']);
                 Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy']);
+                Route::post('/employees/{employee}/bwr/export', [EmployeeController::class, 'exportBwr']);
+                Route::get('/employees/{employee}/bwr/exports/{file}/download', [EmployeeController::class, 'downloadBwrExport'])
+                    ->name('employees.bwr-exports.download');
                 // Status transitions
                 Route::post('/employees/{employee}/activate', [EmployeeController::class, 'activate']);
                 Route::post('/employees/{employee}/leave', [EmployeeController::class, 'placeOnLeave']);
