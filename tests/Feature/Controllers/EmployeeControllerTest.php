@@ -16,6 +16,8 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -1227,6 +1229,185 @@ describe('GET /v1/employees/{employee}/bwr/exports/{file}/download', function ()
         expect($response->headers->get('content-type'))->toContain('text/csv')
             ->and((string) $response->headers->get('content-disposition'))->toContain('.csv')
             ->and($response->getContent())->toContain('last_name;first_name;birth_name');
+    });
+});
+
+describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
+    test('returns 401 when not authenticated', function (): void {
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'pending',
+        ]);
+
+        $response = $this->putJson("/v1/employees/{$employee->id}/bwr/status", [
+            'status' => 'active',
+            'bwr_id' => '1234567',
+        ]);
+
+        $response->assertStatus(401);
+    });
+
+    test('returns 403 when user lacks employee.update permission', function (): void {
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'pending',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->putJson("/v1/employees/{$employee->id}/bwr/status", [
+                'status' => 'active',
+                'bwr_id' => '1234567',
+            ]);
+
+        $response->assertStatus(403);
+    });
+
+    test('returns 422 when activating without a bwr id', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'pending',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->putJson("/v1/employees/{$employee->id}/bwr/status", [
+                'status' => 'active',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['bwr_id']);
+    });
+
+    test('returns 422 when bwr transition is not allowed', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'not_registered',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->putJson("/v1/employees/{$employee->id}/bwr/status", [
+                'status' => 'active',
+                'bwr_id' => '1234567',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'BWR status transition from not_registered to active is not allowed.');
+    });
+
+    test('activates a pending employee, persists bwr data, and logs the change', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        Storage::fake('local');
+        Storage::disk('local')->put('id_documents/bwr-status-test.pdf', 'test content');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'pending',
+            'id_document_copy_path' => 'id_documents/bwr-status-test.pdf',
+            'id_document_copy_deleted_at' => null,
+            'bwr_registered_at' => null,
+            'bwr_id' => null,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->putJson("/v1/employees/{$employee->id}/bwr/status", [
+                'status' => 'active',
+                'bwr_id' => '1234567',
+                'notes' => 'Approved by authority',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.bwr_status', 'active')
+            ->assertJsonPath('data.bwr_id', '1234567');
+
+        $employee->refresh();
+
+        expect($employee->bwr_status)->toBe('active')
+            ->and($employee->bwr_id)->toBe('1234567')
+            ->and($employee->bwr_notes)->toBe('Approved by authority')
+            ->and($employee->bwr_registered_at)->not->toBeNull()
+            ->and($employee->id_document_copy_deleted_at)->not->toBeNull()
+            ->and(Storage::disk('local')->exists('id_documents/bwr-status-test.pdf'))->toBeFalse();
+
+        $activity = Activity::query()
+            ->where('subject_type', Employee::class)
+            ->where('subject_id', $employee->id)
+            ->where('description', 'BWR status updated')
+            ->latest()
+            ->first();
+
+        expect($activity)->not->toBeNull()
+            ->and($activity?->properties->get('old_bwr_status'))->toBe('pending')
+            ->and($activity?->properties->get('new_bwr_status'))->toBe('active')
+            ->and($activity?->properties->get('bwr_id'))->toBe('1234567');
+    });
+
+    test('idempotent re-put with same status succeeds and updates notes', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'active',
+            'bwr_id' => '1234567',
+            'bwr_registered_at' => now()->subDay(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->putJson("/v1/employees/{$employee->id}/bwr/status", [
+                'status' => 'active',
+                'notes' => 'Re-confirmed by authority',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.bwr_status', 'active');
+
+        $employee->refresh();
+        expect($employee->bwr_notes)->toBe('Re-confirmed by authority');
     });
 });
 
