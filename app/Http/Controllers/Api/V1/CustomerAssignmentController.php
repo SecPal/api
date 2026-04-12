@@ -48,10 +48,11 @@ class CustomerAssignmentController extends Controller
 
         /** @var array{active_only?: mixed, role?: string} $validated */
         $validated = $request->validated();
+        $role = $validated['role'] ?? null;
 
         $assignments = $customer->assignments()
             ->with(['user', 'customer'])
-            ->when(array_key_exists('role', $validated), fn ($q) => $q->where('role', $validated['role']))
+            ->when(is_string($role), fn ($q) => $q->where('role', $role))
             ->when($request->boolean('active_only'), fn ($q) => $q->currentlyActive())
             ->get();
 
