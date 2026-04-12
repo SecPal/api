@@ -5,6 +5,8 @@
 
 namespace App\Http\Resources;
 
+use App\Models\OnboardingFormTemplate;
+use App\Services\OnboardingSchemaLocalizationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -31,12 +33,18 @@ class OnboardingFormTemplateResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        /** @var OnboardingFormTemplate $template */
+        $template = $this->resource;
+
+        $localizedTemplate = app(OnboardingSchemaLocalizationService::class)
+            ->localizeTemplate($template, $this->resolveLocale($request));
+
         return [
             'id' => $this->id,
             'tenant_id' => $this->tenant_id,
-            'name' => $this->name,
-            'description' => $this->description,
-            'form_schema' => $this->form_schema,
+            'name' => $localizedTemplate['name'],
+            'description' => $localizedTemplate['description'],
+            'form_schema' => $localizedTemplate['form_schema'],
             'is_required' => $this->is_required,
             'is_system_template' => $this->is_system_template,
             'sort_order' => $this->sort_order,
@@ -45,5 +53,18 @@ class OnboardingFormTemplateResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    private function resolveLocale(Request $request): string
+    {
+        $preferredLocale = $request->user()?->preferred_locale;
+
+        if (is_string($preferredLocale) && in_array($preferredLocale, OnboardingSchemaLocalizationService::SUPPORTED_LOCALES, true)) {
+            return $preferredLocale;
+        }
+
+        $requestLocale = $request->getPreferredLanguage(OnboardingSchemaLocalizationService::SUPPORTED_LOCALES);
+
+        return is_string($requestLocale) ? $requestLocale : OnboardingSchemaLocalizationService::DEFAULT_LOCALE;
     }
 }
