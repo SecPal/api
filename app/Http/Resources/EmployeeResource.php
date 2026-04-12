@@ -143,7 +143,15 @@ class EmployeeResource extends JsonResource
             'fire_safety_cert_expiry' => $this->fire_safety_cert_expiry?->toDateString(),
             'evacuation_cert_date' => $this->evacuation_cert_date?->toDateString(),
             'evacuation_cert_expiry' => $this->evacuation_cert_expiry?->toDateString(),
-            'additional_certifications' => $this->additional_certifications,
+            'additional_certifications' => collect($this->additional_certifications ?? [])
+                ->map(function (array $cert) use ($canReadSensitiveIdentifiers): array {
+                    if (! $canReadSensitiveIdentifiers) {
+                        unset($cert['number']);
+                    }
+
+                    return $cert;
+                })
+                ->all(),
             'residence_permit_type' => $this->residence_permit_type,
             'residence_permit_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->residence_permit_number),
             'residence_permit_expiry' => $this->residence_permit_expiry?->toDateString(),

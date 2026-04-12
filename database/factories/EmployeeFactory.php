@@ -368,8 +368,8 @@ class EmployeeFactory extends Factory
                 [
                     'name' => 'Site Access Badge',
                     'number' => fake()->bothify('BADGE-##'),
-                    'issued_date' => fake()->date('Y-m-d', '-6 months'),
-                    'expiry_date' => fake()->date('Y-m-d', '+5 days'),
+                    'issued_date' => fake()->dateTimeBetween('-6 months', '-1 month')->format('Y-m-d'),
+                    'expiry_date' => fake()->dateTimeBetween('+1 day', '+5 days')->format('Y-m-d'),
                     'issuer' => 'Customer Security',
                 ],
             ],
