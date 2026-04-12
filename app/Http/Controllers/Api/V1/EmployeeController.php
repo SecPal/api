@@ -326,7 +326,7 @@ class EmployeeController extends Controller
             abort(Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        if (! $this->isAllowedBwrStatusTransition($oldStatus, $newStatus)) {
+        if ($oldStatus !== $newStatus && ! $this->isAllowedBwrStatusTransition($oldStatus, $newStatus)) {
             return response()->json([
                 'message' => sprintf('BWR status transition from %s to %s is not allowed.', $oldStatus, $newStatus),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);

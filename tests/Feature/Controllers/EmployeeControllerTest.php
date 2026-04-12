@@ -1376,6 +1376,39 @@ describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
             ->and($activity?->properties->get('new_bwr_status'))->toBe('active')
             ->and($activity?->properties->get('bwr_id'))->toBe('1234567');
     });
+
+    test('idempotent re-put with same status succeeds and updates notes', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'active',
+            'bwr_id' => '1234567',
+            'bwr_registered_at' => now()->subDay(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->putJson("/v1/employees/{$employee->id}/bwr/status", [
+                'status' => 'active',
+                'notes' => 'Re-confirmed by authority',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.bwr_status', 'active');
+
+        $employee->refresh();
+        expect($employee->bwr_notes)->toBe('Re-confirmed by authority');
+    });
 });
 
 describe('DELETE /v1/employees/{employee}', function () {
