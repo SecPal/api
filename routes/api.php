@@ -289,6 +289,7 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/employees/{employee}', [EmployeeController::class, 'update']);
                 Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy']);
                 Route::post('/employees/{employee}/bwr/export', [EmployeeController::class, 'exportBwr']);
+                Route::put('/employees/{employee}/bwr/status', [EmployeeController::class, 'updateBwrStatus']);
                 Route::get('/employees/{employee}/bwr/exports/{file}/download', [EmployeeController::class, 'downloadBwrExport'])
                     ->name('employees.bwr-exports.download');
                 // Status transitions

@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ExportEmployeeBwrRequest;
 use App\Http\Requests\IndexEmployeeRequest;
 use App\Http\Requests\StoreEmployeeRequest;
+use App\Http\Requests\UpdateEmployeeBwrStatusRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
@@ -305,6 +306,71 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Update the BWR registration status for an employee.
+     */
+    public function updateBwrStatus(UpdateEmployeeBwrStatusRequest $request, Employee $employee): JsonResponse
+    {
+        $this->authorize('update', $employee);
+
+        $user = $request->user();
+
+        if (! $user instanceof User) {
+            abort(Response::HTTP_UNAUTHORIZED);
+        }
+
+        $validated = $request->validated();
+        $newStatus = $validated['status'];
+        $oldStatus = $employee->bwr_status;
+
+        if (! is_string($newStatus)) {
+            abort(Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if (! $this->isAllowedBwrStatusTransition($oldStatus, $newStatus)) {
+            return response()->json([
+                'message' => sprintf('BWR status transition from %s to %s is not allowed.', $oldStatus, $newStatus),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $updates = [
+            'bwr_status' => $newStatus,
+        ];
+
+        if (array_key_exists('bwr_id', $validated)) {
+            $updates['bwr_id'] = $validated['bwr_id'];
+        }
+
+        if (array_key_exists('notes', $validated)) {
+            $updates['bwr_notes'] = $validated['notes'];
+        }
+
+        if ($newStatus === 'active' && $employee->bwr_registered_at === null) {
+            $updates['bwr_registered_at'] = now();
+        }
+
+        $employee->update($updates);
+
+        activity('employee_changes')
+            ->causedBy($user)
+            ->performedOn($employee)
+            ->withProperties([
+                'old_bwr_status' => $oldStatus,
+                'new_bwr_status' => $newStatus,
+                'bwr_id' => $employee->bwr_id,
+                'notes' => $employee->bwr_notes,
+            ])
+            ->log('BWR status updated');
+
+        /** @var Employee $freshEmployee */
+        $freshEmployee = $employee->fresh();
+        $freshEmployee->load(['user', 'organizationalUnit']);
+
+        return response()->json([
+            'data' => new EmployeeResource($freshEmployee),
+        ]);
+    }
+
+    /**
      * Remove the specified employee (soft delete).
      *
      * DELETE /api/v1/employees/{employee}
@@ -444,5 +510,17 @@ class EmployeeController extends Controller
         }
 
         return $prefix.str_pad((string) $nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function isAllowedBwrStatusTransition(string $currentStatus, string $newStatus): bool
+    {
+        $allowedTransitions = [
+            'pending' => ['active', 'suspended', 'revoked'],
+            'active' => ['suspended', 'revoked'],
+            'suspended' => ['active', 'revoked'],
+            'revoked' => ['active'],
+        ];
+
+        return in_array($newStatus, $allowedTransitions[$currentStatus] ?? [], true);
     }
 }
