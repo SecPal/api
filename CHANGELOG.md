@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- converted all findings from the 2026-03-31 security audit to GitHub Issues (#834–#847) tracked under Epic #848
+
+### Removed
+
+- removed `SECURITY_AUDIT_API_VALIDATION.md` from the repository root after converting its findings to tracked GitHub Issues
+- removed stale and historical documentation: one-time PR artefacts (`PR_DESCRIPTION_DRAFT.md`), DDEV-era retrospectives and production-test reports (`ISSUE50_RETROSPECTIVE.md`, `ISSUE74_RETROSPECTIVE.md`, `PRODUCTION_TEST_PASSWORD_RESET.md`, `PRODUCTION_TEST_PHASE2_EMAIL.md`, `PR_REVIEW_ISSUE50.md`), superseded workflow guides (`EPIC_WORKFLOW.md`, `EPIC_IMPLEMENTATION_SUMMARY.md`, `SELF_REVIEW_CHECKLIST.md`), and the PHPStan workaround note (`ISSUE_PHPSTAN_SANCTUM_TYPES.md`) and obsolete reminder prompt file (`COPILOT_REMINDER_PATTERNS.md`)
+
 ### Fixed
 
 - reduced the public health surface by removing the `/health` version field and by limiting `/health/ready` responses to the readiness status plus timestamp instead of exposing database, key-management, scheduler, and queue-worker details
