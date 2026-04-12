@@ -61,72 +61,81 @@ test('concurrent employee creation requests produce distinct employee numbers', 
         $this->fail('Unable to create synchronization directory for concurrency test.');
     }
 
-    $startSignalPath = $synchronizationDirectory.'/start.signal';
-    file_put_contents($startSignalPath, 'wait');
+    try {
+        $startSignalPath = $synchronizationDirectory.'/start.signal';
+        file_put_contents($startSignalPath, 'wait');
 
-    $childPids = [];
+        $childPids = [];
 
-    for ($index = 1; $index <= $requestCount; $index++) {
-        $resultPath = $synchronizationDirectory."/result-{$index}.json";
-        $pid = pcntl_fork();
+        for ($index = 1; $index <= $requestCount; $index++) {
+            $resultPath = $synchronizationDirectory."/result-{$index}.json";
+            $pid = pcntl_fork();
 
-        if ($pid === -1) {
-            $this->fail('Unable to fork concurrency test child process.');
-        }
-
-        if ($pid === 0) {
-            DB::disconnect();
-            app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-            while (trim((string) file_get_contents($startSignalPath)) !== 'go') {
-                usleep(10_000);
+            if ($pid === -1) {
+                $this->fail('Unable to fork concurrency test child process.');
             }
 
-            $response = $this->withToken($this->token)
-                ->postJson('/v1/employees', employeeCreationPayload($this->organizationalUnit->id, $index));
+            if ($pid === 0) {
+                DB::disconnect();
+                app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-            file_put_contents($resultPath, json_encode([
-                'status' => $response->getStatusCode(),
-                'employee_number' => $response->json('data.employee_number'),
-                'body' => $response->json(),
-            ], JSON_THROW_ON_ERROR));
+                while (trim((string) file_get_contents($startSignalPath)) !== 'go') {
+                    usleep(10_000);
+                }
 
-            exit(0);
+                $response = $this->withToken($this->token)
+                    ->postJson('/v1/employees', employeeCreationPayload($this->organizationalUnit->id, $index));
+
+                file_put_contents($resultPath, json_encode([
+                    'status' => $response->getStatusCode(),
+                    'employee_number' => $response->json('data.employee_number'),
+                    'body' => $response->json(),
+                ], JSON_THROW_ON_ERROR));
+
+                exit(0);
+            }
+
+            $childPids[] = $pid;
         }
 
-        $childPids[] = $pid;
+        file_put_contents($startSignalPath, 'go');
+
+        foreach ($childPids as $childPid) {
+            pcntl_waitpid($childPid, $status);
+            expect(pcntl_wexitstatus($status))->toBe(0);
+        }
+
+        $results = collect(range(1, $requestCount))
+            ->map(fn (int $index): array => json_decode(
+                (string) file_get_contents($synchronizationDirectory."/result-{$index}.json"),
+                true,
+                512,
+                JSON_THROW_ON_ERROR,
+            ));
+
+        expect($results->pluck('status')->all())->toBe(array_fill(0, $requestCount, 201));
+
+        /** @var array<int, string> $employeeNumbers */
+        $employeeNumbers = $results->pluck('employee_number')->all();
+
+        expect(count(array_unique($employeeNumbers)))->toBe($requestCount);
+        expect(Employee::query()->count())->toBe($requestCount);
+    } finally {
+        if (isset($startSignalPath) && file_exists($startSignalPath)) {
+            unlink($startSignalPath);
+        }
+
+        foreach (range(1, $requestCount) as $index) {
+            $path = $synchronizationDirectory."/result-{$index}.json";
+            if (file_exists($path)) {
+                unlink($path);
+            }
+        }
+
+        if (is_dir($synchronizationDirectory)) {
+            rmdir($synchronizationDirectory);
+        }
     }
-
-    file_put_contents($startSignalPath, 'go');
-
-    foreach ($childPids as $childPid) {
-        pcntl_waitpid($childPid, $status);
-        expect(pcntl_wexitstatus($status))->toBe(0);
-    }
-
-    $results = collect(range(1, $requestCount))
-        ->map(fn (int $index): array => json_decode(
-            (string) file_get_contents($synchronizationDirectory."/result-{$index}.json"),
-            true,
-            512,
-            JSON_THROW_ON_ERROR,
-        ));
-
-    expect($results->pluck('status')->all())->toBe(array_fill(0, $requestCount, 201));
-
-    /** @var array<int, string> $employeeNumbers */
-    $employeeNumbers = $results->pluck('employee_number')->all();
-
-    expect(count(array_unique($employeeNumbers)))->toBe($requestCount);
-    expect(Employee::query()->count())->toBe($requestCount);
-
-    unlink($startSignalPath);
-
-    foreach (range(1, $requestCount) as $index) {
-        unlink($synchronizationDirectory."/result-{$index}.json");
-    }
-
-    rmdir($synchronizationDirectory);
 });
 
 /**

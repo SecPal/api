@@ -106,7 +106,7 @@ class EmployeeController extends Controller
 
         // Prepare data with tenant_id FIRST (required for encryption cast to work)
         $employee = DB::transaction(function () use ($tenantId, $validated): Employee {
-            TenantKey::query()->whereKey($tenantId)->lockForUpdate()->firstOrFail();
+            TenantKey::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
 
             $data = ['tenant_id' => $tenantId];
             $data['employee_number'] = $this->generateEmployeeNumber($tenantId);
