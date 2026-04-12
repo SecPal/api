@@ -37,7 +37,7 @@ class EmployeeController extends Controller
      * Supports filtering by:
      * - status (applicant, pre_contract, active, on_leave, terminated)
      * - organizational_unit_id
-     * - search (name, email, employee_number)
+     * - search (email, employee_number)
      */
     public function index(IndexEmployeeRequest $request): AnonymousResourceCollection
     {
@@ -67,9 +67,13 @@ class EmployeeController extends Controller
                 Employee::STATUS_ON_LEAVE,
             ])
             ->with(['user', 'organizationalUnit'])
-            ->get()
-            ->filter(fn (Employee $employee): bool => $complianceService->hasAlerts($employee, $complianceStatus))
-            ->values();
+            ->paginate($request->integer('per_page', 15));
+
+        $employees->setCollection(
+            $employees->getCollection()
+                ->filter(fn (Employee $employee): bool => $complianceService->hasAlerts($employee, $complianceStatus))
+                ->values()
+        );
 
         return EmployeeResource::collection($employees);
     }
@@ -110,7 +114,7 @@ class EmployeeController extends Controller
             $query->where('organizational_unit_id', $request->input('organizational_unit_id'));
         }
 
-        // Search by name, email, or employee_number
+        // Search by email or employee_number
         if ($request->has('search')) {
             /** @var string $search */
             $search = $request->input('search');

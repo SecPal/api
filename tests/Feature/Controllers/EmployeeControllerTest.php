@@ -298,6 +298,25 @@ describe('GET /v1/employees', function () {
             ->assertJsonValidationErrors(['compliance_status']);
     });
 
+    test('compliance alerts endpoint paginates results and respects per_page', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        Employee::factory(3)->withExpiringComplianceCertifications()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees/compliance-alerts?per_page=2');
+
+        $response->assertOk();
+
+        expect($response->json('data'))->toHaveCount(2)
+            ->and($response->json('meta'))->toHaveKey('current_page')
+            ->and($response->json('meta.total'))->toBeGreaterThanOrEqual(2);
+    });
+
     test('treats wildcard-only employee search input as a literal string', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
