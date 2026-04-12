@@ -68,6 +68,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string $status applicant|pre_contract|active|on_leave|terminated
  * @property ?\Illuminate\Support\Carbon $hire_date
  * @property ?\Illuminate\Support\Carbon $contract_start_date
+ * @property ?\Illuminate\Support\Carbon $employment_end_date
+ * @property ?\Illuminate\Support\Carbon $retention_period_end
  * @property ?\Illuminate\Support\Carbon $termination_date
  * @property ?\Illuminate\Support\Carbon $last_working_day
  * @property string $contract_type full_time|part_time|minijob|freelance
