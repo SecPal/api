@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- converted all findings from the 2026-03-31 security audit to GitHub Issues (#834–#847) tracked under Epic #848
+
+### Removed
+
+- removed `SECURITY_AUDIT_API_VALIDATION.md` from the repository root after converting its findings to tracked GitHub Issues
+
 ### Fixed
 
 - fixed `buildUserAuthorizationData` returning empty roles and permissions on authentication routes (login, passkey verify, MFA verify) because the global `InjectTenantId` middleware cannot resolve a user before authentication completes, leaving the Spatie PermissionRegistrar with a null team context; the method now explicitly sets the team from the user's `tenant_id` before eager-loading (fixes SecPal/frontend#822)
