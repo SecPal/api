@@ -3,12 +3,15 @@
 // SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -90,5 +93,27 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'message' => 'Resource not found.',
             ], 404);
+        });
+
+        $exceptions->render(function (Throwable $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            if ($e instanceof ValidationException
+                || $e instanceof AuthorizationException
+                || $e instanceof HttpResponseException) {
+                return null;
+            }
+
+            $status = method_exists($e, 'getStatusCode')
+                ? $e->getStatusCode()
+                : 500;
+
+            return response()->json([
+                'message' => $status >= 500
+                    ? 'Internal server error.'
+                    : ($e->getMessage() !== '' ? $e->getMessage() : 'Request failed.'),
+            ], $status);
         });
     })->create();

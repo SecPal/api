@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- normalized unexpected API exceptions behind a final JSON catch-all so `/v1/*` requests now return a stable `message` payload even with `APP_DEBUG=true`, while 500 responses always use `Internal server error.` instead of leaking stack traces or internal exception details
+
 - normalized generic API `404` responses to `{"message":"Resource not found."}` for unknown `/v1/*` routes in all debug modes, preventing default Laravel HTML or stack-trace payloads from leaking through
 
 - escaped `\\`, `%`, and `_` in customer, site, and employee search terms through a shared LIKE-pattern helper so wildcard-only search input no longer expands into broad `LIKE` / `ILIKE` scans on those endpoints
