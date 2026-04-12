@@ -100,6 +100,26 @@ test('exports a BWR-ready employee to CSV storage', function (): void {
         ->and($csv)->toContain('HR Admin');
 });
 
+test('exports a BWR-ready employee to XML storage', function (): void {
+    $employee = makeBwrReadyEmployee($this->tenant, $this->organizationalUnit);
+
+    $export = $this->service->exportXml($employee, 'HR Admin');
+
+    expect($export['disk'])->toBe('local')
+        ->and($export['file_name'])->toEndWith('.xml')
+        ->and($export['path'])->toStartWith('bwr_exports/'.$employee->id.'/');
+
+    Storage::disk('local')->assertExists($export['path']);
+
+    $xml = Storage::disk('local')->get($export['path']);
+
+    expect($xml)->toContain('<?xml version="1.0" encoding="UTF-8"?>')
+        ->and($xml)->toContain('<bewacherregisterExport>')
+        ->and($xml)->toContain('<last_name>Export</last_name>')
+        ->and($xml)->toContain('<first_name>Taylor</first_name>')
+        ->and($xml)->toContain('<exported_by>HR Admin</exported_by>');
+});
+
 test('export throws when required BWR fields are missing', function (): void {
     $employee = makeBwrReadyEmployee($this->tenant, $this->organizationalUnit, [
         'gender' => null,

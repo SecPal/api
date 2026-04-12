@@ -235,6 +235,11 @@ class EmployeeController extends Controller
     {
         $this->authorize('update', $employee);
 
+        $format = $request->string('format')->toString();
+        if ($format === '') {
+            $format = 'csv';
+        }
+
         if ($employee->bwr_status !== 'not_registered') {
             return response()->json([
                 'message' => 'BWR export is only available for employees with status not_registered.',
@@ -248,7 +253,9 @@ class EmployeeController extends Controller
         }
 
         try {
-            $export = $exportService->exportCsv($employee, $user->name);
+            $export = $format === 'xml'
+                ? $exportService->exportXml($employee, $user->name)
+                : $exportService->exportCsv($employee, $user->name);
         } catch (BewacherregisterExportNotReadyException $exception) {
             return response()->json([
                 'message' => 'Employee is not ready for BWR export.',
@@ -265,7 +272,7 @@ class EmployeeController extends Controller
             ->causedBy($request->user())
             ->performedOn($employee)
             ->withProperties([
-                'format' => 'csv',
+                'format' => $format,
                 'file_name' => $export['file_name'],
                 'file_path' => $export['path'],
                 'old_bwr_status' => 'not_registered',
@@ -277,7 +284,7 @@ class EmployeeController extends Controller
             'data' => [
                 'employee_id' => $employee->id,
                 'status' => 'pending',
-                'format' => 'csv',
+                'format' => $format,
                 'download_url' => route('employees.bwr-exports.download', [
                     'employee' => $employee,
                     'file' => $export['file_name'],
@@ -299,9 +306,11 @@ class EmployeeController extends Controller
         }
 
         $content = Storage::disk('local')->get($path) ?? '';
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $contentType = $extension === 'xml' ? 'application/xml; charset=UTF-8' : 'text/csv; charset=UTF-8';
 
         return response($content)
-            ->header('Content-Type', 'text/csv; charset=UTF-8')
+            ->header('Content-Type', $contentType)
             ->header('Content-Disposition', 'attachment; filename="'.basename($path).'"');
     }
 
