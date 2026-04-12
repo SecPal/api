@@ -59,7 +59,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $shouldRenderApiJson = static function (Request $request): bool {
-            return $request->is('v1/*') || $request->expectsJson();
+            return $request->is('v1', 'v1/*') || $request->expectsJson();
         };
 
         // Return JSON 401 response for unauthenticated API requests
