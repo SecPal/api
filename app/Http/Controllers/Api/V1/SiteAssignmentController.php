@@ -8,13 +8,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Assignment\IndexSiteAssignmentRequest;
 use App\Http\Requests\Api\V1\Assignment\StoreSiteAssignmentRequest;
 use App\Http\Requests\Api\V1\Assignment\UpdateAssignmentRequest;
 use App\Http\Resources\Api\V1\SiteAssignmentResource;
 use App\Models\Site;
 use App\Models\SiteAssignment;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -42,13 +42,17 @@ class SiteAssignmentController extends Controller
      *
      * @return JsonResponse Array of SiteAssignmentResource
      */
-    public function index(Request $request, Site $site): JsonResponse
+    public function index(IndexSiteAssignmentRequest $request, Site $site): JsonResponse
     {
         $this->authorize('view', $site);
 
+        /** @var array{active_only?: mixed, role?: string} $validated */
+        $validated = $request->validated();
+        $role = $validated['role'] ?? null;
+
         $assignments = $site->assignments()
             ->with(['user', 'site'])
-            ->when($request->has('role'), fn ($q) => $q->where('role', $request->input('role')))
+            ->when(is_string($role), fn ($q) => $q->where('role', $role))
             ->when($request->boolean('active_only'), fn ($q) => $q->currentlyActive())
             ->get();
 
