@@ -5,13 +5,17 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\BewacherregisterExportNotReadyException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ExportEmployeeBwrRequest;
 use App\Http\Requests\IndexEmployeeRequest;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
 use App\Models\TenantKey;
+use App\Models\User;
+use App\Services\BewacherregisterExportService;
 use App\Services\EmployeeComplianceService;
 use App\Services\EmployeeLifecycleService;
 use App\Services\EmployeeOnboardingInvitationService;
@@ -21,6 +25,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * EmployeeController handles Employee resource CRUD operations.
@@ -85,7 +90,7 @@ class EmployeeController extends Controller
      */
     private function buildEmployeeIndexQuery(IndexEmployeeRequest $request): Builder
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         /** @var int $tenantId */
@@ -220,6 +225,83 @@ class EmployeeController extends Controller
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
         ]);
+    }
+
+    /**
+     * Generate a BWR export for an employee and transition the BWR status to pending.
+     */
+    public function exportBwr(ExportEmployeeBwrRequest $request, Employee $employee, BewacherregisterExportService $exportService): JsonResponse
+    {
+        $this->authorize('update', $employee);
+
+        if ($employee->bwr_status !== 'not_registered') {
+            return response()->json([
+                'message' => 'BWR export is only available for employees with status not_registered.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $user = $request->user();
+
+        if (! $user instanceof User) {
+            abort(Response::HTTP_UNAUTHORIZED);
+        }
+
+        try {
+            $export = $exportService->exportCsv($employee, $user->name);
+        } catch (BewacherregisterExportNotReadyException $exception) {
+            return response()->json([
+                'message' => 'Employee is not ready for BWR export.',
+                'errors' => $exception->errors,
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $employee->update([
+            'bwr_status' => 'pending',
+            'bwr_submission_date' => now()->toDateString(),
+        ]);
+
+        activity('employee_changes')
+            ->causedBy($request->user())
+            ->performedOn($employee)
+            ->withProperties([
+                'format' => 'csv',
+                'file_name' => $export['file_name'],
+                'file_path' => $export['path'],
+                'old_bwr_status' => 'not_registered',
+                'new_bwr_status' => 'pending',
+            ])
+            ->log('BWR export generated');
+
+        return response()->json([
+            'data' => [
+                'employee_id' => $employee->id,
+                'status' => 'pending',
+                'format' => 'csv',
+                'download_url' => route('employees.bwr-exports.download', [
+                    'employee' => $employee,
+                    'file' => $export['file_name'],
+                ]),
+            ],
+        ]);
+    }
+
+    /**
+     * Download a previously generated BWR export file.
+     */
+    public function downloadBwrExport(Employee $employee, string $file, BewacherregisterExportService $exportService): Response
+    {
+        $this->authorize('update', $employee);
+
+        $path = $exportService->downloadPath($employee, $file);
+        if (! Storage::disk('local')->exists($path)) {
+            abort(Response::HTTP_NOT_FOUND);
+        }
+
+        $content = Storage::disk('local')->get($path) ?? '';
+
+        return response($content)
+            ->header('Content-Type', 'text/csv; charset=UTF-8')
+            ->header('Content-Disposition', 'attachment; filename="'.basename($path).'"');
     }
 
     /**

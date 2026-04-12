@@ -999,6 +999,237 @@ describe('PATCH /v1/employees/{employee}', function () {
     });
 });
 
+describe('POST /v1/employees/{employee}/bwr/export', function (): void {
+    test('returns 401 when not authenticated', function (): void {
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $response = $this->postJson("/v1/employees/{$employee->id}/bwr/export", [
+            'format' => 'csv',
+        ]);
+
+        $response->assertStatus(401);
+    });
+
+    test('returns 403 when user lacks employee.update permission', function (): void {
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/bwr/export", [
+                'format' => 'csv',
+            ]);
+
+        $response->assertStatus(403);
+    });
+
+    test('exports a bwr-ready employee and transitions status to pending', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'first_name' => 'Taylor',
+            'last_name' => 'Export',
+            'date_of_birth' => '1990-01-15',
+            'gender' => 'female',
+            'birth_name' => 'Taylor Birthname',
+            'previous_names' => ['Taylor Previous'],
+            'birth_city' => 'Berlin',
+            'birth_country' => 'DE',
+            'nationalities' => ['DE'],
+            'address_street' => 'Hauptstrasse',
+            'address_house_number' => '42A',
+            'address_postal_code' => '10115',
+            'address_city' => 'Berlin',
+            'address_country' => 'DE',
+            'address_history' => [[
+                'from' => '2021-01-01',
+                'to' => '2023-12-31',
+                'street' => 'Altstrasse',
+                'house_number' => '5',
+                'postal_code' => '20095',
+                'city' => 'Hamburg',
+                'country' => 'DE',
+            ]],
+            'intended_activities' => ['object_protection'],
+            'id_document_type' => 'id_card',
+            'id_document_number' => 'L01X00T47',
+            'id_document_expiry' => now()->addYear()->toDateString(),
+            'sachkunde_type' => '34a_new',
+            'sachkunde_certificate' => 'IHK-123456',
+            'bwr_status' => 'not_registered',
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'position' => 'Security Guard',
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'management_level' => 0,
+            'work_permit_type' => 'none',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/bwr/export", [
+                'format' => 'csv',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.employee_id', $employee->id)
+            ->assertJsonPath('data.format', 'csv');
+
+        expect($response->json('data.download_url'))->toContain("/v1/employees/{$employee->id}/bwr/exports/")
+            ->and($employee->fresh()->bwr_status)->toBe('pending')
+            ->and($employee->fresh()->bwr_submission_date)->not->toBeNull();
+
+        $this->assertDatabaseHas('activity_log', [
+            'description' => 'BWR export generated',
+            'subject_type' => Employee::class,
+            'subject_id' => $employee->id,
+            'causer_type' => User::class,
+            'causer_id' => $this->user->id,
+        ]);
+    });
+
+    test('returns 422 when employee is not ready for bwr export', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'not_registered',
+            'gender' => null,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/bwr/export", [
+                'format' => 'csv',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Employee is not ready for BWR export.');
+
+        expect($response->json('errors'))->toContain('gender')
+            ->and($employee->fresh()->bwr_status)->toBe('not_registered');
+    });
+
+    test('returns 422 when employee already left not_registered status', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'pending',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/bwr/export", [
+                'format' => 'csv',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'BWR export is only available for employees with status not_registered.');
+    });
+});
+
+describe('GET /v1/employees/{employee}/bwr/exports/{file}/download', function (): void {
+    test('downloads a generated bwr export', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'first_name' => 'Taylor',
+            'last_name' => 'Export',
+            'date_of_birth' => '1990-01-15',
+            'gender' => 'female',
+            'birth_city' => 'Berlin',
+            'birth_country' => 'DE',
+            'nationalities' => ['DE'],
+            'address_street' => 'Hauptstrasse',
+            'address_house_number' => '42A',
+            'address_postal_code' => '10115',
+            'address_city' => 'Berlin',
+            'address_country' => 'DE',
+            'address_history' => [[
+                'from' => '2021-01-01',
+                'to' => '2023-12-31',
+                'street' => 'Altstrasse',
+                'house_number' => '5',
+                'postal_code' => '20095',
+                'city' => 'Hamburg',
+                'country' => 'DE',
+            ]],
+            'intended_activities' => ['object_protection'],
+            'id_document_type' => 'id_card',
+            'id_document_number' => 'L01X00T47',
+            'id_document_expiry' => now()->addYear()->toDateString(),
+            'sachkunde_type' => '34a_new',
+            'sachkunde_certificate' => 'IHK-123456',
+            'bwr_status' => 'not_registered',
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'position' => 'Security Guard',
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'management_level' => 0,
+            'work_permit_type' => 'none',
+        ]);
+
+        $exportResponse = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/bwr/export", [
+                'format' => 'csv',
+            ]);
+
+        $downloadPath = parse_url((string) $exportResponse->json('data.download_url'), PHP_URL_PATH);
+
+        $response = $this->withToken($this->token)->get($downloadPath);
+
+        $response->assertOk();
+        expect($response->headers->get('content-type'))->toContain('text/csv')
+            ->and((string) $response->headers->get('content-disposition'))->toContain('.csv')
+            ->and($response->getContent())->toContain('last_name;first_name;birth_name');
+    });
+});
+
 describe('DELETE /v1/employees/{employee}', function () {
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
