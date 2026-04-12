@@ -337,6 +337,42 @@ describe('POST /v1/employees', function () {
         expect($response->json('data.onboarding_workflow.status'))->toBe(Employee::WORKFLOW_STATUS_INVITED);
     });
 
+    test('returns 422 when employee email is already taken', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $payload = [
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'email' => 'duplicate.employee@example.com',
+            'date_of_birth' => '1990-01-15',
+            'position' => 'Security Guard',
+            'status' => 'pre_contract',
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'weekly_hours' => 40,
+            'hourly_rate' => 15.50,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'sachkunde_type' => 'none',
+            'work_permit_type' => 'none',
+            'criminal_record_status' => 'valid',
+            'management_level' => 0,
+        ];
+
+        $this->withToken($this->token)
+            ->postJson('/v1/employees', $payload)
+            ->assertCreated();
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                ...$payload,
+                'first_name' => 'Jane',
+                'last_name' => 'Smith',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+    });
+
     test('creates employee with user account via Observer', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
