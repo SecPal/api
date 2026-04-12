@@ -7,6 +7,14 @@ return [
     'account_deactivated' => [
         'subject' => 'Account Deactivated',
     ],
+    'compliance_alert' => [
+        'subject' => 'Compliance documents require attention: :severity',
+        'severities' => [
+            'warning' => 'expiring soon',
+            'critical' => 'critical',
+            'expired' => 'expired',
+        ],
+    ],
     'contract_ending_soon' => [
         'subject' => 'Your Contract Ends Soon',
     ],

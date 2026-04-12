@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\ContractEndingSoonMail;
+use App\Mail\EmployeeComplianceAlertMail;
 use App\Mail\OnboardingInvitationMail;
 use App\Mail\QualificationExpiringMail;
 use App\Mail\WelcomeActiveMail;
@@ -289,4 +290,69 @@ test('qualification expiring mail contains qualification data', function () {
     expect($mail->qualification->qualification->name)->toBe('Safety Training');
     expect($mail->qualification->certificate_number)->toBe('CERT-12345');
     expect($mail->qualification->issuing_authority)->toBe('Test Authority');
+});
+
+test('employee compliance alert mail has correct content', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'first_name' => 'Taylor',
+        'last_name' => 'Alert',
+        'email' => 'taylor.alert@example.com',
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $mail = new EmployeeComplianceAlertMail($employee, [
+        [
+            'type' => 'firearms_license',
+            'label' => 'Firearms License',
+            'expiry' => now()->addDays(7)->toDateString(),
+            'status' => 'critical',
+            'days_until_expiry' => 7,
+        ],
+    ], 'critical');
+
+    $content = $mail->content();
+    expect($content->markdown)->toBe('emails.employees.compliance-alert');
+});
+
+test('employee compliance alert mail keeps severity and document data', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'email' => 'severity.alert@example.com',
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $documents = [
+        [
+            'type' => 'firearms_license',
+            'label' => 'Firearms License',
+            'expiry' => now()->subDay()->toDateString(),
+            'status' => 'expired',
+            'days_until_expiry' => -1,
+        ],
+    ];
+
+    $mail = new EmployeeComplianceAlertMail($employee, $documents, 'expired');
+
+    expect($mail->employee->id)->toBe($employee->id);
+    expect($mail->documents)->toBe($documents);
+    expect($mail->severity)->toBe('expired');
+});
+
+test('employee compliance alert mail envelope subject contains translated severity', function () {
+    app()->setLocale('en');
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'email' => 'envelope.test@example.com',
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $mail = new EmployeeComplianceAlertMail($employee, [], 'critical');
+
+    $subject = $mail->envelope()->subject;
+    expect($subject)->toBe('Compliance documents require attention: critical');
 });

@@ -23,6 +23,9 @@ Schedule::command('employees:update-qualifications')->dailyAt('07:00');
 // Schedule: Send contract ending soon notifications daily at 08:00
 Schedule::command('employees:send-contract-ending-notifications')->dailyAt('08:00');
 
+// Schedule: Send employee compliance alert notifications daily at 08:30
+Schedule::command('employees:send-compliance-alert-notifications')->dailyAt('08:30');
+
 // Schedule: Build Merkle trees for Level 2+3 activity logs
 // See ADR-010 Phase 2: Merkle Tree Building
 // Frequency configured via MERKLE_SCHEDULE_FREQUENCY env var

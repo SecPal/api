@@ -7,6 +7,14 @@ return [
     'account_deactivated' => [
         'subject' => 'Konto deaktiviert',
     ],
+    'compliance_alert' => [
+        'subject' => 'Compliance-Dokumente erfordern Aufmerksamkeit: :severity',
+        'severities' => [
+            'warning' => 'laufen bald ab',
+            'critical' => 'kritisch',
+            'expired' => 'abgelaufen',
+        ],
+    ],
     'contract_ending_soon' => [
         'subject' => 'Ihr Vertrag endet bald',
     ],
