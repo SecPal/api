@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Http\Resources\EmployeeResource;
@@ -83,6 +83,17 @@ test('EmployeeResource includes all BewachV fields', function () {
     expect($array)->toHaveKey('sachkunde_ihk_number')
         ->and($array)->toHaveKey('sachkunde_exam_date')
         ->and($array)->toHaveKey('sachkunde_issued_date');
+
+    // Work permit compliance
+    expect($array)->toHaveKey('work_permit_type')
+        ->and($array)->toHaveKey('work_permit_number')
+        ->and($array)->toHaveKey('work_permit_expiry')
+        ->and($array)->toHaveKey('work_permit_issued_by')
+        ->and($array)->toHaveKey('work_permit_copy_path')
+        ->and($array)->toHaveKey('work_permit_copy_deleted_at')
+        ->and($array)->toHaveKey('requires_work_permit')
+        ->and($array)->toHaveKey('has_valid_work_authorization')
+        ->and($array)->toHaveKey('expiring_documents');
 });
 
 test('EmployeeResource formats dates consistently', function () {
@@ -130,6 +141,21 @@ test('EmployeeResource omits regulated identifiers without employees.read_sensit
         'residence_permit_number',
         'sachkunde_ihk_number',
     ]);
+});
+
+test('EmployeeResource includes work authorization compliance context', function () {
+    $employee = Employee::factory()->withNonEuWorkPermit()->create([
+        'work_permit_expiry' => now()->addDays(5)->toDateString(),
+    ]);
+
+    $resource = new EmployeeResource($employee);
+    $array = $resource->resolve(employeeResourceRequest(true));
+
+    expect($array['requires_work_permit'])->toBeTrue()
+        ->and($array['has_valid_work_authorization'])->toBeTrue()
+        ->and($array['work_permit_number'])->toBe($employee->work_permit_number)
+        ->and($array['expiring_documents'])->toBeArray()
+        ->and(collect($array['expiring_documents'])->pluck('type')->all())->toContain('work_permit');
 });
 
 test('EmployeeResource includes computed structured_address property', function () {

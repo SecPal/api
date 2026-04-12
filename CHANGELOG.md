@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the first `api#472` non-EU work-permit core slice: encrypted `work_permit_number` storage, richer work-permit types, conditional non-EU validation, work-authorization and expiring-document computed fields, factory states for permit-bearing employees, and GDPR-driven work-permit copy deletion when BWR approval or permanent authorization makes the copy unnecessary
 - added localized onboarding template schema responses for `/v1/onboarding/templates*`, including backend-managed English/German labels, descriptions, and enum display names with `preferred_locale` / `Accept-Language` fallback handling, so onboarding form text no longer needs to be frontend-owned
 - added the `employees:delete-expired` retention command for BewachV §21 / GDPR employee erasure, including tenant-scoped dry-run support, hard deletion of expired terminated employee records, local storage cleanup for employee and onboarding uploads, linked-user anonymization, and a daily scheduler hook after activity retention processing
 - Added the initial Android enrollment API slice for Epic SecPal/.github#327, including tenant-bound enrollment session storage, private QR/bootstrap token issuance, admin create/list/read/revoke endpoints, a public bootstrap exchange endpoint, and audited provisioning lifecycle events

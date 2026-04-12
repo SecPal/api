@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
@@ -85,9 +86,13 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string|null $sachkunde_ihk_number IHK identification number
  * @property ?\Illuminate\Support\Carbon $sachkunde_exam_date
  * @property ?\Illuminate\Support\Carbon $sachkunde_issued_date
- * @property string $work_permit_type unlimited|limited|none
+ * @property string $work_permit_type none|temporary|permanent|blue_card|seasonal|student
+ * @property string|null $work_permit_number_enc Encrypted work permit number
  * @property string|null $work_permit_number
  * @property ?\Illuminate\Support\Carbon $work_permit_expiry
+ * @property string|null $work_permit_copy_path Storage path for uploaded work permit copy
+ * @property string|null $work_permit_issued_by
+ * @property ?\Illuminate\Support\Carbon $work_permit_copy_deleted_at
  * @property string $residence_permit_type unlimited|limited|none
  * @property string|null $residence_permit_number
  * @property ?\Illuminate\Support\Carbon $residence_permit_expiry
@@ -125,10 +130,12 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read string|null $address_city Decrypted city
  * @property-read string|null $address_supplement Decrypted address supplement
  * @property-read string|null $id_document_number Decrypted document number
+ * @property-read string|null $work_permit_number Decrypted work permit number
  * @property-read float|null $hourly_rate Decrypted hourly rate
  * @property-read string|null $tax_id Decrypted tax ID
  * @property-read string|null $social_security_number Decrypted social security number
  * @property-read string $full_name Full name (first + last)
+ * @property-read SupportCollection<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}> $expiring_documents
  * @property-read TenantKey $tenant
  * @property-read User|null $user
  * @property-read OrganizationalUnit|null $organizationalUnit
@@ -193,6 +200,43 @@ class Employee extends Model
     public const WORKFLOW_STATUS_READY_FOR_ACTIVATION = 'ready_for_activation';
 
     public const WORKFLOW_STATUS_ACTIVE = 'active';
+
+    public const WORK_PERMIT_TYPE_NONE = 'none';
+
+    public const WORK_PERMIT_TYPE_TEMPORARY = 'temporary';
+
+    public const WORK_PERMIT_TYPE_PERMANENT = 'permanent';
+
+    public const WORK_PERMIT_TYPE_BLUE_CARD = 'blue_card';
+
+    public const WORK_PERMIT_TYPE_SEASONAL = 'seasonal';
+
+    public const WORK_PERMIT_TYPE_STUDENT = 'student';
+
+    /** @var list<string> */
+    public const VALID_WORK_PERMIT_TYPES = [
+        self::WORK_PERMIT_TYPE_NONE,
+        self::WORK_PERMIT_TYPE_TEMPORARY,
+        self::WORK_PERMIT_TYPE_PERMANENT,
+        self::WORK_PERMIT_TYPE_BLUE_CARD,
+        self::WORK_PERMIT_TYPE_SEASONAL,
+        self::WORK_PERMIT_TYPE_STUDENT,
+    ];
+
+    /** @var list<string> */
+    public const WORK_PERMIT_TYPES_REQUIRING_EXPIRY = [
+        self::WORK_PERMIT_TYPE_TEMPORARY,
+        self::WORK_PERMIT_TYPE_BLUE_CARD,
+        self::WORK_PERMIT_TYPE_SEASONAL,
+        self::WORK_PERMIT_TYPE_STUDENT,
+    ];
+
+    /** @var list<string> */
+    public const NO_WORK_PERMIT_COUNTRIES = [
+        'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU',
+        'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
+        'IS', 'LI', 'NO', 'CH',
+    ];
 
     /** @var list<string> */
     public const VALID_WORKFLOW_STATUSES = [
@@ -333,8 +377,11 @@ class Employee extends Model
         'sachkunde_exam_date',
         'sachkunde_issued_date',
         'work_permit_type',
+        'work_permit_number_enc',
         'work_permit_number',
         'work_permit_expiry',
+        'work_permit_issued_by',
+        'work_permit_copy_deleted_at',
         'residence_permit_type',
         'residence_permit_number',
         'residence_permit_expiry',
@@ -381,6 +428,7 @@ class Employee extends Model
         'address_city_enc',
         'address_supplement_enc',
         'id_document_number_enc',
+        'work_permit_number_enc',
         'hourly_rate_enc',
         'tax_id_enc',
         'social_security_number_enc',
@@ -407,6 +455,7 @@ class Employee extends Model
             'address_city_enc' => \App\Casts\EncryptedWithDek::class,
             'address_supplement_enc' => \App\Casts\EncryptedWithDek::class,
             'id_document_number_enc' => \App\Casts\EncryptedWithDek::class,
+            'work_permit_number_enc' => \App\Casts\EncryptedWithDek::class,
             'hourly_rate_enc' => \App\Casts\EncryptedWithDek::class,
             'tax_id_enc' => \App\Casts\EncryptedWithDek::class,
             'social_security_number_enc' => \App\Casts\EncryptedWithDek::class,
@@ -431,6 +480,7 @@ class Employee extends Model
             'id_document_expiry' => 'date',
             'id_document_copy_deleted_at' => 'datetime',
             'work_permit_expiry' => 'date',
+            'work_permit_copy_deleted_at' => 'datetime',
             'residence_permit_expiry' => 'date',
             'criminal_record_check_date' => 'date',
             // Decimals
@@ -586,6 +636,9 @@ class Employee extends Model
             }
             if ($employee->isDirty('id_document_number_enc') && $employee->hasActuallyChanged('id_document_number')) {
                 $changedFields[] = 'id_document_number';
+            }
+            if ($employee->isDirty('work_permit_number_enc') && $employee->hasActuallyChanged('work_permit_number')) {
+                $changedFields[] = 'work_permit_number';
             }
             if ($employee->isDirty('hourly_rate_enc') && $employee->hasActuallyChanged('hourly_rate')) {
                 $changedFields[] = 'hourly_rate';
@@ -968,6 +1021,22 @@ class Employee extends Model
     }
 
     /**
+     * Get decrypted work permit number (via EncryptedWithDek cast).
+     */
+    public function getWorkPermitNumberAttribute(): ?string
+    {
+        return $this->work_permit_number_enc;
+    }
+
+    /**
+     * Set plaintext work permit number - Cast handles encryption.
+     */
+    public function setWorkPermitNumberAttribute(?string $value): void
+    {
+        $this->work_permit_number_enc = $value;
+    }
+
+    /**
      * Get complete structured address as formatted string.
      *
      * @return string|null Formatted address or null if no address data
@@ -986,6 +1055,82 @@ class Employee extends Model
         ]);
 
         return implode(', ', $parts);
+    }
+
+    public function requiresWorkPermit(): bool
+    {
+        $nationalities = $this->nationalities;
+        if (! is_array($nationalities)) {
+            return false;
+        }
+
+        foreach ($nationalities as $country) {
+            if (is_string($country) && ! in_array(strtoupper($country), self::NO_WORK_PERMIT_COUNTRIES, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function hasValidWorkAuthorization(): bool
+    {
+        if (! $this->requiresWorkPermit()) {
+            return true;
+        }
+
+        if (! is_string($this->work_permit_type)
+            || $this->work_permit_type === self::WORK_PERMIT_TYPE_NONE
+            || ! is_string($this->work_permit_number)
+            || trim($this->work_permit_number) === '') {
+            return false;
+        }
+
+        if ($this->work_permit_type === self::WORK_PERMIT_TYPE_PERMANENT) {
+            return true;
+        }
+
+        return $this->work_permit_expiry?->isFuture() ?? false;
+    }
+
+    /**
+     * @return SupportCollection<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}>
+     */
+    public function getExpiringDocumentsAttribute(): SupportCollection
+    {
+        $documents = [];
+
+        $this->appendExpiringDocument($documents, 'work_permit', 'Work Permit', $this->work_permit_expiry);
+        $this->appendExpiringDocument($documents, 'residence_permit', 'Residence Permit', $this->residence_permit_expiry);
+        $this->appendExpiringDocument($documents, 'id_document', 'ID Document', $this->id_document_expiry);
+
+        /** @var SupportCollection<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}> $collection */
+        $collection = collect($documents)->sortBy('expiry')->values();
+
+        return $collection;
+    }
+
+    /**
+     * @param  array<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}>  $documents
+     */
+    private function appendExpiringDocument(array &$documents, string $type, string $label, mixed $expiry): void
+    {
+        if (! $expiry instanceof \Illuminate\Support\Carbon) {
+            return;
+        }
+
+        $daysUntilExpiry = (int) now()->startOfDay()->diffInDays($expiry->copy()->startOfDay(), false);
+        if ($daysUntilExpiry > 30) {
+            return;
+        }
+
+        $documents[] = [
+            'type' => $type,
+            'label' => $label,
+            'expiry' => $expiry->toDateString(),
+            'status' => $daysUntilExpiry < 0 ? 'expired' : ($daysUntilExpiry <= 7 ? 'critical' : 'warning'),
+            'days_until_expiry' => $daysUntilExpiry,
+        ];
     }
 
     // === STATUS STATE MACHINE ===

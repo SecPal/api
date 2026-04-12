@@ -245,6 +245,20 @@ $employee->structured_address;
 // Returns: "Hauptstraße 42, 10115 Berlin, DE"
 ```
 
+### Non-EU Work Authorization Core
+
+SecPal now tracks the P0 work-permit core for non-EU employees directly on the employee record.
+
+- `work_permit_type` supports `temporary`, `permanent`, `blue_card`, `seasonal`, `student`, and `none`
+- `work_permit_number` is encrypted at rest as `work_permit_number_enc`
+- `work_permit_issued_by`, `work_permit_copy_path`, and `work_permit_copy_deleted_at` support operational evidence plus GDPR auditability
+- `requiresWorkPermit()` and `hasValidWorkAuthorization()` enforce the exemption list for EU/EEA/CH nationalities
+- `expiring_documents` exposes work-permit, residence-permit, and ID-document expiries within the next 30 days
+
+**Exempt nationalities (no work permit required):** `AT`, `BE`, `BG`, `HR`, `CY`, `CZ`, `DK`, `EE`, `FI`, `FR`, `DE`, `GR`, `HU`, `IE`, `IT`, `LV`, `LT`, `LU`, `MT`, `NL`, `PL`, `PT`, `RO`, `SK`, `SI`, `ES`, `SE`, `IS`, `LI`, `NO`, `CH`
+
+**Deletion trigger:** uploaded work-permit copies are deleted automatically once BWR status becomes `active` or the permit type changes to `permanent`, matching the same GDPR storage-limitation pattern already used for ID-document copies.
+
 ---
 
 ## Auto-Deletion Workflow

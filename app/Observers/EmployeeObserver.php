@@ -94,6 +94,16 @@ class EmployeeObserver
 
             if ($newBwrStatus === 'active' && $oldBwrStatus !== 'active') {
                 $this->deleteIdDocumentCopy($employee);
+                $this->deleteWorkPermitCopy($employee, 'BWR approved');
+            }
+        }
+
+        if ($employee->isDirty('work_permit_type')) {
+            $oldPermitType = $employee->getOriginal('work_permit_type');
+            $newPermitType = $employee->work_permit_type;
+
+            if ($newPermitType === Employee::WORK_PERMIT_TYPE_PERMANENT && $oldPermitType !== Employee::WORK_PERMIT_TYPE_PERMANENT) {
+                $this->deleteWorkPermitCopy($employee, 'Permanent permit granted');
             }
         }
 
@@ -284,6 +294,66 @@ class EmployeeObserver
             ]);
             // Don't throw - allow BWR status transition to proceed
             // HR can manually delete file via admin panel
+        }
+    }
+
+    /**
+     * Delete work permit copy when BWR approval or a permanent permit makes it unnecessary.
+     */
+    private function deleteWorkPermitCopy(Employee $employee, string $trigger): void
+    {
+        if (! $employee->work_permit_copy_path) {
+            return;
+        }
+
+        if ($employee->work_permit_copy_deleted_at !== null) {
+            return;
+        }
+
+        $normalizedPath = str_replace('\\', '/', $employee->work_permit_copy_path);
+        if (! str_starts_with($normalizedPath, 'work_permits/')
+            && ! str_starts_with($normalizedPath, 'employees/')
+            && ! str_starts_with($normalizedPath, 'documents/')) {
+            Log::warning('Suspicious work_permit_copy_path detected - refusing to delete', [
+                'employee_id' => $employee->id,
+                'employee_number' => $employee->employee_number,
+                'path' => $employee->work_permit_copy_path,
+            ]);
+
+            return;
+        }
+
+        try {
+            if (Storage::exists($employee->work_permit_copy_path)) {
+                Storage::delete($employee->work_permit_copy_path);
+                Log::info('Work permit copy deleted', [
+                    'employee_id' => $employee->id,
+                    'employee_number' => $employee->employee_number,
+                    'trigger' => $trigger,
+                    'file_path' => $employee->work_permit_copy_path,
+                    'legal_basis' => 'GDPR Art. 5(1)(e) - Storage Limitation',
+                ]);
+            }
+
+            $employee->updateQuietly([
+                'work_permit_copy_deleted_at' => now(),
+            ]);
+
+            activity('employee_changes')
+                ->performedOn($employee)
+                ->withProperties([
+                    'action' => 'work_permit_auto_deleted',
+                    'trigger' => $trigger,
+                    'legal_basis' => 'GDPR Art. 5(1)(e) - Storage Limitation',
+                    'reason' => 'Work permit copy no longer necessary for BWR or permanent authorization evidence',
+                ])
+                ->log('Work permit copy automatically deleted');
+        } catch (\Exception $e) {
+            Log::error('Work permit deletion failed', [
+                'employee_id' => $employee->id,
+                'file_path' => $employee->work_permit_copy_path,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

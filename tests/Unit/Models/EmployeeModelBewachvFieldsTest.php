@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
@@ -49,6 +49,18 @@ test('it encrypts and decrypts id document number', function () {
     expect($this->employee->id_document_number)->toEqual($docNumber);
 });
 
+test('it encrypts and decrypts work permit number', function () {
+    $permitNumber = 'WP-TR-12345';
+    $this->employee->work_permit_number = $permitNumber;
+    $this->employee->save();
+
+    expect($this->employee->getAttributes()['work_permit_number_enc'])->not->toEqual($permitNumber)
+        ->and($this->employee->getAttributes()['work_permit_number_enc'])->not->toBeNull();
+
+    $this->employee->refresh();
+    expect($this->employee->work_permit_number)->toEqual($permitNumber);
+});
+
 test('it formats structured address correctly', function () {
     $this->employee->update([
         'address_street' => 'Hauptstraße',
@@ -70,6 +82,72 @@ test('it casts nationalities to array', function () {
     $this->employee->refresh();
     expect($this->employee->nationalities)->toBeArray()
         ->and($this->employee->nationalities)->toEqual($nationalities);
+});
+
+test('it determines whether a work permit is required from nationalities', function () {
+    $this->employee->nationalities = ['DE'];
+    $this->employee->save();
+
+    expect($this->employee->requiresWorkPermit())->toBeFalse();
+
+    $this->employee->nationalities = ['TR'];
+    $this->employee->save();
+
+    expect($this->employee->requiresWorkPermit())->toBeTrue();
+});
+
+test('it determines whether work authorization is valid for non eu employees', function () {
+    $this->employee->update([
+        'nationalities' => ['TR'],
+        'work_permit_type' => 'none',
+        'work_permit_number' => null,
+        'work_permit_expiry' => null,
+    ]);
+
+    expect($this->employee->fresh()->hasValidWorkAuthorization())->toBeFalse();
+
+    $this->employee->update([
+        'work_permit_type' => 'permanent',
+        'work_permit_number' => 'WP-VALID-1',
+        'work_permit_issued_by' => 'Auslaenderbehoerde Berlin',
+        'work_permit_expiry' => null,
+    ]);
+
+    expect($this->employee->fresh()->hasValidWorkAuthorization())->toBeTrue();
+
+    $this->employee->update([
+        'work_permit_type' => 'temporary',
+        'work_permit_expiry' => now()->subDay()->toDateString(),
+    ]);
+
+    expect($this->employee->fresh()->hasValidWorkAuthorization())->toBeFalse();
+
+    $this->employee->update([
+        'nationalities' => ['DE'],
+        'work_permit_type' => 'none',
+        'work_permit_number' => null,
+        'work_permit_expiry' => null,
+    ]);
+
+    expect($this->employee->fresh()->hasValidWorkAuthorization())->toBeTrue();
+});
+
+test('it returns expiring compliance documents within 30 days', function () {
+    $this->employee->update([
+        'nationalities' => ['TR'],
+        'work_permit_type' => 'temporary',
+        'work_permit_number' => 'WP-EXP-1',
+        'work_permit_issued_by' => 'Auslaenderbehoerde Berlin',
+        'work_permit_expiry' => now()->addDays(5)->toDateString(),
+        'residence_permit_expiry' => now()->subDay()->toDateString(),
+        'id_document_expiry' => now()->addDays(45)->toDateString(),
+    ]);
+
+    $documents = $this->employee->fresh()->expiring_documents;
+
+    expect($documents)->toBeInstanceOf(Illuminate\Support\Collection::class)
+        ->and($documents->pluck('type')->all())->toContain('work_permit', 'residence_permit')
+        ->and($documents->pluck('type')->all())->not->toContain('id_document');
 });
 
 test('it casts address history to array', function () {

@@ -62,6 +62,29 @@ function makeStoreEmployeeValidator(object $testCase, array $data): Illuminate\C
     );
 }
 
+function makeUpdateEmployeeValidator(object $testCase, Employee $employee, array $data): Illuminate\Contracts\Validation\Validator
+{
+    $request = UpdateEmployeeRequest::create("/v1/employees/{$employee->id}", 'PATCH', $data);
+    $request->setUserResolver(fn (): User => $testCase->user);
+    $request->setRouteResolver(function () use ($employee) {
+        return new class($employee)
+        {
+            public function __construct(private Employee $employee) {}
+
+            public function parameter($key)
+            {
+                return $key === 'employee' ? $this->employee : null;
+            }
+        };
+    });
+
+    return Validator::make(
+        $request->all(),
+        $request->rules(),
+        $request->messages()
+    );
+}
+
 test('BWR-ID must be exactly 7 digits', function () {
     $baseData = validStoreEmployeeData($this);
 
@@ -189,6 +212,104 @@ test('nationalities array items must be valid ISO codes', function () {
     expect($validator->errors()->has('nationalities'))->toBeFalse()
         ->and($validator->errors()->has('nationalities.0'))->toBeFalse()
         ->and($validator->errors()->has('nationalities.1'))->toBeFalse();
+});
+
+test('work permit type is required for non exempt nationalities', function () {
+    $validator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'turkish.employee@example.com',
+        'nationalities' => ['TR'],
+    ]));
+
+    expect($validator->fails())->toBeTrue()
+        ->and($validator->errors()->has('work_permit_type'))->toBeTrue();
+});
+
+test('temporary non exempt work permits require number issuing authority and future expiry', function () {
+    $validator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'temporary.employee@example.com',
+        'nationalities' => ['TR'],
+        'work_permit_type' => 'temporary',
+    ]));
+
+    expect($validator->fails())->toBeTrue()
+        ->and($validator->errors()->has('work_permit_number'))->toBeTrue()
+        ->and($validator->errors()->has('work_permit_issued_by'))->toBeTrue()
+        ->and($validator->errors()->has('work_permit_expiry'))->toBeTrue();
+
+    $expiredValidator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'expired.employee@example.com',
+        'nationalities' => ['TR'],
+        'work_permit_type' => 'temporary',
+        'work_permit_number' => 'WP-123456',
+        'work_permit_issued_by' => 'Auslaenderbehoerde Berlin',
+        'work_permit_expiry' => now()->subDay()->toDateString(),
+    ]));
+
+    expect($expiredValidator->fails())->toBeTrue()
+        ->and($expiredValidator->errors()->has('work_permit_expiry'))->toBeTrue();
+
+    $validValidator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'valid.employee@example.com',
+        'nationalities' => ['TR'],
+        'work_permit_type' => 'temporary',
+        'work_permit_number' => 'WP-654321',
+        'work_permit_issued_by' => 'Auslaenderbehoerde Berlin',
+        'work_permit_expiry' => now()->addMonths(6)->toDateString(),
+    ]));
+
+    expect($validValidator->passes())->toBeTrue();
+});
+
+test('permanent non exempt work permits do not require an expiry date', function () {
+    $validator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'permanent.employee@example.com',
+        'nationalities' => ['TR'],
+        'work_permit_type' => 'permanent',
+        'work_permit_number' => 'WP-777777',
+        'work_permit_issued_by' => 'Auslaenderbehoerde Berlin',
+    ]));
+
+    expect($validator->passes())->toBeTrue();
+});
+
+test('eea and swiss nationalities are exempt from work permit requirement', function () {
+    $swissValidator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'swiss.employee@example.com',
+        'nationalities' => ['CH'],
+    ]));
+
+    $norwegianValidator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'norwegian.employee@example.com',
+        'nationalities' => ['NO'],
+    ]));
+
+    expect($swissValidator->errors()->has('work_permit_type'))->toBeFalse()
+        ->and($norwegianValidator->errors()->has('work_permit_type'))->toBeFalse();
+});
+
+test('UpdateEmployeeRequest enforces work permit rules when patching employee into non exempt nationality', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->organizationalUnit->id,
+        'nationalities' => ['DE'],
+        'work_permit_type' => 'none',
+    ]);
+
+    $validator = makeUpdateEmployeeValidator($this, $employee, [
+        'nationalities' => ['TR'],
+    ]);
+
+    expect($validator->fails())->toBeTrue()
+        ->and($validator->errors()->has('work_permit_type'))->toBeTrue();
+
+    $validValidator = makeUpdateEmployeeValidator($this, $employee, [
+        'nationalities' => ['TR'],
+        'work_permit_type' => 'permanent',
+        'work_permit_number' => 'WP-987654',
+        'work_permit_issued_by' => 'Auslaenderbehoerde Berlin',
+    ]);
+
+    expect($validValidator->passes())->toBeTrue();
 });
 
 test('validation messages are in German', function () {

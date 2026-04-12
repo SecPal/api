@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
@@ -66,6 +66,38 @@ test('it does not fail when id document copy path is null', function () {
     $employee->save();
 
     expect($employee->fresh()->id_document_copy_deleted_at)->toBeNull();
+});
+
+test('it deletes work permit copy when bwr status becomes active', function () {
+    $employee = Employee::factory()->withNonEuWorkPermit()->create([
+        'bwr_status' => 'pending',
+        'work_permit_copy_path' => 'work_permits/test.pdf',
+    ]);
+    Storage::put('work_permits/test.pdf', 'permit content');
+
+    expect(Storage::exists('work_permits/test.pdf'))->toBeTrue();
+
+    $employee->bwr_status = 'active';
+    $employee->save();
+
+    expect(Storage::exists('work_permits/test.pdf'))->toBeFalse();
+    expect($employee->fresh()->work_permit_copy_deleted_at)->not->toBeNull();
+});
+
+test('it deletes work permit copy when permit becomes permanent', function () {
+    $employee = Employee::factory()->withNonEuWorkPermit()->create([
+        'work_permit_type' => 'temporary',
+        'work_permit_expiry' => now()->addMonths(3)->toDateString(),
+        'work_permit_copy_path' => 'work_permits/permanent.pdf',
+    ]);
+    Storage::put('work_permits/permanent.pdf', 'permit content');
+
+    $employee->work_permit_type = 'permanent';
+    $employee->work_permit_expiry = null;
+    $employee->save();
+
+    expect(Storage::exists('work_permits/permanent.pdf'))->toBeFalse();
+    expect($employee->fresh()->work_permit_copy_deleted_at)->not->toBeNull();
 });
 
 test('it calculates retention period when employee is terminated', function () {
