@@ -11,10 +11,12 @@ use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
+use App\Models\TenantKey;
 use App\Services\EmployeeLifecycleService;
 use App\Services\EmployeeOnboardingInvitationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 /**
  * EmployeeController handles Employee resource CRUD operations.
@@ -103,25 +105,22 @@ class EmployeeController extends Controller
         unset($validated['send_invitation']);
 
         // Prepare data with tenant_id FIRST (required for encryption cast to work)
-        $data = ['tenant_id' => $tenantId];
+        $employee = DB::transaction(function () use ($tenantId, $validated): Employee {
+            TenantKey::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
 
-        // Generate employee_number (format: EMP-YYYY-####)
-        $data['employee_number'] = $this->generateEmployeeNumber($tenantId);
+            $data = ['tenant_id' => $tenantId];
+            $data['employee_number'] = $this->generateEmployeeNumber($tenantId);
 
-        // Initialize onboarding steps if status = pre_contract
-        if ($validated['status'] === Employee::STATUS_PRE_CONTRACT) {
-            $data['onboarding_steps'] = Employee::getDefaultOnboardingSteps();
-        }
+            if ($validated['status'] === Employee::STATUS_PRE_CONTRACT) {
+                $data['onboarding_steps'] = Employee::getDefaultOnboardingSteps();
+            }
 
-        // Set persistent workflow status for all lifecycle statuses
-        $lifecycleStatus = is_string($validated['status']) ? $validated['status'] : Employee::STATUS_ACTIVE;
-        $data['onboarding_workflow_status'] = Employee::defaultWorkflowStatusForLifecycleStatus($lifecycleStatus)
-            ?? Employee::WORKFLOW_STATUS_ACTIVE;
+            $lifecycleStatus = is_string($validated['status']) ? $validated['status'] : Employee::STATUS_ACTIVE;
+            $data['onboarding_workflow_status'] = Employee::defaultWorkflowStatusForLifecycleStatus($lifecycleStatus)
+                ?? Employee::WORKFLOW_STATUS_ACTIVE;
 
-        // Merge remaining validated data
-        $data = array_merge($data, $validated);
-
-        $employee = Employee::create($data);
+            return Employee::create(array_merge($data, $validated));
+        });
 
         if ($shouldSendInvitation) {
             $employee = $invitationService->send($employee);
@@ -302,9 +301,11 @@ class EmployeeController extends Controller
         $prefix = "EMP-{$year}-";
 
         // Get the latest employee number for this tenant and year
-        $latestEmployee = Employee::where('tenant_id', $tenantId)
+        $latestEmployee = Employee::withTrashed()
+            ->where('tenant_id', $tenantId)
             ->where('employee_number', 'like', "{$prefix}%")
             ->orderBy('employee_number', 'desc')
+            ->lockForUpdate()
             ->first();
 
         if ($latestEmployee) {
