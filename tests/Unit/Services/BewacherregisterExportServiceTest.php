@@ -35,7 +35,7 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function makeBewacherregisterExportReadyEmployee(TenantKey $tenant, OrganizationalUnit $organizationalUnit, array $overrides = []): Employee
+function createBwrReadyEmployee(TenantKey $tenant, OrganizationalUnit $organizationalUnit, array $overrides = []): Employee
 {
     return Employee::factory()->create(array_merge([
         'tenant_id' => $tenant->id,
