@@ -95,7 +95,7 @@ test('onboarding invitation URL includes token and email parameters', function (
         ->toContain('&email='.urlencode('test.onboarding@example.com'));
 });
 
-test('onboarding invitation mail keeps the provided onboarding token', function () {
+test('onboarding invitation mail preserves plaintext token property', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,
@@ -316,7 +316,7 @@ test('employee compliance alert mail has correct content', function () {
     expect($content->markdown)->toBe('emails.employees.compliance-alert');
 });
 
-test('employee compliance alert mail keeps severity and document data', function () {
+test('employee compliance alert mail stores provided severity and documents', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,
