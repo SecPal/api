@@ -11,6 +11,20 @@ use Illuminate\Support\Collection;
 class EmployeeComplianceService
 {
     /**
+     * Compliance document statuses considered as active alerts.
+     *
+     * @var array<int, string>
+     */
+    public const ALERT_STATUSES = ['warning', 'critical', 'expired'];
+
+    /**
+     * Compliance document statuses considered blocking.
+     *
+     * @var array<int, string>
+     */
+    public const BLOCKING_ALERT_STATUSES = ['critical', 'expired'];
+
+    /**
      * @return Collection<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}>
      */
     public function alertDocuments(Employee $employee, ?string $status = null): Collection
@@ -18,7 +32,7 @@ class EmployeeComplianceService
         return $employee->expiring_documents
             ->filter(function (array $document) use ($status): bool {
                 if ($status === null) {
-                    return in_array($document['status'], ['warning', 'critical', 'expired'], true);
+                    return in_array($document['status'], self::ALERT_STATUSES, true);
                 }
 
                 return $document['status'] === $status;
@@ -41,7 +55,7 @@ class EmployeeComplianceService
     public function blockingDocuments(Employee $employee): Collection
     {
         return $this->alertDocuments($employee)
-            ->filter(fn (array $document): bool => in_array($document['status'], ['critical', 'expired'], true))
+            ->filter(fn (array $document): bool => in_array($document['status'], self::BLOCKING_ALERT_STATUSES, true))
             ->map(fn (array $document): array => [
                 'type' => $document['type'],
                 'label' => $document['label'],
