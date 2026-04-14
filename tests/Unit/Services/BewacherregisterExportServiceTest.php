@@ -157,9 +157,7 @@ test('export preserves seven digit BWR ids including leading zeroes', function (
 
     $stream = fopen('php://temp', 'r+');
 
-    if ($stream === false) {
-        throw new RuntimeException('Unable to open temporary stream for CSV parsing.');
-    }
+    expect($stream)->not->toBeFalse();
 
     fwrite($stream, $csv);
     rewind($stream);
