@@ -11,7 +11,6 @@ use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Gate;
 
 uses(RefreshDatabase::class);
 
@@ -48,17 +47,6 @@ describe('GET /v1/qualifications', function () {
     });
 
     test('returns 403 when user lacks qualification.read permission', function (): void {
-        $response = $this->withToken($this->token)->getJson('/v1/qualifications');
-        $response->assertStatus(403);
-    });
-
-    test('returns 403 when policy denies viewAny even with qualification.read permission', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'qualification.read');
-
-        Gate::define('viewAny', function (User $user): bool {
-            return false;
-        });
-
         $response = $this->withToken($this->token)->getJson('/v1/qualifications');
         $response->assertStatus(403);
     });

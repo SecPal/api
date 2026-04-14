@@ -155,7 +155,10 @@ test('export preserves seven digit BWR ids including leading zeroes', function (
     $export = $this->service->exportCsv($employee, 'HR Admin');
     $csv = Storage::disk('local')->get($export['path']);
 
-    $rows = array_map('str_getcsv', array_filter(preg_split('/\r\n|\r|\n/', trim($csv))));
+    $rows = array_map(
+        static fn (string $line): array => str_getcsv($line, ';'),
+        array_filter(preg_split('/\r\n|\r|\n/', trim($csv)))
+    );
     $header = $rows[0] ?? [];
     $dataRow = $rows[1] ?? [];
 
