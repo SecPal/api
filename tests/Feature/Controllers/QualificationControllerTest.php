@@ -10,6 +10,7 @@ use App\Models\Permission;
 use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Policies\QualificationPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -47,6 +48,17 @@ describe('GET /v1/qualifications', function () {
     });
 
     test('returns 403 when user lacks qualification.read permission', function (): void {
+        $response = $this->withToken($this->token)->getJson('/v1/qualifications');
+        $response->assertStatus(403);
+    });
+
+    test('returns 403 when policy denies viewAny even with qualification.read permission', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'qualification.read');
+
+        $this->partialMock(QualificationPolicy::class, function ($mock): void {
+            $mock->shouldReceive('viewAny')->andReturn(false);
+        });
+
         $response = $this->withToken($this->token)->getJson('/v1/qualifications');
         $response->assertStatus(403);
     });
