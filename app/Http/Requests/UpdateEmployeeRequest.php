@@ -52,18 +52,11 @@ class UpdateEmployeeRequest extends FormRequest
             'photo_path' => ['sometimes', 'nullable', 'string', 'max:255'],
 
             // BewachV § 16 Abs. 2 Nr. 1: BWR Tracking
-            'bwr_id' => [
-                'sometimes',
-                'nullable',
-                'string',
-                'size:7',
-                'regex:/^[0-9]{7}$/',
-                Rule::unique('employees', 'bwr_id')->ignore($employeeId),
-            ],
-            'bwr_status' => ['sometimes', 'nullable', Rule::in(['not_registered', 'pending', 'active', 'suspended', 'revoked'])],
-            'bwr_registered_at' => ['sometimes', 'nullable', 'date'],
+            'bwr_id' => ['missing'],
+            'bwr_status' => ['missing'],
+            'bwr_registered_at' => ['missing'],
             'bwr_submission_date' => ['sometimes', 'nullable', 'date'],
-            'bwr_notes' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'bwr_notes' => ['missing'],
 
             // BewachV § 16 Abs. 2 Nr. 2: Identity Data
             'gender' => ['sometimes', 'nullable', Rule::in(['male', 'female', 'diverse'])],
@@ -218,12 +211,11 @@ class UpdateEmployeeRequest extends FormRequest
             'email.email' => __('Email address must be valid'),
             'email.unique' => __('Email address is already in use'),
             'status.missing' => __('Employee status transitions must use the dedicated activate, leave, return-from-leave, or terminate endpoints.'),
+            'bwr_id.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
+            'bwr_status.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
+            'bwr_registered_at.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
+            'bwr_notes.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
-
-            // BWR-ID validation
-            'bwr_id.size' => 'Die Bewacher-ID muss exakt 7 Ziffern haben.',
-            'bwr_id.regex' => 'Die Bewacher-ID darf nur Ziffern enthalten (0000000-9999999).',
-            'bwr_id.unique' => 'Diese Bewacher-ID ist bereits vergeben.',
 
             // ISO country codes
             'birth_country.size' => 'Geburtsland muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',

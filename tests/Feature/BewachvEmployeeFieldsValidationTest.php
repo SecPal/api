@@ -312,6 +312,28 @@ test('UpdateEmployeeRequest enforces work permit rules when patching employee in
     expect($validValidator->passes())->toBeTrue();
 });
 
+test('UpdateEmployeeRequest rejects direct bwr transition fields', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->organizationalUnit->id,
+        'bwr_status' => 'pending',
+    ]);
+
+    $validator = makeUpdateEmployeeValidator($this, $employee, [
+        'bwr_status' => 'active',
+        'bwr_id' => '1234567',
+        'bwr_notes' => 'Attempted bypass',
+        'bwr_registered_at' => now()->toDateString(),
+    ]);
+
+    expect($validator->fails())->toBeTrue()
+        ->and($validator->errors()->has('bwr_status'))->toBeTrue()
+        ->and($validator->errors()->first('bwr_status'))->toContain('BWR fields must be changed via the dedicated BWR status endpoint.')
+        ->and($validator->errors()->has('bwr_id'))->toBeTrue()
+        ->and($validator->errors()->has('bwr_notes'))->toBeTrue()
+        ->and($validator->errors()->has('bwr_registered_at'))->toBeTrue();
+});
+
 test('certification expiry dates must be after their issue dates', function () {
     $validator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
         'email' => 'certifications@example.com',
