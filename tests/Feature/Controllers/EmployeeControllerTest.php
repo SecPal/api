@@ -1039,7 +1039,7 @@ describe('PATCH /v1/employees/{employee}', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors([
-                'bwr_status',
+                'bwr_status' => 'BWR fields must be changed via the dedicated BWR status endpoint.',
                 'bwr_id',
                 'bwr_notes',
                 'bwr_registered_at',
