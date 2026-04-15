@@ -408,6 +408,38 @@ describe('POST /v1/employees', function () {
             ]);
     });
 
+    test('creates a non-management employee when management level is omitted', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'Nina',
+                'last_name' => 'Newhire',
+                'email' => 'nina.newhire@example.com',
+                'date_of_birth' => '1993-05-15',
+                'position' => 'Security Guard',
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->addWeek()->toDateString(),
+                'weekly_hours' => 40,
+                'hourly_rate' => 16.50,
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'sachkunde_type' => 'none',
+                'work_permit_type' => 'none',
+                'criminal_record_status' => 'valid',
+                'send_invitation' => true,
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.management_level', 0)
+            ->assertJsonPath('data.onboarding_invitation.status', Employee::INVITATION_STATUS_SENT);
+
+        $employee = Employee::findOrFail($response->json('data.id'));
+
+        expect($employee->management_level)->toBe(0)
+            ->and($employee->onboarding_invitation_status)->toBe(Employee::INVITATION_STATUS_SENT);
+    });
+
     test('creates employee with auto-generated employee_number', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
