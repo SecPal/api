@@ -68,6 +68,13 @@ At minimum verify:
 - the local 4-pass review was completed, including DRY, KISS, YAGNI, SOLID, quality-first, and issue-management checks
 - no bypass was used
 
+## AI Findings Triage
+
+- Treat AI findings and AI-generated fix PRs as hints, not proof.
+- Before merge, prove the defect with a failing test, a reproducible defect, or a stated invariant and why the current code violates it.
+- Green CI alone is not enough for AI-generated changes, especially test, lifecycle, shell, regex, or refactor diffs; review the semantic risk explicitly.
+- Reject AI-generated test or helper mutations that move executable code across Pest scope boundaries or bypass framework wiring.
+
 ## Repository Conventions
 
 - Stack: Laravel 13, PHP 8.4, Pest 4, PostgreSQL 16, native PHP shell usage.
