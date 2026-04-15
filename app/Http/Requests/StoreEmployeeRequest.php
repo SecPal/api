@@ -131,7 +131,7 @@ class StoreEmployeeRequest extends FormRequest
             // Employment Status
             'status' => ['required', Rule::in(Employee::VALID_STATUSES)],
             'position' => ['required', 'string', 'max:255'],
-            'management_level' => ['required', 'integer', 'min:0', 'max:255'],
+            'management_level' => ['sometimes', 'integer', 'min:0', 'max:255'],
             'hire_date' => ['nullable', 'date'],
             'contract_start_date' => ['required', 'date'],
             'termination_date' => ['nullable', 'date', 'after_or_equal:contract_start_date'],
