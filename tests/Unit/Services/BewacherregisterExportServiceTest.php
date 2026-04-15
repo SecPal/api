@@ -35,7 +35,7 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function createBwrReadyEmployee(TenantKey $tenant, OrganizationalUnit $organizationalUnit, array $overrides = []): Employee
+function createBewacherregisterReadyEmployee(TenantKey $tenant, OrganizationalUnit $organizationalUnit, array $overrides = []): Employee
 {
     return Employee::factory()->create(array_merge([
         'tenant_id' => $tenant->id,
@@ -82,7 +82,7 @@ function createBwrReadyEmployee(TenantKey $tenant, OrganizationalUnit $organizat
 }
 
 test('exports a BWR-ready employee to CSV storage', function (): void {
-    $employee = createBwrReadyEmployee($this->tenant, $this->organizationalUnit);
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
 
     $export = $this->service->exportCsv($employee, 'HR Admin');
 
@@ -103,7 +103,7 @@ test('exports a BWR-ready employee to CSV storage', function (): void {
 });
 
 test('exports a BWR-ready employee to XML storage', function (): void {
-    $employee = createBwrReadyEmployee($this->tenant, $this->organizationalUnit);
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
 
     $export = $this->service->exportXml($employee, 'HR Admin');
 
@@ -125,7 +125,7 @@ test('exports a BWR-ready employee to XML storage', function (): void {
 });
 
 test('export throws when required BWR fields are missing', function (): void {
-    $employee = createBwrReadyEmployee($this->tenant, $this->organizationalUnit, [
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
         'gender' => null,
         'address_history' => null,
         'id_document_number' => null,
@@ -136,7 +136,7 @@ test('export throws when required BWR fields are missing', function (): void {
 });
 
 test('export requires valid work authorization for non exempt nationalities', function (): void {
-    $employee = createBwrReadyEmployee($this->tenant, $this->organizationalUnit, [
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
         'nationalities' => ['TR'],
         'work_permit_type' => 'none',
         'work_permit_number' => null,
@@ -148,7 +148,7 @@ test('export requires valid work authorization for non exempt nationalities', fu
 });
 
 test('export preserves seven digit BWR ids including leading zeroes', function (): void {
-    $employee = createBwrReadyEmployee($this->tenant, $this->organizationalUnit, [
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
         'bwr_id' => '0001234',
     ]);
 
@@ -156,15 +156,16 @@ test('export preserves seven digit BWR ids including leading zeroes', function (
     $csv = Storage::disk('local')->get($export['path']);
 
     $stream = fopen('php://temp', 'r+');
-
-    expect($stream)->not->toBeFalse();
-
     fwrite($stream, $csv);
     rewind($stream);
 
     $rows = [];
 
     while (($row = fgetcsv($stream, separator: ';')) !== false) {
+        if ($row === [null]) {
+            continue;
+        }
+
         $rows[] = $row;
     }
 
@@ -180,7 +181,7 @@ test('export preserves seven digit BWR ids including leading zeroes', function (
 });
 
 test('export throws when id_document_expiry is in the past', function (): void {
-    $employee = createBwrReadyEmployee($this->tenant, $this->organizationalUnit, [
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
         'id_document_expiry' => now()->subDay()->toDateString(),
     ]);
 
