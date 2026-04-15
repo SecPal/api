@@ -6,12 +6,15 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Http\Controllers\Api\V1\ActivityLogController;
+use App\Http\Requests\Api\V1\IndexActivityLogRequest;
 use App\Models\Activity;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use App\Support\LikePattern;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
@@ -384,6 +387,50 @@ describe('GET /v1/activity-logs', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['description'])->toContain('contract');
+    });
+
+    test('treats backslash wildcard sequences in activity search input as literal text', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'description' => 'Literal foo\%_bar marker',
+        ]);
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'description' => 'Literal fooXbar marker',
+        ]);
+
+        $response = getJson('/v1/activity-logs?search='.urlencode('foo\%_bar'));
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data')[0]['description'])->toBe('Literal foo\%_bar marker');
+    });
+
+    test('escapes backslashes in search bindings with the shared like-pattern helper', function (): void {
+        $controller = new class extends ActivityLogController
+        {
+            public function applyFiltersForTest($query, IndexActivityLogRequest $request): void
+            {
+                $this->applyFilters($query, $request);
+            }
+        };
+
+        $request = IndexActivityLogRequest::create('/v1/activity-logs', 'GET', [
+            'search' => 'foo\%_bar',
+        ]);
+
+        $query = Activity::query();
+        $controller->applyFiltersForTest($query, $request);
+
+        expect($query->getBindings())->toContain('%'.LikePattern::escape('foo\%_bar').'%');
     });
 
     test('respects pagination parameters', function (): void {
