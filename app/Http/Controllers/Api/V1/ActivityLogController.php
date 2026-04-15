@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Controllers\Api\V1;
@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\IndexActivityLogRequest;
 use App\Http\Resources\ActivityResource;
 use App\Models\Activity;
+use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -285,9 +286,7 @@ class ActivityLogController extends Controller
 
         // Search in description (case-insensitive)
         if ($request->has('search')) {
-            $search = $request->string('search')->toString();
-            // Escape LIKE wildcards to prevent unintended pattern matching
-            $search = str_replace(['%', '_'], ['\\%', '\\_'], $search);
+            $search = LikePattern::escape($request->string('search')->toString());
             $query->where('description', 'ilike', "%{$search}%");
         }
 
