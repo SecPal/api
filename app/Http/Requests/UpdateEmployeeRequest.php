@@ -217,11 +217,6 @@ class UpdateEmployeeRequest extends FormRequest
             'bwr_notes.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
 
-            // BWR-ID validation
-            'bwr_id.size' => 'Die Bewacher-ID muss exakt 7 Ziffern haben.',
-            'bwr_id.regex' => 'Die Bewacher-ID darf nur Ziffern enthalten (0000000-9999999).',
-            'bwr_id.unique' => 'Diese Bewacher-ID ist bereits vergeben.',
-
             // ISO country codes
             'birth_country.size' => 'Geburtsland muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
             'birth_country.regex' => 'Geburtsland muss aus 2 Großbuchstaben bestehen.',

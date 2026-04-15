@@ -328,6 +328,7 @@ test('UpdateEmployeeRequest rejects direct bwr transition fields', function () {
 
     expect($validator->fails())->toBeTrue()
         ->and($validator->errors()->has('bwr_status'))->toBeTrue()
+        ->and($validator->errors()->first('bwr_status'))->toContain('BWR fields must be changed via the dedicated BWR status endpoint.')
         ->and($validator->errors()->has('bwr_id'))->toBeTrue()
         ->and($validator->errors()->has('bwr_notes'))->toBeTrue()
         ->and($validator->errors()->has('bwr_registered_at'))->toBeTrue();
