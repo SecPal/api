@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- blocked direct `PATCH /v1/employees/{employee}` writes to `bwr_status`, `bwr_id`, `bwr_notes`, and `bwr_registered_at` so BWR transitions and their audit trail must go through the dedicated `PUT /v1/employees/{employee}/bwr/status` endpoint (fixes `api#881`)
 - centralized employee compliance alert status values in `EmployeeComplianceService` and reused those constants in `IndexEmployeeRequest` validation/messages so filter rules stay synchronized with compliance business logic
 - added dedicated index request validation for qualification, organizational-unit, customer-assignment, and site-assignment filters so invalid category, type, parent, and role query values now fail fast with `422` responses instead of silently producing empty or ambiguous results
 

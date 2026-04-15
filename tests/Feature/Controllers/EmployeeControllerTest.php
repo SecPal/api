@@ -999,6 +999,65 @@ describe('PATCH /v1/employees/{employee}', function () {
 
         expect($employee->fresh()->status)->toBe(Employee::STATUS_ACTIVE);
     });
+
+    test('rejects direct bwr field changes via patch and preserves audit trail invariants', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 1,
+            'max_viewable_rank' => 255,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'pending',
+            'bwr_id' => null,
+            'bwr_notes' => null,
+            'bwr_registered_at' => null,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'bwr_status' => 'active',
+                'bwr_id' => '1234567',
+                'bwr_notes' => 'Attempted bypass',
+                'bwr_registered_at' => now()->toDateString(),
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'bwr_status',
+                'bwr_id',
+                'bwr_notes',
+                'bwr_registered_at',
+            ]);
+
+        $employee->refresh();
+
+        expect($employee->bwr_status)->toBe('pending')
+            ->and($employee->bwr_id)->toBeNull()
+            ->and($employee->bwr_notes)->toBeNull()
+            ->and($employee->bwr_registered_at)->toBeNull();
+
+        $this->assertDatabaseMissing('activity_log', [
+            'description' => 'BWR status updated',
+            'subject_type' => Employee::class,
+            'subject_id' => $employee->id,
+        ]);
+    });
 });
 
 describe('POST /v1/employees/{employee}/bwr/export', function (): void {
