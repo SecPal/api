@@ -35,7 +35,7 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function createBwrReadyEmployee(TenantKey $tenant, OrganizationalUnit $organizationalUnit, array $overrides = []): Employee
+function createBewacherregisterReadyEmployee(TenantKey $tenant, OrganizationalUnit $organizationalUnit, array $overrides = []): Employee
 {
     return Employee::factory()->create(array_merge([
         'tenant_id' => $tenant->id,
