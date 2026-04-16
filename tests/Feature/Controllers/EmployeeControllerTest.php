@@ -13,8 +13,10 @@ use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Support\LikePattern;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Models\Activity;
@@ -333,6 +335,33 @@ describe('GET /v1/employees', function () {
 
         $response->assertStatus(200);
         expect($response->json('data'))->toHaveCount(0);
+    });
+
+    test('binds escaped like patterns for literal backslash wildcard employee searches', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'email' => 'foo\\%_bar@secpal.dev',
+        ]);
+
+        DB::enableQueryLog();
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees?search='.urlencode('foo\%_bar'));
+
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $response->assertOk();
+
+        $bindings = collect($queries)
+            ->pluck('bindings')
+            ->flatten(1)
+            ->filter(fn (mixed $binding): bool => is_string($binding));
+
+        expect($bindings)->toContain('%'.LikePattern::escape('foo\%_bar').'%');
     });
 });
 
