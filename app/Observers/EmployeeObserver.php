@@ -5,6 +5,7 @@
 
 namespace App\Observers;
 
+use App\Mail\BwrIdDocumentAutoDeletedMail;
 use App\Models\Employee;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Traits\NormalizesPersonFields;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -254,16 +256,26 @@ class EmployeeObserver
         }
 
         try {
+            $fileDeleted = false;
+
             // Delete physical file
             if (Storage::exists($employee->id_document_copy_path)) {
-                Storage::delete($employee->id_document_copy_path);
-                Log::info('ID document copy deleted (BWR active)', [
-                    'employee_id' => $employee->id,
-                    'employee_number' => $employee->employee_number,
-                    'bwr_status' => $employee->bwr_status,
-                    'file_path' => $employee->id_document_copy_path,
-                    'legal_basis' => 'GDPR Art. 5(1)(e) - Storage Limitation',
-                ]);
+                $fileDeleted = Storage::delete($employee->id_document_copy_path);
+
+                if ($fileDeleted) {
+                    Log::info('ID document copy deleted (BWR active)', [
+                        'employee_id' => $employee->id,
+                        'employee_number' => $employee->employee_number,
+                        'bwr_status' => $employee->bwr_status,
+                        'file_path' => $employee->id_document_copy_path,
+                        'legal_basis' => 'GDPR Art. 5(1)(e) - Storage Limitation',
+                    ]);
+                } else {
+                    Log::warning('ID document copy deletion failed despite file existing', [
+                        'employee_id' => $employee->id,
+                        'file_path' => $employee->id_document_copy_path,
+                    ]);
+                }
             } else {
                 Log::warning('ID document copy not found in storage (already deleted?)', [
                     'employee_id' => $employee->id,
@@ -286,6 +298,11 @@ class EmployeeObserver
                     'reason' => 'ID document no longer necessary after BWR registration approval',
                 ])
                 ->log('ID document copy automatically deleted (BWR active)');
+
+            if ($fileDeleted) {
+                Mail::to(config('mail.hr_email', config('mail.from.address')))
+                    ->queue(new BwrIdDocumentAutoDeletedMail($employee));
+            }
         } catch (\Exception $e) {
             Log::error('ID document deletion failed', [
                 'employee_id' => $employee->id,
