@@ -204,8 +204,8 @@ class Customer extends Model
      * (including soft-deleted records to prevent number reuse) and increments it.
      * If no customers exist for the year, starts with 0001.
      *
-     * Uses database row-level locking to prevent race conditions during concurrent
-     * customer creation.
+     * Callers that persist a new customer must keep number generation and insert
+     * inside the same tenant-scoped transaction to avoid concurrent duplicates.
      */
     public static function generateCustomerNumber(int $tenantId): string
     {

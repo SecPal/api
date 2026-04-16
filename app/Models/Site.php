@@ -294,8 +294,8 @@ class Site extends Model
      * (including soft-deleted records to prevent number reuse) and increments it.
      * If no sites exist for the year, starts with 0001.
      *
-     * Uses database row-level locking to prevent race conditions during concurrent
-     * site creation.
+     * Callers that persist a new site must keep number generation and insert
+     * inside the same tenant-scoped transaction to avoid concurrent duplicates.
      */
     public static function generateSiteNumber(int $tenantId): string
     {
