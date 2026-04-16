@@ -11,12 +11,11 @@ use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 
-uses(RefreshDatabase::class)->group('serial');
+uses()->group('serial');
 
 /**
  * @property TenantKey $tenant
@@ -170,7 +169,9 @@ function runConcurrentJsonPosts(
         file_put_contents($startSignalPath, 'go');
 
         foreach ($childPids as $childPid) {
-            pcntl_waitpid($childPid, $status);
+            expect(pcntl_waitpid($childPid, $status))->toBe($childPid);
+            expect(pcntl_wifexited($status))->toBeTrue();
+            expect(pcntl_wifsignaled($status))->toBeFalse();
             expect(pcntl_wexitstatus($status))->toBe(0);
         }
 
