@@ -13,9 +13,11 @@ use App\Http\Requests\Api\V1\UpdateCustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
+use App\Models\TenantKey;
 use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 /**
  * CustomerController handles Customer resource CRUD operations.
@@ -133,17 +135,21 @@ class CustomerController extends Controller
         $tenantId = $request->get('tenant_id');
         $validated['tenant_id'] = $tenantId;
 
-        // Auto-generate customer_number if not provided
-        if (! isset($validated['customer_number'])) {
-            $validated['customer_number'] = Customer::generateCustomerNumber($tenantId);
-        }
+        $customer = DB::transaction(function () use ($tenantId, $validated): Customer {
+            TenantKey::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
 
-        // Set default is_active if not provided (DB default not applied when explicitly passing null)
-        if (! isset($validated['is_active'])) {
-            $validated['is_active'] = true;
-        }
+            // Auto-generate customer_number within the same transaction as the insert.
+            if (! isset($validated['customer_number'])) {
+                $validated['customer_number'] = Customer::generateCustomerNumber($tenantId);
+            }
 
-        $customer = Customer::create($validated);
+            // Set default is_active if not provided (DB default not applied when explicitly passing null)
+            if (! isset($validated['is_active'])) {
+                $validated['is_active'] = true;
+            }
+
+            return Customer::create($validated);
+        });
 
         return response()->json([
             'data' => new CustomerResource($customer),

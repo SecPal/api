@@ -11,9 +11,11 @@ use App\Http\Requests\Api\V1\StoreSiteRequest;
 use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Site;
+use App\Models\TenantKey;
 use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 
 /**
  * SiteController handles Site resource CRUD operations.
@@ -117,17 +119,21 @@ class SiteController extends Controller
         $tenantId = $request->get('tenant_id');
         $validated['tenant_id'] = $tenantId;
 
-        // Auto-generate site_number if not provided
-        if (! isset($validated['site_number'])) {
-            $validated['site_number'] = Site::generateSiteNumber($tenantId);
-        }
+        $site = DB::transaction(function () use ($tenantId, $validated): Site {
+            TenantKey::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
 
-        // Set default is_active if not provided (DB default not applied when explicitly passing null)
-        if (! isset($validated['is_active'])) {
-            $validated['is_active'] = true;
-        }
+            // Auto-generate site_number within the same transaction as the insert.
+            if (! isset($validated['site_number'])) {
+                $validated['site_number'] = Site::generateSiteNumber($tenantId);
+            }
 
-        $site = Site::create($validated);
+            // Set default is_active if not provided (DB default not applied when explicitly passing null)
+            if (! isset($validated['is_active'])) {
+                $validated['is_active'] = true;
+            }
+
+            return Site::create($validated);
+        });
 
         return response()->json([
             'data' => new SiteResource($site),
