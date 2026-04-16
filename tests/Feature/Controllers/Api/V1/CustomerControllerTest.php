@@ -12,8 +12,10 @@ use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Support\LikePattern;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -151,6 +153,32 @@ describe('GET /v1/customers', function () {
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(0);
+    });
+
+    test('binds escaped like patterns for literal backslash wildcard customer searches', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Literal foo\\%_bar customer',
+        ]);
+
+        DB::enableQueryLog();
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/customers?search='.urlencode('foo\%_bar'));
+
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $response->assertOk();
+
+        $bindings = collect($queries)
+            ->pluck('bindings')
+            ->flatten(1)
+            ->filter(fn (mixed $binding): bool => is_string($binding));
+
+        expect($bindings)->toContain('%'.LikePattern::escape('foo\%_bar').'%');
     });
 
     test('user without permission only sees assigned customers', function (): void {
