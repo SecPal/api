@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - converted all findings from the 2026-03-31 security audit to GitHub Issues (#834–#847) tracked under Epic #848
 - strengthened repo-local Copilot governance for AI findings: API work now requires proof of defect before merging AI-generated fix PRs, treats green CI alone as insufficient evidence for semantic test changes, and explicitly rejects Pest file-scope mutations that bypass framework wiring
+- wired the central Copilot-instructions validator into `quality.yml` so API pull requests now fail automatically when known Laravel AI-risk guardrails or generic AI-triage guidance are missing from the runtime baseline
 
 ### Removed
 

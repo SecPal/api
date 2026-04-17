@@ -74,6 +74,8 @@ At minimum verify:
 - Before merge, prove the defect with a failing test, a reproducible defect, or a stated invariant and why the current code violates it.
 - Green CI alone is not enough for AI-generated changes, especially test, lifecycle, shell, regex, or refactor diffs; review the semantic risk explicitly.
 - Reject AI-generated test or helper mutations that move executable code across Pest scope boundaries or bypass framework wiring.
+- Reject AI-generated refactors that resolve services inside API resources or serializers, move business logic into presentation code, or repeat request-scoped work that should run once per request.
+- Reject AI-generated key or constraint changes that derive identifiers from mutable display names or ignore tenant-scoped uniqueness and database constraints.
 
 ## Repository Conventions
 
