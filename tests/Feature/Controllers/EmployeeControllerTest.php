@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Mail\BwrIdDocumentAutoDeletedMail;
 use App\Mail\OnboardingInvitationMail;
 use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
@@ -1384,6 +1385,156 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
         expect($downloadResponse->headers->get('content-type'))->toContain('application/xml')
             ->and((string) $downloadResponse->headers->get('content-disposition'))->toContain('.xml')
             ->and($downloadResponse->getContent())->toContain('<bewacherregisterExport>');
+    });
+
+    test('completes the bwr workflow from export to activation with audit side effects', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        Mail::fake();
+        Storage::fake('local');
+        Storage::disk('local')->put('id_documents/bwr-end-to-end-test.pdf', 'test content');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'first_name' => 'Taylor',
+            'last_name' => 'Workflow',
+            'date_of_birth' => '1990-01-15',
+            'gender' => 'female',
+            'birth_name' => 'Taylor Birthname',
+            'previous_names' => ['Taylor Previous'],
+            'birth_city' => 'Berlin',
+            'birth_country' => 'DE',
+            'nationalities' => ['DE'],
+            'address_street' => 'Hauptstrasse',
+            'address_house_number' => '42A',
+            'address_postal_code' => '10115',
+            'address_city' => 'Berlin',
+            'address_country' => 'DE',
+            'address_history' => [[
+                'from' => '2021-01-01',
+                'to' => '2023-12-31',
+                'street' => 'Altstrasse',
+                'house_number' => '5',
+                'postal_code' => '20095',
+                'city' => 'Hamburg',
+                'country' => 'DE',
+            ]],
+            'intended_activities' => ['object_protection'],
+            'id_document_type' => 'id_card',
+            'id_document_number' => 'L01X00T47',
+            'id_document_expiry' => now()->addYear()->toDateString(),
+            'id_document_copy_path' => 'id_documents/bwr-end-to-end-test.pdf',
+            'id_document_copy_deleted_at' => null,
+            'sachkunde_type' => '34a_new',
+            'sachkunde_certificate' => 'IHK-123456',
+            'bwr_status' => 'not_registered',
+            'bwr_submission_date' => null,
+            'bwr_registered_at' => null,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'position' => 'Security Guard',
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'management_level' => 0,
+            'work_permit_type' => 'none',
+        ]);
+
+        $exportResponse = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/bwr/export", [
+                'format' => 'csv',
+            ]);
+
+        $exportResponse->assertOk()
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.format', 'csv');
+
+        $employee->refresh();
+
+        expect($employee->bwr_status)->toBe('pending')
+            ->and($employee->bwr_submission_date)->not->toBeNull()
+            ->and($employee->id_document_copy_deleted_at)->toBeNull()
+            ->and(Storage::disk('local')->exists('id_documents/bwr-end-to-end-test.pdf'))->toBeTrue();
+
+        $downloadPath = parse_url((string) $exportResponse->json('data.download_url'), PHP_URL_PATH);
+
+        $this->withToken($this->token)
+            ->get($downloadPath)
+            ->assertOk();
+
+        $activationResponse = $this->withToken($this->token)
+            ->putJson("/v1/employees/{$employee->id}/bwr/status", [
+                'status' => 'active',
+                'bwr_id' => '1234567',
+                'notes' => 'Approved after manual authority submission',
+            ]);
+
+        $activationResponse->assertOk()
+            ->assertJsonPath('data.bwr_status', 'active')
+            ->assertJsonPath('data.bwr_id', '1234567');
+
+        $employee->refresh();
+
+        expect($employee->bwr_status)->toBe('active')
+            ->and($employee->bwr_id)->toBe('1234567')
+            ->and($employee->bwr_notes)->toBe('Approved after manual authority submission')
+            ->and($employee->bwr_submission_date)->not->toBeNull()
+            ->and($employee->bwr_registered_at)->not->toBeNull()
+            ->and($employee->id_document_copy_deleted_at)->not->toBeNull()
+            ->and(Storage::disk('local')->exists('id_documents/bwr-end-to-end-test.pdf'))->toBeFalse();
+
+        // Export file remains downloadable after activation (only the ID document copy is deleted)
+        $this->withToken($this->token)
+            ->get($downloadPath)
+            ->assertOk();
+
+        $exportActivity = Activity::query()
+            ->where('subject_type', Employee::class)
+            ->where('subject_id', $employee->id)
+            ->where('description', 'BWR export generated')
+            ->latest()
+            ->first();
+
+        $statusActivity = Activity::query()
+            ->where('subject_type', Employee::class)
+            ->where('subject_id', $employee->id)
+            ->where('description', 'BWR status updated')
+            ->latest()
+            ->first();
+
+        $deletionActivity = Activity::query()
+            ->where('subject_type', Employee::class)
+            ->where('subject_id', $employee->id)
+            ->where('description', 'ID document copy automatically deleted (BWR active)')
+            ->latest()
+            ->first();
+
+        expect($exportActivity)->not->toBeNull()
+            ->and($exportActivity?->properties->get('old_bwr_status'))->toBe('not_registered')
+            ->and($exportActivity?->properties->get('new_bwr_status'))->toBe('pending')
+            ->and($exportActivity?->properties->get('file_path'))->toBeString();
+
+        expect($statusActivity)->not->toBeNull()
+            ->and($statusActivity?->properties->get('old_bwr_status'))->toBe('pending')
+            ->and($statusActivity?->properties->get('new_bwr_status'))->toBe('active')
+            ->and($statusActivity?->properties->get('bwr_id'))->toBe('1234567')
+            ->and($statusActivity?->properties->get('notes'))->toBe('Approved after manual authority submission');
+
+        expect($deletionActivity)->not->toBeNull()
+            ->and($deletionActivity?->properties->get('action'))->toBe('id_document_auto_deleted')
+            ->and($deletionActivity?->properties->get('bwr_status'))->toBe('active');
+
+        Mail::assertQueued(BwrIdDocumentAutoDeletedMail::class, function (BwrIdDocumentAutoDeletedMail $mail) use ($employee): bool {
+            return $mail->employee->is($employee);
+        });
     });
 });
 
