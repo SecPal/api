@@ -55,14 +55,14 @@ test('onboarding invitation mail has correct content', function () {
         'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'John',
         'last_name' => 'Doe',
-        'email' => 'john.doe.onboarding@example.com',
+        'email' => 'john.doe.onboarding@secpal.dev',
         'contract_start_date' => now()->addDays(14),
         'status' => Employee::STATUS_ACTIVE, // Avoid observer creating user
     ]);
 
     $user = User::factory()->create([
         'name' => 'John Doe',
-        'email' => 'john.doe.onboarding@example.com',
+        'email' => 'john.doe.onboarding@secpal.dev',
         'password' => bcrypt('password'),
     ]);
 
@@ -76,13 +76,13 @@ test('onboarding invitation URL includes token and email parameters', function (
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,
-        'email' => 'test.onboarding@example.com',
+        'email' => 'test.onboarding@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
     $user = User::factory()->create([
         'name' => 'Test User',
-        'email' => 'test.onboarding@example.com',
+        'email' => 'test.onboarding@secpal.dev',
         'password' => bcrypt('password'),
     ]);
 
@@ -93,20 +93,20 @@ test('onboarding invitation URL includes token and email parameters', function (
     // URL must contain both token and email parameters
     expect($onboardingUrl)
         ->toContain('?token=fixed-onboarding-token')
-        ->toContain('&email='.urlencode('test.onboarding@example.com'));
+        ->toContain('&email='.urlencode('test.onboarding@secpal.dev'));
 });
 
 test('onboarding invitation mail preserves plaintext token property', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,
-        'email' => 'test.reset@example.com',
+        'email' => 'test.reset@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
     $user = User::factory()->create([
         'name' => 'Test User',
-        'email' => 'test.reset@example.com',
+        'email' => 'test.reset@secpal.dev',
         'password' => bcrypt('password'),
     ]);
 
@@ -123,7 +123,7 @@ test('welcome active mail has correct content', function () {
         'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Jane',
         'last_name' => 'Smith',
-        'email' => 'jane.smith.welcome@example.com',
+        'email' => 'jane.smith.welcome@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
         'employee_number' => 'EMP-WELCOME-001',
     ]);
@@ -176,7 +176,7 @@ test('account deactivated mail has correct content', function () {
         'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Bob',
         'last_name' => 'Johnson',
-        'email' => 'bob.johnson.deactivated@example.com',
+        'email' => 'bob.johnson.deactivated@secpal.dev',
         'status' => Employee::STATUS_TERMINATED,
         'termination_date' => now(),
     ]);
@@ -207,7 +207,7 @@ test('contract ending soon mail has correct content', function () {
         'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Alice',
         'last_name' => 'Brown',
-        'email' => 'alice.brown.ending@example.com',
+        'email' => 'alice.brown.ending@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
         'termination_date' => now()->addDays(30),
     ]);
@@ -237,7 +237,7 @@ test('qualification expiring mail has correct content', function () {
         'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Charlie',
         'last_name' => 'Wilson',
-        'email' => 'charlie.wilson.qual@example.com',
+        'email' => 'charlie.wilson.qual@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
@@ -299,7 +299,7 @@ test('employee compliance alert mail has correct content', function () {
         'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Taylor',
         'last_name' => 'Alert',
-        'email' => 'taylor.alert@example.com',
+        'email' => 'taylor.alert@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
@@ -321,7 +321,7 @@ test('employee compliance alert mail stores provided severity and documents', fu
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,
-        'email' => 'severity.alert@example.com',
+        'email' => 'severity.alert@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
@@ -348,7 +348,7 @@ test('employee compliance alert mail envelope subject contains translated severi
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
         'organizational_unit_id' => $this->orgUnit->id,
-        'email' => 'envelope.test@example.com',
+        'email' => 'envelope.test@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
