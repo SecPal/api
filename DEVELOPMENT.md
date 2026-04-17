@@ -77,7 +77,9 @@ When running tests in **parallel** (e.g., with `php artisan test --parallel`), P
 **Requirements:**
 
 - Local PostgreSQL server reachable via your `.env`
-- The configured PostgreSQL user must be allowed to create databases
+- Use one of these PostgreSQL setups for the configured app user:
+  - The user is allowed to create databases
+  - Or an admin has already created the `testing` and any required parallel `testing_test_*` databases, and those databases are owned by the configured app user so Laravel can create tables in `public`
 
 **Configuration:**
 
@@ -118,6 +120,27 @@ psql -h 127.0.0.1 -U "$DB_USERNAME" -d postgres -c '\du'
 # Then rerun the targeted test file
 php artisan test tests/Feature/HealthCheckTest.php
 ```
+
+If parallel test runs fail with errors such as `permission denied for schema public` after manually creating `testing_test_*` databases, fix the database ownership before rerunning the suite.
+
+```bash
+# Inspect database owners first (uses local peer auth; adjust if your setup differs)
+sudo -u postgres psql -d postgres -c '\l testing*'
+
+# Preferred: transfer all manually created parallel test databases to the app user
+# Adjust DB_USERNAME to match your .env (default: secpal_app)
+DB_USERNAME="${DB_USERNAME:-secpal_app}"
+for db in $(sudo -u postgres psql -d postgres -Atc "SELECT datname FROM pg_database WHERE datname LIKE 'testing_test_%';"); do
+  sudo -u postgres psql -d postgres -c "ALTER DATABASE \"$db\" OWNER TO \"$DB_USERNAME\";"
+done
+
+# If schema privileges are already out of sync, repair them explicitly
+for db in $(sudo -u postgres psql -d postgres -Atc "SELECT datname FROM pg_database WHERE datname LIKE 'testing_test_%';"); do
+  sudo -u postgres psql -d "$db" -c "ALTER SCHEMA public OWNER TO \"$DB_USERNAME\"; GRANT ALL ON SCHEMA public TO \"$DB_USERNAME\";"
+done
+```
+
+The key point is that manually provisioned parallel databases must not stay owned by `postgres`; the databases must be owned by the configured app user (matching `DB_USERNAME` in your `.env`) so migrations can create tables inside `public` during parallel bootstrap.
 
 ## IDE Configuration
 
