@@ -78,6 +78,7 @@ When running tests in **parallel** (e.g., with `php artisan test --parallel`), P
 
 - Local PostgreSQL server reachable via your `.env`
 - The configured PostgreSQL user must be allowed to create databases
+- If parallel `testing_test_*` databases were created manually, they must also be owned by the configured app user so Laravel can create tables in `public`
 
 **Configuration:**
 
@@ -118,6 +119,25 @@ psql -h 127.0.0.1 -U "$DB_USERNAME" -d postgres -c '\du'
 # Then rerun the targeted test file
 php artisan test tests/Feature/HealthCheckTest.php
 ```
+
+If parallel test runs fail with errors such as `permission denied for schema public` after manually creating `testing_test_*` databases, fix the database ownership before rerunning the suite.
+
+```bash
+# Inspect database owners first
+psql -h 127.0.0.1 -U postgres -d postgres -c '\l testing*'
+
+# Preferred: transfer each manually created parallel test database to the app user
+for db in testing_test_3 testing_test_4 testing_test_5 testing_test_6 testing_test_7 testing_test_8; do
+  sudo -u postgres psql -d postgres -c "ALTER DATABASE \"$db\" OWNER TO secpal_app;"
+done
+
+# If schema privileges are already out of sync, repair them explicitly
+for db in testing_test_3 testing_test_4 testing_test_5 testing_test_6 testing_test_7 testing_test_8; do
+  sudo -u postgres psql -d "$db" -c "ALTER SCHEMA public OWNER TO secpal_app; GRANT ALL ON SCHEMA public TO secpal_app;"
+done
+```
+
+The key point is that manually provisioned parallel databases must not stay owned by `postgres` if your Laravel test user is `secpal_app`; otherwise migrations cannot create tables inside `public` during parallel bootstrap.
 
 ## IDE Configuration
 
