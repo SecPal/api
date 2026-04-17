@@ -19,6 +19,12 @@ class BwrIdDocumentAutoDeletedMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
+    /**
+     * Only dispatch the queue job after the surrounding DB transaction commits.
+     * Prevents a spurious HR notification when the BWR activation rolls back.
+     */
+    public bool $afterCommit = true;
+
     public function __construct(
         public Employee $employee,
     ) {}

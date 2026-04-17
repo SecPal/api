@@ -90,6 +90,20 @@ test('it does not fail when id document copy path is null', function () {
     Mail::assertNothingQueued();
 });
 
+test('it does not queue hr mail when id document copy was already deleted', function () {
+    $employee = Employee::factory()->create([
+        'bwr_status' => 'pending',
+        'id_document_copy_path' => 'id_documents/already-gone.pdf',
+        'id_document_copy_deleted_at' => now()->subDays(1),
+    ]);
+    Storage::put('id_documents/already-gone.pdf', 'content');
+
+    $employee->bwr_status = 'active';
+    $employee->save();
+
+    Mail::assertNothingQueued();
+});
+
 test('it does not queue hr mail when the id document file is already missing', function () {
     $employee = Employee::factory()->create([
         'bwr_status' => 'pending',

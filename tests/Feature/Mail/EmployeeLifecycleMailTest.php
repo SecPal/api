@@ -365,7 +365,7 @@ test('bwr id document auto deleted mail includes employee details and deletion r
         'employee_number' => 'EMP-912',
         'first_name' => 'Casey',
         'last_name' => 'Secure',
-        'email' => 'casey.secure@example.com',
+        'email' => 'casey.secure@secpal.dev',
         'bwr_id' => '1234567',
         'status' => Employee::STATUS_ACTIVE,
     ]);
