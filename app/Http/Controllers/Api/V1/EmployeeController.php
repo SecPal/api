@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -66,6 +67,9 @@ class EmployeeController extends Controller
         /** @var string|null $complianceStatus */
         $complianceStatus = $request->input('compliance_status');
 
+        $perPage = $request->integer('per_page', 15);
+        $page = LengthAwarePaginator::resolveCurrentPage();
+
         $employees = $this->buildEmployeeIndexQuery($request)
             ->whereIn('status', [
                 Employee::STATUS_PRE_CONTRACT,
@@ -73,15 +77,22 @@ class EmployeeController extends Controller
                 Employee::STATUS_ON_LEAVE,
             ])
             ->with(['user', 'organizationalUnit'])
-            ->paginate($request->integer('per_page', 15));
+            ->get()
+            ->filter(fn (Employee $employee): bool => $complianceService->hasAlerts($employee, $complianceStatus))
+            ->values();
 
-        $employees->setCollection(
-            $employees->getCollection()
-                ->filter(fn (Employee $employee): bool => $complianceService->hasAlerts($employee, $complianceStatus))
-                ->values()
+        $paginatedEmployees = new LengthAwarePaginator(
+            $employees->forPage($page, $perPage)->values(),
+            $employees->count(),
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
         );
 
-        return EmployeeResource::collection($employees);
+        return EmployeeResource::collection($paginatedEmployees);
     }
 
     /**
