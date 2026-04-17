@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -11,6 +11,7 @@ namespace App\Http\Requests\Api\V1;
 use App\Models\Permission;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 
 class UpdateRoleRequest extends FormRequest
 {
@@ -37,7 +38,7 @@ class UpdateRoleRequest extends FormRequest
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('roles', 'name')->ignore($roleId),
+                $this->roleNameUniqueRule()->ignore($roleId),
             ],
             'permissions' => ['array'],
             'permissions.*' => [
@@ -55,6 +56,25 @@ class UpdateRoleRequest extends FormRequest
                 },
             ],
         ];
+    }
+
+    private function roleNameUniqueRule(): Unique
+    {
+        $rolesTable = (string) config('permission.table_names.roles', 'roles');
+        $teamColumn = (string) config('permission.column_names.team_foreign_key', 'tenant_id');
+        $tenantId = $this->user()?->tenant_id ?? $this->input($teamColumn);
+
+        return Rule::unique($rolesTable, 'name')->where(function ($query) use ($teamColumn, $tenantId): void {
+            $query->where('guard_name', 'sanctum');
+
+            if ($tenantId === null) {
+                $query->whereNull($teamColumn);
+
+                return;
+            }
+
+            $query->where($teamColumn, $tenantId);
+        });
     }
 
     /**

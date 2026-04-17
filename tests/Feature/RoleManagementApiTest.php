@@ -155,6 +155,28 @@ describe('POST /v1/roles - Create Role', function () {
             ->assertJsonValidationErrors(['name']);
     });
 
+    test('allows creating a role when the same name exists in another tenant', function (): void {
+        $this->user->givePermissionTo('roles.create');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+        $this->registrar->setPermissionsTeamId($otherTenant->id);
+        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $this->registrar->setPermissionsTeamId($this->tenant->id);
+        $this->registrar->forgetCachedPermissions();
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/roles', [
+                'name' => 'Manager',
+                'permissions' => ['employees.read'],
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonFragment(['name' => 'Manager']);
+
+        expect(Role::query()->where('name', 'Manager')->count())->toBe(2);
+    });
+
     test('returns 422 when permissions array contains non-existent permission', function (): void {
         $this->user->givePermissionTo('roles.create');
 
@@ -295,6 +317,28 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['name']);
+    });
+
+    test('allows updating a role when the target name exists in another tenant', function (): void {
+        $this->user->givePermissionTo('roles.update');
+        $role = Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+        $this->registrar->setPermissionsTeamId($otherTenant->id);
+        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $this->registrar->setPermissionsTeamId($this->tenant->id);
+        $this->registrar->forgetCachedPermissions();
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/roles/{$role->id}", [
+                'name' => 'Manager',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonFragment(['name' => 'Manager']);
+
+        expect(Role::query()->where('name', 'Manager')->count())->toBe(2);
     });
 
     test('updates role name successfully', function (): void {
