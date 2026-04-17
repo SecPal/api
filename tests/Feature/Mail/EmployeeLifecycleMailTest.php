@@ -7,6 +7,7 @@
 declare(strict_types=1);
 
 use App\Mail\AccountDeactivatedMail;
+use App\Mail\BwrIdDocumentAutoDeletedMail;
 use App\Mail\ContractEndingSoonMail;
 use App\Mail\EmployeeComplianceAlertMail;
 use App\Mail\OnboardingInvitationMail;
@@ -355,4 +356,25 @@ test('employee compliance alert mail envelope subject contains translated severi
 
     $subject = $mail->envelope()->subject;
     expect($subject)->toBe('Compliance documents require attention: critical');
+});
+
+test('bwr id document auto deleted mail includes employee details and deletion reason', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'employee_number' => 'EMP-912',
+        'first_name' => 'Casey',
+        'last_name' => 'Secure',
+        'email' => 'casey.secure@secpal.dev',
+        'bwr_id' => '1234567',
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $mail = new BwrIdDocumentAutoDeletedMail($employee);
+
+    expect($mail->content()->markdown)->toBe('emails.hr.bwr-id-document-auto-deleted')
+        ->and($mail->envelope()->subject)->toContain('BWR')
+        ->and($mail->render())->toContain('Casey Secure')
+        ->and($mail->render())->toContain('EMP-912')
+        ->and($mail->render())->toContain('deleted automatically because BWR approval made continued storage unnecessary');
 });

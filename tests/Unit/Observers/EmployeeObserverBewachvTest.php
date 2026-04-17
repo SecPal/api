@@ -6,6 +6,7 @@
 use App\Models\Employee;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Models\Activity;
 
@@ -15,6 +16,8 @@ beforeEach(function () {
     if (! file_exists(TenantKey::getKekPath())) {
         TenantKey::generateKek();
     }
+
+    Mail::fake();
     Storage::fake('local');
 });
 
@@ -29,6 +32,24 @@ test('it deletes id document copy when bwr status becomes active', function () {
 
     expect(Storage::exists('id_documents/test.pdf'))->toBeFalse();
     expect($employee->fresh()->id_document_copy_deleted_at)->not->toBeNull();
+});
+
+test('it queues hr mail when bwr activation auto deletes the id document copy', function () {
+    $employee = Employee::factory()->create([
+        'bwr_status' => 'pending',
+        'id_document_copy_path' => 'id_documents/notify.pdf',
+        'employee_number' => 'EMP-912',
+        'email' => 'notify.employee@secpal.dev',
+    ]);
+    Storage::put('id_documents/notify.pdf', 'notify content');
+
+    $employee->bwr_status = 'active';
+    $employee->save();
+
+    Mail::assertQueued(App\Mail\BwrIdDocumentAutoDeletedMail::class, function (App\Mail\BwrIdDocumentAutoDeletedMail $mail) use ($employee): bool {
+        return $mail->hasTo(config('mail.hr_email', config('mail.from.address')))
+            && $mail->employee->is($employee->fresh());
+    });
 });
 
 test('it logs id document deletion with legal basis', function () {
@@ -66,6 +87,33 @@ test('it does not fail when id document copy path is null', function () {
     $employee->save();
 
     expect($employee->fresh()->id_document_copy_deleted_at)->toBeNull();
+    Mail::assertNothingQueued();
+});
+
+test('it does not queue hr mail when id document copy was already deleted', function () {
+    $employee = Employee::factory()->create([
+        'bwr_status' => 'pending',
+        'id_document_copy_path' => 'id_documents/already-gone.pdf',
+        'id_document_copy_deleted_at' => now()->subDays(1),
+    ]);
+    Storage::put('id_documents/already-gone.pdf', 'content');
+
+    $employee->bwr_status = 'active';
+    $employee->save();
+
+    Mail::assertNothingQueued();
+});
+
+test('it does not queue hr mail when the id document file is already missing', function () {
+    $employee = Employee::factory()->create([
+        'bwr_status' => 'pending',
+        'id_document_copy_path' => 'id_documents/missing.pdf',
+    ]);
+
+    $employee->bwr_status = 'active';
+    $employee->save();
+
+    Mail::assertNothingQueued();
 });
 
 test('it deletes work permit copy when bwr status becomes active', function () {
