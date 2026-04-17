@@ -31,6 +31,10 @@ jobs:
     name: Markdown Lint
     uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@main
 
+  copilot-instructions:
+    name: Copilot Instructions
+    uses: SecPal/.github/.github/workflows/reusable-copilot-instructions.yml@main
+
   pint:
     name: Laravel Pint
     uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@main
