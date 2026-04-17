@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Mail\BwrIdDocumentAutoDeletedMail;
 use App\Mail\OnboardingInvitationMail;
 use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
@@ -1526,7 +1527,7 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             ->and($deletionActivity?->properties->get('action'))->toBe('id_document_auto_deleted')
             ->and($deletionActivity?->properties->get('bwr_status'))->toBe('active');
 
-        Mail::assertQueued(App\Mail\BwrIdDocumentAutoDeletedMail::class, function (App\Mail\BwrIdDocumentAutoDeletedMail $mail) use ($employee): bool {
+        Mail::assertQueued(BwrIdDocumentAutoDeletedMail::class, function (BwrIdDocumentAutoDeletedMail $mail) use ($employee): bool {
             return $mail->employee->is($employee);
         });
     });
