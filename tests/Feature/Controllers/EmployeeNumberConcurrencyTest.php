@@ -101,7 +101,9 @@ test('concurrent employee creation requests produce distinct employee numbers', 
         file_put_contents($startSignalPath, 'go');
 
         foreach ($childPids as $childPid) {
-            pcntl_waitpid($childPid, $status);
+            expect(pcntl_waitpid($childPid, $status))->toBe($childPid);
+            expect(pcntl_wifexited($status))->toBeTrue();
+            expect(pcntl_wifsignaled($status))->toBeFalse();
             expect(pcntl_wexitstatus($status))->toBe(0);
         }
 
