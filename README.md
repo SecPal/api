@@ -141,14 +141,14 @@ Use the dedicated BWR endpoints as the only supported workflow. Do not write BWR
 1. Keep the employee in `pre_contract` and complete the mandatory BewachV / BWR data set.
 2. Trigger `POST /v1/employees/{employee}/bwr/export` once the employee is export-ready.
 3. Store or download the returned export file and submit it to the authority outside SecPal.
-4. Treat the employee as `pending` while the authority decision is outstanding.
-5. When approval arrives, call `PUT /v1/employees/{employee}/bwr/status` with `status=active`, the 7-digit `bwr_id`, and optional approval notes.
-6. When the authority rejects, suspends, or revokes the registration, record that via the same dedicated status endpoint and keep the explanation in `notes`.
+4. Treat the employee's `bwr_status` as `pending` while the authority decision is outstanding.
+5. When approval arrives, call `PUT /v1/employees/{employee}/bwr/status` with `status=active` to set `bwr_status` to `active`, the 7-digit `bwr_id`, and optional approval notes.
+6. When the authority rejects, suspends, or revokes the registration, record the corresponding `bwr_status` via the same dedicated status endpoint and keep the explanation in `notes`.
 
 Operational notes:
 
 - Export attempts that still miss mandatory data fail with `422 Employee is not ready for BWR export.` plus field-specific errors.
-- Successful export writes the `BWR export generated` audit entry and moves the employee from `not_registered` to `pending`.
+- Successful export writes the `BWR export generated` audit entry and moves `bwr_status` from `not_registered` to `pending`.
 - Successful activation writes the `BWR status updated` audit entry, timestamps `bwr_registered_at`, and auto-deletes the stored ID document copy when it is no longer needed.
 - The auto-deletion also writes `ID document copy automatically deleted (BWR active)` to the audit log and queues the HR notification mail.
 

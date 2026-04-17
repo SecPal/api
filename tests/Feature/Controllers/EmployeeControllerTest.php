@@ -1491,6 +1491,11 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             ->and($employee->id_document_copy_deleted_at)->not->toBeNull()
             ->and(Storage::disk('local')->exists('id_documents/bwr-end-to-end-test.pdf'))->toBeFalse();
 
+        // Export file remains downloadable after activation (only the ID document copy is deleted)
+        $this->withToken($this->token)
+            ->get($downloadPath)
+            ->assertOk();
+
         $exportActivity = Activity::query()
             ->where('subject_type', Employee::class)
             ->where('subject_id', $employee->id)
