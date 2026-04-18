@@ -66,7 +66,8 @@ class CreateRoleRequest extends FormRequest
 
         /** @var User $user */
         $user = $this->user();
-        $tenantId = $this->input($teamColumn, $user->tenant_id);
+
+        $tenantId = $user->tenant_id;
         if (is_numeric($tenantId)) {
             $tenantId = (int) $tenantId;
         } else {

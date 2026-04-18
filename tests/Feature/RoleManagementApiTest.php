@@ -6,6 +6,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Http\Requests\Api\V1\CreateRoleRequest;
+use App\Http\Requests\Api\V1\UpdateRoleRequest;
 use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -155,6 +157,44 @@ describe('POST /v1/roles - Create Role', function () {
             ->assertJsonValidationErrors(['name']);
     });
 
+    test('ignores spoofed tenant input when validating role creation uniqueness', function (): void {
+        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+        $request = CreateRoleRequest::create('/v1/roles', 'POST', [
+            'name' => 'Manager',
+            'permissions' => ['employees.read'],
+            'tenant_id' => $otherTenant->id,
+        ]);
+        $request->setContainer(app());
+        $request->setUserResolver(fn (): User => $this->user);
+
+        $validator = validator($request->all(), $request->rules(), $request->messages());
+
+        expect($validator->fails())->toBeTrue();
+        expect($validator->errors()->keys())->toContain('name');
+    });
+
+    test('allows creating a sanctum role when the same name exists only under another guard', function (): void {
+        $this->user->givePermissionTo('roles.create');
+        Role::create(['name' => 'Manager', 'guard_name' => 'web']);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/roles', [
+                'name' => 'Manager',
+                'permissions' => ['employees.read'],
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonFragment(['name' => 'Manager']);
+
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $this->tenant->id)
+            ->exists())->toBeTrue();
+    });
+
     test('allows creating a role when the same name exists in another tenant', function (): void {
         $this->user->givePermissionTo('roles.create');
 
@@ -174,7 +214,22 @@ describe('POST /v1/roles - Create Role', function () {
         $response->assertCreated()
             ->assertJsonFragment(['name' => 'Manager']);
 
-        expect(Role::query()->where('name', 'Manager')->count())->toBe(2);
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $otherTenant->id)
+            ->exists())->toBeTrue();
+
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $this->tenant->id)
+            ->exists())->toBeTrue();
+
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->count())->toBe(2);
     });
 
     test('returns 422 when permissions array contains non-existent permission', function (): void {
@@ -319,6 +374,40 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
             ->assertJsonValidationErrors(['name']);
     });
 
+    test('ignores spoofed tenant input when validating role updates', function (): void {
+        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+        $request = UpdateRoleRequest::create('/v1/roles/1', 'PATCH', [
+            'name' => 'Manager',
+            'tenant_id' => $otherTenant->id,
+        ]);
+        $request->setContainer(app());
+        $request->setUserResolver(fn (): User => $this->user);
+
+        $validator = validator($request->all(), $request->rules(), $request->messages());
+
+        expect($validator->fails())->toBeTrue();
+        expect($validator->errors()->keys())->toContain('name');
+    });
+
+    test('allows updating a sanctum role when the target name exists only under another guard', function (): void {
+        $this->user->givePermissionTo('roles.update');
+        Role::create(['name' => 'Manager', 'guard_name' => 'web']);
+        $role = Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/roles/{$role->id}", [
+                'name' => 'Manager',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonFragment(['name' => 'Manager']);
+
+        expect($role->fresh()?->name)->toBe('Manager');
+    });
+
     test('allows updating a role when the target name exists in another tenant', function (): void {
         $this->user->givePermissionTo('roles.update');
         $role = Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
@@ -338,7 +427,22 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
         $response->assertOk()
             ->assertJsonFragment(['name' => 'Manager']);
 
-        expect(Role::query()->where('name', 'Manager')->count())->toBe(2);
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $otherTenant->id)
+            ->exists())->toBeTrue();
+
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $this->tenant->id)
+            ->exists())->toBeTrue();
+
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->count())->toBe(2);
     });
 
     test('updates role name successfully', function (): void {
