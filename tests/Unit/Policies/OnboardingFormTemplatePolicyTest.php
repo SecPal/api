@@ -6,6 +6,7 @@
 use App\Models\OnboardingFormTemplate;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\OnboardingSchemaLocalizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -137,6 +138,31 @@ describe('OnboardingFormTemplate Model - Accessors', function () {
 });
 
 describe('OnboardingFormTemplateResource - API Response', function () {
+    it('uses prelocalized template payloads without resolving the localization service', function () {
+        $template = OnboardingFormTemplate::factory()->create([
+            'name' => 'Personal Information Form',
+            'description' => 'Original description',
+            'form_schema' => ['title' => 'Original title'],
+        ]);
+
+        $template->setAttribute('localized_template_payload', [
+            'name' => 'Persönliche Informationen',
+            'description' => 'Vorlokalisierte Beschreibung',
+            'form_schema' => ['title' => 'Vorlokalisierter Titel'],
+        ]);
+
+        app()->bind(OnboardingSchemaLocalizationService::class, static function (): never {
+            throw new RuntimeException('The resource must not resolve the localization service.');
+        });
+
+        $resource = app(App\Http\Resources\OnboardingFormTemplateResource::class, ['resource' => $template]);
+        $response = $resource->toArray(request());
+
+        expect($response['name'])->toBe('Persönliche Informationen')
+            ->and($response['description'])->toBe('Vorlokalisierte Beschreibung')
+            ->and($response['form_schema']['title'])->toBe('Vorlokalisierter Titel');
+    });
+
     it('includes can_be_deleted and can_be_edited flags for system templates', function () {
         $systemTemplate = OnboardingFormTemplate::factory()->create([
             'is_system_template' => true,
