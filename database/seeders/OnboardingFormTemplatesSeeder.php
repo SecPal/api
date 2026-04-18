@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Database\Seeders;
@@ -18,15 +18,17 @@ class OnboardingFormTemplatesSeeder extends Seeder
         $templates = [
             [
                 'name' => 'Personal Information Form',
+                'template_key' => 'personal_information_form',
                 'description' => 'BewachV § 16 required information for Bewacherregister',
                 'form_schema' => $this->getPersonalInformationSchema(),
                 'is_required' => true,
                 'is_system_template' => true,
                 'sort_order' => 1,
-                'tenant_id' => null, // System-wide template
+                'tenant_id' => null,
             ],
             [
                 'name' => 'Bank Account Details',
+                'template_key' => 'bank_account_details',
                 'description' => 'Account information for salary payment',
                 'form_schema' => $this->getBankAccountSchema(),
                 'is_required' => false,
@@ -36,6 +38,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             ],
             [
                 'name' => 'Emergency Contact',
+                'template_key' => 'emergency_contact',
                 'description' => 'Emergency contact persons',
                 'form_schema' => $this->getEmergencyContactSchema(),
                 'is_required' => false,
@@ -45,6 +48,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             ],
             [
                 'name' => 'Tax Identification Number',
+                'template_key' => 'tax_identification_number',
                 'description' => 'Tax ID and tax class information (§ 39e EStG)',
                 'form_schema' => $this->getTaxIdentificationSchema(),
                 'is_required' => false,
@@ -57,7 +61,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
         foreach ($templates as $template) {
             OnboardingFormTemplate::updateOrCreate(
                 [
-                    'name' => $template['name'],
+                    'template_key' => $template['template_key'],
                     'tenant_id' => null,
                 ],
                 $template

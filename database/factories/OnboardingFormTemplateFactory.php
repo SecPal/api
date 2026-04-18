@@ -23,6 +23,7 @@ class OnboardingFormTemplateFactory extends Factory
         return [
             'tenant_id' => TenantKey::factory(),
             'name' => fake()->sentence(3),
+            'template_key' => null,
             'description' => fake()->sentence(),
             'form_schema' => [
                 'fields' => [
