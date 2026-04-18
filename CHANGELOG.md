@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- fixed `GET /v1/employees/compliance-alerts` to filter the full alert set before paginating, so warning/critical/expired work-permit and certification entries are no longer hidden behind non-alert employees and the pagination metadata now reports the real alert count (continues `api#472`)
 - made `POST /v1/employees` accept omitted `management_level` values for non-management hires again, defaulting persisted records to `0` so invite-enabled onboarding preparation no longer fails with `422 The management level field is required.` when clients do not send a leadership rank
 - blocked direct `PATCH /v1/employees/{employee}` writes to `bwr_status`, `bwr_id`, `bwr_notes`, and `bwr_registered_at` so BWR transitions and their audit trail must go through the dedicated `PUT /v1/employees/{employee}/bwr/status` endpoint (fixes `api#881`)
 - centralized employee compliance alert status values in `EmployeeComplianceService` and reused those constants in `IndexEmployeeRequest` validation/messages so filter rules stay synchronized with compliance business logic

@@ -152,6 +152,29 @@ Operational notes:
 - Successful activation writes the `BWR status updated` audit entry, timestamps `bwr_registered_at`, and auto-deletes the stored ID document copy when it is no longer needed.
 - The auto-deletion also writes `ID document copy automatically deleted (BWR active)` to the audit log and queues the HR notification mail.
 
+### 📋 Compliance Alerts And Assignment Blocking
+
+SecPal exposes operational compliance alerts through `GET /v1/employees/compliance-alerts` for HR and dispatch overview screens.
+
+Supported alert sources include:
+
+- expiring or expired non-EU work permits
+- expiring ID documents
+- expiring firearms, first-aid, fire-safety, and evacuation certifications
+- expiring `additional_certifications` entries
+
+Operational rules:
+
+1. Use `compliance_status=warning`, `critical`, or `expired` to focus the overview on the highest active severity per employee.
+2. Treat `warning` as advance notice only. These employees still remain assignable.
+3. Treat `critical` and `expired` alerts as operational blockers. Site assignment creation rejects those employees with `422` and returns the blocking document list.
+4. Use the daily `php artisan employees:send-compliance-alert-notifications` command to queue the employee-facing warning, critical, and first-day-expired mails.
+
+Implementation notes:
+
+- The compliance-alerts endpoint filters the full alert set before pagination so `meta.total`, page boundaries, and alert visibility stay consistent even when non-alert employees exist in the same tenant scope.
+- Work-permit alerts are derived from the same `expiring_documents` aggregation that drives assignment blocking and notification delivery, so overview, dispatch, and mail flows stay synchronized.
+
 ### 🔒 Envelope Encryption
 
 - PHP 8.4 or higher

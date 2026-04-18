@@ -256,6 +256,37 @@ describe('GET /v1/employees', function () {
             ->toContain('expired');
     });
 
+    test('compliance alerts endpoint paginates after alert filtering', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        Employee::factory(2)->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+        ]);
+
+        Employee::factory()->withExpiringWorkPermit()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_ACTIVE,
+            'email' => 'work-permit-alert@example.com',
+            'nationalities' => ['TR'],
+            'work_permit_expiry' => now()->addDays(5)->toDateString(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees/compliance-alerts?per_page=2');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.email', 'work-permit-alert@example.com')
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('meta.per_page', 2);
+
+        expect(collect($response->json('data.0.expiring_documents'))->pluck('type')->all())
+            ->toContain('work_permit');
+    });
+
     test('filters employee compliance alerts by alert status', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
