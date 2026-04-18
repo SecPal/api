@@ -20,9 +20,12 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
 use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
+
+use function Pest\Laravel\travelTo;
 
 uses(RefreshDatabase::class);
 
@@ -766,6 +769,75 @@ describe('POST /v1/employees', function () {
 
         expect($number1)->not->toBe($number2);
         expect($number2)->toMatch('/^EMP-\d{4}-\d{4}$/');
+    });
+
+    test('restarts the employee_number sequence for each tenant', function (): void {
+        $frozenDate = now()->setMonth(6)->setDay(15)->startOfDay();
+        travelTo($frozenDate);
+
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+        $this->user->forceFill(['tenant_id' => $this->tenant->id])->save();
+        Sanctum::actingAs($this->user, [User::API_ACCESS_ABILITY]);
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
+        givePermissionWithTenant($otherUser, $otherTenant->id, 'employee.write');
+
+        $otherOrganizationalUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $otherTenant->id,
+        ]);
+
+        $firstTenantResponse = $this
+            ->postJson('/v1/employees', [
+                'first_name' => 'Tenant',
+                'last_name' => 'One',
+                'email' => 'tenant.one@example.com',
+                'date_of_birth' => '1990-01-01',
+                'position' => 'Security Guard',
+                'status' => 'pre_contract',
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->toDateString(),
+                'weekly_hours' => 40,
+                'hourly_rate' => 15.00,
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'sachkunde_type' => 'none',
+                'work_permit_type' => 'none',
+                'criminal_record_status' => 'valid',
+                'management_level' => 0,
+            ]);
+
+        Sanctum::actingAs($otherUser, [User::API_ACCESS_ABILITY]);
+
+        $secondTenantResponse = $this
+            ->postJson('/v1/employees', [
+                'first_name' => 'Tenant',
+                'last_name' => 'Two',
+                'email' => 'tenant.two@example.com',
+                'date_of_birth' => '1991-02-02',
+                'position' => 'Site Supervisor',
+                'status' => 'pre_contract',
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->toDateString(),
+                'weekly_hours' => 40,
+                'hourly_rate' => 16.00,
+                'organizational_unit_id' => $otherOrganizationalUnit->id,
+                'sachkunde_type' => 'none',
+                'work_permit_type' => 'none',
+                'criminal_record_status' => 'valid',
+                'management_level' => 0,
+            ]);
+
+        $expectedEmployeeNumber = sprintf('EMP-%d-0001', $frozenDate->year);
+
+        $firstTenantResponse->assertCreated()
+            ->assertJsonPath('data.employee_number', $expectedEmployeeNumber);
+
+        $secondTenantResponse->assertCreated()
+            ->assertJsonPath('data.employee_number', $expectedEmployeeNumber);
+
+        expect(Employee::query()->where('employee_number', $expectedEmployeeNumber)->count())->toBe(2);
+
+        Sanctum::actingAs($this->user, [User::API_ACCESS_ABILITY]);
     });
 
     test('rejects direct retention field writes on employee creation', function (): void {
