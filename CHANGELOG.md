@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - added a dedicated `health` rate limiter for `/health`, `/health/live`, and `/health/ready` so unauthenticated health probes now return `429` after repeated abuse from the same IP and route bucket
 
 - switched role and permission management writes to validated request payloads so those controllers no longer read raw input after form-request validation
+- scoped role-name uniqueness validation to the active tenant plus `sanctum` guard so different tenants can reuse the same role names without tripping false `422` conflicts on create or update
 - reduced the public health surface by removing the `/health` version field and by limiting `/health/ready` responses to the readiness status plus timestamp instead of exposing database, key-management, scheduler, and queue-worker details
 - standardized API V1 delete endpoints on `response()->noContent()` so successful `204` responses are implemented consistently across employee, document, qualification, assignment, customer, site, organizational-unit, and cost-center deletes
 - serialized employee number generation per tenant inside the employee create transaction, locking the tenant row plus the current-year employee number lookup so concurrent `POST /v1/employees` requests cannot derive duplicate `employee_number` values; the existing global unique constraint on `employee_number` remains in place as a last-resort safeguard (note: the constraint is currently global across tenants, not scoped per tenant — tracked in SecPal/api#867)

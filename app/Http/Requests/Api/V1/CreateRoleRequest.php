@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -9,7 +9,11 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Permission;
+use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 
 class CreateRoleRequest extends FormRequest
 {
@@ -29,7 +33,7 @@ class CreateRoleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255', 'unique:roles,name'],
+            'name' => ['required', 'string', 'max:255', $this->roleNameUniqueRule()],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => [
                 'required',
@@ -46,6 +50,41 @@ class CreateRoleRequest extends FormRequest
                 },
             ],
         ];
+    }
+
+    private function roleNameUniqueRule(): Unique
+    {
+        $rolesTable = config('permission.table_names.roles');
+        if (! is_string($rolesTable) || $rolesTable === '') {
+            $rolesTable = 'roles';
+        }
+
+        $teamColumn = config('permission.column_names.team_foreign_key');
+        if (! is_string($teamColumn) || $teamColumn === '') {
+            $teamColumn = 'tenant_id';
+        }
+
+        /** @var User $user */
+        $user = $this->user();
+
+        $tenantId = $user->tenant_id;
+        if (is_numeric($tenantId)) {
+            $tenantId = (int) $tenantId;
+        } else {
+            $tenantId = null;
+        }
+
+        return Rule::unique($rolesTable, 'name')->where(function (Builder $query) use ($teamColumn, $tenantId): void {
+            $query->where('guard_name', 'sanctum');
+
+            if ($tenantId === null) {
+                $query->whereNull($teamColumn);
+
+                return;
+            }
+
+            $query->where($teamColumn, $tenantId);
+        });
     }
 
     /**
