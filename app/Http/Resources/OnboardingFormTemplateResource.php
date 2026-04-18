@@ -18,8 +18,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class OnboardingFormTemplateResource extends JsonResource
 {
-    public const LOCALIZED_TEMPLATE_ATTRIBUTE = 'localized_template_payload';
-
     /**
      * Disable wrapping for single resources.
      *
@@ -37,7 +35,7 @@ class OnboardingFormTemplateResource extends JsonResource
         /** @var OnboardingFormTemplate $template */
         $template = $this->resource;
 
-        $localizedTemplate = $template->getAttribute(self::LOCALIZED_TEMPLATE_ATTRIBUTE);
+        $localizedTemplate = $template->getAttribute(OnboardingFormTemplate::LOCALIZED_TEMPLATE_ATTRIBUTE);
 
         if (! is_array($localizedTemplate)) {
             $localizedTemplate = [

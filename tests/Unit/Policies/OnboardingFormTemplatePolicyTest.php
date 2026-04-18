@@ -145,7 +145,7 @@ describe('OnboardingFormTemplateResource - API Response', function () {
             'form_schema' => ['title' => 'Original title'],
         ]);
 
-        $template->setAttribute('localized_template_payload', [
+        $template->setAttribute(OnboardingFormTemplate::LOCALIZED_TEMPLATE_ATTRIBUTE, [
             'name' => 'Persönliche Informationen',
             'description' => 'Vorlokalisierte Beschreibung',
             'form_schema' => ['title' => 'Vorlokalisierter Titel'],

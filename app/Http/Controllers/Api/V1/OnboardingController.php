@@ -816,7 +816,7 @@ class OnboardingController extends Controller
     private function prepareLocalizedTemplate(OnboardingFormTemplate $template, string $locale): void
     {
         $template->setAttribute(
-            OnboardingFormTemplateResource::LOCALIZED_TEMPLATE_ATTRIBUTE,
+            OnboardingFormTemplate::LOCALIZED_TEMPLATE_ATTRIBUTE,
             $this->onboardingSchemaLocalizationService->localizeTemplate($template, $locale),
         );
     }
