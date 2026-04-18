@@ -103,8 +103,8 @@ class UpdateEmployeeRequest extends FormRequest
             // This field is set server-side during file upload via dedicated upload endpoint
 
             // Retention & Employment End
-            'employment_end_date' => ['sometimes', 'nullable', 'date'],
-            'retention_period_end' => ['sometimes', 'nullable', 'date'],
+            'employment_end_date' => ['missing'],
+            'retention_period_end' => ['missing'],
 
             // Tax & Social Security (will be encrypted)
             'tax_id' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -215,6 +215,8 @@ class UpdateEmployeeRequest extends FormRequest
             'bwr_status.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'bwr_registered_at.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'bwr_notes.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
+            'employment_end_date.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),
+            'retention_period_end.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
 
             // ISO country codes
