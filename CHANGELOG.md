@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- fixed `GET /v1/employees/compliance-alerts` to filter the full alert set before paginating, so warning/critical/expired work-permit and certification entries are no longer hidden behind non-alert employees and the pagination metadata now reports the real alert count (continues `api#472`)
 - made `POST /v1/employees` accept omitted `management_level` values for non-management hires again, defaulting persisted records to `0` so invite-enabled onboarding preparation no longer fails with `422 The management level field is required.` when clients do not send a leadership rank
 - blocked direct `PATCH /v1/employees/{employee}` writes to `bwr_status`, `bwr_id`, `bwr_notes`, and `bwr_registered_at` so BWR transitions and their audit trail must go through the dedicated `PUT /v1/employees/{employee}/bwr/status` endpoint (fixes `api#881`)
 - centralized employee compliance alert status values in `EmployeeComplianceService` and reused those constants in `IndexEmployeeRequest` validation/messages so filter rules stay synchronized with compliance business logic
@@ -71,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - added the `api#882` BWR XML export backend slice: explicit export-format validation, XML file generation via the existing BWR export endpoint, and format-aware download responses for generated XML exports
 - added the `api#884` BWR export audit metadata slice: generated export file sizes are now captured in service metadata and persisted alongside file paths in the BWR export activity log
 - added the `api#912` BWR HR notification slice: when BWR activation actually auto-deletes an employee ID-document copy, SecPal now queues a dedicated HR alert email with the employee context and GDPR storage-limitation rationale
+- added the `api#471` BWR workflow proof slice: documented the manual authority-submission workflow in the API README and added end-to-end regression coverage for export -> pending -> active, including download, audit-log, ID-copy deletion, and HR notification side effects
 - added localized onboarding template schema responses for `/v1/onboarding/templates*`, including backend-managed English/German labels, descriptions, and enum display names with `preferred_locale` / `Accept-Language` fallback handling, so onboarding form text no longer needs to be frontend-owned
 - added the `employees:delete-expired` retention command for BewachV §21 / GDPR employee erasure, including tenant-scoped dry-run support, hard deletion of expired terminated employee records, local storage cleanup for employee and onboarding uploads, linked-user anonymization, and a daily scheduler hook after activity retention processing
 - Added the initial Android enrollment API slice for Epic SecPal/.github#327, including tenant-bound enrollment session storage, private QR/bootstrap token issuance, admin create/list/read/revoke endpoints, a public bootstrap exchange endpoint, and audited provisioning lifecycle events

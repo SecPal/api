@@ -134,6 +134,47 @@ Admin rule of thumb:
 - Do not rely on form submission to discover the rule. The UI should explain the restriction before submit, and the API rejects `send_invitation: true` for every status other than `pre_contract`.
 - Filtering and validation use the same official status set: `applicant`, `pre_contract`, `active`, `on_leave`, `terminated`.
 
+### 🛂 BWR Manual Authority Submission Workflow
+
+Use the dedicated BWR endpoints as the only supported workflow. Do not write BWR fields through the generic employee `PATCH` endpoint.
+
+1. Keep the employee in `pre_contract` and complete the mandatory BewachV / BWR data set.
+2. Trigger `POST /v1/employees/{employee}/bwr/export` once the employee is export-ready.
+3. Store or download the returned export file and submit it to the authority outside SecPal.
+4. Treat the employee's `bwr_status` as `pending` while the authority decision is outstanding.
+5. When approval arrives, call `PUT /v1/employees/{employee}/bwr/status` with `status=active` to set `bwr_status` to `active`, the 7-digit `bwr_id`, and optional approval notes.
+6. When the authority rejects, suspends, or revokes the registration, record the corresponding `bwr_status` via the same dedicated status endpoint and keep the explanation in `notes`.
+
+Operational notes:
+
+- Export attempts that still miss mandatory data fail with `422 Employee is not ready for BWR export.` plus field-specific errors.
+- Successful export writes the `BWR export generated` audit entry and moves `bwr_status` from `not_registered` to `pending`.
+- Successful activation writes the `BWR status updated` audit entry, timestamps `bwr_registered_at`, and auto-deletes the stored ID document copy when it is no longer needed.
+- The auto-deletion also writes `ID document copy automatically deleted (BWR active)` to the audit log and queues the HR notification mail.
+
+### 📋 Compliance Alerts And Assignment Blocking
+
+SecPal exposes operational compliance alerts through `GET /v1/employees/compliance-alerts` for HR and dispatch overview screens.
+
+Supported alert sources include:
+
+- expiring or expired non-EU work permits
+- expiring ID documents
+- expiring firearms, first-aid, fire-safety, and evacuation certifications
+- expiring `additional_certifications` entries
+
+Operational rules:
+
+1. Use `compliance_status=warning`, `critical`, or `expired` to focus the overview on the highest active severity per employee.
+2. Treat `warning` as advance notice only. These employees still remain assignable.
+3. Treat `critical` and `expired` alerts as operational blockers. Site assignment creation rejects those employees with `422` and returns the blocking document list.
+4. Use the daily `php artisan employees:send-compliance-alert-notifications` command to queue the employee-facing warning, critical, and first-day-expired mails.
+
+Implementation notes:
+
+- The compliance-alerts endpoint filters the full alert set before pagination so `meta.total`, page boundaries, and alert visibility stay consistent even when non-alert employees exist in the same tenant scope.
+- Work-permit alerts are derived from the same `expiring_documents` aggregation that drives assignment blocking and notification delivery, so overview, dispatch, and mail flows stay synchronized.
+
 ### 🔒 Envelope Encryption
 
 - PHP 8.4 or higher
