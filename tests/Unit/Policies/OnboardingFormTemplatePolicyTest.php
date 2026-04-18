@@ -155,12 +155,17 @@ describe('OnboardingFormTemplateResource - API Response', function () {
             throw new RuntimeException('The resource must not resolve the localization service.');
         });
 
-        $resource = app(App\Http\Resources\OnboardingFormTemplateResource::class, ['resource' => $template]);
-        $response = $resource->toArray(request());
+        try {
+            $resource = app(App\Http\Resources\OnboardingFormTemplateResource::class, ['resource' => $template]);
+            $response = $resource->toArray(request());
 
-        expect($response['name'])->toBe('Persönliche Informationen')
-            ->and($response['description'])->toBe('Vorlokalisierte Beschreibung')
-            ->and($response['form_schema']['title'])->toBe('Vorlokalisierter Titel');
+            expect($response['name'])->toBe('Persönliche Informationen')
+                ->and($response['description'])->toBe('Vorlokalisierte Beschreibung')
+                ->and($response['form_schema']['title'])->toBe('Vorlokalisierter Titel');
+        } finally {
+            app()->forgetInstance(OnboardingSchemaLocalizationService::class);
+            app()->offsetUnset(OnboardingSchemaLocalizationService::class);
+        }
     });
 
     it('includes can_be_deleted and can_be_edited flags for system templates', function () {
