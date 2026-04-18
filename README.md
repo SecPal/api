@@ -133,6 +133,7 @@ Admin rule of thumb:
 - Use `pre_contract` if you want to invite the employee into onboarding.
 - Do not rely on form submission to discover the rule. The UI should explain the restriction before submit, and the API rejects `send_invitation: true` for every status other than `pre_contract`.
 - Filtering and validation use the same official status set: `applicant`, `pre_contract`, `active`, `on_leave`, `terminated`.
+- `employment_end_date` and `retention_period_end` are lifecycle-managed retention fields. Do not write them through the generic employee create or patch endpoints; they are derived during the termination / retention workflow.
 
 ### 🛂 BWR Manual Authority Submission Workflow
 
