@@ -1653,7 +1653,7 @@ describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks employee.update permission', function (): void {
+    test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,
