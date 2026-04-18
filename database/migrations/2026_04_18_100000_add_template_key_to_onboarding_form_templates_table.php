@@ -6,6 +6,7 @@ declare(strict_types=1);
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -32,7 +33,7 @@ return new class extends Migration
                 ->whereNull('tenant_id')
                 ->where('is_system_template', true)
                 ->whereNull('template_key')
-                ->where(function ($query) use ($systemTemplate): void {
+                ->where(function (Builder $query) use ($systemTemplate): void {
                     $query->where('sort_order', $systemTemplate['sort_order'])
                         ->orWhereIn('name', $systemTemplate['names']);
                 })
