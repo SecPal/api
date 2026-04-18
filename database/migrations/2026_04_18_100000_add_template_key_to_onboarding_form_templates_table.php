@@ -20,7 +20,8 @@ return new class extends Migration
         });
 
         // Backfill stable keys for existing system templates before adding unique constraints.
-        // Match by sort_order (stable) with name as fallback for upgrade compatibility.
+        // Resolve each row to a single primary key first to prevent multiple-row assignments
+        // if sort_order or names ever overlap across system templates.
         $systemTemplates = [
             ['template_key' => 'personal_information_form', 'sort_order' => 1, 'names' => ['Personal Information Form']],
             ['template_key' => 'bank_account_details', 'sort_order' => 2, 'names' => ['Bank Account Details']],
@@ -29,7 +30,7 @@ return new class extends Migration
         ];
 
         foreach ($systemTemplates as $systemTemplate) {
-            DB::table('onboarding_form_templates')
+            $id = DB::table('onboarding_form_templates')
                 ->whereNull('tenant_id')
                 ->where('is_system_template', true)
                 ->whereNull('template_key')
@@ -37,7 +38,13 @@ return new class extends Migration
                     $query->where('sort_order', $systemTemplate['sort_order'])
                         ->orWhereIn('name', $systemTemplate['names']);
                 })
-                ->update(['template_key' => $systemTemplate['template_key']]);
+                ->value('id');
+
+            if ($id !== null) {
+                DB::table('onboarding_form_templates')
+                    ->where('id', $id)
+                    ->update(['template_key' => $systemTemplate['template_key']]);
+            }
         }
 
         // Partial unique index for system templates (tenant_id IS NULL).
