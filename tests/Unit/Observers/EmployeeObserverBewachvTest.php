@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Models\Activity;
 
-uses(RefreshDatabase::class)->group('unit', 'observer', 'bewachv');
+uses(RefreshDatabase::class)->group('unit', 'observer', 'BewachV');
 
 beforeEach(function () {
     if (! file_exists(TenantKey::getKekPath())) {
@@ -21,7 +21,7 @@ beforeEach(function () {
     Storage::fake('local');
 });
 
-test('it deletes id document copy when bwr status becomes active', function () {
+test('it deletes ID document copy when bwr status becomes active', function () {
     $employee = Employee::factory()->create(['bwr_status' => 'pending', 'id_document_copy_path' => 'id_documents/test.pdf']);
     Storage::put('id_documents/test.pdf', 'fake content');
 
@@ -150,24 +150,29 @@ test('it deletes work permit copy when permit becomes permanent', function () {
 
 test('it calculates retention period when employee is terminated', function () {
     $employee = Employee::factory()->create(['status' => Employee::STATUS_ACTIVE]);
+    $terminationDate = now()->subYear()->setMonth(6)->setDay(15);
+    $expectedRetentionEnd = $terminationDate->copy()->addYears(3)->endOfYear()->toDateString();
 
     $employee->status = Employee::STATUS_TERMINATED;
-    $employee->termination_date = '2024-06-15';
+    $employee->termination_date = $terminationDate->toDateString();
     $employee->save();
 
     $employee->refresh();
-    expect($employee->employment_end_date->toDateString())->toEqual('2024-06-15')
-        ->and($employee->retention_period_end->toDateString())->toEqual('2027-12-31');
+    expect($employee->employment_end_date->toDateString())->toEqual($terminationDate->toDateString())
+        ->and($employee->retention_period_end->toDateString())->toEqual($expectedRetentionEnd);
 });
 
 test('it calculates retention period for year end termination', function () {
     $employee = Employee::factory()->create(['status' => Employee::STATUS_ACTIVE]);
 
+    $terminationAtYearEnd = now()->subYear()->endOfYear();
+    $expectedRetentionEnd = $terminationAtYearEnd->copy()->addYears(3)->endOfYear()->toDateString();
+
     $employee->status = Employee::STATUS_TERMINATED;
-    $employee->termination_date = '2024-12-31';
+    $employee->termination_date = $terminationAtYearEnd->toDateString();
     $employee->save();
 
-    expect($employee->fresh()->retention_period_end->toDateString())->toEqual('2027-12-31');
+    expect($employee->fresh()->retention_period_end->toDateString())->toEqual($expectedRetentionEnd);
 });
 
 test('it logs retention period calculation with legal basis', function () {
@@ -202,7 +207,7 @@ test('it does not calculate retention when termination date is null', function (
     expect($employee->fresh()->retention_period_end)->not->toBeNull();
 });
 
-test('it handles both bwr activation and termination in same update', function () {
+test('it handles both bwr activation and termination in sequence', function () {
     Storage::put('id_documents/doc.pdf', 'test');
     $employee = Employee::factory()->create(['status' => Employee::STATUS_ACTIVE, 'bwr_status' => 'pending', 'id_document_copy_path' => 'id_documents/doc.pdf']);
 

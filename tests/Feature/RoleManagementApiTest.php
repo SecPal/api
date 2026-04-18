@@ -158,8 +158,31 @@ describe('POST /v1/roles - Create Role', function () {
     });
 
     test('ignores spoofed tenant input when validating role creation uniqueness', function (): void {
-        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+        Role::create([
+            'name' => 'Manager',
+            'guard_name' => 'sanctum',
+            'tenant_id' => $otherTenant->id,
+        ]);
+
+        Role::create([
+            'name' => 'Manager',
+            'guard_name' => 'sanctum',
+            'tenant_id' => $this->user->tenant_id,
+        ]);
+
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $otherTenant->id)
+            ->exists())->toBeTrue();
+
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $this->user->tenant_id)
+            ->exists())->toBeTrue();
 
         $request = CreateRoleRequest::create('/v1/roles', 'POST', [
             'name' => 'Manager',
@@ -375,11 +398,16 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
     });
 
     test('ignores spoofed tenant input when validating role updates', function (): void {
-        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $manager = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
         Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        Role::create([
+            'name' => 'Manager',
+            'guard_name' => 'sanctum',
+            'tenant_id' => $otherTenant->id,
+        ]);
 
-        $request = UpdateRoleRequest::create('/v1/roles/1', 'PATCH', [
+        $request = UpdateRoleRequest::create("/v1/roles/{$manager->id}", 'PATCH', [
             'name' => 'Manager',
             'tenant_id' => $otherTenant->id,
         ]);

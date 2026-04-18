@@ -17,6 +17,27 @@ use App\Models\User;
 use App\Support\LikePattern;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+
+function grantDualManagementScopes(User $user, string $organizationalUnitId): void
+{
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $organizationalUnitId,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0, // Guards only
+        'allow_self_access' => true,
+    ]);
+
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $organizationalUnitId,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 255, // Leadership only
+        'allow_self_access' => true,
+    ]);
+}
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -795,23 +816,10 @@ describe('GET /v1/employees/{employee}', function () {
     test('returns employee with relationships', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
-        // Need TWO scopes: 0-0 for Guards + 1-255 for Leadership (ADR-009)
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0, // Guards only
-            'allow_self_access' => true,
-        ]);
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 1,
-            'max_viewable_rank' => 255, // Leadership only
-            'allow_self_access' => true,
-        ]);
+        // We intentionally create two non-overlapping rank scopes (ADR-009):
+        // one for Guards (0-0) and one for Leadership (1-255). A single scope
+        // cannot model both cohorts without either excluding one group or broadening access.
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -1167,7 +1175,7 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks employee.update permission', function (): void {
+    test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,
@@ -1653,7 +1661,7 @@ describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks employee.update permission', function (): void {
+    test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,

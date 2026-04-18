@@ -49,6 +49,14 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
+function assertChildProcessSucceeded(int $childPid): void
+{
+    expect(pcntl_waitpid($childPid, $status))->toBe($childPid);
+    expect(pcntl_wifexited($status))->toBeTrue();
+    expect(pcntl_wifsignaled($status))->toBeFalse();
+    expect(pcntl_wexitstatus($status))->toBe(0);
+}
+
 test('concurrent employee creation requests produce distinct employee numbers', function (): void {
     if (! function_exists('pcntl_fork')) {
         $this->markTestSkipped('pcntl is required for the employee number concurrency regression test.');
@@ -76,11 +84,12 @@ test('concurrent employee creation requests produce distinct employee numbers', 
             }
 
             if ($pid === 0) {
-                DB::disconnect();
+                DB::purge();
+                DB::reconnect();
                 app(PermissionRegistrar::class)->forgetCachedPermissions();
 
                 while (trim((string) file_get_contents($startSignalPath)) !== 'go') {
-                    usleep(10_000);
+                    usleep(100_000);
                 }
 
                 $response = $this->withToken($this->token)
@@ -101,10 +110,7 @@ test('concurrent employee creation requests produce distinct employee numbers', 
         file_put_contents($startSignalPath, 'go');
 
         foreach ($childPids as $childPid) {
-            expect(pcntl_waitpid($childPid, $status))->toBe($childPid);
-            expect(pcntl_wifexited($status))->toBeTrue();
-            expect(pcntl_wifsignaled($status))->toBeFalse();
-            expect(pcntl_wexitstatus($status))->toBe(0);
+            assertChildProcessSucceeded($childPid);
         }
 
         $results = collect(range(1, $requestCount))
@@ -127,10 +133,12 @@ test('concurrent employee creation requests produce distinct employee numbers', 
             unlink($startSignalPath);
         }
 
-        foreach (range(1, $requestCount) as $index) {
-            $path = $synchronizationDirectory."/result-{$index}.json";
-            if (file_exists($path)) {
-                unlink($path);
+        $resultFiles = glob($synchronizationDirectory.'/result-*.json');
+        if ($resultFiles !== false) {
+            foreach ($resultFiles as $path) {
+                if (file_exists($path)) {
+                    unlink($path);
+                }
             }
         }
 
