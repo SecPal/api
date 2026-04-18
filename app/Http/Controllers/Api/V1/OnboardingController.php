@@ -770,6 +770,9 @@ class OnboardingController extends Controller
         ]);
     }
 
+    /**
+     * @param  iterable<OnboardingFormTemplate>  $templates
+     */
     private function prepareLocalizedTemplates(iterable $templates, string $locale): void
     {
         foreach ($templates as $template) {
@@ -781,6 +784,9 @@ class OnboardingController extends Controller
         }
     }
 
+    /**
+     * @param  iterable<OnboardingFormSubmission>  $submissions
+     */
     private function prepareLocalizedSubmissionTemplates(iterable $submissions, string $locale): void
     {
         foreach ($submissions as $submission) {
