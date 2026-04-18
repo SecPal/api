@@ -25,6 +25,8 @@ use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
+use function Pest\Laravel\travelTo;
+
 uses(RefreshDatabase::class);
 
 /**
@@ -770,6 +772,9 @@ describe('POST /v1/employees', function () {
     });
 
     test('restarts the employee_number sequence for each tenant', function (): void {
+        $frozenDate = now()->setMonth(6)->setDay(15)->startOfDay();
+        travelTo($frozenDate);
+
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
         $this->user->forceFill(['tenant_id' => $this->tenant->id])->save();
         Sanctum::actingAs($this->user, [User::API_ACCESS_ABILITY]);
@@ -822,7 +827,7 @@ describe('POST /v1/employees', function () {
                 'management_level' => 0,
             ]);
 
-        $expectedEmployeeNumber = sprintf('EMP-%d-0001', now()->year);
+        $expectedEmployeeNumber = sprintf('EMP-%d-0001', $frozenDate->year);
 
         $firstTenantResponse->assertCreated()
             ->assertJsonPath('data.employee_number', $expectedEmployeeNumber);

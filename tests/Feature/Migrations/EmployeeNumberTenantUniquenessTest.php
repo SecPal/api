@@ -26,14 +26,21 @@ test('employees table scopes employee number uniqueness to tenant_id', function 
     $indexes = Schema::getIndexes('employees');
 
     $hasTenantScopedUniqueConstraint = collect($indexes)->contains(function (array $index): bool {
+        $columns = $index['columns'] ?? [];
+
         return $index['name'] === 'unique_tenant_employee_number'
             && $index['unique'] === true
-            && $index['columns'] === ['tenant_id', 'employee_number'];
+            && count($columns) === 2
+            && in_array('tenant_id', $columns, true)
+            && in_array('employee_number', $columns, true);
     });
 
     $hasGlobalEmployeeNumberUniqueConstraint = collect($indexes)->contains(function (array $index): bool {
+        $columns = $index['columns'] ?? [];
+
         return $index['unique'] === true
-            && $index['columns'] === ['employee_number'];
+            && count($columns) === 1
+            && in_array('employee_number', $columns, true);
     });
 
     expect($hasTenantScopedUniqueConstraint)->toBeTrue()
