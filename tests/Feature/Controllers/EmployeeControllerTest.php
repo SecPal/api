@@ -767,6 +767,41 @@ describe('POST /v1/employees', function () {
         expect($number1)->not->toBe($number2);
         expect($number2)->toMatch('/^EMP-\d{4}-\d{4}$/');
     });
+
+    test('rejects direct retention field writes on employee creation', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'Rita',
+                'last_name' => 'Retention',
+                'email' => 'rita.retention@example.com',
+                'date_of_birth' => '1990-01-15',
+                'position' => 'Security Guard',
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->addWeek()->toDateString(),
+                'weekly_hours' => 40,
+                'hourly_rate' => 15.50,
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'sachkunde_type' => 'none',
+                'work_permit_type' => 'none',
+                'criminal_record_status' => 'valid',
+                'management_level' => 0,
+                'employment_end_date' => now()->toDateString(),
+                'retention_period_end' => now()->addYears(3)->endOfYear()->toDateString(),
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'employment_end_date' => 'Retention fields are managed by the employee lifecycle and cannot be written directly.',
+                'retention_period_end',
+            ]);
+
+        $this->assertDatabaseMissing('employees', [
+            'email' => 'rita.retention@example.com',
+        ]);
+    });
 });
 
 describe('GET /v1/employees/{employee}', function () {
@@ -1152,6 +1187,51 @@ describe('PATCH /v1/employees/{employee}', function () {
             'subject_type' => Employee::class,
             'subject_id' => $employee->id,
         ]);
+    });
+
+    test('rejects direct retention field changes via patch', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 1,
+            'max_viewable_rank' => 255,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'employment_end_date' => null,
+            'retention_period_end' => null,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'employment_end_date' => now()->toDateString(),
+                'retention_period_end' => now()->addYears(3)->endOfYear()->toDateString(),
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'employment_end_date' => 'Retention fields are managed by the employee lifecycle and cannot be written directly.',
+                'retention_period_end',
+            ]);
+
+        $employee->refresh();
+
+        expect($employee->employment_end_date)->toBeNull()
+            ->and($employee->retention_period_end)->toBeNull();
     });
 });
 

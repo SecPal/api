@@ -121,8 +121,8 @@ class StoreEmployeeRequest extends FormRequest
             // This field is set server-side during file upload via dedicated upload endpoint
 
             // Retention & Employment End (BewachV § 21)
-            'employment_end_date' => ['nullable', 'date'],
-            'retention_period_end' => ['nullable', 'date'], // Auto-calculated by Observer
+            'employment_end_date' => ['missing'],
+            'retention_period_end' => ['missing'],
 
             // Tax & Social Security (will be encrypted)
             'tax_id' => ['nullable', 'string', 'max:255'],
@@ -257,6 +257,8 @@ class StoreEmployeeRequest extends FormRequest
             ]),
             'organizational_unit_id.required' => __('Organizational unit is required'),
             'send_invitation.boolean' => __('Invitation sending must be true or false'),
+            'employment_end_date.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),
+            'retention_period_end.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
 
             // BWR-ID validation
