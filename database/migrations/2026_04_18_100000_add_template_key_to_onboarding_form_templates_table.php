@@ -19,20 +19,24 @@ return new class extends Migration
         });
 
         // Backfill stable keys for existing system templates before adding unique constraints.
-        $systemKeys = [
-            'Personal Information Form' => 'personal_information_form',
-            'Bank Account Details' => 'bank_account_details',
-            'Emergency Contact' => 'emergency_contact',
-            'Tax Identification Number' => 'tax_identification_number',
+        // Match by sort_order (stable) with name as fallback for upgrade compatibility.
+        $systemTemplates = [
+            ['template_key' => 'personal_information_form', 'sort_order' => 1, 'names' => ['Personal Information Form']],
+            ['template_key' => 'bank_account_details', 'sort_order' => 2, 'names' => ['Bank Account Details']],
+            ['template_key' => 'emergency_contact', 'sort_order' => 3, 'names' => ['Emergency Contact']],
+            ['template_key' => 'tax_identification_number', 'sort_order' => 4, 'names' => ['Tax Identification Number']],
         ];
 
-        foreach ($systemKeys as $name => $key) {
+        foreach ($systemTemplates as $systemTemplate) {
             DB::table('onboarding_form_templates')
-                ->where('name', $name)
                 ->whereNull('tenant_id')
                 ->where('is_system_template', true)
                 ->whereNull('template_key')
-                ->update(['template_key' => $key]);
+                ->where(function ($query) use ($systemTemplate): void {
+                    $query->where('sort_order', $systemTemplate['sort_order'])
+                        ->orWhereIn('name', $systemTemplate['names']);
+                })
+                ->update(['template_key' => $systemTemplate['template_key']]);
         }
 
         // Partial unique index for system templates (tenant_id IS NULL).
