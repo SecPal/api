@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- upgraded `phpunit/phpunit` to `12.5.23` together with `pestphp/pest` `4.6.3` so the test runner no longer remains pinned to a vulnerable PHPUnit child-process INI forwarding release range (`GHSA-qrr6-mg7r-m243`)
 - blocked direct `POST /v1/employees` and `PATCH /v1/employees/{employee}` writes to `employment_end_date` and `retention_period_end` so BewachV / GDPR retention dates remain lifecycle-managed by termination handling and observer-driven calculation instead of client-controlled payloads (continues `api#470`)
 - fixed `GET /v1/employees/compliance-alerts` to filter the full alert set before paginating, so warning/critical/expired work-permit and certification entries are no longer hidden behind non-alert employees and the pagination metadata now reports the real alert count (continues `api#472`)
 - made `POST /v1/employees` accept omitted `management_level` values for non-management hires again, defaulting persisted records to `0` so invite-enabled onboarding preparation no longer fails with `422 The management level field is required.` when clients do not send a leadership rank
