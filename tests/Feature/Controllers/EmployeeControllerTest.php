@@ -795,7 +795,9 @@ describe('GET /v1/employees/{employee}', function () {
     test('returns employee with relationships', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
-        // Need TWO scopes: 0-0 for Guards + 1-255 for Leadership (ADR-009)
+        // We intentionally create two non-overlapping rank scopes (ADR-009):
+        // one for Guards (0-0) and one for Leadership (1-255). A single scope
+        // cannot model both cohorts without either excluding one group or broadening access.
         $this->user->organizationalScopes()->create([
             'organizational_unit_id' => $this->organizationalUnit->id,
             'access_level' => 'manage',
