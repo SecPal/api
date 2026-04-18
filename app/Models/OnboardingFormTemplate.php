@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $id
  * @property int|null $tenant_id
  * @property string $name
+ * @property string|null $template_key
  * @property array<string, mixed>|null $form_schema JSON schema for the form
  * @property string|null $description
  * @property bool $is_required
@@ -38,6 +39,7 @@ class OnboardingFormTemplate extends Model
     protected $fillable = [
         'tenant_id',
         'name',
+        'template_key',
         'description',
         'form_schema',
         'is_required',

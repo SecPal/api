@@ -23,7 +23,10 @@ class OnboardingSchemaLocalizationService
     public function localizeTemplate(OnboardingFormTemplate $template, string $locale): array
     {
         $normalizedLocale = $this->normalizeLocale($locale);
-        $templateKey = Str::snake($template->name);
+        $raw = $template->template_key;
+        $templateKey = ($raw !== null && $raw !== '')
+            ? Str::snake($raw)
+            : Str::snake($template->name);
         $schema = is_array($template->form_schema) ? $template->form_schema : [];
 
         return [
