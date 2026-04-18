@@ -1,12 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Resources;
 
 use App\Models\OnboardingFormTemplate;
-use App\Services\OnboardingSchemaLocalizationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -36,8 +35,15 @@ class OnboardingFormTemplateResource extends JsonResource
         /** @var OnboardingFormTemplate $template */
         $template = $this->resource;
 
-        $localizedTemplate = app(OnboardingSchemaLocalizationService::class)
-            ->localizeTemplate($template, $this->resolveLocale($request));
+        $localizedTemplate = $template->getAttribute(OnboardingFormTemplate::LOCALIZED_TEMPLATE_ATTRIBUTE);
+
+        if (! is_array($localizedTemplate)) {
+            $localizedTemplate = [
+                'name' => $template->name,
+                'description' => $template->description,
+                'form_schema' => is_array($template->form_schema) ? $template->form_schema : [],
+            ];
+        }
 
         return [
             'id' => $this->id,
@@ -53,18 +59,5 @@ class OnboardingFormTemplateResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
-    }
-
-    private function resolveLocale(Request $request): string
-    {
-        $preferredLocale = $request->user()?->preferred_locale;
-
-        if (is_string($preferredLocale) && in_array($preferredLocale, OnboardingSchemaLocalizationService::SUPPORTED_LOCALES, true)) {
-            return $preferredLocale;
-        }
-
-        $requestLocale = $request->getPreferredLanguage(OnboardingSchemaLocalizationService::SUPPORTED_LOCALES);
-
-        return is_string($requestLocale) ? $requestLocale : OnboardingSchemaLocalizationService::DEFAULT_LOCALE;
     }
 }

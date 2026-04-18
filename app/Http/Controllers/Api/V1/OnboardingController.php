@@ -19,6 +19,7 @@ use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
 use App\Services\OnboardingCompletionService;
+use App\Services\OnboardingSchemaLocalizationService;
 use App\Services\OnboardingSubmissionFileStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -44,7 +45,8 @@ use Illuminate\Validation\ValidationException;
 class OnboardingController extends Controller
 {
     public function __construct(
-        private readonly OnboardingSubmissionFileStorageService $submissionFileStorageService
+        private readonly OnboardingSubmissionFileStorageService $submissionFileStorageService,
+        private readonly OnboardingSchemaLocalizationService $onboardingSchemaLocalizationService,
     ) {}
 
     /**
@@ -376,6 +378,8 @@ class OnboardingController extends Controller
             ->orderBy('name')
             ->get();
 
+        $this->prepareLocalizedTemplates($templates, $this->resolveTemplateLocale($request));
+
         return response()->json([
             'data' => OnboardingFormTemplateResource::collection($templates),
         ]);
@@ -386,9 +390,11 @@ class OnboardingController extends Controller
      *
      * GET /api/v1/onboarding/templates/{template}
      */
-    public function getTemplate(OnboardingFormTemplate $template): JsonResponse
+    public function getTemplate(Request $request, OnboardingFormTemplate $template): JsonResponse
     {
         $this->authorize('view', $template);
+
+        $this->prepareLocalizedTemplate($template, $this->resolveTemplateLocale($request));
 
         return response()->json([
             'data' => new OnboardingFormTemplateResource($template),
@@ -419,6 +425,8 @@ class OnboardingController extends Controller
         $submissions = $employee->onboardingSubmissions()
             ->with('formTemplate')
             ->get();
+
+        $this->prepareLocalizedSubmissionTemplates($submissions, $this->resolveTemplateLocale($request));
 
         return response()->json([
             'data' => OnboardingFormSubmissionResource::collection($submissions),
@@ -523,6 +531,8 @@ class OnboardingController extends Controller
             app(OnboardingCompletionService::class)->checkCompletion($employee);
         }
 
+        $this->prepareLocalizedSubmissionTemplate($submission, $this->resolveTemplateLocale($request));
+
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($submission),
         ], $existing ? Response::HTTP_OK : Response::HTTP_CREATED);
@@ -603,6 +613,8 @@ class OnboardingController extends Controller
         if ($status === 'submitted') {
             app(OnboardingCompletionService::class)->checkCompletion($employee);
         }
+
+        $this->prepareLocalizedSubmissionTemplate($submission, $this->resolveTemplateLocale($request));
 
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($submission),
@@ -697,6 +709,8 @@ class OnboardingController extends Controller
         $employee = $submission->employee;
         app(OnboardingCompletionService::class)->checkCompletion($employee);
 
+        $this->prepareLocalizedSubmissionTemplate($fresh, $this->resolveTemplateLocale($request));
+
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($fresh),
         ]);
@@ -749,9 +763,75 @@ class OnboardingController extends Controller
         $fresh = $submission->fresh();
         $fresh->load(['formTemplate', 'reviewer']);
 
+        $this->prepareLocalizedSubmissionTemplate($fresh, $this->resolveTemplateLocale($request));
+
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($fresh),
         ]);
+    }
+
+    /**
+     * @param  iterable<OnboardingFormTemplate>  $templates
+     */
+    private function prepareLocalizedTemplates(iterable $templates, string $locale): void
+    {
+        foreach ($templates as $template) {
+            if (! $template instanceof OnboardingFormTemplate) {
+                continue;
+            }
+
+            $this->prepareLocalizedTemplate($template, $locale);
+        }
+    }
+
+    /**
+     * @param  iterable<OnboardingFormSubmission>  $submissions
+     */
+    private function prepareLocalizedSubmissionTemplates(iterable $submissions, string $locale): void
+    {
+        foreach ($submissions as $submission) {
+            if (! $submission instanceof OnboardingFormSubmission) {
+                continue;
+            }
+
+            $this->prepareLocalizedSubmissionTemplate($submission, $locale);
+        }
+    }
+
+    private function prepareLocalizedSubmissionTemplate(OnboardingFormSubmission $submission, string $locale): void
+    {
+        if (! $submission->relationLoaded('formTemplate')) {
+            return;
+        }
+
+        $template = $submission->formTemplate;
+
+        if (! $template instanceof OnboardingFormTemplate) {
+            return;
+        }
+
+        $this->prepareLocalizedTemplate($template, $locale);
+    }
+
+    private function prepareLocalizedTemplate(OnboardingFormTemplate $template, string $locale): void
+    {
+        $template->setAttribute(
+            OnboardingFormTemplate::LOCALIZED_TEMPLATE_ATTRIBUTE,
+            $this->onboardingSchemaLocalizationService->localizeTemplate($template, $locale),
+        );
+    }
+
+    private function resolveTemplateLocale(Request $request): string
+    {
+        $preferredLocale = $request->user()?->preferred_locale;
+
+        if (is_string($preferredLocale) && in_array($preferredLocale, OnboardingSchemaLocalizationService::SUPPORTED_LOCALES, true)) {
+            return $preferredLocale;
+        }
+
+        $requestLocale = $request->getPreferredLanguage(OnboardingSchemaLocalizationService::SUPPORTED_LOCALES);
+
+        return is_string($requestLocale) ? $requestLocale : OnboardingSchemaLocalizationService::DEFAULT_LOCALE;
     }
 
     /**

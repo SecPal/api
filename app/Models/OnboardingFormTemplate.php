@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Models;
@@ -27,6 +27,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class OnboardingFormTemplate extends Model
 {
+    public const LOCALIZED_TEMPLATE_ATTRIBUTE = 'localized_template_payload';
+
     /** @use HasFactory<\Database\Factories\OnboardingFormTemplateFactory> */
     use EnforcesTenantRouteBinding, HasFactory, HasUuids, SoftDeletes {
         EnforcesTenantRouteBinding::resolveRouteBindingQuery insteadof HasUuids;

@@ -311,6 +311,32 @@ describe('GET /v1/onboarding/submissions', function () {
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['employee_id'])->toBe($this->employee->id);
     });
+
+    test('localizes nested submission form template metadata using request locale', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+
+        $this->artisan('db:seed', ['--class' => Database\Seeders\OnboardingFormTemplatesSeeder::class])
+            ->assertSuccessful();
+
+        $template = OnboardingFormTemplate::query()
+            ->whereNull('tenant_id')
+            ->where('name', 'Personal Information Form')
+            ->firstOrFail();
+
+        OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->withHeader('Accept-Language', 'de-DE,de;q=0.9,en;q=0.8')
+            ->getJson('/v1/onboarding/submissions');
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.form_template.name', 'Persönliche Informationen')
+            ->assertJsonPath('data.0.form_template.description', 'BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister')
+            ->assertJsonPath('data.0.form_template.form_schema.title', 'Persönliche Informationen');
+    });
 });
 
 describe('POST /v1/onboarding/submissions', function () {
