@@ -5,6 +5,7 @@
 
 use App\Models\PasskeyCredential;
 use App\Models\User;
+use App\Services\LoginMfaChallengeService;
 use App\Services\PasskeyChallengeService;
 use App\Services\PasskeyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -113,6 +114,42 @@ describe('Passkey Authentication', function () {
         $response->assertCreated();
 
         expect($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
+    });
+
+    test('token passkey login challenge stores token context and device name', function () {
+        $response = $this->postJson('/v1/auth/token/passkeys/challenges', [
+            'device_name' => ' android-phone ',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonStructure([
+                'data' => [
+                    'challenge_id',
+                    'public_key' => [
+                        'challenge',
+                        'rp_id',
+                        'timeout',
+                        'user_verification',
+                    ],
+                    'mediation',
+                    'expires_at',
+                ],
+            ]);
+
+        $storedChallenge = app(PasskeyChallengeService::class)
+            ->findAuthenticationChallenge($response->json('data.challenge_id'));
+
+        expect($storedChallenge)->not->toBeNull()
+            ->and($storedChallenge['login_context'])->toBe(LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN)
+            ->and($storedChallenge['device_name'])->toBe('android-phone')
+            ->and($response->json('data.public_key.rp_id'))->toBe('app.secpal.dev');
+    });
+
+    test('token passkey login challenge requires a device name', function () {
+        $response = $this->postJson('/v1/auth/token/passkeys/challenges', []);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['device_name']);
     });
 
     test('browser passkey login challenge creation is rate limited with retry headers', function () {
@@ -225,6 +262,119 @@ describe('Passkey Authentication', function () {
             ->assertOk()
             ->assertJson([
                 'email' => $user->email,
+            ]);
+    });
+
+    test('token passkey login verification completes a token login', function () {
+        $user = User::factory()->create();
+
+        $credential = PasskeyCredential::factory()->create([
+            'user_id' => $user->id,
+        ]);
+
+        $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+            'challenge' => 'test-challenge',
+            'rp_id' => 'app.secpal.dev',
+            'timeout' => 60000,
+            'user_verification' => 'preferred',
+        ], 'conditional', LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN, 'android-phone');
+
+        /** @var PasskeyService&Mockery\MockInterface $mockService */
+        $mockService = $this->mock(PasskeyService::class);
+        $mockService->shouldReceive('verifyAuthentication')
+            ->once()
+            ->andReturn([
+                'user' => $user,
+                'credential' => $credential,
+            ]);
+
+        $response = $this->postJson('/v1/auth/token/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
+            'credential' => [
+                'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'type' => 'public-key',
+                'response' => [
+                    'client_data_json' => 'Zm9v',
+                    'authenticator_data' => 'YmFy',
+                    'signature' => 'YmF6',
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'authentication' => [
+                    'mode' => 'token',
+                    'method' => 'passkey',
+                    'mfa_completed' => true,
+                ],
+                'user' => [
+                    'email' => $user->email,
+                ],
+            ]);
+
+        expect($response->json('token'))->toBeString()->not->toBe('');
+
+        $this->withToken($response->json('token'))
+            ->getJson('/v1/me')
+            ->assertOk()
+            ->assertJson([
+                'email' => $user->email,
+            ]);
+    });
+
+    test('session-scoped passkey challenge cannot be verified via the token endpoint', function () {
+        $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+            'challenge' => 'test-challenge',
+            'rp_id' => 'app.secpal.dev',
+            'timeout' => 60000,
+            'user_verification' => 'preferred',
+        ], 'conditional', LoginMfaChallengeService::LOGIN_CONTEXT_SESSION);
+
+        $response = $this->postJson('/v1/auth/token/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
+            'credential' => [
+                'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'type' => 'public-key',
+                'response' => [
+                    'client_data_json' => 'Zm9v',
+                    'authenticator_data' => 'YmFy',
+                    'signature' => 'YmF6',
+                ],
+            ],
+        ]);
+
+        $response->assertConflict()
+            ->assertJson([
+                'message' => __('This passkey challenge must be completed from its original login context.'),
+            ]);
+    });
+
+    test('token-scoped passkey challenge cannot be verified via the browser session endpoint', function () {
+        $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+            'challenge' => 'test-challenge',
+            'rp_id' => 'app.secpal.dev',
+            'timeout' => 60000,
+            'user_verification' => 'preferred',
+        ], 'conditional', LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN, 'android-phone');
+
+        $response = $this->withHeaders(spaCsrfHeaders($this))
+            ->postJson('/v1/auth/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
+                'credential' => [
+                    'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'type' => 'public-key',
+                    'response' => [
+                        'client_data_json' => 'Zm9v',
+                        'authenticator_data' => 'YmFy',
+                        'signature' => 'YmF6',
+                    ],
+                ],
+            ]);
+
+        $response->assertConflict()
+            ->assertJson([
+                'message' => __('This passkey challenge must be completed from its original login context.'),
             ]);
     });
 

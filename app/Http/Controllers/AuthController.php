@@ -13,6 +13,7 @@ use App\Http\Requests\PasskeyAuthenticationVerificationRequest;
 use App\Http\Requests\PasskeyRegistrationVerificationRequest;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\PasswordResetRequestRequest;
+use App\Http\Requests\TokenPasskeyAuthenticationChallengeRequest;
 use App\Http\Requests\TokenRequest;
 use App\Http\Requests\TotpCodeRequest;
 use App\Http\Requests\UpdateUserLanguageRequest;
@@ -358,46 +359,23 @@ class AuthController extends Controller
 
         /** @var array{email?: string|null} $validated */
         $validated = $request->validated();
-        $email = $validated['email'] ?? null;
-        $user = null;
 
-        $mediation = config('passkeys.authentication_mediation', 'conditional');
+        return $this->createPasskeyAuthenticationChallengeResponse($validated['email'] ?? null);
+    }
 
-        if (! is_string($mediation) || $mediation === '') {
-            $mediation = 'conditional';
-        }
+    /**
+     * Start a token-based native passkey authentication challenge.
+     */
+    public function startTokenPasskeyAuthenticationChallenge(TokenPasskeyAuthenticationChallengeRequest $request): JsonResponse
+    {
+        /** @var array{email?: string|null, device_name: string} $validated */
+        $validated = $request->validated();
 
-        if (is_string($email) && $email !== '') {
-            $user = User::query()
-                ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
-                ->first();
-
-            if ($user instanceof User) {
-                $user->loadMissing('passkeyCredentials');
-            }
-
-            if (! $user instanceof User || $user->passkeyCredentials->isEmpty()) {
-                throw ValidationException::withMessages([
-                    'email' => ['Passkey sign-in is not available for the provided email address.'],
-                ]);
-            }
-
-            $mediation = 'optional';
-        }
-
-        $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
-            $this->passkeyService->buildAuthenticationOptions($user),
-            $mediation,
+        return $this->createPasskeyAuthenticationChallengeResponse(
+            $validated['email'] ?? null,
+            LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN,
+            $validated['device_name'],
         );
-
-        return response()->json([
-            'data' => [
-                'challenge_id' => $challenge['challenge_id'],
-                'public_key' => $this->passkeyService->formatApiPayload($challenge['public_key']),
-                'mediation' => $challenge['mediation'],
-                'expires_at' => $challenge['expires_at'],
-            ],
-        ], 201);
     }
 
     /**
@@ -411,46 +389,25 @@ class AuthController extends Controller
             return $contextResponse;
         }
 
-        if (! Str::isUuid($challengeId)) {
-            return $this->resourceNotFoundResponse();
-        }
+        return $this->completePasskeyAuthenticationChallenge(
+            $request,
+            $challengeId,
+            LoginMfaChallengeService::LOGIN_CONTEXT_SESSION,
+        );
+    }
 
-        $challenge = $this->passkeyChallengeService->findAuthenticationChallenge($challengeId);
-
-        if ($challenge === null) {
-            return $this->resourceNotFoundResponse();
-        }
-
-        /** @var array{credential: array<string, mixed>} $validated */
-        $validated = $request->validated();
-
-        try {
-            $result = $this->passkeyService->verifyAuthentication(
-                $challenge['public_key'],
-                $validated['credential'],
-            );
-        } catch (WebauthnException $exception) {
-            $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
-
-            throw $this->passkeyCredentialValidationException($exception);
-        } catch (\Throwable $exception) {
-            $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
-
-            report($exception);
-
-            Log::warning('Passkey authentication verification failed with unexpected error', [
-                'exception_class' => $exception::class,
-                'error' => $exception->getMessage(),
-            ]);
-
-            throw ValidationException::withMessages([
-                'credential' => ['The passkey credential could not be verified.'],
-            ]);
-        }
-
-        $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
-
-        return $this->completeSessionLogin($request, $result['user'], mfaCompleted: true, method: 'passkey');
+    /**
+     * Verify a token-based native passkey authentication challenge and issue a token.
+     */
+    public function verifyTokenPasskeyAuthenticationChallenge(
+        PasskeyAuthenticationVerificationRequest $request,
+        string $challengeId
+    ): JsonResponse {
+        return $this->completePasskeyAuthenticationChallenge(
+            $request,
+            $challengeId,
+            LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN,
+        );
     }
 
     /**
@@ -1109,15 +1066,20 @@ class AuthController extends Controller
     /**
      * Complete a token login.
      */
-    private function completeTokenLogin(User $user, string $deviceName, bool $mfaCompleted = false, int $createdStatus = 201): JsonResponse
-    {
+    private function completeTokenLogin(
+        User $user,
+        string $deviceName,
+        bool $mfaCompleted = false,
+        int $createdStatus = 201,
+        ?string $method = null,
+    ): JsonResponse {
         $token = $user->issueApiToken($deviceName);
 
         $this->activityLogService->logLoginSuccess($user);
 
         if ($mfaCompleted) {
             return response()->json(
-                $this->buildCompletedLoginResponse($user, LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN, $token->plainTextToken),
+                $this->buildCompletedLoginResponse($user, LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN, $token->plainTextToken, $method),
                 $createdStatus,
             );
         }
@@ -1163,6 +1125,128 @@ class AuthController extends Controller
         return response()->json([
             'message' => __('This endpoint requires a browser session context. Use the SecPal web app origin to continue.'),
         ], 409);
+    }
+
+    private function createPasskeyAuthenticationChallengeResponse(
+        ?string $email,
+        string $loginContext = LoginMfaChallengeService::LOGIN_CONTEXT_SESSION,
+        ?string $deviceName = null,
+    ): JsonResponse {
+        $user = $this->resolvePasskeyAuthenticationUser($email);
+        $mediation = $this->resolvePasskeyAuthenticationMediation($user);
+
+        $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
+            $this->passkeyService->buildAuthenticationOptions($user),
+            $mediation,
+            $loginContext,
+            $deviceName,
+        );
+
+        return response()->json([
+            'data' => [
+                'challenge_id' => $challenge['challenge_id'],
+                'public_key' => $this->passkeyService->formatApiPayload($challenge['public_key']),
+                'mediation' => $challenge['mediation'],
+                'expires_at' => $challenge['expires_at'],
+            ],
+        ], 201);
+    }
+
+    private function resolvePasskeyAuthenticationUser(?string $email): ?User
+    {
+        if (! is_string($email) || $email === '') {
+            return null;
+        }
+
+        $user = User::query()
+            ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
+            ->first();
+
+        if ($user instanceof User) {
+            $user->loadMissing('passkeyCredentials');
+        }
+
+        if (! $user instanceof User || $user->passkeyCredentials->isEmpty()) {
+            throw ValidationException::withMessages([
+                'email' => ['Passkey sign-in is not available for the provided email address.'],
+            ]);
+        }
+
+        return $user;
+    }
+
+    private function resolvePasskeyAuthenticationMediation(?User $user): string
+    {
+        $mediation = config('passkeys.authentication_mediation', 'conditional');
+
+        if (! is_string($mediation) || $mediation === '') {
+            $mediation = 'conditional';
+        }
+
+        return $user instanceof User ? 'optional' : $mediation;
+    }
+
+    private function completePasskeyAuthenticationChallenge(
+        PasskeyAuthenticationVerificationRequest $request,
+        string $challengeId,
+        string $expectedLoginContext,
+    ): JsonResponse {
+        if (! Str::isUuid($challengeId)) {
+            return $this->resourceNotFoundResponse();
+        }
+
+        $challenge = $this->passkeyChallengeService->findAuthenticationChallenge($challengeId);
+
+        if ($challenge === null) {
+            return $this->resourceNotFoundResponse();
+        }
+
+        if ($challenge['login_context'] !== $expectedLoginContext) {
+            return response()->json([
+                'message' => __('This passkey challenge must be completed from its original login context.'),
+            ], 409);
+        }
+
+        /** @var array{credential: array<string, mixed>} $validated */
+        $validated = $request->validated();
+
+        try {
+            $result = $this->passkeyService->verifyAuthentication(
+                $challenge['public_key'],
+                $validated['credential'],
+            );
+        } catch (WebauthnException $exception) {
+            $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
+
+            throw $this->passkeyCredentialValidationException($exception);
+        } catch (\Throwable $exception) {
+            $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
+
+            report($exception);
+
+            Log::warning('Passkey authentication verification failed with unexpected error', [
+                'exception_class' => $exception::class,
+                'error' => $exception->getMessage(),
+            ]);
+
+            throw ValidationException::withMessages([
+                'credential' => ['The passkey credential could not be verified.'],
+            ]);
+        }
+
+        $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
+
+        if ($expectedLoginContext === LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN) {
+            return $this->completeTokenLogin(
+                $result['user'],
+                $challenge['device_name'] ?? 'api-client',
+                mfaCompleted: true,
+                createdStatus: 200,
+                method: 'passkey',
+            );
+        }
+
+        return $this->completeSessionLogin($request, $result['user'], mfaCompleted: true, method: 'passkey');
     }
 
     private function resourceNotFoundResponse(): JsonResponse

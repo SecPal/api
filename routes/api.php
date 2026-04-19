@@ -63,6 +63,10 @@ Route::prefix('v1')->group(function () {
     // Token Login (for mobile/native apps)
     Route::post('/auth/token', [AuthController::class, 'token'])
         ->middleware('throttle:login');
+    Route::post('/auth/token/passkeys/challenges', [AuthController::class, 'startTokenPasskeyAuthenticationChallenge'])
+        ->middleware('throttle:passkey-challenge');
+    Route::post('/auth/token/passkeys/challenges/{challengeId}/verify', [AuthController::class, 'verifyTokenPasskeyAuthenticationChallenge'])
+        ->middleware('throttle:passkey-verify');
     Route::post('/auth/passkeys/challenges', [AuthController::class, 'startPasskeyAuthenticationChallenge'])
         ->middleware('throttle:passkey-challenge');
     Route::post('/auth/passkeys/challenges/{challengeId}/verify', [AuthController::class, 'verifyPasskeyAuthenticationChallenge'])

@@ -20,13 +20,19 @@ class PasskeyChallengeService
      * @param  array<string, mixed>  $publicKeyOptions
      * @return array{challenge_id: string, public_key: array<string, mixed>, mediation: string, expires_at: string}
      */
-    public function createAuthenticationChallenge(array $publicKeyOptions, string $mediation): array
-    {
+    public function createAuthenticationChallenge(
+        array $publicKeyOptions,
+        string $mediation,
+        string $loginContext = LoginMfaChallengeService::LOGIN_CONTEXT_SESSION,
+        ?string $deviceName = null,
+    ): array {
         $id = (string) Str::uuid();
         $expiresAt = CarbonImmutable::now()->addMinutes($this->challengeExpirationMinutes());
 
         $this->cache()->put($this->authenticationCacheKey($id), [
             'public_key' => $publicKeyOptions,
+            'login_context' => $loginContext,
+            'device_name' => $deviceName,
         ], $expiresAt);
 
         return [
@@ -38,7 +44,7 @@ class PasskeyChallengeService
     }
 
     /**
-     * @return array{public_key: array<string, mixed>}|null
+     * @return array{public_key: array<string, mixed>, login_context: string, device_name: string|null}|null
      */
     public function findAuthenticationChallenge(string $challengeId): ?array
     {
@@ -55,8 +61,17 @@ class PasskeyChallengeService
         /** @var array<string, mixed> $publicKey */
         $publicKey = $challenge['public_key'];
 
+        $loginContext = $challenge['login_context'] ?? LoginMfaChallengeService::LOGIN_CONTEXT_SESSION;
+        $deviceName = $challenge['device_name'] ?? null;
+
+        if (! is_string($loginContext) || ($deviceName !== null && ! is_string($deviceName))) {
+            return null;
+        }
+
         return [
             'public_key' => $publicKey,
+            'login_context' => $loginContext,
+            'device_name' => $deviceName,
         ];
     }
 
