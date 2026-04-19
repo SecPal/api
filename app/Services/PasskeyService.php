@@ -428,9 +428,40 @@ class PasskeyService
     {
         $origins = config('passkeys.allowed_origins', ['https://app.secpal.dev']);
 
-        return is_array($origins)
+        $allowedOrigins = is_array($origins)
             ? array_values(array_filter(array_map(static fn (mixed $origin): string => is_string($origin) ? trim($origin) : '', $origins)))
             : ['https://app.secpal.dev'];
+
+        $androidOrigin = $this->androidPasskeyOrigin();
+
+        if ($androidOrigin !== null && ! in_array($androidOrigin, $allowedOrigins, true)) {
+            $allowedOrigins[] = $androidOrigin;
+        }
+
+        return $allowedOrigins;
+    }
+
+    private function androidPasskeyOrigin(): ?string
+    {
+        $fingerprint = config('android.signing_certificate_sha256_fingerprint');
+
+        if (! is_string($fingerprint) || trim($fingerprint) === '') {
+            return null;
+        }
+
+        $fingerprintHex = str_replace(':', '', strtoupper(trim($fingerprint)));
+
+        if (! preg_match('/\A[0-9A-F]{64}\z/', $fingerprintHex)) {
+            throw new \InvalidArgumentException('android.signing_certificate_sha256_fingerprint must be a 32-byte SHA-256 certificate fingerprint in hexadecimal form, with or without colon separators.');
+        }
+
+        $fingerprintBytes = hex2bin($fingerprintHex);
+
+        if ($fingerprintBytes === false) {
+            throw new \InvalidArgumentException('android.signing_certificate_sha256_fingerprint could not be decoded.');
+        }
+
+        return 'android:apk-key-hash:'.Base64UrlSafe::encodeUnpadded($fingerprintBytes);
     }
 
     private function allowSubdomains(): bool
