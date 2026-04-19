@@ -5,12 +5,10 @@
 
 use App\Services\PasskeyService;
 
-beforeEach(function () {
-    $this->service = app(PasskeyService::class);
-});
-
 describe('PasskeyService::formatApiPayload', function () {
     test('registration options are converted to snake_case for the API response', function () {
+        $service = app(PasskeyService::class);
+
         $camelCaseOptions = [
             'challenge' => 'dGVzdC1jaGFsbGVuZ2U',
             'rp' => [
@@ -37,7 +35,7 @@ describe('PasskeyService::formatApiPayload', function () {
             'timeout' => 60000,
         ];
 
-        $formatted = $this->service->formatApiPayload($camelCaseOptions);
+        $formatted = $service->formatApiPayload($camelCaseOptions);
 
         expect($formatted)->toHaveKey('pub_key_cred_params')
             ->and($formatted)->toHaveKey('authenticator_selection')
@@ -50,6 +48,8 @@ describe('PasskeyService::formatApiPayload', function () {
     });
 
     test('authentication options omit allow_credentials when empty for discoverable credential flow', function () {
+        $service = app(PasskeyService::class);
+
         $options = [
             'challenge' => 'dGVzdA',
             'rpId' => 'app.secpal.dev',
@@ -58,7 +58,7 @@ describe('PasskeyService::formatApiPayload', function () {
             'allowCredentials' => [],
         ];
 
-        $formatted = $this->service->formatApiPayload($options);
+        $formatted = $service->formatApiPayload($options);
 
         expect($formatted)->not->toHaveKey('allow_credentials')
             ->and($formatted)->toHaveKey('rp_id')
@@ -68,6 +68,8 @@ describe('PasskeyService::formatApiPayload', function () {
 
 describe('PasskeyService credential deserialization key casing', function () {
     test('client_data_json is converted to clientDataJSON for webauthn-lib', function () {
+        $service = app(PasskeyService::class);
+
         // The webauthn-lib denormalizer accesses $data['clientDataJSON'] (uppercase JSON).
         // Str::camel('client_data_json') produces 'clientDataJson' (lowercase json),
         // which would cause an undefined array key error during deserialization.
@@ -84,7 +86,7 @@ describe('PasskeyService credential deserialization key casing', function () {
 
         // Use reflection to access the private keysToCamelCase method
         $reflection = new ReflectionMethod(PasskeyService::class, 'keysToCamelCase');
-        $converted = $reflection->invoke($this->service, $snakeCasePayload);
+        $converted = $reflection->invoke($service, $snakeCasePayload);
 
         expect($converted['response'])->toHaveKey('clientDataJSON')
             ->and($converted['response'])->not->toHaveKey('clientDataJson')
@@ -93,6 +95,8 @@ describe('PasskeyService credential deserialization key casing', function () {
     });
 
     test('assertion response client_data_json is converted to clientDataJSON', function () {
+        $service = app(PasskeyService::class);
+
         $assertionPayload = [
             'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
             'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
@@ -106,12 +110,28 @@ describe('PasskeyService credential deserialization key casing', function () {
         ];
 
         $reflection = new ReflectionMethod(PasskeyService::class, 'keysToCamelCase');
-        $converted = $reflection->invoke($this->service, $assertionPayload);
+        $converted = $reflection->invoke($service, $assertionPayload);
 
         expect($converted['response'])->toHaveKey('clientDataJSON')
             ->and($converted['response'])->not->toHaveKey('clientDataJson')
             ->and($converted['response'])->toHaveKey('authenticatorData')
             ->and($converted['response'])->toHaveKey('signature')
             ->and($converted['response'])->toHaveKey('userHandle');
+    });
+});
+
+describe('PasskeyService native Android origin support', function () {
+    test('allowed origins include the canonical Android passkey origin derived from the signing certificate fingerprint', function () {
+        config()->set('passkeys.allowed_origins', ['https://app.secpal.dev']);
+        config()->set('android.signing_certificate_sha256_fingerprint', 'C3:E9:FD:07:69:F3:34:9B:B0:B0:56:BA:E6:69:47:23:40:E1:CB:28:66:26:DE:30:C9:C9:FA:F9:5F:1E:47:B5');
+
+        $service = app(PasskeyService::class);
+        $reflection = new ReflectionMethod(PasskeyService::class, 'allowedOrigins');
+
+        /** @var list<string> $allowedOrigins */
+        $allowedOrigins = $reflection->invoke($service);
+
+        expect($allowedOrigins)->toContain('https://app.secpal.dev')
+            ->and($allowedOrigins)->toContain('android:apk-key-hash:w-n9B2nzNJuwsFa65mlHI0DhyyhmJt4wycn6-V8eR7U');
     });
 });
