@@ -142,7 +142,7 @@ It does not retain descriptions, change properties, subject identifiers, causer 
 
 ## Recommended Admin Checks
 
-- verify queue processing for activity hashing, Merkle batching, and OpenTimestamp jobs when forensic fields stop appearing
+- verify synchronous hash-chain generation in the request path for missing `event_hash`/`previous_hash`, and verify queue processing for Merkle batching and OpenTimestamp jobs when queued forensic fields stop appearing
 - use `--dry-run` before large retention runs
 - investigate unexpected `false` verification results before assuming client or UI issues
 - treat cross-tenant or cross-scope visibility complaints as authorization questions first, not as missing-data questions
