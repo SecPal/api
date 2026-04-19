@@ -76,6 +76,7 @@ At minimum verify:
 - Reject AI-generated test or helper mutations that move executable code across Pest scope boundaries or bypass framework wiring.
 - Reject AI-generated refactors that resolve services inside API resources or serializers, move business logic into presentation code, or repeat request-scoped work that should run once per request.
 - Reject AI-generated key or constraint changes that derive identifiers from mutable display names or ignore tenant-scoped uniqueness and database constraints.
+- Reject AI-generated compatibility keep-alives that preserve obsolete request fields, deprecated payload aliases, or legacy API-side storage/input shims without a proven live caller. Because the SecPal project is still under `1.x`, prefer removing unnecessary compatibility paths over carrying them forward when they weaken security, correctness, or contract clarity.
 
 ## Repository Conventions
 
@@ -88,3 +89,4 @@ At minimum verify:
 ## Scope Notes
 
 - Do not add dependencies or create documentation files unless the task requires them.
+- Because the SecPal project is still under `1.x`, breaking changes are acceptable when they remove insecure or obsolete compatibility layers. When taking that route, update tests and `CHANGELOG.md` in the same change set instead of keeping a legacy path alive by default.
