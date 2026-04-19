@@ -116,6 +116,9 @@ GET /v1/users/{id}/permissions
 - [Permission System](docs/guides/permission-system.md)
 - [Temporal Roles](docs/guides/temporal-roles.md)
 - [Direct Permissions](docs/guides/direct-permissions.md)
+- [Activity Logging User Guide](docs/ACTIVITY_LOGGING_USER_GUIDE.md)
+- [Activity Logging Admin Guide](docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md)
+- [Activity Logging Legal Guide](docs/ACTIVITY_LOGGING_LEGAL_GUIDE.md)
 - [API Reference](docs/api/rbac-endpoints.md)
 
 ### 👥 Employee Status And Invitation Rules
