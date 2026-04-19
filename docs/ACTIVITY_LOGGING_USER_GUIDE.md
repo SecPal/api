@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Activity Logging User Guide
 
-This guide explains how SecPal users can view and verify the shipped activity log from the API and frontend audit UI.
+This guide explains how SecPal users can view and verify the shipping activity log from the API and frontend audit UI.
 
 ## Who Can Use It
 
@@ -23,7 +23,7 @@ Each entry can include:
 - a human-readable description
 - the affected subject and the causer, when available
 - request metadata such as IP address and user agent
-- forensic metadata such as hash-chain, Merkle, and OpenTimestamp fields
+- forensic metadata such as hash chain, Merkle, and OpenTimestamp fields
 
 The frontend activity-log screen is backed by these API endpoints:
 
@@ -70,7 +70,7 @@ Verification can report four signals:
 Important behavior:
 
 - verification values can be `null` when required forensic data is not present yet
-- newly created entries may not have a stable `event_hash` immediately at first render because hash processing happens after insert
+- newly created entries may not have a stable `event_hash` immediately after creation on initial retrieval because hash processing happens after insert
 - an entry marked as orphaned genesis can still verify as valid when its predecessor was legitimately removed by retention processing
 
 ## What Users Should Not Expect

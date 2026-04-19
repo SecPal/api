@@ -43,8 +43,13 @@ test('employees table scopes employee number uniqueness to tenant_id', function 
             && in_array('employee_number', $columns, true);
     });
 
+    $hasLegacyEmployeeNumberUniqueConstraintName = collect($indexes)->contains(function (array $index): bool {
+        return ($index['name'] ?? null) === 'employees_employee_number_unique';
+    });
+
     expect($hasTenantScopedUniqueConstraint)->toBeTrue()
-        ->and($hasGlobalEmployeeNumberUniqueConstraint)->toBeFalse();
+        ->and($hasGlobalEmployeeNumberUniqueConstraint)->toBeFalse()
+        ->and($hasLegacyEmployeeNumberUniqueConstraintName)->toBeFalse();
 });
 
 test('employees table allows duplicate employee numbers across tenants', function (): void {
@@ -75,4 +80,28 @@ test('employees table allows duplicate employee numbers across tenants', functio
     })->not->toThrow(Exception::class);
 
     expect(Employee::query()->where('employee_number', 'EMP-2026-0001')->count())->toBe(2);
+});
+
+test('employees table prevents duplicate employee numbers within the same tenant', function (): void {
+    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+    $unit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+
+    Employee::factory()->create([
+        'tenant_id' => $tenant->id,
+        'organizational_unit_id' => $unit->id,
+        'employee_number' => 'EMP-2026-0002',
+        'email' => 'tenant-same-one@example.com',
+    ]);
+
+    expect(function () use ($tenant, $unit): void {
+        Employee::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $unit->id,
+            'employee_number' => 'EMP-2026-0002',
+            'email' => 'tenant-same-two@example.com',
+        ]);
+    })->toThrow(Exception::class);
 });

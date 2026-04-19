@@ -103,6 +103,61 @@ describe('OnboardingFormTemplatePolicy - System Template Protection', function (
     });
 });
 
+describe('OnboardingFormTemplatePolicy - Direct Policy Methods', function () {
+    it('update() returns false for system templates', function () {
+        $policy = new \App\Policies\OnboardingFormTemplatePolicy();
+        $systemTemplate = OnboardingFormTemplate::factory()->create([
+            'is_system_template' => true,
+            'name' => 'Personal Information Form',
+        ]);
+
+        expect($policy->update($this->hrUser, $systemTemplate))->toBeFalse();
+    });
+
+    it('update() returns true for custom templates', function () {
+        $policy = new \App\Policies\OnboardingFormTemplatePolicy();
+        $customTemplate = OnboardingFormTemplate::factory()->create([
+            'is_system_template' => false,
+            'name' => 'Custom Template',
+        ]);
+
+        expect($policy->update($this->hrUser, $customTemplate))->toBeTrue();
+    });
+
+    it('delete() returns false for system templates', function () {
+        $policy = new \App\Policies\OnboardingFormTemplatePolicy();
+        $systemTemplate = OnboardingFormTemplate::factory()->create([
+            'is_system_template' => true,
+            'name' => 'Personal Information Form',
+        ]);
+
+        expect($policy->delete($this->hrUser, $systemTemplate))->toBeFalse();
+    });
+
+    it('delete() returns true for custom templates', function () {
+        $policy = new \App\Policies\OnboardingFormTemplatePolicy();
+        $customTemplate = OnboardingFormTemplate::factory()->create([
+            'is_system_template' => false,
+            'name' => 'Custom Template',
+        ]);
+
+        expect($policy->delete($this->hrUser, $customTemplate))->toBeTrue();
+    });
+
+    it('create() returns true for HR user with template write permission', function () {
+        $policy = new \App\Policies\OnboardingFormTemplatePolicy();
+
+        expect($policy->create($this->hrUser))->toBeTrue();
+    });
+
+    it('view() returns true for HR user with onboarding read permission', function () {
+        $policy = new \App\Policies\OnboardingFormTemplatePolicy();
+        $template = OnboardingFormTemplate::factory()->create();
+
+        expect($policy->view($this->hrUser, $template))->toBeTrue();
+    });
+});
+
 describe('OnboardingFormTemplate Model - Accessors', function () {
     it('system templates have can_be_deleted = false', function () {
         $systemTemplate = OnboardingFormTemplate::factory()->create([
@@ -152,7 +207,7 @@ describe('OnboardingFormTemplateResource - API Response', function () {
         ]);
 
         app()->bind(OnboardingSchemaLocalizationService::class, static function (): never {
-            throw new RuntimeException('The resource must not resolve the localization service.');
+            throw new \LogicException('The resource must not resolve the localization service.');
         });
 
         try {
