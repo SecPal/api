@@ -380,6 +380,8 @@ class PasskeyService
         'client_data_json' => 'clientDataJSON',
     ];
 
+    private const DEFAULT_ANDROID_SIGNING_CERTIFICATE_SHA256_FINGERPRINT = 'C3:E9:FD:07:69:F3:34:9B:B0:B0:56:BA:E6:69:47:23:40:E1:CB:28:66:26:DE:30:C9:C9:FA:F9:5F:1E:47:B5';
+
     /**
      * @param  array<array-key, mixed>  $payload
      * @return array<array-key, mixed>
@@ -428,9 +430,46 @@ class PasskeyService
     {
         $origins = config('passkeys.allowed_origins', ['https://app.secpal.dev']);
 
-        return is_array($origins)
+        $allowedOrigins = is_array($origins)
             ? array_values(array_filter(array_map(static fn (mixed $origin): string => is_string($origin) ? trim($origin) : '', $origins)))
             : ['https://app.secpal.dev'];
+
+        $androidOrigin = $this->androidPasskeyOrigin();
+
+        if ($androidOrigin !== null && ! in_array($androidOrigin, $allowedOrigins, true)) {
+            $allowedOrigins[] = $androidOrigin;
+        }
+
+        return $allowedOrigins;
+    }
+
+    private function androidPasskeyOrigin(): ?string
+    {
+        $fingerprint = config(
+            'android.signing_certificate_sha256_fingerprint',
+            self::DEFAULT_ANDROID_SIGNING_CERTIFICATE_SHA256_FINGERPRINT,
+        );
+
+        if (! is_string($fingerprint) || trim($fingerprint) === '') {
+            return null;
+        }
+
+        $fingerprintHex = str_replace(':', '', strtoupper(trim($fingerprint)));
+
+        if (! preg_match('/\A[0-9A-F]{64}\z/', $fingerprintHex)) {
+            throw new \InvalidArgumentException('android.signing_certificate_sha256_fingerprint must be a 32-byte SHA-256 certificate fingerprint in colon-separated hexadecimal form.');
+        }
+
+        $fingerprintBytes = hex2bin($fingerprintHex);
+
+        if ($fingerprintBytes === false) {
+            throw new \InvalidArgumentException('android.signing_certificate_sha256_fingerprint could not be decoded.');
+        }
+
+        return 'android:apk-key-hash:'.rtrim(
+            strtr(base64_encode($fingerprintBytes), '+/', '-_'),
+            '=',
+        );
     }
 
     private function allowSubdomains(): bool
