@@ -15,8 +15,8 @@ use App\Models\User;
  * Authorization rules for onboarding form template management.
  *
  * Rules:
- * - viewAny: HR only
- * - view: HR only
+ * - viewAny: pre-contract employees (self-service) OR users with onboarding.read
+ * - view: pre-contract employees (self-service) OR users with onboarding.read
  * - create: HR only (for custom templates)
  * - update: HR only (cannot modify system templates)
  * - delete: HR only (cannot delete system templates)
@@ -26,7 +26,8 @@ class OnboardingFormTemplatePolicy
     /**
      * Determine if user can view any onboarding form templates.
      *
-     * Users with onboarding.read permission can view templates.
+     * Pre-contract employees can view templates for self-service onboarding.
+     * Users with onboarding.read permission can also view templates.
      */
     public function viewAny(User $user): bool
     {
@@ -40,7 +41,8 @@ class OnboardingFormTemplatePolicy
     /**
      * Determine if user can view a specific template.
      *
-     * Users with onboarding.read permission can view templates.
+     * Pre-contract employees can view templates for self-service onboarding.
+     * Users with onboarding.read permission can also view templates.
      */
     public function view(User $user, OnboardingFormTemplate $template): bool
     {
@@ -95,6 +97,9 @@ class OnboardingFormTemplatePolicy
 
     private function isPreContractEmployee(User $user): bool
     {
-        return $user->employee?->status === Employee::STATUS_PRE_CONTRACT;
+        return Employee::query()
+            ->where('user_id', $user->getKey())
+            ->where('tenant_id', $user->tenant_id)
+            ->value('status') === Employee::STATUS_PRE_CONTRACT;
     }
 }
