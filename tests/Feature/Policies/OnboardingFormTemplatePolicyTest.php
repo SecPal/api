@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Employee;
 use App\Models\OnboardingFormTemplate;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -39,23 +40,37 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-test('users with onboarding.read can view any templates', function (): void {
+test('pre-contract employees can view any templates without onboarding.read', function (): void {
+    $preContractUser = User::factory()->create();
+    Employee::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $preContractUser->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
     $userWithPermission = User::factory()->create();
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
 
     $userWithoutPermission = User::factory()->create();
 
+    expect($this->policy->viewAny($preContractUser))->toBeTrue();
     expect($this->policy->viewAny($userWithPermission))->toBeTrue();
     expect($this->policy->viewAny($userWithoutPermission))->toBeFalse();
 });
 
-test('users with onboarding.read can view individual templates', function (): void {
+test('pre-contract employees can view individual templates without onboarding.read', function (): void {
+    $preContractUser = User::factory()->create();
+    Employee::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $preContractUser->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
     $userWithPermission = User::factory()->create();
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
 
     $userWithoutPermission = User::factory()->create();
     $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
+    expect($this->policy->view($preContractUser, $template))->toBeTrue();
     expect($this->policy->view($userWithPermission, $template))->toBeTrue();
     expect($this->policy->view($userWithoutPermission, $template))->toBeFalse();
 });

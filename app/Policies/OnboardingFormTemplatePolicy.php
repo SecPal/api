@@ -5,6 +5,7 @@
 
 namespace App\Policies;
 
+use App\Models\Employee;
 use App\Models\OnboardingFormTemplate;
 use App\Models\User;
 
@@ -29,6 +30,10 @@ class OnboardingFormTemplatePolicy
      */
     public function viewAny(User $user): bool
     {
+        if ($this->isPreContractEmployee($user)) {
+            return true;
+        }
+
         return $user->can('onboarding.read');
     }
 
@@ -39,6 +44,10 @@ class OnboardingFormTemplatePolicy
      */
     public function view(User $user, OnboardingFormTemplate $template): bool
     {
+        if ($this->isPreContractEmployee($user)) {
+            return true;
+        }
+
         return $user->can('onboarding.read');
     }
 
@@ -82,5 +91,10 @@ class OnboardingFormTemplatePolicy
         }
 
         return $user->can('onboarding_template.write') || $user->can('onboarding_template.delete');
+    }
+
+    private function isPreContractEmployee(User $user): bool
+    {
+        return $user->employee?->status === Employee::STATUS_PRE_CONTRACT;
     }
 }

@@ -75,11 +75,11 @@ describe('GET /v1/onboarding/steps', function () {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks onboarding.read permission', function (): void {
+    test('allows pre-contract employees to fetch onboarding steps without onboarding.read permission', function (): void {
         $response = $this->withToken($this->token)
             ->getJson('/v1/onboarding/steps');
 
-        $response->assertStatus(403);
+        $response->assertOk();
     });
 
     test('returns onboarding steps for pre-contract employee', function (): void {
@@ -132,11 +132,11 @@ describe('GET /v1/onboarding/templates', function () {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks onboarding.read permission', function (): void {
+    test('allows pre-contract employees to list templates without onboarding.read permission', function (): void {
         $response = $this->withToken($this->token)
             ->getJson('/v1/onboarding/templates');
 
-        $response->assertStatus(403);
+        $response->assertOk();
     });
 
     test('returns system and tenant templates', function (): void {
@@ -193,11 +193,11 @@ describe('GET /v1/onboarding/templates/{template}', function () {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks onboarding.read permission', function (): void {
+    test('allows pre-contract employees to view a template without onboarding.read permission', function (): void {
         $response = $this->withToken($this->token)
             ->getJson("/v1/onboarding/templates/{$this->template->id}");
 
-        $response->assertStatus(403);
+        $response->assertOk();
     });
 
     test('returns template details with form_schema', function (): void {
@@ -272,11 +272,11 @@ describe('GET /v1/onboarding/submissions', function () {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks onboarding.read permission', function (): void {
+    test('allows pre-contract employees to list submissions without onboarding.read permission', function (): void {
         $response = $this->withToken($this->token)
             ->getJson('/v1/onboarding/submissions');
 
-        $response->assertStatus(403);
+        $response->assertOk();
     });
 
     test('returns employee own submissions', function (): void {
@@ -349,7 +349,7 @@ describe('POST /v1/onboarding/submissions', function () {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks onboarding.write permission', function (): void {
+    test('allows pre-contract employees to create submissions without onboarding.write permission', function (): void {
         $response = $this->withToken($this->token)
             ->postJson('/v1/onboarding/submissions', [
                 'form_template_id' => $this->template->id,
@@ -357,12 +357,11 @@ describe('POST /v1/onboarding/submissions', function () {
                 'status' => 'draft',
             ]);
 
-        $response->assertStatus(403);
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'draft');
     });
 
     test('returns 422 when required fields are missing', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
-
         $response = $this->withToken($this->token)
             ->postJson('/v1/onboarding/submissions', []);
 
@@ -499,7 +498,7 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks onboarding.write permission', function (): void {
+    test('allows pre-contract employees to update submissions without onboarding.write permission', function (): void {
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
             'form_template_id' => $this->template->id,
@@ -511,12 +510,11 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
                 'form_data' => ['name' => 'Updated'],
             ]);
 
-        $response->assertStatus(403);
+        $response->assertOk()
+            ->assertJsonPath('data.form_data.name', 'Updated');
     });
 
     test('returns 422 when neither form data nor status is provided', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
-
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
             'form_template_id' => $this->template->id,

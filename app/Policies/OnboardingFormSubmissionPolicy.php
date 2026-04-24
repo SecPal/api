@@ -33,6 +33,10 @@ class OnboardingFormSubmissionPolicy
      */
     public function viewAny(User $user): bool
     {
+        if ($this->isPreContractEmployee($user)) {
+            return true;
+        }
+
         return $user->can('onboarding.read');
     }
 
@@ -78,21 +82,11 @@ class OnboardingFormSubmissionPolicy
      */
     public function create(User $user): bool
     {
-        // Must have permission
-        if (! $user->can('onboarding.write')) {
-            return false;
+        if ($this->isPreContractEmployee($user)) {
+            return true;
         }
 
-        /** @var Employee|null $employee */
-        $employee = $user->employee()->first();
-
-        // User must have an employee record
-        if ($employee === null) {
-            return false;
-        }
-
-        // Only pre-contract employees can create submissions
-        return $employee->status === 'pre_contract';
+        return $user->can('onboarding.write');
     }
 
     /**
@@ -109,8 +103,7 @@ class OnboardingFormSubmissionPolicy
             return false;
         }
 
-        return $user->can('onboarding.write')
-            && $user->id === $employee->user_id;
+        return $user->id === $employee->user_id;
     }
 
     /**
@@ -160,5 +153,10 @@ class OnboardingFormSubmissionPolicy
     public function delete(User $user, OnboardingFormSubmission $submission): bool
     {
         return $user->can('onboarding.delete');
+    }
+
+    private function isPreContractEmployee(User $user): bool
+    {
+        return $user->employee?->status === Employee::STATUS_PRE_CONTRACT;
     }
 }
