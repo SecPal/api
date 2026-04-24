@@ -15,10 +15,10 @@ use App\Models\User;
  * Authorization rules for onboarding form submissions with pre-contract status checks.
  *
  * Rules:
- * - viewAny: Employee (own submissions) OR HR
+ * - viewAny: pre-contract employees (own submissions) OR users with onboarding.read
  * - view: Employee (own) OR HR
- * - create: Employee (pre-contract status)
- * - update: Employee (own, with onboarding.write permission; controller enforces editable states)
+ * - create: pre-contract employees only (self-service)
+ * - update: Employee (own; controller enforces editable states)
  * - uploadFile: Employee (own, with onboarding.write permission)
  * - approve: HR only
  * - reject: HR only
@@ -33,6 +33,10 @@ class OnboardingFormSubmissionPolicy
      */
     public function viewAny(User $user): bool
     {
+        if ($this->isPreContractEmployee($user)) {
+            return true;
+        }
+
         return $user->can('onboarding.read');
     }
 
@@ -74,33 +78,19 @@ class OnboardingFormSubmissionPolicy
     /**
      * Determine if user can create submissions.
      *
-     * Users must have onboarding.write permission AND be pre-contract employees.
+     * Only pre-contract employees can create their own onboarding submissions
+     * (self-service path). No additional onboarding.write permission is required.
      */
     public function create(User $user): bool
     {
-        // Must have permission
-        if (! $user->can('onboarding.write')) {
-            return false;
-        }
-
-        /** @var Employee|null $employee */
-        $employee = $user->employee()->first();
-
-        // User must have an employee record
-        if ($employee === null) {
-            return false;
-        }
-
-        // Only pre-contract employees can create submissions
-        return $employee->status === 'pre_contract';
+        return $this->isPreContractEmployee($user);
     }
 
     /**
      * Determine if user can update a submission.
      *
-     * Only the authenticated employee can update their own submissions, and
-     * they still need onboarding.write permission. The controller decides
-     * whether the current submission state is still editable.
+     * Only the authenticated employee who owns the submission can update it.
+     * The controller decides whether the current submission state is still editable.
      */
     public function update(User $user, OnboardingFormSubmission $submission): bool
     {
@@ -109,8 +99,7 @@ class OnboardingFormSubmissionPolicy
             return false;
         }
 
-        return $user->can('onboarding.write')
-            && $user->id === $employee->user_id;
+        return $user->id === $employee->user_id;
     }
 
     /**
@@ -160,5 +149,13 @@ class OnboardingFormSubmissionPolicy
     public function delete(User $user, OnboardingFormSubmission $submission): bool
     {
         return $user->can('onboarding.delete');
+    }
+
+    private function isPreContractEmployee(User $user): bool
+    {
+        return Employee::query()
+            ->where('user_id', $user->getKey())
+            ->where('tenant_id', $user->tenant_id)
+            ->value('status') === Employee::STATUS_PRE_CONTRACT;
     }
 }

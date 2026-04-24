@@ -42,12 +42,19 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-test('users with onboarding.read can view any submissions', function (): void {
+test('pre-contract employees can view any submissions without onboarding.read', function (): void {
+    $preContractUser = User::factory()->create();
+    Employee::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $preContractUser->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
     $userWithPermission = User::factory()->create();
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
 
     $userWithoutPermission = User::factory()->create();
 
+    expect($this->policy->viewAny($preContractUser))->toBeTrue();
     expect($this->policy->viewAny($userWithPermission))->toBeTrue();
     expect($this->policy->viewAny($userWithoutPermission))->toBeFalse();
 });
@@ -124,42 +131,68 @@ test('users with onboarding.read and org scope can view submissions in scope', f
     expect($this->policy->view($userWithScope, $submission))->toBeTrue();
 });
 
-test('only pre contract employees with onboarding.write can create submissions', function (): void {
+test('only pre contract employees can create submissions without onboarding.write', function (): void {
     $userWithPreContract = User::factory()->create();
-    givePermissionWithTenant($userWithPreContract, $this->tenant->id, 'onboarding.write');
-    $preContractEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
+    Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $userWithPreContract->id,
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
     $userWithActiveEmployee = User::factory()->create();
-    givePermissionWithTenant($userWithActiveEmployee, $this->tenant->id, 'onboarding.write');
-    $activeEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
+    Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $userWithActiveEmployee->id,
-        'status' => 'active',
+        'status' => Employee::STATUS_ACTIVE,
     ]);
 
     $userWithNoEmployee = User::factory()->create();
-    givePermissionWithTenant($userWithNoEmployee, $this->tenant->id, 'onboarding.write');
 
-    $userWithoutPermission = User::factory()->create();
-    $employeeNoPermission = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'user_id' => $userWithoutPermission->id,
-        'status' => 'pre_contract',
+    $userWithPermission = User::factory()->create();
+    givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.write');
+    Employee::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $userWithPermission->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
     expect($this->policy->create($userWithPreContract))->toBeTrue();
+    expect($this->policy->create($userWithPermission))->toBeTrue();
     expect($this->policy->create($userWithActiveEmployee))->toBeFalse();
     expect($this->policy->create($userWithNoEmployee))->toBeFalse();
-    expect($this->policy->create($userWithoutPermission))->toBeFalse();
 });
 
-test('employee can update own submissions', function (): void {
+test('user with onboarding.write but non-pre-contract employee status cannot create submissions', function (): void {
+    $userWithWriteOnly = User::factory()->create();
+    givePermissionWithTenant($userWithWriteOnly, $this->tenant->id, 'onboarding.write');
+    Employee::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $userWithWriteOnly->id,
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    expect($this->policy->create($userWithWriteOnly))->toBeFalse();
+});
+
+test('pre-contract employee from a different tenant cannot create submissions in current tenant', function (): void {
+    // Create a second tenant
+    $otherKeys = TenantKey::generateEnvelopeKeys();
+    $otherTenant = TenantKey::create($otherKeys);
+
+    // User has a pre_contract employee record in the OTHER tenant only
+    $userFromOtherTenant = User::factory()->create();
+    Employee::factory()->for($otherTenant, 'tenant')->create([
+        'user_id' => $userFromOtherTenant->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    // The user's own tenant_id is current tenant, but no employee record there
+    $userFromOtherTenant->update(['tenant_id' => $this->tenant->id]);
+
+    expect($this->policy->create($userFromOtherTenant))->toBeFalse();
+});
+
+test('employee can update own submissions without onboarding.write', function (): void {
     $user = User::factory()->create();
-    givePermissionWithTenant($user, $this->tenant->id, 'onboarding.write');
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
