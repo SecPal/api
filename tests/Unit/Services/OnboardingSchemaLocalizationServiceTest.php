@@ -22,7 +22,7 @@ test('it localizes schema labels descriptions and enum names for known system te
                 'contact_1_relationship' => [
                     'type' => 'string',
                     'title' => 'Contact 1: Relationship',
-                    'enum' => ['spouse', 'partner', 'parent', 'sibling'],
+                    'enum' => ['spouse', 'partner', 'parent', 'sibling', 'child', 'friend', 'other'],
                 ],
             ],
         ],
@@ -39,6 +39,9 @@ test('it localizes schema labels descriptions and enum names for known system te
             'Partner',
             'Elternteil',
             'Geschwister',
+            'Kind',
+            'Freund',
+            'Sonstiges',
         ]);
 });
 
@@ -84,7 +87,7 @@ test('it uses template_key for translation lookup when name has changed', functi
                 'contact_1_relationship' => [
                     'type' => 'string',
                     'title' => 'Contact 1: Relationship',
-                    'enum' => ['spouse', 'partner', 'parent', 'sibling'],
+                    'enum' => ['spouse', 'partner', 'parent', 'sibling', 'child', 'friend', 'other'],
                 ],
             ],
         ],

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- corrected "shipped" to "shipping" and "hash-chain" to "hash chain" in `docs/ACTIVITY_LOGGING_USER_GUIDE.md`, and replaced the UI-focused "at first render" phrasing with "after creation on initial retrieval" for clearer backend context
 - clarified the repo-local under-`1.x` policy in Copilot governance so API work explicitly prefers removing insecure or obsolete compatibility shims over preserving them without a proven live caller
 - converted all findings from the 2026-03-31 security audit to GitHub Issues (#834–#847) tracked under Epic #848
 - strengthened repo-local Copilot governance for AI findings: API work now requires proof of defect before merging AI-generated fix PRs, treats green CI alone as insufficient evidence for semantic test changes, and explicitly rejects Pest file-scope mutations that bypass framework wiring
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- added test coverage for whitespace-only `device_name` rejection in token passkey challenges, verified `verifyAuthentication` mock argument correctness, extracted the unexpected-Throwable authentication verification test to a reusable closure, added a positive registration challenge optional-fields test, expanded onboarding schema localization enum coverage to all seven relationship values, strengthened migration tests to assert the legacy `employees_employee_number_unique` constraint is absent and that same-tenant duplicate employee numbers are rejected, and replaced reflection-based `PasskeyService` unit tests with public-API and inline-computation equivalents
 - upgraded `phpunit/phpunit` to `12.5.23` together with `pestphp/pest` `4.6.3` so the test runner is no longer pinned to a vulnerable PHPUnit child-process INI forwarding release range (`GHSA-qrr6-mg7r-m243`)
 - blocked direct `POST /v1/employees` and `PATCH /v1/employees/{employee}` writes to `employment_end_date` and `retention_period_end` so BewachV / GDPR retention dates remain lifecycle-managed by termination handling and observer-driven calculation instead of client-controlled payloads (continues `api#470`)
 - fixed `GET /v1/employees/compliance-alerts` to filter the full alert set before paginating, so warning/critical/expired work-permit and certification entries are no longer hidden behind non-alert employees and the pagination metadata now reports the real alert count (continues `api#472`)

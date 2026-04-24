@@ -145,6 +145,15 @@ describe('Passkey Authentication', function () {
             ->and($response->json('data.public_key.rp_id'))->toBe('app.secpal.dev');
     });
 
+    test('token passkey login challenge rejects whitespace-only device name', function () {
+        $response = $this->postJson('/v1/auth/token/passkeys/challenges', [
+            'device_name' => '   ',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['device_name']);
+    });
+
     test('token passkey login challenge requires a device name', function () {
         $response = $this->postJson('/v1/auth/token/passkeys/challenges', []);
 
@@ -173,6 +182,8 @@ describe('Passkey Authentication', function () {
             ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
     });
 
+    // Distinct from the "unknown challenge" test below: this validates malformed
+    // challenge ID format rejection (non-UUID path segment).
     test('non-uuid browser passkey login challenge id cannot be verified', function () {
         $response = $this->withHeaders(spaHeaders())
             ->postJson('/v1/auth/passkeys/challenges/not-a-uuid/verify', [
@@ -191,6 +202,8 @@ describe('Passkey Authentication', function () {
         $response->assertNotFound();
     });
 
+    // Distinct from the non-UUID test above: this validates not-found handling for
+    // a well-formed UUID that does not exist in storage.
     test('unknown browser passkey login challenge cannot be verified', function () {
         $response = $this->withHeaders(spaHeaders())
             ->postJson('/v1/auth/passkeys/challenges/550e8400-e29b-41d4-a716-446655440099/verify', [
@@ -227,6 +240,16 @@ describe('Passkey Authentication', function () {
         $mockService = $this->mock(PasskeyService::class);
         $mockService->shouldReceive('verifyAuthentication')
             ->once()
+            ->with($challenge['public_key'], [
+                'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'type' => 'public-key',
+                'response' => [
+                    'client_data_json' => 'Zm9v',
+                    'authenticator_data' => 'YmFy',
+                    'signature' => 'YmF6',
+                ],
+            ])
             ->andReturn([
                 'user' => $user,
                 'credential' => $credential,
@@ -453,7 +476,7 @@ describe('Passkey Authentication', function () {
         expect(app(PasskeyChallengeService::class)->findAuthenticationChallenge($challenge['challenge_id']))->toBeNull();
     });
 
-    test('unexpected Throwable during passkey authentication verification returns validation errors', function () {
+    $assertUnexpectedThrowableAuthenticationVerificationValidationError = function (): void {
         $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
             'challenge' => 'test-challenge',
             'rp_id' => 'app.secpal.dev',
@@ -485,6 +508,10 @@ describe('Passkey Authentication', function () {
             ->assertJsonValidationErrors(['credential']);
 
         expect(app(PasskeyChallengeService::class)->findAuthenticationChallenge($challenge['challenge_id']))->toBeNull();
+    };
+
+    test('unexpected Throwable during passkey authentication verification returns validation errors', function () use ($assertUnexpectedThrowableAuthenticationVerificationValidationError) {
+        $assertUnexpectedThrowableAuthenticationVerificationValidationError();
     });
 
     test('invalid browser passkey verification attempts are rate limited with retry headers', function () {
@@ -622,6 +649,31 @@ describe('Passkey Management', function () {
 
         expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
             ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
+
+    test('registration challenge includes optional fields when they have values', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration');
+
+        $response->assertCreated();
+
+        $authenticatorSelection = $response->json('data.public_key.authenticator_selection');
+        if (is_array($authenticatorSelection) && array_key_exists('authenticator_attachment', $authenticatorSelection)) {
+            expect($authenticatorSelection['authenticator_attachment'])->not->toBeNull();
+        }
+
+        $excludeCredentials = $response->json('data.public_key.exclude_credentials');
+        if (is_array($excludeCredentials)) {
+            expect($excludeCredentials)->not->toBeEmpty();
+        }
+
+        $rp = $response->json('data.public_key.rp');
+        if (is_array($rp) && array_key_exists('icon', $rp)) {
+            expect($rp['icon'])->not->toBeNull();
+        }
     });
 
     test('unknown passkey registration challenge cannot be verified', function () {
