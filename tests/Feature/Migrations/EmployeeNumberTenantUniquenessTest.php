@@ -6,6 +6,7 @@
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 
@@ -103,5 +104,5 @@ test('employees table prevents duplicate employee numbers within the same tenant
             'employee_number' => 'EMP-2026-0002',
             'email' => 'tenant-same-two@example.com',
         ]);
-    })->toThrow(Exception::class);
+    })->toThrow(QueryException::class);
 });
