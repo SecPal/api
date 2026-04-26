@@ -1056,6 +1056,64 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             ->assertJsonValidationErrors(['parent_id']);
     });
 
+    test('attach parent rejects cross-tenant parent ids during validation', function () {
+        $orphan = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Orphan Unit',
+            'type' => 'department',
+        ]);
+
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $orphan->id,
+            'access_level' => 'admin',
+        ]);
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignParent = OrganizationalUnit::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'name' => 'Foreign Parent',
+            'type' => 'company',
+        ]);
+
+        $response = postJson("/v1/organizational-units/{$orphan->id}/parent", [
+            'parent_id' => $foreignParent->id,
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['parent_id']);
+    });
+
+    test('attach parent rejects soft deleted parent ids during validation', function () {
+        $orphan = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Orphan Unit',
+            'type' => 'department',
+        ]);
+
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $orphan->id,
+            'access_level' => 'admin',
+        ]);
+
+        $deletedParent = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Deleted Parent',
+            'type' => 'company',
+        ]);
+        $deletedParent->delete();
+
+        $response = postJson("/v1/organizational-units/{$orphan->id}/parent", [
+            'parent_id' => $deletedParent->id,
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['parent_id']);
+    });
+
     test('user can detach parent from unit when they have direct scope', function () {
         // Arrange: Create child with parent
         $child = OrganizationalUnit::factory()->create([

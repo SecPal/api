@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- scoped `POST /v1/organizational-units/{organizational_unit}/parent` parent validation to the authenticated tenant and excluded soft-deleted organizational units, so cross-tenant and deleted `parent_id` probes now fail validation instead of leaking existence through later `403` or `404` responses (fixes `api#966`)
 - restored pre-contract onboarding self-service access for the authenticated employee flow so `GET /v1/onboarding/steps`, `/v1/onboarding/templates*`, and `/v1/onboarding/submissions` plus `POST`/`PATCH /v1/onboarding/submissions*` no longer require extra `onboarding.read` or `onboarding.write` runtime permissions beyond the pre-contract ownership checks already enforced by the onboarding policies and controller guards (fixes `api#954`)
 - upgraded `phpunit/phpunit` to `12.5.23` together with `pestphp/pest` `4.6.3` so the test runner is no longer pinned to a vulnerable PHPUnit child-process INI forwarding release range (`GHSA-qrr6-mg7r-m243`)
 - blocked direct `POST /v1/employees` and `PATCH /v1/employees/{employee}` writes to `employment_end_date` and `retention_period_end` so BewachV / GDPR retention dates remain lifecycle-managed by termination handling and observer-driven calculation instead of client-controlled payloads (continues `api#470`)

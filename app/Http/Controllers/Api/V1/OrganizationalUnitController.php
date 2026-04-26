@@ -16,6 +16,7 @@ use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
 
 /**
  * OrganizationalUnitController handles CRUD operations for organizational units.
@@ -290,9 +291,19 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('update', $organizational_unit);
 
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
         /** @var array{parent_id: string} $validated */
         $validated = $request->validate([
-            'parent_id' => ['required', 'uuid', 'exists:organizational_units,id'],
+            'parent_id' => [
+                'required',
+                'uuid',
+                Rule::exists('organizational_units', 'id')->where(function (\Illuminate\Database\Query\Builder $query) use ($user): void {
+                    $query->where('tenant_id', $user->tenant_id)
+                        ->whereNull('deleted_at');
+                }),
+            ],
         ]);
 
         /** @var OrganizationalUnit $parent */
