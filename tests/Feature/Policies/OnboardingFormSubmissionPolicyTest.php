@@ -77,7 +77,7 @@ test('employee can view own submissions', function (): void {
 test('employee cannot view other employees submissions', function (): void {
     $user = User::factory()->create();
     $otherEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
