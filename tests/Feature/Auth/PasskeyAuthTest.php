@@ -624,6 +624,31 @@ describe('Passkey Management', function () {
             ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
     });
 
+    test('registration challenge includes optional fields when they have values', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration');
+
+        $response->assertCreated();
+
+        $authenticatorSelection = $response->json('data.public_key.authenticator_selection');
+        if (is_array($authenticatorSelection) && array_key_exists('authenticator_attachment', $authenticatorSelection)) {
+            expect($authenticatorSelection['authenticator_attachment'])->not->toBeNull();
+        }
+
+        $excludeCredentials = $response->json('data.public_key.exclude_credentials');
+        if (is_array($excludeCredentials)) {
+            expect($excludeCredentials)->not->toBeEmpty();
+        }
+
+        $rp = $response->json('data.public_key.rp');
+        if (is_array($rp) && array_key_exists('icon', $rp)) {
+            expect($rp['icon'])->not->toBeNull();
+        }
+    });
+
     test('unknown passkey registration challenge cannot be verified', function () {
         $user = User::factory()->create();
         $token = $user->issueApiToken('test-suite')->plainTextToken;
