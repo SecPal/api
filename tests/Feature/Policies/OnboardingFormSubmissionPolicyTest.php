@@ -222,7 +222,7 @@ test('users with onboarding.write cannot update other employees submissions', fu
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.write');
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
