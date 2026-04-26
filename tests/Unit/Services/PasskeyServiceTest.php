@@ -70,14 +70,10 @@ describe('PasskeyService native Android origin support', function () {
     test('the canonical Android passkey origin is derived from the signing certificate fingerprint', function () {
         config()->set('android.signing_certificate_sha256_fingerprint', 'C3:E9:FD:07:69:F3:34:9B:B0:B0:56:BA:E6:69:47:23:40:E1:CB:28:66:26:DE:30:C9:C9:FA:F9:5F:1E:47:B5');
 
-        $fingerprint = strtolower((string) config('android.signing_certificate_sha256_fingerprint'));
-        $fingerprintHex = str_replace(':', '', $fingerprint);
-        $fingerprintBytes = hex2bin($fingerprintHex);
+        $service = app(PasskeyService::class);
+        $payload = $service->formatApiPayload([]);
 
-        expect($fingerprintBytes)->not->toBeFalse();
-
-        $androidOrigin = 'android:apk-key-hash:'.rtrim(strtr(base64_encode($fingerprintBytes), '+/', '-_'), '=');
-
-        expect($androidOrigin)->toBe('android:apk-key-hash:w-n9B2nzNJuwsFa65mlHI0DhyyhmJt4wycn6-V8eR7U');
+        expect($payload)->toHaveKey('android_origin')
+            ->and($payload['android_origin'])->toBe('android:apk-key-hash:w-n9B2nzNJuwsFa65mlHI0DhyyhmJt4wycn6-V8eR7U');
     });
 });
