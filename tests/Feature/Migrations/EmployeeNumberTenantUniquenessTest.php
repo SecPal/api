@@ -89,15 +89,22 @@ test('employees table rejects duplicate employee numbers within the same tenant'
         'tenant_id' => $tenant->id,
         'organizational_unit_id' => $unit->id,
         'employee_number' => 'EMP-2026-0001',
-        'email' => 'tenant-one@example.com',
+        'email' => 'employee-one@example.com',
     ]);
 
-    expect(function () use ($tenant, $unit): void {
+    try {
         Employee::factory()->create([
             'tenant_id' => $tenant->id,
             'organizational_unit_id' => $unit->id,
             'employee_number' => 'EMP-2026-0001',
-            'email' => 'tenant-two@example.com',
+            'email' => 'employee-two@example.com',
         ]);
-    })->toThrow(QueryException::class);
+    } catch (QueryException $exception) {
+        expect($exception->getCode())->toBe('23505')
+            ->and($exception->getMessage())->toContain('unique_tenant_employee_number');
+
+        return;
+    }
+
+    expect()->fail('Expected a tenant-scoped employee number unique constraint violation.');
 });
