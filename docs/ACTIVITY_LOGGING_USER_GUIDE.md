@@ -23,7 +23,7 @@ Each entry can include:
 - a human-readable description
 - the affected subject and the causer, when available
 - request metadata such as IP address and user agent
-- forensic metadata such as hash-chain, Merkle, and OpenTimestamp fields
+- forensic metadata such as hash chain, Merkle, and OpenTimestamp fields
 
 The frontend activity-log screen is backed by these API endpoints:
 
