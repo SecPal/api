@@ -108,8 +108,8 @@ test('users with onboarding.read can view all submissions regardless of scope', 
 });
 
 test('users with onboarding.read and org scope can view submissions in scope', function (): void {
-    $orgUnit = OrganizationalUnit::factory()->create();
-    $userWithScope = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $userWithScope = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithScope, $this->tenant->id, 'onboarding.read');
 
     $userWithScope->organizationalScopes()->create([
