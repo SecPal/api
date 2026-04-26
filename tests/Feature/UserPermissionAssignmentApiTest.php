@@ -23,6 +23,54 @@ use function Pest\Laravel\postJson;
  *     crossTenantUser: User
  * }
  */
+function seedUserPermissionAssignmentPermissions(): void
+{
+    foreach ([
+        'employees.read',
+        'employees.export',
+        'reports.generate',
+        'shifts.read',
+        'permissions.read',
+        'permissions.assign_direct',
+        'permissions.revoke_direct',
+    ] as $permissionName) {
+        Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'sanctum']);
+    }
+}
+
+function seedUserPermissionAssignmentRoles(TenantKey $tenant): void
+{
+    $managerRole = Role::firstOrCreate([
+        'name' => 'Manager',
+        'guard_name' => 'sanctum',
+        'tenant_id' => $tenant->id,
+    ]);
+
+    $missingManagerPermissions = array_diff(
+        ['employees.read', 'shifts.read'],
+        $managerRole->permissions()->pluck('name')->all(),
+    );
+
+    if ($missingManagerPermissions !== []) {
+        $managerRole->givePermissionTo(array_values($missingManagerPermissions));
+    }
+
+    $adminRole = Role::firstOrCreate([
+        'name' => 'Admin',
+        'guard_name' => 'sanctum',
+        'tenant_id' => $tenant->id,
+    ]);
+
+    $missingAdminPermissions = array_diff(
+        ['permissions.read', 'permissions.assign_direct', 'permissions.revoke_direct'],
+        $adminRole->permissions()->pluck('name')->all(),
+    );
+
+    if ($missingAdminPermissions !== []) {
+        $adminRole->givePermissionTo(array_values($missingAdminPermissions));
+    }
+}
+
 function createUserPermissionAssignmentContext(): array
 {
     $keys = TenantKey::generateEnvelopeKeys();
@@ -32,23 +80,8 @@ function createUserPermissionAssignmentContext(): array
     $registrar = app(PermissionRegistrar::class);
     $registrar->setPermissionsTeamId($tenant->id);
 
-    Permission::create(['name' => 'employees.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'employees.export', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'reports.generate', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'shifts.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'permissions.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'permissions.assign_direct', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'permissions.revoke_direct', 'guard_name' => 'sanctum']);
-
-    $managerRole = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
-    $managerRole->givePermissionTo(['employees.read', 'shifts.read']);
-
-    $adminRole = Role::create(['name' => 'Admin', 'guard_name' => 'sanctum']);
-    $adminRole->givePermissionTo([
-        'permissions.read',
-        'permissions.assign_direct',
-        'permissions.revoke_direct',
-    ]);
+    seedUserPermissionAssignmentPermissions();
+    seedUserPermissionAssignmentRoles($tenant);
 
     $otherTenantKeys = TenantKey::generateEnvelopeKeys();
     $otherTenant = TenantKey::create($otherTenantKeys);
@@ -78,6 +111,34 @@ afterEach(function (): void {
     app(PermissionRegistrar::class)->setPermissionsTeamId(null);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
+});
+
+test('user permission assignment bootstrap tolerates pre-seeded permissions and roles', function (): void {
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
+
+    expect(function () use ($tenant): void {
+        seedUserPermissionAssignmentPermissions();
+        seedUserPermissionAssignmentRoles($tenant);
+    })->not->toThrow(Exception::class);
+
+    expect(Permission::query()
+        ->where('guard_name', 'sanctum')
+        ->whereIn('name', [
+            'employees.read',
+            'employees.export',
+            'reports.generate',
+            'shifts.read',
+            'permissions.read',
+            'permissions.assign_direct',
+            'permissions.revoke_direct',
+        ])
+        ->count())->toBe(7);
+
+    expect(Role::query()
+        ->where('guard_name', 'sanctum')
+        ->where('tenant_id', $tenant->id)
+        ->whereIn('name', ['Manager', 'Admin'])
+        ->count())->toBe(2);
 });
 
 test('user can view own permissions via_roles and direct and all', function () {

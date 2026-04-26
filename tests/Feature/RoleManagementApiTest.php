@@ -23,6 +23,21 @@ use Spatie\Permission\PermissionRegistrar;
  */
 uses(RefreshDatabase::class);
 
+function seedRoleManagementPermissions(): void
+{
+    foreach ([
+        'roles.read',
+        'roles.create',
+        'roles.update',
+        'roles.delete',
+        'employees.read',
+        'employees.create',
+        'shifts.read',
+    ] as $permissionName) {
+        Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'sanctum']);
+    }
+}
+
 beforeEach(function (): void {
     // Use process-specific KEK file for parallel test isolation
     incrementTestKekCounter();
@@ -39,22 +54,32 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
-    // Create permissions for role management
-    Permission::create(['name' => 'roles.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'roles.create', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'roles.update', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'roles.delete', 'guard_name' => 'sanctum']);
-
-    // Create test permissions for assignment
-    Permission::create(['name' => 'employees.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'employees.create', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'shifts.read', 'guard_name' => 'sanctum']);
+    seedRoleManagementPermissions();
 });
 
 afterEach(function (): void {
     $this->registrar->setPermissionsTeamId(null);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
+});
+
+describe('role management permission bootstrap', function () {
+    test('tolerates pre-seeded permissions', function (): void {
+        expect(fn (): mixed => seedRoleManagementPermissions())->not->toThrow(Exception::class);
+
+        expect(Permission::query()
+            ->where('guard_name', 'sanctum')
+            ->whereIn('name', [
+                'roles.read',
+                'roles.create',
+                'roles.update',
+                'roles.delete',
+                'employees.read',
+                'employees.create',
+                'shifts.read',
+            ])
+            ->count())->toBe(7);
+    });
 });
 
 describe('GET /v1/roles - List Roles', function () {
