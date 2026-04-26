@@ -70,7 +70,7 @@ Verification can report four signals:
 Important behavior:
 
 - verification values can be `null` when required forensic data is not present yet
-- newly created entries may not have a stable `event_hash` immediately at first render because hash processing happens after insert
+- newly created entries may not have a stable `event_hash` immediately after creation on initial retrieval because hash processing happens after insert
 - an entry marked as orphaned genesis can still verify as valid when its predecessor was legitimately removed by retention processing
 
 ## What Users Should Not Expect
