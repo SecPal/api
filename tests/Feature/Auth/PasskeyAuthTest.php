@@ -227,6 +227,16 @@ describe('Passkey Authentication', function () {
         $mockService = $this->mock(PasskeyService::class);
         $mockService->shouldReceive('verifyAuthentication')
             ->once()
+            ->with($challenge['public_key'], [
+                'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'type' => 'public-key',
+                'response' => [
+                    'client_data_json' => 'Zm9v',
+                    'authenticator_data' => 'YmFy',
+                    'signature' => 'YmF6',
+                ],
+            ])
             ->andReturn([
                 'user' => $user,
                 'credential' => $credential,
