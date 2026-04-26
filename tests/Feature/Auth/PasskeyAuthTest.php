@@ -145,6 +145,15 @@ describe('Passkey Authentication', function () {
             ->and($response->json('data.public_key.rp_id'))->toBe('app.secpal.dev');
     });
 
+    test('token passkey login challenge rejects whitespace-only device name', function () {
+        $response = $this->postJson('/v1/auth/token/passkeys/challenges', [
+            'device_name' => '   ',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['device_name']);
+    });
+
     test('token passkey login challenge requires a device name', function () {
         $response = $this->postJson('/v1/auth/token/passkeys/challenges', []);
 
