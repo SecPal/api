@@ -152,6 +152,15 @@ describe('Passkey Authentication', function () {
             ->assertJsonValidationErrors(['device_name']);
     });
 
+    test('token passkey login challenge rejects a whitespace-only device name', function () {
+        $response = $this->postJson('/v1/auth/token/passkeys/challenges', [
+            'device_name' => '   ',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['device_name']);
+    });
+
     test('browser passkey login challenge creation is rate limited with retry headers', function () {
         for ($i = 0; $i < 5; $i++) {
             $response = $this->withHeaders(spaHeaders())
