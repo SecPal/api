@@ -206,7 +206,7 @@ test('employee can update own submissions without onboarding.write', function ()
 test('employee cannot update other employees submissions', function (): void {
     $user = User::factory()->create();
     $otherEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
