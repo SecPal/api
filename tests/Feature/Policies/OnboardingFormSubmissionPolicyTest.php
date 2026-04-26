@@ -63,7 +63,7 @@ test('employee can view own submissions', function (): void {
     $user = User::factory()->create();
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
@@ -77,7 +77,7 @@ test('employee can view own submissions', function (): void {
 test('employee cannot view other employees submissions', function (): void {
     $user = User::factory()->create();
     $otherEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
@@ -95,7 +95,7 @@ test('users with onboarding.read can view all submissions regardless of scope', 
     giveOrganizationalScope($userWithPermission, $orgUnit);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
         'organizational_unit_id' => $orgUnit->id,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
@@ -120,7 +120,7 @@ test('users with onboarding.read and org scope can view submissions in scope', f
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'organizational_unit_id' => $orgUnit->id,
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
@@ -206,7 +206,7 @@ test('employee can update own submissions without onboarding.write', function ()
 test('employee cannot update other employees submissions', function (): void {
     $user = User::factory()->create();
     $otherEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
@@ -222,7 +222,7 @@ test('users with onboarding.write cannot update other employees submissions', fu
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.write');
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
@@ -241,7 +241,7 @@ test('only users with onboarding.delete can delete submissions', function (): vo
     givePermissionWithTenant($userWithWrite, $this->tenant->id, 'onboarding.write');
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'status' => 'pre_contract',
+        'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
