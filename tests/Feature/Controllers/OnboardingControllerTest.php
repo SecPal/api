@@ -1001,6 +1001,24 @@ describe('POST /v1/admin/onboarding/employees/{employee}/confirm', function () {
         $response->assertStatus(422);
     });
 
+    test('returns 422 when confirmation notes exceed the maximum length', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.confirm');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+            'onboarding_completed' => true,
+            'contract_start_date' => now()->addWeek()->toDateString(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm", [
+                'notes' => str_repeat('A', 1001),
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['notes']);
+    });
+
     test('confirms onboarding dossier and keeps contract confirmed when contract start is in the future', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.confirm');
 
