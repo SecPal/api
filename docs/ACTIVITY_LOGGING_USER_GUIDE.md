@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Activity Logging User Guide
 
-This guide explains how SecPal users can view and verify the shipped activity log from the API and frontend audit UI.
+This guide explains how SecPal users can view and verify the shipping activity log from the API and frontend audit UI.
 
 ## Who Can Use It
 
