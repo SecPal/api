@@ -453,7 +453,7 @@ describe('Passkey Authentication', function () {
         expect(app(PasskeyChallengeService::class)->findAuthenticationChallenge($challenge['challenge_id']))->toBeNull();
     });
 
-    test('unexpected Throwable during passkey authentication verification returns validation errors', function () {
+    $assertUnexpectedThrowableAuthenticationVerificationValidationError = function (): void {
         $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
             'challenge' => 'test-challenge',
             'rp_id' => 'app.secpal.dev',
@@ -485,6 +485,10 @@ describe('Passkey Authentication', function () {
             ->assertJsonValidationErrors(['credential']);
 
         expect(app(PasskeyChallengeService::class)->findAuthenticationChallenge($challenge['challenge_id']))->toBeNull();
+    };
+
+    test('unexpected Throwable during passkey authentication verification returns validation errors', function () use ($assertUnexpectedThrowableAuthenticationVerificationValidationError) {
+        $assertUnexpectedThrowableAuthenticationVerificationValidationError();
     });
 
     test('invalid browser passkey verification attempts are rate limited with retry headers', function () {
