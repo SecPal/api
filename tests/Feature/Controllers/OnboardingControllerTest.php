@@ -170,7 +170,7 @@ describe('GET /v1/onboarding/templates', function () {
     test('localizes template list metadata using request locale', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
 
-        $this->artisan('db:seed', ['--class' => Database\Seeders\OnboardingFormTemplatesSeeder::class])
+        $this->artisan('db:seed', ['--class' => \Database\Seeders\OnboardingFormTemplatesSeeder::class])
             ->assertSuccessful();
 
         $response = $this->withToken($this->token)
