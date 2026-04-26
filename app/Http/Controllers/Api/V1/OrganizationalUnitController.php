@@ -290,14 +290,13 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('update', $organizational_unit);
 
-        $request->validate([
+        /** @var array{parent_id: string} $validated */
+        $validated = $request->validate([
             'parent_id' => ['required', 'uuid', 'exists:organizational_units,id'],
         ]);
 
-        /** @var string $parentId */
-        $parentId = $request->input('parent_id');
         /** @var OrganizationalUnit $parent */
-        $parent = OrganizationalUnit::findOrFail($parentId);
+        $parent = OrganizationalUnit::findOrFail($validated['parent_id']);
 
         // Also need permission on the parent to add children
         $this->authorize('create', $parent);

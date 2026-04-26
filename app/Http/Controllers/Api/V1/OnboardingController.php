@@ -843,14 +843,12 @@ class OnboardingController extends Controller
     {
         $this->authorize('confirmOnboarding', $employee);
 
-        $request->validate([
+        /** @var array{notes?: string|null} $validated */
+        $validated = $request->validate([
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
-        $notes = $request->input('notes');
 
-        if (! is_string($notes)) {
-            $notes = null;
-        }
+        $notes = $validated['notes'] ?? null;
 
         /** @var \App\Models\User $user */
         $user = $request->user();

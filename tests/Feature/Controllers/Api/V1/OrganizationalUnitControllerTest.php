@@ -1034,6 +1034,28 @@ describe('OrganizationalUnitController - Hierarchy', function () {
         ]);
     });
 
+    test('attach parent validates parent_id as a UUID', function () {
+        $orphan = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Orphan Unit',
+            'type' => 'department',
+        ]);
+
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $orphan->id,
+            'access_level' => 'admin',
+        ]);
+
+        $response = postJson("/v1/organizational-units/{$orphan->id}/parent", [
+            'parent_id' => 'not-a-uuid',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['parent_id']);
+    });
+
     test('user can detach parent from unit when they have direct scope', function () {
         // Arrange: Create child with parent
         $child = OrganizationalUnit::factory()->create([
