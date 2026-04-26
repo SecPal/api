@@ -41,16 +41,16 @@ afterEach(function (): void {
 });
 
 test('pre-contract employees can view any templates without onboarding.read', function (): void {
-    $preContractUser = User::factory()->create();
+    $preContractUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
     Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $preContractUser->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
-    $userWithPermission = User::factory()->create();
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
 
-    $userWithoutPermission = User::factory()->create();
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     expect($this->policy->viewAny($preContractUser))->toBeTrue();
     expect($this->policy->viewAny($userWithPermission))->toBeTrue();
@@ -58,16 +58,16 @@ test('pre-contract employees can view any templates without onboarding.read', fu
 });
 
 test('pre-contract employees can view individual templates without onboarding.read', function (): void {
-    $preContractUser = User::factory()->create();
+    $preContractUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
     Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $preContractUser->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
-    $userWithPermission = User::factory()->create();
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
 
-    $userWithoutPermission = User::factory()->create();
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $template = OnboardingFormTemplate::factory()->create(['is_system_template' => false]);
 
     expect($this->policy->view($preContractUser, $template))->toBeTrue();
