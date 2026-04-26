@@ -6,6 +6,7 @@
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 
@@ -75,4 +76,35 @@ test('employees table allows duplicate employee numbers across tenants', functio
     })->not->toThrow(Exception::class);
 
     expect(Employee::query()->where('employee_number', 'EMP-2026-0001')->count())->toBe(2);
+});
+
+test('employees table rejects duplicate employee numbers within the same tenant', function (): void {
+    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+    $unit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+
+    Employee::factory()->create([
+        'tenant_id' => $tenant->id,
+        'organizational_unit_id' => $unit->id,
+        'employee_number' => 'EMP-2026-0001',
+        'email' => 'employee-one@example.com',
+    ]);
+
+    try {
+        Employee::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $unit->id,
+            'employee_number' => 'EMP-2026-0001',
+            'email' => 'employee-two@example.com',
+        ]);
+    } catch (QueryException $exception) {
+        expect($exception->getCode())->toBe('23505')
+            ->and($exception->getMessage())->toContain('unique_tenant_employee_number');
+
+        return;
+    }
+
+    expect()->fail('Expected a tenant-scoped employee number unique constraint violation.');
 });
