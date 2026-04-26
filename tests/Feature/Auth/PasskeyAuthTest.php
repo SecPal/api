@@ -173,6 +173,8 @@ describe('Passkey Authentication', function () {
             ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
     });
 
+    // Distinct from the "unknown challenge" test below: this validates malformed
+    // challenge ID format rejection (non-UUID path segment).
     test('non-uuid browser passkey login challenge id cannot be verified', function () {
         $response = $this->withHeaders(spaHeaders())
             ->postJson('/v1/auth/passkeys/challenges/not-a-uuid/verify', [
@@ -191,6 +193,8 @@ describe('Passkey Authentication', function () {
         $response->assertNotFound();
     });
 
+    // Distinct from the non-UUID test above: this validates not-found handling for
+    // a well-formed UUID that does not exist in storage.
     test('unknown browser passkey login challenge cannot be verified', function () {
         $response = $this->withHeaders(spaHeaders())
             ->postJson('/v1/auth/passkeys/challenges/550e8400-e29b-41d4-a716-446655440099/verify', [
