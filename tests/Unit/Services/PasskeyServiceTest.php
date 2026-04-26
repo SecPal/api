@@ -66,20 +66,6 @@ describe('PasskeyService::formatApiPayload', function () {
     });
 });
 
-describe('PasskeyService credential deserialization key casing', function () {
-    test('registration credential key casing is exercised via feature-level passkey flows', function () {
-        $service = app(PasskeyService::class);
-
-        expect($service)->toBeInstanceOf(PasskeyService::class);
-    });
-
-    test('assertion credential key casing is exercised via feature-level passkey flows', function () {
-        $service = app(PasskeyService::class);
-
-        expect($service)->toBeInstanceOf(PasskeyService::class);
-    });
-});
-
 describe('PasskeyService native Android origin support', function () {
     test('the canonical Android passkey origin is derived from the signing certificate fingerprint', function () {
         config()->set('android.signing_certificate_sha256_fingerprint', 'C3:E9:FD:07:69:F3:34:9B:B0:B0:56:BA:E6:69:47:23:40:E1:CB:28:66:26:DE:30:C9:C9:FA:F9:5F:1E:47:B5');
