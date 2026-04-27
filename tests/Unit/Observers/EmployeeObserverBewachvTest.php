@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Models\Activity;
 
-uses(RefreshDatabase::class)->group('unit', 'observer', 'BewachV');
+uses(RefreshDatabase::class)->group('unit', 'observer', 'bewachv');
 
 beforeEach(function () {
     if (! file_exists(TenantKey::getKekPath())) {
