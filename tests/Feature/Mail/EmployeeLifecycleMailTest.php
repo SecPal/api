@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -279,7 +279,7 @@ test('qualification expiring mail contains qualification data', function () {
     $empQual = EmployeeQualification::create([
         'employee_id' => $employee->id,
         'qualification_id' => $qualification->id,
-        'obtained_date' => now()->subYear(),
+        'obtained_date' => now()->subYears(1),
         'expiry_date' => $expiryDate,
         'status' => EmployeeQualification::STATUS_EXPIRING,
         'certificate_number' => 'CERT-12345',
@@ -376,5 +376,5 @@ test('bwr id document auto deleted mail includes employee details and deletion r
         ->and($mail->envelope()->subject)->toContain('BWR')
         ->and($mail->render())->toContain('Casey Secure')
         ->and($mail->render())->toContain('EMP-912')
-        ->and($mail->render())->toContain('deleted automatically because BWR approval made continued storage unnecessary');
+        ->and($mail->render())->toContain('deleted automatically because BWR approval made continued storage no longer necessary');
 });

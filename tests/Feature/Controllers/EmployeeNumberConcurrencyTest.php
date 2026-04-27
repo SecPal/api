@@ -22,6 +22,14 @@ function refreshEmployeeNumberConcurrencyDatabase(): void
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 }
 
+function assertChildProcessSucceeded(int $childPid): void
+{
+    expect(pcntl_waitpid($childPid, $status))->toBe($childPid);
+    expect(pcntl_wifexited($status))->toBeTrue();
+    expect(pcntl_wifsignaled($status))->toBeFalse();
+    expect(pcntl_wexitstatus($status))->toBe(0);
+}
+
 /**
  * @property TenantKey $tenant
  * @property User $user
@@ -85,11 +93,12 @@ test('concurrent employee creation requests produce distinct employee numbers', 
             }
 
             if ($pid === 0) {
-                DB::disconnect();
+                DB::purge();
+                DB::reconnect();
                 app(PermissionRegistrar::class)->forgetCachedPermissions();
 
                 while (trim((string) file_get_contents($startSignalPath)) !== 'go') {
-                    usleep(10_000);
+                    usleep(100_000);
                 }
 
                 $response = $this->withToken($this->token)
@@ -110,10 +119,7 @@ test('concurrent employee creation requests produce distinct employee numbers', 
         file_put_contents($startSignalPath, 'go');
 
         foreach ($childPids as $childPid) {
-            expect(pcntl_waitpid($childPid, $status))->toBe($childPid);
-            expect(pcntl_wifexited($status))->toBeTrue();
-            expect(pcntl_wifsignaled($status))->toBeFalse();
-            expect(pcntl_wexitstatus($status))->toBe(0);
+            assertChildProcessSucceeded($childPid);
         }
 
         $results = collect(range(1, $requestCount))
@@ -136,11 +142,8 @@ test('concurrent employee creation requests produce distinct employee numbers', 
             unlink($startSignalPath);
         }
 
-        foreach (range(1, $requestCount) as $index) {
-            $path = $synchronizationDirectory."/result-{$index}.json";
-            if (file_exists($path)) {
-                unlink($path);
-            }
+        foreach (glob($synchronizationDirectory.'/result-*.json') ?: [] as $path) {
+            unlink($path);
         }
 
         if (is_dir($synchronizationDirectory)) {
