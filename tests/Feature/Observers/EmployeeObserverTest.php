@@ -14,12 +14,30 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 /**
  * @property TenantKey $tenant
  * @property OrganizationalUnit $orgUnit
  */
 uses(RefreshDatabase::class);
+
+function createEmployeeObserverRole(string $name): Role
+{
+    $role = Role::firstOrCreate(['name' => $name, 'guard_name' => 'sanctum']);
+    $role->syncPermissions([]);
+
+    return $role;
+}
+
+function resetEmployeeObserverRbacState(): void
+{
+    DB::table('role_has_permissions')->delete();
+    DB::table('model_has_roles')->delete();
+    DB::table('model_has_permissions')->delete();
+    Role::query()->delete();
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+}
 
 beforeEach(function () {
     // Setup TenantKey for encrypted fields
@@ -28,10 +46,11 @@ beforeEach(function () {
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
+    resetEmployeeObserverRbacState();
 
     // Create test roles
-    Role::create(['name' => 'Employee', 'guard_name' => 'sanctum']);
-    Role::create(['name' => 'Employee Read Only', 'guard_name' => 'sanctum']);
+    createEmployeeObserverRole('Employee');
+    createEmployeeObserverRole('Employee Read Only');
 
     // Create a test organizational unit
     $this->orgUnit = OrganizationalUnit::create([
@@ -46,6 +65,16 @@ beforeEach(function () {
 afterEach(function () {
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
+});
+
+test('employee observer RBAC bootstrap tolerates pre-seeded roles', function () {
+    expect(fn (): Role => createEmployeeObserverRole('Employee'))->not->toThrow(Exception::class);
+    expect(fn (): Role => createEmployeeObserverRole('Employee Read Only'))->not->toThrow(Exception::class);
+
+    expect(Role::query()
+        ->where('guard_name', 'sanctum')
+        ->whereIn('name', ['Employee', 'Employee Read Only'])
+        ->count())->toBe(2);
 });
 
 test('employee observer creates user account when status changes to pre_contract without automatically sending invitation mail', function () {

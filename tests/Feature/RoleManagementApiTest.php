@@ -12,6 +12,7 @@ use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -38,6 +39,36 @@ function seedRoleManagementPermissions(): void
     }
 }
 
+function createRoleManagementRole(string $name, string $guardName = 'sanctum'): Role
+{
+    $attributes = [
+        'name' => $name,
+        'guard_name' => $guardName,
+    ];
+
+    $teamForeignKey = config('permission.column_names.team_foreign_key');
+    $teamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
+
+    if (is_string($teamForeignKey) && $teamForeignKey !== '' && $teamId !== null && $guardName === 'sanctum') {
+        $attributes[$teamForeignKey] = $teamId;
+    }
+
+    $role = Role::firstOrCreate($attributes);
+    $role->syncPermissions([]);
+
+    return $role;
+}
+
+function resetRoleManagementRbacState(): void
+{
+    DB::table('role_has_permissions')->delete();
+    DB::table('model_has_roles')->delete();
+    DB::table('model_has_permissions')->delete();
+    Role::query()->delete();
+    Permission::query()->delete();
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+}
+
 beforeEach(function (): void {
     // Use process-specific KEK file for parallel test isolation
     incrementTestKekCounter();
@@ -49,9 +80,10 @@ beforeEach(function (): void {
     // Set tenant context for permission system
     $this->registrar = app(PermissionRegistrar::class);
     $this->registrar->setPermissionsTeamId($this->tenant->id);
+    resetRoleManagementRbacState();
 
     // Create test user with token
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
     seedRoleManagementPermissions();
@@ -79,6 +111,20 @@ describe('role management permission bootstrap', function () {
                 'shifts.read',
             ])
             ->count())->toBe(7);
+    });
+
+    test('tolerates pre-seeded role fixtures', function (): void {
+        createRoleManagementRole('Manager');
+        createRoleManagementRole('Guard');
+
+        expect(fn (): Role => createRoleManagementRole('Manager'))->not->toThrow(Exception::class);
+        expect(fn (): Role => createRoleManagementRole('Guard'))->not->toThrow(Exception::class);
+
+        expect(Role::query()
+            ->where('guard_name', 'sanctum')
+            ->whereIn('name', ['Manager', 'Guard'])
+            ->where('tenant_id', $this->tenant->id)
+            ->count())->toBe(2);
     });
 });
 
@@ -113,8 +159,8 @@ describe('GET /v1/roles - List Roles', function () {
         $this->user->givePermissionTo('roles.read');
 
         // Create test roles
-        $manager = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
-        $guard = Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
+        $manager = createRoleManagementRole('Manager');
+        $guard = createRoleManagementRole('Guard');
 
         // Assign permissions
         $manager->givePermissionTo(['employees.read', 'employees.create', 'shifts.read']);
@@ -170,7 +216,7 @@ describe('POST /v1/roles - Create Role', function () {
 
     test('returns 422 when name already exists', function (): void {
         $this->user->givePermissionTo('roles.create');
-        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        createRoleManagementRole('Manager');
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/roles', [
@@ -183,7 +229,7 @@ describe('POST /v1/roles - Create Role', function () {
     });
 
     test('ignores spoofed tenant input when validating role creation uniqueness', function (): void {
-        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        createRoleManagementRole('Manager');
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
 
         $request = CreateRoleRequest::create('/v1/roles', 'POST', [
@@ -202,7 +248,7 @@ describe('POST /v1/roles - Create Role', function () {
 
     test('allows creating a sanctum role when the same name exists only under another guard', function (): void {
         $this->user->givePermissionTo('roles.create');
-        Role::create(['name' => 'Manager', 'guard_name' => 'web']);
+        createRoleManagementRole('Manager', 'web');
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/roles', [
@@ -226,7 +272,7 @@ describe('POST /v1/roles - Create Role', function () {
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
 
         $this->registrar->setPermissionsTeamId($otherTenant->id);
-        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        createRoleManagementRole('Manager');
         $this->registrar->setPermissionsTeamId($this->tenant->id);
         $this->registrar->forgetCachedPermissions();
 
@@ -254,6 +300,7 @@ describe('POST /v1/roles - Create Role', function () {
         expect(Role::query()
             ->where('name', 'Manager')
             ->where('guard_name', 'sanctum')
+            ->whereIn('tenant_id', [$otherTenant->id, $this->tenant->id])
             ->count())->toBe(2);
     });
 
@@ -305,7 +352,7 @@ describe('POST /v1/roles - Create Role', function () {
 
 describe('GET /v1/roles/{id} - Get Role Details', function () {
     test('returns 401 when not authenticated', function (): void {
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
 
         $response = $this->getJson("/v1/roles/{$role->id}");
 
@@ -313,7 +360,7 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
     });
 
     test('returns 403 when user lacks roles.read permission', function (): void {
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
 
         $response = $this->withToken($this->token)
             ->getJson("/v1/roles/{$role->id}");
@@ -336,7 +383,7 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
     test('returns role details with permissions', function (): void {
         $this->user->givePermissionTo('roles.read');
 
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
         $role->givePermissionTo(['employees.read', 'shifts.read']);
 
         $response = $this->withToken($this->token)
@@ -353,7 +400,7 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
 
 describe('PATCH /v1/roles/{id} - Update Role', function () {
     test('returns 401 when not authenticated', function (): void {
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
 
         $response = $this->patchJson("/v1/roles/{$role->id}", [
             'name' => 'Senior Manager',
@@ -364,7 +411,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
 
     test('returns 403 when user lacks roles.update permission', function (): void {
         $this->user->givePermissionTo('roles.read');
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
 
         $response = $this->withToken($this->token)
             ->patchJson("/v1/roles/{$role->id}", [
@@ -387,8 +434,8 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
 
     test('returns 422 when name already exists for another role', function (): void {
         $this->user->givePermissionTo('roles.update');
-        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
-        $guard = Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
+        createRoleManagementRole('Manager');
+        $guard = createRoleManagementRole('Guard');
 
         $response = $this->withToken($this->token)
             ->patchJson("/v1/roles/{$guard->id}", [
@@ -400,8 +447,8 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
     });
 
     test('ignores spoofed tenant input when validating role updates', function (): void {
-        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
-        Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
+        createRoleManagementRole('Manager');
+        createRoleManagementRole('Guard');
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
 
         $request = UpdateRoleRequest::create('/v1/roles/1', 'PATCH', [
@@ -419,8 +466,8 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
 
     test('allows updating a sanctum role when the target name exists only under another guard', function (): void {
         $this->user->givePermissionTo('roles.update');
-        Role::create(['name' => 'Manager', 'guard_name' => 'web']);
-        $role = Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
+        createRoleManagementRole('Manager', 'web');
+        $role = createRoleManagementRole('Guard');
 
         $response = $this->withToken($this->token)
             ->patchJson("/v1/roles/{$role->id}", [
@@ -435,12 +482,12 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
 
     test('allows updating a role when the target name exists in another tenant', function (): void {
         $this->user->givePermissionTo('roles.update');
-        $role = Role::create(['name' => 'Guard', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Guard');
 
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
 
         $this->registrar->setPermissionsTeamId($otherTenant->id);
-        Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        createRoleManagementRole('Manager');
         $this->registrar->setPermissionsTeamId($this->tenant->id);
         $this->registrar->forgetCachedPermissions();
 
@@ -467,12 +514,13 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
         expect(Role::query()
             ->where('name', 'Manager')
             ->where('guard_name', 'sanctum')
+            ->whereIn('tenant_id', [$otherTenant->id, $this->tenant->id])
             ->count())->toBe(2);
     });
 
     test('updates role name successfully', function (): void {
         $this->user->givePermissionTo('roles.update');
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
 
         $response = $this->withToken($this->token)
             ->patchJson("/v1/roles/{$role->id}", [
@@ -487,7 +535,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
 
     test('updates role permissions successfully', function (): void {
         $this->user->givePermissionTo('roles.update');
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
         $role->givePermissionTo('employees.read');
 
         $response = $this->withToken($this->token)
@@ -506,7 +554,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
 
     test('returns 422 when permissions is explicitly null', function (): void {
         $this->user->givePermissionTo('roles.update');
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
         $role->givePermissionTo('employees.read');
 
         $response = $this->withToken($this->token)
@@ -524,7 +572,7 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
 
 describe('DELETE /v1/roles/{id} - Delete Role', function () {
     test('returns 401 when not authenticated', function (): void {
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
 
         $response = $this->deleteJson("/v1/roles/{$role->id}");
 
@@ -533,7 +581,7 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
 
     test('returns 403 when user lacks roles.delete permission', function (): void {
         $this->user->givePermissionTo('roles.read');
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
 
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/roles/{$role->id}");
@@ -552,7 +600,7 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
 
     test('returns 422 when role is assigned to users', function (): void {
         $this->user->givePermissionTo('roles.delete');
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
 
         // Assign role to a user
         $otherUser = User::factory()->create();
@@ -568,7 +616,7 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
 
     test('deletes role successfully when not assigned', function (): void {
         $this->user->givePermissionTo('roles.delete');
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createRoleManagementRole('Manager');
 
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/roles/{$role->id}");

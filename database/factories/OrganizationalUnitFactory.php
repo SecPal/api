@@ -28,9 +28,9 @@ class OrganizationalUnitFactory extends Factory
      */
     public function definition(): array
     {
-        // Get existing tenant from first test (created by setUp)
+        // Get the most recently created tenant from the current test context.
         // Don't cache between tests (RefreshDatabase clears everything)
-        $tenant = TenantKey::first();
+        $tenant = TenantKey::query()->latest('id')->first();
         if (! $tenant) {
             // Ensure KEK exists for testing
             if (! file_exists(TenantKey::getKekPath())) {

@@ -10,6 +10,7 @@ use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -20,6 +21,57 @@ use Spatie\Permission\PermissionRegistrar;
  * @property mixed $token
  */
 uses(RefreshDatabase::class);
+
+function seedPermissionManagementPermissions(): void
+{
+    foreach ([
+        'permissions.read',
+        'permissions.create',
+        'permissions.update',
+        'permissions.delete',
+        'employees.read',
+        'employees.create',
+        'shifts.read',
+        'shifts.publish',
+    ] as $permissionName) {
+        Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'sanctum']);
+    }
+}
+
+function createPermissionManagementRole(string $name): Role
+{
+    $teamForeignKey = config('permission.column_names.team_foreign_key');
+    $teamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
+
+    $attributes = [
+        'name' => $name,
+        'guard_name' => 'sanctum',
+    ];
+
+    if (is_string($teamForeignKey) && $teamForeignKey !== '' && $teamId !== null) {
+        $attributes[$teamForeignKey] = $teamId;
+    }
+
+    $role = Role::firstOrCreate($attributes);
+    $role->syncPermissions([]);
+
+    return $role;
+}
+
+function createPermissionManagementPermission(string $name): Permission
+{
+    return Permission::firstOrCreate(['name' => $name, 'guard_name' => 'sanctum']);
+}
+
+function resetPermissionManagementRbacState(): void
+{
+    DB::table('role_has_permissions')->delete();
+    DB::table('model_has_roles')->delete();
+    DB::table('model_has_permissions')->delete();
+    Role::query()->delete();
+    Permission::query()->delete();
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+}
 
 beforeEach(function (): void {
     // Use process-specific KEK file for parallel test isolation
@@ -32,22 +84,13 @@ beforeEach(function (): void {
     // Set tenant context for permission system
     $this->registrar = app(PermissionRegistrar::class);
     $this->registrar->setPermissionsTeamId($this->tenant->id);
+    resetPermissionManagementRbacState();
 
     // Create test user with token
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
-    // Create permissions for permission management
-    Permission::create(['name' => 'permissions.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'permissions.create', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'permissions.update', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'permissions.delete', 'guard_name' => 'sanctum']);
-
-    // Create test permissions for assignment
-    Permission::create(['name' => 'employees.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'employees.create', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'shifts.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'shifts.publish', 'guard_name' => 'sanctum']);
+    seedPermissionManagementPermissions();
 });
 
 afterEach(function (): void {
@@ -143,7 +186,7 @@ describe('POST /v1/permissions - Create Permission', function () {
 
     test('returns 422 when name already exists', function (): void {
         $this->user->givePermissionTo('permissions.create');
-        Permission::create(['name' => 'reports.generate', 'guard_name' => 'sanctum']);
+        createPermissionManagementPermission('reports.generate');
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/permissions', [
@@ -217,7 +260,7 @@ describe('GET /v1/permissions/{id} - Get Permission Details', function () {
         $this->user->givePermissionTo('permissions.read');
 
         $permission = Permission::where('name', 'employees.read')->first();
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createPermissionManagementRole('Manager');
         $role->givePermissionTo('employees.read');
 
         $response = $this->withToken($this->token)
@@ -297,7 +340,7 @@ describe('PATCH /v1/permissions/{id} - Update Permission', function () {
 
 describe('DELETE /v1/permissions/{id} - Delete Permission', function () {
     test('returns 401 when not authenticated', function (): void {
-        $permission = Permission::create(['name' => 'temp.permission', 'guard_name' => 'sanctum']);
+        $permission = createPermissionManagementPermission('temp.permission');
 
         $response = $this->deleteJson("/v1/permissions/{$permission->id}");
 
@@ -306,7 +349,7 @@ describe('DELETE /v1/permissions/{id} - Delete Permission', function () {
 
     test('returns 403 when user lacks permissions.delete permission', function (): void {
         $this->user->givePermissionTo('permissions.read');
-        $permission = Permission::create(['name' => 'temp.permission', 'guard_name' => 'sanctum']);
+        $permission = createPermissionManagementPermission('temp.permission');
 
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/permissions/{$permission->id}");
@@ -326,7 +369,7 @@ describe('DELETE /v1/permissions/{id} - Delete Permission', function () {
     test('returns 422 when permission is assigned to roles', function (): void {
         $this->user->givePermissionTo('permissions.delete');
         $permission = Permission::where('name', 'employees.read')->first();
-        $role = Role::create(['name' => 'Manager', 'guard_name' => 'sanctum']);
+        $role = createPermissionManagementRole('Manager');
         $role->givePermissionTo('employees.read');
 
         $response = $this->withToken($this->token)
@@ -339,7 +382,7 @@ describe('DELETE /v1/permissions/{id} - Delete Permission', function () {
 
     test('deletes permission successfully when not assigned', function (): void {
         $this->user->givePermissionTo('permissions.delete');
-        $permission = Permission::create(['name' => 'temp.permission', 'guard_name' => 'sanctum']);
+        $permission = createPermissionManagementPermission('temp.permission');
 
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/permissions/{$permission->id}");

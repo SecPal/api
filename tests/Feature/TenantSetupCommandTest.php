@@ -13,13 +13,19 @@ use Tests\Support\TenantKeyReadabilityOverride;
 
 uses(RefreshDatabase::class);
 
+function resetTenantSetupCommandTestState(): void
+{
+    TenantKeyReadabilityOverride::clear();
+    TenantKey::query()->delete();
+    cleanupTestKekFile();
+    TenantKey::setKekPath(getTestKekPath());
+}
+
 beforeEach(function (): void {
     // Increment counter to ensure unique KEK file for this test
     incrementTestKekCounter();
 
-    TenantKeyReadabilityOverride::clear();
-    cleanupTestKekFile();
-    TenantKey::setKekPath(getTestKekPath());
+    resetTenantSetupCommandTestState();
 });
 
 afterEach(function (): void {
@@ -29,6 +35,18 @@ afterEach(function (): void {
 });
 
 describe('tenant:setup Command', function () {
+    test('bootstrap clears pre-existing tenant key state', function (): void {
+        TenantKey::generateKek();
+        TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+        expect(TenantKey::count())->toBe(1);
+
+        resetTenantSetupCommandTestState();
+
+        expect(TenantKey::count())->toBe(0);
+        expect(file_exists(TenantKey::getKekPath()))->toBeFalse();
+    });
+
     test('command exists and is registered', function (): void {
         $commands = Artisan::all();
         expect($commands)->toHaveKey('tenant:setup');

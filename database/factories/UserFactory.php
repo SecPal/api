@@ -22,7 +22,7 @@ class UserFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * Note: TenantKey::first() is called for each user creation, which can
+     * Note: the latest TenantKey is resolved for each user creation, which can
      * cause N+1 issues when creating many users. For bulk operations, explicitly
      * pass tenant_id: User::factory()->create(['tenant_id' => $tenantId])
      *
@@ -30,7 +30,7 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
-        $tenant = \App\Models\TenantKey::first();
+        $tenant = \App\Models\TenantKey::query()->latest('id')->first();
 
         return [
             'name' => fake()->name(),
