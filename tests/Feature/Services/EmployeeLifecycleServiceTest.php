@@ -21,6 +21,19 @@ use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
+function seedEmployeeLifecycleRbac(): void
+{
+    foreach (['employee.read', 'employee.update', 'employee.delete'] as $permissionName) {
+        Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'sanctum']);
+    }
+
+    $employeeRole = Role::firstOrCreate(['name' => 'Employee', 'guard_name' => 'sanctum']);
+    $employeeRole->syncPermissions(['employee.read', 'employee.update']);
+
+    $readOnlyRole = Role::firstOrCreate(['name' => 'Employee Read Only', 'guard_name' => 'sanctum']);
+    $readOnlyRole->syncPermissions(['employee.read']);
+}
+
 /**
  * @property TenantKey $tenant
  * @property OrganizationalUnit $orgUnit
@@ -33,15 +46,7 @@ beforeEach(function () {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
-    Permission::create(['name' => 'employee.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'employee.update', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'employee.delete', 'guard_name' => 'sanctum']);
-
-    $employeeRole = Role::create(['name' => 'Employee', 'guard_name' => 'sanctum']);
-    $employeeRole->givePermissionTo(['employee.read', 'employee.update']);
-
-    $readOnlyRole = Role::create(['name' => 'Employee Read Only', 'guard_name' => 'sanctum']);
-    $readOnlyRole->givePermissionTo(['employee.read']);
+    seedEmployeeLifecycleRbac();
 
     $this->orgUnit = OrganizationalUnit::create([
         'tenant_id' => $this->tenant->id,
@@ -57,6 +62,31 @@ beforeEach(function () {
 afterEach(function () {
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
+});
+
+test('employee lifecycle RBAC bootstrap tolerates pre-seeded permissions and roles', function () {
+    seedEmployeeLifecycleRbac();
+
+    expect(Permission::query()->whereIn('name', [
+        'employee.read',
+        'employee.update',
+        'employee.delete',
+    ])->pluck('name')->all())->toEqualCanonicalizing([
+        'employee.read',
+        'employee.update',
+        'employee.delete',
+    ]);
+
+    $employeeRole = Role::findByName('Employee', 'sanctum');
+    $readOnlyRole = Role::findByName('Employee Read Only', 'sanctum');
+
+    expect($employeeRole->permissions->pluck('name')->all())->toEqualCanonicalizing([
+        'employee.read',
+        'employee.update',
+    ]);
+    expect($readOnlyRole->permissions->pluck('name')->all())->toEqualCanonicalizing([
+        'employee.read',
+    ]);
 });
 
 test('employee lifecycle service activates employee atomically', function () {

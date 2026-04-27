@@ -12,8 +12,26 @@ use App\Models\TenantKey;
 use App\Models\User;
 use App\Policies\QualificationPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class);
+
+function seedQualificationControllerPermissions(): void
+{
+    foreach (['qualification.read', 'qualification.write'] as $permissionName) {
+        Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'sanctum']);
+    }
+}
+
+function resetQualificationControllerRbacState(): void
+{
+    DB::table('role_has_permissions')->delete();
+    DB::table('model_has_roles')->delete();
+    DB::table('model_has_permissions')->delete();
+    DB::table('permissions')->delete();
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+}
 
 /**
  * @property TenantKey $tenant
@@ -26,19 +44,30 @@ beforeEach(function (): void {
     TenantKey::generateKek();
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
+    resetQualificationControllerRbacState();
 
     $this->user = User::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
-    Permission::create(['name' => 'qualification.read', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'qualification.write', 'guard_name' => 'sanctum']);
+    seedQualificationControllerPermissions();
 });
 
 afterEach(function (): void {
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
+});
+
+describe('qualification controller RBAC bootstrap', function () {
+    test('tolerates pre-seeded permissions', function (): void {
+        expect(fn (): mixed => seedQualificationControllerPermissions())->not->toThrow(Exception::class);
+
+        expect(Permission::query()
+            ->where('guard_name', 'sanctum')
+            ->whereIn('name', ['qualification.read', 'qualification.write'])
+            ->count())->toBe(2);
+    });
 });
 
 describe('GET /v1/qualifications', function () {

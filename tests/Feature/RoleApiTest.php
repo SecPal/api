@@ -21,6 +21,43 @@ use function Pest\Laravel\getJson;
 use function Pest\Laravel\patchJson;
 use function Pest\Laravel\postJson;
 
+function seedRoleApiPermissions(): void
+{
+    foreach (['role.assign', 'role.revoke', 'role.read'] as $permissionName) {
+        Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'sanctum']);
+    }
+}
+
+function createRoleApiRole(string $name, string $guardName = 'sanctum'): Role
+{
+    $attributes = [
+        'name' => $name,
+        'guard_name' => $guardName,
+    ];
+
+    $teamForeignKey = config('permission.column_names.team_foreign_key');
+    $teamId = app(PermissionRegistrar::class)->getPermissionsTeamId();
+
+    if (is_string($teamForeignKey) && $teamForeignKey !== '' && $teamId !== null && $guardName === 'sanctum') {
+        $attributes[$teamForeignKey] = $teamId;
+    }
+
+    $role = Role::firstOrCreate($attributes);
+    $role->syncPermissions([]);
+
+    return $role;
+}
+
+function resetRoleApiRbacState(): void
+{
+    DB::table('role_has_permissions')->delete();
+    DB::table('model_has_roles')->delete();
+    DB::table('model_has_permissions')->delete();
+    Role::query()->delete();
+    Permission::query()->delete();
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+}
+
 /**
  * @return array{
  *     tenant: TenantKey,
@@ -40,18 +77,17 @@ function createRoleApiContext(): array
     /** @var PermissionRegistrar $registrar */
     $registrar = app(PermissionRegistrar::class);
     $registrar->setPermissionsTeamId($tenant->id);
+    resetRoleApiRbacState();
 
-    $user = User::factory()->create();
-    $targetUser = User::factory()->create();
-    $role = Role::create(['name' => 'manager', 'guard_name' => 'sanctum']);
+    $user = User::factory()->create(['tenant_id' => $tenant->id]);
+    $targetUser = User::factory()->create(['tenant_id' => $tenant->id]);
+    $role = createRoleApiRole('manager');
 
     $otherTenantKeys = TenantKey::generateEnvelopeKeys();
     $otherTenant = TenantKey::create($otherTenantKeys);
     $crossTenantUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
 
-    Permission::create(['name' => 'role.assign', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'role.revoke', 'guard_name' => 'sanctum']);
-    Permission::create(['name' => 'role.read', 'guard_name' => 'sanctum']);
+    seedRoleApiPermissions();
 
     return [
         'tenant' => $tenant,
@@ -565,9 +601,9 @@ describe('Edge Cases - N+1 Query Prevention', function () {
         $registrar->setPermissionsTeamId($tenant->id);
 
         $roles = [
-            Role::create(['name' => 'admin']),
-            Role::create(['name' => 'editor']),
-            Role::create(['name' => 'viewer']),
+            createRoleApiRole('admin'),
+            createRoleApiRole('editor'),
+            createRoleApiRole('viewer'),
         ];
 
         assignTemporalRole($targetUser, $role, $tenant->id, [

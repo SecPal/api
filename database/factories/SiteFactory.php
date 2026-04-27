@@ -38,8 +38,8 @@ class SiteFactory extends Factory
      */
     public function definition(): array
     {
-        // Get or create tenant for testing
-        $tenant = TenantKey::first();
+        // Get or create the most recently created tenant for testing.
+        $tenant = TenantKey::query()->latest('id')->first();
         if (! $tenant) {
             if (! file_exists(TenantKey::getKekPath())) {
                 TenantKey::generateKek();

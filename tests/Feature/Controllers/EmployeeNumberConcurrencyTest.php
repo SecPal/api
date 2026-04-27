@@ -14,6 +14,14 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\PermissionRegistrar;
 
+uses()->group('serial');
+
+function refreshEmployeeNumberConcurrencyDatabase(): void
+{
+    Artisan::call('migrate:fresh', ['--force' => true]);
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+}
+
 /**
  * @property TenantKey $tenant
  * @property User $user
@@ -21,7 +29,7 @@ use Spatie\Permission\PermissionRegistrar;
  * @property OrganizationalUnit $organizationalUnit
  */
 beforeEach(function (): void {
-    Artisan::call('migrate:fresh', ['--force' => true]);
+    refreshEmployeeNumberConcurrencyDatabase();
 
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
@@ -45,6 +53,7 @@ beforeEach(function (): void {
 
 afterEach(function (): void {
     app(PermissionRegistrar::class)->setPermissionsTeamId(null);
+    refreshEmployeeNumberConcurrencyDatabase();
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });

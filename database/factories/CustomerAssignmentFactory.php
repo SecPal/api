@@ -34,7 +34,7 @@ class CustomerAssignmentFactory extends Factory
      */
     public function definition(): array
     {
-        $tenant = TenantKey::first();
+        $tenant = TenantKey::query()->latest('id')->first();
         if (! $tenant) {
             if (! file_exists(TenantKey::getKekPath())) {
                 TenantKey::generateKek();
