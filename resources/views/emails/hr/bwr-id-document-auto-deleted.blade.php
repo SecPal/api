@@ -4,7 +4,7 @@
 <x-mail::message>
 # {{ __('ID Document Copy Deleted After BWR Approval') }}
 
-{{ __('The stored ID document copy for the following employee was deleted automatically because BWR approval made continued storage unnecessary.') }}
+{{ __('The stored ID document copy for the following employee was deleted automatically because BWR approval made continued storage no longer necessary.') }}
 
 ## {{ __('Employee Information') }}
 

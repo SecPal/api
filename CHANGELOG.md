@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- applied the remaining `api#935` test and copy cleanups by extracting reused employee-controller and concurrency helpers, making BewachV retention assertions date-relative, strengthening tenant-isolation role-validation fixtures, and aligning the BWR ID-document auto-deletion email wording with its mail coverage
 - made the employee lifecycle, qualification-controller, employee-observer, and serial concurrency test fixtures self-cleaning and idempotent, while `TenantSetupCommandTest` now explicitly resets leaked tenant-key state and the role-management plus temporal-role API fixtures tolerate pre-seeded `sanctum` RBAC state, so leaked permissions, roles, tenant keys, or concurrency-test rows no longer poison later full-suite runs (fixes `api#972`)
 - scoped `POST /v1/organizational-units/{organizational_unit}/parent` parent validation to the authenticated tenant and excluded soft-deleted organizational units, so cross-tenant and deleted `parent_id` probes now fail validation instead of leaking existence through later `403` or `404` responses (fixes `api#966`)
 - made the RBAC test bootstraps in `RoleManagementApiTest` and `UserPermissionAssignmentApiTest` seed permissions and tenant-scoped roles idempotently, so repeated or pre-seeded `sanctum` contexts no longer fail with duplicate-role or duplicate-permission exceptions during targeted validation and the full-suite rerun for `api#938`

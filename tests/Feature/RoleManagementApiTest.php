@@ -229,8 +229,29 @@ describe('POST /v1/roles - Create Role', function () {
     });
 
     test('ignores spoofed tenant input when validating role creation uniqueness', function (): void {
-        createRoleManagementRole('Manager');
+        $manager = createRoleManagementRole('Manager');
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+        $this->registrar->setPermissionsTeamId($otherTenant->id);
+        $otherTenantManager = createRoleManagementRole('Manager');
+        $this->registrar->setPermissionsTeamId($this->tenant->id);
+        $this->registrar->forgetCachedPermissions();
+
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $manager->tenant_id)
+            ->exists())->toBeTrue();
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $otherTenantManager->tenant_id)
+            ->exists())->toBeTrue();
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->whereIn('tenant_id', [$manager->tenant_id, $otherTenantManager->tenant_id])
+            ->count())->toBe(2);
 
         $request = CreateRoleRequest::create('/v1/roles', 'POST', [
             'name' => 'Manager',
@@ -447,11 +468,32 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
     });
 
     test('ignores spoofed tenant input when validating role updates', function (): void {
-        createRoleManagementRole('Manager');
+        $manager = createRoleManagementRole('Manager');
         createRoleManagementRole('Guard');
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
 
-        $request = UpdateRoleRequest::create('/v1/roles/1', 'PATCH', [
+        $this->registrar->setPermissionsTeamId($otherTenant->id);
+        $otherTenantManager = createRoleManagementRole('Manager');
+        $this->registrar->setPermissionsTeamId($this->tenant->id);
+        $this->registrar->forgetCachedPermissions();
+
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $manager->tenant_id)
+            ->exists())->toBeTrue();
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->where('tenant_id', $otherTenantManager->tenant_id)
+            ->exists())->toBeTrue();
+        expect(Role::query()
+            ->where('name', 'Manager')
+            ->where('guard_name', 'sanctum')
+            ->whereIn('tenant_id', [$manager->tenant_id, $otherTenantManager->tenant_id])
+            ->count())->toBe(2);
+
+        $request = UpdateRoleRequest::create("/v1/roles/{$manager->id}", 'PATCH', [
             'name' => 'Manager',
             'tenant_id' => $otherTenant->id,
         ]);

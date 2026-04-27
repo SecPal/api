@@ -6,6 +6,7 @@
 use App\Models\Employee;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Models\Activity;
@@ -149,32 +150,41 @@ test('it deletes work permit copy when permit becomes permanent', function () {
 });
 
 test('it calculates retention period when employee is terminated', function () {
+    $terminationDate = Carbon::parse(now()->subMonths(6)->toDateString());
+    $retentionPeriodEnd = $terminationDate->copy()->endOfYear()->addYears(3);
+
     $employee = Employee::factory()->create(['status' => Employee::STATUS_ACTIVE]);
 
     $employee->status = Employee::STATUS_TERMINATED;
-    $employee->termination_date = '2024-06-15';
+    $employee->termination_date = $terminationDate->toDateString();
     $employee->save();
 
     $employee->refresh();
-    expect($employee->employment_end_date->toDateString())->toEqual('2024-06-15')
-        ->and($employee->retention_period_end->toDateString())->toEqual('2027-12-31');
+    expect($employee->employment_end_date->toDateString())->toEqual($terminationDate->toDateString())
+        ->and($employee->retention_period_end->toDateString())->toEqual($retentionPeriodEnd->toDateString());
 });
 
 test('it calculates retention period for year end termination', function () {
+    $terminationDate = Carbon::parse(now()->subYear()->endOfYear()->toDateString());
+    $retentionPeriodEnd = $terminationDate->copy()->endOfYear()->addYears(3);
+
     $employee = Employee::factory()->create(['status' => Employee::STATUS_ACTIVE]);
 
     $employee->status = Employee::STATUS_TERMINATED;
-    $employee->termination_date = '2024-12-31';
+    $employee->termination_date = $terminationDate->toDateString();
     $employee->save();
 
-    expect($employee->fresh()->retention_period_end->toDateString())->toEqual('2027-12-31');
+    expect($employee->fresh()->retention_period_end->toDateString())->toEqual($retentionPeriodEnd->toDateString());
 });
 
 test('it logs retention period calculation with legal basis', function () {
+    $terminationDate = Carbon::parse(now()->subMonths(6)->toDateString());
+    $retentionPeriodEnd = $terminationDate->copy()->endOfYear()->addYears(3);
+
     $employee = Employee::factory()->create(['status' => Employee::STATUS_ACTIVE]);
 
     $employee->status = Employee::STATUS_TERMINATED;
-    $employee->termination_date = '2024-06-15';
+    $employee->termination_date = $terminationDate->toDateString();
     $employee->save();
 
     $activity = Activity::where('subject_id', $employee->id)
@@ -184,8 +194,8 @@ test('it logs retention period calculation with legal basis', function () {
 
     expect($activity)->not->toBeNull()
         ->and($activity->properties->get('action'))->toEqual('retention_period_calculated')
-        ->and($activity->properties->get('employment_end_date'))->toEqual('2024-06-15')
-        ->and($activity->properties->get('retention_period_end'))->toEqual('2027-12-31')
+        ->and($activity->properties->get('employment_end_date'))->toEqual($terminationDate->toDateString())
+        ->and($activity->properties->get('retention_period_end'))->toEqual($retentionPeriodEnd->toDateString())
         ->and($activity->properties->get('legal_basis'))->toContain('BewachV');
 });
 
@@ -203,6 +213,9 @@ test('it does not calculate retention when termination date is null', function (
 });
 
 test('it handles both bwr activation and termination in same update', function () {
+    $terminationDate = Carbon::parse(now()->subMonths(6)->toDateString());
+    $retentionPeriodEnd = $terminationDate->copy()->endOfYear()->addYears(3);
+
     Storage::put('id_documents/doc.pdf', 'test');
     $employee = Employee::factory()->create(['status' => Employee::STATUS_ACTIVE, 'bwr_status' => 'pending', 'id_document_copy_path' => 'id_documents/doc.pdf']);
 
@@ -211,7 +224,7 @@ test('it handles both bwr activation and termination in same update', function (
     $employee->save();
 
     $employee->status = Employee::STATUS_TERMINATED;
-    $employee->termination_date = '2024-06-15';
+    $employee->termination_date = $terminationDate->toDateString();
     $employee->save();
 
     // Refresh from DB
@@ -219,7 +232,7 @@ test('it handles both bwr activation and termination in same update', function (
 
     expect($employee->id_document_copy_deleted_at)->not->toBeNull()
         ->and($employee->retention_period_end)->not->toBeNull()
-        ->and($employee->retention_period_end->toDateString())->toEqual('2027-12-31')
+        ->and($employee->retention_period_end->toDateString())->toEqual($retentionPeriodEnd->toDateString())
         ->and($employee->employment_end_date)->not->toBeNull()
-        ->and($employee->employment_end_date->toDateString())->toEqual('2024-06-15');
+        ->and($employee->employment_end_date->toDateString())->toEqual($terminationDate->toDateString());
 });

@@ -72,6 +72,26 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
+function grantDualManagementScopes(User $user, string $organizationalUnitId): void
+{
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $organizationalUnitId,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'allow_self_access' => true,
+    ]);
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $organizationalUnitId,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 255,
+        'allow_self_access' => true,
+    ]);
+}
+
 describe('GET /v1/employees', function () {
     test('returns 401 when not authenticated', function (): void {
         $response = $this->getJson('/v1/employees');
@@ -905,22 +925,7 @@ describe('GET /v1/employees/{employee}', function () {
         // We intentionally create two non-overlapping rank scopes (ADR-009):
         // one for Guards (0-0) and one for Leadership (1-255). A single scope
         // cannot model both cohorts without either excluding one group or broadening access.
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0, // Guards only
-            'allow_self_access' => true,
-        ]);
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 1,
-            'max_viewable_rank' => 255, // Leadership only
-            'allow_self_access' => true,
-        ]);
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -1096,22 +1101,7 @@ describe('PATCH /v1/employees/{employee}', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
         // Need TWO scopes: 0-0 for Guards + 1-255 for Leadership (ADR-009)
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0, // Guards only
-            'allow_self_access' => true,
-        ]);
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 1,
-            'max_viewable_rank' => 255, // Leadership only
-            'allow_self_access' => true,
-        ]);
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -1131,22 +1121,7 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects direct status changes via patch', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 1,
-            'max_viewable_rank' => 255,
-            'allow_self_access' => true,
-        ]);
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -1168,22 +1143,7 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects null status via patch', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 1,
-            'max_viewable_rank' => 255,
-            'allow_self_access' => true,
-        ]);
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -1205,22 +1165,7 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects direct bwr field changes via patch and preserves audit trail invariants', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 1,
-            'max_viewable_rank' => 255,
-            'allow_self_access' => true,
-        ]);
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -1264,22 +1209,7 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects direct retention field changes via patch', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 1,
-            'max_viewable_rank' => 255,
-            'allow_self_access' => true,
-        ]);
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
