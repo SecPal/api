@@ -252,6 +252,31 @@ describe('OrganizationalScopeController', function () {
 
             $response->assertNotFound();
         });
+
+        it('prevents a user from downgrading their own last scope-management access for a unit', function (): void {
+            $selfManagingUser = User::factory()->create();
+            $scope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'admin',
+                'include_descendants' => false,
+            ]);
+
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
+                'access_level' => 'manage',
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot remove your own last scope-management access for this organizational unit.');
+
+            $this->assertDatabaseHas('user_internal_organizational_scopes', [
+                'id' => $scope->id,
+                'access_level' => 'admin',
+            ]);
+        });
+
     });
 
     describe('destroy - DELETE /organizational-units/{unit}/scopes/{scope}', function () {
@@ -293,6 +318,48 @@ describe('OrganizationalScopeController', function () {
             $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/00000000-0000-0000-0000-000000000000");
 
             $response->assertNotFound();
+        });
+
+        it('prevents a user from deleting their own last scope-management access for a unit', function (): void {
+            $selfManagingUser = User::factory()->create();
+            $scope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'admin',
+                'include_descendants' => false,
+            ]);
+
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}");
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot remove your own last scope-management access for this organizational unit.');
+
+            $this->assertDatabaseHas('user_internal_organizational_scopes', [
+                'id' => $scope->id,
+            ]);
+        });
+
+        it('allows deleting a self scope when another admin path still exists', function (): void {
+            $scope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->adminUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'admin',
+                'include_descendants' => false,
+            ]);
+
+            $this->actingAs($this->adminUser);
+
+            $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}");
+
+            $response->assertNoContent();
+
+            $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+                'id' => $scope->id,
+            ]);
+
+            expect($this->adminUser->fresh()->hasAccessToUnit($this->company, 'admin'))->toBeTrue();
         });
     });
 

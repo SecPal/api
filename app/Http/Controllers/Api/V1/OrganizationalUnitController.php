@@ -177,10 +177,10 @@ class OrganizationalUnitController extends Controller
             /** @var OrganizationalUnit $parent */
             $parent = OrganizationalUnit::findOrFail($parentId);
             $unit->setParent($parent);
+            $this->ensureActorCanAccessChildUnit($request, $parent, $unit);
         } else {
             // Root unit created: Auto-assign admin scope to creator
             // This ensures the creator can see and manage their new unit
-            // Child units inherit access via parent's include_descendants setting
             /** @var \App\Models\User $user */
             $user = $request->user();
             UserInternalOrganizationalScope::create([
@@ -194,6 +194,57 @@ class OrganizationalUnitController extends Controller
         return response()->json([
             'data' => new OrganizationalUnitResource($unit),
         ], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Ensure the acting user retains access to a child unit after hierarchy changes.
+     *
+     * Users may be allowed to create under a parent via a direct scope that does
+     * not include descendants. The same pattern can happen when moving an
+     * existing child under a new parent. In both cases the affected unit would
+     * otherwise disappear from list/detail/update operations immediately after
+     * the successful response.
+     */
+    private function ensureActorCanAccessChildUnit(Request $request, OrganizationalUnit $parent, OrganizationalUnit $unit): void
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        if ($user->hasAccessToUnit($unit, 'read')) {
+            return;
+        }
+
+        $relevantAncestorIds = OrganizationalUnitClosure::where('descendant_id', $parent->id)
+            ->pluck('ancestor_id');
+
+        $creatorScope = $user->organizationalScopes()
+            ->where(function ($query) use ($parent, $relevantAncestorIds): void {
+                $query->where('organizational_unit_id', $parent->id)
+                    ->orWhere(function ($descendantQuery) use ($relevantAncestorIds): void {
+                        $descendantQuery
+                            ->whereIn('organizational_unit_id', $relevantAncestorIds)
+                            ->where('include_descendants', true);
+                    });
+            })
+            ->get()
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('manage'))
+            ->sortByDesc(fn (UserInternalOrganizationalScope $scope): int => $scope->getAccessLevelValue())
+            ->first();
+
+        if ($creatorScope === null) {
+            return;
+        }
+
+        UserInternalOrganizationalScope::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'organizational_unit_id' => $unit->id,
+            ],
+            [
+                'access_level' => $creatorScope->access_level,
+                'include_descendants' => false,
+            ]
+        );
     }
 
     /**
@@ -313,6 +364,7 @@ class OrganizationalUnitController extends Controller
         $this->authorize('create', $parent);
 
         $organizational_unit->setParent($parent);
+        $this->ensureActorCanAccessChildUnit($request, $parent, $organizational_unit);
 
         return response()->json([
             'data' => new OrganizationalUnitResource($organizational_unit->fresh()),

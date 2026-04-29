@@ -395,6 +395,46 @@ describe('OrganizationalUnitController - Create', function () {
 
     });
 
+    test('creator keeps direct access to a newly created child unit when parent scope does not include descendants', function () {
+        $this->user->organizationalScopes()->delete();
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $this->rootUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+        ]);
+
+        $createResponse = postJson('/v1/organizational-units', [
+            'name' => 'Field Team Alpha',
+            'type' => 'department',
+            'parent_id' => $this->rootUnit->id,
+        ]);
+
+        $createResponse->assertCreated();
+
+        $childUnitId = $createResponse->json('data.id');
+
+        $this->assertDatabaseHas('user_internal_organizational_scopes', [
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $childUnitId,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+        ]);
+
+        getJson('/v1/organizational-units')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $childUnitId,
+                'name' => 'Field Team Alpha',
+            ]);
+
+        patchJson("/v1/organizational-units/{$childUnitId}", [
+            'description' => 'Updated after create',
+        ])->assertOk()
+            ->assertJsonPath('data.description', 'Updated after create');
+    });
+
     // Issue #301: Hierarchy Validation Tests
     test('cannot create company under branch (hierarchy violation)', function () {
         // Arrange: Create a branch as parent
@@ -1112,6 +1152,60 @@ describe('OrganizationalUnitController - Hierarchy', function () {
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['parent_id']);
+    });
+
+    test('user keeps access to a moved unit when the new parent scope does not include descendants', function () {
+        $alternateRoot = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Alternate Root',
+            'type' => 'company',
+        ]);
+
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Transfer Unit',
+            'type' => 'department',
+        ]);
+        $child->setParent($this->rootUnit);
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $alternateRoot->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+        ]);
+
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+
+        $response = postJson("/v1/organizational-units/{$child->id}/parent", [
+            'parent_id' => $alternateRoot->id,
+        ]);
+
+        $response->assertOk();
+
+        $this->assertDatabaseHas('user_internal_organizational_scopes', [
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $child->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+        ]);
+
+        $this->user->refresh();
+        $child->refresh();
+
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+
+        getJson('/v1/organizational-units')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $child->id,
+                'name' => 'Transfer Unit',
+            ]);
+
+        patchJson("/v1/organizational-units/{$child->id}", [
+            'description' => 'Updated after move',
+        ])->assertOk()
+            ->assertJsonPath('data.description', 'Updated after move');
     });
 
     test('user can detach parent from unit when they have direct scope', function () {
