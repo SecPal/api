@@ -284,7 +284,13 @@ class OrganizationalScopeController extends Controller
     /**
      * Evaluate minimum access for a unit using an in-memory scope collection.
      *
-     * Mirrors the current direct-scope-first access semantics from User::hasAccessToUnit().
+     * This intentionally mirrors the direct-scope-first access semantics of
+     * User::hasAccessToUnit() but operates on a caller-supplied collection instead
+     * of querying the database. This allows the lockout check to simulate
+     * post-modification state (e.g. after a scope is removed or downgraded)
+     * without mutating data or making additional DB calls.
+     *
+     * See api#982 for a tracked refactoring to unify this with User::hasAccessToUnit().
      *
      * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
      */

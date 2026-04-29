@@ -197,13 +197,19 @@ class OrganizationalUnitController extends Controller
     }
 
     /**
-     * Ensure the acting user retains access to a child unit after hierarchy changes.
+     * Ensure the acting user retains at least read visibility to a child unit after hierarchy changes.
      *
      * Users may be allowed to create under a parent via a direct scope that does
      * not include descendants. The same pattern can happen when moving an
      * existing child under a new parent. In both cases the affected unit would
-     * otherwise disappear from list/detail/update operations immediately after
+     * otherwise disappear from list/detail operations immediately after
      * the successful response.
+     *
+     * If the actor already has any access to the unit (even read-only), their existing
+     * scope is preserved as-is. A new scope is only granted when the actor would
+     * otherwise lose all visibility, in which case access is inherited from their
+     * highest-level manage-or-above scope on the parent. Explicitly granted
+     * lower-level scopes are intentionally not escalated.
      */
     private function ensureActorCanAccessChildUnit(Request $request, OrganizationalUnit $parent, OrganizationalUnit $unit): void
     {
