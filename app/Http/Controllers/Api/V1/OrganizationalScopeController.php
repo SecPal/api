@@ -10,10 +10,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreOrganizationalScopeRequest;
 use App\Http\Requests\UpdateOrganizationalScopeRequest;
 use App\Models\OrganizationalUnit;
+use App\Models\OrganizationalUnitClosure;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 
 /**
  * OrganizationalScopeController handles CRUD operations for user organizational scope assignments.
@@ -31,6 +33,8 @@ use Illuminate\Http\Response;
  */
 class OrganizationalScopeController extends Controller
 {
+    private const SELF_SCOPE_LOCKOUT_MESSAGE = 'You cannot remove your own last scope-management access for this organizational unit.';
+
     /**
      * Transform a scope to API response format.
      *
@@ -125,6 +129,9 @@ class OrganizationalScopeController extends Controller
     {
         $this->authorize('manageScopes', $organizational_unit);
 
+        /** @var User $actor */
+        $actor = $request->user();
+
         // Load scope manually since route model binding doesn't auto-resolve nested models
         $scopeModel = UserInternalOrganizationalScope::find($scope);
 
@@ -142,6 +149,17 @@ class OrganizationalScopeController extends Controller
         }
         /** @var array{access_level?: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();
+
+        $lockoutResponse = $this->preventSelfScopeManagementLockout(
+            $actor,
+            $organizational_unit,
+            $scopeModel,
+            $validated,
+        );
+
+        if ($lockoutResponse !== null) {
+            return $lockoutResponse;
+        }
 
         if (isset($validated['access_level'])) {
             $scopeModel->access_level = $validated['access_level'];
@@ -186,6 +204,9 @@ class OrganizationalScopeController extends Controller
     {
         $this->authorize('manageScopes', $organizational_unit);
 
+        /** @var User $actor */
+        $actor = request()->user();
+
         // Load scope manually since route model binding doesn't auto-resolve nested models
         $scopeModel = UserInternalOrganizationalScope::find($scope);
 
@@ -201,9 +222,126 @@ class OrganizationalScopeController extends Controller
                 'message' => __('Scope not found for this organizational unit'),
             ], 404);
         }
+
+        $lockoutResponse = $this->preventSelfScopeManagementLockout(
+            $actor,
+            $organizational_unit,
+            $scopeModel,
+            deleteScope: true,
+        );
+
+        if ($lockoutResponse !== null) {
+            return $lockoutResponse;
+        }
+
         $scopeModel->delete();
 
         return response()->noContent();
+    }
+
+    /**
+     * Prevent a user from removing their own last admin path for scope management on the unit.
+     *
+     * @param  array<string, mixed>  $pendingAttributes
+     */
+    private function preventSelfScopeManagementLockout(
+        User $actor,
+        OrganizationalUnit $organizationalUnit,
+        UserInternalOrganizationalScope $scopeModel,
+        array $pendingAttributes = [],
+        bool $deleteScope = false,
+    ): ?JsonResponse {
+        if ($scopeModel->user_id !== $actor->id) {
+            return null;
+        }
+
+        /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
+        $scopes = $actor->organizationalScopes()->get()->values();
+
+        $simulatedScopes = $scopes
+            ->reject(fn (UserInternalOrganizationalScope $scope) => $scope->id === $scopeModel->id)
+            ->values();
+
+        if (! $deleteScope) {
+            $simulatedScope = clone $scopeModel;
+
+            foreach ($pendingAttributes as $attribute => $value) {
+                $simulatedScope->{$attribute} = $value;
+            }
+
+            $simulatedScopes->push($simulatedScope);
+        }
+
+        if ($this->scopesHaveMinimumAccessToUnit($simulatedScopes, $organizationalUnit, 'admin')) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => __(self::SELF_SCOPE_LOCKOUT_MESSAGE),
+        ], Response::HTTP_FORBIDDEN);
+    }
+
+    /**
+     * Evaluate minimum access for a unit using an in-memory scope collection.
+     *
+     * This intentionally mirrors the direct-scope-first access semantics of
+     * User::hasAccessToUnit() but operates on a caller-supplied collection instead
+     * of querying the database. This allows the lockout check to simulate
+     * post-modification state (e.g. after a scope is removed or downgraded)
+     * without mutating data or making additional DB calls.
+     *
+     * See api#982 for a tracked refactoring to unify this with User::hasAccessToUnit().
+     *
+     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
+     */
+    private function scopesHaveMinimumAccessToUnit(
+        Collection $scopes,
+        OrganizationalUnit $organizationalUnit,
+        string $minimumLevel,
+    ): bool {
+        if ($scopes->isEmpty()) {
+            return false;
+        }
+
+        /** @var Collection<int, string> $directScopeUnitIds */
+        $directScopeUnitIds = collect();
+        /** @var Collection<int, string> $descendantScopeUnitIds */
+        $descendantScopeUnitIds = collect();
+
+        foreach ($scopes as $scope) {
+            $directScopeUnitIds->push($scope->organizational_unit_id);
+
+            if ($scope->include_descendants) {
+                $descendantScopeUnitIds->push($scope->organizational_unit_id);
+            }
+        }
+
+        $isDirectlyScoped = $directScopeUnitIds->contains($organizationalUnit->id);
+
+        $ancestorScopeId = null;
+        if (! $isDirectlyScoped && $descendantScopeUnitIds->isNotEmpty()) {
+            $ancestorScopeId = OrganizationalUnitClosure::whereIn('ancestor_id', $descendantScopeUnitIds->unique())
+                ->where('descendant_id', $organizationalUnit->id)
+                ->where('depth', '>', 0)
+                ->value('ancestor_id');
+        }
+
+        $applicableScope = null;
+        if ($isDirectlyScoped) {
+            $applicableScope = $scopes->first(
+                fn (UserInternalOrganizationalScope $scope) => $scope->organizational_unit_id === $organizationalUnit->id,
+            );
+        } elseif ($ancestorScopeId !== null) {
+            $applicableScope = $scopes->first(
+                fn (UserInternalOrganizationalScope $scope) => $scope->organizational_unit_id === $ancestorScopeId && $scope->include_descendants,
+            );
+        }
+
+        if (! $applicableScope instanceof UserInternalOrganizationalScope) {
+            return false;
+        }
+
+        return $applicableScope->hasMinimumAccessLevel($minimumLevel);
     }
 
     /**
