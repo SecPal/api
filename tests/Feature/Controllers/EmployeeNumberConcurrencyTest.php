@@ -57,6 +57,9 @@ beforeEach(function (): void {
     $this->organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
+
+    giveOrganizationalScope($this->user, $this->organizationalUnit, 0, 0, 0, 0);
+    giveOrganizationalScope($this->user, $this->organizationalUnit, 1, 255, 1, 255);
 });
 
 afterEach(function (): void {
