@@ -41,7 +41,7 @@ class EnsureNotPreContract
         /** @var Employee|null $employee */
         $employee = $user->employee()->first();
 
-        // If user has no employee record, allow access (might be admin/HR without employee record)
+        // If user has no employee record, allow access (might be HR or another privileged operator)
         if ($employee === null) {
             return $next($request);
         }

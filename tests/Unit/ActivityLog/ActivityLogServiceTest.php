@@ -107,10 +107,10 @@ test('logUserMfaEvent creates authentication log for self-service MFA actions', 
         ->and($activity->properties['method'])->toBe('totp');
 });
 
-test('logAdminMfaReset creates authentication log with actor and target attribution', function (): void {
+test('logPrivilegedMfaReset creates authentication log with actor and target attribution', function (): void {
     $targetUser = User::factory()->create();
 
-    $activity = $this->service->logAdminMfaReset(
+    $activity = $this->service->logPrivilegedMfaReset(
         $this->user,
         $targetUser,
         'Lost authenticator device',
@@ -119,10 +119,10 @@ test('logAdminMfaReset creates authentication log with actor and target attribut
 
     expect($activity)->toBeInstanceOf(Activity::class)
         ->and($activity->log_name)->toBe('authentication')
-        ->and($activity->description)->toBe('Admin reset multi-factor authentication')
+        ->and($activity->description)->toBe('Privileged user reset multi-factor authentication')
         ->and($activity->causer_id)->toBe((string) $this->user->id)
         ->and($activity->subject_id)->toBe((string) $targetUser->id)
-        ->and($activity->properties['event'])->toBe('mfa_reset_by_admin')
+        ->and($activity->properties['event'])->toBe('mfa_reset_by_privileged_user')
         ->and($activity->properties['target_user_id'])->toBe($targetUser->id)
         ->and($activity->properties['reason'])->toBe('Lost authenticator device')
         ->and($activity->properties['had_pending_enrollment'])->toBeFalse();

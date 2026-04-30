@@ -25,7 +25,6 @@ use Illuminate\Support\Facades\Schema;
  * - read: Can view the unit and its data
  * - write: Can modify data within the unit
  * - manage: Can manage the unit structure
- * - admin: Full administrative access
  *
  * @see https://github.com/SecPal/.github/blob/main/docs/adr/20251126-organizational-structure-hierarchy.md
  */
@@ -46,7 +45,7 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             // Access level for this user-unit pair
-            $table->enum('access_level', ['none', 'read', 'write', 'manage', 'admin'])->default('read');
+            $table->enum('access_level', ['none', 'read', 'write', 'manage'])->default('read');
             $table->boolean('include_descendants')->default(false);
 
             // Unique constraint: One scope entry per user-unit pair

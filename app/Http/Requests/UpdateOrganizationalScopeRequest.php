@@ -22,7 +22,7 @@ class UpdateOrganizationalScopeRequest extends FormRequest
      *
      * @var array<string>
      */
-    private const VALID_ACCESS_LEVELS = ['none', 'read', 'write', 'manage', 'admin'];
+    private const VALID_ACCESS_LEVELS = ['none', 'read', 'write', 'manage'];
 
     /**
      * Determine if the user is authorized to make this request.
@@ -103,7 +103,7 @@ class UpdateOrganizationalScopeRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'access_level.in' => 'The access level must be one of: none, read, write, manage, admin.',
+            'access_level.in' => 'The access level must be one of: none, read, write, manage.',
         ];
     }
 

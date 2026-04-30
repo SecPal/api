@@ -21,15 +21,14 @@ use Illuminate\Support\Collection;
  * OrganizationalScopeController handles CRUD operations for user organizational scope assignments.
  *
  * This controller manages which users have access to which organizational units
- * and at what access level. All operations require 'admin' access level on the
+ * and at what access level. All operations require 'manage' access level on the
  * target organizational unit.
  *
  * Access Level Hierarchy:
  * - none (0): No access
  * - read (1): View only
  * - write (2): Can update
- * - manage (3): Can create children and manage structure
- * - admin (4): Full control including scope management
+ * - manage (3): Full control including scope management
  */
 class OrganizationalScopeController extends Controller
 {
@@ -240,7 +239,7 @@ class OrganizationalScopeController extends Controller
     }
 
     /**
-     * Prevent a user from removing their own last admin path for scope management on the unit.
+     * Prevent a user from removing their own last scope-management path on the unit.
      *
      * @param  array<string, mixed>  $pendingAttributes
      */
@@ -272,7 +271,7 @@ class OrganizationalScopeController extends Controller
             $simulatedScopes->push($simulatedScope);
         }
 
-        if ($this->scopesHaveMinimumAccessToUnit($simulatedScopes, $organizationalUnit, 'admin')) {
+        if ($this->scopesHaveMinimumAccessToUnit($simulatedScopes, $organizationalUnit, 'manage')) {
             return null;
         }
 

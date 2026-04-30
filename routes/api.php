@@ -165,17 +165,17 @@ Route::prefix('v1')->group(function () {
                 ->middleware('permission:role.assign');
 
             // User Direct Permission Assignment API (RBAC Phase 4)
-            // Authorization: Policy-based (users can view own, Admin can view all/modify)
+            // Authorization: Policy-based (users can view own, privileged users can view all/modify)
             Route::get('/users/{user}/permissions', [UserPermissionController::class, 'index']);
-            // Authorization: Route-level permission middleware + Policy (Admin only)
+            // Authorization: Route-level permission middleware + Policy (dedicated permission required)
             Route::post('/users/{user}/permissions', [UserPermissionController::class, 'store'])
                 ->middleware('permission:permissions.assign_direct');
             Route::delete('/users/{user}/permissions/{permission}', [UserPermissionController::class, 'destroy'])
                 ->middleware('permission:permissions.revoke_direct');
-            // Authorization: Policy-based (users can view own, Admin can view all)
+            // Authorization: Policy-based (users can view own, privileged users can view all)
             Route::get('/users/{user}/permissions/direct', [UserPermissionController::class, 'direct']);
-            Route::delete('/users/{user}/mfa', [AuthController::class, 'adminResetMfa'])
-                ->middleware(['permission:users.reset_mfa', 'throttle:mfa-admin-reset']);
+            Route::delete('/users/{user}/mfa', [AuthController::class, 'resetUserMfa'])
+                ->middleware(['permission:users.reset_mfa', 'throttle:mfa-user-reset']);
 
             // Tenant-scoped Person endpoints
             Route::prefix('tenants/{tenant}')->middleware('tenant')->group(function () {
@@ -186,10 +186,10 @@ Route::prefix('v1')->group(function () {
             });
 
             // Organizational Unit Scope Management (RBAC Issue #234)
-            // Defense-in-depth: Middleware pre-checks admin access, controller uses policy for authorization
+            // Defense-in-depth: Middleware pre-checks scope-management access, controller uses policy for authorization
             Route::get('/me/organizational-scopes', [OrganizationalScopeController::class, 'myScopes']);
             Route::prefix('organizational-units/{organizational_unit}')
-                ->middleware('check.organizational.scope:admin')
+                ->middleware('check.organizational.scope:manage')
                 ->group(function () {
                     Route::get('/scopes', [OrganizationalScopeController::class, 'index']);
                     Route::post('/scopes', [OrganizationalScopeController::class, 'store']);
@@ -343,7 +343,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/onboarding/submissions/{submission}/files', [OnboardingController::class, 'uploadSubmissionFile']);
             Route::get('/onboarding/completion-status', [OnboardingController::class, 'getCompletionStatus']);
 
-            // HR admin endpoints
+            // HR approval endpoints
             Route::post('/admin/onboarding/submissions/{submission}/approve', [OnboardingController::class, 'approveSubmission']);
             Route::post('/admin/onboarding/submissions/{submission}/reject', [OnboardingController::class, 'rejectSubmission']);
             Route::post('/admin/onboarding/employees/{employee}/confirm', [OnboardingController::class, 'confirmEmployeeOnboarding']);

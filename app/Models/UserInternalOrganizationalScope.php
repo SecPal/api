@@ -22,18 +22,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * - none: No access (can be used to explicitly deny)
  * - read: View data only
  * - write: View and modify data
- * - manage: Full CRUD + team management
- * - admin: All permissions including configuration
+ * - manage: Full CRUD including scope and configuration management
  *
  * @property string $id UUID primary key
  * @property string $user_id UUID of the user
  * @property string $organizational_unit_id UUID of the organizational unit
- * @property string $access_level Enum: none, read, write, manage, admin
+ * @property string $access_level Enum: none, read, write, manage
  * @property bool $include_descendants Whether access extends to all descendants
  * @property int|null $min_viewable_rank Minimum leadership rank user can view (NULL = no minimum)
  * @property int|null $max_viewable_rank Maximum leadership rank user can view (NULL/0 = ONLY non-leadership employees)
  * @property int|null $min_assignable_rank Minimum leadership rank user can assign/remove (NULL = no minimum)
- * @property int|null $max_assignable_rank Maximum leadership rank user can assign/remove (NULL/0 = cannot assign/remove ANY leadership)
+ * @property int|null $max_assignable_rank Maximum leadership rank user can assign/remove (0 = guards only, NULL = no upper-bound for leadership)
  * @property bool $allow_self_access Allow user to view/edit own employee HR data (default: false for security)
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
@@ -89,7 +88,6 @@ class UserInternalOrganizationalScope extends Model
         'read' => 1,
         'write' => 2,
         'manage' => 3,
-        'admin' => 4,
     ];
 
     /**
@@ -142,12 +140,16 @@ class UserInternalOrganizationalScope extends Model
     /**
      * Check if this scope has at least the specified minimum access level.
      *
-     * Access levels are ordered: none < read < write < manage < admin
+     * Access levels are ordered: none < read < write < manage
      */
     public function hasMinimumAccessLevel(string $minimumLevel): bool
     {
+        if (! array_key_exists($minimumLevel, self::ACCESS_LEVELS)) {
+            return false;
+        }
+
         $currentLevel = self::ACCESS_LEVELS[$this->access_level] ?? 0;
-        $requiredLevel = self::ACCESS_LEVELS[$minimumLevel] ?? 0;
+        $requiredLevel = self::ACCESS_LEVELS[$minimumLevel];
 
         return $currentLevel >= $requiredLevel;
     }
@@ -158,5 +160,50 @@ class UserInternalOrganizationalScope extends Model
     public function getAccessLevelValue(): int
     {
         return self::ACCESS_LEVELS[$this->access_level] ?? 0;
+    }
+
+    /**
+     * Determine whether this scope can view the given employee management level.
+     */
+    public function canViewManagementLevel(int $managementLevel): bool
+    {
+        return $this->isWithinManagementLevelRange(
+            $managementLevel,
+            $this->min_viewable_rank,
+            $this->max_viewable_rank,
+        );
+    }
+
+    /**
+     * Determine whether this scope can assign the given employee management level.
+     */
+    public function canAssignManagementLevel(int $managementLevel): bool
+    {
+        return $this->isWithinManagementLevelRange(
+            $managementLevel,
+            $this->min_assignable_rank,
+            $this->max_assignable_rank,
+        );
+    }
+
+    private function isWithinManagementLevelRange(int $managementLevel, ?int $minimumLevel, ?int $maximumLevel): bool
+    {
+        if ($maximumLevel === 0) {
+            return $managementLevel === 0;
+        }
+
+        if ($managementLevel === 0) {
+            return false;
+        }
+
+        if ($minimumLevel !== null && $managementLevel < $minimumLevel) {
+            return false;
+        }
+
+        if ($maximumLevel !== null && $managementLevel > $maximumLevel) {
+            return false;
+        }
+
+        return true;
     }
 }

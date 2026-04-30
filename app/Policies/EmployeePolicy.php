@@ -6,7 +6,10 @@
 namespace App\Policies;
 
 use App\Models\Employee;
+use App\Models\OrganizationalUnit;
 use App\Models\User;
+use App\Models\UserInternalOrganizationalScope;
+use Illuminate\Support\Collection;
 
 /**
  * Employee Policy
@@ -47,7 +50,7 @@ class EmployeePolicy
      * 4. Organizational scope check: ALL users MUST have scopes to access organizational data
      * 5. Rank filtering: Employee must be within user's viewable rank range
      *
-     * IMPORTANT: There is NO "Admin without scopes" - all users accessing
+     * IMPORTANT: There is NO role-based bypass without scopes - all users accessing
      * organizational features must have defined scopes (with appropriate rank ranges).
      */
     public function view(User $user, Employee $employee): bool
@@ -65,14 +68,8 @@ class EmployeePolicy
                 return false;
             }
 
-            // Check if user has scope with allow_self_access = true for this unit
-            $scope = $user->organizationalScopes()
-                ->where('organizational_unit_id', $employee->organizational_unit_id)
-                ->where('allow_self_access', true)
-                ->first();
-
-            // If no scope with allow_self_access, deny access to own data
-            return $scope !== null;
+            return $this->applicableScopes($user, $employee->organizationalUnit, 'read')
+                ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
         }
 
         // Users with employee.read permission can view
@@ -80,76 +77,8 @@ class EmployeePolicy
             return false;
         }
 
-        // Check if user has organizational scopes (Manager role)
-        // Optimization: Fetch all user's scopes once, filter in-memory (avoids 2 queries: exists + get)
-        $allScopes = $user->organizationalScopes()->get();
-
-        if ($allScopes->isNotEmpty() && $employee->organizationalUnit !== null) {
-            // Managers: Check organizational scope AND leadership rank filtering
-            // Filter scopes for THIS specific organizational unit
-            $scopes = $allScopes->where('organizational_unit_id', $employee->organizational_unit_id);
-
-            if ($scopes->isEmpty()) {
-                return false; // Manager has scopes, but not for this unit
-            }
-
-            // Get employee's management level (simple integer field)
-            $employeeRank = $employee->management_level;
-
-            foreach ($scopes as $scope) {
-                // Check rank filtering
-                if ($this->isWithinViewableRankRange($employeeRank, $scope->min_viewable_rank, $scope->max_viewable_rank)) {
-                    return true; // Employee visible in at least one scope
-                }
-            }
-
-            return false; // Employee not visible in any scope
-        }
-
-        // No scopes = no access to organizational data
-        // All users accessing employees MUST have organizational scopes
-        return false;
-    }
-
-    /**
-     * Check if employee's management level is within user's viewable range.
-     *
-     * CRITICAL SEMANTICS (ADR-009):
-     * - Non-management employees have management_level = 0
-     * - Management levels: 1-255 (1=CEO/highest, 255=lowest)
-     *
-     * Two separate scope systems (cannot be mixed):
-     * - 0/0: ONLY non-management employees (Guards)
-     * - 1-255: Management levels (e.g., 1/5 = ML1-ML5, 1/255 = all management)
-     * - Invalid: 0/5 (cannot mix non-management with management levels)
-     *
-     * @param  int  $employeeLevel  Employee's management level (0=non-management, 1-255=management)
-     * @param  int|null  $minViewableLevel  Minimum viewable level (0=non-management only, 1-255=management)
-     * @param  int|null  $maxViewableLevel  Maximum viewable level (0=non-management only, 1-255=management)
-     */
-    private function isWithinViewableRankRange(int $employeeLevel, ?int $minViewableLevel, ?int $maxViewableLevel): bool
-    {
-        // Case 1: Scope 0/0 = ONLY non-management employees
-        if ($maxViewableLevel === 0) {
-            return $employeeLevel === 0; // Only non-management visible
-        }
-
-        // Case 2: Employee is non-management (level = 0)
-        if ($employeeLevel === 0) {
-            return false; // Non-management not visible in management scopes (1-255)
-        }
-
-        // Case 3: Management level scopes (1-255)
-        // Check if management level within specified range
-        if ($minViewableLevel !== null && $employeeLevel < $minViewableLevel) {
-            return false; // Below minimum
-        }
-
-        if ($maxViewableLevel !== null && $employeeLevel > $maxViewableLevel) {
-            return false; // Above maximum
-        }
-
-        return true; // Within range
+        return $this->applicableScopes($user, $employee->organizationalUnit, 'read')
+            ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($employee->management_level));
     }
 
     /**
@@ -185,14 +114,8 @@ class EmployeePolicy
                 return false;
             }
 
-            // Check if user has scope with allow_self_access = true for this unit
-            $scope = $user->organizationalScopes()
-                ->where('organizational_unit_id', $employee->organizational_unit_id)
-                ->where('allow_self_access', true)
-                ->first();
-
-            // If no scope with allow_self_access, deny access to own data
-            return $scope !== null;
+            return $this->applicableScopes($user, $employee->organizationalUnit, 'write')
+                ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
         }
 
         // Users with employee.write or employee.update permission can update
@@ -200,35 +123,66 @@ class EmployeePolicy
             return false;
         }
 
-        // Check if user has organizational scopes (Manager role)
-        // Optimization: Fetch all user's scopes once, filter in-memory (avoids 2 queries: exists + get)
-        $allScopes = $user->organizationalScopes()->get();
+        return $this->applicableScopes($user, $employee->organizationalUnit, 'write')
+            ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($employee->management_level));
+    }
 
-        if ($allScopes->isNotEmpty() && $employee->organizationalUnit !== null) {
-            // Managers: Check organizational scope AND leadership rank filtering
-            // Filter scopes for THIS specific organizational unit
-            $scopes = $allScopes->where('organizational_unit_id', $employee->organizational_unit_id);
-
-            if ($scopes->isEmpty()) {
-                return false; // Manager has scopes, but not for this unit
-            }
-
-            // Get employee's management level (simple integer field)
-            $employeeRank = $employee->management_level;
-
-            foreach ($scopes as $scope) {
-                // Check rank filtering
-                if ($this->isWithinViewableRankRange($employeeRank, $scope->min_viewable_rank, $scope->max_viewable_rank)) {
-                    return true; // Employee editable in at least one scope
-                }
-            }
-
-            return false; // Employee not editable in any scope
+    /**
+     * Determine whether the user may create an employee in the given unit with the given management level.
+     */
+    public function canCreateInUnit(User $user, OrganizationalUnit $organizationalUnit, int $managementLevel): bool
+    {
+        if (! $this->create($user)) {
+            return false;
         }
 
-        // No scopes = no access to organizational data
-        // All users accessing employees MUST have organizational scopes
-        return false;
+        $scopes = $this->applicableScopes($user, $organizationalUnit, 'write');
+
+        if ($scopes->isEmpty()) {
+            return false;
+        }
+
+        return $scopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($managementLevel)
+            && $scope->canAssignManagementLevel($managementLevel));
+    }
+
+    /**
+     * Determine whether the user may update an employee into the given unit and management level.
+     */
+    public function canUpdateInUnit(User $user, OrganizationalUnit $organizationalUnit, int $managementLevel): bool
+    {
+        if (! $user->can('employee.write') && ! $user->can('employee.update')) {
+            return false;
+        }
+
+        $scopes = $this->applicableScopes($user, $organizationalUnit, 'write');
+
+        if ($scopes->isEmpty()) {
+            return false;
+        }
+
+        return $scopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($managementLevel)
+            && $scope->canAssignManagementLevel($managementLevel));
+    }
+
+    /**
+     * @return Collection<int, UserInternalOrganizationalScope>
+     */
+    private function applicableScopes(User $user, ?OrganizationalUnit $organizationalUnit, string $minimumAccessLevel): Collection
+    {
+        if ($organizationalUnit === null) {
+            /** @var Collection<int, UserInternalOrganizationalScope> $emptyScopes */
+            $emptyScopes = collect();
+
+            return $emptyScopes;
+        }
+
+        /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
+        $scopes = $user->getApplicableOrganizationalScopesForUnit($organizationalUnit)
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel($minimumAccessLevel))
+            ->values();
+
+        return $scopes;
     }
 
     /**

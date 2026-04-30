@@ -83,6 +83,9 @@ test('employee can view own profile', function (): void {
     UserInternalOrganizationalScope::create([
         'user_id' => $user->id,
         'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'write',
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
         'allow_self_access' => true, // Required for self-access
     ]);
 
@@ -206,6 +209,9 @@ test('employee can update own profile', function (): void {
     UserInternalOrganizationalScope::create([
         'user_id' => $user->id,
         'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'write',
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
         'allow_self_access' => true, // Required for self-access
     ]);
 

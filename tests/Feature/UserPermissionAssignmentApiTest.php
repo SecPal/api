@@ -54,21 +54,22 @@ function seedUserPermissionAssignmentRoles(TenantKey $tenant): void
     if ($missingManagerPermissions !== []) {
         $managerRole->givePermissionTo(array_values($missingManagerPermissions));
     }
+}
 
-    $adminRole = Role::firstOrCreate([
-        'name' => 'Admin',
-        'guard_name' => 'sanctum',
-        'tenant_id' => $tenant->id,
-    ]);
-
-    $missingAdminPermissions = array_diff(
-        ['permissions.read', 'permissions.assign_direct', 'permissions.revoke_direct'],
-        $adminRole->permissions()->pluck('name')->all(),
-    );
-
-    if ($missingAdminPermissions !== []) {
-        $adminRole->givePermissionTo(array_values($missingAdminPermissions));
+function grantUserPermissionManagementAccess(User $user, int $tenantId): void
+{
+    foreach (['permissions.read', 'permissions.assign_direct', 'permissions.revoke_direct'] as $permissionName) {
+        givePermissionWithTenant($user, $tenantId, $permissionName);
     }
+}
+
+function assignRoleWithTenant(User $user, int $tenantId, string $role): void
+{
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($tenantId);
+    $user->assignRole($role);
+    $registrar->setPermissionsTeamId(null);
+    $registrar->forgetCachedPermissions();
 }
 
 function createUserPermissionAssignmentContext(): array
@@ -137,16 +138,16 @@ test('user permission assignment bootstrap tolerates pre-seeded permissions and 
     expect(Role::query()
         ->where('guard_name', 'sanctum')
         ->where('tenant_id', $tenant->id)
-        ->whereIn('name', ['Manager', 'Admin'])
-        ->count())->toBe(2);
+        ->whereIn('name', ['Manager'])
+        ->count())->toBe(1);
 });
 
 test('user can view own permissions via_roles and direct and all', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $user = createTenantUser($tenant);
-    $user->assignRole('Manager');
-    $user->givePermissionTo('employees.export');
+    assignRoleWithTenant($user, $tenant->id, 'Manager');
+    givePermissionWithTenant($user, $tenant->id, 'employees.export');
 
     actingAs($user, 'sanctum');
 
@@ -169,14 +170,14 @@ test('user can view own permissions via_roles and direct and all', function () {
             && in_array('employees.export', $all));
 });
 
-test('admin can view any user permissions', function () {
+test('privileged user can view any user permissions', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     $targetUser = createTenantUser($tenant);
-    $targetUser->assignRole('Manager');
+    assignRoleWithTenant($targetUser, $tenant->id, 'Manager');
 
     actingAs($admin, 'sanctum');
 
@@ -186,11 +187,11 @@ test('admin can view any user permissions', function () {
         ->assertJsonStructure(['data' => ['via_roles', 'direct', 'all']]);
 });
 
-test('admin gets 404 when viewing cross-tenant user permissions', function () {
+test('privileged user gets 404 when viewing cross-tenant user permissions', function () {
     ['tenant' => $tenant, 'crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     actingAs($admin, 'sanctum');
 
@@ -212,11 +213,11 @@ test('user cannot view other user permissions', function () {
     $response->assertForbidden();
 });
 
-test('admin can assign direct permission to user', function () {
+test('privileged user can assign direct permission to user', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     $targetUser = createTenantUser($tenant);
 
@@ -271,11 +272,11 @@ test('hasDirectPermission ignores expired direct assignments', function () {
     expect($user->fresh()->hasDirectPermission('employees.export'))->toBeFalse();
 });
 
-test('admin gets 404 when assigning permission to cross-tenant user', function () {
+test('privileged user gets 404 when assigning permission to cross-tenant user', function () {
     ['tenant' => $tenant, 'crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     actingAs($admin, 'sanctum');
 
@@ -289,11 +290,11 @@ test('admin gets 404 when assigning permission to cross-tenant user', function (
         ]);
 });
 
-test('admin can assign direct permission with temporal constraints', function () {
+test('privileged user can assign direct permission with temporal constraints', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     $targetUser = createTenantUser($tenant);
 
@@ -315,7 +316,7 @@ test('admin can assign direct permission with temporal constraints', function ()
         ->assertJsonPath('data.0.valid_until', $validUntil);
 });
 
-test('non-admin cannot assign permissions', function () {
+test('user without permission-management access cannot assign permissions', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $user = createTenantUser($tenant);
@@ -330,14 +331,14 @@ test('non-admin cannot assign permissions', function () {
     $response->assertForbidden();
 });
 
-test('admin can revoke direct permission from user', function () {
+test('privileged user can revoke direct permission from user', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     $targetUser = createTenantUser($tenant);
-    $targetUser->givePermissionTo('employees.export');
+    givePermissionWithTenant($targetUser, $tenant->id, 'employees.export');
 
     expect($targetUser->hasDirectPermission('employees.export'))->toBeTrue();
 
@@ -350,11 +351,11 @@ test('admin can revoke direct permission from user', function () {
     expect($targetUser->fresh()->hasDirectPermission('employees.export'))->toBeFalse();
 });
 
-test('admin gets 404 when revoking permission from cross-tenant user', function () {
+test('privileged user gets 404 when revoking permission from cross-tenant user', function () {
     ['tenant' => $tenant, 'crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     actingAs($admin, 'sanctum');
 
@@ -367,11 +368,11 @@ test('revoking direct permission does not affect role permissions', function () 
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     $targetUser = createTenantUser($tenant);
-    $targetUser->assignRole('Manager');
-    $targetUser->givePermissionTo('employees.read');
+    assignRoleWithTenant($targetUser, $tenant->id, 'Manager');
+    givePermissionWithTenant($targetUser, $tenant->id, 'employees.read');
 
     actingAs($admin, 'sanctum');
 
@@ -387,8 +388,8 @@ test('user can view only direct permissions', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $user = createTenantUser($tenant);
-    $user->assignRole('Manager');
-    $user->givePermissionTo('employees.export');
+    assignRoleWithTenant($user, $tenant->id, 'Manager');
+    givePermissionWithTenant($user, $tenant->id, 'employees.export');
 
     actingAs($user, 'sanctum');
 
@@ -399,11 +400,11 @@ test('user can view only direct permissions', function () {
         ->assertJsonPath('data.direct.0.name', 'employees.export');
 });
 
-test('admin gets 404 when viewing direct permissions for cross-tenant user', function () {
+test('privileged user gets 404 when viewing direct permissions for cross-tenant user', function () {
     ['tenant' => $tenant, 'crossTenantUser' => $crossTenantUser] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     actingAs($admin, 'sanctum');
 
@@ -435,7 +436,7 @@ test('validation fails when permissions array is empty', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     $targetUser = createTenantUser($tenant);
 
@@ -453,7 +454,7 @@ test('validation fails when permission does not exist', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     $targetUser = createTenantUser($tenant);
 
@@ -471,7 +472,7 @@ test('validation fails when valid_until is before valid_from', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
     $admin = createTenantUser($tenant);
-    $admin->assignRole('Admin');
+    grantUserPermissionManagementAccess($admin, $tenant->id);
 
     $targetUser = createTenantUser($tenant);
 

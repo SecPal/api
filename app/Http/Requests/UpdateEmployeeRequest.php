@@ -8,8 +8,12 @@ namespace App\Http\Requests;
 use App\Http\Requests\Concerns\InteractsWithCertificationValidation;
 use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
+use App\Models\OrganizationalUnit;
+use App\Models\User;
+use App\Policies\EmployeePolicy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 /**
  * UpdateEmployeeRequest validates Employee update requests.
@@ -31,6 +35,17 @@ class UpdateEmployeeRequest extends FormRequest
         $employee = $this->route('employee');
 
         return $employee !== null && ($this->user()?->can('update', $employee) ?? false);
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->has('organizational_unit_id') || $validator->errors()->has('management_level')) {
+                return;
+            }
+
+            $this->validateEmployeeScopeConstraints($validator);
+        });
     }
 
     /**
@@ -184,7 +199,7 @@ class UpdateEmployeeRequest extends FormRequest
                         return;
                     }
 
-                    /** @var \App\Models\User $user */
+                    /** @var User $user */
                     $user = $this->user();
 
                     // If user has organizational scopes, verify access to the selected unit
@@ -249,5 +264,69 @@ class UpdateEmployeeRequest extends FormRequest
         }
 
         return false;
+    }
+
+    private function validateEmployeeScopeConstraints(Validator $validator): void
+    {
+        /** @var User $user */
+        $user = $this->user();
+
+        if (! $user->organizationalScopes()->exists()) {
+            return;
+        }
+
+        /** @var Employee|null $employee */
+        $employee = $this->route('employee');
+        if (! $employee instanceof Employee) {
+            return;
+        }
+
+        $organizationalUnit = $this->resolvedOrganizationalUnit($employee);
+        if (! $organizationalUnit instanceof OrganizationalUnit) {
+            return;
+        }
+
+        $scopes = $user->getApplicableOrganizationalScopesForUnit($organizationalUnit)
+            ->filter(fn ($scope): bool => $scope->hasMinimumAccessLevel('write'))
+            ->values();
+
+        if ($scopes->isEmpty()) {
+            $validator->errors()->add('organizational_unit_id', __('You do not have write access to the selected organizational unit.'));
+
+            return;
+        }
+
+        $policy = app(EmployeePolicy::class);
+
+        if (! $policy->canUpdateInUnit($user, $organizationalUnit, $this->resolvedManagementLevel($employee))) {
+            $validator->errors()->add(
+                'management_level',
+                __('You may only update employees whose management level remains assignable and viewable within your organizational scope.'),
+            );
+        }
+    }
+
+    private function resolvedOrganizationalUnit(Employee $employee): ?OrganizationalUnit
+    {
+        $organizationalUnitId = $this->input('organizational_unit_id');
+
+        if (is_string($organizationalUnitId) && $organizationalUnitId !== '') {
+            $organizationalUnit = OrganizationalUnit::query()->find($organizationalUnitId);
+
+            return $organizationalUnit instanceof OrganizationalUnit ? $organizationalUnit : null;
+        }
+
+        return $employee->organizationalUnit;
+    }
+
+    private function resolvedManagementLevel(Employee $employee): int
+    {
+        $managementLevel = $this->input('management_level');
+
+        if (is_numeric($managementLevel)) {
+            return (int) $managementLevel;
+        }
+
+        return $employee->management_level;
     }
 }

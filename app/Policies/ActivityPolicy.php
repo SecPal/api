@@ -96,7 +96,7 @@ class ActivityPolicy
             // CRITICAL: Users can always view their OWN activities
             // This is essential for:
             // - Login events (authentication log)
-            // - Admin/system users without Employee records
+            // - Privileged/system users without Employee records
             // - Self-service transparency
             if ($activity->causer_id === $user->id) {
                 return true; // User can view their own activities
@@ -118,7 +118,7 @@ class ActivityPolicy
                     return false;
                 }
 
-                // Causer has NO employee record at all (admin/system user)
+                // Causer has NO employee record at all (privileged/system user)
                 // System user activities require special permission for security
                 if (! $user->can('activity_log.read_system')) {
                     return false;

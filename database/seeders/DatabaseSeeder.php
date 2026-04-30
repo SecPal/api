@@ -5,6 +5,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -36,7 +37,7 @@ class DatabaseSeeder extends Seeder
         // Set the team/tenant context for role assignment
         app()[PermissionRegistrar::class]->setPermissionsTeamId($tenantId);
 
-        // Create test user with Admin role
+        // Create test user with direct permissions and full organizational scopes
         $testUser = User::firstOrCreate(
             ['email' => 'test@example.com'],
             [
@@ -52,12 +53,19 @@ class DatabaseSeeder extends Seeder
             ])->save();
         }
 
-        // Assign Admin role to test user (within tenant context)
-        if (! $testUser->hasRole('Admin')) {
-            $testUser->assignRole('Admin');
+        /** @var list<string> $permissionNames */
+        $permissionNames = Permission::query()
+            ->where('guard_name', 'sanctum')
+            ->pluck('name')
+            ->all();
+
+        foreach ($permissionNames as $permissionName) {
+            if (! $testUser->hasDirectPermission($permissionName)) {
+                $testUser->givePermissionTo($permissionName);
+            }
         }
 
-        // Admin gets TWO organizational scopes for full access:
+        // The seeded test user gets TWO organizational scopes for full access:
         // 1. Scope 0-0 for Guards (non-leadership employees, rank = NULL)
         // 2. Scope 1-255 for all Leadership levels (FE1 to FE255)
         $orgUnit = \App\Models\OrganizationalUnit::firstOrCreate(
@@ -77,6 +85,8 @@ class DatabaseSeeder extends Seeder
                 'access_level' => 'manage',
                 'include_descendants' => true,
                 'allow_self_access' => true,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
             ]
         );
 
@@ -92,9 +102,11 @@ class DatabaseSeeder extends Seeder
                 'access_level' => 'manage',
                 'include_descendants' => true,
                 'allow_self_access' => true,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 255,
             ]
         );
 
-        $this->command->info('Test user created with Admin role and organizational scopes (0-0 for Guards, 1-255 for Leadership).');
+        $this->command->info('Test user created with direct permissions and organizational scopes (0-0 for Guards, 1-255 for Leadership).');
     }
 }
