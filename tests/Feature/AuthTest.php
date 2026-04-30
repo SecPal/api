@@ -1757,9 +1757,9 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
         $registrar->setPermissionsTeamId($tenant->id);
         Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
-        // Create user with tenant and assign Admin role
+        // Create user with tenant-scoped direct permissions
         $user = User::factory()->create(['tenant_id' => $tenant->id]);
-        $user->assignRole('Admin');
+        givePermissionWithTenant($user, $tenant->id, 'customers.read');
 
         // Reset team context and flush permission cache — simulates a fresh
         // authentication request where the authenticated user is only set
@@ -1776,7 +1776,7 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
             ->getJson('/v1/me');
 
         $response->assertOk()
-            ->assertJsonPath('roles', fn (array $roles) => in_array('Admin', $roles, true))
+            ->assertJsonPath('roles', fn (array $roles) => $roles === [])
             ->assertJsonPath('permissions', fn (array $perms) => in_array('customers.read', $perms, true));
     });
 
@@ -1790,13 +1790,13 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
         $registrar->setPermissionsTeamId($tenant->id);
         Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
-        // Create user with tenant and assign Admin role
+        // Create user with tenant-scoped direct permissions
         $user = User::factory()->create([
             'email' => 'tenant-roles@secpal.dev',
             'password' => bcrypt('password123'),
             'tenant_id' => $tenant->id,
         ]);
-        $user->assignRole('Admin');
+        givePermissionWithTenant($user, $tenant->id, 'customers.read');
 
         // Reset team context and flush permission cache — simulates a fresh
         // authentication request where the authenticated user is only set
@@ -1816,7 +1816,7 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('user.roles', fn (array $roles) => in_array('Admin', $roles, true))
+            ->assertJsonPath('user.roles', fn (array $roles) => $roles === [])
             ->assertJsonPath('user.permissions', fn (array $perms) => in_array('customers.read', $perms, true));
     });
 });

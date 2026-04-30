@@ -20,8 +20,7 @@ use App\Models\User;
  * - none (0): No access
  * - read (1): Can view organizational unit details
  * - write (2): Can update organizational unit properties
- * - manage (3): Can create child units and manage structure
- * - admin (4): Full control including deletion and scope management
+ * - manage (3): Full control including deletion and scope management
  */
 class OrganizationalUnitPolicy
 {
@@ -85,7 +84,7 @@ class OrganizationalUnitPolicy
     /**
      * Determine whether the user can delete the organizational unit.
      *
-     * Requires 'admin' access level on the unit.
+     * Requires 'manage' access level on the unit.
      */
     public function delete(User $user, OrganizationalUnit $unit): bool
     {
@@ -94,37 +93,37 @@ class OrganizationalUnitPolicy
             return false;
         }
 
-        return $user->hasAccessToUnit($unit, 'admin');
+        return $user->hasAccessToUnit($unit, 'manage');
     }
 
     /**
      * Determine whether the user can restore the organizational unit.
      *
-     * Requires 'admin' access level on the unit.
+     * Requires 'manage' access level on the unit.
      */
     public function restore(User $user, OrganizationalUnit $unit): bool
     {
-        return $user->hasAccessToUnit($unit, 'admin');
+        return $user->hasAccessToUnit($unit, 'manage');
     }
 
     /**
      * Determine whether the user can permanently delete the organizational unit.
      *
-     * Requires 'admin' access level on the unit.
+     * Requires 'manage' access level on the unit.
      */
     public function forceDelete(User $user, OrganizationalUnit $unit): bool
     {
-        return $user->hasAccessToUnit($unit, 'admin');
+        return $user->hasAccessToUnit($unit, 'manage');
     }
 
     /**
      * Determine whether the user can manage user scope assignments for the unit.
      *
      * This includes assigning/revoking access for other users to this unit.
-     * Requires 'admin' access level on the unit.
+     * Requires 'manage' access level on the unit.
      */
     public function manageScopes(User $user, OrganizationalUnit $unit): bool
     {
-        return $user->hasAccessToUnit($unit, 'admin');
+        return $user->hasAccessToUnit($unit, 'manage');
     }
 }

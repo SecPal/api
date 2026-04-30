@@ -89,7 +89,7 @@ describe('UserInternalOrganizationalScope Model', function () {
 
     describe('Access Level Enum Values', function () {
         it('accepts all valid access level enum values', function (): void {
-            $validLevels = ['none', 'read', 'write', 'manage', 'admin'];
+            $validLevels = ['none', 'read', 'write', 'manage'];
 
             foreach ($validLevels as $level) {
                 $unit = OrganizationalUnit::create([
@@ -154,7 +154,7 @@ describe('UserInternalOrganizationalScope Model', function () {
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $unit->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
             ]);
 
             $scopeId = $scope->id;
@@ -224,7 +224,7 @@ describe('UserInternalOrganizationalScope Model', function () {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $unit->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
             ]);
 
             $scopedUnits = $this->user->scopedOrganizationalUnits;
@@ -264,12 +264,12 @@ describe('UserInternalOrganizationalScope Model', function () {
                 'access_level' => 'manage',
             ]);
 
-            // Access levels: none < read < write < manage < admin
+            // Access levels: none < read < write < manage
             expect($scope->hasMinimumAccessLevel('none'))->toBeTrue();
             expect($scope->hasMinimumAccessLevel('read'))->toBeTrue();
             expect($scope->hasMinimumAccessLevel('write'))->toBeTrue();
             expect($scope->hasMinimumAccessLevel('manage'))->toBeTrue();
-            expect($scope->hasMinimumAccessLevel('admin'))->toBeFalse();
+            expect($scope->hasMinimumAccessLevel('manage'))->toBeTrue();
         });
     });
 
@@ -379,7 +379,7 @@ describe('UserInternalOrganizationalScope Model', function () {
             expect($this->user->hasAccessToUnit($this->region, 'read'))->toBeTrue();
             expect($this->user->hasAccessToUnit($this->region, 'write'))->toBeFalse();
             expect($this->user->hasAccessToUnit($this->branch, 'read'))->toBeTrue();
-            expect($this->user->hasAccessToUnit($this->branch, 'admin'))->toBeFalse();
+            expect($this->user->hasAccessToUnit($this->branch, 'manage'))->toBeFalse();
         });
     });
 });

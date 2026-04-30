@@ -183,7 +183,7 @@ class OrganizationalUnitController extends Controller
             $parent = OrganizationalUnit::findOrFail($parentId);
             $this->authorize('create', $parent);
         } else {
-            // Creating root unit requires admin somewhere
+            // Creating a root unit requires an existing manage-capable scope somewhere
             $this->authorize('viewAny', OrganizationalUnit::class);
         }
 
@@ -204,14 +204,14 @@ class OrganizationalUnitController extends Controller
             /** @var OrganizationalUnit $parent */
             $parent = OrganizationalUnit::findOrFail($parentId);
             $unit->setParent($parent);
-            $this->grantCreatorAdminScopeOnNewChildUnit($request, $unit);
+            $this->grantCreatorManageScopeOnNewChildUnit($request, $unit);
         } else {
-            // Root unit created: Auto-assign admin scope to creator
+            // Root unit created: Auto-assign manage scope to creator
             // This ensures the creator can see and manage their new unit
             UserInternalOrganizationalScope::create([
                 'user_id' => $user->id,
                 'organizational_unit_id' => $unit->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
                 'include_descendants' => true,
             ]);
         }
@@ -229,7 +229,7 @@ class OrganizationalUnitController extends Controller
      * created unit should remain directly manageable by its creator even when
      * the parent scope would otherwise grant only inherited manage access.
      */
-    private function grantCreatorAdminScopeOnNewChildUnit(Request $request, OrganizationalUnit $unit): void
+    private function grantCreatorManageScopeOnNewChildUnit(Request $request, OrganizationalUnit $unit): void
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
@@ -240,7 +240,7 @@ class OrganizationalUnitController extends Controller
                 'organizational_unit_id' => $unit->id,
             ],
             [
-                'access_level' => 'admin',
+                'access_level' => 'manage',
                 'include_descendants' => false,
             ]
         );

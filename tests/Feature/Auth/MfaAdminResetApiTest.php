@@ -65,7 +65,7 @@ function enableUserMfa(User $user): void
     expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
 }
 
-test('privileged admin can reset MFA for a same-tenant user and the action is audited', function () {
+test('privileged user can reset MFA for a same-tenant user and the action is audited', function () {
     ['admin' => $admin, 'targetUser' => $targetUser] = createMfaAdminResetContext();
 
     enableUserMfa($targetUser);
@@ -92,19 +92,19 @@ test('privileged admin can reset MFA for a same-tenant user and the action is au
         ->and($targetUser->hasPendingTwoFactorEnrollment())->toBeFalse();
 
     $activity = Activity::query()
-        ->where('description', 'Admin reset multi-factor authentication')
+        ->where('description', 'Privileged user reset multi-factor authentication')
         ->latest('id')
         ->first();
 
     expect($activity)->not->toBeNull()
         ->and($activity?->causer_id)->toBe($admin->id)
         ->and($activity?->subject_id)->toBe($targetUser->id)
-        ->and($activity?->properties['event'])->toBe('mfa_reset_by_admin')
+        ->and($activity?->properties['event'])->toBe('mfa_reset_by_privileged_user')
         ->and($activity?->properties['reason'])->toBe('Lost authenticator device')
         ->and($activity?->properties['previous_status']['enabled'])->toBeTrue();
 });
 
-test('admin MFA reset requires the dedicated permission', function () {
+test('privileged MFA reset requires the dedicated permission', function () {
     ['tenant' => $tenant, 'targetUser' => $targetUser] = createMfaAdminResetContext();
 
     $unprivilegedUser = User::factory()->create(['tenant_id' => $tenant->id]);
@@ -117,7 +117,7 @@ test('admin MFA reset requires the dedicated permission', function () {
         ->assertForbidden();
 });
 
-test('admin MFA reset is blocked for cross-tenant targets', function () {
+test('privileged MFA reset is blocked for cross-tenant targets', function () {
     ['admin' => $admin, 'crossTenantUser' => $crossTenantUser] = createMfaAdminResetContext();
 
     $this->actingAs($admin, 'sanctum')
@@ -127,7 +127,7 @@ test('admin MFA reset is blocked for cross-tenant targets', function () {
         ->assertNotFound();
 });
 
-test('admin cannot use the administrative MFA reset path on their own account', function () {
+test('a privileged user cannot use the MFA reset path on their own account', function () {
     ['admin' => $admin] = createMfaAdminResetContext();
 
     enableUserMfa($admin);

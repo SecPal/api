@@ -310,7 +310,7 @@ class EmployeeObserver
                 'error' => $e->getMessage(),
             ]);
             // Don't throw - allow BWR status transition to proceed
-            // HR can manually delete file via admin panel
+            // HR can manually delete file via the privileged employee UI
         }
     }
 

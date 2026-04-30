@@ -11,6 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 /**
  * @property TenantKey $tenant
+ * @property User $scopeManagerUser
  * @property User $adminUser
  * @property User $regularUser
  * @property User $targetUser
@@ -28,7 +29,8 @@ beforeEach(function (): void {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
-    $this->adminUser = User::factory()->create();
+    $this->scopeManagerUser = User::factory()->create();
+    $this->adminUser = $this->scopeManagerUser;
     $this->regularUser = User::factory()->create();
     $this->targetUser = User::factory()->create();
 
@@ -60,11 +62,11 @@ beforeEach(function (): void {
     ]);
     $this->branch->setParent($this->region);
 
-    // Give admin user full access to holding (includes all descendants)
+    // Give scope manager full access to holding (includes all descendants)
     UserInternalOrganizationalScope::create([
-        'user_id' => $this->adminUser->id,
+        'user_id' => $this->scopeManagerUser->id,
         'organizational_unit_id' => $this->holding->id,
-        'access_level' => 'admin',
+        'access_level' => 'manage',
         'include_descendants' => true,
     ]);
 
@@ -84,7 +86,7 @@ afterEach(function (): void {
 
 describe('OrganizationalScopeController', function () {
     describe('index - GET /organizational-units/{unit}/scopes', function () {
-        it('lists scope assignments for a unit when user has admin access', function (): void {
+        it('lists scope assignments for a unit when user has scope-management access', function (): void {
             // Create a scope for target user
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
@@ -92,7 +94,7 @@ describe('OrganizationalScopeController', function () {
                 'access_level' => 'write',
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->getJson("/v1/organizational-units/{$this->company->id}/scopes");
 
@@ -110,12 +112,12 @@ describe('OrganizationalScopeController', function () {
                 ]);
         });
 
-        it('denies listing scopes without admin access', function (): void {
+        it('denies listing scopes without scope-management access', function (): void {
             $this->actingAs($this->regularUser);
 
             $response = $this->getJson("/v1/organizational-units/{$this->branch->id}/scopes");
 
-            // Regular user only has 'read' access, needs 'admin' to manage scopes
+            // Regular user only has 'read' access, needs 'manage' to manage scopes
             $response->assertForbidden();
         });
 
@@ -127,7 +129,7 @@ describe('OrganizationalScopeController', function () {
     });
 
     describe('store - POST /organizational-units/{unit}/scopes', function () {
-        it('creates a scope assignment when user has admin access', function (): void {
+        it('creates a scope assignment when user has scope-management access', function (): void {
             $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
@@ -154,7 +156,7 @@ describe('OrganizationalScopeController', function () {
             ]);
         });
 
-        it('denies creating scope without admin access', function (): void {
+        it('denies creating scope without scope-management access', function (): void {
             $this->actingAs($this->regularUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->branch->id}/scopes", [
@@ -207,7 +209,7 @@ describe('OrganizationalScopeController', function () {
     });
 
     describe('update - PATCH /organizational-units/{unit}/scopes/{scope}', function () {
-        it('updates a scope assignment when user has admin access', function (): void {
+        it('updates a scope assignment when user has scope-management access', function (): void {
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
                 'organizational_unit_id' => $this->company->id,
@@ -227,7 +229,7 @@ describe('OrganizationalScopeController', function () {
                 ->assertJsonPath('data.include_descendants', true);
         });
 
-        it('denies updating scope without admin access', function (): void {
+        it('denies updating scope without scope-management access', function (): void {
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
                 'organizational_unit_id' => $this->branch->id,
@@ -258,14 +260,14 @@ describe('OrganizationalScopeController', function () {
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $selfManagingUser->id,
                 'organizational_unit_id' => $this->company->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
                 'include_descendants' => false,
             ]);
 
             $this->actingAs($selfManagingUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
-                'access_level' => 'manage',
+                'access_level' => 'write',
             ]);
 
             $response->assertForbidden()
@@ -273,14 +275,14 @@ describe('OrganizationalScopeController', function () {
 
             $this->assertDatabaseHas('user_internal_organizational_scopes', [
                 'id' => $scope->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
             ]);
         });
 
     });
 
     describe('destroy - DELETE /organizational-units/{unit}/scopes/{scope}', function () {
-        it('deletes a scope assignment when user has admin access', function (): void {
+        it('deletes a scope assignment when user has scope-management access', function (): void {
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
                 'organizational_unit_id' => $this->company->id,
@@ -298,7 +300,7 @@ describe('OrganizationalScopeController', function () {
             ]);
         });
 
-        it('denies deleting scope without admin access', function (): void {
+        it('denies deleting scope without scope-management access', function (): void {
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
                 'organizational_unit_id' => $this->branch->id,
@@ -325,7 +327,7 @@ describe('OrganizationalScopeController', function () {
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $selfManagingUser->id,
                 'organizational_unit_id' => $this->company->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
                 'include_descendants' => false,
             ]);
 
@@ -341,11 +343,11 @@ describe('OrganizationalScopeController', function () {
             ]);
         });
 
-        it('allows deleting a self scope when another admin path still exists', function (): void {
+        it('allows deleting a self scope when another scope-management path still exists', function (): void {
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->adminUser->id,
                 'organizational_unit_id' => $this->company->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
                 'include_descendants' => false,
             ]);
 
@@ -359,7 +361,7 @@ describe('OrganizationalScopeController', function () {
                 'id' => $scope->id,
             ]);
 
-            expect($this->adminUser->fresh()->hasAccessToUnit($this->company, 'admin'))->toBeTrue();
+            expect($this->adminUser->fresh()->hasAccessToUnit($this->company, 'manage'))->toBeTrue();
         });
     });
 

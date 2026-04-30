@@ -50,7 +50,7 @@ class EmployeePolicy
      * 4. Organizational scope check: ALL users MUST have scopes to access organizational data
      * 5. Rank filtering: Employee must be within user's viewable rank range
      *
-     * IMPORTANT: There is NO "Admin without scopes" - all users accessing
+     * IMPORTANT: There is NO role-based bypass without scopes - all users accessing
      * organizational features must have defined scopes (with appropriate rank ranges).
      */
     public function view(User $user, Employee $employee): bool

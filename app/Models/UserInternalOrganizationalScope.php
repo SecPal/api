@@ -22,13 +22,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * - none: No access (can be used to explicitly deny)
  * - read: View data only
  * - write: View and modify data
- * - manage: Full CRUD + team management
- * - admin: All permissions including configuration
+ * - manage: Full CRUD including scope and configuration management
  *
  * @property string $id UUID primary key
  * @property string $user_id UUID of the user
  * @property string $organizational_unit_id UUID of the organizational unit
- * @property string $access_level Enum: none, read, write, manage, admin
+ * @property string $access_level Enum: none, read, write, manage
  * @property bool $include_descendants Whether access extends to all descendants
  * @property int|null $min_viewable_rank Minimum leadership rank user can view (NULL = no minimum)
  * @property int|null $max_viewable_rank Maximum leadership rank user can view (NULL/0 = ONLY non-leadership employees)
@@ -89,7 +88,6 @@ class UserInternalOrganizationalScope extends Model
         'read' => 1,
         'write' => 2,
         'manage' => 3,
-        'admin' => 4,
     ];
 
     /**
@@ -142,7 +140,7 @@ class UserInternalOrganizationalScope extends Model
     /**
      * Check if this scope has at least the specified minimum access level.
      *
-     * Access levels are ordered: none < read < write < manage < admin
+     * Access levels are ordered: none < read < write < manage
      */
     public function hasMinimumAccessLevel(string $minimumLevel): bool
     {

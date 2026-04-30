@@ -5,7 +5,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\AdminResetUserMfaRequest;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
 use App\Http\Requests\PasskeyAuthenticationChallengeRequest;
@@ -17,6 +16,7 @@ use App\Http\Requests\TokenPasskeyAuthenticationChallengeRequest;
 use App\Http\Requests\TokenRequest;
 use App\Http\Requests\TotpCodeRequest;
 use App\Http\Requests\UpdateUserLanguageRequest;
+use App\Http\Requests\UserMfaResetRequest;
 use App\Mail\PasswordResetMail;
 use App\Models\PasskeyCredential;
 use App\Models\User;
@@ -337,8 +337,9 @@ class AuthController extends Controller
      * The hasOrganizationalScopes flag is used by the frontend to determine
      * whether to show organization/customer management navigation items.
      *
-     * Note: Admin users have maximum organizational scopes (0-255) granting
-     * access to all leadership levels and non-leadership employees.
+     * Note: users with full organizational scope coverage can hold maximum
+     * viewable rank ranges (0-255), granting access to all leadership
+     * levels and non-leadership employees.
      */
     public function me(Request $request): JsonResponse
     {
@@ -761,14 +762,14 @@ class AuthController extends Controller
     }
 
     /**
-     * Allow privileged administrators to reset another user's MFA enrollment.
+     * Allow a privileged operator to reset another user's MFA enrollment.
      */
-    public function adminResetMfa(AdminResetUserMfaRequest $request, User $user): JsonResponse
+    public function resetUserMfa(UserMfaResetRequest $request, User $user): JsonResponse
     {
         Gate::authorize('resetMfa', $user);
 
-        /** @var User $admin */
-        $admin = $request->user();
+        /** @var User $actor */
+        $actor = $request->user();
 
         $user->loadMissing('twoFactorAuth');
 
@@ -787,8 +788,8 @@ class AuthController extends Controller
         $user->disableTwoFactorAuth();
         $user->refresh();
 
-        $this->activityLogService->logAdminMfaReset(
-            $admin,
+        $this->activityLogService->logPrivilegedMfaReset(
+            $actor,
             $user,
             $validated['reason'],
             [
@@ -970,8 +971,9 @@ class AuthController extends Controller
      * The hasOrganizationalScopes flag is used by the frontend to determine
      * whether to show organization/customer management navigation items.
      *
-     * Note: Admin users have maximum organizational scopes (0-255) granting
-     * access to all leadership levels and non-leadership employees.
+     * Note: users with full organizational scope coverage can hold maximum
+     * viewable rank ranges (0-255), granting access to all leadership
+     * levels and non-leadership employees.
      *
      * @return array{id: string, name: string, email: string, emailVerified: bool, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}
      */

@@ -322,6 +322,8 @@ class StoreEmployeeRequest extends FormRequest
         $user = $this->user();
 
         if (! $user->organizationalScopes()->exists()) {
+            $validator->errors()->add('organizational_unit_id', __('You must have an organizational scope before creating employees.'));
+
             return;
         }
 

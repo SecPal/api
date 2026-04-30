@@ -92,7 +92,7 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
             'updated_at' => now(),
         ]);
 
-        $validAccessLevels = ['none', 'read', 'write', 'manage', 'admin'];
+        $validAccessLevels = ['none', 'read', 'write', 'manage'];
 
         foreach ($validAccessLevels as $accessLevel) {
             $scopeId = Str::uuid()->toString();
@@ -267,7 +267,7 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
             'id' => $scopeId,
             'user_id' => $user->id,
             'organizational_unit_id' => $unitId,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
             'include_descendants' => false,
             'created_at' => now(),
             'updated_at' => now(),
@@ -380,7 +380,7 @@ describe('CreateUserInternalOrganizationalScopesTable Migration', function () {
                 'id' => Str::uuid()->toString(),
                 'user_id' => $user->id,
                 'organizational_unit_id' => $unitId2,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
                 'include_descendants' => true,
                 'created_at' => now(),
                 'updated_at' => now(),

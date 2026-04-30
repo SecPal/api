@@ -21,7 +21,7 @@ class StoreOrganizationalScopeRequest extends FormRequest
      *
      * @var array<string>
      */
-    private const VALID_ACCESS_LEVELS = ['none', 'read', 'write', 'manage', 'admin'];
+    private const VALID_ACCESS_LEVELS = ['none', 'read', 'write', 'manage'];
 
     /**
      * Determine if the user is authorized to make this request.
@@ -114,7 +114,7 @@ class StoreOrganizationalScopeRequest extends FormRequest
             'user_id.exists' => 'The specified user does not exist.',
             'user_id.unique' => 'This user already has a scope assignment for this organizational unit.',
             'access_level.required' => 'An access level is required.',
-            'access_level.in' => 'The access level must be one of: none, read, write, manage, admin.',
+            'access_level.in' => 'The access level must be one of: none, read, write, manage.',
         ];
     }
 

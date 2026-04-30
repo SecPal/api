@@ -63,6 +63,8 @@ beforeEach(function (): void {
     $this->organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
+
+    grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 });
 
 afterEach(function (): void {
@@ -829,6 +831,8 @@ describe('POST /v1/employees', function () {
                 'criminal_record_status' => 'valid',
                 'management_level' => 0,
             ]);
+
+        grantDualManagementScopes($otherUser, $otherOrganizationalUnit->id);
 
         Sanctum::actingAs($otherUser, [User::API_ACCESS_ABILITY]);
 
@@ -2371,11 +2375,10 @@ test('manager without full employee access is rejected before move validation', 
     $response->assertStatus(403);
 });
 
-test('admin without organizational scopes can create employee in any unit', function (): void {
+test('user without organizational scopes cannot create employee in any unit', function (): void {
     $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    // Admin has no organizational scopes (unrestricted access)
-    $this->user->assignRole('Admin');
+    $this->user->organizationalScopes()->delete();
     givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
     $response = $this->withToken($this->token)->postJson('/v1/employees', [
@@ -2391,7 +2394,9 @@ test('admin without organizational scopes can create employee in any unit', func
         'management_level' => 0,
     ]);
 
-    $response->assertStatus(201);
+    $response
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['organizational_unit_id']);
 });
 
 test('manager with include_descendants=true can create employee in child unit', function (): void {

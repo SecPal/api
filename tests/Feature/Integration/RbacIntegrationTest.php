@@ -16,7 +16,7 @@ use function Pest\Laravel\travelTo;
 /**
  * @property TenantKey $tenant
  * @property PermissionRegistrar $registrar
- * @property User $admin
+ * @property User $privilegedUser
  */
 uses(RefreshDatabase::class)->group('integration', 'rbac');
 
@@ -35,9 +35,11 @@ beforeEach(function (): void {
     // Run seeder to ensure predefined roles exist
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
-    // Create admin user for tests
-    $this->admin = User::factory()->create();
-    $this->admin->assignRole('Admin');
+    // Create permission-bootstrapped user for tests
+    $this->privilegedUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    foreach (['role.assign', 'role.read', 'role.revoke', 'permissions.read', 'permissions.assign_direct', 'permissions.revoke_direct'] as $permissionName) {
+        givePermissionWithTenant($this->privilegedUser, $this->tenant->id, $permissionName);
+    }
 });
 
 afterEach(function (): void {
@@ -52,7 +54,7 @@ describe('Seeded Sensitive Employee Access', function (): void {
         $hrRole = Role::findByName('HR', 'sanctum');
 
         expect($hrRole->hasPermissionTo('employees.read_sensitive'))->toBeTrue();
-        expect(Role::findByName('Admin', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
+        expect(Role::query()->where('name', 'Admin')->where('tenant_id', $this->tenant->id)->exists())->toBeFalse();
         expect(Role::findByName('Manager', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
         expect(Role::findByName('Works Council', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
         expect(Role::findByName('Employee', 'sanctum')->hasPermissionTo('employees.read_sensitive'))->toBeFalse();
@@ -71,7 +73,7 @@ describe('Temporal Role Lifecycle Integration', function (): void {
         $validFrom = now()->addHours(1);
         $validUntil = now()->addHours(3);
 
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$guard->id}/roles", [
                 'role' => 'Manager',
                 'valid_from' => $validFrom->toIso8601String(),
@@ -106,16 +108,16 @@ describe('Temporal Role Lifecycle Integration', function (): void {
         $user = User::factory()->create();
 
         // Assign Manager role (permanent)
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
             ->assertSuccessful();
 
-        // Assign temporary Admin role (24 hours)
-        actingAs($this->admin)
+        // Assign temporary HR role (24 hours)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
-                'role' => 'Admin',
+                'role' => 'HR',
                 'valid_until' => now()->addHours(24)->toIso8601String(),
                 'auto_revoke' => true,
             ])
@@ -124,7 +126,7 @@ describe('Temporal Role Lifecycle Integration', function (): void {
         // User should have both roles
         $user->refresh();
         expect($user->hasRole('Manager'))->toBeTrue();
-        expect($user->hasRole('Admin'))->toBeTrue();
+        expect($user->hasRole('HR'))->toBeTrue();
 
         // After expiry, only Manager remains
         travelTo(now()->addHours(25));
@@ -132,7 +134,7 @@ describe('Temporal Role Lifecycle Integration', function (): void {
 
         $user->refresh();
         expect($user->hasRole('Manager'))->toBeTrue();
-        expect($user->hasRole('Admin'))->toBeFalse();
+        expect($user->hasRole('HR'))->toBeFalse();
     });
 });
 
@@ -141,28 +143,28 @@ describe('Permission Inheritance Integration', function (): void {
         $user = User::factory()->create();
 
         // Assign Guard role
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Guard',
             ])
             ->assertSuccessful();
 
         // Assign Client role
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Client',
             ])
             ->assertSuccessful();
 
         // Assign direct permission
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/permissions", [
                 'permissions' => ['employees.export'],
             ])
             ->assertSuccessful();
 
         // Get all permissions
-        $response = actingAs($this->admin)
+        $response = actingAs($this->privilegedUser)
             ->getJson("/v1/users/{$user->id}/permissions")
             ->assertOk()
             ->json();
@@ -182,14 +184,14 @@ describe('Permission Inheritance Integration', function (): void {
         $user = User::factory()->create();
 
         // Assign Manager role
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
             ->assertSuccessful();
 
         // Assign direct permission
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/permissions", [
                 'permissions' => ['reports.generate'],
             ])
@@ -201,7 +203,7 @@ describe('Permission Inheritance Integration', function (): void {
         expect($user->hasPermissionTo('reports.generate'))->toBeTrue(); // direct
 
         // Revoke Manager role (use role name, not ID)
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->deleteJson("/v1/users/{$user->id}/roles/Manager")
             ->assertSuccessful();
 
@@ -218,7 +220,7 @@ describe('Multi-User Role Assignment Scenarios', function (): void {
         $managerB = User::factory()->create();
 
         // Manager A has permanent role
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$managerA->id}/roles", [
                 'role' => 'Manager',
             ])
@@ -228,7 +230,7 @@ describe('Multi-User Role Assignment Scenarios', function (): void {
         $vacationStart = now()->addDays(7)->startOfDay();
         $vacationEnd = now()->addDays(21)->endOfDay();
 
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$managerB->id}/roles", [
                 'role' => 'Manager',
                 'valid_from' => $vacationStart->toIso8601String(),
@@ -260,7 +262,7 @@ describe('Error Handling & Edge Cases', function (): void {
     test('cannot assign role that does not exist', function (): void {
         $user = User::factory()->create();
 
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'NonExistentRole',
             ])
@@ -272,7 +274,7 @@ describe('Error Handling & Edge Cases', function (): void {
         $user = User::factory()->create();
 
         // valid_from is after valid_until (invalid)
-        $response = actingAs($this->admin)
+        $response = actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
                 'valid_from' => now()->addDays(10)->toIso8601String(),
@@ -287,14 +289,14 @@ describe('Error Handling & Edge Cases', function (): void {
         $user = User::factory()->create();
 
         // Assign role first time
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
             ->assertSuccessful();
 
         // Assign same role again - should be idempotent (return 200 OK)
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
@@ -312,7 +314,7 @@ describe('Error Handling & Edge Cases', function (): void {
         $user = User::factory()->create();
 
         // Assign permanent role (without temporal constraints)
-        actingAs($this->admin)
+        actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
             ])
@@ -320,7 +322,7 @@ describe('Error Handling & Edge Cases', function (): void {
 
         // Try to assign same role again with temporal parameters
         // Should return 200 OK with existing assignment unchanged
-        $response = actingAs($this->admin)
+        $response = actingAs($this->privilegedUser)
             ->postJson("/v1/users/{$user->id}/roles", [
                 'role' => 'Manager',
                 'valid_from' => now()->toIso8601String(),

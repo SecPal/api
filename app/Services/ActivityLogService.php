@@ -269,7 +269,7 @@ class ActivityLogService
     }
 
     /**
-     * Log an administrative MFA reset performed for another user.
+     * Log a privileged MFA reset performed for another user.
      *
      * Scoped to the target user's primary organizational unit so the reset
      * audit entry is subject to the same org-scope visibility rules as other
@@ -277,7 +277,7 @@ class ActivityLogService
      *
      * @param  array<string, mixed>  $properties
      */
-    public function logAdminMfaReset(User $user, User $targetUser, string $reason, array $properties = []): ?Activity
+    public function logPrivilegedMfaReset(User $user, User $targetUser, string $reason, array $properties = []): ?Activity
     {
         $targetUser->loadMissing('organizationalScopes');
         /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
@@ -289,7 +289,7 @@ class ActivityLogService
             ->performedOn($targetUser)
             ->useLog('authentication')
             ->withProperties(array_merge([
-                'event' => 'mfa_reset_by_admin',
+                'event' => 'mfa_reset_by_privileged_user',
                 'target_user_id' => $targetUser->id,
                 'target_user_email' => $targetUser->email,
                 'reason' => $reason,
@@ -298,7 +298,7 @@ class ActivityLogService
                 /** @var \App\Models\Activity $activity */
                 $activity->organizational_unit_id = $targetOrgUnitId;
             })
-            ->log('Admin reset multi-factor authentication');
+            ->log('Privileged user reset multi-factor authentication');
     }
 
     /**

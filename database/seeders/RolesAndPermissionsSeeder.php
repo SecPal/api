@@ -256,43 +256,6 @@ class RolesAndPermissionsSeeder extends Seeder
                     'work_instructions.read',
                 ],
             ],
-            'Admin' => [
-                'permissions' => [
-                    // Epic #210: Customer & Site Management
-                    'customers.*',
-                    'sites.*',
-                    'assignments.*',
-                    'cost-centers.*',
-                    // Epic #211: Employee Management
-                    'employees.read',
-                    'employees.create',
-                    'employees.update',
-                    'employees.delete',
-                    'employees.read_salary',
-                    'employees.read_all_branches',
-                    'employees.export',
-                    'shifts.*',
-                    'work_instructions.*',
-                    'users.*',
-                    'role.*',        // Phase 3: Role assignment permissions
-                    'roles.*',       // Phase 4: Role management permissions
-                    'permissions.*', // Phase 4: Permission management permissions
-                    'works_council.*',
-                    // Phase 5: Employee Management API
-                    'employee.*',
-                    'employee_qualification.*',
-                    'employee_document.*',
-                    'qualification.*',
-                    // Epic #399: Leadership Levels System (Issue #424)
-                    'leadership_level.*',
-                    // Epic #385: Activity Logging & Audit Trail (Issue #396)
-                    'activity_log.*',
-                    'onboarding.*',
-                    'android_enrollment.*',
-                    'onboarding_template.*',
-                    'reports.*',
-                ],
-            ],
             'HR' => [
                 'permissions' => [
                     'employees.read',

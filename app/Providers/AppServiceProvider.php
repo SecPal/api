@@ -169,7 +169,7 @@ class AppServiceProvider extends ServiceProvider
                 });
         });
 
-        RateLimiter::for('mfa-admin-reset', function (Request $request) {
+        RateLimiter::for('mfa-user-reset', function (Request $request) {
             $actor = $request->user();
             $actorId = $actor instanceof \App\Models\User
                 ? $actor->id

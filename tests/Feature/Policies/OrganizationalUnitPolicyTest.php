@@ -113,7 +113,7 @@ describe('OrganizationalUnitPolicy', function () {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
                 'include_descendants' => true,
             ]);
 
@@ -131,16 +131,6 @@ describe('OrganizationalUnitPolicy', function () {
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
                 'access_level' => 'manage',
-            ]);
-
-            expect($this->policy->create($this->user, $this->region))->toBeTrue();
-        });
-
-        it('allows creating child unit with admin access', function (): void {
-            UserInternalOrganizationalScope::create([
-                'user_id' => $this->user->id,
-                'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin',
             ]);
 
             expect($this->policy->create($this->user, $this->region))->toBeTrue();
@@ -188,16 +178,6 @@ describe('OrganizationalUnitPolicy', function () {
             expect($this->policy->update($this->user, $this->region))->toBeTrue();
         });
 
-        it('allows updating with admin access', function (): void {
-            UserInternalOrganizationalScope::create([
-                'user_id' => $this->user->id,
-                'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin',
-            ]);
-
-            expect($this->policy->update($this->user, $this->region))->toBeTrue();
-        });
-
         it('denies updating with read access', function (): void {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
@@ -221,24 +201,14 @@ describe('OrganizationalUnitPolicy', function () {
     });
 
     describe('delete', function () {
-        it('allows deleting with admin access', function (): void {
-            UserInternalOrganizationalScope::create([
-                'user_id' => $this->user->id,
-                'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin',
-            ]);
-
-            expect($this->policy->delete($this->user, $this->region))->toBeTrue();
-        });
-
-        it('denies deleting with manage access', function (): void {
+        it('allows deleting with manage access', function (): void {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
                 'access_level' => 'manage',
             ]);
 
-            expect($this->policy->delete($this->user, $this->region))->toBeFalse();
+            expect($this->policy->delete($this->user, $this->region))->toBeTrue();
         });
 
         it('denies deleting with write access', function (): void {
@@ -251,11 +221,11 @@ describe('OrganizationalUnitPolicy', function () {
             expect($this->policy->delete($this->user, $this->region))->toBeFalse();
         });
 
-        it('allows deleting descendant with hierarchical admin access', function (): void {
+        it('allows deleting descendant with hierarchical manage access', function (): void {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
                 'include_descendants' => true,
             ]);
 
@@ -264,31 +234,31 @@ describe('OrganizationalUnitPolicy', function () {
     });
 
     describe('manageScopes', function () {
-        it('allows managing scopes with admin access', function (): void {
-            UserInternalOrganizationalScope::create([
-                'user_id' => $this->user->id,
-                'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin',
-            ]);
-
-            expect($this->policy->manageScopes($this->user, $this->region))->toBeTrue();
-        });
-
-        it('denies managing scopes with manage access', function (): void {
+        it('allows managing scopes with manage access', function (): void {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
                 'access_level' => 'manage',
             ]);
 
-            expect($this->policy->manageScopes($this->user, $this->region))->toBeFalse();
+            expect($this->policy->manageScopes($this->user, $this->region))->toBeTrue();
         });
 
-        it('allows managing scopes for descendant with hierarchical admin access', function (): void {
+        it('denies managing scopes with write access', function (): void {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin',
+                'access_level' => 'write',
+            ]);
+
+            expect($this->policy->manageScopes($this->user, $this->region))->toBeFalse();
+        });
+
+        it('allows managing scopes for descendant with hierarchical manage access', function (): void {
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->user->id,
+                'organizational_unit_id' => $this->region->id,
+                'access_level' => 'manage',
                 'include_descendants' => true,
             ]);
 
@@ -317,15 +287,15 @@ describe('OrganizationalUnitPolicy', function () {
             // manage (3) - should pass
             expect($this->policy->create($this->user, $this->region))->toBeTrue();
 
-            // admin (4) - should fail
-            expect($this->policy->delete($this->user, $this->region))->toBeFalse();
-            expect($this->policy->manageScopes($this->user, $this->region))->toBeFalse();
+            // delete and manageScopes now also require manage and should pass
+            expect($this->policy->delete($this->user, $this->region))->toBeTrue();
+            expect($this->policy->manageScopes($this->user, $this->region))->toBeTrue();
         });
     });
 
     describe('Multiple Scopes', function () {
         it('uses highest access level when user has multiple scopes', function (): void {
-            // User has read on company and admin on branch
+            // User has read on company and manage on branch
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->company->id,
@@ -336,14 +306,14 @@ describe('OrganizationalUnitPolicy', function () {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->branch->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
             ]);
 
             // Company: only read
             expect($this->policy->view($this->user, $this->company))->toBeTrue();
             expect($this->policy->update($this->user, $this->company))->toBeFalse();
 
-            // Branch: admin
+            // Branch: manage
             expect($this->policy->view($this->user, $this->branch))->toBeTrue();
             expect($this->policy->delete($this->user, $this->branch))->toBeTrue();
         });

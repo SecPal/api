@@ -121,7 +121,7 @@ describe('CheckOrganizationalScope Middleware', function () {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
             ]);
 
             $request = createMockRequest($this->user, $this->region->id);
@@ -174,7 +174,7 @@ describe('CheckOrganizationalScope Middleware', function () {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->branch->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
             ]);
 
             $request = createMockRequest($this->user, $this->company->id);
@@ -187,7 +187,7 @@ describe('CheckOrganizationalScope Middleware', function () {
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin',
+                'access_level' => 'manage',
                 'include_descendants' => false,
             ]);
 
@@ -248,12 +248,12 @@ describe('CheckOrganizationalScope Middleware', function () {
 
     describe('access level parameters', function () {
         it('accepts all valid access level parameters', function (): void {
-            $levels = ['none', 'read', 'write', 'manage', 'admin'];
+            $levels = ['none', 'read', 'write', 'manage'];
 
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
-                'access_level' => 'admin', // Give highest access
+                'access_level' => 'manage', // Give highest access
             ]);
 
             foreach ($levels as $level) {

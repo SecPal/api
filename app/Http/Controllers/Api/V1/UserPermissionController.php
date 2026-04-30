@@ -32,7 +32,7 @@ class UserPermissionController extends Controller
      * - direct: Permissions assigned directly to user
      * - all: Combined deduplicated list
      *
-     * Authorization: User can view own, Admin can view all
+     * Authorization: User can view own, users with `permissions.read` can view all
      */
     public function index(User $user): JsonResponse
     {
@@ -84,7 +84,7 @@ class UserPermissionController extends Controller
      * Assign direct permission(s) to user.
      *
      * Supports bulk assignment and optional temporal constraints.
-     * Authorization: Admin only
+     * Authorization: Requires `permissions.assign_direct`
      */
     public function store(AssignUserPermissionRequest $request, User $user): JsonResponse
     {
@@ -144,7 +144,7 @@ class UserPermissionController extends Controller
      * Revoke direct permission from user.
      *
      * Only removes direct assignment. Role-based permissions remain.
-     * Authorization: Admin only
+     * Authorization: Requires `permissions.revoke_direct`
      */
     public function destroy(User $user, string $permission): JsonResponse
     {
@@ -171,7 +171,7 @@ class UserPermissionController extends Controller
      * List only direct permissions (excludes via_roles).
      *
      * Shows temporal constraints if present.
-     * Authorization: User can view own, Admin can view all
+     * Authorization: User can view own, users with `permissions.read` can view all
      */
     public function direct(User $user): JsonResponse
     {

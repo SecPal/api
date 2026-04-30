@@ -68,16 +68,6 @@ class UserInternalOrganizationalScopeFactory extends Factory
     }
 
     /**
-     * Configure the factory with admin access level.
-     */
-    public function adminAccess(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'access_level' => 'admin',
-        ]);
-    }
-
-    /**
      * Configure the factory to not include descendants.
      */
     public function withoutDescendants(): static

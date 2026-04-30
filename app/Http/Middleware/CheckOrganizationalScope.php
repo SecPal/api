@@ -26,13 +26,12 @@ use Symfony\Component\HttpFoundation\Response;
  * - none (0): No access
  * - read (1): Can view organizational unit details
  * - write (2): Can update organizational unit properties
- * - manage (3): Can create child units and manage structure
- * - admin (4): Full control including deletion and scope management
+ * - manage (3): Full control including deletion and scope management
  *
  * Usage in routes:
  *   Route::middleware('check.organizational.scope:read')->get('...');
  *   Route::middleware('check.organizational.scope:write')->put('...');
- *   Route::middleware('check.organizational.scope:admin')->delete('...');
+ *   Route::middleware('check.organizational.scope:manage')->delete('...');
  */
 class CheckOrganizationalScope
 {

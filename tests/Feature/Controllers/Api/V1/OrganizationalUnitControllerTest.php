@@ -43,11 +43,10 @@ beforeEach(function () {
     // Run seeder to ensure predefined roles exist
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
-    // Create authenticated user with admin role
+    // Create authenticated user with explicit scoped access
     $this->user = User::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
-    $this->user->assignRole('Admin');
 
     actingAs($this->user, 'sanctum');
 
@@ -58,12 +57,12 @@ beforeEach(function () {
         'type' => 'company',
     ]);
 
-    // Give user admin scope on the root unit with descendants
+    // Give user manage scope on the root unit with descendants
     UserInternalOrganizationalScope::create([
         'tenant_id' => $this->tenant->id,
         'user_id' => $this->user->id,
         'organizational_unit_id' => $this->rootUnit->id,
-        'access_level' => 'admin',
+        'access_level' => 'manage',
         'include_descendants' => true,
     ]);
 });
@@ -228,7 +227,7 @@ describe('OrganizationalUnitController - List', function () {
         $this->user->organizationalScopes()->create([
             'organizational_unit_id' => $child->id,
             'include_descendants' => false,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
         ]);
 
         // Act
@@ -314,7 +313,7 @@ describe('OrganizationalUnitController - Create', function () {
             ->assertJsonValidationErrors(['type']);
     });
 
-    test('creator automatically receives admin scope on new root unit', function () {
+    test('creator automatically receives manage scope on new root unit', function () {
         // Arrange: Remove existing scopes so user has no access
         $this->user->organizationalScopes()->delete();
 
@@ -338,11 +337,11 @@ describe('OrganizationalUnitController - Create', function () {
         $response->assertCreated();
         $newUnitId = $response->json('data.id');
 
-        // Assert: Creator automatically has admin scope on new unit
+        // Assert: Creator automatically has manage scope on new unit
         $this->assertDatabaseHas('user_internal_organizational_scopes', [
             'user_id' => $this->user->id,
             'organizational_unit_id' => $newUnitId,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
             'include_descendants' => true,
         ]);
     });
@@ -382,7 +381,7 @@ describe('OrganizationalUnitController - Create', function () {
     });
 
     test('child unit inherits access from parent scope with include_descendants', function () {
-        // Arrange: User already has admin scope on rootUnit with include_descendants=true (from beforeEach)
+        // Arrange: User already has manage scope on rootUnit with include_descendants=true (from beforeEach)
         $data = [
             'name' => 'Child Department',
             'type' => 'department',
@@ -396,7 +395,7 @@ describe('OrganizationalUnitController - Create', function () {
 
     });
 
-    test('creator receives direct admin scope on a newly created child unit', function () {
+    test('creator receives direct manage scope on a newly created child unit', function () {
         $this->user->organizationalScopes()->delete();
 
         UserInternalOrganizationalScope::create([
@@ -419,7 +418,7 @@ describe('OrganizationalUnitController - Create', function () {
         $this->assertDatabaseHas('user_internal_organizational_scopes', [
             'user_id' => $this->user->id,
             'organizational_unit_id' => $childUnitId,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
             'include_descendants' => false,
         ]);
 
@@ -702,7 +701,7 @@ describe('OrganizationalUnitController - Delete', function () {
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $unitToDelete->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
         ]);
 
         // Act
@@ -741,7 +740,7 @@ describe('OrganizationalUnitController - Delete', function () {
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $parentUnit->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
             'include_descendants' => true,
         ]);
 
@@ -779,12 +778,12 @@ describe('OrganizationalUnitController - Delete', function () {
         ]);
         $child->setParent($parentUnit);
 
-        // Give user admin scope
+        // Give user manage scope
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $parentUnit->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
             'include_descendants' => true,
         ]);
 
@@ -820,12 +819,12 @@ describe('OrganizationalUnitController - Delete', function () {
         ]);
         $child->setParent($parentUnit);
 
-        // Give user admin scope on parent with descendants
+        // Give user manage scope on parent with descendants
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $parentUnit->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
             'include_descendants' => true,
         ]);
 
@@ -885,8 +884,6 @@ describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Kno
 
         // Create user with scope only on Region Berlin (with descendants)
         $limitedUser = User::factory()->create();
-        $limitedUser->assignRole('Admin');
-
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
             'user_id' => $limitedUser->id,
@@ -897,7 +894,6 @@ describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Kno
 
         actingAs($limitedUser, 'sanctum');
 
-        // Act - No scope parameter needed, permission filtering is the default
         $response = getJson('/v1/organizational-units');
 
         // Assert: Should see Region Berlin and Branch Berlin-Mitte, NOT Company or Munich
@@ -922,8 +918,6 @@ describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Kno
         $region->setParent($this->rootUnit);
 
         $limitedUser = User::factory()->create();
-        $limitedUser->assignRole('Admin');
-
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
             'user_id' => $limitedUser->id,
@@ -970,8 +964,6 @@ describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Kno
 
         // Branch manager has scope only on own branch (no descendants flag matters)
         $branchManager = User::factory()->create();
-        $branchManager->assignRole('Admin');
-
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
             'user_id' => $branchManager->id,
@@ -1010,8 +1002,6 @@ describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Kno
 
         // User has scope on both regions
         $multiScopeUser = User::factory()->create();
-        $multiScopeUser->assignRole('Admin');
-
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
             'user_id' => $multiScopeUser->id,
@@ -1138,7 +1128,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $orphan->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
         ]);
 
         // Act
@@ -1168,7 +1158,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $orphan->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
         ]);
 
         $response = postJson("/v1/organizational-units/{$orphan->id}/parent", [
@@ -1190,7 +1180,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $orphan->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
         ]);
 
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
@@ -1219,7 +1209,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $orphan->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
         ]);
 
         $deletedParent = OrganizationalUnit::factory()->create([
@@ -1302,7 +1292,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $orphan->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
             'include_descendants' => false,
         ]);
 
@@ -1330,7 +1320,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $child->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
             'include_descendants' => false,
         ]);
 
@@ -1403,7 +1393,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $child->id,
-            'access_level' => 'admin',
+            'access_level' => 'manage',
             'include_descendants' => false,
         ]);
 
