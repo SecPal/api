@@ -39,7 +39,7 @@ class OrganizationalUnitController extends Controller
         );
 
         /** @var OrganizationalUnit $responseUnit */
-        $responseUnit = $unit->fresh()->load('parent');
+        $responseUnit = $unit->refresh()->load('parent');
 
         return response()->json([
             'data' => new OrganizationalUnitResource($responseUnit),
