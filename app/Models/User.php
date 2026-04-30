@@ -673,12 +673,15 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
         $scopes = $this->organizationalScopes;
 
         if ($scopes->isEmpty()) {
-            return collect();
+            /** @var SupportCollection<int, UserInternalOrganizationalScope> $emptyScopes */
+            $emptyScopes = collect();
+
+            return $emptyScopes;
         }
 
         /** @var SupportCollection<int, UserInternalOrganizationalScope> $directScopes */
         $directScopes = $scopes
-            ->where('organizational_unit_id', $unit->id)
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->organizational_unit_id === $unit->id)
             ->values();
 
         if ($directScopes->isNotEmpty()) {
@@ -693,7 +696,10 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
             ->values();
 
         if ($ancestorScopeUnitIds->isEmpty()) {
-            return collect();
+            /** @var SupportCollection<int, UserInternalOrganizationalScope> $emptyScopes */
+            $emptyScopes = collect();
+
+            return $emptyScopes;
         }
 
         /** @var SupportCollection<int, string> $matchingAncestorIds */
@@ -704,7 +710,10 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
             ->pluck('ancestor_id');
 
         if ($matchingAncestorIds->isEmpty()) {
-            return collect();
+            /** @var SupportCollection<int, UserInternalOrganizationalScope> $emptyScopes */
+            $emptyScopes = collect();
+
+            return $emptyScopes;
         }
 
         /** @var SupportCollection<int, UserInternalOrganizationalScope> $inheritedScopes */

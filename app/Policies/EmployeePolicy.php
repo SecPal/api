@@ -171,12 +171,18 @@ class EmployeePolicy
     private function applicableScopes(User $user, ?OrganizationalUnit $organizationalUnit, string $minimumAccessLevel): Collection
     {
         if ($organizationalUnit === null) {
-            return collect();
+            /** @var Collection<int, UserInternalOrganizationalScope> $emptyScopes */
+            $emptyScopes = collect();
+
+            return $emptyScopes;
         }
 
-        return $user->getApplicableOrganizationalScopesForUnit($organizationalUnit)
+        /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
+        $scopes = $user->getApplicableOrganizationalScopesForUnit($organizationalUnit)
             ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel($minimumAccessLevel))
             ->values();
+
+        return $scopes;
     }
 
     /**
