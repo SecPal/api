@@ -37,6 +37,7 @@ class OrganizationalUnitResource extends JsonResource
             'description' => $this->description,
             'metadata' => $this->metadata,
             'parent' => $this->transformParent($request),
+            'permissions' => $this->resolvePermissions($request),
             'children' => OrganizationalUnitResource::collection($this->whenLoaded('children')),
             'ancestors' => OrganizationalUnitResource::collection($this->whenLoaded('ancestors')),
             'descendants' => OrganizationalUnitResource::collection($this->whenLoaded('descendants')),
@@ -67,5 +68,23 @@ class OrganizationalUnitResource extends JsonResource
         }
 
         return new OrganizationalUnitResource($this->parent);
+    }
+
+    /**
+     * Resolve action permissions for the authenticated user.
+     *
+     * @return array{create_child: bool, update: bool, delete: bool, manage_scopes: bool}
+     */
+    private function resolvePermissions(Request $request): array
+    {
+        /** @var \App\Models\User|null $user */
+        $user = $request->user();
+
+        return [
+            'create_child' => $user?->can('create', $this->resource) ?? false,
+            'update' => $user?->can('update', $this->resource) ?? false,
+            'delete' => $user?->can('delete', $this->resource) ?? false,
+            'manage_scopes' => $user?->can('manageScopes', $this->resource) ?? false,
+        ];
     }
 }

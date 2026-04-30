@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OrganizationalUnit;
+use App\Models\OrganizationalUnitClosure;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -395,7 +396,7 @@ describe('OrganizationalUnitController - Create', function () {
 
     });
 
-    test('creator keeps direct access to a newly created child unit when parent scope does not include descendants', function () {
+    test('creator receives direct admin scope on a newly created child unit', function () {
         $this->user->organizationalScopes()->delete();
 
         UserInternalOrganizationalScope::create([
@@ -418,9 +419,12 @@ describe('OrganizationalUnitController - Create', function () {
         $this->assertDatabaseHas('user_internal_organizational_scopes', [
             'user_id' => $this->user->id,
             'organizational_unit_id' => $childUnitId,
-            'access_level' => 'manage',
+            'access_level' => 'admin',
             'include_descendants' => false,
         ]);
+
+        $createResponse->assertJsonPath('data.permissions.delete', true)
+            ->assertJsonPath('data.permissions.manage_scopes', true);
 
         getJson('/v1/organizational-units')
             ->assertOk()
@@ -433,6 +437,48 @@ describe('OrganizationalUnitController - Create', function () {
             'description' => 'Updated after create',
         ])->assertOk()
             ->assertJsonPath('data.description', 'Updated after create');
+    });
+
+    test('create child response includes accessible parent data for cache consistency', function () {
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Cached Child Unit',
+            'type' => 'department',
+            'parent_id' => $this->rootUnit->id,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.parent.id', $this->rootUnit->id)
+            ->assertJsonPath('data.parent.name', $this->rootUnit->name);
+    });
+
+    test('create child repairs missing parent self-closure before attaching hierarchy', function () {
+        OrganizationalUnitClosure::where('ancestor_id', $this->rootUnit->id)
+            ->where('descendant_id', $this->rootUnit->id)
+            ->delete();
+
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Recovered Child Unit',
+            'type' => 'region',
+            'parent_id' => $this->rootUnit->id,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.parent.id', $this->rootUnit->id)
+            ->assertJsonPath('data.parent.name', $this->rootUnit->name);
+
+        $childId = $response->json('data.id');
+
+        $this->assertDatabaseHas('organizational_unit_closures', [
+            'ancestor_id' => $this->rootUnit->id,
+            'descendant_id' => $this->rootUnit->id,
+            'depth' => 0,
+        ]);
+
+        $this->assertDatabaseHas('organizational_unit_closures', [
+            'ancestor_id' => $this->rootUnit->id,
+            'descendant_id' => $childId,
+            'depth' => 1,
+        ]);
     });
 
     // Issue #301: Hierarchy Validation Tests
@@ -577,6 +623,25 @@ describe('OrganizationalUnitController - Show', function () {
         $response->assertOk()
             ->assertJsonPath('data.id', $this->rootUnit->id)
             ->assertJsonPath('data.name', 'Root Company');
+    });
+
+    test('show response exposes action permissions and accessible parent data', function () {
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Showable Child',
+            'type' => 'department',
+        ]);
+        $child->setParent($this->rootUnit);
+
+        $response = getJson("/v1/organizational-units/{$child->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.parent.id', $this->rootUnit->id)
+            ->assertJsonPath('data.parent.name', $this->rootUnit->name)
+            ->assertJsonPath('data.permissions.create_child', true)
+            ->assertJsonPath('data.permissions.update', true)
+            ->assertJsonPath('data.permissions.delete', true)
+            ->assertJsonPath('data.permissions.manage_scopes', true);
     });
 
     test('show returns 404 for non-existent unit', function () {
@@ -997,6 +1062,24 @@ describe('OrganizationalUnitController - Permission-Based Filtering (Need-to-Kno
         $unitIds = collect($response->json('data'))->pluck('id')->toArray();
         expect($unitIds)->not->toContain($otherTenantUnit->id);
     });
+
+    test('update response retains accessible parent data for cache consistency', function () {
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Editable Child',
+            'type' => 'department',
+        ]);
+        $child->setParent($this->rootUnit);
+
+        $response = patchJson("/v1/organizational-units/{$child->id}", [
+            'description' => 'Parent should stay present',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.parent.id', $this->rootUnit->id)
+            ->assertJsonPath('data.parent.name', $this->rootUnit->name)
+            ->assertJsonPath('data.description', 'Parent should stay present');
+    });
 });
 
 describe('OrganizationalUnitController - Hierarchy', function () {
@@ -1206,6 +1289,30 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'description' => 'Updated after move',
         ])->assertOk()
             ->assertJsonPath('data.description', 'Updated after move');
+    });
+
+    test('attach parent response includes the new accessible parent data for cache consistency', function () {
+        $orphan = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Attachable Unit',
+            'type' => 'department',
+        ]);
+
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $orphan->id,
+            'access_level' => 'admin',
+            'include_descendants' => false,
+        ]);
+
+        $response = postJson("/v1/organizational-units/{$orphan->id}/parent", [
+            'parent_id' => $this->rootUnit->id,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.parent.id', $this->rootUnit->id)
+            ->assertJsonPath('data.parent.name', $this->rootUnit->name);
     });
 
     test('user can detach parent from unit when they have direct scope', function () {

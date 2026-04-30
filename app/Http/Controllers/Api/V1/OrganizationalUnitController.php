@@ -28,6 +28,24 @@ use Illuminate\Validation\Rule;
  */
 class OrganizationalUnitController extends Controller
 {
+    private function respondWithUnit(Request $request, OrganizationalUnit $unit, int $status = Response::HTTP_OK): JsonResponse
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        $request->attributes->set(
+            'accessible_unit_ids',
+            $user->getAccessibleOrganizationalUnits()->pluck('id')->toArray()
+        );
+
+        /** @var OrganizationalUnit $responseUnit */
+        $responseUnit = $unit->fresh()->load('parent');
+
+        return response()->json([
+            'data' => new OrganizationalUnitResource($responseUnit),
+        ], $status);
+    }
+
     /**
      * Display a listing of organizational units.
      *
@@ -177,7 +195,7 @@ class OrganizationalUnitController extends Controller
             /** @var OrganizationalUnit $parent */
             $parent = OrganizationalUnit::findOrFail($parentId);
             $unit->setParent($parent);
-            $this->ensureActorCanAccessChildUnit($request, $parent, $unit);
+            $this->grantCreatorAdminScopeOnNewChildUnit($request, $unit);
         } else {
             // Root unit created: Auto-assign admin scope to creator
             // This ensures the creator can see and manage their new unit
@@ -191,9 +209,31 @@ class OrganizationalUnitController extends Controller
             ]);
         }
 
-        return response()->json([
-            'data' => new OrganizationalUnitResource($unit),
-        ], Response::HTTP_CREATED);
+        return $this->respondWithUnit($request, $unit, Response::HTTP_CREATED);
+    }
+
+    /**
+     * Ensure creators retain full control over newly created child units.
+     *
+     * Child-unit creation requires manage access on the parent, but the newly
+     * created unit should remain directly manageable by its creator even when
+     * the parent scope would otherwise grant only inherited manage access.
+     */
+    private function grantCreatorAdminScopeOnNewChildUnit(Request $request, OrganizationalUnit $unit): void
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        UserInternalOrganizationalScope::updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'organizational_unit_id' => $unit->id,
+            ],
+            [
+                'access_level' => 'admin',
+                'include_descendants' => false,
+            ]
+        );
     }
 
     /**
@@ -256,13 +296,11 @@ class OrganizationalUnitController extends Controller
     /**
      * Display the specified organizational unit.
      */
-    public function show(OrganizationalUnit $organizational_unit): JsonResponse
+    public function show(Request $request, OrganizationalUnit $organizational_unit): JsonResponse
     {
         $this->authorize('view', $organizational_unit);
 
-        return response()->json([
-            'data' => new OrganizationalUnitResource($organizational_unit),
-        ]);
+        return $this->respondWithUnit($request, $organizational_unit);
     }
 
     /**
@@ -277,9 +315,7 @@ class OrganizationalUnitController extends Controller
 
         $organizational_unit->update($validated);
 
-        return response()->json([
-            'data' => new OrganizationalUnitResource($organizational_unit->fresh()),
-        ]);
+        return $this->respondWithUnit($request, $organizational_unit);
     }
 
     /**
@@ -372,9 +408,7 @@ class OrganizationalUnitController extends Controller
         $organizational_unit->setParent($parent);
         $this->ensureActorCanAccessChildUnit($request, $parent, $organizational_unit);
 
-        return response()->json([
-            'data' => new OrganizationalUnitResource($organizational_unit->fresh()),
-        ]);
+        return $this->respondWithUnit($request, $organizational_unit);
     }
 
     /**
@@ -386,12 +420,12 @@ class OrganizationalUnitController extends Controller
      * from the parent via include_descendants, this operation will fail
      * with a 403 Forbidden response.
      */
-    public function detachParent(OrganizationalUnit $organizational_unit, OrganizationalUnit $parent): JsonResponse
+    public function detachParent(Request $request, OrganizationalUnit $organizational_unit, OrganizationalUnit $parent): JsonResponse
     {
         $this->authorize('update', $organizational_unit);
 
         /** @var \App\Models\User $user */
-        $user = request()->user();
+        $user = $request->user();
 
         // Check if user will still have access after detaching parent.
         // User needs a direct scope on the unit itself, not just inherited access via parent.
@@ -409,8 +443,6 @@ class OrganizationalUnitController extends Controller
 
         $organizational_unit->removeParent();
 
-        return response()->json([
-            'data' => new OrganizationalUnitResource($organizational_unit->fresh()),
-        ]);
+        return $this->respondWithUnit($request, $organizational_unit);
     }
 }
