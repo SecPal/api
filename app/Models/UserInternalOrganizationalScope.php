@@ -189,7 +189,8 @@ class UserInternalOrganizationalScope extends Model
     private function isWithinViewableManagementLevelRange(int $managementLevel, ?int $minimumLevel, ?int $maximumLevel): bool
     {
         if ($managementLevel === 0) {
-            return $maximumLevel === null || $maximumLevel === 0;
+            return ($maximumLevel === null || $maximumLevel === 0)
+                && ($minimumLevel === null || $minimumLevel === 0);
         }
 
         if ($maximumLevel === 0) {
@@ -210,7 +211,8 @@ class UserInternalOrganizationalScope extends Model
     private function isWithinAssignableManagementLevelRange(int $managementLevel, ?int $minimumLevel, ?int $maximumLevel): bool
     {
         if ($managementLevel === 0) {
-            return $maximumLevel === null || $maximumLevel === 0;
+            return ($maximumLevel === null || $maximumLevel === 0)
+                && ($minimumLevel === null || $minimumLevel === 0);
         }
 
         if ($maximumLevel === 0) {
