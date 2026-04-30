@@ -85,6 +85,8 @@ class DatabaseSeeder extends Seeder
                 'access_level' => 'manage',
                 'include_descendants' => true,
                 'allow_self_access' => true,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
             ]
         );
 
@@ -100,6 +102,8 @@ class DatabaseSeeder extends Seeder
                 'access_level' => 'manage',
                 'include_descendants' => true,
                 'allow_self_access' => true,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 255,
             ]
         );
 

@@ -27,14 +27,20 @@ return new class extends Migration
 
     /**
      * Reverse the migrations.
+     *
+     * This migration is intentionally non-reversible: the up() step normalised
+     * all 'admin' rows to 'manage' and there is no way to distinguish which
+     * 'manage' rows were originally 'admin'. Attempting to roll back would
+     * silently leave the data in an inconsistent state.
+     *
+     * @throws RuntimeException always, to prevent silent data loss on rollback
      */
     public function down(): void
     {
-        DB::statement('ALTER TABLE user_internal_organizational_scopes DROP CONSTRAINT IF EXISTS user_internal_organizational_scopes_access_level_check');
-        DB::statement(<<<'SQL'
-            ALTER TABLE user_internal_organizational_scopes
-            ADD CONSTRAINT user_internal_organizational_scopes_access_level_check
-            CHECK (access_level IN ('none', 'read', 'write', 'manage', 'admin'))
-        SQL);
+        throw new RuntimeException(
+            'Migration '.self::class.' cannot be rolled back: '
+            .'the admin→manage normalisation is irreversible. '
+            .'Restore from a pre-migration backup if a rollback is required.'
+        );
     }
 };

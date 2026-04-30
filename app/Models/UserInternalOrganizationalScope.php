@@ -32,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $min_viewable_rank Minimum leadership rank user can view (NULL = no minimum)
  * @property int|null $max_viewable_rank Maximum leadership rank user can view (NULL/0 = ONLY non-leadership employees)
  * @property int|null $min_assignable_rank Minimum leadership rank user can assign/remove (NULL = no minimum)
- * @property int|null $max_assignable_rank Maximum leadership rank user can assign/remove (NULL/0 = cannot assign/remove ANY leadership)
+ * @property int|null $max_assignable_rank Maximum leadership rank user can assign/remove (0 = guards only, NULL = no upper-bound for leadership)
  * @property bool $allow_self_access Allow user to view/edit own employee HR data (default: false for security)
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
@@ -144,8 +144,12 @@ class UserInternalOrganizationalScope extends Model
      */
     public function hasMinimumAccessLevel(string $minimumLevel): bool
     {
+        if (! array_key_exists($minimumLevel, self::ACCESS_LEVELS)) {
+            return false;
+        }
+
         $currentLevel = self::ACCESS_LEVELS[$this->access_level] ?? 0;
-        $requiredLevel = self::ACCESS_LEVELS[$minimumLevel] ?? 0;
+        $requiredLevel = self::ACCESS_LEVELS[$minimumLevel];
 
         return $currentLevel >= $requiredLevel;
     }
