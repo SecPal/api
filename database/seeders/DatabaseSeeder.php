@@ -53,7 +53,13 @@ class DatabaseSeeder extends Seeder
             ])->save();
         }
 
-        foreach (Permission::query()->where('guard_name', 'sanctum')->pluck('name') as $permissionName) {
+        /** @var list<string> $permissionNames */
+        $permissionNames = Permission::query()
+            ->where('guard_name', 'sanctum')
+            ->pluck('name')
+            ->all();
+
+        foreach ($permissionNames as $permissionName) {
             if (! $testUser->hasDirectPermission($permissionName)) {
                 $testUser->givePermissionTo($permissionName);
             }
