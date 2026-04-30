@@ -2372,7 +2372,8 @@ test('manager without full employee access is rejected before move validation', 
         'organizational_unit_id' => $unitB->id,
     ]);
 
-    $response->assertStatus(403);
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['organizational_unit_id']);
 });
 
 test('user without organizational scopes cannot create employee in any unit', function (): void {
