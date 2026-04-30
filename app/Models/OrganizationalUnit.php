@@ -100,9 +100,10 @@ class OrganizationalUnit extends Model
     {
         // Create self-reference closure entry when unit is created
         static::created(function (OrganizationalUnit $unit): void {
-            OrganizationalUnitClosure::create([
+            OrganizationalUnitClosure::firstOrCreate([
                 'ancestor_id' => $unit->id,
                 'descendant_id' => $unit->id,
+            ], [
                 'depth' => 0,
             ]);
         });
@@ -251,6 +252,9 @@ class OrganizationalUnit extends Model
             throw new \InvalidArgumentException('Cannot set unit as its own parent.');
         }
 
+        $this->ensureSelfClosureExists();
+        $parent->ensureSelfClosureExists();
+
         // Get all descendants of this unit (including self) - needed for cycle check
         /** @var list<string> $descendantIds */
         $descendantIds = OrganizationalUnitClosure::where('ancestor_id', $this->id)
@@ -317,6 +321,8 @@ class OrganizationalUnit extends Model
      */
     private function removeAncestorClosures(): void
     {
+        $this->ensureSelfClosureExists();
+
         // Get all descendant IDs (including self)
         $descendantIds = OrganizationalUnitClosure::where('ancestor_id', $this->id)
             ->pluck('descendant_id')
@@ -328,6 +334,22 @@ class OrganizationalUnit extends Model
         OrganizationalUnitClosure::whereIn('descendant_id', $descendantIds)
             ->whereNotIn('ancestor_id', $descendantIds)
             ->delete();
+    }
+
+    /**
+     * Restore the mandatory self-reference closure row when drifted production data removed it.
+     */
+    private function ensureSelfClosureExists(): void
+    {
+        OrganizationalUnitClosure::firstOrCreate(
+            [
+                'ancestor_id' => $this->id,
+                'descendant_id' => $this->id,
+            ],
+            [
+                'depth' => 0,
+            ]
+        );
     }
 
     /**

@@ -530,7 +530,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      */
     public function getAccessibleOrganizationalUnits(): Collection
     {
-        $scopes = $this->organizationalScopes()->get();
+        $scopes = $this->organizationalScopes;
 
         /** @var SupportCollection<int, string> $directUnitIds */
         $directUnitIds = collect();
@@ -815,7 +815,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      */
     public function hasAccessToUnit(OrganizationalUnit $unit, ?string $minimumLevel = null): bool
     {
-        $scopes = $this->organizationalScopes()->get();
+        $scopes = $this->organizationalScopes;
 
         if ($scopes->isEmpty()) {
             return false;
