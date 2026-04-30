@@ -8,8 +8,12 @@ namespace App\Http\Requests;
 use App\Http\Requests\Concerns\InteractsWithCertificationValidation;
 use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
+use App\Models\OrganizationalUnit;
+use App\Models\User;
+use App\Policies\EmployeePolicy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 /**
  * StoreEmployeeRequest validates Employee creation requests.
@@ -27,6 +31,17 @@ class StoreEmployeeRequest extends FormRequest
     public function authorize(): bool
     {
         return $this->user()?->can('create', Employee::class) ?? false;
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->has('organizational_unit_id') || $validator->errors()->has('management_level')) {
+                return;
+            }
+
+            $this->validateEmployeeScopeConstraints($validator);
+        });
     }
 
     /**
@@ -217,7 +232,7 @@ class StoreEmployeeRequest extends FormRequest
                         return;
                     }
 
-                    /** @var \App\Models\User $user */
+                    /** @var User $user */
                     $user = $this->user();
 
                     // If user has organizational scopes, verify access to the selected unit
@@ -299,5 +314,52 @@ class StoreEmployeeRequest extends FormRequest
             'work_permit_expiry.required' => 'Ablaufdatum der Arbeitserlaubnis ist für befristete Arbeitserlaubnisse verpflichtend.',
             'work_permit_expiry.after' => 'Ablaufdatum der Arbeitserlaubnis muss in der Zukunft liegen.',
         ], $this->certificationValidationMessages());
+    }
+
+    private function validateEmployeeScopeConstraints(Validator $validator): void
+    {
+        /** @var User $user */
+        $user = $this->user();
+
+        if (! $user->organizationalScopes()->exists()) {
+            return;
+        }
+
+        $organizationalUnitId = $this->input('organizational_unit_id');
+        if (! is_string($organizationalUnitId) || $organizationalUnitId === '') {
+            return;
+        }
+
+        $organizationalUnit = OrganizationalUnit::query()->find($organizationalUnitId);
+        if (! $organizationalUnit instanceof OrganizationalUnit) {
+            return;
+        }
+
+        $scopes = $user->getApplicableOrganizationalScopesForUnit($organizationalUnit)
+            ->filter(fn ($scope): bool => $scope->hasMinimumAccessLevel('write'))
+            ->values();
+
+        if ($scopes->isEmpty()) {
+            $validator->errors()->add('organizational_unit_id', __('You do not have write access to the selected organizational unit.'));
+
+            return;
+        }
+
+        $managementLevel = $this->resolvedManagementLevel();
+        $policy = app(EmployeePolicy::class);
+
+        if (! $policy->canCreateInUnit($user, $organizationalUnit, $managementLevel)) {
+            $validator->errors()->add(
+                'management_level',
+                __('You may only create employees whose management level remains assignable and viewable within your organizational scope.'),
+            );
+        }
+    }
+
+    private function resolvedManagementLevel(): int
+    {
+        $managementLevel = $this->input('management_level');
+
+        return is_numeric($managementLevel) ? (int) $managementLevel : 0;
     }
 }

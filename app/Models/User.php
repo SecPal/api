@@ -660,6 +660,63 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
     }
 
     /**
+     * Resolve the scopes that apply to a specific organizational unit.
+     *
+     * Direct scopes take precedence over inherited descendant scopes for the
+     * same unit. When no direct scope exists, all ancestor scopes with
+     * include_descendants=true are returned.
+     *
+     * @return SupportCollection<int, UserInternalOrganizationalScope>
+     */
+    public function getApplicableOrganizationalScopesForUnit(OrganizationalUnit $unit): SupportCollection
+    {
+        $scopes = $this->organizationalScopes;
+
+        if ($scopes->isEmpty()) {
+            return collect();
+        }
+
+        /** @var SupportCollection<int, UserInternalOrganizationalScope> $directScopes */
+        $directScopes = $scopes
+            ->where('organizational_unit_id', $unit->id)
+            ->values();
+
+        if ($directScopes->isNotEmpty()) {
+            return $directScopes;
+        }
+
+        /** @var SupportCollection<int, string> $ancestorScopeUnitIds */
+        $ancestorScopeUnitIds = $scopes
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->include_descendants)
+            ->pluck('organizational_unit_id')
+            ->unique()
+            ->values();
+
+        if ($ancestorScopeUnitIds->isEmpty()) {
+            return collect();
+        }
+
+        /** @var SupportCollection<int, string> $matchingAncestorIds */
+        $matchingAncestorIds = OrganizationalUnitClosure::query()
+            ->where('descendant_id', $unit->id)
+            ->where('depth', '>', 0)
+            ->whereIn('ancestor_id', $ancestorScopeUnitIds)
+            ->pluck('ancestor_id');
+
+        if ($matchingAncestorIds->isEmpty()) {
+            return collect();
+        }
+
+        /** @var SupportCollection<int, UserInternalOrganizationalScope> $inheritedScopes */
+        $inheritedScopes = $scopes
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->include_descendants
+                && $matchingAncestorIds->contains($scope->organizational_unit_id))
+            ->values();
+
+        return $inheritedScopes;
+    }
+
+    /**
      * Determine whether the user may open the customer collection via scoped access.
      *
      * This intentionally checks access entitlements, not whether matching records
@@ -815,48 +872,9 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      */
     public function hasAccessToUnit(OrganizationalUnit $unit, ?string $minimumLevel = null): bool
     {
-        $scopes = $this->organizationalScopes;
+        $scopes = $this->getApplicableOrganizationalScopesForUnit($unit);
 
         if ($scopes->isEmpty()) {
-            return false;
-        }
-
-        // Collect unit IDs for direct scope check and descendant check
-        /** @var SupportCollection<int, string> $directScopeUnitIds */
-        $directScopeUnitIds = collect();
-        /** @var SupportCollection<int, string> $descendantScopeUnitIds */
-        $descendantScopeUnitIds = collect();
-
-        foreach ($scopes as $scope) {
-            $directScopeUnitIds->push($scope->organizational_unit_id);
-            if ($scope->include_descendants) {
-                $descendantScopeUnitIds->push($scope->organizational_unit_id);
-            }
-        }
-
-        // Check if unit is directly scoped
-        $isDirectlyScoped = $directScopeUnitIds->contains($unit->id);
-
-        // Check if unit is a descendant of any scoped unit (single query)
-        $ancestorScopeId = null;
-        if (! $isDirectlyScoped && $descendantScopeUnitIds->isNotEmpty()) {
-            $ancestorScopeId = OrganizationalUnitClosure::whereIn('ancestor_id', $descendantScopeUnitIds->unique())
-                ->where('descendant_id', $unit->id)
-                ->where('depth', '>', 0)
-                ->value('ancestor_id');
-        }
-
-        // Determine which scope applies
-        $applicableScope = null;
-        if ($isDirectlyScoped) {
-            // Find scope with direct match
-            $applicableScope = $scopes->first(fn ($s) => $s->organizational_unit_id === $unit->id);
-        } elseif ($ancestorScopeId !== null) {
-            // Find scope for the ancestor
-            $applicableScope = $scopes->first(fn ($s) => $s->organizational_unit_id === $ancestorScopeId && $s->include_descendants);
-        }
-
-        if ($applicableScope === null) {
             return false;
         }
 
@@ -865,7 +883,8 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
             return true;
         }
 
-        // Check if access level is sufficient
-        return $applicableScope->hasMinimumAccessLevel($minimumLevel);
+        return $scopes->contains(
+            fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel($minimumLevel)
+        );
     }
 }

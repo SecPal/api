@@ -159,4 +159,49 @@ class UserInternalOrganizationalScope extends Model
     {
         return self::ACCESS_LEVELS[$this->access_level] ?? 0;
     }
+
+    /**
+     * Determine whether this scope can view the given employee management level.
+     */
+    public function canViewManagementLevel(int $managementLevel): bool
+    {
+        return $this->isWithinManagementLevelRange(
+            $managementLevel,
+            $this->min_viewable_rank,
+            $this->max_viewable_rank,
+        );
+    }
+
+    /**
+     * Determine whether this scope can assign the given employee management level.
+     */
+    public function canAssignManagementLevel(int $managementLevel): bool
+    {
+        return $this->isWithinManagementLevelRange(
+            $managementLevel,
+            $this->min_assignable_rank,
+            $this->max_assignable_rank,
+        );
+    }
+
+    private function isWithinManagementLevelRange(int $managementLevel, ?int $minimumLevel, ?int $maximumLevel): bool
+    {
+        if ($maximumLevel === 0) {
+            return $managementLevel === 0;
+        }
+
+        if ($managementLevel === 0) {
+            return false;
+        }
+
+        if ($minimumLevel !== null && $managementLevel < $minimumLevel) {
+            return false;
+        }
+
+        if ($maximumLevel !== null && $managementLevel > $maximumLevel) {
+            return false;
+        }
+
+        return true;
+    }
 }

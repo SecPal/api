@@ -80,6 +80,8 @@ function grantDualManagementScopes(User $user, string $organizationalUnitId): vo
         'include_descendants' => true,
         'min_viewable_rank' => 0,
         'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
         'allow_self_access' => true,
     ]);
     $user->organizationalScopes()->create([
@@ -88,6 +90,8 @@ function grantDualManagementScopes(User $user, string $organizationalUnitId): vo
         'include_descendants' => true,
         'min_viewable_rank' => 1,
         'max_viewable_rank' => 255,
+        'min_assignable_rank' => 1,
+        'max_assignable_rank' => 255,
         'allow_self_access' => true,
     ]);
 }
@@ -2277,6 +2281,10 @@ test('manager cannot create employee in unit outside their scope', function (): 
         'organizational_unit_id' => $unitA->id,
         'access_level' => 'write',
         'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
     ]);
 
     givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
@@ -2309,6 +2317,10 @@ test('manager can create employee in unit within their scope', function (): void
         'organizational_unit_id' => $unitA->id,
         'access_level' => 'write',
         'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
     ]);
 
     givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
@@ -2393,6 +2405,10 @@ test('manager with include_descendants=true can create employee in child unit', 
         'organizational_unit_id' => $parent->id,
         'access_level' => 'write',
         'include_descendants' => true,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
     ]);
 
     givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
@@ -2413,6 +2429,116 @@ test('manager with include_descendants=true can create employee in child unit', 
 
     $response->assertStatus(201);
     expect($response->json('data.organizational_unit_id'))->toBe($child->id);
+});
+
+test('manager can view a newly created employee in a descendant unit immediately after create', function (): void {
+    $parent = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $child = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $child->setParent($parent);
+
+    $this->user->assignRole('Manager');
+    $this->user->organizationalScopes()->create([
+        'organizational_unit_id' => $parent->id,
+        'access_level' => 'write',
+        'include_descendants' => true,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
+        'allow_self_access' => true,
+    ]);
+
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+    $createResponse = $this->withToken($this->token)->postJson('/v1/employees', [
+        'first_name' => 'Descendant',
+        'last_name' => 'Visible',
+        'email' => 'descendant.visible@example.com',
+        'date_of_birth' => '1990-01-15',
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'contract_type' => 'full_time',
+        'contract_start_date' => now()->toDateString(),
+        'position' => 'Security Guard',
+        'organizational_unit_id' => $child->id,
+        'management_level' => 0,
+    ]);
+
+    $createResponse->assertCreated();
+
+    $employeeId = $createResponse->json('data.id');
+
+    $this->withToken($this->token)
+        ->getJson("/v1/employees/{$employeeId}")
+        ->assertOk()
+        ->assertJsonPath('data.organizational_unit.id', $child->id);
+});
+
+test('manager cannot create an employee with a management level outside writable and viewable scope', function (): void {
+    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    $this->user->assignRole('Manager');
+    $this->user->organizationalScopes()->create([
+        'organizational_unit_id' => $unit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
+        'allow_self_access' => true,
+    ]);
+
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+    $response = $this->withToken($this->token)->postJson('/v1/employees', [
+        'first_name' => 'Rank',
+        'last_name' => 'Mismatch',
+        'email' => 'rank.mismatch@example.com',
+        'date_of_birth' => '1990-01-15',
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'contract_type' => 'full_time',
+        'contract_start_date' => now()->toDateString(),
+        'position' => 'Area Manager',
+        'organizational_unit_id' => $unit->id,
+        'management_level' => 5,
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['management_level']);
+});
+
+test('manager cannot update an employee to a management level outside writable and viewable scope', function (): void {
+    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    $this->user->assignRole('Manager');
+    $this->user->organizationalScopes()->create([
+        'organizational_unit_id' => $unit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
+        'allow_self_access' => true,
+    ]);
+
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $unit->id,
+        'management_level' => 0,
+    ]);
+
+    $response = $this->withToken($this->token)->patchJson("/v1/employees/{$employee->id}", [
+        'management_level' => 5,
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['management_level']);
 });
 
 test('manager with include_descendants=false cannot create employee in child unit', function (): void {

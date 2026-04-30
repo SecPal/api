@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- aligned employee create, view, and update authorization on the same descendant-scope and management-level rules, so users can no longer create an employee in a scoped unit and then hit `403 This action is unauthorized.` on the immediate detail fetch; create and update now reject employees whose target unit or management level would fall outside the actor's writable, assignable, and viewable scope
 - creators of newly created child organizational units now receive a direct `admin` scope on that exact unit, so they can delete it and manage its scopes immediately even when their parent access only grants `manage`
 - repaired organizational hierarchy writes when an existing parent unit is missing its mandatory depth-0 self-closure row, and backfill those missing self-closures during migration so child-unit creation no longer silently stores new children as roots with `parent: null`
 - restored `GET /v1/organizational-units/{organizational_unit}` after the single-unit response refactor by threading the request context into the show action as well, so live detail fetches no longer fail with `500 Internal server error` when a user opens an organizational unit directly
