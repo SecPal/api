@@ -139,6 +139,14 @@ msgstr "Employee must be on leave to restore active access"
 msgid "Cannot terminate: employee must be active or on_leave"
 msgstr "Cannot terminate: employee must be active or on_leave"
 
+#: /app/Http/Requests/StoreEmployeeRequest.php:356
+msgid "You may only create employees whose management level remains assignable and viewable within your organizational scope."
+msgstr "You may only create employees whose management level remains assignable and viewable within your organizational scope."
+
+#: /app/Http/Requests/UpdateEmployeeRequest.php:304
+msgid "You may only update employees whose management level remains assignable and viewable within your organizational scope."
+msgstr "You may only update employees whose management level remains assignable and viewable within your organizational scope."
+
 #: /app/Http/Controllers/Api/V1/EmployeeDocumentController.php:132
 msgid "File not found"
 msgstr "File not found"
