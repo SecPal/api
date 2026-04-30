@@ -2514,6 +2514,81 @@ test('manager cannot create an employee with a management level outside writable
         ->assertJsonValidationErrors(['management_level']);
 });
 
+test('manager can create a non-management employee when scope uses null rank maxima', function (): void {
+    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    $this->user->assignRole('Manager');
+    $this->user->organizationalScopes()->create([
+        'organizational_unit_id' => $unit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => null,
+        'max_viewable_rank' => null,
+        'min_assignable_rank' => null,
+        'max_assignable_rank' => null,
+        'allow_self_access' => true,
+    ]);
+
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+    $response = $this->withToken($this->token)->postJson('/v1/employees', [
+        'first_name' => 'Guard',
+        'last_name' => 'Zero',
+        'email' => 'guard.zero@example.com',
+        'date_of_birth' => '1992-04-10',
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'contract_type' => 'full_time',
+        'contract_start_date' => now()->toDateString(),
+        'position' => 'Security Guard',
+        'organizational_unit_id' => $unit->id,
+    ]);
+
+    $response->assertCreated()
+        ->assertJsonPath('data.management_level', 0);
+});
+
+test('manager create validation error is translated to german', function (): void {
+    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    $this->user->assignRole('Manager');
+    $this->user->organizationalScopes()->create([
+        'organizational_unit_id' => $unit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
+        'allow_self_access' => true,
+    ]);
+
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+    $response = $this->withToken($this->token)
+        ->withHeaders(['Accept-Language' => 'de'])
+        ->postJson('/v1/employees', [
+            'first_name' => 'Rank',
+            'last_name' => 'Mismatch',
+            'email' => 'rank.mismatch.de@example.com',
+            'date_of_birth' => '1990-01-15',
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'contract_type' => 'full_time',
+            'contract_start_date' => now()->toDateString(),
+            'position' => 'Area Manager',
+            'organizational_unit_id' => $unit->id,
+            'management_level' => 5,
+        ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['management_level'])
+        ->assertJsonPath(
+            'errors.management_level.0',
+            'Sie dürfen nur Mitarbeiter anlegen, deren Führungsebene innerhalb Ihres organisatorischen Geltungsbereichs sowohl zuweisbar als auch einsehbar bleibt.'
+        );
+});
+
 test('manager cannot update an employee to a management level outside writable and viewable scope', function (): void {
     $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 

@@ -139,6 +139,14 @@ msgstr "Mitarbeiter muss beurlaubt sein, um den aktiven Zugriff wiederherzustell
 msgid "Cannot terminate: employee must be active or on_leave"
 msgstr "Kann nicht beendet werden: Mitarbeiter muss aktiv oder im Status on_leave sein"
 
+#: /app/Http/Requests/StoreEmployeeRequest.php:356
+msgid "You may only create employees whose management level remains assignable and viewable within your organizational scope."
+msgstr "Sie dürfen nur Mitarbeiter anlegen, deren Führungsebene innerhalb Ihres organisatorischen Geltungsbereichs sowohl zuweisbar als auch einsehbar bleibt."
+
+#: /app/Http/Requests/UpdateEmployeeRequest.php:304
+msgid "You may only update employees whose management level remains assignable and viewable within your organizational scope."
+msgstr "Sie dürfen nur Mitarbeiter aktualisieren, deren Führungsebene innerhalb Ihres organisatorischen Geltungsbereichs sowohl zuweisbar als auch einsehbar bleibt."
+
 #: /app/Http/Controllers/Api/V1/EmployeeDocumentController.php:132
 msgid "File not found"
 msgstr "Datei nicht gefunden"

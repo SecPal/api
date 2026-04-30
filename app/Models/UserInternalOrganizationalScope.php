@@ -30,9 +30,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $access_level Enum: none, read, write, manage
  * @property bool $include_descendants Whether access extends to all descendants
  * @property int|null $min_viewable_rank Minimum leadership rank user can view (NULL = no minimum)
- * @property int|null $max_viewable_rank Maximum leadership rank user can view (NULL/0 = ONLY non-leadership employees)
+ * @property int|null $max_viewable_rank Maximum leadership rank user can view (NULL = all leadership plus non-leadership, 0 = non-leadership only)
  * @property int|null $min_assignable_rank Minimum leadership rank user can assign/remove (NULL = no minimum)
- * @property int|null $max_assignable_rank Maximum leadership rank user can assign/remove (0 = guards only, NULL = no upper-bound for leadership)
+ * @property int|null $max_assignable_rank Maximum leadership rank user can assign/remove (NULL = all leadership plus non-leadership, 0 = non-leadership only)
  * @property bool $allow_self_access Allow user to view/edit own employee HR data (default: false for security)
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
@@ -167,7 +167,7 @@ class UserInternalOrganizationalScope extends Model
      */
     public function canViewManagementLevel(int $managementLevel): bool
     {
-        return $this->isWithinManagementLevelRange(
+        return $this->isWithinViewableManagementLevelRange(
             $managementLevel,
             $this->min_viewable_rank,
             $this->max_viewable_rank,
@@ -179,20 +179,41 @@ class UserInternalOrganizationalScope extends Model
      */
     public function canAssignManagementLevel(int $managementLevel): bool
     {
-        return $this->isWithinManagementLevelRange(
+        return $this->isWithinAssignableManagementLevelRange(
             $managementLevel,
             $this->min_assignable_rank,
             $this->max_assignable_rank,
         );
     }
 
-    private function isWithinManagementLevelRange(int $managementLevel, ?int $minimumLevel, ?int $maximumLevel): bool
+    private function isWithinViewableManagementLevelRange(int $managementLevel, ?int $minimumLevel, ?int $maximumLevel): bool
     {
-        if ($maximumLevel === 0) {
-            return $managementLevel === 0;
+        if ($managementLevel === 0) {
+            return $maximumLevel === null || $maximumLevel === 0;
         }
 
+        if ($maximumLevel === 0) {
+            return false;
+        }
+
+        if ($minimumLevel !== null && $managementLevel < $minimumLevel) {
+            return false;
+        }
+
+        if ($maximumLevel !== null && $managementLevel > $maximumLevel) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isWithinAssignableManagementLevelRange(int $managementLevel, ?int $minimumLevel, ?int $maximumLevel): bool
+    {
         if ($managementLevel === 0) {
+            return $maximumLevel === null || $maximumLevel === 0;
+        }
+
+        if ($maximumLevel === 0) {
             return false;
         }
 
