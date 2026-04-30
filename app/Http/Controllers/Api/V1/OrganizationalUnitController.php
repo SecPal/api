@@ -30,13 +30,15 @@ class OrganizationalUnitController extends Controller
 {
     private function respondWithUnit(Request $request, OrganizationalUnit $unit, int $status = Response::HTTP_OK): JsonResponse
     {
-        /** @var \App\Models\User $user */
-        $user = $request->user();
+        if (! $request->attributes->has('accessible_unit_ids')) {
+            /** @var \App\Models\User $user */
+            $user = $request->user();
 
-        $request->attributes->set(
-            'accessible_unit_ids',
-            $user->getAccessibleOrganizationalUnits()->pluck('id')->toArray()
-        );
+            $request->attributes->set(
+                'accessible_unit_ids',
+                $user->getAccessibleOrganizationalUnits()->pluck('id')->toArray()
+            );
+        }
 
         /** @var OrganizationalUnit $responseUnit */
         $responseUnit = $unit->refresh()->load('parent');
@@ -114,6 +116,10 @@ class OrganizationalUnitController extends Controller
 
         $units = $query->paginate($request->integer('per_page', 15));
 
+        // Prime the relation cache once so resolvePermissions() calls inside OrganizationalUnitResource
+        // reuse it instead of re-querying for each unit (avoids N+1 for permissions checks).
+        $user->load('organizationalScopes');
+
         // Store accessible IDs on the container request for OrganizationalUnitResource to use (Need-to-Know filtering)
         request()->attributes->set('accessible_unit_ids', $accessibleIds);
 
@@ -168,6 +174,9 @@ class OrganizationalUnitController extends Controller
         /** @var int $tenantId */
         $tenantId = $request->input('tenant_id');
 
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
         // Check authorization for creating under parent (if specified) or root
         $parentId = $request->validated()['parent_id'] ?? null;
         if ($parentId !== null) {
@@ -199,8 +208,6 @@ class OrganizationalUnitController extends Controller
         } else {
             // Root unit created: Auto-assign admin scope to creator
             // This ensures the creator can see and manage their new unit
-            /** @var \App\Models\User $user */
-            $user = $request->user();
             UserInternalOrganizationalScope::create([
                 'user_id' => $user->id,
                 'organizational_unit_id' => $unit->id,
@@ -208,6 +215,9 @@ class OrganizationalUnitController extends Controller
                 'include_descendants' => true,
             ]);
         }
+
+        // Invalidate cached scopes so the response permissions reflect the newly granted scope.
+        $user->unsetRelation('organizationalScopes');
 
         return $this->respondWithUnit($request, $unit, Response::HTTP_CREATED);
     }
@@ -407,6 +417,9 @@ class OrganizationalUnitController extends Controller
 
         $organizational_unit->setParent($parent);
         $this->ensureActorCanAccessChildUnit($request, $parent, $organizational_unit);
+
+        // Invalidate cached scopes — ensureActorCanAccessChildUnit may have created a new scope.
+        $user->unsetRelation('organizationalScopes');
 
         return $this->respondWithUnit($request, $organizational_unit);
     }
