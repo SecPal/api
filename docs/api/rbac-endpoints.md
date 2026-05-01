@@ -53,12 +53,12 @@ Assign a role to a user. Supports both permanent and temporal assignments.
 
 **Parameters:**
 
-| Field         | Type   | Required | Description                                                    |
-| ------------- | ------ | -------- | -------------------------------------------------------------- |
-| `role`        | string | Yes      | Role name (e.g., `Manager`, `HR`, `regional_manager`)          |
-| `valid_from`  | string | No       | ISO 8601 timestamp when role becomes active (null = immediate) |
-| `valid_until` | string | No       | ISO 8601 timestamp when role expires (null = permanent)        |
-| `reason`      | string | No       | Justification for role assignment (max 500 chars)              |
+| Field         | Type   | Required | Description                                                                                                                                              |
+| ------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `role`        | string | Yes      | Role name; case-sensitive, must match the exact value stored in `roles.name` (e.g., `Manager`, `HR`, or a custom lowercase name like `regional_manager`) |
+| `valid_from`  | string | No       | ISO 8601 timestamp when role becomes active (null = immediate)                                                                                           |
+| `valid_until` | string | No       | ISO 8601 timestamp when role expires (null = permanent)                                                                                                  |
+| `reason`      | string | No       | Justification for role assignment (max 500 chars)                                                                                                        |
 
 **Success Response (201 Created):**
 
@@ -269,8 +269,8 @@ Extend the expiration date of a temporal role assignment.
 
 ```json
 {
-  "user_id": 123,
-  "role": "manager",
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "role": "Manager",
   "valid_from": "2025-12-01T00:00:00Z",
   "valid_until": "2025-12-31T23:59:59Z",
   "reason": "Vacation coverage extended"
@@ -366,7 +366,7 @@ Create a new custom role with assigned permissions.
 
 **Endpoint:** `POST /v1/roles`
 
-**Authorization:** Requires `roles.create` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
+**Authorization:** Requires `roles.create` permission. Authorization is enforced at the route level via `permission:roles.create`, with policy/Gate checks retained as an additional defense-in-depth layer.
 
 **Request Body:**
 
@@ -503,7 +503,7 @@ Update a role's name, description, and/or permissions.
 
 **Endpoint:** `PATCH /v1/roles/{id}`
 
-**Authorization:** Requires `roles.update` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
+**Authorization:** Requires `roles.update` permission. Authorization is enforced at the route level via middleware and additionally via Laravel Policy/Gate checks.
 
 **URL Parameters:**
 
@@ -554,7 +554,7 @@ Delete a custom role. **Cannot delete roles that are assigned to users.**
 
 **Endpoint:** `DELETE /v1/roles/{id}`
 
-**Authorization:** Requires `roles.delete` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
+**Authorization:** Requires `roles.delete` permission. Authorization is enforced at the route level via `permission:roles.delete` middleware, with Laravel Policy/Gate checks providing additional protection.
 
 **URL Parameters:**
 
@@ -661,7 +661,7 @@ Create a new custom permission.
 
 **Endpoint:** `POST /v1/permissions`
 
-**Authorization:** Requires `permissions.create` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
+**Authorization:** Requires `permissions.create` permission. Authorization is enforced at the route level via `permission:permissions.create` middleware, with additional policy/Gate checks applied in the request flow.
 
 **Request Body:**
 
@@ -772,7 +772,7 @@ Update a permission's description. **Note:** Permission names are immutable for 
 
 **Endpoint:** `PATCH /v1/permissions/{id}`
 
-**Authorization:** Requires `permissions.update` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
+**Authorization:** Requires `permissions.update` permission. Authorization is enforced at the route level via `permission:permissions.update` middleware and additionally checked via Laravel Policy/Gate.
 
 **URL Parameters:**
 
@@ -818,7 +818,7 @@ Delete a custom permission. **Cannot delete if assigned to any role or user.**
 
 **Endpoint:** `DELETE /v1/permissions/{id}`
 
-**Authorization:** Requires `permissions.delete` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
+**Authorization:** Requires `permissions.delete` permission. Authorization is enforced by route-level `permission:permissions.delete` middleware and Laravel Policy/Gate checks.
 
 **URL Parameters:**
 
@@ -932,7 +932,7 @@ Assign one or more permissions directly to a user, bypassing roles.
 
 **Endpoint:** `POST /v1/users/{user}/permissions`
 
-**Authorization:** Requires `permissions.assign_direct` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
+**Authorization:** Requires `permissions.assign_direct` permission. Authorization is enforced by both the route-level `permission:permissions.assign_direct` middleware and the Laravel Policy for this endpoint.
 
 **URL Parameters:**
 
@@ -1006,7 +1006,7 @@ Remove a direct permission from a user. **Does not affect role-based permissions
 
 **Endpoint:** `DELETE /v1/users/{user}/permissions/{permission}`
 
-**Authorization:** Requires `permissions.revoke_direct` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
+**Authorization:** Requires `permissions.revoke_direct` permission. Authorization is enforced by both route-level `permission:permissions.revoke_direct` middleware and the Laravel Policy for this action.
 
 **URL Parameters:**
 
