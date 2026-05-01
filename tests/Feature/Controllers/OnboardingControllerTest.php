@@ -699,7 +699,9 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
         $response->assertStatus(401);
     });
 
-    test('returns 403 when user lacks onboarding.write permission', function (): void {
+    test('allows self-service upload for an own draft submission without onboarding.write permission', function (): void {
+        Storage::fake('local');
+
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
             'form_template_id' => $this->template->id,
@@ -707,12 +709,24 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
         ]);
 
         $response = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
             ->post("/v1/onboarding/submissions/{$submission->id}/files", [
                 'file' => UploadedFile::fake()->create('contract.pdf', 100, 'application/pdf'),
                 'document_type' => 'contract',
             ]);
 
-        $response->assertStatus(403);
+        $response->assertStatus(201)
+            ->assertJsonStructure([
+                'data' => ['id', 'filename'],
+            ]);
+
+        expect($response->json('data.filename'))->toBe('contract.pdf');
+
+        $this->assertDatabaseHas('onboarding_submission_files', [
+            'onboarding_form_submission_id' => $submission->id,
+            'document_type' => 'contract',
+            'file_name' => 'contract.pdf',
+        ]);
     });
 
     test('uploads a file for an employee draft submission', function (): void {
