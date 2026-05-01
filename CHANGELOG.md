@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- fixed `POST /v1/customers/{customer}/assignments` to apply the same employee-compliance expiry gate as site assignments, so customer assignments now reject employees with critical or expired compliance documents while still allowing warning-only alerts (fixes `api#999`)
 - fixed onboarding self-service backend blockers so authenticated pre-contract employees can upload files to their own editable onboarding submissions without an extra `onboarding.write` grant, while onboarding completion now counts required tenant templates together with required system templates for the employee's tenant-specific completion state (fixes `api#986`)
 - fixed `GET /v1/employees` to apply the same scoped management-level visibility rules as `GET /v1/employees/{employee}`, so collection responses no longer include employees whose detail endpoint would still return `403 This action is unauthorized.` for the same user (fixes `api#987`)
 - aligned employee create, view, and update authorization on the same descendant-scope and management-level rules, so users can no longer create an employee in a scoped unit and then hit `403 This action is unauthorized.` on the immediate detail fetch; create and update now reject employees whose target unit or management level would fall outside the actor's writable, assignable, and viewable scope
