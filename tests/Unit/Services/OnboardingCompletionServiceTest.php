@@ -1,11 +1,12 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use App\Models\TenantKey;
 use App\Services\OnboardingCompletionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -174,6 +175,53 @@ describe('OnboardingCompletionService::checkCompletion', function () {
 
         // Should be complete despite optional template missing
         expect($result)->toBeTrue();
+        expect($employee->fresh()->onboarding_completed)->toBeTrue();
+    });
+
+    it('requires tenant-scoped required templates for the employee tenant before marking onboarding complete', function () {
+        $employee = Employee::factory()->preContract()->create([
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'onboarding_completed' => false,
+        ]);
+
+        $otherTenant = TenantKey::factory()->create();
+
+        $systemTemplate = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => null,
+            'is_required' => true,
+            'is_system_template' => true,
+        ]);
+
+        $tenantTemplate = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $employee->tenant_id,
+            'is_required' => true,
+            'is_system_template' => false,
+        ]);
+
+        OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'is_required' => true,
+            'is_system_template' => false,
+        ]);
+
+        OnboardingFormSubmission::factory()->create([
+            'employee_id' => $employee->id,
+            'form_template_id' => $systemTemplate->id,
+            'status' => 'approved',
+        ]);
+
+        $result = $this->service->checkCompletion($employee);
+
+        expect($result)->toBeFalse();
+        expect($employee->fresh()->onboarding_completed)->toBeFalse();
+
+        OnboardingFormSubmission::factory()->create([
+            'employee_id' => $employee->id,
+            'form_template_id' => $tenantTemplate->id,
+            'status' => 'approved',
+        ]);
+
+        expect($this->service->checkCompletion($employee))->toBeTrue();
         expect($employee->fresh()->onboarding_completed)->toBeTrue();
     });
 
@@ -474,6 +522,55 @@ describe('OnboardingCompletionService::getCompletionStatus', function () {
             'completed_required' => 1,
             'missing_templates' => [],
         ]);
+    });
+
+    it('includes tenant-scoped required templates for the employee tenant in completion status', function () {
+        $employee = Employee::factory()->preContract()->create([
+            'status' => Employee::STATUS_PRE_CONTRACT,
+        ]);
+
+        $otherTenant = TenantKey::factory()->create();
+
+        OnboardingFormTemplate::factory()->create([
+            'tenant_id' => null,
+            'is_required' => true,
+            'is_system_template' => true,
+            'name' => 'Personal Information',
+            'sort_order' => 1,
+        ]);
+
+        $tenantTemplate = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $employee->tenant_id,
+            'is_required' => true,
+            'is_system_template' => false,
+            'name' => 'Tenant NDA',
+            'sort_order' => 2,
+        ]);
+
+        OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'is_required' => true,
+            'is_system_template' => false,
+            'name' => 'Other Tenant Only',
+            'sort_order' => 3,
+        ]);
+
+        OnboardingFormSubmission::factory()->create([
+            'employee_id' => $employee->id,
+            'form_template_id' => $tenantTemplate->id,
+            'status' => 'approved',
+        ]);
+
+        $status = $this->service->getCompletionStatus($employee);
+
+        expect($status)->toMatchArray([
+            'is_completed' => false,
+            'total_required' => 2,
+            'completed_required' => 1,
+        ]);
+
+        expect($status['missing_templates'])->toHaveCount(1);
+        expect($status['missing_templates'][0]['name'])->toBe('Personal Information');
     });
 
     it('handles no required templates (instant completion)', function () {

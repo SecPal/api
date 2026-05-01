@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Services;
@@ -8,6 +8,7 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use Illuminate\Database\Eloquent\Builder;
 use UnexpectedValueException;
 
 /**
@@ -36,9 +37,7 @@ class OnboardingCompletionService
      */
     public function checkCompletion(Employee $employee): bool
     {
-        // Get all required template IDs (system templates only, tenant-agnostic)
-        $requiredTemplateIds = OnboardingFormTemplate::where('is_required', true)
-            ->whereNull('tenant_id') // System templates only
+        $requiredTemplateIds = $this->requiredTemplatesQuery($employee)
             ->pluck('id')
             ->all();
 
@@ -95,9 +94,7 @@ class OnboardingCompletionService
      */
     public function getCompletionStatus(Employee $employee): array
     {
-        // Get all required templates (system templates only)
-        $requiredTemplates = OnboardingFormTemplate::where('is_required', true)
-            ->whereNull('tenant_id')
+        $requiredTemplates = $this->requiredTemplatesQuery($employee)
             ->orderBy('sort_order')
             ->get(['id', 'name', 'description']);
 
@@ -210,5 +207,18 @@ class OnboardingCompletionService
         }
 
         throw new UnexpectedValueException('Expected onboarding template id to be a non-empty string or integer value.');
+    }
+
+    /**
+     * @return Builder<OnboardingFormTemplate>
+     */
+    private function requiredTemplatesQuery(Employee $employee): Builder
+    {
+        return OnboardingFormTemplate::query()
+            ->where('is_required', true)
+            ->where(static function ($query) use ($employee): void {
+                $query->whereNull('tenant_id')
+                    ->orWhere('tenant_id', $employee->tenant_id);
+            });
     }
 }
