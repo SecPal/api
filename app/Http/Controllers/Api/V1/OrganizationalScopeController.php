@@ -240,6 +240,15 @@ class OrganizationalScopeController extends Controller
     /**
      * Prevent a user from removing their own last scope-management path on the unit.
      *
+     * The access check uses {@see User::hasAccessToUnit()} with a caller-supplied in-memory
+     * scope collection so the post-change state can be simulated without mutating data.
+     * This differs from the removed controller-local helper which used `value('ancestor_id')`
+     * to pick a single DB-ordered ancestor scope.  Evaluating all applicable scopes is the
+     * correct behaviour: if the user retains manage access through any applicable scope
+     * (direct or inherited), they are not locked out.  Resolves the non-determinism in the
+     * previous helper and aligns with the shared direct-scope-first semantics of
+     * {@see User::resolveApplicableOrganizationalScopesForUnit()} (refs api#982).
+     *
      * @param  array<string, mixed>  $pendingAttributes
      */
     private function preventSelfScopeManagementLockout(
