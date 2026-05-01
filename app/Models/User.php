@@ -17,7 +17,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
-// Models used in organizational scope methods
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection as SupportCollection;
@@ -670,8 +669,21 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      */
     public function getApplicableOrganizationalScopesForUnit(OrganizationalUnit $unit): SupportCollection
     {
-        $scopes = $this->organizationalScopes;
+        return $this->resolveApplicableOrganizationalScopesForUnit($unit, $this->organizationalScopes);
+    }
 
+    /**
+     * Resolve the scopes that apply to a specific organizational unit.
+     *
+     * Direct scopes take precedence over inherited descendant scopes for the
+     * same unit. When no direct scope exists, all ancestor scopes with
+     * include_descendants=true are returned.
+     *
+     * @param  SupportCollection<int, UserInternalOrganizationalScope>  $scopes
+     * @return SupportCollection<int, UserInternalOrganizationalScope>
+     */
+    private function resolveApplicableOrganizationalScopesForUnit(OrganizationalUnit $unit, SupportCollection $scopes): SupportCollection
+    {
         if ($scopes->isEmpty()) {
             /** @var SupportCollection<int, UserInternalOrganizationalScope> $emptyScopes */
             $emptyScopes = collect();
@@ -878,12 +890,15 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      * - Single query to check if target unit is a descendant of any scoped unit
      *
      * @param  string|null  $minimumLevel  Optional minimum access level required
+     * @param  SupportCollection<int, UserInternalOrganizationalScope>|null  $scopes
      */
-    public function hasAccessToUnit(OrganizationalUnit $unit, ?string $minimumLevel = null): bool
+    public function hasAccessToUnit(OrganizationalUnit $unit, ?string $minimumLevel = null, ?SupportCollection $scopes = null): bool
     {
-        $scopes = $this->getApplicableOrganizationalScopesForUnit($unit);
+        $resolvedScopes = $scopes === null
+            ? $this->getApplicableOrganizationalScopesForUnit($unit)
+            : $this->resolveApplicableOrganizationalScopesForUnit($unit, $scopes);
 
-        if ($scopes->isEmpty()) {
+        if ($resolvedScopes->isEmpty()) {
             return false;
         }
 
@@ -892,7 +907,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
             return true;
         }
 
-        return $scopes->contains(
+        return $resolvedScopes->contains(
             fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel($minimumLevel)
         );
     }
