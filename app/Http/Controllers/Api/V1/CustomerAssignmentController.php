@@ -69,9 +69,11 @@ class CustomerAssignmentController extends Controller
      *
      * Assigns a user to a customer with a flexible role name. Prevents duplicate
      * assignments (same user + role combination) and returns 409 Conflict if
-     * the assignment already exists.
+     * the assignment already exists. Returns 422 Unprocessable Entity if the
+     * target employee has critical or expiring compliance documents that block
+     * the assignment.
      *
-     * @return JsonResponse CustomerAssignmentResource (201 Created) or error (409 Conflict)
+     * @return JsonResponse CustomerAssignmentResource (201 Created) or error (409 Conflict, 422 Unprocessable Entity)
      */
     public function store(StoreCustomerAssignmentRequest $request, Customer $customer, EmployeeComplianceService $complianceService): JsonResponse
     {

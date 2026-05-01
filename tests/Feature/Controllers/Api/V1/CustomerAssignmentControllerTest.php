@@ -284,6 +284,14 @@ describe('POST /v1/customers/{customer}/assignments', function () {
                     '*' => ['type', 'status', 'expiry'],
                 ],
             ]);
+
+        expect($response->json('blocking_documents'))->not->toBeEmpty();
+
+        $this->assertDatabaseMissing('customer_assignments', [
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'user_id' => $targetUser->id,
+        ]);
     });
 
     test('allows assignments when the target user employee has warning level compliance alerts only', function (): void {
