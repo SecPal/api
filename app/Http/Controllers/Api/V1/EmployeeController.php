@@ -172,6 +172,8 @@ class EmployeeController extends Controller
             OrganizationalUnitClosure::whereIn('ancestor_id', $descendantScopesByAncestorId->keys())
                 ->where('depth', '>', 0)
                 ->select(['ancestor_id', 'descendant_id'])
+                ->orderBy('ancestor_id')
+                ->orderBy('descendant_id')
                 ->each(function (OrganizationalUnitClosure $closure) use (
                     $directUnitIds,
                     $descendantScopesByAncestorId,
