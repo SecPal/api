@@ -10,7 +10,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreOrganizationalScopeRequest;
 use App\Http\Requests\UpdateOrganizationalScopeRequest;
 use App\Models\OrganizationalUnit;
-use App\Models\OrganizationalUnitClosure;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Http\JsonResponse;
@@ -271,76 +270,13 @@ class OrganizationalScopeController extends Controller
             $simulatedScopes->push($simulatedScope);
         }
 
-        if ($this->scopesHaveMinimumAccessToUnit($simulatedScopes, $organizationalUnit, 'manage')) {
+        if ($actor->hasAccessToUnit($organizationalUnit, 'manage', $simulatedScopes)) {
             return null;
         }
 
         return response()->json([
             'message' => __(self::SELF_SCOPE_LOCKOUT_MESSAGE),
         ], Response::HTTP_FORBIDDEN);
-    }
-
-    /**
-     * Evaluate minimum access for a unit using an in-memory scope collection.
-     *
-     * This intentionally mirrors the direct-scope-first access semantics of
-     * User::hasAccessToUnit() but operates on a caller-supplied collection instead
-     * of querying the database. This allows the lockout check to simulate
-     * post-modification state (e.g. after a scope is removed or downgraded)
-     * without mutating data or making additional DB calls.
-     *
-     * See api#982 for a tracked refactoring to unify this with User::hasAccessToUnit().
-     *
-     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
-     */
-    private function scopesHaveMinimumAccessToUnit(
-        Collection $scopes,
-        OrganizationalUnit $organizationalUnit,
-        string $minimumLevel,
-    ): bool {
-        if ($scopes->isEmpty()) {
-            return false;
-        }
-
-        /** @var Collection<int, string> $directScopeUnitIds */
-        $directScopeUnitIds = collect();
-        /** @var Collection<int, string> $descendantScopeUnitIds */
-        $descendantScopeUnitIds = collect();
-
-        foreach ($scopes as $scope) {
-            $directScopeUnitIds->push($scope->organizational_unit_id);
-
-            if ($scope->include_descendants) {
-                $descendantScopeUnitIds->push($scope->organizational_unit_id);
-            }
-        }
-
-        $isDirectlyScoped = $directScopeUnitIds->contains($organizationalUnit->id);
-
-        $ancestorScopeId = null;
-        if (! $isDirectlyScoped && $descendantScopeUnitIds->isNotEmpty()) {
-            $ancestorScopeId = OrganizationalUnitClosure::whereIn('ancestor_id', $descendantScopeUnitIds->unique())
-                ->where('descendant_id', $organizationalUnit->id)
-                ->where('depth', '>', 0)
-                ->value('ancestor_id');
-        }
-
-        $applicableScope = null;
-        if ($isDirectlyScoped) {
-            $applicableScope = $scopes->first(
-                fn (UserInternalOrganizationalScope $scope) => $scope->organizational_unit_id === $organizationalUnit->id,
-            );
-        } elseif ($ancestorScopeId !== null) {
-            $applicableScope = $scopes->first(
-                fn (UserInternalOrganizationalScope $scope) => $scope->organizational_unit_id === $ancestorScopeId && $scope->include_descendants,
-            );
-        }
-
-        if (! $applicableScope instanceof UserInternalOrganizationalScope) {
-            return false;
-        }
-
-        return $applicableScope->hasMinimumAccessLevel($minimumLevel);
     }
 
     /**
