@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -14,6 +14,9 @@ use App\Http\Requests\Api\V1\Assignment\UpdateAssignmentRequest;
 use App\Http\Resources\Api\V1\CustomerAssignmentResource;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
+use App\Models\Employee;
+use App\Models\User;
+use App\Services\EmployeeComplianceService;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -70,13 +73,26 @@ class CustomerAssignmentController extends Controller
      *
      * @return JsonResponse CustomerAssignmentResource (201 Created) or error (409 Conflict)
      */
-    public function store(StoreCustomerAssignmentRequest $request, Customer $customer): JsonResponse
+    public function store(StoreCustomerAssignmentRequest $request, Customer $customer, EmployeeComplianceService $complianceService): JsonResponse
     {
         $this->authorize('create', [CustomerAssignment::class, $customer]);
 
         $validated = $request->validated();
         $validated['tenant_id'] = $request->input('tenant_id');
         $validated['customer_id'] = $customer->id;
+
+        /** @var User $targetUser */
+        $targetUser = User::query()->with('employee')->findOrFail($validated['user_id']);
+        $blockingDocuments = $targetUser->employee instanceof Employee
+            ? $complianceService->blockingDocuments($targetUser->employee)
+            : collect();
+
+        if ($blockingDocuments->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Employee cannot be assigned while critical compliance documents are expired or due within 7 days.',
+                'blocking_documents' => $blockingDocuments->all(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         // Check for existing assignment with same user+role
         $existing = CustomerAssignment::where('customer_id', $customer->id)
