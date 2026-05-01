@@ -7,14 +7,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Assignment\IndexCustomerAssignmentRequest;
 use App\Http\Requests\Api\V1\Assignment\StoreCustomerAssignmentRequest;
 use App\Http\Requests\Api\V1\Assignment\UpdateAssignmentRequest;
 use App\Http\Resources\Api\V1\CustomerAssignmentResource;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
-use App\Models\Employee;
 use App\Models\User;
 use App\Services\EmployeeComplianceService;
 use Illuminate\Http\JsonResponse;
@@ -31,7 +29,7 @@ use Symfony\Component\HttpFoundation\Response;
  * @see SecPal/api#315 Assignment API endpoints
  * @see SecPal/.github#210 Customer & Site Management Epic
  */
-class CustomerAssignmentController extends Controller
+class CustomerAssignmentController extends AssignmentController
 {
     /**
      * List assignments for a customer.
@@ -85,15 +83,10 @@ class CustomerAssignmentController extends Controller
 
         /** @var User $targetUser */
         $targetUser = User::query()->with('employee')->findOrFail($validated['user_id']);
-        $blockingDocuments = $targetUser->employee instanceof Employee
-            ? $complianceService->blockingDocuments($targetUser->employee)
-            : collect();
+        $complianceBlockingResponse = $this->complianceBlockingResponse($targetUser, $complianceService);
 
-        if ($blockingDocuments->isNotEmpty()) {
-            return response()->json([
-                'message' => 'Employee cannot be assigned while critical compliance documents are expired or due within 7 days.',
-                'blocking_documents' => $blockingDocuments->all(),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        if ($complianceBlockingResponse !== null) {
+            return $complianceBlockingResponse;
         }
 
         // Check for existing assignment with same user+role
