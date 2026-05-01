@@ -8,6 +8,7 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use Illuminate\Database\Eloquent\Builder;
 use UnexpectedValueException;
 
 /**
@@ -208,7 +209,10 @@ class OnboardingCompletionService
         throw new UnexpectedValueException('Expected onboarding template id to be a non-empty string or integer value.');
     }
 
-    private function requiredTemplatesQuery(Employee $employee)
+    /**
+     * @return Builder<OnboardingFormTemplate>
+     */
+    private function requiredTemplatesQuery(Employee $employee): Builder
     {
         return OnboardingFormTemplate::query()
             ->where('is_required', true)
