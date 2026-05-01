@@ -113,8 +113,8 @@ Domain-specific actions for workflows:
 | `read_salary`       | View sensitive salary data    | `employees.read_salary`         |
 | `read_all_branches` | Cross-branch access           | `employees.read_all_branches`   |
 | `generate`          | Create dynamic content        | `reports.generate`              |
-| `assign_temporary`  | Assign temporal roles         | `roles.assign_temporary`        |
-| `extend_expiration` | Extend role expiration        | `roles.extend_expiration`       |
+| `assign_temporary`  | Assign temporal roles         | `role.assign`                   |
+| `extend_expiration` | Extend role expiration        | `role.assign`                   |
 
 ---
 
@@ -127,9 +127,10 @@ Customers and Sites intentionally use a two-layer model:
 
 ### Global Access
 
-- `Admin` receives `customers.*` and `sites.*`
-- `Manager` receives `customers.read`, `customers.create`, `customers.update`, `sites.read`, `sites.create`, and `sites.update`
-- Custom roles can opt in explicitly by assigning the matching `customers.*` or `sites.*` permissions
+- No predefined role receives global Customer or Site access through an implicit `Admin` shortcut.
+- `Manager` receives `customers.read`, `customers.create`, `customers.update`, `sites.read`, `sites.create`, and `sites.update`.
+- `HR`, `Employee`, `Employee Read Only`, `Guard`, `Client`, and `Works Council` do not receive Customer or Site module access by default.
+- Custom roles can opt in explicitly by assigning the matching `customers.*` or `sites.*` permissions.
 
 ### Scoped Access
 
@@ -147,7 +148,7 @@ Customers and Sites intentionally use a two-layer model:
 ### Detail And Mutation Rules
 
 - Opening `/v1/customers` or `/v1/sites` does not imply access to every individual record; detail endpoints still require the concrete object to be in scope
-- `customers.create` and `sites.create` are explicit admin or manager-style permissions
+- `customers.create` and `sites.create` are explicit manager or custom-role permissions
 - `customers.update` and `sites.update` may also be granted through direct assignment to the concrete customer or site
 - `customers.delete` and `sites.delete` remain explicit destructive permissions and are never granted through scoped visibility alone
 
@@ -167,34 +168,61 @@ Customers and Sites intentionally use a two-layer model:
 
 ## Permission Matrix
 
-Permissions assigned to predefined roles:
+Representative permissions assigned to predefined roles. There is no predefined `Admin` role; broad access is assembled from explicit permissions plus explicit `manage` scopes.
 
-### Admin Role
+### Employee Role
 
-**Philosophy:** Full system access
+**Philosophy:** Self-service employee access
 
 ```text
-Permissions: * (all permissions)
+- employee.read
+- employee.update
+- employee_qualification.read
+- employee_document.read
+- qualification.read
+- shifts.read
+- shifts.update
+- work_instructions.read
+- work_instructions.acknowledge
+```
 
-Or explicitly:
-- customers.*
-- sites.*
-- assignments.*
-- cost-centers.*
-- employees.*
-- shifts.*
-- work_instructions.*
-- roles.*
-- permissions.*
-- works_council.*
-- reports.*
+---
+
+### Employee Read Only Role
+
+**Philosophy:** Read-only employee self-service
+
+```text
+- employee.read
+- employee_qualification.read
+- employee_document.read
+- qualification.read
+- shifts.read
+- work_instructions.read
+```
+
+---
+
+### HR Role
+
+**Philosophy:** HR lifecycle, compliance, and onboarding
+
+```text
+- employees.read / create / update / delete
+- employees.read_sensitive / read_salary / export
+- employee.read / write / activate / terminate
+- employee_qualification.read / write
+- employee_document.read / write
+- qualification.read / write
+- onboarding.read / write / approve / confirm
+- reports.view / generate
 ```
 
 ---
 
 ### Manager Role
 
-**Philosophy:** Branch-level management
+**Philosophy:** Operational management within explicit organizational scopes
 
 ```text
 Customers:
@@ -220,12 +248,13 @@ Employees:
 - employees.read
 - employees.create
 - employees.update
-- employees.delete (optional - some orgs restrict)
+- employees.read_salary
 
 Shifts:
 - shifts.read
 - shifts.create
 - shifts.update
+- shifts.delete
 - shifts.publish
 
 Work Instructions:
@@ -234,13 +263,15 @@ Work Instructions:
 - work_instructions.update
 - work_instructions.publish
 
+Onboarding / Audit:
+- onboarding.read
+- onboarding.write
+- activity_log.read
+- activity_log.read_system
+
 Reports:
 - reports.view
 - reports.generate
-
-Roles:
-- role.read (view team roles)
-- role.assign (assign roles to team)
 ```
 
 ---
@@ -568,7 +599,7 @@ $shiftPermissions = [
  *
  * Allows viewing salary data for employees.
  *
- * Scope: Branch-scoped for Manager, Global for Admin
+ * Scope: Available only when the user has `employees.read_salary` plus explicit scope coverage for the target employees
  * Policy: EmployeePolicy::viewSalary()
  * Use Case: Payroll review, compensation analysis
  * GDPR Note: Subject to data protection logs

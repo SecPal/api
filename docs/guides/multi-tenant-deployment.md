@@ -231,9 +231,9 @@ Users can register themselves:
 curl -X POST https://api.secpal.dev/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@customercorp.com",
+        "email": "ops@customercorp.com",
     "password": "SecurePassword123!",
-    "name": "Admin User",
+        "name": "Initial Operator",
     "tenant_id": 1
   }'
 ```
@@ -244,15 +244,15 @@ curl -X POST https://api.secpal.dev/v1/auth/register \
 {
   "user": {
     "id": "9d8e7f6a-5b4c-3d2e-1f0e-9d8c7b6a5f4e",
-    "email": "admin@customercorp.com",
-    "name": "Admin User",
+    "email": "ops@customercorp.com",
+    "name": "Initial Operator",
     "tenant_id": 1
   },
   "token": "1|XYZ..."
 }
 ```
 
-#### Option B: Admin User Creation (Tinker)
+#### Option B: Bootstrap User Creation (Tinker)
 
 ```bash
 php artisan tinker
@@ -260,18 +260,45 @@ php artisan tinker
 
 ```php
 use App\Models\User;
+use App\Models\Permission;
+use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Support\Facades\Hash;
 
 // Create user for tenant 1
 $user = User::create([
-    'email' => 'admin@tenant1.com',
+    'email' => 'ops@tenant1.com',
     'password' => Hash::make('SecurePassword123!'),
-    'name' => 'Admin User',
+    'name' => 'Initial Operator',
     'tenant_id' => 1, // Assign to tenant 1
 ]);
 
-// Assign admin role (tenant-scoped)
-$user->assignRole('Admin');
+app(\Spatie\Permission\PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id);
+$user->syncPermissions(
+    Permission::query()->where('guard_name', 'sanctum')->pluck('name')->all()
+);
+
+$rootUnit = \App\Models\OrganizationalUnit::firstOrCreate([
+    'tenant_id' => $user->tenant_id,
+    'name' => 'Headquarters',
+], [
+    'type' => 'branch',
+]);
+
+UserInternalOrganizationalScope::updateOrCreate(
+    [
+        'user_id' => $user->id,
+        'organizational_unit_id' => $rootUnit->id,
+        'min_viewable_rank' => null,
+        'max_viewable_rank' => null,
+        'min_assignable_rank' => null,
+        'max_assignable_rank' => null,
+    ],
+    [
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'allow_self_access' => true,
+    ]
+);
 
 echo "User created: {$user->email} (Tenant {$user->tenant_id})\n";
 ```
@@ -282,12 +309,12 @@ Roles and permissions are **tenant-scoped** using Spatie Permission's team featu
 
 ```bash
 # Run seeder for initial roles/permissions
-php artisan db:seed --class=RolePermissionSeeder
+php artisan db:seed --class=RolesAndPermissionsSeeder
 ```
 
 **What this does:**
 
-- Creates predefined roles: Admin, Manager, Guard, Client, Works Council
+- Creates predefined roles: Employee, Employee Read Only, HR, Manager, Guard, Client, Works Council
 - Assigns permissions to each role
 - Roles are **shared across tenants** (same role definitions)
 - Role **assignments** are tenant-scoped (User X in Tenant 1 ≠ User X in Tenant 2)
@@ -425,38 +452,56 @@ Create automated tenant provisioning:
 // app/Services/TenantProvisioningService.php
 class TenantProvisioningService
 {
-    public function provisionTenant(string $customerName, string $adminEmail): array
+    public function provisionTenant(string $customerName, string $bootstrapEmail): array
     {
         DB::beginTransaction();
         try {
             // 1. Create tenant with encryption keys
             $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
 
-            // 2. Create admin user
-            $admin = User::create([
-                'email' => $adminEmail,
+            // 2. Create bootstrap user
+            $bootstrapUser = User::create([
+                'email' => $bootstrapEmail,
                 'password' => Hash::make(Str::random(16)), // Send via email
-                'name' => 'Admin',
+                'name' => 'Initial Operator',
                 'tenant_id' => $tenant->id,
             ]);
 
-            // 3. Assign admin role (tenant-scoped)
-            app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
-            $admin->assignRole('Admin');
-
-            // 4. Create default organizational unit
+            // 3. Create default organizational unit
             $orgUnit = OrganizationalUnit::create([
                 'name' => 'Headquarters',
                 'type' => 'branch',
                 'tenant_id' => $tenant->id,
             ]);
 
+            // 4. Grant explicit permissions and a root manage scope
+            app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
+            $bootstrapUser->syncPermissions(
+                Permission::query()->where('guard_name', 'sanctum')->pluck('name')->all()
+            );
+
+            UserInternalOrganizationalScope::updateOrCreate(
+                [
+                    'user_id' => $bootstrapUser->id,
+                    'organizational_unit_id' => $orgUnit->id,
+                    'min_viewable_rank' => null,
+                    'max_viewable_rank' => null,
+                    'min_assignable_rank' => null,
+                    'max_assignable_rank' => null,
+                ],
+                [
+                    'access_level' => 'manage',
+                    'include_descendants' => true,
+                    'allow_self_access' => true,
+                ]
+            );
+
             DB::commit();
 
             return [
                 'tenant_id' => $tenant->id,
-                'admin_user_id' => $admin->id,
-                'admin_email' => $adminEmail,
+                'bootstrap_user_id' => $bootstrapUser->id,
+                'bootstrap_email' => $bootstrapEmail,
             ];
         } catch (\Exception $e) {
             DB::rollBack();

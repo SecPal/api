@@ -601,7 +601,7 @@ describe('Edge Cases - N+1 Query Prevention', function () {
         $registrar->setPermissionsTeamId($tenant->id);
 
         $roles = [
-            createRoleApiRole('admin'),
+            createRoleApiRole('regional_manager'),
             createRoleApiRole('editor'),
             createRoleApiRole('viewer'),
         ];

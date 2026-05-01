@@ -225,7 +225,7 @@ Migration name ......................................... Batch / Status
 ### 3. Seed Predefined Roles (RBAC)
 
 ```bash
-# Seed 5 predefined roles (Admin, Manager, Guard, Client, Works Council)
+# Seed 7 predefined roles (Employee, Employee Read Only, HR, Manager, Guard, Client, Works Council)
 php artisan db:seed --class=RolesAndPermissionsSeeder
 ```
 

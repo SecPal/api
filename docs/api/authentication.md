@@ -111,8 +111,8 @@ Set-Cookie: laravel_session=<session>; path=/; HttpOnly; Secure; SameSite=lax
     "id": 1,
     "name": "John Doe",
     "email": "user@example.com",
-    "roles": ["Admin"],
-    "permissions": ["*"],
+    "roles": ["Manager"],
+    "permissions": ["employees.read", "shifts.read", "work_instructions.read"],
     "hasOrganizationalScopes": true
   }
 }
@@ -141,8 +141,8 @@ Content-Type: application/json
   "id": 1,
   "name": "John Doe",
   "email": "user@example.com",
-  "roles": ["Admin"],
-  "permissions": ["*"],
+  "roles": ["Manager"],
+  "permissions": ["employees.read", "shifts.read", "work_instructions.read"],
   "hasOrganizationalScopes": true
 }
 ```

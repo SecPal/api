@@ -42,36 +42,88 @@ See [RBAC Architecture](../rbac-architecture.md) for full system design.
 
 ## Predefined Roles
 
-SecPal includes five predefined roles that cover common use cases:
+SecPal seeds seven predefined roles that cover common use cases. There is no predefined `Admin` role. Broad access is modeled by combining explicit permissions with explicit organizational scopes.
 
-### Admin
+### Employee
 
-**Description:** Full system access
+**Description:** Standard employee self-service access
 
 **Typical Permissions:**
 
-- `*` (all permissions)
-- Or: All individual permissions listed explicitly
+- `employee.read`, `employee.update`
+- `employee_qualification.read`, `employee_document.read`
+- `qualification.read`
+- `shifts.read`, `shifts.update`
+- `work_instructions.read`, `work_instructions.acknowledge`
 
 **Use Cases:**
 
-- System administrators
-- Technical support staff
-- Organization owners
+- Internal employees managing their own profile data
+- Staff reviewing their own qualifications and documents
+- Guards acknowledging work instructions
 
-**Scope:** Global (all branches, all locations)
+**Scope:** Own data and policy-limited operational records
+
+---
+
+### Employee Read Only
+
+**Description:** Read-only employee self-service access
+
+**Typical Permissions:**
+
+- `employee.read`
+- `employee_qualification.read`, `employee_document.read`
+- `qualification.read`
+- `shifts.read`
+- `work_instructions.read`
+
+**Use Cases:**
+
+- Employees who may inspect but not edit their records
+- Temporary viewer-style self-service access
+
+**Scope:** Own data only, without write operations
+
+---
+
+### HR
+
+**Description:** HR and onboarding operations
+
+**Typical Permissions:**
+
+- `employees.read`, `employees.create`, `employees.update`, `employees.delete`
+- `employees.read_sensitive`, `employees.read_salary`, `employees.export`
+- `employee.read`, `employee.write`, `employee.activate`, `employee.terminate`
+- `employee_qualification.write`, `employee_document.write`
+- `onboarding.read`, `onboarding.write`, `onboarding.approve`, `onboarding.confirm`
+- `reports.view`, `reports.generate`
+
+**Use Cases:**
+
+- HR teams
+- Recruiting and onboarding operators
+- Compliance staff handling employee master data
+
+**Scope:** Organizational-scope limited HR workflows
 
 ---
 
 ### Manager
 
-**Description:** Branch-level management
+**Description:** Operational management across assigned organizational scopes
 
 **Typical Permissions:**
 
-- `employees.read`, `employees.create`, `employees.update`
-- `shifts.read`, `shifts.create`, `shifts.update`, `shifts.publish`
-- `work_instructions.read`, `work_instructions.create`
+- `customers.read`, `customers.create`, `customers.update`
+- `sites.read`, `sites.create`, `sites.update`
+- `assignments.create`, `assignments.update`
+- `cost-centers.read`, `cost-centers.create`, `cost-centers.update`
+- `employees.read`, `employees.create`, `employees.update`, `employees.read_salary`
+- `shifts.read`, `shifts.create`, `shifts.update`, `shifts.delete`, `shifts.publish`
+- `work_instructions.read`, `work_instructions.create`, `work_instructions.update`, `work_instructions.publish`
+- `activity_log.read`, `activity_log.read_system`, `onboarding.read`, `onboarding.write`
 
 **Use Cases:**
 
@@ -79,7 +131,7 @@ SecPal includes five predefined roles that cover common use cases:
 - Team leads
 - Operations managers
 
-**Scope:** Branch-scoped (can only manage employees/shifts in their branch)
+**Scope:** Limited by explicit organizational scopes, not by any implicit global shortcut role
 
 ---
 
@@ -90,7 +142,7 @@ SecPal includes five predefined roles that cover common use cases:
 **Typical Permissions:**
 
 - `employees.read` (own data only)
-- `shifts.read`
+- `shifts.read`, `shifts.update` (policy-limited)
 - `work_instructions.read`, `work_instructions.acknowledge`
 
 **Use Cases:**
@@ -99,18 +151,19 @@ SecPal includes five predefined roles that cover common use cases:
 - On-site personnel
 - Field workers
 
-**Scope:** Own data only (can view own employee record, assigned shifts)
+**Scope:** Own data plus assigned operational records
 
 ---
 
 ### Client
 
-**Description:** Customer access (read-only)
+**Description:** External stakeholder access
 
 **Typical Permissions:**
 
-- `shifts.read` (location-specific)
+- `shifts.read`
 - `work_instructions.read`
+- `reports.view`
 
 **Use Cases:**
 
@@ -118,19 +171,20 @@ SecPal includes five predefined roles that cover common use cases:
 - Property managers
 - External stakeholders
 
-**Scope:** Location-scoped (can only view data for their location)
+**Scope:** Customer, site, and organizational assignment scoped
 
 ---
 
 ### Works Council
 
-**Description:** Employee representation (special permissions)
+**Description:** Employee representation with approval rights
 
 **Typical Permissions:**
 
-- `employees.read` (limited)
-- `shifts.approve_as_br`
-- `works_council.*`
+- `employees.read`, `employees.read_all_branches`
+- `shifts.read`, `shifts.approve_as_br`
+- `works_council.access_employee_files`, `works_council.approve_shift_plans`
+- `reports.view`
 
 **Use Cases:**
 
@@ -138,7 +192,7 @@ SecPal includes five predefined roles that cover common use cases:
 - Employee representatives
 - Union representatives
 
-**Scope:** Organization-wide (for approval workflows)
+**Scope:** Organization-wide approval workflows within assigned scope boundaries
 
 ---
 
@@ -614,7 +668,7 @@ curl -X DELETE https://api.secpal.dev/v1/roles/6 \
 
 ### Predefined Roles Recovery
 
-**If you delete a predefined role** (Admin, Manager, Guard, Client, Works Council):
+**If you delete a predefined role** (Employee, Employee Read Only, HR, Manager, Guard, Client, or Works Council):
 
 1. ✅ Deletion succeeds (if not assigned to users)
 2. ✅ Next time `RolesAndPermissionsSeeder` runs, role is recreated
@@ -689,7 +743,7 @@ Need to grant access?
 
 **❌ DON'T:**
 
-- Assign Admin role liberally (use Manager or custom roles)
+- Simulate full access with ad-hoc role sprawl; use explicit permissions plus `manage` scopes or a documented custom role instead
 - Forget to revoke roles when users leave
 - Use permanent assignments for temporary needs
 - Skip the `reason` field on temporal assignments (needed for audits)
@@ -826,14 +880,14 @@ curl -X GET https://api.secpal.dev/v1/roles/{id} \
 
 **Cause:** User lacks required permission
 
-**Solution:** Only Admin role can manage roles. Check:
+**Solution:** Role-management endpoints require explicit management permissions. Check:
 
 ```bash
 curl -X GET https://api.secpal.dev/v1/me \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-Ensure the response includes the Admin role or the `roles.create`, `roles.update`, and `roles.delete` permissions.
+Ensure the response includes the relevant `roles.create`, `roles.update`, and `roles.delete` permissions.
 
 ---
 

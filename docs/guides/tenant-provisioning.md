@@ -12,9 +12,9 @@ Step-by-step guide for provisioning new tenants (customers) in SecPal's multi-te
 **Tenant provisioning** is the process of onboarding a new customer to SecPal. Each tenant gets:
 
 1. ✅ **Unique encryption keys** (DEK + IDX for envelope encryption)
-2. ✅ **Admin user account** with full permissions
+2. ✅ **Bootstrap user account** with explicit permissions and scoped access
 3. ✅ **Default organizational structure** (HQ organizational unit)
-4. ✅ **Predefined roles** (Admin, Manager, Guard, Client, Works Council)
+4. ✅ **Predefined roles** (Employee, Employee Read Only, HR, Manager, Guard, Client, Works Council)
 5. ✅ **Isolated data space** (cannot access other tenants)
 
 ---
@@ -47,7 +47,7 @@ This section is relevant when onboarding **additional customer organizations** i
 - ✅ SecPal deployed in multi-tenant mode ([Deployment Guide](/docs/guides/multi-tenant-deployment.md))
 - ✅ Database migrations completed (`php artisan migrate`)
 - ✅ KEK (Key Encryption Key) generated and secured
-- ✅ SSH access to production server (or admin API access)
+- ✅ SSH access to production server (or provisioning API access)
 
 ---
 
@@ -73,8 +73,10 @@ Edit `app/Console/Commands/ProvisionTenant.php`:
 namespace App\Console\Commands;
 
 use App\Models\OrganizationalUnit;
+use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -85,16 +87,16 @@ class ProvisionTenant extends Command
 {
     protected $signature = 'tenant:provision
                             {customer-name : Name of the customer/organization}
-                            {admin-email : Email address for the admin user}
-                            {--password= : Admin password (auto-generated if not provided)}
+                            {bootstrap-email : Email address for the initial bootstrap user}
+                            {--password= : Initial password (auto-generated if not provided)}
                             {--skip-email : Do not send welcome email}';
 
-    protected $description = 'Provision a new tenant with encryption keys, admin user, and defaults';
+    protected $description = 'Provision a new tenant with encryption keys, a bootstrap user, and default scoped access';
 
     public function handle(): int
     {
         $customerName = $this->argument('customer-name');
-        $adminEmail = $this->argument('admin-email');
+        $bootstrapEmail = $this->argument('bootstrap-email');
         $password = $this->option('password') ?? Str::random(16);
 
         $this->info("🚀 Provisioning tenant: {$customerName}");
@@ -108,32 +110,53 @@ class ProvisionTenant extends Command
             $tenant = TenantKey::create($keys);
             $this->line("   ✅ Tenant created (ID: {$tenant->id})");
 
-            // Step 2: Create admin user
-            $this->info('2️⃣  Creating admin user...');
-            $admin = User::create([
-                'email' => $adminEmail,
+            // Step 2: Create bootstrap user
+            $this->info('2️⃣  Creating bootstrap user...');
+            $bootstrapUser = User::create([
+                'email' => $bootstrapEmail,
                 'password' => Hash::make($password),
-                'name' => 'Admin',
+                'name' => 'Tenant Bootstrap User',
                 'tenant_id' => $tenant->id,
             ]);
-            $this->line("   ✅ Admin user created (ID: {$admin->id})");
+            $this->line("   ✅ Bootstrap user created (ID: {$bootstrapUser->id})");
 
-            // Step 3: Assign admin role (tenant-scoped)
-            $this->info('3️⃣  Assigning admin role...');
-            app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
-            $admin->assignRole('Admin');
-            $this->line('   ✅ Admin role assigned');
-
-            // Step 4: Create default organizational unit
-            $this->info('4️⃣  Creating default organizational structure...');
+            // Step 3: Create default organizational unit
+            $this->info('3️⃣  Creating default organizational structure...');
             $orgUnit = OrganizationalUnit::create([
                 'name' => 'Headquarters',
-                'short_name' => 'HQ',
                 'type' => 'branch',
                 'tenant_id' => $tenant->id,
-                'is_active' => true,
             ]);
             $this->line("   ✅ Organizational unit created (ID: {$orgUnit->id})");
+
+            // Step 4: Grant explicit permissions and a root manage scope
+            $this->info('4️⃣  Granting bootstrap permissions and root scope...');
+            app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
+
+            /** @var list<string> $permissionNames */
+            $permissionNames = Permission::query()
+                ->where('guard_name', 'sanctum')
+                ->pluck('name')
+                ->all();
+
+            $bootstrapUser->syncPermissions($permissionNames);
+
+            UserInternalOrganizationalScope::updateOrCreate(
+                [
+                    'user_id' => $bootstrapUser->id,
+                    'organizational_unit_id' => $orgUnit->id,
+                    'min_viewable_rank' => null,
+                    'max_viewable_rank' => null,
+                    'min_assignable_rank' => null,
+                    'max_assignable_rank' => null,
+                ],
+                [
+                    'access_level' => 'manage',
+                    'include_descendants' => true,
+                    'allow_self_access' => true,
+                ]
+            );
+            $this->line('   ✅ Bootstrap permissions and root manage scope granted');
 
             DB::commit();
 
@@ -147,9 +170,9 @@ class ProvisionTenant extends Command
                 [
                     ['Tenant ID', $tenant->id],
                     ['Customer Name', $customerName],
-                    ['Admin Email', $adminEmail],
-                    ['Admin Password', $password],
-                    ['Organizational Unit', "HQ ({$orgUnit->id})"],
+                    ['Bootstrap Email', $bootstrapEmail],
+                    ['Bootstrap Password', $password],
+                    ['Organizational Unit', "{$orgUnit->name} ({$orgUnit->id})"],
                 ]
             );
 
@@ -157,15 +180,15 @@ class ProvisionTenant extends Command
             if (!$this->option('skip-email')) {
                 $this->info('📧 Sending welcome email...');
                 // TODO: Implement email sending
-                // Mail::to($adminEmail)->send(new WelcomeEmail($admin, $password));
+                // Mail::to($bootstrapEmail)->send(new WelcomeEmail($bootstrapUser, $password));
                 $this->warn('⚠️  Email sending not implemented yet. Send credentials manually.');
             }
 
             // Security reminder
             $this->newLine();
             $this->warn('⚠️  SECURITY REMINDER:');
-            $this->warn('   - Store admin password securely (e.g., password manager)');
-            $this->warn('   - Admin should change password after first login');
+            $this->warn('   - Store the bootstrap password securely (e.g., password manager)');
+            $this->warn('   - Bootstrap user should rotate the password after first login');
             $this->warn('   - Tenant encryption keys backed up automatically');
 
             return Command::SUCCESS;
@@ -183,18 +206,18 @@ class ProvisionTenant extends Command
 
 ```bash
 # Provision new tenant
-php artisan tenant:provision "Customer Corp" "admin@customercorp.com"
+php artisan tenant:provision "Customer Corp" "ops@customercorp.com"
 
 # Output:
 # 🚀 Provisioning tenant: Customer Corp
 # 1️⃣  Creating tenant encryption keys...
 #    ✅ Tenant created (ID: 1)
-# 2️⃣  Creating admin user...
-#    ✅ Admin user created (ID: 9d8e7f...)
-# 3️⃣  Assigning admin role...
-#    ✅ Admin role assigned
-# 4️⃣  Creating default organizational structure...
+# 2️⃣  Creating bootstrap user...
+#    ✅ Bootstrap user created (ID: 9d8e7f...)
+# 3️⃣  Creating default organizational structure...
 #    ✅ Organizational unit created (ID: 1)
+# 4️⃣  Granting bootstrap permissions and root scope...
+#    ✅ Bootstrap permissions and root manage scope granted
 # 🎉 Tenant provisioned successfully!
 #
 # ┌─────────────────────┬────────────────────────────────────┐
@@ -202,8 +225,8 @@ php artisan tenant:provision "Customer Corp" "admin@customercorp.com"
 # ├─────────────────────┼────────────────────────────────────┤
 # │ Tenant ID           │ 1                                  │
 # │ Customer Name       │ Customer Corp                      │
-# │ Admin Email         │ admin@customercorp.com             │
-# │ Admin Password      │ XyZ9aBc...                         │
+# │ Bootstrap Email     │ ops@customercorp.com               │
+# │ Bootstrap Password  │ XyZ9aBc...                         │
 # │ Organizational Unit │ HQ (1)                             │
 # └─────────────────────┴────────────────────────────────────┘
 ```
@@ -222,6 +245,8 @@ php artisan tinker
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\OrganizationalUnit;
+use App\Models\Permission;
+use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -229,33 +254,49 @@ use Spatie\Permission\PermissionRegistrar;
 $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
 echo "Tenant created: ID = {$tenant->id}\n";
 
-// 2. Create admin user
-$admin = User::create([
-    'email' => 'admin@tenant1.com',
+// 2. Create bootstrap user
+$bootstrapUser = User::create([
+    'email' => 'ops@tenant1.com',
     'password' => Hash::make('SecurePassword123!'),
-    'name' => 'Admin User',
+    'name' => 'Tenant Bootstrap User',
     'tenant_id' => $tenant->id,
 ]);
-echo "Admin created: {$admin->email}\n";
+echo "Bootstrap user created: {$bootstrapUser->email}\n";
 
-// 3. Assign admin role (IMPORTANT: Set team ID first!)
-app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
-$admin->assignRole('Admin');
-echo "Admin role assigned\n";
-
-// 4. Create default organizational unit
+// 3. Create default organizational unit
 $orgUnit = OrganizationalUnit::create([
     'name' => 'Headquarters',
-    'short_name' => 'HQ',
     'type' => 'branch',
     'tenant_id' => $tenant->id,
-    'is_active' => true,
 ]);
 echo "Organizational unit created: {$orgUnit->name}\n";
 
+// 4. Grant explicit permissions and a root manage scope
+app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
+$bootstrapUser->syncPermissions(
+    Permission::query()->where('guard_name', 'sanctum')->pluck('name')->all()
+);
+
+UserInternalOrganizationalScope::updateOrCreate(
+    [
+        'user_id' => $bootstrapUser->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'min_viewable_rank' => null,
+        'max_viewable_rank' => null,
+        'min_assignable_rank' => null,
+        'max_assignable_rank' => null,
+    ],
+    [
+        'access_level' => 'manage',
+        'include_descendants' => true,
+        'allow_self_access' => true,
+    ]
+);
+echo "Bootstrap permissions and root scope granted\n";
+
 echo "\n✅ Tenant provisioned successfully!\n";
 echo "Tenant ID: {$tenant->id}\n";
-echo "Admin: {$admin->email}\n";
+echo "Bootstrap user: {$bootstrapUser->email}\n";
 ```
 
 ---
@@ -265,18 +306,18 @@ echo "Admin: {$admin->email}\n";
 For SaaS self-service registration (planned Phase 2):
 
 ```http
-POST /api/v1/admin/tenants
+POST /api/v1/provisioning/tenants
 Content-Type: application/json
-Authorization: Bearer {SUPER_ADMIN_TOKEN}
+Authorization: Bearer {TENANT_PROVISIONING_TOKEN}
 
 {
   "customer_name": "Customer Corp",
-  "admin_email": "admin@customercorp.com",
-  "admin_name": "John Admin",
-  "admin_password": "SecurePassword123!",
+    "bootstrap_email": "ops@customercorp.com",
+    "bootstrap_name": "Initial Operator",
+    "bootstrap_password": "SecurePassword123!",
   "organizational_unit": {
     "name": "Headquarters",
-    "short_name": "HQ"
+        "type": "branch"
   }
 }
 ```
@@ -286,8 +327,8 @@ Authorization: Bearer {SUPER_ADMIN_TOKEN}
 ```json
 {
   "tenant_id": 1,
-  "admin_user_id": "9d8e7f6a-5b4c-3d2e-1f0e-9d8c7b6a5f4e",
-  "admin_email": "admin@customercorp.com",
+  "bootstrap_user_id": "9d8e7f6a-5b4c-3d2e-1f0e-9d8c7b6a5f4e",
+  "bootstrap_email": "ops@customercorp.com",
   "status": "active"
 }
 ```
@@ -308,27 +349,26 @@ php artisan tinker
 use App\Models\OrganizationalUnit;
 
 $tenantId = 1; // Replace with actual tenant ID
-$hq = OrganizationalUnit::where('tenant_id', $tenantId)->where('name', 'Headquarters')->first();
+$hq = OrganizationalUnit::where('tenant_id', $tenantId)
+    ->where('name', 'Headquarters')
+    ->firstOrFail();
 
 // Add branch
 $branch = OrganizationalUnit::create([
     'name' => 'Frankfurt Branch',
-    'short_name' => 'FFM',
     'type' => 'branch',
-    'parent_id' => $hq->id,
     'tenant_id' => $tenantId,
-    'is_active' => true,
 ]);
+$branch->setParent($hq);
 
-// Add team
+// Add team via the closure-table hierarchy
 $team = OrganizationalUnit::create([
     'name' => 'Night Shift Team A',
-    'short_name' => 'NSA',
-    'type' => 'team',
-    'parent_id' => $branch->id,
+    'type' => 'custom',
+    'custom_type_name' => 'Team',
     'tenant_id' => $tenantId,
-    'is_active' => true,
 ]);
+$team->setParent($branch);
 
 echo "Organizational structure created:\n";
 echo "- {$hq->name}\n";
@@ -354,7 +394,7 @@ app(PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
 
 // Create manager
 $manager = User::create([
-    'email' => 'manager@customercorp.com',
+    'email' => 'manager@tenant1.com',
     'password' => Hash::make('password'),
     'name' => 'Branch Manager',
     'tenant_id' => $tenantId,
@@ -363,7 +403,7 @@ $manager->assignRole('Manager');
 
 // Create guard
 $guard = User::create([
-    'email' => 'guard@customercorp.com',
+    'email' => 'guard@tenant1.com',
     'password' => Hash::make('password'),
     'name' => 'Security Guard',
     'tenant_id' => $tenantId,
@@ -429,14 +469,14 @@ echo "- Site: {$site->name}\n";
 
 After provisioning, verify tenant isolation:
 
-### 1. Test Admin Login
+### 1. Test Bootstrap User Login
 
 ```bash
-# Login as admin
+# Login as the bootstrap user
 curl -X POST https://api.secpal.dev/v1/auth/token \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@customercorp.com",
+        "email": "ops@customercorp.com",
     "password": "SecurePassword123!"
   }'
 
@@ -445,7 +485,7 @@ curl -X POST https://api.secpal.dev/v1/auth/token \
 #   "token": "1|XYZ...",
 #   "user": {
 #     "id": "9d8e7f...",
-#     "email": "admin@customercorp.com",
+#     "email": "ops@customercorp.com",
 #     "tenant_id": 1
 #   }
 # }
@@ -454,7 +494,7 @@ curl -X POST https://api.secpal.dev/v1/auth/token \
 ### 2. Verify Tenant Isolation
 
 ```bash
-# Get admin token
+# Get bootstrap user token
 TOKEN="1|XYZ..."
 
 # List organizational units (should only see tenant's data)
@@ -469,21 +509,20 @@ curl -X GET https://api.secpal.dev/v1/organizational-units \
 # }
 ```
 
-### 3. Verify Admin Permissions
+### 3. Verify Bootstrap Permissions
 
 ```bash
-# Admin should have all permissions
+# Bootstrap user should expose explicit permissions and organizational scopes
 curl -X GET https://api.secpal.dev/v1/me \
   -H "Authorization: Bearer $TOKEN"
 
-# Response includes roles
+# Response includes direct permissions and scope metadata
 # {
 #   "id": "9d8e7f...",
-#   "email": "admin@customercorp.com",
-#   "roles": [
-#     {"name": "Admin"}
-#   ],
-#   "permissions": ["*"]
+#   "email": "ops@customercorp.com",
+#   "roles": [],
+#   "permissions": ["employees.read", "roles.create", "permissions.assign_direct", "..."],
+#   "hasOrganizationalScopes": true
 # }
 ```
 
@@ -493,48 +532,51 @@ curl -X GET https://api.secpal.dev/v1/me \
 
 ### Issue: "User has no assigned tenant"
 
-**Symptom:** Admin user cannot login or gets 500 error
+**Symptom:** Bootstrap user cannot login or gets 500 error
 
 **Cause:** User created without `tenant_id`
 
 **Fix:**
 
 ```php
-$user = User::where('email', 'admin@customercorp.com')->first();
+$user = User::where('email', 'ops@customercorp.com')->first();
 $user->update(['tenant_id' => 1]); // Assign to tenant
 ```
 
-### Issue: "Role 'Admin' not found"
+### Issue: "Bootstrap user cannot manage tenant resources"
 
-**Symptom:** Cannot assign admin role
+**Symptom:** Newly provisioned user cannot create roles, assign permissions, or review onboarding
 
-**Cause:** Roles not seeded or team ID not set
+**Cause:** Permissions were not granted directly or the tenant team ID was not set before assignment
 
 **Fix:**
 
 ```bash
 # 1. Seed roles
-php artisan db:seed --class=RolePermissionSeeder
+php artisan db:seed --class=RolesAndPermissionsSeeder
 
-# 2. Set team ID before assigning role
+# 2. Set team ID before granting permissions
 php artisan tinker
 ```
 
 ```php
+use App\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 
 $tenantId = 1;
 app(PermissionRegistrar::class)->setPermissionsTeamId($tenantId);
 
-$admin = User::where('email', 'admin@customercorp.com')->first();
-$admin->assignRole('Admin');
+$bootstrapUser = User::where('email', 'ops@customercorp.com')->first();
+$bootstrapUser->syncPermissions(
+    Permission::query()->where('guard_name', 'sanctum')->pluck('name')->all()
+);
 ```
 
 ### Issue: "Cannot see organizational units"
 
-**Symptom:** Admin cannot list organizational units
+**Symptom:** Bootstrap user cannot list organizational units
 
-**Cause:** InjectTenantId middleware not applied or Policy blocking access
+**Cause:** Root `manage` scope is missing or `InjectTenantId` middleware is not active
 
 **Fix:**
 
@@ -560,7 +602,7 @@ public function provisionTenant(Request $request)
 {
     $validated = $request->validate([
         'customer_name' => 'required|string',
-        'admin_email' => 'required|email',
+        'bootstrap_email' => 'required|email',
         'webhook_secret' => 'required|string',
     ]);
 
@@ -572,7 +614,7 @@ public function provisionTenant(Request $request)
     // Provision tenant
     $result = (new TenantProvisioningService())->provisionTenant(
         $validated['customer_name'],
-        $validated['admin_email']
+        $validated['bootstrap_email']
     );
 
     return response()->json($result, 201);
@@ -605,9 +647,9 @@ class TenantKeyObserver
 
 ## Security Considerations
 
-### 1. Admin Password Policy
+### 1. Bootstrap Credential Policy
 
-**Requirement:** Admin passwords must be:
+**Requirement:** Initial bootstrap credentials must be:
 
 - ✅ Minimum 12 characters
 - ✅ Include uppercase, lowercase, numbers, symbols
@@ -668,14 +710,14 @@ Log all tenant provisioning events:
 // In ProvisionTenant command:
 Log::info('Tenant provisioning started', [
     'customer_name' => $customerName,
-    'admin_email' => $adminEmail,
+    'bootstrap_email' => $bootstrapEmail,
     'initiated_by' => Auth::user()->email ?? 'system',
 ]);
 
 // After success:
 Log::info('Tenant provisioning completed', [
     'tenant_id' => $tenant->id,
-    'admin_user_id' => $admin->id,
+    'bootstrap_user_id' => $bootstrapUser->id,
 ]);
 ```
 
@@ -686,7 +728,7 @@ Log::info('Tenant provisioning completed', [
 Before provisioning a new tenant:
 
 - [ ] Customer name confirmed (legal entity name)
-- [ ] Admin email verified (will receive credentials)
+- [ ] Bootstrap user email verified (will receive initial credentials)
 - [ ] Organizational structure requirements gathered
 - [ ] Initial user list prepared (roles defined)
 - [ ] Data migration plan (if migrating from another system)
@@ -695,8 +737,8 @@ Before provisioning a new tenant:
 
 After provisioning:
 
-- [ ] Admin credentials sent securely (encrypted email/password manager)
-- [ ] Admin login tested successfully
+- [ ] Bootstrap credentials sent securely (encrypted email/password manager)
+- [ ] Bootstrap login tested successfully
 - [ ] Tenant isolation verified (cannot see other tenants)
 - [ ] Organizational structure created
 - [ ] Initial users created and roles assigned

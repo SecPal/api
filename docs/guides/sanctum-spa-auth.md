@@ -263,8 +263,8 @@ Content-Type: application/json
     "id": "uuid",
     "email": "user@example.com",
     "name": "John Doe",
-    "roles": ["Admin"],
-    "permissions": ["*"],
+    "roles": ["Manager"],
+    "permissions": ["employees.read", "shifts.read", "work_instructions.read"],
     "hasOrganizationalScopes": true
   }
 }
@@ -285,8 +285,8 @@ Content-Type: application/json
   "id": "uuid",
   "email": "user@example.com",
   "name": "John Doe",
-  "roles": ["Admin"],
-  "permissions": ["*"],
+  "roles": ["Manager"],
+  "permissions": ["employees.read", "shifts.read", "work_instructions.read"],
   "hasOrganizationalScopes": true
 }
 ```
