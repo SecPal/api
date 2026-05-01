@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- removed the remaining Admin-role and `admin`-scope documentation drift from the API guides, auth examples, ADR-linked RBAC references, and supporting test fixtures so the documented bootstrap, authorization, and audit examples now consistently use explicit permissions plus explicit `manage` scopes instead of the deleted legacy model
 - centralized organizational-scope access resolution in `User::hasAccessToUnit()` so persisted checks and in-memory self-lockout simulations now share the same direct-scope-first descendant semantics instead of duplicating that logic in `OrganizationalScopeController` (refs `api#982`)
 - removed the predefined `Admin` role and the `admin` organizational scope access level from the API runtime, seeded fixtures, and RBAC/auth test bootstraps; privileged access is now modeled through explicit permissions plus `manage` organizational scopes, and existing `admin` scope rows are normalized to `manage` during migration
 - clarified the repo-local under-`1.x` policy in Copilot governance so API work explicitly prefers removing insecure or obsolete compatibility shims over preserving them without a proven live caller

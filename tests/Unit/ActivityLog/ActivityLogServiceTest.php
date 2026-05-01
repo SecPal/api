@@ -134,7 +134,7 @@ test('logRoleAssignment creates rbac_changes log', function (): void {
     $activity = $this->service->logRoleAssignment(
         $this->user,
         $targetUser,
-        ['admin', 'manager'],
+        ['Manager', 'HR'],
         'Promotion'
     );
 
@@ -144,7 +144,7 @@ test('logRoleAssignment creates rbac_changes log', function (): void {
         ->and($activity->causer_id)->toBe((string) $this->user->id)
         ->and($activity->subject_id)->toBe((string) $targetUser->id)
         ->and($activity->properties['event'])->toBe('role_assigned')
-        ->and($activity->properties['roles'])->toBe(['admin', 'manager'])
+        ->and($activity->properties['roles'])->toBe(['Manager', 'HR'])
         ->and($activity->properties['reason'])->toBe('Promotion')
         ->and(Activity::getRetentionYearsForLogType($activity->log_name))->toBeIn([3, 8]);
 });
@@ -155,7 +155,7 @@ test('logRoleRevocation creates rbac_changes log', function (): void {
     $activity = $this->service->logRoleRevocation(
         $this->user,
         $targetUser,
-        ['admin'],
+        ['HR'],
         'Contract termination'
     );
 
@@ -163,7 +163,7 @@ test('logRoleRevocation creates rbac_changes log', function (): void {
         ->and($activity->log_name)->toBe('rbac_changes')
         ->and($activity->description)->toBe('Revoked roles from user')
         ->and($activity->properties['event'])->toBe('role_revoked')
-        ->and($activity->properties['roles'])->toBe(['admin'])
+        ->and($activity->properties['roles'])->toBe(['HR'])
         ->and($activity->properties['reason'])->toBe('Contract termination');
 });
 

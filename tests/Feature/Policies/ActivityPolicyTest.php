@@ -483,7 +483,7 @@ test('view allows activity when user views their OWN activity without employee r
         'max_viewable_rank' => 5,
     ]);
 
-    // User causes activity but has no employee record (e.g., admin login)
+    // User causes activity but has no employee record (e.g., a privileged service login)
     // This should be ALLOWED - users can always view their own activities
     $activity = Activity::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -509,7 +509,7 @@ test('view allows activity when OTHER user without employee record caused it (sy
         'max_viewable_rank' => 5,
     ]);
 
-    // Causer without employee record (orphaned user, admin, or system user)
+    // Causer without employee record (orphaned user, privileged service user, or system user)
     $causerUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     // Activity caused by user without employee record

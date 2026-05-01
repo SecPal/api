@@ -154,17 +154,17 @@ $tenant1 = TenantKey::find(1);
 $tenant2 = TenantKey::find(2);
 
 // Create users in different tenants
-$user1 = User::create(['email' => 'admin@tenant1.com', 'tenant_id' => 1]);
-$user2 = User::create(['email' => 'admin@tenant2.com', 'tenant_id' => 2]);
+$user1 = User::create(['email' => 'manager@tenant1.com', 'tenant_id' => 1]);
+$user2 = User::create(['email' => 'manager@tenant2.com', 'tenant_id' => 2]);
 
-// Assign same role "Admin" to both users (but in different tenants)
+// Assign same role "Manager" to both users (but in different tenants)
 app(PermissionRegistrar::class)->setPermissionsTeamId(1); // Tenant 1
-$user1->assignRole('Admin');
+$user1->assignRole('Manager');
 
 app(PermissionRegistrar::class)->setPermissionsTeamId(2); // Tenant 2
-$user2->assignRole('Admin');
+$user2->assignRole('Manager');
 
-// Result: User1 is Admin in Tenant1, User2 is Admin in Tenant2
+// Result: User1 is Manager in Tenant1, User2 is Manager in Tenant2
 // These are SEPARATE role assignments (different team_id in pivot table)
 ```
 
@@ -208,15 +208,17 @@ Roles are **named collections of permissions** that define what a user can do wi
 
 #### Predefined Roles
 
-SecPal includes five predefined roles that cover common use cases:
+SecPal seeds seven predefined roles that cover common use cases. There is no predefined `Admin` role; broad access is assembled from explicit permissions plus explicit organizational scopes.
 
-| Role              | Description             | Typical Permissions                                             | Scope             |
-| ----------------- | ----------------------- | --------------------------------------------------------------- | ----------------- |
-| **Admin**         | Full system access      | `*` (all permissions)                                           | Global            |
-| **Manager**       | Branch management       | `employees.*`, `shifts.*`, `work_instructions.*`                | Branch-scoped     |
-| **Guard**         | Security personnel      | `employees.read` (own), `shifts.read`, `work_instructions.read` | Own data only     |
-| **Client**        | Customer access         | `shifts.read`, `work_instructions.read`                         | Location-scoped   |
-| **Works Council** | Employee representation | `employees.read`, `shifts.approve_as_br`, `works_council.*`     | Organization-wide |
+| Role                   | Description                   | Typical Permissions                                                           | Scope                           |
+| ---------------------- | ----------------------------- | ----------------------------------------------------------------------------- | ------------------------------- |
+| **Employee**           | Self-service employee access  | `employee.read`, `employee.update`, `shifts.read`, `work_instructions.read`   | Own data only                   |
+| **Employee Read Only** | Read-only self-service access | `employee.read`, `shifts.read`, `work_instructions.read`                      | Own data only                   |
+| **HR**                 | HR lifecycle operations       | `employees.*`, `employee.*`, `qualification.*`, `onboarding.*`                | Explicit organizational scopes  |
+| **Manager**            | Operational management        | `customers.*`, `sites.*`, `employees.read`, `shifts.*`, `work_instructions.*` | Explicit organizational scopes  |
+| **Guard**              | Security personnel            | `employee.read`, `shifts.read`, `shifts.update`, `work_instructions.read`     | Own data and assigned records   |
+| **Client**             | External stakeholder access   | `shifts.read`, `work_instructions.read`, `reports.view`                       | Customer/site scoped            |
+| **Works Council**      | Employee representation       | `employees.read`, `shifts.approve_as_br`, `works_council.*`                   | Approval workflows within scope |
 
 #### All Roles Are Equal
 
@@ -301,7 +303,7 @@ Examples:
 **Special Actions:**
 
 - `read_salary` - View sensitive salary data
-- `read_all_branches` - Cross-branch access (Admin only)
+- `read_all_branches` - Cross-branch access when granted explicitly alongside suitable scopes
 - `publish` - Publish/activate resource
 - `approve_as_br` - Works council approval action
 - `assign_temporary` - Assign temporal roles
@@ -610,7 +612,7 @@ Developer needs production access for critical hotfix
 Solution:
 POST /v1/users/{developer_id}/roles
 {
-  "role": "admin",
+  "role": "incident_responder",
   "valid_from": "2025-11-11T14:00:00Z",
   "valid_until": "2025-11-11T16:00:00Z",  // 2 hours
   "auto_revoke": true,
@@ -618,7 +620,7 @@ POST /v1/users/{developer_id}/roles
 }
 
 Result:
-✅ Developer gets admin access immediately
+✅ Developer gets the temporary incident-response permission bundle immediately
 ✅ Access expires after 2 hours
 ✅ Audit trail proves least-privilege compliance
 ✅ No manual revocation needed
@@ -684,7 +686,7 @@ SecPal's RBAC system is built on three core design decisions. Each decision prio
 ```php
 use Illuminate\Validation\ValidationException;
 
-// Single rule applies to ALL roles (Admin, Manager, Guard, Custom, etc.)
+// Single rule applies to ALL roles (Employee, HR, Manager, Guard, custom, etc.)
 public function destroy(Role $role)
 {
     if ($role->users()->count() > 0) {
@@ -706,14 +708,21 @@ class RolesAndPermissionsSeeder extends Seeder
     public function run()
     {
         // firstOrCreate = creates if not exists, skips if exists
-        $admin = Role::firstOrCreate(
-            ['name' => 'Admin', 'guard_name' => 'sanctum'],
-            ['description' => 'Full system access']
+        $manager = Role::firstOrCreate(
+            ['name' => 'Manager', 'guard_name' => 'sanctum'],
+            ['description' => 'Operational management within assigned scopes']
         );
 
         // Sync permissions only if role has none
-        if ($admin->permissions()->count() === 0) {
-            $admin->syncPermissions(Permission::all());
+        if ($manager->permissions()->count() === 0) {
+            $manager->syncPermissions([
+                'customers.read',
+                'customers.create',
+                'sites.read',
+                'employees.read',
+                'shifts.read',
+                'shifts.publish',
+            ]);
         }
     }
 }
@@ -1099,7 +1108,7 @@ public function update(User $user, Employee $employee): bool
 
     // Check scope (branch-level access)
     if ($user->branch_id !== $employee->branch_id) {
-        // Admin can access all branches
+        // Users with the explicit cross-branch permission can access all branches
         return $user->hasPermissionTo('employees.read_all_branches');
     }
 
@@ -1230,7 +1239,7 @@ SecPal's RBAC API is split across four functional areas:
 | `DELETE` | `/v1/users/{id}/roles/{role}`        | Revoke role from user                  |
 | `PATCH`  | `/v1/users/{id}/roles/{role}/extend` | Extend role expiration date            |
 
-**Authorization:** Manager or Admin only
+**Authorization:** Requires `employees.update`; cross-branch updates additionally require explicit cross-branch visibility
 
 **Documentation:** See Issue #5 and ADR-004 for implementation details
 
@@ -1246,7 +1255,7 @@ SecPal's RBAC API is split across four functional areas:
 | `POST`   | `/v1/roles/{id}/permissions`              | Assign permissions to role        |
 | `DELETE` | `/v1/roles/{id}/permissions/{permission}` | Remove permission from role       |
 
-**Authorization:** Admin only
+**Authorization:** Requires the corresponding role-management permission (`role.read`, `role.assign`, `role.revoke`, `roles.extend_expiration`, `roles.create`, `roles.update`, `roles.delete`)
 
 **Documentation:** See Issue #137 and Issue #140
 
@@ -1260,7 +1269,7 @@ SecPal's RBAC API is split across four functional areas:
 | `PATCH`  | `/v1/permissions/{id}` | Update permission description              |
 | `DELETE` | `/v1/permissions/{id}` | Delete permission (if not assigned)        |
 
-**Authorization:** Admin only
+**Authorization:** Requires the corresponding permission-management permission (`permissions.read`, `permissions.create`, `permissions.update`, `permissions.delete`)
 
 **Documentation:** See Issue #138 and Issue #140
 
@@ -1273,7 +1282,7 @@ SecPal's RBAC API is split across four functional areas:
 | `DELETE` | `/v1/users/{id}/permissions/{permission}` | Revoke direct permission                        |
 | `GET`    | `/v1/users/{id}/permissions/direct`       | List only direct permissions                    |
 
-**Authorization:** Admin only (assign/revoke), User can view own
+**Authorization:** Users may view their own direct permissions; assignment and revocation require `permissions.assign_direct` / `permissions.revoke_direct`, and viewing another user's permissions requires `permissions.read`
 
 **Documentation:** See Issue #139 and Issue #140
 
@@ -1425,13 +1434,14 @@ test('manager cannot update employees in other branch', function () {
     expect($manager->can('update', $employee))->toBeFalse();
 });
 
-test('admin can update employees in all branches', function () {
-    $admin = User::factory()->create(['branch_id' => 1]);
-    $admin->assignRole('admin');
+test('user with explicit cross-branch permission can update employees in all branches', function () {
+    $operator = User::factory()->create(['branch_id' => 1]);
+    $operator->givePermissionTo('employees.update');
+    $operator->givePermissionTo('employees.read_all_branches');
 
     $employee = Employee::factory()->create(['branch_id' => 2]);
 
-    expect($admin->can('update', $employee))->toBeTrue();
+    expect($operator->can('update', $employee))->toBeTrue();
 });
 ```
 

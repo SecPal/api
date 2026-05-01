@@ -34,7 +34,7 @@ Assign a role to a user. Supports both permanent and temporal assignments.
 
 **Endpoint:** `POST /v1/users/{user}/roles`
 
-**Authorization:** Requires `role.assign` permission (Manager or Admin)
+**Authorization:** Requires `role.assign` permission
 
 **URL Parameters:**
 
@@ -55,7 +55,7 @@ Assign a role to a user. Supports both permanent and temporal assignments.
 
 | Field         | Type   | Required | Description                                                    |
 | ------------- | ------ | -------- | -------------------------------------------------------------- |
-| `role`        | string | Yes      | Role name (e.g., "manager", "guard", "admin")                  |
+| `role`        | string | Yes      | Role name (e.g., `Manager`, `HR`, `regional_manager`)          |
 | `valid_from`  | string | No       | ISO 8601 timestamp when role becomes active (null = immediate) |
 | `valid_until` | string | No       | ISO 8601 timestamp when role expires (null = permanent)        |
 | `reason`      | string | No       | Justification for role assignment (max 500 chars)              |
@@ -150,7 +150,7 @@ Get all roles assigned to a user, including temporal information.
 
 **Endpoint:** `GET /v1/users/{user}/roles`
 
-**Authorization:** Requires `role.read` permission (User can view own, Manager/Admin can view all)
+**Authorization:** Users may view their own roles; viewing another user's roles requires `role.read`
 
 **URL Parameters:**
 
@@ -203,7 +203,7 @@ Remove a role assignment from a user.
 
 **Endpoint:** `DELETE /v1/users/{user}/roles/{role}`
 
-**Authorization:** Requires `role.revoke` permission (Manager or Admin)
+**Authorization:** Requires `role.revoke` permission
 
 **URL Parameters:**
 
@@ -249,7 +249,7 @@ Extend the expiration date of a temporal role assignment.
 
 **Endpoint:** `PATCH /v1/users/{user}/roles/{role}/extend`
 
-**Authorization:** Requires `role.extend_expiration` permission (Manager or Admin)
+**Authorization:** Requires `roles.extend_expiration` permission
 
 **URL Parameters:**
 
@@ -319,18 +319,18 @@ Get a list of all roles in the system (predefined + custom).
   "data": [
     {
       "id": 1,
-      "name": "admin",
-      "description": "Full system access",
-      "permissions_count": 42,
+      "name": "Manager",
+      "description": "Operational management within assigned scopes",
+      "permissions_count": 18,
       "users_count": 2,
       "created_at": "2025-11-01T10:00:00Z",
       "updated_at": "2025-11-01T10:00:00Z"
     },
     {
       "id": 2,
-      "name": "manager",
-      "description": "Branch management",
-      "permissions_count": 15,
+      "name": "HR",
+      "description": "HR lifecycle and onboarding operations",
+      "permissions_count": 16,
       "users_count": 8,
       "created_at": "2025-11-01T10:00:00Z",
       "updated_at": "2025-11-05T14:30:00Z"
@@ -368,7 +368,7 @@ Create a new custom role with assigned permissions.
 
 **Endpoint:** `POST /v1/roles`
 
-**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
+**Authorization:** Requires `roles.create` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
 
 **Request Body:**
 
@@ -505,7 +505,7 @@ Update a role's name, description, and/or permissions.
 
 **Endpoint:** `PATCH /v1/roles/{id}`
 
-**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
+**Authorization:** Requires `roles.update` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
 
 **URL Parameters:**
 
@@ -556,7 +556,7 @@ Delete a custom role. **Cannot delete roles that are assigned to users.**
 
 **Endpoint:** `DELETE /v1/roles/{id}`
 
-**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
+**Authorization:** Requires `roles.delete` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
 
 **URL Parameters:**
 
@@ -663,7 +663,7 @@ Create a new custom permission.
 
 **Endpoint:** `POST /v1/permissions`
 
-**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
+**Authorization:** Requires `permissions.create` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
 
 **Request Body:**
 
@@ -745,11 +745,11 @@ Get detailed information about a specific permission.
     "roles": [
       {
         "id": 1,
-        "name": "admin"
+        "name": "Manager"
       },
       {
         "id": 2,
-        "name": "manager"
+        "name": "HR"
       }
     ],
     "roles_count": 4,
@@ -774,7 +774,7 @@ Update a permission's description. **Note:** Permission names are immutable for 
 
 **Endpoint:** `PATCH /v1/permissions/{id}`
 
-**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
+**Authorization:** Requires `permissions.update` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
 
 **URL Parameters:**
 
@@ -820,7 +820,7 @@ Delete a custom permission. **Cannot delete if assigned to any role or user.**
 
 **Endpoint:** `DELETE /v1/permissions/{id}`
 
-**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
+**Authorization:** Requires `permissions.delete` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
 
 **URL Parameters:**
 
@@ -866,7 +866,7 @@ Get all permissions for a user, showing role-based, direct, and combined permiss
 
 **Endpoint:** `GET /v1/users/{user}/permissions`
 
-**Authorization:** User can view own permissions; Admin can view any user's permissions
+**Authorization:** Users may view their own permissions; viewing another user's permissions requires `permissions.read`
 
 **URL Parameters:**
 
@@ -934,7 +934,7 @@ Assign one or more permissions directly to a user, bypassing roles.
 
 **Endpoint:** `POST /v1/users/{user}/permissions`
 
-**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
+**Authorization:** Requires `permissions.assign_direct` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
 
 **URL Parameters:**
 
@@ -1008,7 +1008,7 @@ Remove a direct permission from a user. **Does not affect role-based permissions
 
 **Endpoint:** `DELETE /v1/users/{user}/permissions/{permission}`
 
-**Authorization:** Authorized via Laravel Policy (Admin role required). Note: Route-level middleware will be added in future release (see Issue #161).
+**Authorization:** Requires `permissions.revoke_direct` permission. Authorization is currently enforced via Laravel Policy; route-level middleware is planned as a follow-up (see Issue #161).
 
 **URL Parameters:**
 
@@ -1045,7 +1045,7 @@ Get only the permissions assigned directly to a user (excludes role-based permis
 
 **Endpoint:** `GET /v1/users/{user}/permissions/direct`
 
-**Authorization:** User can view own; Admin can view any
+**Authorization:** Users may view their own direct permissions; viewing another user's direct permissions requires `permissions.read`
 
 **URL Parameters:**
 
