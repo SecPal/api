@@ -395,7 +395,7 @@ describe('OnboardingController::approveSubmission completion integration', funct
         // Approve submission
         actingAs($hrUser, 'sanctum')
             ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
-            ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/approve")
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/approve")
             ->assertOk();
 
         // After approval - should be complete (only 1 required template)
@@ -437,7 +437,7 @@ describe('OnboardingController::approveSubmission completion integration', funct
         // Approve first submission
         actingAs($hrUser, 'sanctum')
             ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
-            ->postJson("/v1/admin/onboarding/submissions/{$submission1->id}/approve")
+            ->postJson("/v1/onboarding-review/submissions/{$submission1->id}/approve")
             ->assertOk();
 
         // Not complete yet (1 of 2 approved)
@@ -446,7 +446,7 @@ describe('OnboardingController::approveSubmission completion integration', funct
         // Approve second submission
         actingAs($hrUser, 'sanctum')
             ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
-            ->postJson("/v1/admin/onboarding/submissions/{$submission2->id}/approve")
+            ->postJson("/v1/onboarding-review/submissions/{$submission2->id}/approve")
             ->assertOk();
 
         // Now complete (2 of 2 approved)

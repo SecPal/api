@@ -102,13 +102,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
 
         Route::middleware('verified')->group(function () {
-            Route::get('/admin/android-enrollment-sessions', [AndroidEnrollmentSessionController::class, 'index'])
+            Route::get('/android-enrollment-sessions', [AndroidEnrollmentSessionController::class, 'index'])
                 ->middleware('permission:android_enrollment.read');
-            Route::post('/admin/android-enrollment-sessions', [AndroidEnrollmentSessionController::class, 'store'])
+            Route::post('/android-enrollment-sessions', [AndroidEnrollmentSessionController::class, 'store'])
                 ->middleware('permission:android_enrollment.write');
-            Route::get('/admin/android-enrollment-sessions/{session}', [AndroidEnrollmentSessionController::class, 'show'])
+            Route::get('/android-enrollment-sessions/{session}', [AndroidEnrollmentSessionController::class, 'show'])
                 ->middleware('permission:android_enrollment.read');
-            Route::post('/admin/android-enrollment-sessions/{session}/revoke', [AndroidEnrollmentSessionController::class, 'revoke'])
+            Route::post('/android-enrollment-sessions/{session}/revoke', [AndroidEnrollmentSessionController::class, 'revoke'])
                 ->middleware('permission:android_enrollment.write');
 
             Route::patch('/me/language', [AuthController::class, 'updateLanguage']);
@@ -344,9 +344,9 @@ Route::prefix('v1')->group(function () {
             Route::get('/onboarding/completion-status', [OnboardingController::class, 'getCompletionStatus']);
 
             // HR approval endpoints
-            Route::post('/admin/onboarding/submissions/{submission}/approve', [OnboardingController::class, 'approveSubmission']);
-            Route::post('/admin/onboarding/submissions/{submission}/reject', [OnboardingController::class, 'rejectSubmission']);
-            Route::post('/admin/onboarding/employees/{employee}/confirm', [OnboardingController::class, 'confirmEmployeeOnboarding']);
+            Route::post('/onboarding-review/submissions/{submission}/approve', [OnboardingController::class, 'approveSubmission']);
+            Route::post('/onboarding-review/submissions/{submission}/reject', [OnboardingController::class, 'rejectSubmission']);
+            Route::post('/onboarding-review/employees/{employee}/confirm', [OnboardingController::class, 'confirmEmployeeOnboarding']);
         });
 
         // ==========================================================================

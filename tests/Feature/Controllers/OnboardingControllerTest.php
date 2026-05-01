@@ -824,7 +824,7 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
     });
 });
 
-describe('POST /v1/admin/onboarding/submissions/{submission}/approve', function () {
+describe('POST /v1/onboarding-review/submissions/{submission}/approve', function () {
     test('returns 401 when not authenticated', function (): void {
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
@@ -832,7 +832,7 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/approve', function 
             'status' => 'submitted',
         ]);
 
-        $response = $this->postJson("/v1/admin/onboarding/submissions/{$submission->id}/approve");
+        $response = $this->postJson("/v1/onboarding-review/submissions/{$submission->id}/approve");
         $response->assertStatus(401);
     });
 
@@ -844,7 +844,7 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/approve', function 
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/approve");
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/approve");
 
         $response->assertStatus(403);
     });
@@ -862,7 +862,7 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/approve', function 
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/approve");
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/approve");
 
         $response->assertStatus(200);
         expect($response->json('data.status'))->toBe('approved');
@@ -880,13 +880,13 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/approve', function 
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/approve");
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/approve");
 
         $response->assertStatus(422);
     });
 });
 
-describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function () {
+describe('POST /v1/onboarding-review/submissions/{submission}/reject', function () {
     test('returns 401 when not authenticated', function (): void {
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
@@ -894,7 +894,7 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
             'status' => 'submitted',
         ]);
 
-        $response = $this->postJson("/v1/admin/onboarding/submissions/{$submission->id}/reject", [
+        $response = $this->postJson("/v1/onboarding-review/submissions/{$submission->id}/reject", [
             'reason' => 'Incomplete information',
         ]);
 
@@ -909,7 +909,7 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/reject", [
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/reject", [
                 'reason' => 'Incomplete information',
             ]);
 
@@ -929,7 +929,7 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/reject", []);
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/reject", []);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['reason']);
@@ -948,7 +948,7 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/reject", [
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/reject", [
                 'reason' => 'Missing required documents',
             ]);
 
@@ -970,7 +970,7 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/submissions/{$submission->id}/reject", [
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/reject", [
                 'reason' => 'Attempt to reject approved submission',
             ]);
 
@@ -978,16 +978,16 @@ describe('POST /v1/admin/onboarding/submissions/{submission}/reject', function (
     });
 });
 
-describe('POST /v1/admin/onboarding/employees/{employee}/confirm', function () {
+describe('POST /v1/onboarding-review/employees/{employee}/confirm', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+        $response = $this->postJson("/v1/onboarding-review/employees/{$this->employee->id}/confirm");
 
         $response->assertStatus(401);
     });
 
     test('returns 403 when user lacks onboarding.confirm permission', function (): void {
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+            ->postJson("/v1/onboarding-review/employees/{$this->employee->id}/confirm");
 
         $response->assertStatus(403);
     });
@@ -996,7 +996,7 @@ describe('POST /v1/admin/onboarding/employees/{employee}/confirm', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.confirm');
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+            ->postJson("/v1/onboarding-review/employees/{$this->employee->id}/confirm");
 
         $response->assertStatus(422);
     });
@@ -1010,7 +1010,7 @@ describe('POST /v1/admin/onboarding/employees/{employee}/confirm', function () {
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+            ->postJson("/v1/onboarding-review/employees/{$this->employee->id}/confirm");
 
         $response->assertStatus(422);
     });
@@ -1025,7 +1025,7 @@ describe('POST /v1/admin/onboarding/employees/{employee}/confirm', function () {
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm", [
+            ->postJson("/v1/onboarding-review/employees/{$this->employee->id}/confirm", [
                 'notes' => str_repeat('A', 1001),
             ]);
 
@@ -1043,7 +1043,7 @@ describe('POST /v1/admin/onboarding/employees/{employee}/confirm', function () {
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm", [
+            ->postJson("/v1/onboarding-review/employees/{$this->employee->id}/confirm", [
                 'notes' => 'Contract signed and reviewed.',
             ]);
 
@@ -1071,7 +1071,7 @@ describe('POST /v1/admin/onboarding/employees/{employee}/confirm', function () {
         ]);
 
         $response = $this->withToken($this->token)
-            ->postJson("/v1/admin/onboarding/employees/{$this->employee->id}/confirm");
+            ->postJson("/v1/onboarding-review/employees/{$this->employee->id}/confirm");
 
         $response->assertStatus(200);
         expect($response->json('data.onboarding_workflow.status'))->toBe(Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION);

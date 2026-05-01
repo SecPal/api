@@ -153,15 +153,14 @@ describe('CORS Configuration for SPA', function () {
             ->toContain('health/*');
     });
 
-    test('cors config builds exact patterns for multiple configured origins', function () {
-        $corsConfig = withCorsAllowedOrigins('https://app.secpal.dev,https://admin.secpal.dev',
+    test('cors config builds an exact pattern for the authoritative SPA origin', function () {
+        $corsConfig = withCorsAllowedOrigins('https://app.secpal.dev',
             static fn (): array => require base_path('config/cors.php')
         );
 
         expect($corsConfig['allowed_origins'])->toBe([])
             ->and($corsConfig['allowed_origins_patterns'])->toBe([
                 '#^https\://app\.secpal\.dev$#',
-                '#^https\://admin\.secpal\.dev$#',
             ]);
     });
 

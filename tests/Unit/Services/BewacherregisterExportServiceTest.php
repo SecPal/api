@@ -84,7 +84,7 @@ function createBewacherregisterReadyEmployee(TenantKey $tenant, OrganizationalUn
 test('exports a BWR-ready employee to CSV storage', function (): void {
     $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
 
-    $export = $this->service->exportCsv($employee, 'HR Admin');
+    $export = $this->service->exportCsv($employee, 'HR Operations');
 
     expect($export['disk'])->toBe('local')
         ->and($export['file_name'])->toEndWith('.csv')
@@ -97,7 +97,7 @@ test('exports a BWR-ready employee to CSV storage', function (): void {
     expect($csv)->toContain('last_name;first_name;birth_name')
         ->and($csv)->toContain('Export;Taylor;"Taylor Birthname"')
         ->and($csv)->toContain('object_protection, event_security')
-        ->and($csv)->toContain('HR Admin')
+        ->and($csv)->toContain('HR Operations')
         ->and($export)->toHaveKey('file_size_bytes')
         ->and($export['file_size_bytes'])->toBe(strlen($csv));
 });
@@ -105,7 +105,7 @@ test('exports a BWR-ready employee to CSV storage', function (): void {
 test('exports a BWR-ready employee to XML storage', function (): void {
     $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
 
-    $export = $this->service->exportXml($employee, 'HR Admin');
+    $export = $this->service->exportXml($employee, 'HR Operations');
 
     expect($export['disk'])->toBe('local')
         ->and($export['file_name'])->toEndWith('.xml')
@@ -119,7 +119,7 @@ test('exports a BWR-ready employee to XML storage', function (): void {
         ->and($xml)->toContain('<bewacherregisterExport>')
         ->and($xml)->toContain('<last_name>Export</last_name>')
         ->and($xml)->toContain('<first_name>Taylor</first_name>')
-        ->and($xml)->toContain('<exported_by>HR Admin</exported_by>')
+        ->and($xml)->toContain('<exported_by>HR Operations</exported_by>')
         ->and($export)->toHaveKey('file_size_bytes')
         ->and($export['file_size_bytes'])->toBe(strlen($xml));
 });
@@ -131,7 +131,7 @@ test('export throws when required BWR fields are missing', function (): void {
         'id_document_number' => null,
     ]);
 
-    expect(fn () => $this->service->exportCsv($employee, 'HR Admin'))
+    expect(fn () => $this->service->exportCsv($employee, 'HR Operations'))
         ->toThrow(RuntimeException::class, 'gender, address_history, id_document_number');
 });
 
@@ -143,7 +143,7 @@ test('export requires valid work authorization for non exempt nationalities', fu
         'work_permit_expiry' => null,
     ]);
 
-    expect(fn () => $this->service->exportCsv($employee, 'HR Admin'))
+    expect(fn () => $this->service->exportCsv($employee, 'HR Operations'))
         ->toThrow(RuntimeException::class, 'valid_work_authorization');
 });
 
@@ -152,7 +152,7 @@ test('export preserves seven digit BWR ids including leading zeroes', function (
         'bwr_id' => '0001234',
     ]);
 
-    $export = $this->service->exportCsv($employee, 'HR Admin');
+    $export = $this->service->exportCsv($employee, 'HR Operations');
     $csv = Storage::disk('local')->get($export['path']);
 
     $stream = fopen('php://temp', 'r+');
@@ -185,6 +185,6 @@ test('export throws when id_document_expiry is in the past', function (): void {
         'id_document_expiry' => now()->subDay()->toDateString(),
     ]);
 
-    expect(fn () => $this->service->exportCsv($employee, 'HR Admin'))
+    expect(fn () => $this->service->exportCsv($employee, 'HR Operations'))
         ->toThrow(RuntimeException::class, 'id_document_expiry_expired');
 });
