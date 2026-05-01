@@ -1,6 +1,8 @@
 {{-- SPDX-FileCopyrightText: 2026 SecPal Contributors --}}
 {{-- SPDX-License-Identifier: AGPL-3.0-or-later --}}
 
+@php($frontendUrl = rtrim((string) config('app.frontend_url', ''), '/'))
+
 <x-mail::message>
 # {{ __('ID Document Copy Deleted After BWR Approval') }}
 
@@ -20,9 +22,11 @@
 
 **{{ __('Legal Basis') }}:** {{ $legalBasis }}
 
-<x-mail::button :url="url('/admin/employees/' . $employee->id)">
+@if ($frontendUrl)
+<x-mail::button :url="$frontendUrl . '/employees/' . $employee->id">
 {{ __('View Employee Details') }}
 </x-mail::button>
+@endif
 
 ---
 

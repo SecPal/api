@@ -77,8 +77,8 @@ Comprehensive RBAC system with temporal role assignments and direct permission m
 
 **Features:**
 
-- **5 Predefined Roles**: Admin, Manager, Guard, Client, Works Council
-- **52 Permissions** across 7 resources (employees, shifts, work_instructions, roles, permissions, works_council, reports)
+- **7 Predefined Roles**: Employee, Employee Read Only, HR, Manager, Guard, Client, Works Council
+- **Comprehensive Permissions** across core operational resources, administration, onboarding, and device enrollment
 - **Temporal Role Assignments**: Assign roles with `valid_from`/`valid_until` dates for automatic expiration
 - **Direct Permissions**: Assign permissions directly to users, bypassing roles for fine-grained control
 - **Permission Inheritance**: User permissions = Role permissions ∪ Direct permissions
@@ -131,7 +131,7 @@ SecPal uses exactly five valid employee lifecycle statuses:
 - `on_leave`: Employee is temporarily absent but still employed. Onboarding invitations are not allowed, and runtime access is reduced to the read-only baseline until the employee returns.
 - `terminated`: Employment has ended. Onboarding invitations are not allowed.
 
-Admin rule of thumb:
+Status rule of thumb:
 
 - Use `pre_contract` if you want to invite the employee into onboarding.
 - Do not rely on form submission to discover the rule. The UI should explain the restriction before submit, and the API rejects `send_invitation: true` for every status other than `pre_contract`.
@@ -437,7 +437,7 @@ SecPal implements a comprehensive Role-Based Access Control (RBAC) system with t
 
 ### Core Features
 
-- **Role-based access control** with predefined roles (Admin, Manager, Guard, Client, Works Council)
+- **Role-based access control** with predefined roles (Employee, Employee Read Only, HR, Manager, Guard, Client, Works Council)
 - **Temporal role assignments** with automatic expiration for time-limited access
 - **Direct permissions** allowing exceptions without creating new roles
 - **All roles are equal** and fully manageable (no system/custom distinction)
@@ -447,7 +447,7 @@ SecPal implements a comprehensive Role-Based Access Control (RBAC) system with t
 
 #### 1. No System Roles
 
-All roles are equal - predefined roles (Admin, Manager, etc.) can be deleted if not assigned to users. Deleted predefined roles are automatically recreated on next seeder run. This approach provides simplicity and flexibility without artificial distinctions. See [ADR-005](https://github.com/SecPal/.github/blob/main/docs/adr/005-rbac-design-decisions.md) for rationale.
+All roles are equal - predefined roles (Employee, HR, Manager, etc.) can be deleted if not assigned to users. Deleted predefined roles are automatically recreated on next seeder run. This approach provides simplicity and flexibility without artificial distinctions. See [ADR-005](https://github.com/SecPal/.github/blob/main/docs/adr/005-rbac-design-decisions.md) for rationale.
 
 #### 2. Direct Permissions
 

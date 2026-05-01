@@ -376,5 +376,6 @@ test('bwr id document auto deleted mail includes employee details and deletion r
         ->and($mail->envelope()->subject)->toContain('BWR')
         ->and($mail->render())->toContain('Casey Secure')
         ->and($mail->render())->toContain('EMP-912')
+        ->and($mail->render())->toContain('https://app.secpal.dev/employees/'.$employee->id)
         ->and($mail->render())->toContain('deleted automatically because BWR approval made continued storage no longer necessary');
 });

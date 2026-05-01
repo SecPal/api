@@ -78,7 +78,7 @@ test('authorized user can create android enrollment session and receives private
 
     actingAs($admin, 'sanctum');
 
-    $response = postJson('/v1/admin/android-enrollment-sessions', [
+    $response = postJson('/v1/android-enrollment-sessions', [
         'device_label' => 'Front desk kiosk',
         'update_channel' => 'managed_device',
         'expires_in_minutes' => 15,
@@ -147,7 +147,7 @@ test('provisioning payload download URL reflects the session update_channel', fu
 
     actingAs($admin, 'sanctum');
 
-    $response = postJson('/v1/admin/android-enrollment-sessions', [
+    $response = postJson('/v1/android-enrollment-sessions', [
         'device_label' => 'BYOD device',
         'update_channel' => 'direct_apk',
         'expires_in_minutes' => 15,
@@ -171,7 +171,7 @@ test('reader can list sessions without receiving raw bootstrap tokens', function
 
     actingAs($reader, 'sanctum');
 
-    $response = getJson('/v1/admin/android-enrollment-sessions');
+    $response = getJson('/v1/android-enrollment-sessions');
 
     $response->assertOk()
         ->assertJsonPath('data.0.status', 'pending')
@@ -189,12 +189,12 @@ test('user without write permission cannot create or revoke android enrollment s
 
     actingAs($outsider, 'sanctum');
 
-    postJson('/v1/admin/android-enrollment-sessions', [
+    postJson('/v1/android-enrollment-sessions', [
         'update_channel' => 'managed_device',
         'provisioning_profile' => androidProvisioningProfile(),
     ])->assertForbidden();
 
-    postJson('/v1/admin/android-enrollment-sessions/'.$issued['model']->id.'/revoke', [
+    postJson('/v1/android-enrollment-sessions/'.$issued['model']->id.'/revoke', [
         'reason' => 'Not allowed',
     ])->assertForbidden();
 });
@@ -210,7 +210,7 @@ test('authorized user can revoke pending android enrollment session and the acti
 
     actingAs($admin, 'sanctum');
 
-    $response = postJson('/v1/admin/android-enrollment-sessions/'.$issued['model']->id.'/revoke', [
+    $response = postJson('/v1/android-enrollment-sessions/'.$issued['model']->id.'/revoke', [
         'reason' => 'Device handoff canceled.',
     ]);
 

@@ -46,6 +46,8 @@
   @endif
 @endif
 
+@php($frontendUrl = rtrim((string) config('app.frontend_url', ''), '/'))
+
 ## {{ __('Action Required') }}
 
 @if ($firstNameSeverity === 'medium' || $lastNameSeverity === 'medium')
@@ -54,9 +56,11 @@
 ✅ **{{ __('Minor change detected. Review activity log if needed.') }}**
 @endif
 
-<x-mail::button :url="url('/admin/employees/' . $employee->id)">
+@if ($frontendUrl)
+<x-mail::button :url="$frontendUrl . '/employees/' . $employee->id">
 {{ __('View Employee Details') }}
 </x-mail::button>
+@endif
 
 ## {{ __('Security Notice') }}
 
