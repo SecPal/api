@@ -113,8 +113,8 @@ Domain-specific actions for workflows:
 | `read_salary`       | View sensitive salary data    | `employees.read_salary`         |
 | `read_all_branches` | Cross-branch access           | `employees.read_all_branches`   |
 | `generate`          | Create dynamic content        | `reports.generate`              |
-| `assign_temporary`  | Assign temporal roles         | `roles.assign_temporary`        |
-| `extend_expiration` | Extend role expiration        | `roles.extend_expiration`       |
+| `assign_temporary`  | Assign temporal roles         | `role.assign`                   |
+| `extend_expiration` | Extend role expiration        | `role.assign`                   |
 
 ---
 

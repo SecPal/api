@@ -210,15 +210,15 @@ Roles are **named collections of permissions** that define what a user can do wi
 
 SecPal seeds seven predefined roles that cover common use cases. There is no predefined `Admin` role; broad access is assembled from explicit permissions plus explicit organizational scopes.
 
-| Role                   | Description                   | Typical Permissions                                                           | Scope                           |
-| ---------------------- | ----------------------------- | ----------------------------------------------------------------------------- | ------------------------------- |
-| **Employee**           | Self-service employee access  | `employee.read`, `employee.update`, `shifts.read`, `work_instructions.read`   | Own data only                   |
-| **Employee Read Only** | Read-only self-service access | `employee.read`, `shifts.read`, `work_instructions.read`                      | Own data only                   |
-| **HR**                 | HR lifecycle operations       | `employees.*`, `employee.*`, `qualification.*`, `onboarding.*`                | Explicit organizational scopes  |
-| **Manager**            | Operational management        | `customers.*`, `sites.*`, `employees.read`, `shifts.*`, `work_instructions.*` | Explicit organizational scopes  |
-| **Guard**              | Security personnel            | `employee.read`, `shifts.read`, `shifts.update`, `work_instructions.read`     | Own data and assigned records   |
-| **Client**             | External stakeholder access   | `shifts.read`, `work_instructions.read`, `reports.view`                       | Customer/site scoped            |
-| **Works Council**      | Employee representation       | `employees.read`, `shifts.approve_as_br`, `works_council.*`                   | Approval workflows within scope |
+| Role                   | Description                   | Typical Permissions                                                                                            | Scope                           |
+| ---------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| **Employee**           | Self-service employee access  | `employee.read`, `employee.update`, `shifts.read`, `work_instructions.read`                                    | Own data only                   |
+| **Employee Read Only** | Read-only self-service access | `employee.read`, `shifts.read`, `work_instructions.read`                                                       | Own data only                   |
+| **HR**                 | HR lifecycle operations       | `employees.read`, `employees.create`, `employees.read_sensitive`, `onboarding.approve`                         | Explicit organizational scopes  |
+| **Manager**            | Operational management        | `customers.read`, `customers.update`, `sites.read`, `shifts.read`, `work_instructions.publish`                 | Explicit organizational scopes  |
+| **Guard**              | Security personnel            | `employee.read`, `shifts.read`, `shifts.update`, `work_instructions.read`                                      | Own data and assigned records   |
+| **Client**             | External stakeholder access   | `shifts.read`, `work_instructions.read`, `reports.view`                                                        | Customer/site scoped            |
+| **Works Council**      | Employee representation       | `employees.read`, `employees.read_all_branches`, `shifts.approve_as_br`, `works_council.access_employee_files` | Approval workflows within scope |
 
 #### All Roles Are Equal
 
@@ -396,9 +396,9 @@ User Permissions = Role Permissions ∪ Direct Permissions
 
 Example:
 User "John" has role "Manager":
-  - Role "Manager" grants: [employees.read, employees.update, shifts.*]
+  - Role "Manager" grants: [employees.read, employees.update, shifts.read]
   - Direct permissions: [employees.export, reports.generate]
-  - Total permissions: [employees.read, employees.update, shifts.*,
+  - Total permissions: [employees.read, employees.update, shifts.read,
                         employees.export, reports.generate]
 
 If "Manager" role is removed:
@@ -760,14 +760,14 @@ $john->roles()->pluck('name');  // ["Manager"]
 
 // Manager role grants these permissions:
 $managerRole->permissions()->pluck('name');
-// ["employees.read", "employees.update", "shifts.*"]
+// ["employees.read", "employees.update", "shifts.read"]
 
 // John gets ADDITIONAL direct permission:
 $john->givePermissionTo('employees.export');
 
 // John's TOTAL permissions:
 $john->getAllPermissions()->pluck('name');
-// ["employees.read", "employees.update", "shifts.*", "employees.export"]
+// ["employees.read", "employees.update", "shifts.read", "employees.export"]
 
 // If Manager role is removed:
 $john->removeRole('Manager');
@@ -839,7 +839,7 @@ $user->assignRole('manager', [
 │  │         ▼               │  │         ▼          │  │
 │  │  employees.read         │  │  employees.export  │  │
 │  │  employees.update       │  │  reports.generate  │  │
-│  │  shifts.*               │  │                    │  │
+│  │  shifts.read            │  │                    │  │
 │  └─────────────────────────┘  └──────────────────────┘  │
 │               │                          │               │
 │               └──────────┬───────────────┘               │
@@ -854,7 +854,7 @@ $user->assignRole('manager', [
 │        │ Total Permissions:              │              │
 │        │ - employees.read                │              │
 │        │ - employees.update              │              │
-│        │ - shifts.*                      │              │
+│        │ - shifts.read                   │              │
 │        │ - employees.export              │              │
 │        │ - reports.generate              │              │
 │        └─────────────────────────────────┘              │
@@ -873,7 +873,7 @@ Direct Permissions: None
 Result:
 ✅ employees.read    (from Manager role)
 ✅ employees.update  (from Manager role)
-✅ shifts.*          (from Manager role)
+✅ shifts.read       (from Manager role)
 ```
 
 #### Example 2: User with Only Direct Permissions
@@ -898,7 +898,7 @@ Direct Permissions: employees.export, reports.generate
 Result:
 ✅ employees.read     (from Manager)
 ✅ employees.update   (from Manager)
-✅ shifts.*           (from Manager)
+✅ shifts.read        (from Manager)
 ✅ employees.export   (direct)
 ✅ reports.generate   (direct)
 ```
@@ -911,7 +911,7 @@ User: Mike
 Role: Manager
 Direct Permissions: employees.export
 
-Permissions: [employees.read, employees.update, shifts.*, employees.export]
+Permissions: [employees.read, employees.update, shifts.read, employees.export]
 
 After Role Removal:
 $mike->removeRole('Manager');
@@ -1239,7 +1239,7 @@ SecPal's RBAC API is split across four functional areas:
 | `DELETE` | `/v1/users/{id}/roles/{role}`        | Revoke role from user                  |
 | `PATCH`  | `/v1/users/{id}/roles/{role}/extend` | Extend role expiration date            |
 
-**Authorization:** Requires `employees.update`; cross-branch updates additionally require explicit cross-branch visibility
+**Authorization:** Requires the corresponding role-assignment permission (`role.assign`, `role.read`, `role.revoke`); extending an existing assignment currently reuses `role.assign`
 
 **Documentation:** See Issue #5 and ADR-004 for implementation details
 
@@ -1255,7 +1255,7 @@ SecPal's RBAC API is split across four functional areas:
 | `POST`   | `/v1/roles/{id}/permissions`              | Assign permissions to role        |
 | `DELETE` | `/v1/roles/{id}/permissions/{permission}` | Remove permission from role       |
 
-**Authorization:** Requires the corresponding role-management permission (`role.read`, `role.assign`, `role.revoke`, `roles.extend_expiration`, `roles.create`, `roles.update`, `roles.delete`)
+**Authorization:** Requires the corresponding role-management permission (`roles.read`, `roles.create`, `roles.update`, `roles.delete`)
 
 **Documentation:** See Issue #137 and Issue #140
 

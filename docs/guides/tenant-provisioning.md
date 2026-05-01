@@ -124,10 +124,8 @@ class ProvisionTenant extends Command
             $this->info('3️⃣  Creating default organizational structure...');
             $orgUnit = OrganizationalUnit::create([
                 'name' => 'Headquarters',
-                'short_name' => 'HQ',
                 'type' => 'branch',
                 'tenant_id' => $tenant->id,
-                'is_active' => true,
             ]);
             $this->line("   ✅ Organizational unit created (ID: {$orgUnit->id})");
 
@@ -174,7 +172,7 @@ class ProvisionTenant extends Command
                     ['Customer Name', $customerName],
                     ['Bootstrap Email', $bootstrapEmail],
                     ['Bootstrap Password', $password],
-                    ['Organizational Unit', "HQ ({$orgUnit->id})"],
+                    ['Organizational Unit', "{$orgUnit->name} ({$orgUnit->id})"],
                 ]
             );
 
@@ -268,10 +266,8 @@ echo "Bootstrap user created: {$bootstrapUser->email}\n";
 // 3. Create default organizational unit
 $orgUnit = OrganizationalUnit::create([
     'name' => 'Headquarters',
-    'short_name' => 'HQ',
     'type' => 'branch',
     'tenant_id' => $tenant->id,
-    'is_active' => true,
 ]);
 echo "Organizational unit created: {$orgUnit->name}\n";
 
@@ -321,7 +317,7 @@ Authorization: Bearer {TENANT_PROVISIONING_TOKEN}
     "bootstrap_password": "SecurePassword123!",
   "organizational_unit": {
     "name": "Headquarters",
-    "short_name": "HQ"
+        "type": "branch"
   }
 }
 ```
@@ -353,27 +349,26 @@ php artisan tinker
 use App\Models\OrganizationalUnit;
 
 $tenantId = 1; // Replace with actual tenant ID
-$hq = OrganizationalUnit::where('tenant_id', $tenantId)->where('name', 'Headquarters')->first();
+$hq = OrganizationalUnit::where('tenant_id', $tenantId)
+    ->where('name', 'Headquarters')
+    ->firstOrFail();
 
 // Add branch
 $branch = OrganizationalUnit::create([
     'name' => 'Frankfurt Branch',
-    'short_name' => 'FFM',
     'type' => 'branch',
-    'parent_id' => $hq->id,
     'tenant_id' => $tenantId,
-    'is_active' => true,
 ]);
+$branch->setParent($hq);
 
-// Add team
+// Add team via the closure-table hierarchy
 $team = OrganizationalUnit::create([
     'name' => 'Night Shift Team A',
-    'short_name' => 'NSA',
-    'type' => 'team',
-    'parent_id' => $branch->id,
+    'type' => 'custom',
+    'custom_type_name' => 'Team',
     'tenant_id' => $tenantId,
-    'is_active' => true,
 ]);
+$team->setParent($branch);
 
 echo "Organizational structure created:\n";
 echo "- {$hq->name}\n";

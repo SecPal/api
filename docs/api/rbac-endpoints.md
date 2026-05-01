@@ -249,7 +249,7 @@ Extend the expiration date of a temporal role assignment.
 
 **Endpoint:** `PATCH /v1/users/{user}/roles/{role}/extend`
 
-**Authorization:** Requires `roles.extend_expiration` permission
+**Authorization:** Requires `role.assign` permission
 
 **URL Parameters:**
 
@@ -260,7 +260,8 @@ Extend the expiration date of a temporal role assignment.
 
 ```json
 {
-  "valid_until": "2025-12-31T23:59:59Z"
+  "valid_until": "2025-12-31T23:59:59Z",
+  "reason": "Vacation coverage extended"
 }
 ```
 
@@ -268,14 +269,11 @@ Extend the expiration date of a temporal role assignment.
 
 ```json
 {
-  "data": {
-    "user_id": 123,
-    "role": "manager",
-    "old_valid_until": "2025-12-14T23:59:59Z",
-    "new_valid_until": "2025-12-31T23:59:59Z",
-    "extended_by": 1,
-    "extended_at": "2025-11-15T10:00:00Z"
-  }
+  "user_id": 123,
+  "role": "manager",
+  "valid_from": "2025-12-01T00:00:00Z",
+  "valid_until": "2025-12-31T23:59:59Z",
+  "reason": "Vacation coverage extended"
 }
 ```
 
@@ -300,7 +298,7 @@ Get a list of all roles in the system (predefined + custom).
 
 **Endpoint:** `GET /v1/roles`
 
-**Authorization:** Requires `role.read` permission
+**Authorization:** Requires `roles.read` permission
 
 **Query Parameters:**
 
@@ -451,7 +449,7 @@ Get detailed information about a specific role, including assigned permissions.
 
 **Endpoint:** `GET /v1/roles/{id}`
 
-**Authorization:** Requires `role.read` permission
+**Authorization:** Requires `roles.read` permission
 
 **URL Parameters:**
 
