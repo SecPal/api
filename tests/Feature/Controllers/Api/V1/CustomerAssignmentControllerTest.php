@@ -1,13 +1,15 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
+use App\Models\Employee;
+use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -249,6 +251,86 @@ describe('POST /v1/customers/{customer}/assignments', function () {
         $response->assertStatus(201);
         expect($response->json('data.valid_from'))->not()->toBeNull();
         expect($response->json('data.valid_until'))->not()->toBeNull();
+    });
+
+    test('blocks assignments when the target user employee has critical compliance expiries', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+
+        $targetUser = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        $organizationalUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        Employee::factory()->withExpiringComplianceCertifications()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $organizationalUnit->id,
+            'user_id' => $targetUser->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/customers/{$this->customer->id}/assignments", [
+                'user_id' => $targetUser->id,
+                'role' => 'Key Account Manager',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Employee cannot be assigned while critical compliance documents are expired or due within 7 days.')
+            ->assertJsonStructure([
+                'blocking_documents' => [
+                    '*' => ['type', 'status', 'expiry'],
+                ],
+            ]);
+
+        expect($response->json('blocking_documents'))->not->toBeEmpty();
+
+        $this->assertDatabaseMissing('customer_assignments', [
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'user_id' => $targetUser->id,
+        ]);
+    });
+
+    test('allows assignments when the target user employee has warning level compliance alerts only', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+
+        $targetUser = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        $organizationalUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        Employee::factory()->withComplianceCertifications()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $organizationalUnit->id,
+            'user_id' => $targetUser->id,
+            'firearms_license_expiry' => now()->addDays(20)->toDateString(),
+            'first_aid_cert_expiry' => now()->addDays(45)->toDateString(),
+            'evacuation_cert_expiry' => now()->addDays(60)->toDateString(),
+            'additional_certifications' => [
+                [
+                    'name' => 'Badge',
+                    'issued_date' => now()->subMonth()->toDateString(),
+                    'expiry_date' => now()->addDays(21)->toDateString(),
+                    'issuer' => 'Customer Security',
+                ],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/customers/{$this->customer->id}/assignments", [
+                'user_id' => $targetUser->id,
+                'role' => 'Key Account Manager',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.user.id', $targetUser->id);
     });
 
     test('returns 409 when duplicate assignment exists', function (): void {
