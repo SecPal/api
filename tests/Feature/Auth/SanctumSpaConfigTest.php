@@ -164,6 +164,18 @@ describe('CORS Configuration for SPA', function () {
             ]);
     });
 
+    test('cors config builds one exact pattern per origin when multiple origins are configured', function () {
+        $corsConfig = withCorsAllowedOrigins('https://app.secpal.dev,https://devtest.secpal.dev',
+            static fn (): array => require base_path('config/cors.php')
+        );
+
+        expect($corsConfig['allowed_origins'])->toBe([])
+            ->and($corsConfig['allowed_origins_patterns'])->toBe([
+                '#^https\://app\.secpal\.dev$#',
+                '#^https\://devtest\.secpal\.dev$#',
+            ]);
+    });
+
     test('cors config rejects wildcard origins when credentials are enabled', function () {
         expect(fn () => withCorsAllowedOrigins('https://*.secpal.dev',
             static fn (): array => require base_path('config/cors.php')

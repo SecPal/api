@@ -679,7 +679,7 @@ class OnboardingController extends Controller
     /**
      * Approve onboarding form submission (HR only).
      *
-     * POST /api/v1/onboarding-review/submissions/{submission}/approve
+     * POST /v1/onboarding-review/submissions/{submission}/approve
      */
     public function approveSubmission(Request $request, OnboardingFormSubmission $submission): JsonResponse
     {
@@ -719,7 +719,7 @@ class OnboardingController extends Controller
     /**
      * Reject onboarding form submission (HR only).
      *
-     * POST /api/v1/onboarding-review/submissions/{submission}/reject
+     * POST /v1/onboarding-review/submissions/{submission}/reject
      */
     public function rejectSubmission(Request $request, OnboardingFormSubmission $submission): JsonResponse
     {

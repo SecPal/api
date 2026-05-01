@@ -78,7 +78,7 @@ Comprehensive RBAC system with temporal role assignments and direct permission m
 **Features:**
 
 - **7 Predefined Roles**: Employee, Employee Read Only, HR, Manager, Guard, Client, Works Council
-- **52 Permissions** across 7 resources (employees, shifts, work_instructions, roles, permissions, works_council, reports)
+- **Comprehensive Permissions** across core operational resources, administration, onboarding, and device enrollment
 - **Temporal Role Assignments**: Assign roles with `valid_from`/`valid_until` dates for automatic expiration
 - **Direct Permissions**: Assign permissions directly to users, bypassing roles for fine-grained control
 - **Permission Inheritance**: User permissions = Role permissions ∪ Direct permissions
@@ -117,7 +117,7 @@ GET /v1/users/{id}/permissions
 - [Temporal Roles](docs/guides/temporal-roles.md)
 - [Direct Permissions](docs/guides/direct-permissions.md)
 - [Activity Logging User Guide](docs/ACTIVITY_LOGGING_USER_GUIDE.md)
-- [Activity Logging Operations Guide](docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md)
+- [Activity Logging Admin Guide](docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md)
 - [Activity Logging Legal Guide](docs/ACTIVITY_LOGGING_LEGAL_GUIDE.md)
 - [API Reference](docs/api/rbac-endpoints.md)
 
