@@ -14,8 +14,10 @@ use App\Http\Requests\UpdateEmployeeBwrStatusRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
+use App\Models\OrganizationalUnitClosure;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Models\UserInternalOrganizationalScope;
 use App\Services\BewacherregisterExportService;
 use App\Services\EmployeeComplianceService;
 use App\Services\EmployeeLifecycleService;
@@ -26,6 +28,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -111,14 +114,9 @@ class EmployeeController extends Controller
         $query = Employee::where('tenant_id', $tenantId);
 
         // Apply organizational scope filtering for scoped users (e.g., managers)
-        $hasScopes = $user->organizationalScopes()->exists();
-        if ($hasScopes) {
-            // Get accessible organizational unit IDs including descendants (hierarchical access)
-            $accessibleUnitIds = $user->getAccessibleOrganizationalUnits()
-                ->pluck('id')
-                ->toArray();
-
-            $query->whereIn('organizational_unit_id', $accessibleUnitIds);
+        $user->loadMissing('organizationalScopes');
+        if ($user->organizationalScopes->isNotEmpty()) {
+            $this->applyScopedEmployeeVisibility($query, $user);
         }
 
         // Filter by status
@@ -143,6 +141,159 @@ class EmployeeController extends Controller
         }
 
         return $query;
+    }
+
+    /**
+     * Apply scoped employee visibility so collection access matches detail authorization.
+     *
+     * @param  Builder<Employee>  $query
+     */
+    private function applyScopedEmployeeVisibility(Builder $query, User $user): void
+    {
+        // Scopes already loaded by buildEmployeeIndexQuery; build unit->scopes map in memory.
+        /** @var Collection<int, UserInternalOrganizationalScope> $loadedScopes */
+        $loadedScopes = $user->organizationalScopes;
+
+        /** @var array<string, Collection<int, UserInternalOrganizationalScope>> $unitToScopes */
+        $unitToScopes = $loadedScopes
+            ->groupBy('organizational_unit_id')
+            ->map(fn (Collection $group): Collection => $group->values())
+            ->all();
+
+        $directUnitIds = collect(array_keys($unitToScopes));
+
+        // Resolve descendant units for include_descendants scopes in a single batch query.
+        /** @var Collection<string, UserInternalOrganizationalScope> $descendantScopesByAncestorId */
+        $descendantScopesByAncestorId = $loadedScopes
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => (bool) $scope->include_descendants)
+            ->keyBy('organizational_unit_id');
+
+        if ($descendantScopesByAncestorId->isNotEmpty()) {
+            OrganizationalUnitClosure::whereIn('ancestor_id', $descendantScopesByAncestorId->keys())
+                ->where('depth', '>', 0)
+                ->select(['ancestor_id', 'descendant_id'])
+                ->orderBy('ancestor_id')
+                ->orderBy('descendant_id')
+                ->each(function (OrganizationalUnitClosure $closure) use (
+                    $directUnitIds,
+                    $descendantScopesByAncestorId,
+                    &$unitToScopes,
+                ): void {
+                    $descendantId = $closure->descendant_id;
+
+                    // Direct scope takes precedence over inherited descendant scope.
+                    if ($directUnitIds->contains($descendantId)) {
+                        return;
+                    }
+
+                    /** @var UserInternalOrganizationalScope|null $ancestorScope */
+                    $ancestorScope = $descendantScopesByAncestorId->get($closure->ancestor_id);
+
+                    if (! $ancestorScope instanceof UserInternalOrganizationalScope) {
+                        return;
+                    }
+
+                    if (! isset($unitToScopes[$descendantId])) {
+                        /** @var Collection<int, UserInternalOrganizationalScope> $emptyCollection */
+                        $emptyCollection = collect();
+                        $unitToScopes[$descendantId] = $emptyCollection;
+                    }
+
+                    $unitToScopes[$descendantId]->push($ancestorScope);
+                });
+        }
+
+        // Filter to units with at least one read-accessible scope.
+        /** @var Collection<string, Collection<int, UserInternalOrganizationalScope>> $visibleUnits */
+        $visibleUnits = collect($unitToScopes)
+            ->map(fn (Collection $unitScopes): Collection => $unitScopes
+                ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('read'))
+                ->values()
+            )
+            ->filter(fn (Collection $readableScopes): bool => $readableScopes->isNotEmpty());
+
+        if ($visibleUnits->isEmpty()) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function (Builder $scopeQuery) use ($visibleUnits, $user): void {
+            foreach ($visibleUnits as $unitId => $unitScopes) {
+                $scopeQuery->orWhere(function (Builder $unitQuery) use ($unitId, $unitScopes, $user): void {
+                    $unitQuery->where('organizational_unit_id', $unitId);
+
+                    $this->applyManagementLevelVisibilityConstraints($unitQuery, $unitScopes, $user);
+                });
+            }
+        });
+    }
+
+    /**
+     * @param  Builder<Employee>  $query
+     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
+     */
+    private function applyManagementLevelVisibilityConstraints(Builder $query, Collection $scopes, User $user): void
+    {
+        if ($this->hasFullyViewableScope($scopes)) {
+            return;
+        }
+
+        $allowsSelfAccess = $scopes->contains(
+            fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access
+        );
+
+        $query->where(function (Builder $visibilityQuery) use ($allowsSelfAccess, $scopes, $user): void {
+            if ($allowsSelfAccess) {
+                $visibilityQuery->orWhere('user_id', $user->id);
+            }
+
+            foreach ($scopes as $scope) {
+                $this->addViewableManagementLevelConstraint($visibilityQuery, $scope);
+            }
+        });
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
+     */
+    private function hasFullyViewableScope(Collection $scopes): bool
+    {
+        return $scopes->contains(function (UserInternalOrganizationalScope $scope): bool {
+            $minimum = $scope->min_viewable_rank;
+            $maximum = $scope->max_viewable_rank;
+
+            return ($minimum === null || $minimum === 0) && $maximum === null;
+        });
+    }
+
+    /**
+     * @param  Builder<Employee>  $query
+     */
+    private function addViewableManagementLevelConstraint(Builder $query, UserInternalOrganizationalScope $scope): void
+    {
+        $minimum = $scope->min_viewable_rank;
+        $maximum = $scope->max_viewable_rank;
+
+        if (($minimum === null || $minimum === 0) && $maximum === 0) {
+            $query->orWhere('management_level', 0);
+
+            return;
+        }
+
+        if ($maximum === 0) {
+            return;
+        }
+
+        $query->orWhere(function (Builder $rankQuery) use ($minimum, $maximum): void {
+            $lowerBound = ($minimum === null || $minimum === 0) ? 1 : $minimum;
+
+            $rankQuery->where('management_level', '>=', $lowerBound);
+
+            if ($maximum !== null) {
+                $rankQuery->where('management_level', '<=', $maximum);
+            }
+        });
     }
 
     /**

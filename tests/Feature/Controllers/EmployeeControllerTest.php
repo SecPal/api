@@ -234,6 +234,42 @@ describe('GET /v1/employees', function () {
         expect($response->json('data')[0]['organizational_unit_id'])->toBe($unitA->id);
     });
 
+    test('employee index hides employees whose management level is outside the user\'s viewable rank scopes', function (): void {
+        $this->user->organizationalScopes()->delete();
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'read',
+            'include_descendants' => false,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $guardEmployee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'management_level' => 0,
+        ]);
+
+        $leadershipEmployee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'management_level' => 5,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/employees');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $guardEmployee->id);
+
+        $this->withToken($this->token)
+            ->getJson("/v1/employees/{$leadershipEmployee->id}")
+            ->assertForbidden();
+    });
+
     test('searches employees by email', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
