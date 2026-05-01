@@ -85,7 +85,7 @@ class CustomerAssignmentController extends AssignmentController
         $targetUser = User::query()->with('employee')->findOrFail($validated['user_id']);
         $complianceBlockingResponse = $this->complianceBlockingResponse($targetUser, $complianceService);
 
-        if ($complianceBlockingResponse instanceof JsonResponse) {
+        if ($complianceBlockingResponse !== null) {
             return $complianceBlockingResponse;
         }
 
