@@ -83,7 +83,7 @@ Comprehensive RBAC system with temporal role assignments and direct permission m
 - **Direct Permissions**: Assign permissions directly to users, bypassing roles for fine-grained control
 - **Permission Inheritance**: User permissions = Role permissions ∪ Direct permissions
 - **Idempotent Seeder**: Predefined roles auto-recreate if deleted
-- **16 REST API Endpoints**: Full CRUD for roles, permissions, assignments, and direct permissions
+- **RBAC REST surface**: Role and permission CRUD, user role assignment (including extend), and direct user permissions — see [`docs/api/rbac-endpoints.md`](docs/api/rbac-endpoints.md) and `routes/api.php` (avoid relying on a hand-maintained endpoint count)
 
 **API Examples:**
 

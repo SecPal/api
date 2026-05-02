@@ -328,6 +328,22 @@ describe('GET /v1/qualifications/{qualification}', function () {
                     'id' => $qualification->id,
                     'name' => 'Test Qualification',
                 ],
+            ])
+            ->assertJsonStructure([
+                'data' => [
+                    'id',
+                    'tenant_id',
+                    'name',
+                    'description',
+                    'category',
+                    'requires_renewal',
+                    'renewal_period_months',
+                    'is_mandatory',
+                    'is_system_qualification',
+                    'sort_order',
+                    'created_at',
+                    'updated_at',
+                ],
             ]);
     });
 
@@ -399,7 +415,8 @@ describe('PATCH /v1/qualifications/{qualification}', function () {
                 'description' => 'Attempt update',
             ]);
 
-        $response->assertStatus(403);
+        $response->assertStatus(403)
+            ->assertJsonStructure(['message']);
     });
 });
 
@@ -450,6 +467,7 @@ describe('DELETE /v1/qualifications/{qualification}', function () {
         $response = $this->withToken($this->token)
             ->deleteJson("/v1/qualifications/{$qualification->id}");
 
-        $response->assertStatus(403);
+        $response->assertStatus(403)
+            ->assertJsonStructure(['message']);
     });
 });

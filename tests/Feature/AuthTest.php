@@ -10,6 +10,7 @@ use App\Models\Site;
 use App\Models\User;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
@@ -777,6 +778,47 @@ describe('Email Verification', function () {
         Notification::assertSentTo($user, VerifyEmail::class);
     });
 
+    test('verified users receive 200 when resending email verification', function () {
+        $user = User::factory()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/v1/auth/email/verification-notification')
+            ->assertOk()
+            ->assertJson([
+                'message' => 'Email address is already verified.',
+            ]);
+    });
+
+    test('verification notification requires authentication', function () {
+        $this->postJson('/v1/auth/email/verification-notification')
+            ->assertUnauthorized()
+            ->assertJson([
+                'message' => 'Unauthenticated.',
+            ]);
+    });
+
+    test('verification resend is throttled after six requests per minute', function () {
+        Cache::flush();
+        Notification::fake();
+
+        $user = User::factory()->unverified()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+
+        for ($i = 0; $i < 6; $i++) {
+            $this->withHeader('Authorization', "Bearer {$token}")
+                ->postJson('/v1/auth/email/verification-notification')
+                ->assertStatus(202);
+        }
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/v1/auth/email/verification-notification')
+            ->assertStatus(429)
+            ->assertJson([
+                'message' => 'Too Many Attempts.',
+            ]);
+    });
+
     test('signed verification links mark the user email as verified', function () {
         $user = User::factory()->unverified()->create();
 
@@ -815,7 +857,7 @@ describe('Login Rate Limiting', function () {
         // Clear rate limiter cache between tests
         // RateLimiter::clear('login') doesn't work because it expects full key like 'login:ip|email'
         // Using Cache::flush() ensures clean state for each test
-        Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
     });
 
     test('token endpoint is rate limited after 5 failed attempts', function () {
