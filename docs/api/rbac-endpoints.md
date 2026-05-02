@@ -10,9 +10,9 @@ Complete API reference for SecPal's Role-Based Access Control (RBAC) system.
 SecPal's RBAC API provides four functional areas:
 
 1. **[Role Assignment API](#role-assignment-api)** - Assign/revoke roles to/from users (Phase 3 ✅)
-2. **[Role Management API](#role-management-api)** - CRUD operations for roles (Phase 4 ⏳)
-3. **[Permission Management API](#permission-management-api)** - CRUD operations for permissions (Phase 4 ⏳)
-4. **[Direct Permission API](#direct-permission-api)** - Assign permissions directly to users (Phase 4 ⏳)
+2. **[Role Management API](#role-management-api)** - CRUD operations for roles (Phase 4 ✅)
+3. **[Permission Management API](#permission-management-api)** - CRUD operations for permissions (Phase 4 ✅)
+4. **[Direct Permission API](#direct-permission-api)** - Assign permissions directly to users (Phase 4 ✅)
 
 **Base URL:** `https://api.secpal.dev/v1`
 
