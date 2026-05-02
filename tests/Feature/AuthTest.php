@@ -857,7 +857,7 @@ describe('Login Rate Limiting', function () {
         // Clear rate limiter cache between tests
         // RateLimiter::clear('login') doesn't work because it expects full key like 'login:ip|email'
         // Using Cache::flush() ensures clean state for each test
-        Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
     });
 
     test('token endpoint is rate limited after 5 failed attempts', function () {

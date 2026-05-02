@@ -1223,12 +1223,12 @@ $user->hasRole('manager');  // Only checks active roles
 
 SecPal's RBAC API is split across four functional areas:
 
-| API Area                  | Endpoints | Status                   | Documentation |
-| ------------------------- | --------- | ------------------------ | ------------- |
-| **Role Assignment**       | 4         | ✅ Phase 3 complete      | Issue #5      |
-| **Role Management**       | 5         | ✅ Phase 4 shipped       | Issue #137 / Issue #140 |
-| **Permission Management** | 5         | ✅ Phase 4 shipped       | Issue #138 / Issue #140 |
-| **Direct Permissions**    | 4         | ✅ Phase 4 shipped       | Issue #139 / Issue #140 |
+| API Area                  | Endpoints | Status              | Documentation           |
+| ------------------------- | --------- | ------------------- | ----------------------- |
+| **Role Assignment**       | 4         | ✅ Phase 3 complete | Issue #5                |
+| **Role Management**       | 5         | ✅ Phase 4 shipped  | Issue #137 / Issue #140 |
+| **Permission Management** | 5         | ✅ Phase 4 shipped  | Issue #138 / Issue #140 |
+| **Direct Permissions**    | 4         | ✅ Phase 4 shipped  | Issue #139 / Issue #140 |
 
 ### Role Assignment API (Phase 3)
 
@@ -1245,13 +1245,13 @@ SecPal's RBAC API is split across four functional areas:
 
 ### Role Management API (Phase 4)
 
-| Method   | Endpoint         | Description                       |
-| -------- | ---------------- | --------------------------------- |
-| `GET`    | `/v1/roles`      | List all roles (system + custom)  |
+| Method   | Endpoint         | Description                                   |
+| -------- | ---------------- | --------------------------------------------- |
+| `GET`    | `/v1/roles`      | List all roles (system + custom)              |
 | `POST`   | `/v1/roles`      | Create custom role (optional permission list) |
-| `GET`    | `/v1/roles/{id}` | Get role details with permissions |
-| `PATCH`  | `/v1/roles/{id}` | Update role name and/or sync permissions |
-| `DELETE` | `/v1/roles/{id}` | Delete role (if not assigned)     |
+| `GET`    | `/v1/roles/{id}` | Get role details with permissions             |
+| `PATCH`  | `/v1/roles/{id}` | Update role name and/or sync permissions      |
+| `DELETE` | `/v1/roles/{id}` | Delete role (if not assigned)                 |
 
 Role permission membership is managed through create/update payloads (`permissions` array) and `PATCH /v1/roles/{id}` — there are no separate `/v1/roles/{id}/permissions` routes in `routes/api.php`.
 
