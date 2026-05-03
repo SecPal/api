@@ -643,9 +643,35 @@ describe('POST /v1/onboarding/submissions', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['consent']);
+    });
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['consent']);
+    test('does not treat non-string values for string fields as semantically empty on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => [
+                        'type' => 'string',
+                        'minLength' => 1,
+                    ],
+                ],
+                'required' => ['name'],
+            ],
+        ]);
+
+        // 5 is not a valid string value; it must not be silently treated as "empty"
+        // but must trigger schema validation and return 422.
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['name' => 5],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
     });
 
     test('does not treat invalid string input for integer fields as semantically empty on submit', function (): void {

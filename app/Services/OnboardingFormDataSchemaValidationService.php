@@ -155,7 +155,7 @@ final class OnboardingFormDataSchemaValidationService
         $type = $property['type'] ?? 'string';
 
         return match ($type) {
-            'string' => (is_string($value) ? trim($value) : '') === '',
+            'string' => $value === null || (is_string($value) && trim($value) === ''),
             'integer', 'number' => $value === null || $value === '',
             'boolean' => $value === null || $value === '',
             'array' => ! is_array($value) || count($value) === 0,
