@@ -19,6 +19,7 @@ use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
 use App\Services\OnboardingCompletionService;
+use App\Services\OnboardingFormDataSchemaValidationService;
 use App\Services\OnboardingSchemaLocalizationService;
 use App\Services\OnboardingSubmissionFileStorageService;
 use Illuminate\Http\JsonResponse;
@@ -47,6 +48,7 @@ class OnboardingController extends Controller
     public function __construct(
         private readonly OnboardingSubmissionFileStorageService $submissionFileStorageService,
         private readonly OnboardingSchemaLocalizationService $onboardingSchemaLocalizationService,
+        private readonly OnboardingFormDataSchemaValidationService $onboardingFormDataSchemaValidationService,
     ) {}
 
     /**
@@ -485,6 +487,16 @@ class OnboardingController extends Controller
         $status = $validated['status'] ?? 'submitted';
         $submittedAt = $status === 'submitted' ? now() : null;
 
+        $template = OnboardingFormTemplate::query()
+            ->whereKey($validated['form_template_id'])
+            ->firstOrFail();
+
+        $this->onboardingFormDataSchemaValidationService->assertMatchesTemplate(
+            $template,
+            $validated['form_data'],
+            $status === 'submitted',
+        );
+
         $submission = DB::transaction(function () use ($existing, $validated, $status, $submittedAt, $employee): OnboardingFormSubmission {
             if ($existing) {
                 // Update existing draft
@@ -580,6 +592,26 @@ class OnboardingController extends Controller
             : ($wasRejected ? 'draft' : $submission->status);
         $submittedAt = $status === 'submitted' ? now() : null;
         $shouldResetReview = $wasRejected && $status !== 'rejected';
+
+        $submission->loadMissing('formTemplate');
+        $formTemplate = $submission->formTemplate;
+        if ($formTemplate === null) {
+            return response()->json([
+                'message' => __('Form template not found for this submission'),
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        /** @var array<string, mixed> $effectiveFormData */
+        $effectiveFormData = $validated['form_data'] ?? $submission->form_data ?? [];
+        if (! is_array($effectiveFormData)) {
+            $effectiveFormData = [];
+        }
+
+        $this->onboardingFormDataSchemaValidationService->assertMatchesTemplate(
+            $formTemplate,
+            $effectiveFormData,
+            $status === 'submitted',
+        );
 
         $submission = DB::transaction(function () use ($employee, $status, $submittedAt, $submission, $validated, $shouldResetReview): OnboardingFormSubmission {
             $submission->update([
