@@ -567,6 +567,35 @@ describe('POST /v1/onboarding/submissions', function () {
             ->assertJsonPath('data.status', 'submitted');
     });
 
+    test('skips full schema enforcement for optional templates with missing array fields on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                        'minItems' => 1,
+                    ],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'submitted');
+    });
+
     test('returns 404 when employee submits a template from a different tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
