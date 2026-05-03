@@ -643,6 +643,38 @@ describe('POST /v1/onboarding/submissions', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['consent']);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['consent']);
+    });
+
+    test('does not treat invalid string input for integer fields as semantically empty on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'count' => [
+                        'type' => 'integer',
+                        'minimum' => 0,
+                    ],
+                ],
+                'required' => ['count'],
+            ],
+        ]);
+
+        // 'abc' is not a valid integer; it must not be silently treated as "empty"
+        // but must trigger schema validation and return 422.
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['count' => 'abc'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
     });
 });
 
