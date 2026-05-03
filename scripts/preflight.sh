@@ -140,9 +140,7 @@ if [ -f composer.json ]; then
       TEST_EXIT=0
       if [ -f artisan ]; then
         ${CMD_PREFIX} php artisan test --parallel --exclude-group=serial || TEST_EXIT=$?
-        if [ "$TEST_EXIT" -eq 0 ]; then
-          ${CMD_PREFIX} php artisan test --group=serial || TEST_EXIT=$?
-        fi
+        ${CMD_PREFIX} php artisan test --group=serial || TEST_EXIT=$?
       elif [ -x ./vendor/bin/pest ]; then
         ${CMD_PREFIX} ./vendor/bin/pest --parallel || TEST_EXIT=$?
       elif [ -x ./vendor/bin/phpunit ]; then

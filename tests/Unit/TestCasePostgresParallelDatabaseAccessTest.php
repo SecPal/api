@@ -19,12 +19,14 @@ test('accepts writable postgres parallel test database access details', function
 });
 
 test('fails fast when an existing postgres parallel test database is not writable', function (): void {
-    expect(fn (): bool => TestCaseBootstrapEnvironmentProbe::assertWritableParallelTestDatabase('testing_test_8', [
-        'current_user' => 'secpal_app',
-        'database_owner' => 'postgres',
-        'schema_owner' => 'pg_database_owner',
-        'can_create' => false,
-    ]))
+    expect(function (): void {
+        TestCaseBootstrapEnvironmentProbe::assertWritableParallelTestDatabase('testing_test_8', [
+            'current_user' => 'secpal_app',
+            'database_owner' => 'postgres',
+            'schema_owner' => 'pg_database_owner',
+            'can_create' => false,
+        ]);
+    })
         ->toThrow(
             RuntimeException::class,
             'PostgreSQL test database "testing_test_8" exists but the configured user "secpal_app" cannot create tables in schema "public". Current database owner: "postgres". Current schema owner: "pg_database_owner". Ensure the database is owned by the configured app user or grant CREATE on schema public before running the test suite.'
