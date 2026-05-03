@@ -13,6 +13,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\OnboardingCompletionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -1184,6 +1185,100 @@ describe('POST /v1/onboarding-review/submissions/{submission}/approve', function
         expect($response->json('data.status'))->toBe('approved');
         expect($response->json('data.reviewed_by'))->toBe($this->user->id);
         expect($response->json('data.reviewed_at'))->not->toBeNull();
+    });
+
+    test('approving tax identification submission stores identifiers on employee', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.approve');
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+            'tax_id' => null,
+            'social_security_number' => null,
+        ]);
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => null,
+            'is_system_template' => true,
+            'template_key' => 'tax_identification_number',
+            'name' => 'Tax Identification Number',
+        ]);
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'tax_id' => '12345678901',
+                'social_security_number' => '65 123456 A 123',
+            ],
+            'status' => 'submitted',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/approve");
+
+        $response->assertOk();
+
+        $freshEmployee = $this->employee->fresh();
+        expect($freshEmployee->tax_id)->toBe('12345678901')
+            ->and($freshEmployee->social_security_number)->toBe('65 123456 A 123');
+    });
+
+    test('approval changes are rolled back when completion check fails', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.approve');
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'submitted',
+        ]);
+
+        $this->mock(OnboardingCompletionService::class, function ($mock): void {
+            $mock->shouldReceive('checkCompletion')
+                ->once()
+                ->andThrow(new RuntimeException('forced completion failure'));
+        });
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/approve");
+
+        $response->assertStatus(500);
+        expect($submission->fresh()->status)->toBe('submitted')
+            ->and($submission->fresh()->reviewed_by)->toBeNull()
+            ->and($submission->fresh()->reviewed_at)->toBeNull();
+    });
+
+    test('tax identifiers are not synced when template key is not tax identification', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.approve');
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+            'tax_id' => null,
+            'social_security_number' => null,
+        ]);
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'template_key' => 'custom_tax_form',
+            'name' => 'Tax Identification Follow-up',
+        ]);
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'tax_id' => '12345678901',
+                'social_security_number' => '65 123456 A 123',
+            ],
+            'status' => 'submitted',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/approve");
+
+        $response->assertOk();
+
+        $freshEmployee = $this->employee->fresh();
+        expect($freshEmployee->tax_id)->toBeNull()
+            ->and($freshEmployee->social_security_number)->toBeNull();
     });
 
     test('returns 422 when attempting to approve non-submitted submission', function (): void {

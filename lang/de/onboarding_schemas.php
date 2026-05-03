@@ -93,13 +93,14 @@ return [
         ],
         'tax_identification_number' => [
             'name' => 'Steueridentifikationsnummer',
-            'description' => 'Optionale elfstellige Steueridentifikationsnummer (§ 39e EStG)',
+            'description' => 'Erforderliche elfstellige Steueridentifikationsnummer (§ 39e EStG) und Sozialversicherungsnummer.',
             'schema' => [
                 'title' => 'Steueridentifikationsnummer',
-                'description' => 'Optionale elfstellige Steueridentifikationsnummer (§ 39e EStG)',
+                'description' => 'Erforderliche elfstellige Steueridentifikationsnummer (§ 39e EStG) und Sozialversicherungsnummer.',
             ],
             'fields' => [
                 'tax_id' => ['title' => 'Steueridentifikationsnummer'],
+                'social_security_number' => ['title' => 'Sozialversicherungsnummer'],
                 'children_count' => ['title' => 'Anzahl Kinder'],
             ],
         ],
