@@ -86,6 +86,7 @@ When running tests in **parallel** (e.g., with `php artisan test --parallel`), P
 - `phpunit.xml` sets `DB_DATABASE=testing` as base name
 - When running tests in parallel (e.g., with `php artisan test --parallel`), Pest automatically appends `_test_1`, `_test_2` suffixes to the database name for each process.
 - The test bootstrap creates the required database idempotently (checks existence first). Parallel workers create their own suffixed `testing_test_<token>` databases as needed.
+- For existing PostgreSQL test databases, the bootstrap now also validates that the configured app user can create tables in schema `public` and fails fast with the current owner details when local ownership drift is detected.
 
 ### How to Run Tests in Parallel
 
@@ -121,7 +122,7 @@ psql -h 127.0.0.1 -U "$DB_USERNAME" -d postgres -c '\du'
 php artisan test tests/Feature/HealthCheckTest.php
 ```
 
-If parallel test runs fail with errors such as `permission denied for schema public` after manually creating `testing_test_*` databases, fix the database ownership before rerunning the suite.
+If parallel test runs fail with errors such as `permission denied for schema public`, or the bootstrap reports that the configured user cannot create tables in schema `public`, fix the database ownership before rerunning the suite.
 
 ```bash
 # Inspect database owners first (uses local peer auth; adjust if your setup differs)

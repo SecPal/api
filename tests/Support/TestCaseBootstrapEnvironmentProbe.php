@@ -13,6 +13,14 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
 {
     private static ?string $probeEnvironmentPath = null;
 
+    /**
+     * @param  array{current_user: string, database_owner: string, schema_owner: string, can_create: bool}  $access
+     */
+    public static function assertWritableParallelTestDatabase(string $databaseName, array $access): void
+    {
+        parent::assertWritableParallelTestDatabase($databaseName, $access);
+    }
+
     public static function useProbeEnvironmentPath(string $path): void
     {
         self::$probeEnvironmentPath = $path;

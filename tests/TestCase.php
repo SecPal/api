@@ -123,9 +123,32 @@ abstract class TestCase extends BaseTestCase
                     );
                 }
             }
+
+            self::assertWritableParallelTestDatabase(
+                $candidate,
+                self::parallelTestDatabaseAccess(self::connectToDatabase($candidate)),
+            );
         }
 
         self::$postgresTestDatabasesEnsured = true;
+    }
+
+    /**
+     * @param  array{current_user: string, database_owner: string, schema_owner: string, can_create: bool}  $access
+     */
+    protected static function assertWritableParallelTestDatabase(string $databaseName, array $access): void
+    {
+        if ($access['can_create']) {
+            return;
+        }
+
+        throw new \RuntimeException(sprintf(
+            'PostgreSQL test database "%s" exists but the configured user "%s" cannot create tables in schema "public". Current database owner: "%s". Current schema owner: "%s". Ensure the database is owned by the configured app user or grant CREATE on schema public before running the test suite.',
+            $databaseName,
+            $access['current_user'],
+            $access['database_owner'],
+            $access['schema_owner'],
+        ));
     }
 
     /**
@@ -151,11 +174,6 @@ abstract class TestCase extends BaseTestCase
 
     private static function connectToMaintenanceDatabase(): \PDO
     {
-        $host = self::environmentValue('DB_HOST', '127.0.0.1');
-        $port = self::environmentValue('DB_PORT', '5432');
-        $username = self::environmentValue('DB_USERNAME', 'postgres');
-        $password = self::environmentValue('DB_PASSWORD', '');
-
         $configuredDatabase = self::environmentValue('DB_DATABASE', 'postgres');
         $maintenanceDatabases = array_values(array_unique([
             $configuredDatabase,
@@ -165,20 +183,52 @@ abstract class TestCase extends BaseTestCase
 
         foreach ($maintenanceDatabases as $maintenanceDatabase) {
             try {
-                $pdo = new \PDO(
-                    sprintf('pgsql:host=%s;port=%s;dbname=%s', $host, $port, $maintenanceDatabase),
-                    $username,
-                    $password,
-                    [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION],
-                );
-
-                return $pdo;
+                return self::connectToDatabase($maintenanceDatabase);
             } catch (\PDOException $exception) {
                 continue;
             }
         }
 
         throw new \RuntimeException('Unable to connect to a PostgreSQL maintenance database for test bootstrap.');
+    }
+
+    private static function connectToDatabase(string $databaseName): \PDO
+    {
+        $host = self::environmentValue('DB_HOST', '127.0.0.1');
+        $port = self::environmentValue('DB_PORT', '5432');
+        $username = self::environmentValue('DB_USERNAME', 'postgres');
+        $password = self::environmentValue('DB_PASSWORD', '');
+
+        return new \PDO(
+            sprintf('pgsql:host=%s;port=%s;dbname=%s', $host, $port, $databaseName),
+            $username,
+            $password,
+            [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION],
+        );
+    }
+
+    /**
+     * @return array{current_user: string, database_owner: string, schema_owner: string, can_create: bool}
+     */
+    private static function parallelTestDatabaseAccess(\PDO $pdo): array
+    {
+        $statement = $pdo->query(
+            "SELECT current_user AS current_user, pg_catalog.pg_get_userbyid(database_row.datdba) AS database_owner, pg_catalog.pg_get_userbyid(namespace_row.nspowner) AS schema_owner, has_schema_privilege(current_user, namespace_row.nspname, 'CREATE') AS can_create FROM pg_database AS database_row JOIN pg_namespace AS namespace_row ON namespace_row.nspname = 'public' WHERE database_row.datname = current_database()"
+        );
+
+        /** @var array{current_user?: mixed, database_owner?: mixed, schema_owner?: mixed, can_create?: mixed}|false $access */
+        $access = $statement->fetch(\PDO::FETCH_ASSOC);
+
+        if (! is_array($access)) {
+            throw new \RuntimeException('Unable to determine PostgreSQL test database access details for schema validation.');
+        }
+
+        return [
+            'current_user' => (string) ($access['current_user'] ?? ''),
+            'database_owner' => (string) ($access['database_owner'] ?? ''),
+            'schema_owner' => (string) ($access['schema_owner'] ?? ''),
+            'can_create' => in_array($access['can_create'] ?? false, [true, 1, '1', 't', 'true'], true),
+        ];
     }
 
     private static function environmentValue(string $key, string $default): string
