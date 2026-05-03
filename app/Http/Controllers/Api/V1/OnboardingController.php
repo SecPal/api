@@ -22,6 +22,7 @@ use App\Services\OnboardingCompletionService;
 use App\Services\OnboardingFormDataSchemaValidationService;
 use App\Services\OnboardingSchemaLocalizationService;
 use App\Services\OnboardingSubmissionFileStorageService;
+use App\Services\OnboardingTaxIdentificationSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -49,6 +50,8 @@ class OnboardingController extends Controller
         private readonly OnboardingSubmissionFileStorageService $submissionFileStorageService,
         private readonly OnboardingSchemaLocalizationService $onboardingSchemaLocalizationService,
         private readonly OnboardingFormDataSchemaValidationService $onboardingFormDataSchemaValidationService,
+        private readonly OnboardingCompletionService $onboardingCompletionService,
+        private readonly OnboardingTaxIdentificationSyncService $onboardingTaxIdentificationSyncService,
     ) {}
 
     /**
@@ -731,20 +734,23 @@ class OnboardingController extends Controller
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        $submission->update([
-            'status' => 'approved',
-            'reviewed_by' => $user->id,
-            'reviewed_at' => now(),
-        ]);
+        DB::transaction(function () use ($submission, $user): void {
+            $submission->update([
+                'status' => 'approved',
+                'reviewed_by' => $user->id,
+                'reviewed_at' => now(),
+            ]);
+
+            $this->onboardingTaxIdentificationSyncService->syncFromApprovedSubmission($submission);
+
+            /** @var Employee $employee */
+            $employee = $submission->employee()->firstOrFail();
+            $this->onboardingCompletionService->checkCompletion($employee);
+        });
 
         /** @var OnboardingFormSubmission $fresh */
         $fresh = $submission->fresh();
         $fresh->load(['formTemplate', 'reviewer']);
-
-        // Check if employee's onboarding is now complete after approval
-        /** @var Employee $employee */
-        $employee = $submission->employee;
-        app(OnboardingCompletionService::class)->checkCompletion($employee);
 
         $this->prepareLocalizedSubmissionTemplate($fresh, $this->resolveTemplateLocale($request));
 

@@ -93,13 +93,14 @@ return [
         ],
         'tax_identification_number' => [
             'name' => 'Tax Identification Number',
-            'description' => 'Optional eleven-digit tax identification number (Section 39e EStG)',
+            'description' => 'Required eleven-digit tax identification number (Section 39e EStG) and social security number.',
             'schema' => [
                 'title' => 'Tax Identification Number',
-                'description' => 'Optional eleven-digit tax identification number (Section 39e EStG)',
+                'description' => 'Required eleven-digit tax identification number (Section 39e EStG) and social security number.',
             ],
             'fields' => [
                 'tax_id' => ['title' => 'Tax Identification Number'],
+                'social_security_number' => ['title' => 'Social Security Number'],
                 'children_count' => ['title' => 'Number of Children'],
             ],
         ],
