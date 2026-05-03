@@ -54,10 +54,10 @@ return [
         ],
         'emergency_contact' => [
             'name' => 'Emergency Contact',
-            'description' => 'Emergency contact persons',
+            'description' => 'Optional emergency contact persons',
             'schema' => [
                 'title' => 'Emergency Contact',
-                'description' => 'Emergency contact persons',
+                'description' => 'Optional emergency contact persons',
             ],
             'fields' => [
                 'contact_1_name' => ['title' => 'Contact 1: Name'],

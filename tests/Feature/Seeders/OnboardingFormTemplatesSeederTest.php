@@ -158,21 +158,20 @@ test('emergency contact schema has correct structure', function () {
     $template = OnboardingFormTemplate::where('name', 'Emergency Contact')->first();
     $schema = $template->form_schema;
 
-    // Contact 1 fields (required)
     expect($schema['properties'])->toHaveKey('contact_1_name');
     expect($schema['properties'])->toHaveKey('contact_1_phone');
     expect($schema['properties'])->toHaveKey('contact_1_relationship');
 
-    // Contact 2 fields (optional)
     expect($schema['properties'])->toHaveKey('contact_2_name');
     expect($schema['properties'])->toHaveKey('contact_2_phone');
     expect($schema['properties'])->toHaveKey('contact_2_relationship');
 
-    // Only contact 1 is required
-    expect($schema['required'])->toContain('contact_1_name');
-    expect($schema['required'])->toContain('contact_1_phone');
-    expect($schema['required'])->toContain('contact_1_relationship');
+    expect($schema['required'])->not->toContain('contact_1_name');
+    expect($schema['required'])->not->toContain('contact_1_phone');
+    expect($schema['required'])->not->toContain('contact_1_relationship');
     expect($schema['required'])->not->toContain('contact_2_name');
+    expect($schema['required'])->not->toContain('contact_2_phone');
+    expect($schema['required'])->not->toContain('contact_2_relationship');
 });
 
 test('emergency contact relationship enum includes common relationships', function () {

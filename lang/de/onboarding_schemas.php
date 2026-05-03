@@ -54,10 +54,10 @@ return [
         ],
         'emergency_contact' => [
             'name' => 'Notfallkontakt',
-            'description' => 'Ansprechpartner für Notfälle',
+            'description' => 'Optionale Angaben zu Notfallkontakten',
             'schema' => [
                 'title' => 'Notfallkontakt',
-                'description' => 'Ansprechpartner für Notfälle',
+                'description' => 'Optionale Angaben zu Notfallkontakten',
             ],
             'fields' => [
                 'contact_1_name' => ['title' => 'Kontakt 1: Name'],

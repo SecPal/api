@@ -39,7 +39,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             [
                 'name' => 'Emergency Contact',
                 'template_key' => 'emergency_contact',
-                'description' => 'Emergency contact persons',
+                'description' => 'Optional emergency contact persons',
                 'form_schema' => $this->getEmergencyContactSchema(),
                 'is_required' => false,
                 'is_system_template' => true,
@@ -180,7 +180,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
     {
         return [
             'title' => 'Emergency Contact',
-            'description' => 'Emergency contact persons',
+            'description' => 'Optional emergency contact persons',
             'type' => 'object',
             'properties' => [
                 'contact_1_name' => [
@@ -230,7 +230,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     ],
                 ],
             ],
-            'required' => ['contact_1_name', 'contact_1_phone', 'contact_1_relationship'],
+            'required' => [],
         ];
     }
 

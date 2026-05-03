@@ -13,10 +13,10 @@ test('it localizes schema labels descriptions and enum names for known system te
         'tenant_id' => null,
         'is_system_template' => true,
         'name' => 'Emergency Contact',
-        'description' => 'Emergency contact persons',
+        'description' => 'Optional emergency contact persons',
         'form_schema' => [
             'title' => 'Emergency Contact',
-            'description' => 'Emergency contact persons',
+            'description' => 'Optional emergency contact persons',
             'type' => 'object',
             'properties' => [
                 'contact_1_relationship' => [
@@ -31,8 +31,9 @@ test('it localizes schema labels descriptions and enum names for known system te
     $localized = app(OnboardingSchemaLocalizationService::class)->localizeTemplate($template, 'de');
 
     expect($localized['name'])->toBe('Notfallkontakt')
-        ->and($localized['description'])->toBe('Ansprechpartner für Notfälle')
+        ->and($localized['description'])->toBe('Optionale Angaben zu Notfallkontakten')
         ->and($localized['form_schema']['title'])->toBe('Notfallkontakt')
+        ->and($localized['form_schema']['description'])->toBe('Optionale Angaben zu Notfallkontakten')
         ->and($localized['form_schema']['properties']['contact_1_relationship']['title'])->toBe('Kontakt 1: Beziehung')
         ->and($localized['form_schema']['properties']['contact_1_relationship']['enumNames'])->toBe([
             'Ehepartner',
@@ -75,10 +76,10 @@ test('it uses template_key for translation lookup when name has changed', functi
         'is_system_template' => true,
         'name' => 'Renamed Emergency Contact Form',
         'template_key' => 'emergency_contact',
-        'description' => 'Emergency contact persons',
+        'description' => 'Optional emergency contact persons',
         'form_schema' => [
             'title' => 'Emergency Contact',
-            'description' => 'Emergency contact persons',
+            'description' => 'Optional emergency contact persons',
             'type' => 'object',
             'properties' => [
                 'contact_1_relationship' => [
@@ -93,7 +94,7 @@ test('it uses template_key for translation lookup when name has changed', functi
     $localized = app(OnboardingSchemaLocalizationService::class)->localizeTemplate($template, 'de');
 
     expect($localized['name'])->toBe('Notfallkontakt')
-        ->and($localized['description'])->toBe('Ansprechpartner für Notfälle')
+        ->and($localized['description'])->toBe('Optionale Angaben zu Notfallkontakten')
         ->and($localized['form_schema']['title'])->toBe('Notfallkontakt');
 });
 
@@ -103,7 +104,7 @@ test('it falls back to snake-case name when template_key is null', function (): 
         'is_system_template' => true,
         'name' => 'Emergency Contact',
         'template_key' => null,
-        'description' => 'Emergency contact persons',
+        'description' => 'Optional emergency contact persons',
         'form_schema' => [
             'title' => 'Emergency Contact',
             'type' => 'object',
@@ -114,5 +115,5 @@ test('it falls back to snake-case name when template_key is null', function (): 
     $localized = app(OnboardingSchemaLocalizationService::class)->localizeTemplate($template, 'de');
 
     expect($localized['name'])->toBe('Notfallkontakt')
-        ->and($localized['description'])->toBe('Ansprechpartner für Notfälle');
+        ->and($localized['description'])->toBe('Optionale Angaben zu Notfallkontakten');
 });
