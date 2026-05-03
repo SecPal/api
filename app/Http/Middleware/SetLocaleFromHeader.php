@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Middleware;
@@ -13,11 +13,13 @@ use Symfony\Component\HttpFoundation\Response;
 class SetLocaleFromHeader
 {
     /**
-     * Handle an incoming request and set the application locale based on Accept-Language header.
+     * Handle an incoming request and set the application locale.
      *
-     * The middleware reads the Accept-Language header from the request and sets the application
-     * locale accordingly. If no header is present or the language is not supported, it defaults
-     * to the application's configured locale.
+     * Resolution order:
+     * 1. Authenticated user's `preferred_locale` (available in the api middleware group
+     *    after Sanctum runs; returns null in the global pass where auth is not yet resolved).
+     * 2. The best-matching language from the Accept-Language request header.
+     * 3. The application's configured default locale.
      *
      * Supported locales: en (English), de (German)
      *
