@@ -19,7 +19,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             [
                 'name' => 'Personal Information Form',
                 'template_key' => 'personal_information_form',
-                'description' => 'BewachV § 16 required information for Bewacherregister',
+                'description' => 'Your personal details for onboarding; HR may need to complete additional Bewacherregister fields before export.',
                 'form_schema' => $this->getPersonalInformationSchema(),
                 'is_required' => true,
                 'is_system_template' => true,
@@ -39,7 +39,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             [
                 'name' => 'Emergency Contact',
                 'template_key' => 'emergency_contact',
-                'description' => 'Emergency contact persons',
+                'description' => 'Optional emergency contact persons',
                 'form_schema' => $this->getEmergencyContactSchema(),
                 'is_required' => false,
                 'is_system_template' => true,
@@ -49,7 +49,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             [
                 'name' => 'Tax Identification Number',
                 'template_key' => 'tax_identification_number',
-                'description' => 'Tax ID and tax class information (§ 39e EStG)',
+                'description' => 'Optional eleven-digit tax identification number (§ 39e EStG)',
                 'form_schema' => $this->getTaxIdentificationSchema(),
                 'is_required' => false,
                 'is_system_template' => true,
@@ -80,7 +80,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
     {
         return [
             'title' => 'Personal Information Form',
-            'description' => 'BewachV § 16 required information',
+            'description' => 'Information required for onboarding; planned activities under §34a GewO can be completed later by HR for Bewacherregister export.',
             'type' => 'object',
             'properties' => [
                 'gender' => [
@@ -113,6 +113,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                 'intended_activities' => [
                     'type' => 'array',
                     'title' => 'Intended Activities (§ 34a GewO)',
+                    'description' => 'Optional during onboarding; HR must align this with the assignment before Bewacherregister export if you skip it.',
                     'items' => [
                         'type' => 'string',
                         'enum' => [
@@ -125,10 +126,9 @@ class OnboardingFormTemplatesSeeder extends Seeder
                             'personal_protection',
                         ],
                     ],
-                    'minItems' => 1,
                 ],
             ],
-            'required' => ['gender', 'nationalities', 'intended_activities'],
+            'required' => ['gender', 'nationalities'],
         ];
     }
 
@@ -180,7 +180,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
     {
         return [
             'title' => 'Emergency Contact',
-            'description' => 'Emergency contact persons',
+            'description' => 'Optional emergency contact persons',
             'type' => 'object',
             'properties' => [
                 'contact_1_name' => [
@@ -230,7 +230,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     ],
                 ],
             ],
-            'required' => ['contact_1_name', 'contact_1_phone', 'contact_1_relationship'],
+            'required' => [],
         ];
     }
 
@@ -243,7 +243,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
     {
         return [
             'title' => 'Tax Identification Number',
-            'description' => 'Tax ID and tax class information (§ 39e EStG)',
+            'description' => 'Optional eleven-digit tax identification number (§ 39e EStG)',
             'type' => 'object',
             'properties' => [
                 'tax_id' => [
@@ -251,18 +251,13 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     'title' => 'Tax Identification Number',
                     'pattern' => '^\d{11}$',
                 ],
-                'tax_class' => [
-                    'type' => 'integer',
-                    'title' => 'Tax Class',
-                    'enum' => [1, 2, 3, 4, 5, 6],
-                ],
                 'children_count' => [
                     'type' => 'integer',
                     'title' => 'Number of Children',
                     'minimum' => 0,
                 ],
             ],
-            'required' => ['tax_id', 'tax_class'],
+            'required' => [],
         ];
     }
 }

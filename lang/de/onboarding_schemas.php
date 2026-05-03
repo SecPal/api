@@ -7,10 +7,10 @@ return [
     'templates' => [
         'personal_information_form' => [
             'name' => 'Persönliche Informationen',
-            'description' => 'BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister',
+            'description' => 'Ihre persönlichen Angaben für das Onboarding; fehlende Bewacherregister-Felder kann die Personalabteilung später ergänzen.',
             'schema' => [
                 'title' => 'Persönliche Informationen',
-                'description' => 'BewachV Paragraf 16 erforderliche Informationen',
+                'description' => 'Für das Onboarding erforderliche Angaben; geplante Tätigkeiten nach Paragraf 34a GewO können bei Bedarf später durch HR für den Bewacherregister-Export ergänzt werden.',
             ],
             'fields' => [
                 'gender' => [
@@ -26,6 +26,7 @@ return [
                 'nationalities' => ['title' => 'Staatsangehörigkeiten'],
                 'intended_activities' => [
                     'title' => 'Beabsichtigte Tätigkeiten (Paragraf 34a GewO)',
+                    'description' => 'Beim Onboarding optional; vor dem Bewacherregister-Export müssen HR diese mit dem Einsatz abstimmen oder eintragen, falls Sie sie auslassen.',
                     'enum' => [
                         'door_control' => 'Einlasskontrolle',
                         'event_security' => 'Veranstaltungsschutz',
@@ -54,10 +55,10 @@ return [
         ],
         'emergency_contact' => [
             'name' => 'Notfallkontakt',
-            'description' => 'Ansprechpartner für Notfälle',
+            'description' => 'Optionale Angaben zu Notfallkontakten',
             'schema' => [
                 'title' => 'Notfallkontakt',
-                'description' => 'Ansprechpartner für Notfälle',
+                'description' => 'Optionale Angaben zu Notfallkontakten',
             ],
             'fields' => [
                 'contact_1_name' => ['title' => 'Kontakt 1: Name'],
@@ -92,14 +93,13 @@ return [
         ],
         'tax_identification_number' => [
             'name' => 'Steueridentifikationsnummer',
-            'description' => 'Steuer-ID und Steuerklasseninformationen (Paragraf 39e EStG)',
+            'description' => 'Optionale elfstellige Steueridentifikationsnummer (§ 39e EStG)',
             'schema' => [
                 'title' => 'Steueridentifikationsnummer',
-                'description' => 'Steuer-ID und Steuerklasseninformationen (Paragraf 39e EStG)',
+                'description' => 'Optionale elfstellige Steueridentifikationsnummer (§ 39e EStG)',
             ],
             'fields' => [
                 'tax_id' => ['title' => 'Steueridentifikationsnummer'],
-                'tax_class' => ['title' => 'Steuerklasse'],
                 'children_count' => ['title' => 'Anzahl Kinder'],
             ],
         ],

@@ -76,16 +76,16 @@ class BewacherregisterExportService
 
         foreach ($this->requiredFieldValues($employee) as $field => $value) {
             if ($this->isMissing($value)) {
-                $errors[] = $field;
+                $errors[] = $this->missingExportFieldMessage($field);
             }
         }
 
         if ($employee->id_document_expiry !== null && $employee->id_document_expiry->lt(today())) {
-            $errors[] = 'id_document_expiry_expired';
+            $errors[] = $this->missingExportFieldMessage('id_document_expiry_expired');
         }
 
         if ($employee->requiresWorkPermit() && ! $employee->hasValidWorkAuthorization()) {
-            $errors[] = 'valid_work_authorization';
+            $errors[] = $this->missingExportFieldMessage('valid_work_authorization');
         }
 
         if ($errors !== []) {
@@ -119,6 +119,13 @@ class BewacherregisterExportService
             'sachkunde_type' => $employee->sachkunde_type,
             'sachkunde_certificate' => $employee->sachkunde_certificate,
         ];
+    }
+
+    private function missingExportFieldMessage(string $field): string
+    {
+        $key = 'bwr_export.missing_fields.'.$field;
+
+        return __($key);
     }
 
     private function isMissing(mixed $value): bool

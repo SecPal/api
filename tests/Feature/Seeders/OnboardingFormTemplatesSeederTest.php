@@ -89,10 +89,10 @@ test('personal information schema has correct structure', function () {
     expect($schema['properties'])->toHaveKey('birth_name');
     expect($schema['properties'])->toHaveKey('previous_names');
 
-    // Verify required array
+    // Verify required array (intended activities are HR-aligned / optional at onboarding submit)
     expect($schema['required'])->toContain('gender');
     expect($schema['required'])->toContain('nationalities');
-    expect($schema['required'])->toContain('intended_activities');
+    expect($schema['required'])->not->toContain('intended_activities');
 });
 
 test('personal information schema validates gender enum', function () {
@@ -158,21 +158,20 @@ test('emergency contact schema has correct structure', function () {
     $template = OnboardingFormTemplate::where('name', 'Emergency Contact')->first();
     $schema = $template->form_schema;
 
-    // Contact 1 fields (required)
     expect($schema['properties'])->toHaveKey('contact_1_name');
     expect($schema['properties'])->toHaveKey('contact_1_phone');
     expect($schema['properties'])->toHaveKey('contact_1_relationship');
 
-    // Contact 2 fields (optional)
     expect($schema['properties'])->toHaveKey('contact_2_name');
     expect($schema['properties'])->toHaveKey('contact_2_phone');
     expect($schema['properties'])->toHaveKey('contact_2_relationship');
 
-    // Only contact 1 is required
-    expect($schema['required'])->toContain('contact_1_name');
-    expect($schema['required'])->toContain('contact_1_phone');
-    expect($schema['required'])->toContain('contact_1_relationship');
+    expect($schema['required'])->not->toContain('contact_1_name');
+    expect($schema['required'])->not->toContain('contact_1_phone');
+    expect($schema['required'])->not->toContain('contact_1_relationship');
     expect($schema['required'])->not->toContain('contact_2_name');
+    expect($schema['required'])->not->toContain('contact_2_phone');
+    expect($schema['required'])->not->toContain('contact_2_relationship');
 });
 
 test('emergency contact relationship enum includes common relationships', function () {
@@ -201,12 +200,11 @@ test('tax identification schema has correct structure', function () {
     $schema = $template->form_schema;
 
     expect($schema['properties'])->toHaveKey('tax_id');
-    expect($schema['properties'])->toHaveKey('tax_class');
+    expect($schema['properties'])->not->toHaveKey('tax_class');
     expect($schema['properties'])->toHaveKey('children_count');
 
-    // Check required fields
-    expect($schema['required'])->toContain('tax_id');
-    expect($schema['required'])->toContain('tax_class');
+    expect($schema['required'])->not->toContain('tax_id');
+    expect($schema['required'])->not->toContain('tax_class');
     expect($schema['required'])->not->toContain('children_count');
 });
 
@@ -217,15 +215,6 @@ test('tax identification validates 11-digit tax ID', function () {
     $schema = $template->form_schema;
 
     expect($schema['properties']['tax_id']['pattern'])->toBe('^\d{11}$');
-});
-
-test('tax class enum includes all 6 tax classes', function () {
-    artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
-
-    $template = OnboardingFormTemplate::where('name', 'Tax Identification Number')->first();
-    $schema = $template->form_schema;
-
-    expect($schema['properties']['tax_class']['enum'])->toBe([1, 2, 3, 4, 5, 6]);
 });
 
 test('seeder is idempotent (can be run multiple times)', function () {

@@ -765,27 +765,39 @@ msgstr "Onboarding starten"
 msgid "What to expect:"
 msgstr "Was Sie erwartet:"
 
-#: /resources/views/emails/employees/onboarding-invitation.blade.php:55
-msgid "Complete personal information form"
-msgstr "Persönliches Informationsformular ausfüllen"
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:54
+msgid "Required information"
+msgstr "Erforderliche Angaben"
 
-#: /resources/views/emails/employees/onboarding-invitation.blade.php:57
-msgid "Provide bank account details"
-msgstr "Ihre Bankverbindung angeben"
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:56
+msgid "Personal information for onboarding (including gender and nationalities)"
+msgstr "Persönliche Angaben zum Onboarding (u. a. Geschlecht und Staatsangehörigkeiten)"
 
 #: /resources/views/emails/employees/onboarding-invitation.blade.php:59
-msgid "Add emergency contact"
-msgstr "Notfallkontakt hinzufügen"
+msgid "Optional sections"
+msgstr "Optionale Abschnitte"
 
 #: /resources/views/emails/employees/onboarding-invitation.blade.php:61
-msgid "Digitally sign employment contract"
-msgstr "Arbeitsvertrag digital unterzeichnen"
+msgid "Bank account details for salary payment"
+msgstr "Bankverbindung für die Gehaltszahlung"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:62
+msgid "Emergency contacts"
+msgstr "Notfallkontakte"
 
 #: /resources/views/emails/employees/onboarding-invitation.blade.php:63
-msgid "Upload certificates (if applicable)"
-msgstr "Zertifikate hochladen (falls zutreffend)"
+msgid "Tax identification number (Steuer-ID)"
+msgstr "Steuerliche Identifikationsnummer (Steuer-ID)"
 
 #: /resources/views/emails/employees/onboarding-invitation.blade.php:66
+msgid "Supporting documents"
+msgstr "Belege und Nachweise"
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:68
+msgid "On every onboarding step you can upload PDF, JPG, or PNG files up to 10 MB — choose contract, identity document, or banking verification as appropriate."
+msgstr "In jedem Onboarding-Schritt können Sie PDF-, JPG- oder PNG-Dateien bis 10 MB hochladen — wählen Sie je nach Datei die Kategorie Vertrag, Ausweisdokument oder Banknachweis."
+
+#: /resources/views/emails/employees/onboarding-invitation.blade.php:74
 msgid "**Important:** Please complete the onboarding by **:deadline** at the latest."
 msgstr "**Wichtig:** Bitte schließen Sie das Onboarding spätestens bis **:deadline** ab."
 

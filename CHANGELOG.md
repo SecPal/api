@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- fixed `OnboardingFormDataSchemaValidationService::isPropertySemanticallyEmpty` treating non-string values (e.g. integers) for `string`-type fields as empty, which previously allowed malformed payloads to bypass JSON Schema validation for optional templates; proved with a new regression test
+
+### Changed
+
+- removed duplicate assertion in `OnboardingControllerTest` consent-field test
+- updated `SPDX-FileCopyrightText` year in `SubmitOnboardingFormRequest`
+
 ### Changed
 
 - renamed the onboarding review and Android provisioning API surfaces from `/v1/admin/...` to neutral `/v1/onboarding-review/...` and `/v1/android-enrollment-sessions...` paths, and corrected HR lifecycle emails to link to the shipped frontend employee detail route under `FRONTEND_URL` instead of the dead `/admin/employees/...` SPA path

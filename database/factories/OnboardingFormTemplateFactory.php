@@ -26,20 +26,13 @@ class OnboardingFormTemplateFactory extends Factory
             'template_key' => null,
             'description' => fake()->sentence(),
             'form_schema' => [
-                'fields' => [
-                    [
-                        'name' => 'field_1',
-                        'type' => 'text',
-                        'label' => fake()->words(3, true),
-                        'required' => true,
-                    ],
-                    [
-                        'name' => 'field_2',
-                        'type' => 'textarea',
-                        'label' => fake()->words(3, true),
-                        'required' => false,
-                    ],
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string'],
+                    'email' => ['type' => 'string'],
+                    'field' => ['type' => 'string'],
                 ],
+                'additionalProperties' => true,
             ],
             'is_required' => fake()->boolean(70),
             'is_system_template' => false,

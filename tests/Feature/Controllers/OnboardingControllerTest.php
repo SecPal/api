@@ -183,7 +183,7 @@ describe('GET /v1/onboarding/templates', function () {
         $personalInformationTemplate = $templates->firstWhere('name', 'Persönliche Informationen');
 
         expect($personalInformationTemplate)->not->toBeNull()
-            ->and($personalInformationTemplate['description'])->toBe('BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister');
+            ->and($personalInformationTemplate['description'])->toBe('Ihre persönlichen Angaben für das Onboarding; fehlende Bewacherregister-Felder kann die Personalabteilung später ergänzen.');
     });
 });
 
@@ -235,7 +235,7 @@ describe('GET /v1/onboarding/templates/{template}', function () {
 
         $response->assertOk()
             ->assertJsonPath('data.name', 'Persönliche Informationen')
-            ->assertJsonPath('data.description', 'BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister')
+            ->assertJsonPath('data.description', 'Ihre persönlichen Angaben für das Onboarding; fehlende Bewacherregister-Felder kann die Personalabteilung später ergänzen.')
             ->assertJsonPath('data.form_schema.title', 'Persönliche Informationen')
             ->assertJsonPath('data.form_schema.properties.gender.title', 'Geschlecht')
             ->assertJsonPath('data.form_schema.properties.gender.enumNames.0', 'Männlich')
@@ -334,7 +334,7 @@ describe('GET /v1/onboarding/submissions', function () {
 
         $response->assertOk()
             ->assertJsonPath('data.0.form_template.name', 'Persönliche Informationen')
-            ->assertJsonPath('data.0.form_template.description', 'BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister')
+            ->assertJsonPath('data.0.form_template.description', 'Ihre persönlichen Angaben für das Onboarding; fehlende Bewacherregister-Felder kann die Personalabteilung später ergänzen.')
             ->assertJsonPath('data.0.form_template.form_schema.title', 'Persönliche Informationen');
     });
 });
@@ -481,6 +481,286 @@ describe('POST /v1/onboarding/submissions', function () {
             ->assertJson(['message' => 'Form has already been submitted and is awaiting review']);
         expect(OnboardingFormSubmission::where('employee_id', $this->employee->id)->count())->toBe(1);
     });
+
+    test('returns 422 with field errors when submitted data does not match the template JSON schema', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                ],
+                'required' => ['iban'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['iban' => 'not-an-iban'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['iban']);
+    });
+
+    test('allows draft saves even when data would fail JSON schema on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                ],
+                'required' => ['iban'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['iban' => 'bad'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'draft');
+    });
+
+    test('skips full schema enforcement for optional templates with semantically empty payloads on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                ],
+                'required' => ['iban'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'submitted');
+    });
+
+    test('skips full schema enforcement for optional templates with missing array fields on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                        'minItems' => 1,
+                    ],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'submitted');
+    });
+
+    test('returns 404 when employee submits a template from a different tenant', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        // Create a template belonging to a different tenant
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTemplate = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => ['name' => ['type' => 'string']],
+                'required' => ['name'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $otherTemplate->id,
+                'form_data' => ['name' => 'test'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertStatus(404);
+    });
+
+    test('rejects partial optional-template payload when required schema fields are missing on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'contact_name' => ['type' => 'string'],
+                    'contact_phone' => ['type' => 'string'],
+                ],
+                'required' => ['contact_name', 'contact_phone'],
+            ],
+        ]);
+
+        // Partial payload: provides one required field but not the other
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['contact_name' => 'Jane'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
+    });
+
+    test('does not treat false boolean values as semantically empty for optional templates', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'consent' => [
+                        'type' => 'boolean',
+                        'enum' => [true],
+                    ],
+                ],
+                'required' => ['consent'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['consent' => false],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['consent']);
+    });
+
+    test('does not treat non-string values for string fields as semantically empty on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => [
+                        'type' => 'string',
+                        'minLength' => 1,
+                    ],
+                ],
+                'required' => ['name'],
+            ],
+        ]);
+
+        // 5 is not a valid string value; it must not be silently treated as "empty"
+        // but must trigger schema validation and return 422.
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['name' => 5],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
+    });
+
+    test('does not treat invalid string input for integer fields as semantically empty on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'count' => [
+                        'type' => 'integer',
+                        'minimum' => 0,
+                    ],
+                ],
+                'required' => ['count'],
+            ],
+        ]);
+
+        // 'abc' is not a valid integer; it must not be silently treated as "empty"
+        // but must trigger schema validation and return 422.
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['count' => 'abc'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
+    });
+
+    test('does not treat a non-array value for an array-type field as semantically empty on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                        'minItems' => 1,
+                    ],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        // 'DE' is not a valid array; it must not be silently treated as "empty"
+        // but must trigger schema validation and return 422.
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['nationalities' => 'DE'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
+    });
 });
 
 describe('PATCH /v1/onboarding/submissions/{submission}', function () {
@@ -576,6 +856,42 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             ->and($response->json('data.review_notes'))->toBeNull()
             ->and($response->json('data.reviewed_at'))->toBeNull()
             ->and($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW);
+    });
+
+    test('persists the same empty array payload that gets schema validated during submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                ],
+                'required' => ['iban'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => null,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'status' => 'submitted',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.form_data', []);
+
+        expect($submission->fresh()->form_data)->toBe([]);
     });
 
     test('does not allow patching another employees submission', function (): void {

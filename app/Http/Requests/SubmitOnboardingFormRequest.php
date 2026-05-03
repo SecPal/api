@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests;
@@ -32,7 +32,7 @@ class SubmitOnboardingFormRequest extends FormRequest
     {
         return [
             'form_template_id' => ['required', 'exists:onboarding_form_templates,id'],
-            'form_data' => ['required', 'array'],
+            'form_data' => ['present', 'array'],
             'status' => ['required', 'in:draft,submitted'],
         ];
     }
@@ -47,7 +47,7 @@ class SubmitOnboardingFormRequest extends FormRequest
         return [
             'form_template_id.required' => __('Form template is required'),
             'form_template_id.exists' => __('Selected form template does not exist'),
-            'form_data.required' => __('Form data is required'),
+            'form_data.present' => __('Form data is required'),
             'form_data.array' => __('Form data must be an array'),
         ];
     }

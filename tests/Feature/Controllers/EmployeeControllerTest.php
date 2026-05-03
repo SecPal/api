@@ -1424,7 +1424,7 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
         $response->assertStatus(422)
             ->assertJsonPath('message', 'Employee is not ready for BWR export.');
 
-        expect($response->json('errors'))->toContain('gender')
+        expect($response->json('errors'))->toContain(__('bwr_export.missing_fields.gender'))
             ->and($employee->fresh()->bwr_status)->toBe('not_registered');
     });
 

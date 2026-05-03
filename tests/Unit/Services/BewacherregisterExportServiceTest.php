@@ -131,8 +131,14 @@ test('export throws when required BWR fields are missing', function (): void {
         'id_document_number' => null,
     ]);
 
+    $expectedMessage = implode(', ', [
+        __('bwr_export.missing_fields.gender'),
+        __('bwr_export.missing_fields.address_history'),
+        __('bwr_export.missing_fields.id_document_number'),
+    ]);
+
     expect(fn () => $this->service->exportCsv($employee, 'HR Operations'))
-        ->toThrow(RuntimeException::class, 'gender, address_history, id_document_number');
+        ->toThrow(RuntimeException::class, $expectedMessage);
 });
 
 test('export requires valid work authorization for non exempt nationalities', function (): void {
@@ -144,7 +150,7 @@ test('export requires valid work authorization for non exempt nationalities', fu
     ]);
 
     expect(fn () => $this->service->exportCsv($employee, 'HR Operations'))
-        ->toThrow(RuntimeException::class, 'valid_work_authorization');
+        ->toThrow(RuntimeException::class, __('bwr_export.missing_fields.valid_work_authorization'));
 });
 
 test('export preserves seven digit BWR ids including leading zeroes', function (): void {
@@ -186,5 +192,5 @@ test('export throws when id_document_expiry is in the past', function (): void {
     ]);
 
     expect(fn () => $this->service->exportCsv($employee, 'HR Operations'))
-        ->toThrow(RuntimeException::class, 'id_document_expiry_expired');
+        ->toThrow(RuntimeException::class, __('bwr_export.missing_fields.id_document_expiry_expired'));
 });

@@ -19,6 +19,7 @@ use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
 use App\Services\OnboardingCompletionService;
+use App\Services\OnboardingFormDataSchemaValidationService;
 use App\Services\OnboardingSchemaLocalizationService;
 use App\Services\OnboardingSubmissionFileStorageService;
 use Illuminate\Http\JsonResponse;
@@ -47,6 +48,7 @@ class OnboardingController extends Controller
     public function __construct(
         private readonly OnboardingSubmissionFileStorageService $submissionFileStorageService,
         private readonly OnboardingSchemaLocalizationService $onboardingSchemaLocalizationService,
+        private readonly OnboardingFormDataSchemaValidationService $onboardingFormDataSchemaValidationService,
     ) {}
 
     /**
@@ -485,11 +487,26 @@ class OnboardingController extends Controller
         $status = $validated['status'] ?? 'submitted';
         $submittedAt = $status === 'submitted' ? now() : null;
 
-        $submission = DB::transaction(function () use ($existing, $validated, $status, $submittedAt, $employee): OnboardingFormSubmission {
+        $template = OnboardingFormTemplate::query()
+            ->whereKey($validated['form_template_id'])
+            ->where(function ($q) use ($employee): void {
+                $q->whereNull('tenant_id')->orWhere('tenant_id', $employee->tenant_id);
+            })
+            ->firstOrFail();
+
+        /** @var array<string, mixed> $formData */
+        $formData = (array) ($validated['form_data'] ?? []);
+        $this->onboardingFormDataSchemaValidationService->assertMatchesTemplate(
+            $template,
+            $formData,
+            $status === 'submitted',
+        );
+
+        $submission = DB::transaction(function () use ($existing, $validated, $formData, $status, $submittedAt, $employee): OnboardingFormSubmission {
             if ($existing) {
                 // Update existing draft
                 $existing->update([
-                    'form_data' => $validated['form_data'],
+                    'form_data' => $formData,
                     'status' => $status,
                     'submitted_at' => $submittedAt,
                     'reviewed_by' => $existing->status === 'rejected' ? null : $existing->reviewed_by,
@@ -503,7 +520,7 @@ class OnboardingController extends Controller
                 $created = OnboardingFormSubmission::create([
                     'employee_id' => $employee->id,
                     'form_template_id' => $validated['form_template_id'],
-                    'form_data' => $validated['form_data'],
+                    'form_data' => $formData,
                     'status' => $status,
                     'submitted_at' => $submittedAt,
                 ]);
@@ -581,9 +598,29 @@ class OnboardingController extends Controller
         $submittedAt = $status === 'submitted' ? now() : null;
         $shouldResetReview = $wasRejected && $status !== 'rejected';
 
-        $submission = DB::transaction(function () use ($employee, $status, $submittedAt, $submission, $validated, $shouldResetReview): OnboardingFormSubmission {
+        $submission->loadMissing('formTemplate');
+        $formTemplate = $submission->formTemplate;
+        if ($formTemplate === null) {
+            return response()->json([
+                'message' => __('Form template not found for this submission'),
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        /** @var array<string, mixed> $effectiveFormData */
+        $effectiveFormData = $validated['form_data'] ?? $submission->form_data ?? [];
+        if (! is_array($effectiveFormData)) {
+            $effectiveFormData = [];
+        }
+
+        $this->onboardingFormDataSchemaValidationService->assertMatchesTemplate(
+            $formTemplate,
+            $effectiveFormData,
+            $status === 'submitted',
+        );
+
+        $submission = DB::transaction(function () use ($employee, $status, $submittedAt, $submission, $effectiveFormData, $shouldResetReview): OnboardingFormSubmission {
             $submission->update([
-                'form_data' => $validated['form_data'] ?? $submission->form_data,
+                'form_data' => $effectiveFormData,
                 'status' => $status,
                 'submitted_at' => $submittedAt,
                 'reviewed_by' => $shouldResetReview ? null : $submission->reviewed_by,
