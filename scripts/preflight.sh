@@ -139,7 +139,10 @@ if [ -f composer.json ]; then
       echo "→ Running tests (enabled via PREFLIGHT_RUN_TESTS=1)..."
       TEST_EXIT=0
       if [ -f artisan ]; then
-        ${CMD_PREFIX} php artisan test --parallel || TEST_EXIT=$?
+        ${CMD_PREFIX} php artisan test --parallel --exclude-group=serial || TEST_EXIT=$?
+        if [ "$TEST_EXIT" -eq 0 ]; then
+          ${CMD_PREFIX} php artisan test --group=serial || TEST_EXIT=$?
+        fi
       elif [ -x ./vendor/bin/pest ]; then
         ${CMD_PREFIX} ./vendor/bin/pest --parallel || TEST_EXIT=$?
       elif [ -x ./vendor/bin/phpunit ]; then
