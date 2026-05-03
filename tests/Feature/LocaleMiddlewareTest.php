@@ -1,9 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Route;
+
+uses(RefreshDatabase::class);
 
 test('middleware sets locale from Accept-Language header to German', function (): void {
     $response = $this->withHeaders([
@@ -55,4 +59,30 @@ test('middleware prefers higher quality language from Accept-Language header', f
 
     expect(App::getLocale())->toBe('de');
     $response->assertOk();
+});
+
+test('middleware prefers authenticated user preferred locale over Accept-Language header', function (): void {
+    $user = \App\Models\User::factory()->create([
+        'preferred_locale' => 'de',
+    ]);
+
+    Route::middleware(['api', 'auth:sanctum'])->get('/v1/test-locale', function () {
+        return response()->json([
+            'locale' => App::getLocale(),
+        ]);
+    });
+
+    $this->withHeaders(spaCsrfHeaders($this))->postJson('/v1/auth/login', [
+        'email' => $user->email,
+        'password' => 'password',
+    ])->assertOk();
+
+    $response = $this->withHeaders(spaHeaders([
+        'Accept-Language' => 'en',
+    ]))->getJson('/v1/test-locale');
+
+    $response->assertOk()
+        ->assertJson([
+            'locale' => 'de',
+        ]);
 });

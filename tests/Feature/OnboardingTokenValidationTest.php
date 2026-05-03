@@ -137,6 +137,17 @@ test('rejects invalid token', function () {
         ]);
 });
 
+test('rejects invalid token with localized message when german locale is requested', function () {
+    $response = $this->withHeaders([
+        'Accept-Language' => 'de',
+    ])->getJson('/v1/onboarding/validate-token?token=invalid-token&email=test@secpal.dev');
+
+    $response->assertStatus(422)
+        ->assertJson([
+            'message' => 'Ungültiger oder abgelaufener Onboarding-Link. Bitte fordern Sie eine neue Einladung an.',
+        ]);
+});
+
 test('rejects expired token', function () {
     /** @var User $user */
     $user = User::factory()->create([

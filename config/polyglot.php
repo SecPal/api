@@ -59,6 +59,7 @@ return [
         [
             'include' => [
                 app_path(),
+                base_path('bootstrap'),
                 resource_path('views'),
             ],
             'exclude' => [],

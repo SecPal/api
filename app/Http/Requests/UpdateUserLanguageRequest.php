@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Requests;
@@ -44,7 +44,7 @@ class UpdateUserLanguageRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'locale.in' => 'Language must be either English (en) or German (de).',
+            'locale.in' => __('Language must be either English (en) or German (de).'),
         ];
     }
 }

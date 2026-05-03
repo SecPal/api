@@ -22,6 +22,17 @@ it('returns the normalized JSON 404 payload for unknown api routes regardless of
     expect($response->headers->get('content-type'))->toContain('application/json');
 })->with([true, false]);
 
+it('localizes normalized JSON 404 payloads using the request locale', function (): void {
+    $response = $this->withHeaders([
+        'Accept-Language' => 'de',
+    ])->getJson('/v1/nonexistent-path');
+
+    $response->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Ressource nicht gefunden.',
+        ]);
+});
+
 it('returns the normalized JSON 500 payload for unexpected api exceptions regardless of debug mode', function (bool $debug): void {
     config(['app.debug' => $debug]);
 
@@ -38,6 +49,21 @@ it('returns the normalized JSON 500 payload for unexpected api exceptions regard
 
     expect($response->headers->get('content-type'))->toContain('application/json');
 })->with([true, false]);
+
+it('localizes normalized JSON 500 payloads using the request locale', function (): void {
+    Route::middleware('api')->get('/v1/test-runtime-exception-localized', function (): never {
+        throw new RuntimeException('Sensitive failure details');
+    });
+
+    $response = $this->withHeaders([
+        'Accept-Language' => 'de',
+    ])->getJson('/v1/test-runtime-exception-localized');
+
+    $response->assertStatus(500)
+        ->assertExactJson([
+            'message' => 'Interner Serverfehler.',
+        ]);
+});
 
 it('passes validation exceptions through the catch-all as 422 with an errors field intact', function (bool $debug): void {
     config(['app.debug' => $debug]);
