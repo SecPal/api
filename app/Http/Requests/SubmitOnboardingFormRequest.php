@@ -47,7 +47,7 @@ class SubmitOnboardingFormRequest extends FormRequest
         return [
             'form_template_id.required' => __('Form template is required'),
             'form_template_id.exists' => __('Selected form template does not exist'),
-            'form_data.required' => __('Form data is required'),
+            'form_data.present' => __('Form data is required'),
             'form_data.array' => __('Form data must be an array'),
         ];
     }
