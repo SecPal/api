@@ -18,11 +18,19 @@
 
 ## {{ __('What to expect:') }}
 
-- {{ __('Complete personal information form') }}
-- {{ __('Provide bank account details') }}
-- {{ __('Add emergency contact') }}
-- {{ __('Digitally sign employment contract') }}
-- {{ __('Upload certificates (if applicable)') }}
+### {{ __('Required information') }}
+
+- {{ __('Personal information for onboarding (including gender and nationalities)') }}
+
+### {{ __('Optional sections') }}
+
+- {{ __('Bank account details for salary payment') }}
+- {{ __('Emergency contacts') }}
+- {{ __('Tax identification number (Steuer-ID)') }}
+
+### {{ __('Supporting documents') }}
+
+- {{ __('On every onboarding step you can upload PDF, JPG, or PNG files up to 10 MB — choose contract, identity document, or banking verification as appropriate.') }}
 
 {{ __('**Important:** Please complete the onboarding by **:deadline** at the latest.', ['deadline' => $employee->contract_start_date->copy()->subDays(3)->format('d.m.Y')]) }}
 

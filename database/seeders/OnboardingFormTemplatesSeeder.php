@@ -49,7 +49,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             [
                 'name' => 'Tax Identification Number',
                 'template_key' => 'tax_identification_number',
-                'description' => 'Tax ID and tax class information (§ 39e EStG)',
+                'description' => 'Optional eleven-digit tax identification number (§ 39e EStG)',
                 'form_schema' => $this->getTaxIdentificationSchema(),
                 'is_required' => false,
                 'is_system_template' => true,
