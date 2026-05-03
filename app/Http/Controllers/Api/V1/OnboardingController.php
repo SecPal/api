@@ -489,6 +489,9 @@ class OnboardingController extends Controller
 
         $template = OnboardingFormTemplate::query()
             ->whereKey($validated['form_template_id'])
+            ->where(function ($q) use ($employee): void {
+                $q->whereNull('tenant_id')->orWhere('tenant_id', $employee->tenant_id);
+            })
             ->firstOrFail();
 
         /** @var array<string, mixed> $formData */

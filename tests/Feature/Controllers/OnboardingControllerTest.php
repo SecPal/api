@@ -566,6 +566,56 @@ describe('POST /v1/onboarding/submissions', function () {
         $response->assertCreated()
             ->assertJsonPath('data.status', 'submitted');
     });
+
+    test('returns 404 when employee submits a template from a different tenant', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        // Create a template belonging to a different tenant
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTemplate = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => ['name' => ['type' => 'string']],
+                'required' => ['name'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $otherTemplate->id,
+                'form_data' => ['name' => 'test'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertStatus(404);
+    });
+
+    test('rejects partial optional-template payload when required schema fields are missing on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'contact_name' => ['type' => 'string'],
+                    'contact_phone' => ['type' => 'string'],
+                ],
+                'required' => ['contact_name', 'contact_phone'],
+            ],
+        ]);
+
+        // Partial payload: provides one required field but not the other
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['contact_name' => 'Jane'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
+    });
 });
 
 describe('PATCH /v1/onboarding/submissions/{submission}', function () {

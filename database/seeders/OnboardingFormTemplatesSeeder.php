@@ -230,7 +230,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     ],
                 ],
             ],
-            'required' => [],
+            'required' => ['contact_1_name', 'contact_1_phone', 'contact_1_relationship'],
         ];
     }
 
@@ -257,7 +257,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     'minimum' => 0,
                 ],
             ],
-            'required' => [],
+            'required' => ['tax_id', 'tax_class'],
         ];
     }
 }
