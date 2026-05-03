@@ -1016,3 +1016,32 @@ msgstr "Diese Änderung wurde zu Audit-Zwecken mit IP-Adresse und User-Agent im 
 #: /resources/views/emails/hr/onboarding-name-changed.blade.php:115
 msgid "If this change appears suspicious, please contact the employee immediately to verify their identity."
 msgstr "Wenn diese Änderung verdächtig erscheint, stellen Sie bitte sofort Kontakt mit dem Mitarbeiter auf, um seine Identität zu überprüfen."
+
+#: /bootstrap/app.php
+msgid "Request failed."
+msgstr "Anfrage fehlgeschlagen."
+
+#: /bootstrap/app.php
+msgid "Internal server error."
+msgstr "Interner Serverfehler."
+
+#: /app/Http/Requests/UpdateUserLanguageRequest.php:47
+msgid "Language must be either English (en) or German (de)."
+msgstr "Die Sprache muss entweder Englisch (en) oder Deutsch (de) sein."
+
+#: /app/Http/Middleware/EnsureBrowserSessionLoginContext.php:33
+msgid "This endpoint requires a browser session context. Use /v1/auth/token for API clients."
+msgstr "Dieser Endpunkt erfordert einen Browser-Sitzungskontext. API-Clients sollen stattdessen /v1/auth/token verwenden."
+
+#: /app/Http/Controllers/Api/V1/SiteAssignmentController.php:98
+#: /app/Http/Controllers/Api/V1/CustomerAssignmentController.php:100
+msgid "Assignment already exists for this user and role"
+msgstr "Eine Zuordnung für diesen Benutzer und diese Rolle existiert bereits"
+
+#: /app/Http/Controllers/Api/V1/EmployeeController.php:407
+msgid "BWR export is only available for employees with status not_registered."
+msgstr "Der BWR-Export ist nur für Mitarbeiter mit dem Status not_registered verfügbar."
+
+#: /app/Http/Controllers/Api/V1/EmployeeController.php:423
+msgid "Employee is not ready for BWR export."
+msgstr "Der Mitarbeiter ist nicht bereit für den BWR-Export."

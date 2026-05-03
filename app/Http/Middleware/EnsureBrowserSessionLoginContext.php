@@ -30,7 +30,7 @@ class EnsureBrowserSessionLoginContext
         }
 
         return response()->json([
-            'message' => 'This endpoint requires a browser session context. Use /v1/auth/token for API clients.',
+            'message' => __('This endpoint requires a browser session context. Use /v1/auth/token for API clients.'),
         ], Response::HTTP_BAD_REQUEST);
     }
 }

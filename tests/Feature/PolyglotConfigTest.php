@@ -38,7 +38,7 @@ test('polyglot locales include english and german', function () {
     expect($locales['de'])->toBeArray()->not->toBeEmpty();
 });
 
-test('polyglot sources include app and views paths', function () {
+test('polyglot sources include app, bootstrap, and views paths', function () {
     $sources = config('polyglot.sources');
 
     expect($sources)
@@ -50,7 +50,7 @@ test('polyglot sources include app and views paths', function () {
     expect($primarySource)->toBeArray();
     expect($primarySource['include'] ?? null)
         ->toBeArray()
-        ->toContain(app_path(), resource_path('views'));
+        ->toContain(app_path(), bootstrap_path(), resource_path('views'));
 });
 
 test('polyglot routes use the production UI blocker middleware', function () {

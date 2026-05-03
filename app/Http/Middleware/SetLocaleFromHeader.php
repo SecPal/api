@@ -27,6 +27,13 @@ class SetLocaleFromHeader
     {
         $supportedLocales = ['en', 'de'];
 
+        $preferredLocale = $request->user()?->preferred_locale;
+        if (is_string($preferredLocale) && in_array($preferredLocale, $supportedLocales, true)) {
+            App::setLocale($preferredLocale);
+
+            return $next($request);
+        }
+
         // Get preferred language from Accept-Language header
         $locale = $request->getPreferredLanguage($supportedLocales);
 

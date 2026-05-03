@@ -36,6 +36,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Apply security headers globally to all requests (including API routes and Sanctum routes like /sanctum/csrf-cookie)
         $middleware->append(App\Http\Middleware\SecurityHeaders::class);
 
+        // Locale must run globally so unmatched routes (404) still honor Accept-Language for JSON error payloads.
+        $middleware->append(App\Http\Middleware\SetLocaleFromHeader::class);
+
         // Apply Sanctum's stateful middleware to API routes for SPA authentication
         // This enables session-based auth for requests from stateful SPA domains (such as app.secpal.dev).
         // RestoreSessionFromRememberToken must run AFTER EnsureFrontendRequestsAreStateful
@@ -49,8 +52,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Apply middleware to all API routes
         $middleware->api(append: [
-            App\Http\Middleware\InjectTenantId::class,
+            // Run locale resolution again after Sanctum's stateful pipeline so authenticated users can override Accept-Language.
             App\Http\Middleware\SetLocaleFromHeader::class,
+            App\Http\Middleware\InjectTenantId::class,
         ]);
 
         // Configure CSRF protection
@@ -72,7 +76,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            return response()->json(['message' => 'Unauthenticated.'], 401);
+            return response()->json(['message' => __('Unauthenticated.')], 401);
         });
 
         $exceptions->render(function (ModelNotFoundException $e, Request $request) use ($shouldRenderApiJson) {
@@ -81,7 +85,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
-                'message' => 'Resource not found.',
+                'message' => __('Resource not found.'),
             ], 404);
         });
 
@@ -91,7 +95,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
-                'message' => 'Resource not found.',
+                'message' => __('Resource not found.'),
             ], 404);
         });
 
@@ -112,8 +116,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return response()->json([
                 'message' => $status >= 500
-                    ? 'Internal server error.'
-                    : ($e->getMessage() !== '' ? $e->getMessage() : 'Request failed.'),
+                    ? __('Internal server error.')
+                    : ($e->getMessage() !== '' ? $e->getMessage() : __('Request failed.')),
             ], $status);
         });
     })->create();

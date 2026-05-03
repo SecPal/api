@@ -44,7 +44,7 @@ class UpdateUserLanguageRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'locale.in' => 'Language must be either English (en) or German (de).',
+            'locale.in' => __('Language must be either English (en) or German (de).'),
         ];
     }
 }

@@ -97,7 +97,7 @@ class CustomerAssignmentController extends AssignmentController
 
         if ($existing !== null) {
             return response()->json([
-                'message' => 'Assignment already exists for this user and role',
+                'message' => __('Assignment already exists for this user and role'),
             ], Response::HTTP_CONFLICT);
         }
 

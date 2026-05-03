@@ -1016,3 +1016,32 @@ msgstr "This change was logged in the activity log with IP address and user agen
 #: /resources/views/emails/hr/onboarding-name-changed.blade.php:115
 msgid "If this change appears suspicious, please contact the employee immediately to verify their identity."
 msgstr "If this change appears suspicious, please contact the employee immediately to verify their identity."
+
+#: /bootstrap/app.php
+msgid "Request failed."
+msgstr "Request failed."
+
+#: /bootstrap/app.php
+msgid "Internal server error."
+msgstr "Internal server error."
+
+#: /app/Http/Requests/UpdateUserLanguageRequest.php:47
+msgid "Language must be either English (en) or German (de)."
+msgstr "Language must be either English (en) or German (de)."
+
+#: /app/Http/Middleware/EnsureBrowserSessionLoginContext.php:33
+msgid "This endpoint requires a browser session context. Use /v1/auth/token for API clients."
+msgstr "This endpoint requires a browser session context. Use /v1/auth/token for API clients."
+
+#: /app/Http/Controllers/Api/V1/SiteAssignmentController.php:98
+#: /app/Http/Controllers/Api/V1/CustomerAssignmentController.php:100
+msgid "Assignment already exists for this user and role"
+msgstr "Assignment already exists for this user and role"
+
+#: /app/Http/Controllers/Api/V1/EmployeeController.php:407
+msgid "BWR export is only available for employees with status not_registered."
+msgstr "BWR export is only available for employees with status not_registered."
+
+#: /app/Http/Controllers/Api/V1/EmployeeController.php:423
+msgid "Employee is not ready for BWR export."
+msgstr "Employee is not ready for BWR export."

@@ -404,7 +404,7 @@ class EmployeeController extends Controller
 
         if ($employee->bwr_status !== 'not_registered') {
             return response()->json([
-                'message' => 'BWR export is only available for employees with status not_registered.',
+                'message' => __('BWR export is only available for employees with status not_registered.'),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -420,7 +420,7 @@ class EmployeeController extends Controller
                 : $exportService->exportCsv($employee, $user->name);
         } catch (BewacherregisterExportNotReadyException $exception) {
             return response()->json([
-                'message' => 'Employee is not ready for BWR export.',
+                'message' => __('Employee is not ready for BWR export.'),
                 'errors' => $exception->errors,
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
