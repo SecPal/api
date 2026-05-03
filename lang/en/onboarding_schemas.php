@@ -92,14 +92,13 @@ return [
         ],
         'tax_identification_number' => [
             'name' => 'Tax Identification Number',
-            'description' => 'Tax ID and tax class information (Section 39e EStG)',
+            'description' => 'Optional eleven-digit tax identification number (Section 39e EStG)',
             'schema' => [
                 'title' => 'Tax Identification Number',
-                'description' => 'Tax ID and tax class information (Section 39e EStG)',
+                'description' => 'Optional eleven-digit tax identification number (Section 39e EStG)',
             ],
             'fields' => [
                 'tax_id' => ['title' => 'Tax Identification Number'],
-                'tax_class' => ['title' => 'Tax Class'],
                 'children_count' => ['title' => 'Number of Children'],
             ],
         ],

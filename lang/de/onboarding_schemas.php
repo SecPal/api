@@ -92,14 +92,13 @@ return [
         ],
         'tax_identification_number' => [
             'name' => 'Steueridentifikationsnummer',
-            'description' => 'Steuer-ID und Steuerklasseninformationen (Paragraf 39e EStG)',
+            'description' => 'Optionale elfstellige Steueridentifikationsnummer (§ 39e EStG)',
             'schema' => [
                 'title' => 'Steueridentifikationsnummer',
-                'description' => 'Steuer-ID und Steuerklasseninformationen (Paragraf 39e EStG)',
+                'description' => 'Optionale elfstellige Steueridentifikationsnummer (§ 39e EStG)',
             ],
             'fields' => [
                 'tax_id' => ['title' => 'Steueridentifikationsnummer'],
-                'tax_class' => ['title' => 'Steuerklasse'],
                 'children_count' => ['title' => 'Anzahl Kinder'],
             ],
         ],

@@ -243,7 +243,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
     {
         return [
             'title' => 'Tax Identification Number',
-            'description' => 'Tax ID and tax class information (§ 39e EStG)',
+            'description' => 'Optional eleven-digit tax identification number (§ 39e EStG)',
             'type' => 'object',
             'properties' => [
                 'tax_id' => [
@@ -251,18 +251,13 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     'title' => 'Tax Identification Number',
                     'pattern' => '^\d{11}$',
                 ],
-                'tax_class' => [
-                    'type' => 'integer',
-                    'title' => 'Tax Class',
-                    'enum' => [1, 2, 3, 4, 5, 6],
-                ],
                 'children_count' => [
                     'type' => 'integer',
                     'title' => 'Number of Children',
                     'minimum' => 0,
                 ],
             ],
-            'required' => ['tax_id', 'tax_class'],
+            'required' => [],
         ];
     }
 }

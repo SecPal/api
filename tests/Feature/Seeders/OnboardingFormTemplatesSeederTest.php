@@ -201,12 +201,11 @@ test('tax identification schema has correct structure', function () {
     $schema = $template->form_schema;
 
     expect($schema['properties'])->toHaveKey('tax_id');
-    expect($schema['properties'])->toHaveKey('tax_class');
+    expect($schema['properties'])->not->toHaveKey('tax_class');
     expect($schema['properties'])->toHaveKey('children_count');
 
-    // Check required fields
-    expect($schema['required'])->toContain('tax_id');
-    expect($schema['required'])->toContain('tax_class');
+    expect($schema['required'])->not->toContain('tax_id');
+    expect($schema['required'])->not->toContain('tax_class');
     expect($schema['required'])->not->toContain('children_count');
 });
 
@@ -217,15 +216,6 @@ test('tax identification validates 11-digit tax ID', function () {
     $schema = $template->form_schema;
 
     expect($schema['properties']['tax_id']['pattern'])->toBe('^\d{11}$');
-});
-
-test('tax class enum includes all 6 tax classes', function () {
-    artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
-
-    $template = OnboardingFormTemplate::where('name', 'Tax Identification Number')->first();
-    $schema = $template->form_schema;
-
-    expect($schema['properties']['tax_class']['enum'])->toBe([1, 2, 3, 4, 5, 6]);
 });
 
 test('seeder is idempotent (can be run multiple times)', function () {
