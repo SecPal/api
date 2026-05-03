@@ -45,11 +45,11 @@ test('personal information form is required', function () {
     expect($template->is_required)->toBeTrue();
 });
 
-test('other templates are not required', function () {
+test('bank and emergency templates are not required', function () {
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
 
     $optionalTemplates = OnboardingFormTemplate::where('is_required', false)->count();
-    expect($optionalTemplates)->toBe(3); // Bank, Emergency, Tax
+    expect($optionalTemplates)->toBe(2); // Bank, Emergency
 });
 
 test('templates have correct sort order', function () {
@@ -200,10 +200,13 @@ test('tax identification schema has correct structure', function () {
     $schema = $template->form_schema;
 
     expect($schema['properties'])->toHaveKey('tax_id');
+    expect($schema['properties'])->toHaveKey('social_security_number');
     expect($schema['properties'])->not->toHaveKey('tax_class');
     expect($schema['properties'])->toHaveKey('children_count');
 
-    expect($schema['required'])->not->toContain('tax_id');
+    expect($template->is_required)->toBeTrue();
+    expect($schema['required'])->toContain('tax_id');
+    expect($schema['required'])->toContain('social_security_number');
     expect($schema['required'])->not->toContain('tax_class');
     expect($schema['required'])->not->toContain('children_count');
 });
@@ -215,6 +218,7 @@ test('tax identification validates 11-digit tax ID', function () {
     $schema = $template->form_schema;
 
     expect($schema['properties']['tax_id']['pattern'])->toBe('^\d{11}$');
+    expect($schema['properties']['social_security_number']['pattern'])->toBe('^\d{2}\s?\d{6}\s?[A-Z]\s?\d{3}$');
 });
 
 test('seeder is idempotent (can be run multiple times)', function () {

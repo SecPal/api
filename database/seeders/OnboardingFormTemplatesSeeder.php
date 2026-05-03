@@ -49,9 +49,9 @@ class OnboardingFormTemplatesSeeder extends Seeder
             [
                 'name' => 'Tax Identification Number',
                 'template_key' => 'tax_identification_number',
-                'description' => 'Optional eleven-digit tax identification number (§ 39e EStG)',
+                'description' => 'Required eleven-digit tax identification number (§ 39e EStG) and social security number.',
                 'form_schema' => $this->getTaxIdentificationSchema(),
-                'is_required' => false,
+                'is_required' => true,
                 'is_system_template' => true,
                 'sort_order' => 4,
                 'tenant_id' => null,
@@ -243,7 +243,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
     {
         return [
             'title' => 'Tax Identification Number',
-            'description' => 'Optional eleven-digit tax identification number (§ 39e EStG)',
+            'description' => 'Required eleven-digit tax identification number (§ 39e EStG) and social security number.',
             'type' => 'object',
             'properties' => [
                 'tax_id' => [
@@ -251,13 +251,18 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     'title' => 'Tax Identification Number',
                     'pattern' => '^\d{11}$',
                 ],
+                'social_security_number' => [
+                    'type' => 'string',
+                    'title' => 'Social Security Number',
+                    'pattern' => '^\d{2}\s?\d{6}\s?[A-Z]\s?\d{3}$',
+                ],
                 'children_count' => [
                     'type' => 'integer',
                     'title' => 'Number of Children',
                     'minimum' => 0,
                 ],
             ],
-            'required' => [],
+            'required' => ['tax_id', 'social_security_number'],
         ];
     }
 }

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - fixed `OnboardingFormDataSchemaValidationService::isPropertySemanticallyEmpty` treating non-string values (e.g. integers) for `string`-type fields as empty, which previously allowed malformed payloads to bypass JSON Schema validation for optional templates; proved with a new regression test
+- wrapped onboarding submission approval state updates and completion checks in one transaction, and restricted tax-identifier employee sync to the canonical `tax_identification_number` template key so approval can no longer commit partial state or mutate PII from name-matched custom templates
 
 ### Changed
 
