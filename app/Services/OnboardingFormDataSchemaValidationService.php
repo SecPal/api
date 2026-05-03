@@ -62,12 +62,13 @@ final class OnboardingFormDataSchemaValidationService
      * @param  array<string, mixed>  $schema
      * @param  array<string, mixed>  $formData
      *
-     * @throws JsonException
+     * @throws JsonEncodeException
      */
     private function assertJsonSchemaValid(array $schema, array $formData): void
     {
         $validator = new Validator(null, 100, false);
         $schemaObject = json_decode(json_encode($schema, JSON_THROW_ON_ERROR), false);
+        assert($schemaObject instanceof \stdClass);
 
         $dataObject = $formData === []
             ? new \stdClass
@@ -137,6 +138,7 @@ final class OnboardingFormDataSchemaValidationService
                 continue;
             }
 
+            /** @var array<string, mixed> $property */
             if (! $this->isPropertySemanticallyEmpty($property, $formData[$name] ?? null)) {
                 return false;
             }
@@ -153,7 +155,7 @@ final class OnboardingFormDataSchemaValidationService
         $type = $property['type'] ?? 'string';
 
         return match ($type) {
-            'string' => trim((string) ($value ?? '')) === '',
+            'string' => (is_string($value) ? trim($value) : '') === '',
             'integer', 'number' => $value === null || $value === '' || ! is_numeric($value),
             'boolean' => $value !== true,
             'array' => ! is_array($value) || count($value) === 0,

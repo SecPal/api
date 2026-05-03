@@ -491,9 +491,11 @@ class OnboardingController extends Controller
             ->whereKey($validated['form_template_id'])
             ->firstOrFail();
 
+        /** @var array<string, mixed> $formData */
+        $formData = (array) ($validated['form_data'] ?? []);
         $this->onboardingFormDataSchemaValidationService->assertMatchesTemplate(
             $template,
-            $validated['form_data'],
+            $formData,
             $status === 'submitted',
         );
 
