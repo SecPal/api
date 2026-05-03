@@ -50,7 +50,7 @@ test('polyglot sources include app, bootstrap, and views paths', function () {
     expect($primarySource)->toBeArray();
     expect($primarySource['include'] ?? null)
         ->toBeArray()
-        ->toContain(app_path(), bootstrap_path(), resource_path('views'));
+        ->toContain(app_path(), base_path('bootstrap'), resource_path('views'));
 });
 
 test('polyglot routes use the production UI blocker middleware', function () {
