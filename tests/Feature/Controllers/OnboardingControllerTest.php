@@ -183,7 +183,7 @@ describe('GET /v1/onboarding/templates', function () {
         $personalInformationTemplate = $templates->firstWhere('name', 'Persönliche Informationen');
 
         expect($personalInformationTemplate)->not->toBeNull()
-            ->and($personalInformationTemplate['description'])->toBe('BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister');
+            ->and($personalInformationTemplate['description'])->toBe('Ihre persönlichen Angaben für das Onboarding; fehlende Bewacherregister-Felder kann die Personalabteilung später ergänzen.');
     });
 });
 
@@ -235,7 +235,7 @@ describe('GET /v1/onboarding/templates/{template}', function () {
 
         $response->assertOk()
             ->assertJsonPath('data.name', 'Persönliche Informationen')
-            ->assertJsonPath('data.description', 'BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister')
+            ->assertJsonPath('data.description', 'Ihre persönlichen Angaben für das Onboarding; fehlende Bewacherregister-Felder kann die Personalabteilung später ergänzen.')
             ->assertJsonPath('data.form_schema.title', 'Persönliche Informationen')
             ->assertJsonPath('data.form_schema.properties.gender.title', 'Geschlecht')
             ->assertJsonPath('data.form_schema.properties.gender.enumNames.0', 'Männlich')
@@ -334,7 +334,7 @@ describe('GET /v1/onboarding/submissions', function () {
 
         $response->assertOk()
             ->assertJsonPath('data.0.form_template.name', 'Persönliche Informationen')
-            ->assertJsonPath('data.0.form_template.description', 'BewachV Paragraf 16 erforderliche Informationen für das Bewacherregister')
+            ->assertJsonPath('data.0.form_template.description', 'Ihre persönlichen Angaben für das Onboarding; fehlende Bewacherregister-Felder kann die Personalabteilung später ergänzen.')
             ->assertJsonPath('data.0.form_template.form_schema.title', 'Persönliche Informationen');
     });
 });

@@ -19,7 +19,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             [
                 'name' => 'Personal Information Form',
                 'template_key' => 'personal_information_form',
-                'description' => 'BewachV § 16 required information for Bewacherregister',
+                'description' => 'Your personal details for onboarding; HR may need to complete additional Bewacherregister fields before export.',
                 'form_schema' => $this->getPersonalInformationSchema(),
                 'is_required' => true,
                 'is_system_template' => true,
@@ -80,7 +80,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
     {
         return [
             'title' => 'Personal Information Form',
-            'description' => 'BewachV § 16 required information',
+            'description' => 'Information required for onboarding; planned activities under §34a GewO can be completed later by HR for Bewacherregister export.',
             'type' => 'object',
             'properties' => [
                 'gender' => [
@@ -113,6 +113,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                 'intended_activities' => [
                     'type' => 'array',
                     'title' => 'Intended Activities (§ 34a GewO)',
+                    'description' => 'Optional during onboarding; HR must align this with the assignment before Bewacherregister export if you skip it.',
                     'items' => [
                         'type' => 'string',
                         'enum' => [
@@ -125,10 +126,9 @@ class OnboardingFormTemplatesSeeder extends Seeder
                             'personal_protection',
                         ],
                     ],
-                    'minItems' => 1,
                 ],
             ],
-            'required' => ['gender', 'nationalities', 'intended_activities'],
+            'required' => ['gender', 'nationalities'],
         ];
     }
 

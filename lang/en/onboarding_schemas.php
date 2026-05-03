@@ -7,10 +7,10 @@ return [
     'templates' => [
         'personal_information_form' => [
             'name' => 'Personal Information Form',
-            'description' => 'BewachV Paragraf 16 required information for Bewacherregister',
+            'description' => 'Your personal details for onboarding; HR may complete further Bewacherregister fields later.',
             'schema' => [
                 'title' => 'Personal Information',
-                'description' => 'BewachV Paragraf 16 required information',
+                'description' => 'Information required for onboarding; planned activities under Section 34a GewO can be completed later by HR for Bewacherregister export.',
             ],
             'fields' => [
                 'gender' => [
@@ -26,6 +26,7 @@ return [
                 'nationalities' => ['title' => 'Nationalities'],
                 'intended_activities' => [
                     'title' => 'Intended Activities (Section 34a GewO)',
+                    'description' => 'Optional during onboarding; HR must confirm or enter these before Bewacherregister export if you skip them.',
                     'enum' => [
                         'door_control' => 'Door control',
                         'event_security' => 'Event security',

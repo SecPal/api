@@ -89,10 +89,10 @@ test('personal information schema has correct structure', function () {
     expect($schema['properties'])->toHaveKey('birth_name');
     expect($schema['properties'])->toHaveKey('previous_names');
 
-    // Verify required array
+    // Verify required array (intended activities are HR-aligned / optional at onboarding submit)
     expect($schema['required'])->toContain('gender');
     expect($schema['required'])->toContain('nationalities');
-    expect($schema['required'])->toContain('intended_activities');
+    expect($schema['required'])->not->toContain('intended_activities');
 });
 
 test('personal information schema validates gender enum', function () {
