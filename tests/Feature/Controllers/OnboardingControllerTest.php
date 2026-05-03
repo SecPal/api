@@ -616,6 +616,34 @@ describe('POST /v1/onboarding/submissions', function () {
 
         $response->assertStatus(422);
     });
+
+    test('does not treat false boolean values as semantically empty for optional templates', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'consent' => [
+                        'type' => 'boolean',
+                        'enum' => [true],
+                    ],
+                ],
+                'required' => ['consent'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['consent' => false],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['consent']);
+    });
 });
 
 describe('PATCH /v1/onboarding/submissions/{submission}', function () {
@@ -711,6 +739,42 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             ->and($response->json('data.review_notes'))->toBeNull()
             ->and($response->json('data.reviewed_at'))->toBeNull()
             ->and($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW);
+    });
+
+    test('persists the same empty array payload that gets schema validated during submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                ],
+                'required' => ['iban'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => null,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'status' => 'submitted',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.form_data', []);
+
+        expect($submission->fresh()->form_data)->toBe([]);
     });
 
     test('does not allow patching another employees submission', function (): void {

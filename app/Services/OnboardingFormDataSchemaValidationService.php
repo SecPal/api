@@ -157,7 +157,7 @@ final class OnboardingFormDataSchemaValidationService
         return match ($type) {
             'string' => (is_string($value) ? trim($value) : '') === '',
             'integer', 'number' => $value === null || $value === '' || ! is_numeric($value),
-            'boolean' => $value !== true,
+            'boolean' => $value === null || $value === '',
             'array' => ! is_array($value) || count($value) === 0,
             default => $value === null || $value === '',
         };

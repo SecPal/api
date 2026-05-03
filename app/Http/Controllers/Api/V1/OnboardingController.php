@@ -618,9 +618,9 @@ class OnboardingController extends Controller
             $status === 'submitted',
         );
 
-        $submission = DB::transaction(function () use ($employee, $status, $submittedAt, $submission, $validated, $shouldResetReview): OnboardingFormSubmission {
+        $submission = DB::transaction(function () use ($employee, $status, $submittedAt, $submission, $effectiveFormData, $shouldResetReview): OnboardingFormSubmission {
             $submission->update([
-                'form_data' => $validated['form_data'] ?? $submission->form_data,
+                'form_data' => $effectiveFormData,
                 'status' => $status,
                 'submitted_at' => $submittedAt,
                 'reviewed_by' => $shouldResetReview ? null : $submission->reviewed_by,
