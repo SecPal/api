@@ -1196,7 +1196,8 @@ describe('POST /v1/onboarding-review/submissions/{submission}/approve', function
         ]);
 
         $template = OnboardingFormTemplate::factory()->create([
-            'tenant_id' => $this->tenant->id,
+            'tenant_id' => null,
+            'is_system_template' => true,
             'template_key' => 'tax_identification_number',
             'name' => 'Tax Identification Number',
         ]);

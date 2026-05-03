@@ -744,7 +744,7 @@ class OnboardingController extends Controller
             $this->onboardingTaxIdentificationSyncService->syncFromApprovedSubmission($submission);
 
             /** @var Employee $employee */
-            $employee = $submission->employee;
+            $employee = $submission->employee()->firstOrFail();
             $this->onboardingCompletionService->checkCompletion($employee);
         });
 

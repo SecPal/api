@@ -13,8 +13,17 @@ class OnboardingTaxIdentificationSyncService
 {
     public function syncFromApprovedSubmission(OnboardingFormSubmission $submission): void
     {
+        if ($submission->status !== 'approved') {
+            return;
+        }
+
         $template = $submission->formTemplate;
-        if (! $template instanceof OnboardingFormTemplate || $template->template_key !== 'tax_identification_number') {
+        if (
+            ! $template instanceof OnboardingFormTemplate
+            || $template->template_key !== 'tax_identification_number'
+            || ! $template->is_system_template
+            || $template->tenant_id !== null
+        ) {
             return;
         }
 
