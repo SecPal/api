@@ -502,11 +502,11 @@ class OnboardingController extends Controller
             $status === 'submitted',
         );
 
-        $submission = DB::transaction(function () use ($existing, $validated, $status, $submittedAt, $employee): OnboardingFormSubmission {
+        $submission = DB::transaction(function () use ($existing, $validated, $formData, $status, $submittedAt, $employee): OnboardingFormSubmission {
             if ($existing) {
                 // Update existing draft
                 $existing->update([
-                    'form_data' => $validated['form_data'],
+                    'form_data' => $formData,
                     'status' => $status,
                     'submitted_at' => $submittedAt,
                     'reviewed_by' => $existing->status === 'rejected' ? null : $existing->reviewed_by,
@@ -520,7 +520,7 @@ class OnboardingController extends Controller
                 $created = OnboardingFormSubmission::create([
                     'employee_id' => $employee->id,
                     'form_template_id' => $validated['form_template_id'],
-                    'form_data' => $validated['form_data'],
+                    'form_data' => $formData,
                     'status' => $status,
                     'submitted_at' => $submittedAt,
                 ]);
