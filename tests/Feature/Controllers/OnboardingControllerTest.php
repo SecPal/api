@@ -702,6 +702,36 @@ describe('POST /v1/onboarding/submissions', function () {
 
         $response->assertStatus(422);
     });
+
+    test('does not treat a non-array value for an array-type field as semantically empty on submit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                        'minItems' => 1,
+                    ],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        // 'DE' is not a valid array; it must not be silently treated as "empty"
+        // but must trigger schema validation and return 422.
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['nationalities' => 'DE'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
+    });
 });
 
 describe('PATCH /v1/onboarding/submissions/{submission}', function () {

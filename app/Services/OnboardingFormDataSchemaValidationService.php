@@ -158,7 +158,7 @@ final class OnboardingFormDataSchemaValidationService
             'string' => $value === null || (is_string($value) && trim($value) === ''),
             'integer', 'number' => $value === null || $value === '',
             'boolean' => $value === null || $value === '',
-            'array' => ! is_array($value) || count($value) === 0,
+            'array' => is_array($value) && count($value) === 0,
             default => $value === null || $value === '',
         };
     }
