@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- forced the PHPUnit `DB_CONNECTION` and `DB_DATABASE` overrides so the early PostgreSQL test bootstrap always provisions `testing*_test_*` databases instead of inheriting runtime `secpal*` names from the shell environment during parallel runs
+- made local API preflight run `serial`-group tests outside the parallel Pest run, so the dedicated concurrency regressions no longer race each other by repeatedly `migrate:fresh`-ing the shared base `testing` database during `PREFLIGHT_RUN_TESTS=1`
+- made the PostgreSQL test bootstrap fail fast with an explicit owner/`public`-schema permission error when an existing `testing_test_*` database is not writable by the configured app user, so local ownership drift no longer degrades into late migration failures across large parallel test runs
 - fixed `OnboardingFormDataSchemaValidationService::isPropertySemanticallyEmpty` treating non-string values (e.g. integers) for `string`-type fields as empty, which previously allowed malformed payloads to bypass JSON Schema validation for optional templates; proved with a new regression test
 - wrapped onboarding submission approval state updates and completion checks in one transaction, and restricted tax-identifier employee sync to the canonical `tax_identification_number` template key so approval can no longer commit partial state or mutate PII from name-matched custom templates
 
