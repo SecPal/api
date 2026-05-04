@@ -975,7 +975,7 @@ class AuthController extends Controller
      * viewable rank ranges (0-255), granting access to all leadership
      * levels and non-leadership employees.
      *
-     * @return array{id: string, name: string, email: string, emailVerified: bool, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool}
+     * @return array{id: string, name: string, email: string, emailVerified: bool, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool, employeeStatus: string|null, onboardingWorkflowStatus: string|null}
      */
     private function buildUserAuthorizationData(User $user): array
     {
@@ -992,7 +992,7 @@ class AuthController extends Controller
         }
 
         // Eager load relationships to reduce database queries
-        $user->load(['roles', 'permissions', 'organizationalScopes']);
+        $user->load(['roles', 'permissions', 'organizationalScopes', 'employee']);
 
         /** @var list<string> $roles */
         $roles = $user->getRoleNames()->toArray();
@@ -1002,6 +1002,7 @@ class AuthController extends Controller
 
         $hasCustomerAccess = $user->can('customers.read') || $user->hasAccessibleCustomers();
         $hasSiteAccess = $user->can('sites.read') || $user->hasAccessibleSites();
+        $employee = $user->employee;
 
         return [
             'id' => $user->id,
@@ -1013,6 +1014,8 @@ class AuthController extends Controller
             'hasOrganizationalScopes' => $user->organizationalScopes->isNotEmpty(),
             'hasCustomerAccess' => $hasCustomerAccess,
             'hasSiteAccess' => $hasSiteAccess,
+            'employeeStatus' => $employee?->status,
+            'onboardingWorkflowStatus' => $employee?->resolveOnboardingWorkflowStatus(),
         ];
     }
 

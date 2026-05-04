@@ -9,8 +9,9 @@ use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
 use App\Models\TenantKey;
 use App\Models\User;
-use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 
@@ -64,7 +65,7 @@ test('completes onboarding with valid token', function () {
         ->assertJsonStructure([
             'message',
             'data' => [
-                'user' => ['id', 'email', 'name'],
+                'user' => ['id', 'email', 'name', 'email_verified'],
                 'employee' => ['id', 'first_name', 'last_name', 'status'],
             ],
         ])
@@ -80,8 +81,9 @@ test('completes onboarding with valid token', function () {
     // Assert: Password set on user
     $user = $employee->user;
     expect($user)->not->toBeNull();
-    expect(Hash::check('SecurePassword123!', $user->password))->toBeTrue();
-    Notification::assertSentTo($user, VerifyEmail::class);
+    expect(Hash::check('SecurePassword123!', $user->password))->toBeTrue()
+        ->and($user->hasVerifiedEmail())->toBeTrue();
+    Notification::assertNothingSent();
 
     // Assert: Token marked as completed
     $tokenModel = $tokenData['model'];
@@ -89,6 +91,71 @@ test('completes onboarding with valid token', function () {
     expect($tokenModel->completed_at)->not->toBeNull()
         ->and($tokenModel->completed_from_ip)->not->toBeNull()
         ->and($tokenModel->completed_user_agent)->not->toBeNull();
+});
+
+test('completes onboarding by syncing and verifying the invited employee email on the linked user account', function () {
+    Notification::fake();
+
+    /** @var User $user */
+    $user = User::factory()->unverified()->create([
+        'email' => 'stale-user@secpal.dev',
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Email',
+        'last_name' => 'Mismatch',
+        'email' => 'invited-employee@secpal.dev',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $employee->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Email',
+        'last_name' => 'Mismatch',
+    ])->assertOk()
+        ->assertJsonPath('data.user.email', $employee->email)
+        ->assertJsonPath('data.user.email_verified', true);
+
+    $user->refresh();
+    expect($user->email)->toBe($employee->email)
+        ->and($user->hasVerifiedEmail())->toBeTrue();
+    Notification::assertNothingSent();
+});
+
+test('dispatches verified event when onboarding completion verifies the user email', function () {
+    Event::fake([Verified::class]);
+
+    /** @var User $user */
+    $user = User::factory()->unverified()->create([
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Event',
+        'last_name' => 'Dispatch',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $employee->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Event',
+        'last_name' => 'Dispatch',
+    ])->assertOk();
+
+    $user->refresh();
+    Event::assertDispatched(Verified::class, fn (Verified $event): bool => $event->user->is($user));
 });
 
 test('rejects invalid token', function () {

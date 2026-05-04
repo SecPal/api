@@ -5,6 +5,7 @@
 
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
+use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\User;
@@ -104,6 +105,38 @@ describe('SPA Session Login', function () {
                     'emailVerified' => true,
                 ],
             ]);
+    });
+
+    test('spa login and me payloads include employee status and resolved onboarding workflow state', function () {
+        $email = 'employee-auth-payload@secpal.dev';
+
+        $user = User::factory()->create([
+            'name' => 'Employee Payload User',
+            'email' => $email,
+            'password' => bcrypt('password123'),
+        ]);
+
+        Employee::factory()->create([
+            'user_id' => $user->id,
+            'email' => $email,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'onboarding_workflow_status' => null,
+        ]);
+
+        $this->withHeaders(spaHeaders([
+            'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+        ]))->postJson('/v1/auth/login', [
+            'email' => $email,
+            'password' => 'password123',
+        ])->assertOk()
+            ->assertJsonPath('user.employeeStatus', Employee::STATUS_PRE_CONTRACT)
+            ->assertJsonPath('user.onboardingWorkflowStatus', Employee::WORKFLOW_STATUS_INVITED);
+
+        $this->withHeaders(spaHeaders())
+            ->getJson('/v1/me')
+            ->assertOk()
+            ->assertJsonPath('employeeStatus', Employee::STATUS_PRE_CONTRACT)
+            ->assertJsonPath('onboardingWorkflowStatus', Employee::WORKFLOW_STATUS_INVITED);
     });
 
     test('spa login fails with invalid credentials', function () {
