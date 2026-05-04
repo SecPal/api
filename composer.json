@@ -18,7 +18,7 @@
     "opis/json-schema": "^2.4",
     "spatie/laravel-activitylog": "^5.0",
     "spatie/laravel-permission": "^7.4",
-    "web-auth/webauthn-lib": "^5.2"
+    "web-auth/webauthn-lib": "^5.3"
   },
   "require-dev": {
     "barryvdh/laravel-ide-helper": "^3.7",
