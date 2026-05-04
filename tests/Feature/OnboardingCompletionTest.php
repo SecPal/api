@@ -9,7 +9,6 @@ use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
 use App\Models\TenantKey;
 use App\Models\User;
-use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -64,7 +63,7 @@ test('completes onboarding with valid token', function () {
         ->assertJsonStructure([
             'message',
             'data' => [
-                'user' => ['id', 'email', 'name'],
+                'user' => ['id', 'email', 'name', 'email_verified'],
                 'employee' => ['id', 'first_name', 'last_name', 'status'],
             ],
         ])
@@ -80,8 +79,9 @@ test('completes onboarding with valid token', function () {
     // Assert: Password set on user
     $user = $employee->user;
     expect($user)->not->toBeNull();
-    expect(Hash::check('SecurePassword123!', $user->password))->toBeTrue();
-    Notification::assertSentTo($user, VerifyEmail::class);
+    expect(Hash::check('SecurePassword123!', $user->password))->toBeTrue()
+        ->and($user->hasVerifiedEmail())->toBeTrue();
+    Notification::assertNothingSent();
 
     // Assert: Token marked as completed
     $tokenModel = $tokenData['model'];

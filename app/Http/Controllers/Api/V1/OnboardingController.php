@@ -259,6 +259,8 @@ class OnboardingController extends Controller
             // Sync user name with employee name so it displays correctly after login
             $user->name = $firstName.' '.$lastName;
             $user->save();
+            // Consuming a valid onboarding magic link proves mailbox control.
+            $user->markEmailAsVerified();
 
             // Mark token as completed (only after all operations succeed)
             $ip = $request->ip() ?? 'unknown';
@@ -276,14 +278,6 @@ class OnboardingController extends Controller
 
         // Refresh user to get updated name
         $user->refresh();
-
-        if (! $user->hasVerifiedEmail()) {
-            try {
-                $user->sendEmailVerificationNotification();
-            } catch (\Throwable $throwable) {
-                report($throwable);
-            }
-        }
 
         // Automatically log the user in (create session with cookie, like regular login)
         // This uses session-based auth (Sanctum SPA mode) instead of token-based auth
@@ -309,6 +303,7 @@ class OnboardingController extends Controller
                     'id' => $user->id,
                     'email' => $user->email,
                     'name' => $user->name,
+                    'email_verified' => $user->hasVerifiedEmail(),
                 ],
                 'employee' => [
                     'id' => $employee->id,
