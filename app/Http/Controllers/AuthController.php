@@ -1015,7 +1015,7 @@ class AuthController extends Controller
             'hasCustomerAccess' => $hasCustomerAccess,
             'hasSiteAccess' => $hasSiteAccess,
             'employeeStatus' => $employee?->status,
-            'onboardingWorkflowStatus' => $employee?->onboarding_workflow_status,
+            'onboardingWorkflowStatus' => $employee?->resolveOnboardingWorkflowStatus(),
         ];
     }
 
