@@ -33,6 +33,7 @@ test('tenant_keys binary columns use VARCHAR for base64 storage', function (): v
         SELECT column_name, data_type
         FROM information_schema.columns
         WHERE table_name = 'tenant_keys'
+        AND table_schema = current_schema()
         AND column_name IN ('dek_wrapped', 'dek_nonce', 'idx_wrapped', 'idx_nonce')
         ORDER BY column_name
     ");
@@ -52,6 +53,7 @@ test('tenant_keys key_version has integer type', function (): void {
         SELECT data_type
         FROM information_schema.columns
         WHERE table_name = 'tenant_keys'
+        AND table_schema = current_schema()
         AND column_name = 'key_version'
     ");
 

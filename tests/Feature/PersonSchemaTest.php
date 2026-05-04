@@ -36,6 +36,7 @@ test('person encrypted and index columns have correct text types', function (): 
         SELECT column_name, data_type
         FROM information_schema.columns
         WHERE table_name = 'person'
+        AND table_schema = current_schema()
         AND column_name IN ('email_enc', 'email_idx', 'phone_enc', 'phone_idx')
         ORDER BY column_name
     ");
@@ -62,6 +63,7 @@ test('person note_enc column exists and has text type', function (): void {
         SELECT data_type
         FROM information_schema.columns
         WHERE table_name = 'person'
+        AND table_schema = current_schema()
         AND column_name = 'note_enc'
     ");
 
@@ -74,6 +76,7 @@ test('person note_tsv has tsvector type', function (): void {
         SELECT data_type
         FROM information_schema.columns
         WHERE table_name = 'person'
+        AND table_schema = current_schema()
         AND column_name = 'note_tsv'
     ");
 
@@ -86,6 +89,7 @@ test('person has tenant_id email_idx composite index', function (): void {
         SELECT indexname
         FROM pg_indexes
         WHERE tablename = 'person'
+        AND schemaname = current_schema()
         AND indexdef LIKE '%tenant_id%email_idx%'
     ");
 
@@ -97,6 +101,7 @@ test('person has tenant_id phone_idx composite index', function (): void {
         SELECT indexname
         FROM pg_indexes
         WHERE tablename = 'person'
+        AND schemaname = current_schema()
         AND indexdef LIKE '%tenant_id%phone_idx%'
     ");
 
@@ -108,6 +113,7 @@ test('person has GIN index on note_tsv', function (): void {
         SELECT indexname, indexdef
         FROM pg_indexes
         WHERE tablename = 'person'
+        AND schemaname = current_schema()
         AND indexname = 'person_note_tsv_idx'
     ");
 
@@ -121,6 +127,7 @@ test('person has foreign key to tenant_keys', function (): void {
         SELECT constraint_name
         FROM information_schema.table_constraints
         WHERE table_name = 'person'
+        AND table_schema = current_schema()
         AND constraint_type = 'FOREIGN KEY'
         AND constraint_name LIKE '%tenant_id%'
     ");
