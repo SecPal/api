@@ -23,6 +23,7 @@ use App\Services\OnboardingFormDataSchemaValidationService;
 use App\Services\OnboardingSchemaLocalizationService;
 use App\Services\OnboardingSubmissionFileStorageService;
 use App\Services\OnboardingTaxIdentificationSyncService;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -167,6 +168,8 @@ class OnboardingController extends Controller
         $lastName = $validated['last_name'];
         /** @var string $password */
         $password = $validated['password'];
+        /** @var string $onboardingEmail */
+        $onboardingEmail = $validated['email'];
 
         // Validate name changes (Hybrid approach: similarity check + HR notification)
         $firstNameValidation = null;
@@ -203,7 +206,7 @@ class OnboardingController extends Controller
         }
 
         // Wrap all operations in a transaction to ensure atomicity
-        DB::transaction(function () use ($employee, $firstName, $lastName, $password, $oldFirstName, $oldLastName, $firstNameValidation, $lastNameValidation, $shouldNotifyHR, $tokenModel, $request) {
+        DB::transaction(function () use ($employee, $firstName, $lastName, $password, $onboardingEmail, $oldFirstName, $oldLastName, $firstNameValidation, $lastNameValidation, $shouldNotifyHR, $tokenModel, $request) {
 
             // Update employee name (allow corrections/updates)
             $employee->first_name = $firstName;
@@ -258,7 +261,16 @@ class OnboardingController extends Controller
             $user->password = Hash::make($password);
             // Sync user name with employee name so it displays correctly after login
             $user->name = $firstName.' '.$lastName;
+            // The onboarding invite proves control over employee.email; keep the user login email aligned.
+            if ($user->email !== $onboardingEmail) {
+                $user->email = $onboardingEmail;
+                $user->email_verified_at = null;
+            }
             $user->save();
+            // Consuming a valid onboarding magic link proves mailbox control.
+            if ($user->markEmailAsVerified()) {
+                event(new Verified($user));
+            }
 
             // Mark token as completed (only after all operations succeed)
             $ip = $request->ip() ?? 'unknown';
@@ -276,14 +288,6 @@ class OnboardingController extends Controller
 
         // Refresh user to get updated name
         $user->refresh();
-
-        if (! $user->hasVerifiedEmail()) {
-            try {
-                $user->sendEmailVerificationNotification();
-            } catch (\Throwable $throwable) {
-                report($throwable);
-            }
-        }
 
         // Automatically log the user in (create session with cookie, like regular login)
         // This uses session-based auth (Sanctum SPA mode) instead of token-based auth
@@ -309,6 +313,7 @@ class OnboardingController extends Controller
                     'id' => $user->id,
                     'email' => $user->email,
                     'name' => $user->name,
+                    'email_verified' => $user->hasVerifiedEmail(),
                 ],
                 'employee' => [
                     'id' => $employee->id,
