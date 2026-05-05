@@ -110,6 +110,10 @@ test('employees table rejects duplicate employee numbers within the same tenant'
 });
 
 test('employees table includes nullable emergency contacts json column', function (): void {
-    expect(Schema::hasColumn('employees', 'emergency_contacts'))->toBeTrue()
-        ->and(Schema::getColumnType('employees', 'emergency_contacts'))->toBe('json');
+    $column = collect(Schema::getColumns('employees'))
+        ->firstWhere('name', 'emergency_contacts');
+
+    expect($column)->not->toBeNull()
+        ->and($column['type'] ?? null)->toBe('json')
+        ->and($column['nullable'] ?? null)->toBeTrue();
 });
