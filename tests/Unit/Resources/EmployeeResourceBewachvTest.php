@@ -67,7 +67,8 @@ test('EmployeeResource includes all BewachV fields', function () {
         ->and($array)->toHaveKey('structured_address');
 
     // Address history
-    expect($array)->toHaveKey('address_history');
+    expect($array)->toHaveKey('address_history')
+        ->and($array)->toHaveKey('emergency_contacts');
 
     // Intended activities
     expect($array)->toHaveKey('intended_activities');
@@ -107,6 +108,28 @@ test('EmployeeResource includes all BewachV fields', function () {
         ->and($array)->toHaveKey('evacuation_cert_date')
         ->and($array)->toHaveKey('evacuation_cert_expiry')
         ->and($array)->toHaveKey('additional_certifications');
+});
+
+test('EmployeeResource serializes emergency contacts', function () {
+    $emergencyContacts = [
+        [
+            'name' => 'Max Mustermann',
+            'relationship' => 'Partner',
+            'phone' => '+49 151 1234567',
+            'email' => 'max.mustermann@secpal.dev',
+            'notes' => 'Primärer Notfallkontakt',
+        ],
+    ];
+
+    $employee = Employee::factory()->create([
+        'emergency_contacts' => $emergencyContacts,
+    ]);
+
+    $resource = new EmployeeResource($employee);
+    $array = $resource->toArray(employeeResourceRequest(true));
+
+    expect($array['emergency_contacts'])->toBeArray()
+        ->and($array['emergency_contacts'])->toEqual($emergencyContacts);
 });
 
 test('EmployeeResource formats dates consistently', function () {

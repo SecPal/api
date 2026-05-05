@@ -82,6 +82,9 @@ class EmployeeResource extends JsonResource
             // BewachV § 16 Abs. 2 Nr. 6: Address History (Last 5 Years)
             'address_history' => $this->address_history, // JSON array
 
+            // Additional contact data
+            'emergency_contacts' => $this->emergency_contacts, // JSON array
+
             // BewachV § 16 Abs. 2 Nr. 7: Intended Activities (§34a work types)
             'intended_activities' => $this->intended_activities, // JSON array
 

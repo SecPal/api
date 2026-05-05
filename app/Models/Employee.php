@@ -57,6 +57,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string|null $address_country ISO 3166-1 alpha-2
  * @property string|null $address_state
  * @property array<int, array{from: string, to: string, street: string, house_number: string, postal_code: string, city: string, country: string, state: ?string}>|null $address_history Array of address objects (5 years)
+ * @property array<int, array{name: string, relationship?: ?string, phone: string, email?: ?string, notes?: ?string}>|null $emergency_contacts Optional emergency contacts
  * @property array<int, string>|null $intended_activities Array of activity codes
  * @property string|null $id_document_type id_card|passport|residence_permit
  * @property string|null $id_document_number_enc Encrypted document number
@@ -350,6 +351,7 @@ class Employee extends Model
         'address_country',
         'address_state',
         'address_history',
+        'emergency_contacts',
         // Intended Activities
         'intended_activities',
         // ID Document
@@ -489,6 +491,7 @@ class Employee extends Model
             'previous_names' => 'array',
             'nationalities' => 'array',
             'address_history' => 'array',
+            'emergency_contacts' => 'array',
             'intended_activities' => 'array',
             'additional_certifications' => 'array',
             'runtime_access_snapshot' => 'array',
