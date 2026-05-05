@@ -207,6 +207,25 @@ test('it casts address history to array', function () {
     expect($this->employee->address_history)->toBeArray()->and($this->employee->address_history)->toEqual($addressHistory);
 });
 
+test('it casts emergency contacts to array', function () {
+    $emergencyContacts = [
+        [
+            'name' => 'Max Mustermann',
+            'relationship' => 'Partner',
+            'phone' => '+49 151 1234567',
+            'email' => 'max.mustermann@secpal.dev',
+            'notes' => 'Primärer Notfallkontakt',
+        ],
+    ];
+
+    $this->employee->emergency_contacts = $emergencyContacts;
+    $this->employee->save();
+
+    $this->employee->refresh();
+    expect($this->employee->emergency_contacts)->toBeArray()
+        ->and($this->employee->emergency_contacts)->toEqual($emergencyContacts);
+});
+
 test('it stores bwr id as string with leading zeros', function () {
     $bwrId = '0123456';
     $this->employee->bwr_id = $bwrId;

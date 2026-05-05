@@ -106,6 +106,14 @@ class UpdateEmployeeRequest extends FormRequest
             'address_history.*.postal_code' => ['required', 'string', 'max:20'],
             'address_history.*.country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'],
 
+            // Emergency contacts
+            'emergency_contacts' => ['sometimes', 'nullable', 'array'],
+            'emergency_contacts.*.name' => ['required', 'string', 'max:255'],
+            'emergency_contacts.*.relationship' => ['nullable', 'string', 'max:100'],
+            'emergency_contacts.*.phone' => ['required', 'string', 'max:255'],
+            'emergency_contacts.*.email' => ['nullable', 'email', 'max:255'],
+            'emergency_contacts.*.notes' => ['nullable', 'string', 'max:500'],
+
             // BewachV § 16 Abs. 2 Nr. 7: Intended Activities
             'intended_activities' => ['sometimes', 'nullable', 'array'],
             'intended_activities.*' => ['string', 'max:100'],
@@ -244,6 +252,11 @@ class UpdateEmployeeRequest extends FormRequest
 
             // Address history
             'address_history.*.to.after_or_equal' => 'End-Datum muss nach Start-Datum liegen.',
+
+            // Emergency contacts
+            'emergency_contacts.*.name.required' => 'Name für Notfallkontakt ist erforderlich.',
+            'emergency_contacts.*.phone.required' => 'Telefonnummer für Notfallkontakt ist erforderlich.',
+            'emergency_contacts.*.email.email' => 'E-Mail für Notfallkontakt muss gültig sein.',
 
             // Work permits
             'work_permit_type.required' => 'Arbeitserlaubnis-Typ ist für nicht freizügigkeitsberechtigte Staatsangehörigkeiten verpflichtend.',

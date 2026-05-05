@@ -108,3 +108,8 @@ test('employees table rejects duplicate employee numbers within the same tenant'
 
     expect()->fail('Expected a tenant-scoped employee number unique constraint violation.');
 });
+
+test('employees table includes nullable emergency contacts json column', function (): void {
+    expect(Schema::hasColumn('employees', 'emergency_contacts'))->toBeTrue()
+        ->and(Schema::getColumnType('employees', 'emergency_contacts'))->toBe('json');
+});

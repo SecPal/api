@@ -407,6 +407,70 @@ test('update request validates additional certifications and firearms expiry fie
         ->and($validator->errors()->has('additional_certifications.0.expiry_date'))->toBeTrue();
 });
 
+test('emergency contacts require name and phone and validate optional email format', function () {
+    $invalidStoreValidator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'emergency-contacts-invalid@example.com',
+        'emergency_contacts' => [
+            [
+                'relationship' => 'Partner',
+                'email' => 'invalid-email-format',
+            ],
+        ],
+    ]));
+
+    expect($invalidStoreValidator->fails())->toBeTrue()
+        ->and($invalidStoreValidator->errors()->has('emergency_contacts.0.name'))->toBeTrue()
+        ->and($invalidStoreValidator->errors()->has('emergency_contacts.0.phone'))->toBeTrue()
+        ->and($invalidStoreValidator->errors()->has('emergency_contacts.0.email'))->toBeTrue();
+
+    $validStoreValidator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'emergency-contacts-valid@example.com',
+        'emergency_contacts' => [
+            [
+                'name' => 'Max Mustermann',
+                'relationship' => 'Partner',
+                'phone' => '+49 151 1234567',
+                'email' => 'max.mustermann@secpal.dev',
+                'notes' => 'Nur in dringenden Fällen kontaktieren.',
+            ],
+        ],
+    ]));
+
+    expect($validStoreValidator->passes())->toBeTrue();
+});
+
+test('UpdateEmployeeRequest validates emergency contacts on partial updates', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->organizationalUnit->id,
+    ]);
+
+    $invalidUpdateValidator = makeUpdateEmployeeValidator($this, $employee, [
+        'emergency_contacts' => [
+            [
+                'name' => 'Kontaktperson',
+                'phone' => '+49 30 000000',
+                'email' => 'not-an-email',
+            ],
+        ],
+    ]);
+
+    expect($invalidUpdateValidator->fails())->toBeTrue()
+        ->and($invalidUpdateValidator->errors()->has('emergency_contacts.0.email'))->toBeTrue();
+
+    $validUpdateValidator = makeUpdateEmployeeValidator($this, $employee, [
+        'emergency_contacts' => [
+            [
+                'name' => 'Kontaktperson',
+                'phone' => '+49 30 000000',
+                'email' => 'kontakt@secpal.dev',
+            ],
+        ],
+    ]);
+
+    expect($validUpdateValidator->passes())->toBeTrue();
+});
+
 test('validation messages are in German', function () {
     $request = new StoreEmployeeRequest;
 

@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wrapped onboarding submission approval state updates and completion checks in one transaction, and restricted tax-identifier employee sync to the canonical `tax_identification_number` template key so approval can no longer commit partial state or mutate PII from name-matched custom templates
 - aligned onboarding completion email verification with the invited employee mailbox by syncing the user login email before verification and dispatching the `Verified` event in that path; auth payloads now also expose resolved onboarding workflow state via `Employee::resolveOnboardingWorkflowStatus()`, with regression tests for login, `/v1/me`, and onboarding completion
 
+### Added
+
+- added optional employee `emergency_contacts` support across request validation, persistence (new nullable JSON column on `employees`), and API resource serialization, with targeted regression tests for validation, model casting, resource output, and schema presence
+
 ### Changed
 
 - removed duplicate assertion in `OnboardingControllerTest` consent-field test
