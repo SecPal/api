@@ -220,6 +220,10 @@ final class OnboardingFormDataSchemaValidationService
      */
     private function assertResidencePermitExpiryNotInPast(array $formData): void
     {
+        if ($this->isResidencePermitUnlimited($formData)) {
+            return;
+        }
+
         $rawExpiry = $formData[self::RESIDENCE_PERMIT_EXPIRY_FIELD] ?? null;
         if (! is_string($rawExpiry) || trim($rawExpiry) === '') {
             return;

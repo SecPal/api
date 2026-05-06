@@ -5,11 +5,51 @@
 
 use App\Models\OnboardingFormSubmission;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 return new class extends Migration
 {
+    /**
+     * EEA + Switzerland (frontend parity for work-permit exemption).
+     *
+     * @var list<string>
+     */
+    private const RESIDENCE_TITLE_EXEMPT_COUNTRY_CODES = [
+        'AT',
+        'BE',
+        'BG',
+        'CH',
+        'CY',
+        'CZ',
+        'DE',
+        'DK',
+        'EE',
+        'ES',
+        'FI',
+        'FR',
+        'GR',
+        'HR',
+        'HU',
+        'IE',
+        'IS',
+        'IT',
+        'LI',
+        'LT',
+        'LU',
+        'LV',
+        'MT',
+        'NL',
+        'NO',
+        'PL',
+        'PT',
+        'RO',
+        'SE',
+        'SI',
+        'SK',
+    ];
+
     public function up(): void
     {
         $now = now();
@@ -275,7 +315,6 @@ return new class extends Migration
             ->get()
             ->each(function (OnboardingFormSubmission $submission) use ($nationalityTemplateId): void {
                 $formData = $this->extractNationalityAndResidenceFormData($submission->form_data);
-
                 if ($formData === null) {
                     return;
                 }
@@ -289,15 +328,17 @@ return new class extends Migration
                     return;
                 }
 
+                $submissionState = $this->resolveMigratedSubmissionState($submission, $formData);
+
                 OnboardingFormSubmission::query()->create([
                     'employee_id' => $submission->employee_id,
                     'form_template_id' => $nationalityTemplateId,
                     'form_data' => $formData,
-                    'status' => $submission->status,
-                    'submitted_at' => $submission->submitted_at,
-                    'reviewed_by' => $submission->reviewed_by,
-                    'reviewed_at' => $submission->reviewed_at,
-                    'review_notes' => $submission->review_notes,
+                    'status' => $submissionState['status'],
+                    'submitted_at' => $submissionState['submitted_at'],
+                    'reviewed_by' => $submissionState['reviewed_by'],
+                    'reviewed_at' => $submissionState['reviewed_at'],
+                    'review_notes' => $submissionState['review_notes'],
                     'created_at' => $submission->created_at,
                     'updated_at' => $submission->updated_at,
                 ]);
@@ -340,8 +381,207 @@ return new class extends Migration
             return null;
         }
 
-        return [
+        $formData = [
             'nationalities' => $normalizedNationalities,
         ];
+
+        $residenceTitle = $this->normalizedNonEmptyString($legacyFormData['residence_permit_title'] ?? null);
+        if ($residenceTitle !== null) {
+            $formData['residence_permit_title'] = $residenceTitle;
+        }
+
+        $employmentAllowed = $this->normalizedNonEmptyString($legacyFormData['residence_permit_employment_allowed'] ?? null);
+        if ($employmentAllowed !== null) {
+            $formData['residence_permit_employment_allowed'] = strtolower($employmentAllowed);
+        }
+
+        $residencePermitUnlimited = $this->normalizedBoolean($legacyFormData['residence_permit_unlimited'] ?? null);
+        if ($residencePermitUnlimited !== null) {
+            $formData['residence_permit_unlimited'] = $residencePermitUnlimited;
+        }
+
+        $residencePermitExpiry = $this->normalizedNonEmptyString($legacyFormData['residence_permit_expiry'] ?? null);
+        if ($residencePermitExpiry !== null) {
+            $formData['residence_permit_expiry'] = $residencePermitExpiry;
+        }
+
+        return $formData;
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     * @return array{
+     *     status: string,
+     *     submitted_at: ?Carbon,
+     *     reviewed_by: ?string,
+     *     reviewed_at: ?Carbon,
+     *     review_notes: ?string
+     * }
+     */
+    private function resolveMigratedSubmissionState(OnboardingFormSubmission $submission, array $formData): array
+    {
+        if (! $this->shouldResetMigratedSubmissionStatus($submission->status, $formData)) {
+            return [
+                'status' => $submission->status,
+                'submitted_at' => $submission->submitted_at,
+                'reviewed_by' => $submission->reviewed_by,
+                'reviewed_at' => $submission->reviewed_at,
+                'review_notes' => $submission->review_notes,
+            ];
+        }
+
+        return [
+            'status' => 'draft',
+            'submitted_at' => null,
+            'reviewed_by' => null,
+            'reviewed_at' => null,
+            'review_notes' => null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function shouldResetMigratedSubmissionStatus(string $status, array $formData): bool
+    {
+        if (! in_array($status, ['submitted', 'approved'], true)) {
+            return false;
+        }
+
+        if (! $this->requiresResidencePermitData($formData)) {
+            return false;
+        }
+
+        return ! $this->hasValidResidencePermitData($formData);
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function requiresResidencePermitData(array $formData): bool
+    {
+        $nationalities = $this->normalizedNationalityCodes($formData['nationalities'] ?? null);
+        if ($nationalities === []) {
+            return false;
+        }
+
+        foreach ($nationalities as $code) {
+            if (in_array($code, self::RESIDENCE_TITLE_EXEMPT_COUNTRY_CODES, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function hasValidResidencePermitData(array $formData): bool
+    {
+        $residenceTitle = $this->normalizedNonEmptyString($formData['residence_permit_title'] ?? null);
+        if ($residenceTitle === null) {
+            return false;
+        }
+
+        $employmentAllowed = strtolower(
+            $this->normalizedNonEmptyString($formData['residence_permit_employment_allowed'] ?? null) ?? ''
+        );
+
+        if ($employmentAllowed !== 'yes') {
+            return false;
+        }
+
+        if ($this->isResidencePermitUnlimited($formData)) {
+            return true;
+        }
+
+        $expiryDateString = $this->normalizedNonEmptyString($formData['residence_permit_expiry'] ?? null);
+        if ($expiryDateString === null) {
+            return false;
+        }
+
+        try {
+            $expiryDate = Carbon::createFromFormat('Y-m-d', $expiryDateString);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if ($expiryDate === false || $expiryDate->format('Y-m-d') !== $expiryDateString) {
+            return false;
+        }
+
+        return ! $expiryDate->startOfDay()->lt(now()->startOfDay());
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizedNationalityCodes(mixed $nationalities): array
+    {
+        if (! is_array($nationalities)) {
+            return [];
+        }
+
+        $codes = [];
+
+        foreach ($nationalities as $entry) {
+            if (! is_string($entry) && ! is_int($entry)) {
+                continue;
+            }
+
+            $normalized = strtoupper(trim((string) $entry));
+            if (preg_match('/^[A-Z]{2}$/', $normalized) !== 1) {
+                continue;
+            }
+
+            $codes[] = $normalized;
+        }
+
+        return array_values(array_unique($codes));
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function isResidencePermitUnlimited(array $formData): bool
+    {
+        return $this->normalizedBoolean($formData['residence_permit_unlimited'] ?? null) ?? false;
+    }
+
+    private function normalizedNonEmptyString(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    private function normalizedBoolean(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            return match ($value) {
+                1 => true,
+                0 => false,
+                default => null,
+            };
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        return match (strtolower(trim($value))) {
+            '1', 'true', 'yes' => true,
+            '0', 'false', 'no' => false,
+            default => null,
+        };
     }
 };

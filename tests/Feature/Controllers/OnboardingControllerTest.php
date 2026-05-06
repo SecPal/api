@@ -604,6 +604,60 @@ describe('POST /v1/onboarding/submissions', function () {
             ->assertJsonValidationErrors(['residence_permit_expiry']);
     });
 
+    test('accepts unlimited residence permits even when a stale expiry date is still present', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => [
+                            'type' => 'string',
+                            'pattern' => '^[A-Z]{2}$',
+                        ],
+                        'minItems' => 1,
+                    ],
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_employment_allowed' => [
+                        'type' => 'string',
+                        'enum' => ['yes', 'no'],
+                    ],
+                    'residence_permit_unlimited' => ['type' => 'boolean'],
+                    'residence_permit_expiry' => [
+                        'type' => 'string',
+                        'pattern' => '^\d{4}-\d{2}-\d{2}$',
+                    ],
+                ],
+                'required' => [
+                    'nationalities',
+                    'residence_permit_title',
+                    'residence_permit_employment_allowed',
+                    'residence_permit_unlimited',
+                ],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'nationalities' => ['IN'],
+                    'residence_permit_title' => 'Niederlassungserlaubnis',
+                    'residence_permit_employment_allowed' => 'yes',
+                    'residence_permit_unlimited' => true,
+                    'residence_permit_expiry' => now()->subDay()->toDateString(),
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'submitted');
+    });
+
     test('rejects submitted onboarding data when employment is not permitted for residence title', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
