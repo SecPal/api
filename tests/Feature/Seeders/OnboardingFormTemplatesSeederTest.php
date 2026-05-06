@@ -103,6 +103,11 @@ test('nationality and residence schema has nationality as required field', funct
 
     expect($schema)->toBeArray();
     expect($schema['properties'])->toHaveKey('nationalities');
+    expect($schema['properties'])->toHaveKey('residence_permit_title');
+    expect($schema['properties'])->toHaveKey('residence_permit_employment_allowed');
+    expect($schema['properties'])->toHaveKey('residence_permit_unlimited');
+    expect($schema['properties'])->toHaveKey('residence_permit_expiry');
+    expect($schema['properties']['residence_permit_employment_allowed']['enum'])->toBe(['yes', 'no']);
     expect($schema['required'])->toContain('nationalities');
 });
 

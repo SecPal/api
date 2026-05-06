@@ -637,6 +637,36 @@ describe('POST /v1/onboarding/submissions', function () {
             ->assertJsonValidationErrors(['residence_permit_employment_allowed']);
     });
 
+    test('rejects submitted onboarding data when employment authorization value is invalid', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_employment_allowed' => ['type' => 'string'],
+                ],
+                'required' => ['residence_permit_title', 'residence_permit_employment_allowed'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'residence_permit_title' => 'Aufenthaltserlaubnis',
+                    'residence_permit_employment_allowed' => 'sometimes',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['residence_permit_employment_allowed']);
+    });
+
     test('rejects submitted onboarding data for non-exempt nationality when residence permit fields are missing', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
@@ -1116,6 +1146,41 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             'form_data' => [
                 'residence_permit_title' => 'Aufenthaltserlaubnis',
                 'residence_permit_employment_allowed' => 'no',
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['residence_permit_employment_allowed']);
+    });
+
+    test('rejects patch submit when existing employment authorization value is invalid', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_employment_allowed' => ['type' => 'string'],
+                ],
+                'required' => ['residence_permit_title', 'residence_permit_employment_allowed'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'residence_permit_title' => 'Aufenthaltserlaubnis',
+                'residence_permit_employment_allowed' => 'sometimes',
             ],
             'status' => 'draft',
         ]);

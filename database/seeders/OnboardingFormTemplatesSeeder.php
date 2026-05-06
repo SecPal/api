@@ -154,6 +154,24 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     ],
                     'minItems' => 1,
                 ],
+                'residence_permit_title' => [
+                    'type' => 'string',
+                    'title' => 'Residence Title',
+                ],
+                'residence_permit_employment_allowed' => [
+                    'type' => 'string',
+                    'title' => 'Employment Authorization',
+                    'enum' => ['yes', 'no'],
+                ],
+                'residence_permit_unlimited' => [
+                    'type' => 'boolean',
+                    'title' => 'Residence Title Is Unlimited',
+                ],
+                'residence_permit_expiry' => [
+                    'type' => 'string',
+                    'title' => 'Residence Title Expiry Date',
+                    'pattern' => '^\d{4}-\d{2}-\d{2}$',
+                ],
             ],
             'required' => ['nationalities'],
         ];

@@ -255,14 +255,25 @@ final class OnboardingFormDataSchemaValidationService
             return;
         }
 
-        $rawEmploymentAllowed = $formData[self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD] ?? null;
-        if (! is_string($rawEmploymentAllowed) || trim($rawEmploymentAllowed) === '') {
+        $employmentAllowed = $this->normalizedNonEmptyString(
+            $formData[self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD] ?? null
+        );
+
+        if ($employmentAllowed === null) {
             throw ValidationException::withMessages([
                 self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD => [__('The employment authorization decision is required.')],
             ]);
         }
 
-        if (strtolower(trim($rawEmploymentAllowed)) === 'no') {
+        $employmentAllowed = strtolower($employmentAllowed);
+
+        if (! in_array($employmentAllowed, ['yes', 'no'], true)) {
+            throw ValidationException::withMessages([
+                self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD => [__('The employment authorization decision must be either yes or no.')],
+            ]);
+        }
+
+        if ($employmentAllowed === 'no') {
             throw ValidationException::withMessages([
                 self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD => [__('A valid residence title without employment authorization cannot be accepted. Please contact HR.')],
             ]);

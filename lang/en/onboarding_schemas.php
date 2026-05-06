@@ -47,6 +47,16 @@ return [
             ],
             'fields' => [
                 'nationalities' => ['title' => 'Nationalities'],
+                'residence_permit_title' => ['title' => 'Residence Title'],
+                'residence_permit_employment_allowed' => [
+                    'title' => 'Employment Authorization',
+                    'enum' => [
+                        'yes' => 'Yes',
+                        'no' => 'No',
+                    ],
+                ],
+                'residence_permit_unlimited' => ['title' => 'Residence Title Is Unlimited'],
+                'residence_permit_expiry' => ['title' => 'Residence Title Expiry Date'],
             ],
         ],
         'bank_account_details' => [

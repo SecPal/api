@@ -47,6 +47,16 @@ return [
             ],
             'fields' => [
                 'nationalities' => ['title' => 'Staatsangehörigkeiten'],
+                'residence_permit_title' => ['title' => 'Aufenthaltstitel'],
+                'residence_permit_employment_allowed' => [
+                    'title' => 'Erwerbstätigkeit erlaubt',
+                    'enum' => [
+                        'yes' => 'Ja',
+                        'no' => 'Nein',
+                    ],
+                ],
+                'residence_permit_unlimited' => ['title' => 'Aufenthaltstitel unbefristet'],
+                'residence_permit_expiry' => ['title' => 'Ablaufdatum des Aufenthaltstitels'],
             ],
         ],
         'bank_account_details' => [
