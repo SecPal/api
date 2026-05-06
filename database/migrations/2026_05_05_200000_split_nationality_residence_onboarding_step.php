@@ -210,6 +210,8 @@ return new class extends Migration
                 'sort_order' => 5,
                 'updated_at' => $now,
             ]);
+
+        $this->syncEmployeeOnboardingStepsForSplitStep($now);
     }
 
     public function down(): void
@@ -323,6 +325,145 @@ return new class extends Migration
                 'sort_order' => 4,
                 'updated_at' => $now,
             ]);
+
+        $this->syncEmployeeOnboardingStepsForMergedStep($now);
+    }
+
+    private function syncEmployeeOnboardingStepsForSplitStep(Carbon $now): void
+    {
+        Employee::query()
+            ->whereNotNull('onboarding_steps')
+            ->select(['id', 'onboarding_steps'])
+            ->orderBy('id')
+            ->get()
+            ->each(function (Employee $employee) use ($now): void {
+                $updatedOnboardingSteps = $this->addNationalityAndResidenceOnboardingStep($employee->onboarding_steps);
+
+                if ($updatedOnboardingSteps === $employee->onboarding_steps) {
+                    return;
+                }
+
+                DB::table('employees')
+                    ->where('id', $employee->id)
+                    ->update([
+                        'onboarding_steps' => json_encode($updatedOnboardingSteps, JSON_THROW_ON_ERROR),
+                        'updated_at' => $now,
+                    ]);
+            });
+    }
+
+    private function syncEmployeeOnboardingStepsForMergedStep(Carbon $now): void
+    {
+        Employee::query()
+            ->whereNotNull('onboarding_steps')
+            ->select(['id', 'onboarding_steps'])
+            ->orderBy('id')
+            ->get()
+            ->each(function (Employee $employee) use ($now): void {
+                $updatedOnboardingSteps = $this->removeNationalityAndResidenceOnboardingStep($employee->onboarding_steps);
+
+                if ($updatedOnboardingSteps === $employee->onboarding_steps) {
+                    return;
+                }
+
+                DB::table('employees')
+                    ->where('id', $employee->id)
+                    ->update([
+                        'onboarding_steps' => json_encode($updatedOnboardingSteps, JSON_THROW_ON_ERROR),
+                        'updated_at' => $now,
+                    ]);
+            });
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $onboardingSteps
+     * @return array<string, mixed>|null
+     */
+    private function addNationalityAndResidenceOnboardingStep(?array $onboardingSteps): ?array
+    {
+        if (! is_array($onboardingSteps)) {
+            return $onboardingSteps;
+        }
+
+        $steps = $onboardingSteps['steps'] ?? null;
+
+        if (! is_array($steps)) {
+            return $onboardingSteps;
+        }
+
+        $nationalityStep = [
+            'id' => 'nationality_and_residence',
+            'name' => 'Staatsangehörigkeit und Aufenthalt',
+            'completed' => false,
+            'completed_at' => null,
+            'form_submission_id' => null,
+        ];
+
+        $updatedSteps = [];
+        $hasNationalityStep = false;
+
+        foreach ($steps as $step) {
+            if (! is_array($step)) {
+                $updatedSteps[] = $step;
+
+                continue;
+            }
+
+            if (($step['id'] ?? null) === 'nationality_and_residence') {
+                $updatedSteps[] = array_merge($step, [
+                    'id' => 'nationality_and_residence',
+                    'name' => 'Staatsangehörigkeit und Aufenthalt',
+                ]);
+                $hasNationalityStep = true;
+
+                continue;
+            }
+
+            $updatedSteps[] = $step;
+
+            if (($step['id'] ?? null) === 'personal_data') {
+                $updatedSteps[] = $nationalityStep;
+                $hasNationalityStep = true;
+            }
+        }
+
+        if (! $hasNationalityStep) {
+            $updatedSteps[] = $nationalityStep;
+        }
+
+        return array_merge($onboardingSteps, [
+            'steps' => $updatedSteps,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $onboardingSteps
+     * @return array<string, mixed>|null
+     */
+    private function removeNationalityAndResidenceOnboardingStep(?array $onboardingSteps): ?array
+    {
+        if (! is_array($onboardingSteps)) {
+            return $onboardingSteps;
+        }
+
+        $steps = $onboardingSteps['steps'] ?? null;
+
+        if (! is_array($steps)) {
+            return $onboardingSteps;
+        }
+
+        $updatedSteps = array_values(array_filter(
+            $steps,
+            fn (mixed $step): bool => ! is_array($step) || (($step['id'] ?? null) !== 'nationality_and_residence')
+        ));
+
+        if ($updatedSteps === $steps) {
+            return $onboardingSteps;
+        }
+
+        return array_merge($onboardingSteps, [
+            'steps' => $updatedSteps,
+        ]);
     }
 
     private function migrateLegacyNationalitySubmissions(string $personalInformationTemplateId, string $nationalityTemplateId): void

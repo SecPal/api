@@ -176,6 +176,88 @@ test('migration resets employee workflow to in progress when a migrated submissi
         ->and($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW))->toBeTrue();
 });
 
+test('migration inserts nationality and residence into existing onboarding steps', function (): void {
+    $completedAt = now()->subHour()->toIso8601String();
+
+    $employee = Employee::factory()->preContract()->create([
+        'onboarding_steps' => [
+            'steps' => [
+                [
+                    'id' => 'personal_data',
+                    'name' => 'Persönliche Daten',
+                    'completed' => true,
+                    'completed_at' => $completedAt,
+                    'form_submission_id' => 'legacy-personal-submission',
+                ],
+                [
+                    'id' => 'bank_details',
+                    'name' => 'Bankverbindung',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+                [
+                    'id' => 'tax_info',
+                    'name' => 'Steuerinformationen',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+                [
+                    'id' => 'qualifications',
+                    'name' => 'Qualifikationen & Zertifikate',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+                [
+                    'id' => 'documents',
+                    'name' => 'Dokumente hochladen',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+                [
+                    'id' => 'confirmation',
+                    'name' => 'Bestätigung & Abschluss',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+            ],
+        ],
+    ]);
+
+    $migration = loadSplitNationalityResidenceMigration();
+    $migration->up();
+
+    $employee->refresh();
+
+    expect(array_column($employee->onboarding_steps['steps'], 'id'))->toBe([
+        'personal_data',
+        'nationality_and_residence',
+        'bank_details',
+        'tax_info',
+        'qualifications',
+        'documents',
+        'confirmation',
+    ])
+        ->and($employee->onboarding_steps['steps'][0])->toBe([
+            'id' => 'personal_data',
+            'name' => 'Persönliche Daten',
+            'completed' => true,
+            'completed_at' => $completedAt,
+            'form_submission_id' => 'legacy-personal-submission',
+        ])
+        ->and($employee->onboarding_steps['steps'][1])->toBe([
+            'id' => 'nationality_and_residence',
+            'name' => 'Staatsangehörigkeit und Aufenthalt',
+            'completed' => false,
+            'completed_at' => null,
+            'form_submission_id' => null,
+        ]);
+});
+
 test('migration does not reopen active employees when migrated residence data is incomplete', function (): void {
     $personalInformationTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
         'template_key' => 'personal_information_form',

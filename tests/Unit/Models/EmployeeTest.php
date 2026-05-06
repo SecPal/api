@@ -264,7 +264,15 @@ test('get default onboarding steps returns consistent structure with completed a
     expect($steps)->toBeArray();
     expect($steps)->toHaveKey('steps');
     expect($steps['steps'])->toBeArray();
-    expect(count($steps['steps']))->toBeGreaterThan(0);
+    expect(array_column($steps['steps'], 'id'))->toBe([
+        'personal_data',
+        'nationality_and_residence',
+        'bank_details',
+        'tax_info',
+        'qualifications',
+        'documents',
+        'confirmation',
+    ]);
 
     foreach ($steps['steps'] as $step) {
         expect($step)->toHaveKey('id');
