@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\OnboardingFormSubmission;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -93,6 +94,11 @@ return new class extends Migration
             'required' => ['nationalities'],
         ];
 
+        $personalInformationTemplate = DB::table('onboarding_form_templates')
+            ->whereNull('tenant_id')
+            ->where('template_key', 'personal_information_form')
+            ->first(['id']);
+
         DB::table('onboarding_form_templates')
             ->whereNull('tenant_id')
             ->where('template_key', 'personal_information_form')
@@ -119,17 +125,25 @@ return new class extends Migration
             'updated_at' => $now,
         ];
 
+        $nationalityTemplateId = $existingNationalityTemplate?->id;
+
         if ($existingNationalityTemplate) {
             DB::table('onboarding_form_templates')
                 ->where('id', $existingNationalityTemplate->id)
                 ->update($nationalityTemplatePayload);
         } else {
+            $nationalityTemplateId = (string) Str::uuid();
+
             DB::table('onboarding_form_templates')->insert(array_merge($nationalityTemplatePayload, [
-                'id' => (string) Str::uuid(),
+                'id' => $nationalityTemplateId,
                 'tenant_id' => null,
                 'template_key' => 'nationality_and_residence',
                 'created_at' => $now,
             ]));
+        }
+
+        if ($personalInformationTemplate !== null && is_string($nationalityTemplateId)) {
+            $this->migrateLegacyNationalitySubmissions((string) $personalInformationTemplate->id, $nationalityTemplateId);
         }
 
         DB::table('onboarding_form_templates')
@@ -251,5 +265,83 @@ return new class extends Migration
                 'sort_order' => 4,
                 'updated_at' => $now,
             ]);
+    }
+
+    private function migrateLegacyNationalitySubmissions(string $personalInformationTemplateId, string $nationalityTemplateId): void
+    {
+        OnboardingFormSubmission::query()
+            ->where('form_template_id', $personalInformationTemplateId)
+            ->orderBy('id')
+            ->get()
+            ->each(function (OnboardingFormSubmission $submission) use ($nationalityTemplateId): void {
+                $formData = $this->extractNationalityAndResidenceFormData($submission->form_data);
+
+                if ($formData === null) {
+                    return;
+                }
+
+                $alreadyMigrated = OnboardingFormSubmission::query()
+                    ->where('employee_id', $submission->employee_id)
+                    ->where('form_template_id', $nationalityTemplateId)
+                    ->exists();
+
+                if ($alreadyMigrated) {
+                    return;
+                }
+
+                OnboardingFormSubmission::query()->create([
+                    'employee_id' => $submission->employee_id,
+                    'form_template_id' => $nationalityTemplateId,
+                    'form_data' => $formData,
+                    'status' => $submission->status,
+                    'submitted_at' => $submission->submitted_at,
+                    'reviewed_by' => $submission->reviewed_by,
+                    'reviewed_at' => $submission->reviewed_at,
+                    'review_notes' => $submission->review_notes,
+                    'created_at' => $submission->created_at,
+                    'updated_at' => $submission->updated_at,
+                ]);
+            });
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $legacyFormData
+     * @return array<string, mixed>|null
+     */
+    private function extractNationalityAndResidenceFormData(?array $legacyFormData): ?array
+    {
+        if (! is_array($legacyFormData)) {
+            return null;
+        }
+
+        $nationalities = $legacyFormData['nationalities'] ?? null;
+        if (! is_array($nationalities)) {
+            return null;
+        }
+
+        $normalizedNationalities = [];
+
+        foreach ($nationalities as $nationality) {
+            if (! is_string($nationality) && ! is_int($nationality)) {
+                continue;
+            }
+
+            $normalizedNationality = strtoupper(trim((string) $nationality));
+            if (preg_match('/^[A-Z]{2}$/', $normalizedNationality) !== 1) {
+                continue;
+            }
+
+            $normalizedNationalities[] = $normalizedNationality;
+        }
+
+        $normalizedNationalities = array_values(array_unique($normalizedNationalities));
+
+        if ($normalizedNationalities === []) {
+            return null;
+        }
+
+        return [
+            'nationalities' => $normalizedNationalities,
+        ];
     }
 };
