@@ -182,8 +182,8 @@ return new class extends Migration
             ]));
         }
 
-        if ($personalInformationTemplate !== null && is_string($nationalityTemplateId)) {
-            $this->migrateLegacyNationalitySubmissions((string) $personalInformationTemplate->id, $nationalityTemplateId);
+        if ($personalInformationTemplate !== null && is_string($personalInformationTemplate->id) && is_string($nationalityTemplateId)) {
+            $this->migrateLegacyNationalitySubmissions($personalInformationTemplate->id, $nationalityTemplateId);
         }
 
         DB::table('onboarding_form_templates')
@@ -503,11 +503,15 @@ return new class extends Migration
 
         try {
             $expiryDate = Carbon::createFromFormat('Y-m-d', $expiryDateString);
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return false;
         }
 
-        if ($expiryDate === false || $expiryDate->format('Y-m-d') !== $expiryDateString) {
+        if (! $expiryDate instanceof Carbon) {
+            return false;
+        }
+
+        if ($expiryDate->format('Y-m-d') !== $expiryDateString) {
             return false;
         }
 
