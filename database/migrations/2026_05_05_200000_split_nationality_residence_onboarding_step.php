@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Carbon;
@@ -436,6 +437,7 @@ return new class extends Migration
                 ->update([
                     'onboarding_completed' => false,
                     'onboarding_completed_at' => null,
+                    'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_IN_PROGRESS,
                     'updated_at' => now(),
                 ]);
         }

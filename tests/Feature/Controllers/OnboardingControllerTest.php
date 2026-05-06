@@ -1213,6 +1213,58 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             ->assertJsonValidationErrors(['residence_permit_employment_allowed']);
     });
 
+    test('accepts patch submit for exempt nationalities even when stale residence permit fields remain', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => [
+                            'type' => 'string',
+                            'pattern' => '^[A-Z]{2}$',
+                        ],
+                        'minItems' => 1,
+                    ],
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_employment_allowed' => [
+                        'type' => 'string',
+                        'enum' => ['yes', 'no'],
+                    ],
+                    'residence_permit_expiry' => [
+                        'type' => 'string',
+                        'pattern' => '^\d{4}-\d{2}-\d{2}$',
+                    ],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'nationalities' => ['DE'],
+                'residence_permit_title' => 'Aufenthaltserlaubnis',
+                'residence_permit_employment_allowed' => 'no',
+                'residence_permit_expiry' => now()->subDay()->toDateString(),
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'status' => 'submitted',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'submitted');
+    });
+
     test('rejects patch submit when existing employment authorization value is invalid', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 

@@ -145,3 +145,33 @@ test('migration resets completed legacy submissions with mixed nationalities whe
         ->and($migratedSubmission->reviewed_at)->toBeNull()
         ->and($migratedSubmission->review_notes)->toBeNull();
 });
+
+test('migration resets employee workflow to in progress when a migrated submission must go back to draft', function (): void {
+    $personalInformationTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
+        'template_key' => 'personal_information_form',
+    ]);
+
+    $employee = Employee::factory()->preContract()->create([
+        'onboarding_completed' => true,
+        'onboarding_completed_at' => now(),
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+    ]);
+
+    OnboardingFormSubmission::factory()->approved()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => $personalInformationTemplate->id,
+        'form_data' => [
+            'nationalities' => ['IN'],
+        ],
+    ]);
+
+    $migration = loadSplitNationalityResidenceMigration();
+    $migration->up();
+
+    $employee->refresh();
+
+    expect($employee->onboarding_completed)->toBeFalse()
+        ->and($employee->onboarding_completed_at)->toBeNull()
+        ->and($employee->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_IN_PROGRESS)
+        ->and($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW))->toBeTrue();
+});

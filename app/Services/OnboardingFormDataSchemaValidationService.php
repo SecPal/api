@@ -106,6 +106,10 @@ final class OnboardingFormDataSchemaValidationService
         }
 
         $this->assertResidencePermitRequirementsForNationalities($formData);
+        if (! $this->requiresResidenceTitleQuestion($formData)) {
+            return;
+        }
+
         $this->assertResidencePermitExpiryNotInPast($formData);
         $this->assertResidencePermitEmploymentAllowed($formData);
     }
