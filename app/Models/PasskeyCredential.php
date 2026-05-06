@@ -12,8 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use ParagonIE\ConstantTime\Base64UrlSafe;
 use Symfony\Component\Uid\Uuid;
+use Webauthn\CredentialRecord;
 use Webauthn\PublicKeyCredentialDescriptor;
-use Webauthn\PublicKeyCredentialSource;
 use Webauthn\TrustPath\EmptyTrustPath;
 
 /**
@@ -85,9 +85,9 @@ class PasskeyCredential extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function toPublicKeyCredentialSource(): PublicKeyCredentialSource
+    public function toPublicKeyCredentialSource(): CredentialRecord
     {
-        return PublicKeyCredentialSource::create(
+        return CredentialRecord::create(
             Base64UrlSafe::decodeNoPadding($this->credential_id),
             PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
             is_array($this->transports) ? $this->transports : [],
