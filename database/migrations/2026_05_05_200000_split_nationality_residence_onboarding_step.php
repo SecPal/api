@@ -476,12 +476,12 @@ return new class extends Migration
         }
 
         foreach ($nationalities as $code) {
-            if (in_array($code, self::RESIDENCE_TITLE_EXEMPT_COUNTRY_CODES, true)) {
-                return false;
+            if (! in_array($code, self::RESIDENCE_TITLE_EXEMPT_COUNTRY_CODES, true)) {
+                return true;
             }
         }
 
-        return true;
+        return false;
     }
 
     /**

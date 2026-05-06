@@ -108,3 +108,40 @@ test('migration resets completed legacy submissions when required residence data
         ->and($migratedSubmission->reviewed_at)->toBeNull()
         ->and($migratedSubmission->review_notes)->toBeNull();
 });
+
+test('migration resets completed legacy submissions with mixed nationalities when residence data is missing', function (): void {
+    $personalInformationTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
+        'template_key' => 'personal_information_form',
+    ]);
+
+    $employee = Employee::factory()->preContract()->create();
+
+    OnboardingFormSubmission::factory()->approved()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => $personalInformationTemplate->id,
+        'form_data' => [
+            'nationalities' => ['DE', 'IN'],
+        ],
+    ]);
+
+    $migration = loadSplitNationalityResidenceMigration();
+    $migration->up();
+
+    $nationalityTemplate = OnboardingFormTemplate::query()
+        ->where('template_key', 'nationality_and_residence')
+        ->firstOrFail();
+
+    $migratedSubmission = OnboardingFormSubmission::query()
+        ->where('employee_id', $employee->id)
+        ->where('form_template_id', $nationalityTemplate->id)
+        ->firstOrFail();
+
+    expect($migratedSubmission->form_data)->toBe([
+        'nationalities' => ['DE', 'IN'],
+    ])
+        ->and($migratedSubmission->status)->toBe('draft')
+        ->and($migratedSubmission->submitted_at)->toBeNull()
+        ->and($migratedSubmission->reviewed_by)->toBeNull()
+        ->and($migratedSubmission->reviewed_at)->toBeNull()
+        ->and($migratedSubmission->review_notes)->toBeNull();
+});
