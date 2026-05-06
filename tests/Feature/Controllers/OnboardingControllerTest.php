@@ -738,6 +738,16 @@ describe('POST /v1/onboarding/submissions', function () {
                         ],
                         'minItems' => 1,
                     ],
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_employment_allowed' => [
+                        'type' => 'string',
+                        'enum' => ['yes', 'no'],
+                    ],
+                    'residence_permit_unlimited' => ['type' => 'boolean'],
+                    'residence_permit_expiry' => [
+                        'type' => 'string',
+                        'pattern' => '^\d{4}-\d{2}-\d{2}$',
+                    ],
                 ],
                 'required' => ['nationalities'],
             ],
@@ -754,6 +764,38 @@ describe('POST /v1/onboarding/submissions', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['residence_permit_title']);
+    });
+
+    test('does not require residence permit fields on templates that only keep copied nationalities', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'gender' => [
+                        'type' => 'string',
+                        'enum' => ['male', 'female', 'diverse'],
+                    ],
+                ],
+                'required' => ['gender'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'gender' => 'male',
+                    'nationalities' => ['IN'],
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'submitted');
     });
 
     test('allows draft saves even when data would fail JSON schema on submit', function (): void {

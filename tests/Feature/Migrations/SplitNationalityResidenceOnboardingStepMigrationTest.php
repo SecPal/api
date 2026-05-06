@@ -175,3 +175,64 @@ test('migration resets employee workflow to in progress when a migrated submissi
         ->and($employee->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_IN_PROGRESS)
         ->and($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW))->toBeTrue();
 });
+
+test('migration rollback merges nationality and residence submissions back into personal information', function (): void {
+    $personalInformationTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
+        'template_key' => 'personal_information_form',
+    ]);
+
+    $nationalityTemplate = OnboardingFormTemplate::query()
+        ->whereNull('tenant_id')
+        ->where('template_key', 'nationality_and_residence')
+        ->first()
+        ?? OnboardingFormTemplate::factory()->systemTemplate()->create([
+            'template_key' => 'nationality_and_residence',
+        ]);
+
+    $employee = Employee::factory()->preContract()->create();
+    $expiryDate = now()->addMonth()->toDateString();
+
+    OnboardingFormSubmission::factory()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => $personalInformationTemplate->id,
+        'form_data' => [
+            'gender' => 'male',
+        ],
+        'status' => 'draft',
+    ]);
+
+    OnboardingFormSubmission::factory()->submitted()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => $nationalityTemplate->id,
+        'form_data' => [
+            'nationalities' => ['IN'],
+            'residence_permit_title' => 'Aufenthaltserlaubnis',
+            'residence_permit_employment_allowed' => 'yes',
+            'residence_permit_unlimited' => false,
+            'residence_permit_expiry' => $expiryDate,
+        ],
+    ]);
+
+    $migration = loadSplitNationalityResidenceMigration();
+    $migration->down();
+
+    $mergedSubmission = OnboardingFormSubmission::query()
+        ->where('employee_id', $employee->id)
+        ->where('form_template_id', $personalInformationTemplate->id)
+        ->firstOrFail();
+
+    expect($mergedSubmission->form_data)->toBe([
+        'gender' => 'male',
+        'nationalities' => ['IN'],
+        'residence_permit_title' => 'Aufenthaltserlaubnis',
+        'residence_permit_employment_allowed' => 'yes',
+        'residence_permit_unlimited' => false,
+        'residence_permit_expiry' => $expiryDate,
+    ])
+        ->and(OnboardingFormTemplate::query()
+            ->where('template_key', 'nationality_and_residence')
+            ->exists())->toBeFalse()
+        ->and(OnboardingFormSubmission::query()
+            ->where('employee_id', $employee->id)
+            ->count())->toBe(1);
+});

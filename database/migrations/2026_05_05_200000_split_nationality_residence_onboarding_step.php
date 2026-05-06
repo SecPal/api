@@ -216,6 +216,16 @@ return new class extends Migration
     {
         $now = now();
 
+        $personalInformationTemplate = DB::table('onboarding_form_templates')
+            ->whereNull('tenant_id')
+            ->where('template_key', 'personal_information_form')
+            ->first(['id']);
+
+        $nationalityTemplate = DB::table('onboarding_form_templates')
+            ->whereNull('tenant_id')
+            ->where('template_key', 'nationality_and_residence')
+            ->first(['id']);
+
         $legacyPersonalInformationSchema = [
             'title' => 'Personal Information Form',
             'description' => 'Information required for onboarding; planned activities under §34a GewO can be completed later by HR for Bewacherregister export.',
@@ -277,6 +287,13 @@ return new class extends Migration
                 'sort_order' => 1,
                 'updated_at' => $now,
             ]);
+
+        if (is_string($personalInformationTemplate?->id) && is_string($nationalityTemplate?->id)) {
+            $this->mergeNationalitySubmissionsBackIntoPersonalInformation(
+                $personalInformationTemplate->id,
+                $nationalityTemplate->id,
+            );
+        }
 
         DB::table('onboarding_form_templates')
             ->whereNull('tenant_id')
@@ -340,6 +357,52 @@ return new class extends Migration
                     'reviewed_by' => $submissionState['reviewed_by'],
                     'reviewed_at' => $submissionState['reviewed_at'],
                     'review_notes' => $submissionState['review_notes'],
+                    'created_at' => $submission->created_at,
+                    'updated_at' => $submission->updated_at,
+                ]);
+            });
+    }
+
+    private function mergeNationalitySubmissionsBackIntoPersonalInformation(
+        string $personalInformationTemplateId,
+        string $nationalityTemplateId,
+    ): void {
+        OnboardingFormSubmission::query()
+            ->where('form_template_id', $nationalityTemplateId)
+            ->orderBy('id')
+            ->get()
+            ->each(function (OnboardingFormSubmission $submission) use ($personalInformationTemplateId): void {
+                $formData = $this->extractNationalityAndResidenceFormData($submission->form_data);
+                if ($formData === null) {
+                    return;
+                }
+
+                $personalInformationSubmission = OnboardingFormSubmission::query()
+                    ->where('employee_id', $submission->employee_id)
+                    ->where('form_template_id', $personalInformationTemplateId)
+                    ->first();
+
+                if ($personalInformationSubmission !== null) {
+                    $existingFormData = is_array($personalInformationSubmission->form_data)
+                        ? $personalInformationSubmission->form_data
+                        : [];
+
+                    $personalInformationSubmission->forceFill([
+                        'form_data' => array_merge($existingFormData, $formData),
+                    ])->save();
+
+                    return;
+                }
+
+                OnboardingFormSubmission::query()->create([
+                    'employee_id' => $submission->employee_id,
+                    'form_template_id' => $personalInformationTemplateId,
+                    'form_data' => $formData,
+                    'status' => $submission->status,
+                    'submitted_at' => $submission->submitted_at,
+                    'reviewed_by' => $submission->reviewed_by,
+                    'reviewed_at' => $submission->reviewed_at,
+                    'review_notes' => $submission->review_notes,
                     'created_at' => $submission->created_at,
                     'updated_at' => $submission->updated_at,
                 ]);

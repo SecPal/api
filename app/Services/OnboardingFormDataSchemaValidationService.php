@@ -105,9 +105,16 @@ final class OnboardingFormDataSchemaValidationService
             ]);
         }
 
-        $this->assertResidencePermitRequirementsForNationalities($formData);
-        if (! $this->requiresResidenceTitleQuestion($formData)) {
+        if (! $this->schemaDefinesResidencePermitFields($schema)) {
             return;
+        }
+
+        if ($this->schemaDefinesField($schema, 'nationalities')) {
+            $this->assertResidencePermitRequirementsForNationalities($formData);
+
+            if (! $this->requiresResidenceTitleQuestion($formData)) {
+                return;
+            }
         }
 
         $this->assertResidencePermitExpiryNotInPast($formData);
@@ -367,6 +374,35 @@ final class OnboardingFormDataSchemaValidationService
         }
 
         return array_values(array_unique($codes));
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     */
+    private function schemaDefinesResidencePermitFields(array $schema): bool
+    {
+        foreach ([
+            self::RESIDENCE_PERMIT_TITLE_FIELD,
+            self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD,
+            self::RESIDENCE_PERMIT_UNLIMITED_FIELD,
+            self::RESIDENCE_PERMIT_EXPIRY_FIELD,
+        ] as $field) {
+            if ($this->schemaDefinesField($schema, $field)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     */
+    private function schemaDefinesField(array $schema, string $field): bool
+    {
+        $properties = $schema['properties'] ?? null;
+
+        return is_array($properties) && array_key_exists($field, $properties);
     }
 
     /**
