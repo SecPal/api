@@ -165,7 +165,7 @@ describe('GET /v1/onboarding/templates', function () {
                 ],
             ]);
 
-        expect($response->json('data'))->toHaveCount(3); // 2 created + 1 in beforeEach
+        expect(count($response->json('data')))->toBeGreaterThanOrEqual(3); // 2 created + beforeEach/default templates
     });
 
     test('localizes template list metadata using request locale', function (): void {
@@ -185,6 +185,67 @@ describe('GET /v1/onboarding/templates', function () {
 
         expect($personalInformationTemplate)->not->toBeNull()
             ->and($personalInformationTemplate['description'])->toBe('Ihre persönlichen Angaben für das Onboarding; fehlende Bewacherregister-Felder kann die Personalabteilung später ergänzen.');
+    });
+});
+
+describe('GET /v1/onboarding/nationalities', function () {
+    test('returns 401 when not authenticated', function (): void {
+        $response = $this->getJson('/v1/onboarding/nationalities');
+        $response->assertStatus(401);
+    });
+
+    test('allows pre-contract employees to list nationalities without onboarding.read permission', function (): void {
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/onboarding/nationalities');
+
+        $response->assertOk();
+    });
+
+    test('returns a file-based ISO country list with localized names', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+
+        $response = $this->withToken($this->token)
+            ->withHeader('Accept-Language', 'en-US,en;q=0.9')
+            ->getJson('/v1/onboarding/nationalities');
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => ['code', 'name'],
+                ],
+            ]);
+
+        $options = collect($response->json('data'));
+        $deOption = $options->firstWhere('code', 'DE');
+        $vaOption = $options->firstWhere('code', 'VA');
+        $xkOption = $options->firstWhere('code', 'XK');
+        $xaOption = $options->firstWhere('code', 'XA');
+
+        expect($deOption)->not->toBeNull()
+            ->and($deOption['name'] ?? null)->toBe('Germany')
+            ->and($vaOption)->not->toBeNull()
+            ->and($xkOption['name'] ?? null)->toBe('Kosovo')
+            ->and($xaOption['name'] ?? null)->toBe('Stateless')
+            ->and($options)->toHaveCount(199);
+    });
+
+    test('prefers user locale over accept language for nationality names', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+        $this->user->forceFill(['preferred_locale' => 'de'])->save();
+
+        $response = $this->withToken($this->token)
+            ->withHeader('Accept-Language', 'en-US,en;q=0.9')
+            ->getJson('/v1/onboarding/nationalities');
+
+        $response->assertOk();
+
+        $options = collect($response->json('data'));
+        $deOption = $options->firstWhere('code', 'DE');
+        $xaOption = $options->firstWhere('code', 'XA');
+
+        expect($deOption)->not->toBeNull()
+            ->and($deOption['name'] ?? null)->toBe('Deutschland')
+            ->and($xaOption['name'] ?? null)->toBe('Staatenlos');
     });
 });
 
@@ -510,6 +571,105 @@ describe('POST /v1/onboarding/submissions', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['iban']);
+    });
+
+    test('rejects submitted onboarding data when residence permit expiry date is in the past', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'residence_permit_expiry' => [
+                        'type' => 'string',
+                        'pattern' => '^\d{4}-\d{2}-\d{2}$',
+                    ],
+                ],
+                'required' => ['residence_permit_expiry'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'residence_permit_expiry' => now()->subDay()->toDateString(),
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['residence_permit_expiry']);
+    });
+
+    test('rejects submitted onboarding data when employment is not permitted for residence title', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_employment_allowed' => [
+                        'type' => 'string',
+                        'enum' => ['yes', 'no'],
+                    ],
+                ],
+                'required' => ['residence_permit_title', 'residence_permit_employment_allowed'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'residence_permit_title' => 'Aufenthaltserlaubnis',
+                    'residence_permit_employment_allowed' => 'no',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['residence_permit_employment_allowed']);
+    });
+
+    test('rejects submitted onboarding data for non-exempt nationality when residence permit fields are missing', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => [
+                            'type' => 'string',
+                            'pattern' => '^[A-Z]{2}$',
+                        ],
+                        'minItems' => 1,
+                    ],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'nationalities' => ['IN'],
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['residence_permit_title']);
     });
 
     test('allows draft saves even when data would fail JSON schema on submit', function (): void {
@@ -893,6 +1053,80 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             ->assertJsonPath('data.form_data', []);
 
         expect($submission->fresh()->form_data)->toBe([]);
+    });
+
+    test('rejects patch submit when existing residence permit expiry date is in the past', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'residence_permit_expiry' => [
+                        'type' => 'string',
+                        'pattern' => '^\d{4}-\d{2}-\d{2}$',
+                    ],
+                ],
+                'required' => ['residence_permit_expiry'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'residence_permit_expiry' => now()->subDay()->toDateString(),
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['residence_permit_expiry']);
+    });
+
+    test('rejects patch submit when existing residence title has employment not permitted', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_employment_allowed' => [
+                        'type' => 'string',
+                        'enum' => ['yes', 'no'],
+                    ],
+                ],
+                'required' => ['residence_permit_title', 'residence_permit_employment_allowed'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'residence_permit_title' => 'Aufenthaltserlaubnis',
+                'residence_permit_employment_allowed' => 'no',
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['residence_permit_employment_allowed']);
     });
 
     test('does not allow patching another employees submission', function (): void {

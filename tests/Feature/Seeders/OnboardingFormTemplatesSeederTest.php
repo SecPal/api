@@ -16,24 +16,24 @@ beforeEach(function () {
     OnboardingFormTemplate::query()->forceDelete();
 });
 
-test('seeder creates exactly 4 standard templates', function () {
+test('seeder creates exactly 5 standard templates', function () {
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
 
-    expect(OnboardingFormTemplate::count())->toBe(4);
+    expect(OnboardingFormTemplate::count())->toBe(5);
 });
 
 test('all templates are system templates', function () {
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
 
     $systemTemplates = OnboardingFormTemplate::where('is_system_template', true)->count();
-    expect($systemTemplates)->toBe(4);
+    expect($systemTemplates)->toBe(5);
 });
 
 test('all templates have null tenant_id (system-wide)', function () {
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
 
     $systemWideTemplates = OnboardingFormTemplate::whereNull('tenant_id')->count();
-    expect($systemWideTemplates)->toBe(4);
+    expect($systemWideTemplates)->toBe(5);
 });
 
 test('personal information form is required', function () {
@@ -57,15 +57,17 @@ test('templates have correct sort order', function () {
 
     $templates = OnboardingFormTemplate::orderBy('sort_order')->get();
 
-    expect($templates)->toHaveCount(4);
+    expect($templates)->toHaveCount(5);
     expect($templates[0]->name)->toBe('Personal Information Form');
     expect($templates[0]->sort_order)->toBe(1);
-    expect($templates[1]->name)->toBe('Bank Account Details');
+    expect($templates[1]->name)->toBe('Nationality and Residence');
     expect($templates[1]->sort_order)->toBe(2);
-    expect($templates[2]->name)->toBe('Emergency Contact');
+    expect($templates[2]->name)->toBe('Bank Account Details');
     expect($templates[2]->sort_order)->toBe(3);
-    expect($templates[3]->name)->toBe('Tax Identification Number');
+    expect($templates[3]->name)->toBe('Emergency Contact');
     expect($templates[3]->sort_order)->toBe(4);
+    expect($templates[4]->name)->toBe('Tax Identification Number');
+    expect($templates[4]->sort_order)->toBe(5);
 });
 
 test('personal information schema has correct structure', function () {
@@ -82,7 +84,6 @@ test('personal information schema has correct structure', function () {
 
     // Check required fields
     expect($schema['properties'])->toHaveKey('gender');
-    expect($schema['properties'])->toHaveKey('nationalities');
     expect($schema['properties'])->toHaveKey('intended_activities');
 
     // Check optional fields
@@ -91,8 +92,18 @@ test('personal information schema has correct structure', function () {
 
     // Verify required array (intended activities are HR-aligned / optional at onboarding submit)
     expect($schema['required'])->toContain('gender');
-    expect($schema['required'])->toContain('nationalities');
     expect($schema['required'])->not->toContain('intended_activities');
+});
+
+test('nationality and residence schema has nationality as required field', function () {
+    artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
+
+    $template = OnboardingFormTemplate::where('name', 'Nationality and Residence')->first();
+    $schema = $template->form_schema;
+
+    expect($schema)->toBeArray();
+    expect($schema['properties'])->toHaveKey('nationalities');
+    expect($schema['required'])->toContain('nationalities');
 });
 
 test('personal information schema validates gender enum', function () {
@@ -226,8 +237,8 @@ test('seeder is idempotent (can be run multiple times)', function () {
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
 
-    // Should still have exactly 4 templates
-    expect(OnboardingFormTemplate::count())->toBe(4);
+    // Should still have exactly 5 templates
+    expect(OnboardingFormTemplate::count())->toBe(5);
 });
 
 test('all templates have descriptions', function () {

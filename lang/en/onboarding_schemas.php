@@ -23,7 +23,6 @@ return [
                 ],
                 'birth_name' => ['title' => 'Birth Name'],
                 'previous_names' => ['title' => 'Previous Names'],
-                'nationalities' => ['title' => 'Nationalities'],
                 'intended_activities' => [
                     'title' => 'Intended Activities (Section 34a GewO)',
                     'description' => 'Optional during onboarding; HR must confirm or enter these before Bewacherregister export if you skip them.',
@@ -37,6 +36,17 @@ return [
                         'personal_protection' => 'Personal protection',
                     ],
                 ],
+            ],
+        ],
+        'nationality_and_residence' => [
+            'name' => 'Nationality and Residence',
+            'description' => 'Nationality, residence title, and employment authorization status.',
+            'schema' => [
+                'title' => 'Nationality and Residence',
+                'description' => 'Nationality, residence title, and employment authorization status.',
+            ],
+            'fields' => [
+                'nationalities' => ['title' => 'Nationalities'],
             ],
         ],
         'bank_account_details' => [

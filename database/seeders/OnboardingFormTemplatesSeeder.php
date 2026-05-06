@@ -27,13 +27,23 @@ class OnboardingFormTemplatesSeeder extends Seeder
                 'tenant_id' => null,
             ],
             [
+                'name' => 'Nationality and Residence',
+                'template_key' => 'nationality_and_residence',
+                'description' => 'Nationality, residence title, and employment authorization status.',
+                'form_schema' => $this->getNationalityAndResidenceSchema(),
+                'is_required' => true,
+                'is_system_template' => true,
+                'sort_order' => 2,
+                'tenant_id' => null,
+            ],
+            [
                 'name' => 'Bank Account Details',
                 'template_key' => 'bank_account_details',
                 'description' => 'Account information for salary payment',
                 'form_schema' => $this->getBankAccountSchema(),
                 'is_required' => false,
                 'is_system_template' => true,
-                'sort_order' => 2,
+                'sort_order' => 3,
                 'tenant_id' => null,
             ],
             [
@@ -43,7 +53,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                 'form_schema' => $this->getEmergencyContactSchema(),
                 'is_required' => false,
                 'is_system_template' => true,
-                'sort_order' => 3,
+                'sort_order' => 4,
                 'tenant_id' => null,
             ],
             [
@@ -53,7 +63,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                 'form_schema' => $this->getTaxIdentificationSchema(),
                 'is_required' => true,
                 'is_system_template' => true,
-                'sort_order' => 4,
+                'sort_order' => 5,
                 'tenant_id' => null,
             ],
         ];
@@ -68,7 +78,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             );
         }
 
-        $this->command->info('Created 4 standard onboarding form templates.');
+        $this->command->info('Created 5 standard onboarding form templates.');
     }
 
     /**
@@ -101,15 +111,6 @@ class OnboardingFormTemplatesSeeder extends Seeder
                         'maxLength' => 100,
                     ],
                 ],
-                'nationalities' => [
-                    'type' => 'array',
-                    'title' => 'Nationalities',
-                    'items' => [
-                        'type' => 'string',
-                        'pattern' => '^[A-Z]{2}$',
-                    ],
-                    'minItems' => 1,
-                ],
                 'intended_activities' => [
                     'type' => 'array',
                     'title' => 'Intended Activities (§ 34a GewO)',
@@ -128,7 +129,33 @@ class OnboardingFormTemplatesSeeder extends Seeder
                     ],
                 ],
             ],
-            'required' => ['gender', 'nationalities'],
+            'required' => ['gender'],
+        ];
+    }
+
+    /**
+     * Get JSON schema for Nationality and Residence step.
+     *
+     * @return array<string, mixed>
+     */
+    private function getNationalityAndResidenceSchema(): array
+    {
+        return [
+            'title' => 'Nationality and Residence',
+            'description' => 'Nationality, residence title, and employment authorization status.',
+            'type' => 'object',
+            'properties' => [
+                'nationalities' => [
+                    'type' => 'array',
+                    'title' => 'Nationalities',
+                    'items' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}$',
+                    ],
+                    'minItems' => 1,
+                ],
+            ],
+            'required' => ['nationalities'],
         ];
     }
 
