@@ -710,22 +710,20 @@ return new class extends Migration
         ];
     }
 
-    private function resolveEmployeeForSubmission(OnboardingFormSubmission $submission): ?object
+    private function resolveEmployeeForSubmission(OnboardingFormSubmission $submission): ?Employee
     {
         if (! is_string($submission->employee_id) || $submission->employee_id === '') {
             return null;
         }
 
-        return DB::table('employees')
-            ->where('id', $submission->employee_id)
+        return Employee::query()
+            ->whereKey($submission->employee_id)
             ->first(['id', 'status']);
     }
 
-    private function shouldReopenEmployeeOnboarding(?object $employee): bool
+    private function shouldReopenEmployeeOnboarding(?Employee $employee): bool
     {
-        return is_object($employee)
-            && is_string($employee->status ?? null)
-            && $employee->status === 'pre_contract';
+        return $employee?->status === Employee::STATUS_PRE_CONTRACT;
     }
 
     /**
