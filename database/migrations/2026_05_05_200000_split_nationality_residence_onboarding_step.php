@@ -211,7 +211,7 @@ return new class extends Migration
                 'updated_at' => $now,
             ]);
 
-        $this->syncEmployeeOnboardingStepsForSplitStep($now);
+        $this->syncEmployeeOnboardingStepsForSplitStep($now, $nationalityTemplateId);
     }
 
     public function down(): void
@@ -329,15 +329,19 @@ return new class extends Migration
         $this->syncEmployeeOnboardingStepsForMergedStep($now);
     }
 
-    private function syncEmployeeOnboardingStepsForSplitStep(Carbon $now): void
+    private function syncEmployeeOnboardingStepsForSplitStep(Carbon $now, ?string $nationalityTemplateId): void
     {
         Employee::query()
             ->whereNotNull('onboarding_steps')
             ->select(['id', 'onboarding_steps'])
             ->orderBy('id')
             ->get()
-            ->each(function (Employee $employee) use ($now): void {
-                $updatedOnboardingSteps = $this->addNationalityAndResidenceOnboardingStep($employee->onboarding_steps);
+            ->each(function (Employee $employee) use ($now, $nationalityTemplateId): void {
+                $updatedOnboardingSteps = $this->addNationalityAndResidenceOnboardingStep(
+                    $employee->id,
+                    $employee->onboarding_steps,
+                    $nationalityTemplateId,
+                );
 
                 if ($updatedOnboardingSteps === $employee->onboarding_steps) {
                     return;
@@ -379,7 +383,11 @@ return new class extends Migration
      * @param  array<string, mixed>|null  $onboardingSteps
      * @return array<string, mixed>|null
      */
-    private function addNationalityAndResidenceOnboardingStep(?array $onboardingSteps): ?array
+    private function addNationalityAndResidenceOnboardingStep(
+        mixed $employeeId,
+        ?array $onboardingSteps,
+        ?string $nationalityTemplateId,
+    ): ?array
     {
         if (! is_array($onboardingSteps)) {
             return $onboardingSteps;
@@ -391,13 +399,7 @@ return new class extends Migration
             return $onboardingSteps;
         }
 
-        $nationalityStep = [
-            'id' => 'nationality_and_residence',
-            'name' => 'Staatsangehörigkeit und Aufenthalt',
-            'completed' => false,
-            'completed_at' => null,
-            'form_submission_id' => null,
-        ];
+        $nationalityStep = $this->resolveNationalityAndResidenceOnboardingStep($employeeId, $nationalityTemplateId);
 
         $updatedSteps = [];
         $hasNationalityStep = false;
@@ -410,10 +412,7 @@ return new class extends Migration
             }
 
             if (($step['id'] ?? null) === 'nationality_and_residence') {
-                $updatedSteps[] = array_merge($step, [
-                    'id' => 'nationality_and_residence',
-                    'name' => 'Staatsangehörigkeit und Aufenthalt',
-                ]);
+                $updatedSteps[] = array_merge($step, $nationalityStep);
                 $hasNationalityStep = true;
 
                 continue;
@@ -433,6 +432,50 @@ return new class extends Migration
 
         return array_merge($onboardingSteps, [
             'steps' => $updatedSteps,
+        ]);
+    }
+
+    /**
+     * @return array{
+     *     id: string,
+     *     name: string,
+     *     completed: bool,
+     *     completed_at: ?string,
+     *     form_submission_id: ?string
+     * }
+     */
+    private function resolveNationalityAndResidenceOnboardingStep(mixed $employeeId, ?string $nationalityTemplateId): array
+    {
+        $step = [
+            'id' => 'nationality_and_residence',
+            'name' => 'Staatsangehörigkeit und Aufenthalt',
+            'completed' => false,
+            'completed_at' => null,
+            'form_submission_id' => null,
+        ];
+
+        if (! is_string($employeeId) || $employeeId === '' || ! is_string($nationalityTemplateId) || $nationalityTemplateId === '') {
+            return $step;
+        }
+
+        $submission = OnboardingFormSubmission::query()
+            ->where('employee_id', $employeeId)
+            ->where('form_template_id', $nationalityTemplateId)
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('updated_at')
+            ->first(['id', 'status', 'submitted_at', 'reviewed_at', 'updated_at', 'created_at']);
+
+        if ($submission === null || ! in_array($submission->status, ['submitted', 'approved'], true)) {
+            return $step;
+        }
+
+        return array_merge($step, [
+            'completed' => true,
+            'completed_at' => $submission->submitted_at?->toIso8601String()
+                ?? $submission->reviewed_at?->toIso8601String()
+                ?? $submission->updated_at?->toIso8601String()
+                ?? $submission->created_at?->toIso8601String(),
+            'form_submission_id' => $submission->id,
         ]);
     }
 

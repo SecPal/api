@@ -258,6 +258,63 @@ test('migration inserts nationality and residence into existing onboarding steps
         ]);
 });
 
+test('migration marks migrated nationality and residence step complete when the migrated submission is already submitted', function (): void {
+    $personalInformationTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
+        'template_key' => 'personal_information_form',
+    ]);
+
+    $employee = Employee::factory()->preContract()->create([
+        'onboarding_steps' => [
+            'steps' => [
+                [
+                    'id' => 'personal_data',
+                    'name' => 'Persönliche Daten',
+                    'completed' => true,
+                    'completed_at' => now()->subHour()->toIso8601String(),
+                    'form_submission_id' => 'legacy-personal-submission',
+                ],
+            ],
+        ],
+    ]);
+
+    $legacySubmission = OnboardingFormSubmission::factory()->submitted()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => $personalInformationTemplate->id,
+        'form_data' => [
+            'nationalities' => ['IN'],
+            'residence_permit_title' => 'Aufenthaltserlaubnis',
+            'residence_permit_employment_allowed' => 'yes',
+            'residence_permit_unlimited' => true,
+        ],
+    ]);
+
+    $migration = loadSplitNationalityResidenceMigration();
+    $migration->up();
+
+    $employee->refresh();
+
+    $migratedStep = collect($employee->onboarding_steps['steps'])
+        ->firstWhere('id', 'nationality_and_residence');
+
+    $nationalityTemplate = OnboardingFormTemplate::query()
+        ->where('template_key', 'nationality_and_residence')
+        ->firstOrFail();
+
+    $migratedSubmission = OnboardingFormSubmission::query()
+        ->where('employee_id', $employee->id)
+        ->where('form_template_id', $nationalityTemplate->id)
+        ->firstOrFail();
+
+    expect($migratedSubmission->status)->toBe('submitted')
+        ->and($migratedStep)->toBe([
+            'id' => 'nationality_and_residence',
+            'name' => 'Staatsangehörigkeit und Aufenthalt',
+            'completed' => true,
+            'completed_at' => $legacySubmission->submitted_at?->toIso8601String(),
+            'form_submission_id' => $migratedSubmission->id,
+        ]);
+});
+
 test('migration does not reopen active employees when migrated residence data is incomplete', function (): void {
     $personalInformationTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
         'template_key' => 'personal_information_form',
