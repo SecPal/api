@@ -430,6 +430,16 @@ return new class extends Migration
             ];
         }
 
+        if (is_string($submission->employee_id) && $submission->employee_id !== '') {
+            DB::table('employees')
+                ->where('id', $submission->employee_id)
+                ->update([
+                    'onboarding_completed' => false,
+                    'onboarding_completed_at' => null,
+                    'updated_at' => now(),
+                ]);
+        }
+
         return [
             'status' => 'draft',
             'submitted_at' => null,
