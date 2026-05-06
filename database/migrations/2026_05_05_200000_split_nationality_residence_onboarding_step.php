@@ -494,9 +494,21 @@ return new class extends Migration
             ];
         }
 
-        if (is_string($submission->employee_id) && $submission->employee_id !== '') {
+        $employee = $this->resolveEmployeeForSubmission($submission);
+
+        if (! $this->shouldReopenEmployeeOnboarding($employee)) {
+            return [
+                'status' => $submission->status,
+                'submitted_at' => $submission->submitted_at,
+                'reviewed_by' => $submission->reviewed_by,
+                'reviewed_at' => $submission->reviewed_at,
+                'review_notes' => $submission->review_notes,
+            ];
+        }
+
+        if ($employee !== null) {
             DB::table('employees')
-                ->where('id', $submission->employee_id)
+                ->where('id', $employee->id)
                 ->update([
                     'onboarding_completed' => false,
                     'onboarding_completed_at' => null,
@@ -512,6 +524,24 @@ return new class extends Migration
             'reviewed_at' => null,
             'review_notes' => null,
         ];
+    }
+
+    private function resolveEmployeeForSubmission(OnboardingFormSubmission $submission): ?object
+    {
+        if (! is_string($submission->employee_id) || $submission->employee_id === '') {
+            return null;
+        }
+
+        return DB::table('employees')
+            ->where('id', $submission->employee_id)
+            ->first(['id', 'status']);
+    }
+
+    private function shouldReopenEmployeeOnboarding(?object $employee): bool
+    {
+        return is_object($employee)
+            && is_string($employee->status ?? null)
+            && $employee->status === 'pre_contract';
     }
 
     /**

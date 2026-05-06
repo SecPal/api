@@ -176,6 +176,42 @@ test('migration resets employee workflow to in progress when a migrated submissi
         ->and($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW))->toBeTrue();
 });
 
+test('migration does not reopen active employees when migrated residence data is incomplete', function (): void {
+    $personalInformationTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
+        'template_key' => 'personal_information_form',
+    ]);
+
+    $employee = Employee::factory()->active()->create([
+        'onboarding_completed' => true,
+    ]);
+
+    $legacySubmission = OnboardingFormSubmission::factory()->approved()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => $personalInformationTemplate->id,
+        'form_data' => [
+            'nationalities' => ['IN'],
+        ],
+    ]);
+
+    $migration = loadSplitNationalityResidenceMigration();
+    $migration->up();
+
+    $nationalityTemplate = OnboardingFormTemplate::query()
+        ->where('template_key', 'nationality_and_residence')
+        ->firstOrFail();
+
+    $migratedSubmission = OnboardingFormSubmission::query()
+        ->where('employee_id', $employee->id)
+        ->where('form_template_id', $nationalityTemplate->id)
+        ->firstOrFail();
+
+    expect($migratedSubmission->status)->toBe('approved')
+        ->and($migratedSubmission->submitted_at?->toIso8601String())->toBe($legacySubmission->submitted_at?->toIso8601String())
+        ->and($migratedSubmission->reviewed_by)->toBe($legacySubmission->reviewed_by)
+        ->and($migratedSubmission->reviewed_at?->toIso8601String())->toBe($legacySubmission->reviewed_at?->toIso8601String())
+        ->and($employee->fresh()->onboarding_completed)->toBeTrue();
+});
+
 test('migration rollback merges nationality and residence submissions back into personal information', function (): void {
     $personalInformationTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
         'template_key' => 'personal_information_form',
