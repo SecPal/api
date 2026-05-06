@@ -19,6 +19,7 @@ use Webauthn\AuthenticatorAttestationResponse;
 use Webauthn\AuthenticatorAttestationResponseValidator;
 use Webauthn\AuthenticatorSelectionCriteria;
 use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
+use Webauthn\CredentialRecord;
 use Webauthn\Denormalizer\WebauthnSerializerFactory;
 use Webauthn\Exception\AuthenticatorResponseVerificationException;
 use Webauthn\PublicKeyCredential;
@@ -414,7 +415,7 @@ class PasskeyService
         return 'Passkey '.substr($credentialId, 0, 8);
     }
 
-    private function normalizeAaguid(PublicKeyCredentialSource $credentialSource): ?string
+    private function normalizeAaguid(CredentialRecord $credentialSource): ?string
     {
         $value = $credentialSource->aaguid->toRfc4122();
 
