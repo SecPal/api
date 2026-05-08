@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- fixed optional onboarding template validation to keep `additionalProperties: false` authoritative even when all declared fields are empty, so payloads with undeclared keys now fail schema validation instead of bypassing it as “semantically empty”
+- fixed optional onboarding template validation to keep undeclared-key schema checks authoritative even when declared fields are empty, so payloads with undeclared keys now fail `additionalProperties` validation instead of bypassing it as “semantically empty”
 - enforced server-side residence-title requirements during onboarding submission for non-exempt nationalities (title + employment authorization, and expiry when not unlimited) so clients can no longer bypass the frontend-only checks by posting `nationalities` without required residence data
 - aligned passkey credential mapping with WebAuthn-lib 5.3 by using `PublicKeyCredentialSource` directly, fixing passkey challenge flows that were failing with a `TypeError` (return type mismatch)
 - forced the PHPUnit `DB_CONNECTION` and `DB_DATABASE` overrides so the early PostgreSQL test bootstrap always provisions `testing*_test_*` databases instead of inheriting runtime `secpal*` names from the shell environment during parallel runs
