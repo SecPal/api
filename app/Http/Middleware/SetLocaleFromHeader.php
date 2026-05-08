@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SetLocaleFromHeader
 {
-    private const ALLOW_USER_LOOKUP_ATTRIBUTE = 'secpal.locale.allow_user_lookup';
+    private const ALLOW_USER_LOOKUP_ATTRIBUTE = 'locale.allow_user_lookup';
 
     /**
      * Handle an incoming request and set the application locale.
