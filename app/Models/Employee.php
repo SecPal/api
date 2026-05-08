@@ -1512,6 +1512,13 @@ class Employee extends Model
                     'form_submission_id' => null,
                 ],
                 [
+                    'id' => 'nationality_and_residence',
+                    'name' => 'Staatsangehörigkeit und Aufenthalt',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+                [
                     'id' => 'bank_details',
                     'name' => 'Bankverbindung',
                     'completed' => false,

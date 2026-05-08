@@ -335,6 +335,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('tenant.inject')->group(function () {
             // Employee-facing endpoints
             Route::get('/onboarding/steps', [OnboardingController::class, 'getSteps']);
+            Route::get('/onboarding/nationalities', [OnboardingController::class, 'getNationalities']);
             Route::get('/onboarding/templates', [OnboardingController::class, 'getTemplates']);
             Route::get('/onboarding/templates/{template}', [OnboardingController::class, 'getTemplate']);
             Route::get('/onboarding/submissions', [OnboardingController::class, 'getSubmissions']);

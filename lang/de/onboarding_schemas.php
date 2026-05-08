@@ -23,7 +23,6 @@ return [
                 ],
                 'birth_name' => ['title' => 'Geburtsname'],
                 'previous_names' => ['title' => 'Frühere Namen'],
-                'nationalities' => ['title' => 'Staatsangehörigkeiten'],
                 'intended_activities' => [
                     'title' => 'Beabsichtigte Tätigkeiten (Paragraf 34a GewO)',
                     'description' => 'Beim Onboarding optional; vor dem Bewacherregister-Export müssen HR diese mit dem Einsatz abstimmen oder eintragen, falls Sie sie auslassen.',
@@ -37,6 +36,27 @@ return [
                         'personal_protection' => 'Personenschutz',
                     ],
                 ],
+            ],
+        ],
+        'nationality_and_residence' => [
+            'name' => 'Staatsangehörigkeit und Aufenthalt',
+            'description' => 'Staatsangehörigkeit, Aufenthaltstitel und Status der Erwerbstätigkeit.',
+            'schema' => [
+                'title' => 'Staatsangehörigkeit und Aufenthalt',
+                'description' => 'Staatsangehörigkeit, Aufenthaltstitel und Status der Erwerbstätigkeit.',
+            ],
+            'fields' => [
+                'nationalities' => ['title' => 'Staatsangehörigkeiten'],
+                'residence_permit_title' => ['title' => 'Aufenthaltstitel'],
+                'residence_permit_employment_allowed' => [
+                    'title' => 'Erwerbstätigkeit erlaubt',
+                    'enum' => [
+                        'yes' => 'Ja',
+                        'no' => 'Nein',
+                    ],
+                ],
+                'residence_permit_unlimited' => ['title' => 'Aufenthaltstitel unbefristet'],
+                'residence_permit_expiry' => ['title' => 'Ablaufdatum des Aufenthaltstitels'],
             ],
         ],
         'bank_account_details' => [

@@ -396,6 +396,60 @@ class OnboardingController extends Controller
     }
 
     /**
+     * Get a localized nationality list for onboarding forms.
+     *
+     * GET /api/v1/onboarding/nationalities
+     *
+     * Source: static ISO alpha-2 code list in config/onboarding_nationalities.php.
+     * Display names are localized using the resolved onboarding locale.
+     */
+    public function getNationalities(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', OnboardingFormTemplate::class);
+
+        $locale = $this->resolveTemplateLocale($request);
+        $configuredCodes = config('onboarding_nationalities.iso_alpha2_codes', []);
+
+        if (! is_array($configuredCodes)) {
+            $configuredCodes = [];
+        }
+
+        $options = [];
+
+        foreach ($configuredCodes as $code) {
+            if (! is_string($code) || ! preg_match('/^[A-Z]{2}$/', $code)) {
+                continue;
+            }
+
+            $options[] = [
+                'code' => $code,
+                'name' => $this->resolveCountryDisplayName($code, $locale),
+            ];
+        }
+
+        $collator = class_exists(\Collator::class) ? \Collator::create($locale) : null;
+
+        usort($options, static function (array $left, array $right) use ($collator): int {
+            $leftName = (string) $left['name'];
+            $rightName = (string) $right['name'];
+
+            if ($collator instanceof \Collator) {
+                $comparison = $collator->compare($leftName, $rightName);
+
+                if ($comparison !== false) {
+                    return $comparison;
+                }
+            }
+
+            return strcasecmp($leftName, $rightName);
+        });
+
+        return response()->json([
+            'data' => $options,
+        ]);
+    }
+
+    /**
      * Get a specific form template.
      *
      * GET /api/v1/onboarding/templates/{template}
@@ -880,6 +934,38 @@ class OnboardingController extends Controller
         $requestLocale = $request->getPreferredLanguage(OnboardingSchemaLocalizationService::SUPPORTED_LOCALES);
 
         return is_string($requestLocale) ? $requestLocale : OnboardingSchemaLocalizationService::DEFAULT_LOCALE;
+    }
+
+    private function resolveCountryDisplayName(string $countryCode, string $locale): string
+    {
+        $specialLabels = [
+            'XK' => [
+                'de' => 'Kosovo',
+                'en' => 'Kosovo',
+            ],
+            'XA' => [
+                'de' => 'Staatenlos',
+                'en' => 'Stateless',
+            ],
+        ];
+
+        if (isset($specialLabels[$countryCode][$locale])) {
+            return $specialLabels[$countryCode][$locale];
+        }
+
+        if (! class_exists(\Locale::class)) {
+            return $countryCode;
+        }
+
+        $displayName = \Locale::getDisplayRegion('-'.$countryCode, $locale);
+
+        if (! is_string($displayName)) {
+            return $countryCode;
+        }
+
+        $trimmed = trim($displayName);
+
+        return $trimmed !== '' ? $trimmed : $countryCode;
     }
 
     /**

@@ -16,6 +16,9 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->service = app(OnboardingCompletionService::class);
+
+    // Isolate completion assertions from migration-created default templates.
+    OnboardingFormTemplate::query()->forceDelete();
 });
 
 describe('OnboardingCompletionService::checkCompletion', function () {

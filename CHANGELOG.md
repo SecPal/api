@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- aligned passkey credential mapping with WebAuthn-lib 5.3 by using `CredentialRecord` directly (instead of calling the inherited `PublicKeyCredentialSource::create()` factory that returns a `CredentialRecord`), fixing passkey challenge flows that were failing with a `TypeError` (return type mismatch)
+- enforced server-side residence-title requirements during onboarding submission for non-exempt nationalities (title + employment authorization, and expiry when not unlimited) so clients can no longer bypass the frontend-only checks by posting `nationalities` without required residence data
+- aligned passkey credential mapping with WebAuthn-lib 5.3 by using `PublicKeyCredentialSource` directly, fixing passkey challenge flows that were failing with a `TypeError` (return type mismatch)
 - forced the PHPUnit `DB_CONNECTION` and `DB_DATABASE` overrides so the early PostgreSQL test bootstrap always provisions `testing*_test_*` databases instead of inheriting runtime `secpal*` names from the shell environment during parallel runs
 - made local API preflight run `serial`-group tests outside the parallel Pest run, so the dedicated concurrency regressions no longer race each other by repeatedly `migrate:fresh`-ing the shared base `testing` database during `PREFLIGHT_RUN_TESTS=1`
 - made the PostgreSQL test bootstrap fail fast with an explicit owner/`public`-schema permission error when an existing `testing_test_*` database is not writable by the configured app user, so local ownership drift no longer degrades into late migration failures across large parallel test runs

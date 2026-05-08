@@ -53,6 +53,9 @@ beforeEach(function () {
     $this->authPost = fn ($uri, $data = []) => $this->actingAs($this->user, 'sanctum')
         ->withHeaders(['X-Tenant-ID' => (string) $this->tenant->id])
         ->postJson($uri, $data);
+
+    // Isolate completion assertions from migration-created default templates.
+    OnboardingFormTemplate::query()->forceDelete();
 });
 
 afterEach(function () {
