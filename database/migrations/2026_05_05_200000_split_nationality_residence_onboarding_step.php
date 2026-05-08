@@ -166,9 +166,11 @@ return new class extends Migration
             'updated_at' => $now,
         ];
 
-        $nationalityTemplateId = $existingNationalityTemplate?->id;
+        $nationalityTemplateId = is_string($existingNationalityTemplate?->id)
+            ? $existingNationalityTemplate->id
+            : null;
 
-        if ($existingNationalityTemplate) {
+        if (is_string($existingNationalityTemplate?->id)) {
             DB::table('onboarding_form_templates')
                 ->where('id', $existingNationalityTemplate->id)
                 ->update($nationalityTemplatePayload);
@@ -387,8 +389,7 @@ return new class extends Migration
         mixed $employeeId,
         ?array $onboardingSteps,
         ?string $nationalityTemplateId,
-    ): ?array
-    {
+    ): ?array {
         if (! is_array($onboardingSteps)) {
             return $onboardingSteps;
         }
