@@ -14,6 +14,10 @@ class SetLocaleFromHeader
 {
     private const ALLOW_USER_LOOKUP_ATTRIBUTE = 'locale.allow_user_lookup';
 
+    private const USER_LOOKUP_COMPLETED_ATTRIBUTE = 'locale.user_lookup_completed';
+
+    private const USER_LOCALE_APPLIED_ATTRIBUTE = 'locale.user_locale_applied';
+
     /**
      * Handle an incoming request and set the application locale.
      *
@@ -31,17 +35,25 @@ class SetLocaleFromHeader
     {
         $supportedLocales = ['en', 'de'];
 
-        $canResolveUserLocale = $request->attributes->getBoolean(self::ALLOW_USER_LOOKUP_ATTRIBUTE)
-            || $request->bearerToken() !== null;
+        if ($request->attributes->getBoolean(self::USER_LOCALE_APPLIED_ATTRIBUTE)) {
+            return $next($request);
+        }
 
-        // The global pass sets the marker so the later API-group pass can resolve
-        // session-authenticated users without forcing auth resolution twice.
+        $canResolveUserLocale = ! $request->attributes->getBoolean(self::USER_LOOKUP_COMPLETED_ATTRIBUTE)
+            && (
+                $request->attributes->getBoolean(self::ALLOW_USER_LOOKUP_ATTRIBUTE)
+                || $request->bearerToken() !== null
+            );
+
         $request->attributes->set(self::ALLOW_USER_LOOKUP_ATTRIBUTE, true);
 
         if ($canResolveUserLocale) {
+            $request->attributes->set(self::USER_LOOKUP_COMPLETED_ATTRIBUTE, true);
+
             $preferredLocale = $request->user()?->preferred_locale;
             if (is_string($preferredLocale) && in_array($preferredLocale, $supportedLocales, true)) {
                 App::setLocale($preferredLocale);
+                $request->attributes->set(self::USER_LOCALE_APPLIED_ATTRIBUTE, true);
 
                 return $next($request);
             }

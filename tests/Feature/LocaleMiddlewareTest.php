@@ -63,7 +63,7 @@ test('middleware prefers higher quality language from Accept-Language header', f
     $response->assertOk();
 });
 
-test('middleware does not resolve user when request has no bearer token', function (): void {
+test('middleware does not resolve user during the global pass when request has no bearer token or lookup marker', function (): void {
     $request = Request::create('/health', 'GET', [], [], [], [
         'HTTP_ACCEPT_LANGUAGE' => 'de',
     ]);
@@ -74,10 +74,40 @@ test('middleware does not resolve user when request has no bearer token', functi
 
     $response = app(SetLocaleFromHeader::class)->handle(
         $request,
-        static fn (): Illuminate\Http\Response => response()->noContent(),
+        static fn (Request $request): Illuminate\Http\Response => response()->noContent(),
     );
 
     expect(App::getLocale())->toBe('de')
+        ->and($response->getStatusCode())->toBe(204);
+});
+
+test('middleware resolves bearer-token user locale at most once across both middleware passes', function (): void {
+    $request = Request::create('/v1/example', 'GET', [], [], [], [
+        'HTTP_ACCEPT_LANGUAGE' => 'en',
+        'HTTP_AUTHORIZATION' => 'Bearer token',
+    ]);
+
+    $lookupCount = 0;
+    $request->setUserResolver(static function () use (&$lookupCount): object {
+        $lookupCount++;
+
+        return (object) ['preferred_locale' => 'de'];
+    });
+
+    $middleware = app(SetLocaleFromHeader::class);
+
+    $middleware->handle(
+        $request,
+        static fn (Request $request): Illuminate\Http\Response => response()->noContent(),
+    );
+
+    $response = $middleware->handle(
+        $request,
+        static fn (Request $request): Illuminate\Http\Response => response()->noContent(),
+    );
+
+    expect($lookupCount)->toBe(1)
+        ->and(App::getLocale())->toBe('de')
         ->and($response->getStatusCode())->toBe(204);
 });
 
