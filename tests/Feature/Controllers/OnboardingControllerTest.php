@@ -934,6 +934,44 @@ describe('POST /v1/onboarding/submissions', function () {
             ->assertJsonValidationErrors(['form_template_id']);
     });
 
+    test('returns 422 when employee submits a deleted template', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $deletedTemplate = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => ['name' => ['type' => 'string']],
+                'required' => ['name'],
+            ],
+        ]);
+        $deletedTemplate->delete();
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $deletedTemplate->id,
+                'form_data' => ['name' => 'test'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['form_template_id']);
+    });
+
+    test('returns 422 when employee submits a nonexistent template identifier', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => (string) Illuminate\Support\Str::uuid(),
+                'form_data' => ['name' => 'test'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['form_template_id']);
+    });
+
     test('rejects partial optional-template payload when required schema fields are missing on submit', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 

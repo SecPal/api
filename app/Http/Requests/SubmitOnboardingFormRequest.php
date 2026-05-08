@@ -38,6 +38,8 @@ class SubmitOnboardingFormRequest extends FormRequest
             'form_template_id' => [
                 'required',
                 Rule::exists('onboarding_form_templates', 'id')->where(function (\Illuminate\Database\Query\Builder $query) use ($tenantId): void {
+                    $query->whereNull('deleted_at');
+
                     if ($tenantId === null) {
                         $query->whereNull('tenant_id');
 
