@@ -909,7 +909,7 @@ describe('POST /v1/onboarding/submissions', function () {
             ->assertJsonPath('data.status', 'submitted');
     });
 
-    test('returns 404 when employee submits a template from a different tenant', function (): void {
+    test('returns 422 when employee submits a template from a different tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         // Create a template belonging to a different tenant
@@ -930,7 +930,8 @@ describe('POST /v1/onboarding/submissions', function () {
                 'status' => 'draft',
             ]);
 
-        $response->assertStatus(404);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['form_template_id']);
     });
 
     test('rejects partial optional-template payload when required schema fields are missing on submit', function (): void {
