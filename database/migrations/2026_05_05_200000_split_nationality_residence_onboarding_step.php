@@ -413,15 +413,17 @@ return new class extends Migration
             }
 
             if (($step['id'] ?? null) === 'nationality_and_residence') {
-                $updatedSteps[] = array_merge($step, $nationalityStep);
-                $hasNationalityStep = true;
+                if (! $hasNationalityStep) {
+                    $updatedSteps[] = array_merge($step, $nationalityStep);
+                    $hasNationalityStep = true;
+                }
 
                 continue;
             }
 
             $updatedSteps[] = $step;
 
-            if (($step['id'] ?? null) === 'personal_data') {
+            if (($step['id'] ?? null) === 'personal_data' && ! $hasNationalityStep) {
                 $updatedSteps[] = $nationalityStep;
                 $hasNationalityStep = true;
             }

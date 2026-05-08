@@ -258,6 +258,50 @@ test('migration inserts nationality and residence into existing onboarding steps
         ]);
 });
 
+test('migration does not duplicate nationality and residence when the step already exists', function (): void {
+    $employee = Employee::factory()->preContract()->create([
+        'onboarding_steps' => [
+            'steps' => [
+                [
+                    'id' => 'personal_data',
+                    'name' => 'Persönliche Daten',
+                    'completed' => true,
+                    'completed_at' => now()->subHour()->toIso8601String(),
+                    'form_submission_id' => 'legacy-personal-submission',
+                ],
+                [
+                    'id' => 'nationality_and_residence',
+                    'name' => 'Staatsangehörigkeit und Aufenthalt',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+                [
+                    'id' => 'bank_details',
+                    'name' => 'Bankverbindung',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+            ],
+        ],
+    ]);
+
+    $migration = loadSplitNationalityResidenceMigration();
+    $migration->up();
+
+    $employee->refresh();
+
+    expect(array_column($employee->onboarding_steps['steps'], 'id'))->toBe([
+        'personal_data',
+        'nationality_and_residence',
+        'bank_details',
+    ])
+        ->and(collect($employee->onboarding_steps['steps'])
+            ->where('id', 'nationality_and_residence')
+            ->count())->toBe(1);
+});
+
 test('migration marks migrated nationality and residence step complete when the migrated submission is already submitted', function (): void {
     $personalInformationTemplate = OnboardingFormTemplate::factory()->systemTemplate()->create([
         'template_key' => 'personal_information_form',
