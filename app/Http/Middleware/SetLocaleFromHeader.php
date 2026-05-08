@@ -12,6 +12,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SetLocaleFromHeader
 {
+    private const ALLOW_USER_LOOKUP_ATTRIBUTE = 'secpal.locale.allow_user_lookup';
+
     /**
      * Handle an incoming request and set the application locale.
      *
@@ -29,11 +31,20 @@ class SetLocaleFromHeader
     {
         $supportedLocales = ['en', 'de'];
 
-        $preferredLocale = $request->user()?->preferred_locale;
-        if (is_string($preferredLocale) && in_array($preferredLocale, $supportedLocales, true)) {
-            App::setLocale($preferredLocale);
+        $canResolveUserLocale = $request->attributes->getBoolean(self::ALLOW_USER_LOOKUP_ATTRIBUTE)
+            || $request->bearerToken() !== null;
 
-            return $next($request);
+        // The global pass sets the marker so the later API-group pass can resolve
+        // session-authenticated users without forcing auth resolution twice.
+        $request->attributes->set(self::ALLOW_USER_LOOKUP_ATTRIBUTE, true);
+
+        if ($canResolveUserLocale) {
+            $preferredLocale = $request->user()?->preferred_locale;
+            if (is_string($preferredLocale) && in_array($preferredLocale, $supportedLocales, true)) {
+                App::setLocale($preferredLocale);
+
+                return $next($request);
+            }
         }
 
         // Get preferred language from Accept-Language header
