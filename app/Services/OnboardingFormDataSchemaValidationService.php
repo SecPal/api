@@ -196,6 +196,14 @@ final class OnboardingFormDataSchemaValidationService
             return $formData === [];
         }
 
+        if (($schema['additionalProperties'] ?? true) === false) {
+            foreach (array_keys($formData) as $name) {
+                if (! array_key_exists($name, $properties)) {
+                    return false;
+                }
+            }
+        }
+
         foreach ($properties as $name => $property) {
             if (! is_array($property)) {
                 continue;

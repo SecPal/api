@@ -933,6 +933,30 @@ describe('POST /v1/onboarding/submissions', function () {
         $response->assertStatus(404);
     });
 
+    test('does not skip schema validation for undeclared keys when additional properties are forbidden on optional templates', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string'],
+                ],
+                'additionalProperties' => false,
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['unknown_key' => 'unexpected'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
+    });
+
     test('rejects partial optional-template payload when required schema fields are missing on submit', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
