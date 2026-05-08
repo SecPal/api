@@ -247,6 +247,32 @@ describe('GET /v1/onboarding/nationalities', function () {
             ->and($deOption['name'] ?? null)->toBe('Deutschland')
             ->and($xaOption['name'] ?? null)->toBe('Staatenlos');
     });
+
+    test('sorts localized nationality names with locale-aware collation', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+        $this->user->forceFill(['preferred_locale' => 'de'])->save();
+
+        $response = $this->withToken($this->token)
+            ->withHeader('Accept-Language', 'de-DE,de;q=0.9,en;q=0.8')
+            ->getJson('/v1/onboarding/nationalities');
+
+        $response->assertOk();
+
+        $options = collect($response->json('data'));
+        $codes = $options->pluck('code')->all();
+        $namesByCode = $options->pluck('name', 'code');
+        $egyptIndex = array_search('EG', $codes, true);
+        $austriaIndex = array_search('AT', $codes, true);
+        $zambiaIndex = array_search('ZM', $codes, true);
+
+        expect($namesByCode['EG'] ?? null)->toBe('Ägypten')
+            ->and($namesByCode['AT'] ?? null)->toBe('Österreich')
+            ->and($egyptIndex)->not->toBeFalse()
+            ->and($austriaIndex)->not->toBeFalse()
+            ->and($zambiaIndex)->not->toBeFalse()
+            ->and($egyptIndex)->toBeLessThan($zambiaIndex)
+            ->and($austriaIndex)->toBeLessThan($zambiaIndex);
+    });
 });
 
 describe('GET /v1/onboarding/templates/{template}', function () {

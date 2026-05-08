@@ -427,10 +427,22 @@ class OnboardingController extends Controller
             ];
         }
 
-        usort(
-            $options,
-            static fn (array $left, array $right): int => strcasecmp((string) $left['name'], (string) $right['name'])
-        );
+        $collator = class_exists(\Collator::class) ? \Collator::create($locale) : null;
+
+        usort($options, static function (array $left, array $right) use ($collator): int {
+            $leftName = (string) $left['name'];
+            $rightName = (string) $right['name'];
+
+            if ($collator instanceof \Collator) {
+                $comparison = $collator->compare($leftName, $rightName);
+
+                if ($comparison !== false) {
+                    return $comparison;
+                }
+            }
+
+            return strcasecmp($leftName, $rightName);
+        });
 
         return response()->json([
             'data' => $options,
