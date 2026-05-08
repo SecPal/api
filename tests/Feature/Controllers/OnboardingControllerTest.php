@@ -957,7 +957,7 @@ describe('POST /v1/onboarding/submissions', function () {
         $response->assertStatus(422);
     });
 
-    test('does not skip schema validation for undeclared keys constrained by additional properties schemas on optional templates', function (): void {
+    test('does not treat undeclared keys as semantically empty when additional properties define their schema on optional templates', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         $template = OnboardingFormTemplate::factory()->optional()->create([
