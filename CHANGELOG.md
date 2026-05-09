@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- fixed optional onboarding template validation to keep undeclared-key schema checks authoritative even when declared fields are empty, so payloads with undeclared keys now fail `additionalProperties` validation instead of bypassing it as `semantically empty`
 - avoided unnecessary locale user-resolution work in the global middleware pass when no bearer token is present, while still allowing the later API pass to honor session-authenticated `preferred_locale` overrides
 - scoped onboarding submission `form_template_id` existence validation to the authenticated tenant plus global templates, so cross-tenant template UUID probes now fail with `422` validation errors instead of leaking into later tenant-scoped `404` responses
 - enforced server-side residence-title requirements during onboarding submission for non-exempt nationalities (title + employment authorization, and expiry when not unlimited) so clients can no longer bypass the frontend-only checks by posting `nationalities` without required residence data
