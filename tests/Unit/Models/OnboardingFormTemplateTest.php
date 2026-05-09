@@ -104,6 +104,29 @@ test('onboarding form template factory provides a JSON schema object by default'
         ->and($template->form_schema['additionalProperties'])->toBeTrue();
 });
 
+test('onboarding form template preserves a custom form schema array', function () {
+    $schema = [
+        'type' => 'object',
+        'properties' => [
+            'custom_field' => ['type' => 'string'],
+        ],
+        'required' => ['custom_field'],
+        'additionalProperties' => false,
+    ];
+
+    $template = OnboardingFormTemplate::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'form_schema' => $schema,
+    ]);
+
+    expect($template->form_schema)->toBeArray()
+        ->toBe($schema)
+        ->and($template->form_schema['properties'])->toBeArray()
+        ->and($template->form_schema['properties']['custom_field'])->toBe(['type' => 'string'])
+        ->and($template->form_schema['required'])->toBe(['custom_field'])
+        ->and($template->form_schema['additionalProperties'])->toBeFalse();
+});
+
 test('onboarding form template factory states work correctly', function () {
     $required = OnboardingFormTemplate::factory()->required()->create([
         'tenant_id' => $this->tenant->id,
