@@ -91,22 +91,17 @@ test('onboarding form template casts booleans correctly', function () {
         ->and($template->is_system_template)->toBeTrue();
 });
 
-test('onboarding form template casts form schema as array', function () {
-    $schema = [
-        'fields' => [
-            ['name' => 'test_field', 'type' => 'text', 'required' => true],
-        ],
-    ];
-
+test('onboarding form template factory provides a JSON schema object by default', function () {
     $template = OnboardingFormTemplate::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'form_schema' => $schema,
     ]);
 
     expect($template->form_schema)->toBeArray()
-        ->toBe($schema)
-        ->and($template->form_schema['fields'])->toBeArray()
-        ->and($template->form_schema['fields'][0]['name'])->toBe('test_field');
+        ->and($template->form_schema['type'])->toBe('object')
+        ->and($template->form_schema['properties'])->toBeArray()
+        ->and(array_keys($template->form_schema['properties']))->toBe(['name', 'email', 'field'])
+        ->and($template->form_schema['properties']['name'])->toBe(['type' => 'string'])
+        ->and($template->form_schema['additionalProperties'])->toBeTrue();
 });
 
 test('onboarding form template factory states work correctly', function () {
