@@ -3,7 +3,9 @@
 // SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Http\Middleware\SetLocaleFromHeader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Route;
 
@@ -59,6 +61,54 @@ test('middleware prefers higher quality language from Accept-Language header', f
 
     expect(App::getLocale())->toBe('de');
     $response->assertOk();
+});
+
+test('middleware does not resolve user during the global pass when request has no bearer token or lookup marker', function (): void {
+    $request = Request::create('/health', 'GET', [], [], [], [
+        'HTTP_ACCEPT_LANGUAGE' => 'de',
+    ]);
+
+    $request->setUserResolver(static function (): never {
+        throw new RuntimeException('user resolver should not run without a bearer token');
+    });
+
+    $response = app(SetLocaleFromHeader::class)->handle(
+        $request,
+        static fn (Request $request): Illuminate\Http\Response => response()->noContent(),
+    );
+
+    expect(App::getLocale())->toBe('de')
+        ->and($response->getStatusCode())->toBe(204);
+});
+
+test('middleware resolves bearer-token user locale at most once across both middleware passes', function (): void {
+    $request = Request::create('/v1/example', 'GET', [], [], [], [
+        'HTTP_ACCEPT_LANGUAGE' => 'en',
+        'HTTP_AUTHORIZATION' => 'Bearer token',
+    ]);
+
+    $lookupCount = 0;
+    $request->setUserResolver(static function () use (&$lookupCount): object {
+        $lookupCount++;
+
+        return (object) ['preferred_locale' => 'de'];
+    });
+
+    $middleware = app(SetLocaleFromHeader::class);
+
+    $middleware->handle(
+        $request,
+        static fn (Request $request): Illuminate\Http\Response => response()->noContent(),
+    );
+
+    $response = $middleware->handle(
+        $request,
+        static fn (Request $request): Illuminate\Http\Response => response()->noContent(),
+    );
+
+    expect($lookupCount)->toBe(1)
+        ->and(App::getLocale())->toBe('de')
+        ->and($response->getStatusCode())->toBe(204);
 });
 
 test('middleware prefers authenticated user preferred locale over Accept-Language header', function (): void {
