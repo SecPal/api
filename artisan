@@ -10,7 +10,19 @@ use Symfony\Component\Console\Input\ArgvInput;
 
 define('LARAVEL_START', microtime(true));
 
-if (($argv[1] ?? null) === 'test') {
+$artisanCommand = null;
+
+foreach (array_slice($argv, 1) as $argument) {
+    if ($argument === '' || str_starts_with($argument, '-')) {
+        continue;
+    }
+
+    $artisanCommand = $argument;
+
+    break;
+}
+
+if ($artisanCommand === 'test') {
     $configuration = @simplexml_load_file(__DIR__.'/phpunit.xml');
 
     if ($configuration instanceof SimpleXMLElement) {
