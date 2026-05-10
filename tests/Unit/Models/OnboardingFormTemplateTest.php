@@ -91,11 +91,27 @@ test('onboarding form template casts booleans correctly', function () {
         ->and($template->is_system_template)->toBeTrue();
 });
 
-test('onboarding form template casts form schema as array', function () {
+test('onboarding form template factory provides a JSON schema object by default', function () {
+    $template = OnboardingFormTemplate::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    expect($template->form_schema)->toBeArray()
+        ->and($template->form_schema['type'])->toBe('object')
+        ->and($template->form_schema['properties'])->toBeArray()
+        ->and(array_keys($template->form_schema['properties']))->toBe(['name', 'email', 'field'])
+        ->and($template->form_schema['properties']['name'])->toBe(['type' => 'string'])
+        ->and($template->form_schema['additionalProperties'])->toBeTrue();
+});
+
+test('onboarding form template preserves a custom form schema array', function () {
     $schema = [
-        'fields' => [
-            ['name' => 'test_field', 'type' => 'text', 'required' => true],
+        'type' => 'object',
+        'properties' => [
+            'custom_field' => ['type' => 'string'],
         ],
+        'required' => ['custom_field'],
+        'additionalProperties' => false,
     ];
 
     $template = OnboardingFormTemplate::factory()->create([
@@ -105,8 +121,10 @@ test('onboarding form template casts form schema as array', function () {
 
     expect($template->form_schema)->toBeArray()
         ->toBe($schema)
-        ->and($template->form_schema['fields'])->toBeArray()
-        ->and($template->form_schema['fields'][0]['name'])->toBe('test_field');
+        ->and($template->form_schema['properties'])->toBeArray()
+        ->and($template->form_schema['properties']['custom_field'])->toBe(['type' => 'string'])
+        ->and($template->form_schema['required'])->toBe(['custom_field'])
+        ->and($template->form_schema['additionalProperties'])->toBeFalse();
 });
 
 test('onboarding form template factory states work correctly', function () {

@@ -72,6 +72,42 @@ test('onboarding invitation mail has correct content', function () {
     expect($content->markdown)->toBe('emails.employees.onboarding-invitation');
 });
 
+test('onboarding invitation mail renders key onboarding copy sections', function () {
+    app()->setLocale('en');
+
+    $contractStartDate = now()->addDays(14);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'email' => 'john.doe.onboarding.copy@secpal.dev',
+        'contract_start_date' => $contractStartDate,
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $user = User::factory()->create([
+        'name' => 'John Doe',
+        'email' => 'john.doe.onboarding.copy@secpal.dev',
+        'password' => bcrypt('password'),
+    ]);
+
+    $mail = new OnboardingInvitationMail($employee, $user, 'fixed-onboarding-token');
+    $rendered = $mail->render();
+
+    expect($rendered)
+        ->toContain('Hello John,')
+        ->toContain('Your contract starts on')
+        ->toContain($contractStartDate->format('d.m.Y'))
+        ->toContain('Start Onboarding')
+        ->toContain('What to expect:')
+        ->toContain('Personal information for onboarding (including gender and nationalities)')
+        ->toContain('Emergency contacts')
+        ->toContain($contractStartDate->copy()->subDays(3)->format('d.m.Y'))
+        ->toContain('Please do not reply directly to this email.');
+});
+
 test('onboarding invitation URL includes token and email parameters', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
