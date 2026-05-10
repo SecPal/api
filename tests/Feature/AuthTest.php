@@ -133,7 +133,7 @@ describe('SPA Session Login', function () {
             ->assertJsonPath('user.employeeStatus', Employee::STATUS_PRE_CONTRACT)
             ->assertJsonPath('user.onboardingWorkflowStatus', Employee::WORKFLOW_STATUS_INVITED)
             ->assertJsonPath('user.employee.id', (string) $employee->id)
-            ->assertJsonPath('user.employee.contract_start_date', '2026-06-01');
+            ->assertJsonPath('user.employee.contractStartDate', '2026-06-01');
 
         $this->withHeaders(spaHeaders())
             ->getJson('/v1/me')
@@ -141,7 +141,7 @@ describe('SPA Session Login', function () {
             ->assertJsonPath('employeeStatus', Employee::STATUS_PRE_CONTRACT)
             ->assertJsonPath('onboardingWorkflowStatus', Employee::WORKFLOW_STATUS_INVITED)
             ->assertJsonPath('employee.id', (string) $employee->id)
-            ->assertJsonPath('employee.contract_start_date', '2026-06-01');
+            ->assertJsonPath('employee.contractStartDate', '2026-06-01');
     });
 
     test('spa login fails with invalid credentials', function () {
