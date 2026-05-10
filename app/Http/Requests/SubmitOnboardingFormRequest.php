@@ -6,6 +6,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * SubmitOnboardingFormRequest validates onboarding form submission requests.
@@ -30,8 +31,27 @@ class SubmitOnboardingFormRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var int|null $tenantId */
+        $tenantId = $this->user()?->tenant_id;
+
         return [
-            'form_template_id' => ['required', 'exists:onboarding_form_templates,id'],
+            'form_template_id' => [
+                'required',
+                Rule::exists('onboarding_form_templates', 'id')->where(function (\Illuminate\Database\Query\Builder $query) use ($tenantId): void {
+                    $query->whereNull('deleted_at');
+
+                    if ($tenantId === null) {
+                        $query->whereNull('tenant_id');
+
+                        return;
+                    }
+
+                    $query->where(function (\Illuminate\Database\Query\Builder $templateQuery) use ($tenantId): void {
+                        $templateQuery->whereNull('tenant_id')
+                            ->orWhere('tenant_id', $tenantId);
+                    });
+                }),
+            ],
             'form_data' => ['present', 'array'],
             'status' => ['required', 'in:draft,submitted'],
         ];

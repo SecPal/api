@@ -5,6 +5,12 @@
 
 use Illuminate\Support\Str;
 
+$forcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+
+if (! is_string($forcedTestDatabase) || $forcedTestDatabase === '') {
+    $forcedTestDatabase = $_ENV['SECPAL_TEST_DATABASE'] ?? $_SERVER['SECPAL_TEST_DATABASE'] ?? null;
+}
+
 return [
 
     /*
@@ -91,7 +97,9 @@ return [
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'laravel'),
+            'database' => is_string($forcedTestDatabase) && $forcedTestDatabase !== ''
+                ? $forcedTestDatabase
+                : env('DB_DATABASE', 'laravel'),
             'username' => env('DB_USERNAME', 'root'),
             'password' => env('DB_PASSWORD', ''),
             'charset' => env('DB_CHARSET', 'utf8'),

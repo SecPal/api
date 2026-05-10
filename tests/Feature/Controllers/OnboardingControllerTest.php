@@ -909,7 +909,7 @@ describe('POST /v1/onboarding/submissions', function () {
             ->assertJsonPath('data.status', 'submitted');
     });
 
-    test('returns 404 when employee submits a template from a different tenant', function (): void {
+    test('returns 422 when employee submits a template from a different tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
         // Create a template belonging to a different tenant
@@ -930,7 +930,91 @@ describe('POST /v1/onboarding/submissions', function () {
                 'status' => 'draft',
             ]);
 
-        $response->assertStatus(404);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['form_template_id']);
+    });
+
+    test('returns 422 when employee submits a deleted template', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $deletedTemplate = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => ['name' => ['type' => 'string']],
+                'required' => ['name'],
+            ],
+        ]);
+        $deletedTemplate->delete();
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $deletedTemplate->id,
+                'form_data' => ['name' => 'test'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['form_template_id']);
+    });
+
+    test('returns 422 when employee submits a nonexistent template identifier', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => (string) Illuminate\Support\Str::uuid(),
+                'form_data' => ['name' => 'test'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['form_template_id']);
+    });
+
+    test('does not skip schema validation for undeclared keys when additional properties are forbidden on optional templates', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string'],
+                ],
+                'additionalProperties' => false,
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['unknown_key' => 'unexpected'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
+    });
+
+    test('does not treat undeclared keys as semantically empty when additional properties define their schema on optional templates', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->optional()->create([
+            'tenant_id' => $this->tenant->id,
+            'form_schema' => [
+                'type' => 'object',
+                'additionalProperties' => ['type' => 'integer'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => ['dynamic_key' => 'unexpected'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422);
     });
 
     test('rejects partial optional-template payload when required schema fields are missing on submit', function (): void {

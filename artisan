@@ -10,6 +10,49 @@ use Symfony\Component\Console\Input\ArgvInput;
 
 define('LARAVEL_START', microtime(true));
 
+$artisanCommand = null;
+
+foreach (array_slice($argv, 1) as $argument) {
+    if ($argument === '' || str_starts_with($argument, '-')) {
+        continue;
+    }
+
+    $artisanCommand = $argument;
+
+    break;
+}
+
+if ($artisanCommand === 'test') {
+    $configuration = @simplexml_load_file(__DIR__.'/phpunit.xml');
+
+    if ($configuration instanceof SimpleXMLElement) {
+        /** @var SimpleXMLElement[]|false $envNodes */
+        $envNodes = $configuration->xpath('/phpunit/php/env');
+
+        if ($envNodes !== false) {
+            foreach ($envNodes as $envNode) {
+                $name = (string) ($envNode['name'] ?? '');
+                $value = (string) ($envNode['value'] ?? '');
+                $force = strtolower((string) ($envNode['force'] ?? 'false'));
+
+                if ($name === '' || ! in_array($force, ['1', 'true', 'yes'], true)) {
+                    continue;
+                }
+
+                putenv($name.'='.$value);
+                $_ENV[$name] = $value;
+                $_SERVER[$name] = $value;
+
+                if ($name === 'DB_DATABASE') {
+                    putenv('SECPAL_TEST_DATABASE='.$value);
+                    $_ENV['SECPAL_TEST_DATABASE'] = $value;
+                    $_SERVER['SECPAL_TEST_DATABASE'] = $value;
+                }
+            }
+        }
+    }
+}
+
 // Register the Composer autoloader...
 require __DIR__.'/vendor/autoload.php';
 
