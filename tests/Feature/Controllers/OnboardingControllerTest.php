@@ -9,6 +9,7 @@
 use App\Models\Employee;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
+use App\Models\OnboardingSubmissionFile;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\TenantKey;
@@ -19,6 +20,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Activitylog\Models\Activity;
+use Symfony\Component\HttpFoundation\File\UploadedFile as SymfonyUploadedFile;
 
 /**
  * @property TenantKey $tenant
@@ -672,9 +674,11 @@ describe('POST /v1/onboarding/submissions', function () {
                 'form_template_id' => $template->id,
                 'form_data' => [
                     'nationalities' => ['IN'],
+                    'id_document_upload_now' => 'no',
                     'residence_permit_title' => 'Niederlassungserlaubnis',
                     'residence_permit_employment_allowed' => 'yes',
                     'residence_permit_unlimited' => true,
+                    'residence_permit_upload_now' => 'no',
                     'residence_permit_expiry' => now()->subDay()->toDateString(),
                 ],
                 'status' => 'submitted',
@@ -790,6 +794,230 @@ describe('POST /v1/onboarding/submissions', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['residence_permit_title']);
+    });
+
+    test('rejects submitted onboarding data when a limited residence permit expires on or before contract start date', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+        $this->employee->update(['contract_start_date' => '2026-06-01']);
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string', 'pattern' => '^[A-Z]{2}$'],
+                        'minItems' => 1,
+                    ],
+                    'id_document_upload_now' => ['type' => 'string'],
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_employment_allowed' => ['type' => 'string'],
+                    'residence_permit_unlimited' => ['type' => 'boolean'],
+                    'residence_permit_expiry' => [
+                        'type' => 'string',
+                        'pattern' => '^\d{4}-\d{2}-\d{2}$',
+                    ],
+                ],
+                'required' => ['nationalities', 'residence_permit_title', 'residence_permit_expiry'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'nationalities' => ['IN'],
+                    'id_document_upload_now' => 'no',
+                    'residence_permit_title' => 'Aufenthaltserlaubnis',
+                    'residence_permit_unlimited' => false,
+                    'residence_permit_expiry' => '2026-06-01',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['residence_permit_expiry']);
+    });
+
+    test('allows first submitted onboarding data to choose identity upload before a draft submission exists', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string', 'pattern' => '^[A-Z]{2}$'],
+                        'minItems' => 1,
+                    ],
+                    'id_document_upload_now' => ['type' => 'string'],
+                    'id_document_kind' => ['type' => 'string'],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'nationalities' => ['DE'],
+                    'id_document_upload_now' => 'yes',
+                    'id_document_kind' => 'passport',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'submitted');
+    });
+
+    test('rejects submitted onboarding data when identity upload is set to yes but no identity file exists on an existing draft submission', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string', 'pattern' => '^[A-Z]{2}$'],
+                        'minItems' => 1,
+                    ],
+                    'id_document_upload_now' => ['type' => 'string'],
+                    'id_document_kind' => ['type' => 'string'],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'nationalities' => ['DE'],
+                    'id_document_upload_now' => 'yes',
+                    'id_document_kind' => 'passport',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['id_document_upload_now']);
+    });
+
+    test('rejects submitted onboarding data when residence upload is set to yes but no residence file exists on an existing draft submission', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string', 'pattern' => '^[A-Z]{2}$'],
+                        'minItems' => 1,
+                    ],
+                    'id_document_upload_now' => ['type' => 'string'],
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_unlimited' => ['type' => 'boolean'],
+                    'residence_permit_employment_allowed' => ['type' => 'string'],
+                    'residence_permit_upload_now' => ['type' => 'string'],
+                ],
+                'required' => ['nationalities', 'residence_permit_title'],
+            ],
+        ]);
+
+        OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'nationalities' => ['IN'],
+                    'id_document_upload_now' => 'no',
+                    'residence_permit_title' => 'Niederlassungserlaubnis',
+                    'residence_permit_unlimited' => true,
+                    'residence_permit_employment_allowed' => 'yes',
+                    'residence_permit_upload_now' => 'yes',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['residence_permit_upload_now']);
+    });
+
+    test('rejects legacy identity uploads without a document_subtype when resubmitting an existing draft', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string', 'pattern' => '^[A-Z]{2}$'],
+                        'minItems' => 1,
+                    ],
+                    'id_document_upload_now' => ['type' => 'string'],
+                    'id_document_kind' => ['type' => 'string'],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'status' => 'draft',
+        ]);
+
+        OnboardingSubmissionFile::create([
+            'onboarding_form_submission_id' => $submission->id,
+            'uploaded_by' => $this->user->id,
+            'document_type' => 'id_document',
+            'document_subtype' => null,
+            'file_path' => "employees/{$this->employee->id}/onboarding-submissions/{$submission->id}/legacy-id.enc",
+            'file_name' => 'legacy-passport.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 1024,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'nationalities' => ['DE'],
+                    'id_document_upload_now' => 'yes',
+                    'id_document_kind' => 'passport',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['id_document_upload_now']);
     });
 
     test('does not require residence permit fields on templates that only keep copied nationalities', function (): void {
@@ -1317,6 +1545,7 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             'form_template_id' => $template->id,
             'form_data' => [
                 'nationalities' => ['DE'],
+                'id_document_upload_now' => 'no',
                 'residence_permit_title' => 'Aufenthaltserlaubnis',
                 'residence_permit_employment_allowed' => 'no',
                 'residence_permit_expiry' => now()->subDay()->toDateString(),
@@ -1567,6 +1796,55 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
         $this->assertNotEmpty($decoded['nonce']);
     });
 
+    test('requires a document_subtype when uploading id_document files', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->create('id.pdf', 100, 'application/pdf'),
+                'document_type' => 'id_document',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['document_subtype']);
+    });
+
+    test('stores document_subtype for id_document uploads', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->create('passport.pdf', 100, 'application/pdf'),
+                'document_type' => 'id_document',
+                'document_subtype' => 'identity_document',
+            ]);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('onboarding_submission_files', [
+            'onboarding_form_submission_id' => $submission->id,
+            'document_type' => 'id_document',
+            'document_subtype' => 'identity_document',
+            'file_name' => 'passport.pdf',
+        ]);
+    });
+
     test('returns 403 when uploading a file to another employee submission', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
@@ -1611,6 +1889,113 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
             ]);
 
         $response->assertStatus(422);
+    });
+
+    test('returns a detailed upload error when PHP rejects the file before validation', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $path = tempnam(sys_get_temp_dir(), 'upload-fail-');
+        expect($path)->not->toBeFalse();
+        file_put_contents($path, 'x');
+
+        $brokenSymfonyFile = new SymfonyUploadedFile(
+            $path,
+            'too-large.pdf',
+            'application/pdf',
+            UPLOAD_ERR_INI_SIZE,
+            true
+        );
+        $brokenFile = UploadedFile::createFromBase($brokenSymfonyFile, true);
+
+        $response = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => $brokenFile,
+                'document_type' => 'contract',
+            ]);
+
+        @unlink($path);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['file']);
+
+        $firstFileError = (string) ($response->json('errors.file.0') ?? '');
+        expect($firstFileError)->toContain('upload_max_filesize')
+            ->and($firstFileError)->toContain('post_max_size');
+    });
+});
+
+describe('DELETE /v1/onboarding/submissions/{submission}/files/{file}', function () {
+    test('deletes an uploaded file for an editable own submission', function (): void {
+        Storage::fake('local');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $path = "employees/{$this->employee->id}/onboarding-submissions/{$submission->id}/test.enc";
+        Storage::disk('local')->put($path, '{"ciphertext":"abc","nonce":"def"}');
+
+        $uploadedFile = OnboardingSubmissionFile::create([
+            'onboarding_form_submission_id' => $submission->id,
+            'uploaded_by' => $this->user->id,
+            'document_type' => 'id_document',
+            'document_subtype' => 'identity_document',
+            'file_path' => $path,
+            'file_name' => 'passport.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 1024,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->delete("/v1/onboarding/submissions/{$submission->id}/files/{$uploadedFile->id}");
+
+        $response->assertNoContent();
+
+        Storage::disk('local')->assertMissing($path);
+        expect(OnboardingSubmissionFile::withTrashed()->find($uploadedFile->id)?->deleted_at)->not->toBeNull();
+    });
+
+    test('returns 404 when file does not belong to the submission', function (): void {
+        Storage::fake('local');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        $otherSubmission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => OnboardingFormTemplate::factory()->create([
+                'tenant_id' => $this->tenant->id,
+            ])->id,
+            'status' => 'draft',
+        ]);
+
+        $uploadedFile = OnboardingSubmissionFile::create([
+            'onboarding_form_submission_id' => $otherSubmission->id,
+            'uploaded_by' => $this->user->id,
+            'document_type' => 'id_document',
+            'document_subtype' => 'identity_document',
+            'file_path' => "employees/{$this->employee->id}/onboarding-submissions/{$otherSubmission->id}/test.enc",
+            'file_name' => 'passport.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 1024,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->delete("/v1/onboarding/submissions/{$submission->id}/files/{$uploadedFile->id}");
+
+        $response->assertStatus(404);
     });
 });
 

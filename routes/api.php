@@ -342,6 +342,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/onboarding/submissions', [OnboardingController::class, 'submitForm']);
             Route::patch('/onboarding/submissions/{submission}', [OnboardingController::class, 'updateSubmission']);
             Route::post('/onboarding/submissions/{submission}/files', [OnboardingController::class, 'uploadSubmissionFile']);
+            Route::delete('/onboarding/submissions/{submission}/files/{file}', [OnboardingController::class, 'deleteSubmissionFile']);
             Route::get('/onboarding/completion-status', [OnboardingController::class, 'getCompletionStatus']);
 
             // HR approval endpoints

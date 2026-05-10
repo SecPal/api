@@ -5,6 +5,7 @@
 
 namespace App\Services;
 
+use App\Models\Employee;
 use App\Models\OnboardingFormTemplate;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +20,8 @@ use Opis\JsonSchema\Validator;
  */
 final class OnboardingFormDataSchemaValidationService
 {
+    private const CONTRACT_START_DATE_FIELD = 'contract_start_date';
+
     private const RESIDENCE_PERMIT_EXPIRY_FIELD = 'residence_permit_expiry';
 
     private const RESIDENCE_PERMIT_TITLE_FIELD = 'residence_permit_title';
@@ -75,6 +78,7 @@ final class OnboardingFormDataSchemaValidationService
         OnboardingFormTemplate $template,
         array $formData,
         bool $forSubmittedStatus,
+        ?Employee $employee = null,
     ): void {
         if (! $forSubmittedStatus) {
             return;
@@ -110,14 +114,32 @@ final class OnboardingFormDataSchemaValidationService
         }
 
         if ($this->schemaDefinesField($schema, 'nationalities')) {
-            $this->assertResidencePermitRequirementsForNationalities($formData);
+            $contractStartDate = $this->resolveContractStartDate($formData, $employee);
+            $this->assertResidencePermitRequirementsForNationalities(
+                $formData,
+                $contractStartDate
+            );
 
             if (! $this->requiresResidenceTitleQuestion($formData)) {
                 return;
             }
+
+            $this->assertResidencePermitExpiryNotInPast(
+                $formData,
+                $contractStartDate,
+                true
+            );
+
+            if ($this->canAskEmploymentForResidenceTitle($formData, $contractStartDate)) {
+                $this->assertResidencePermitEmploymentAllowed($formData);
+            }
+
+            return;
         }
 
-        $this->assertResidencePermitExpiryNotInPast($formData);
+        // Backwards compatibility for templates that still include residence permit fields
+        // but not the nationality gating field.
+        $this->assertResidencePermitExpiryNotInPast($formData, null, false);
         $this->assertResidencePermitEmploymentAllowed($formData);
     }
 
@@ -229,8 +251,11 @@ final class OnboardingFormDataSchemaValidationService
     /**
      * @param  array<string, mixed>  $formData
      */
-    private function assertResidencePermitExpiryNotInPast(array $formData): void
-    {
+    private function assertResidencePermitExpiryNotInPast(
+        array $formData,
+        ?string $contractStartDate,
+        bool $enforceContractStartRule = true,
+    ): void {
         if ($this->isResidencePermitUnlimited($formData)) {
             return;
         }
@@ -256,6 +281,22 @@ final class OnboardingFormDataSchemaValidationService
         if ($expiryDate->startOfDay()->lt(now()->startOfDay())) {
             throw ValidationException::withMessages([
                 self::RESIDENCE_PERMIT_EXPIRY_FIELD => [__('The residence title expiry date cannot be in the past.')],
+            ]);
+        }
+
+        if (! $enforceContractStartRule) {
+            return;
+        }
+
+        if ($contractStartDate === null) {
+            throw ValidationException::withMessages([
+                self::RESIDENCE_PERMIT_EXPIRY_FIELD => [__('The residence title must remain valid after your contract start date.')],
+            ]);
+        }
+
+        if ($expiryDateString <= $contractStartDate) {
+            throw ValidationException::withMessages([
+                self::RESIDENCE_PERMIT_EXPIRY_FIELD => [__('The residence title must remain valid after your contract start date.')],
             ]);
         }
     }
@@ -298,8 +339,10 @@ final class OnboardingFormDataSchemaValidationService
     /**
      * @param  array<string, mixed>  $formData
      */
-    private function assertResidencePermitRequirementsForNationalities(array $formData): void
-    {
+    private function assertResidencePermitRequirementsForNationalities(
+        array $formData,
+        ?string $contractStartDate,
+    ): void {
         if (! $this->requiresResidenceTitleQuestion($formData)) {
             return;
         }
@@ -311,14 +354,18 @@ final class OnboardingFormDataSchemaValidationService
             ]);
         }
 
-        $employmentAllowed = $this->normalizedNonEmptyString($formData[self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD] ?? null);
-        if ($employmentAllowed === null) {
-            throw ValidationException::withMessages([
-                self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD => [__('The employment authorization decision is required.')],
-            ]);
-        }
-
         if ($this->isResidencePermitUnlimited($formData)) {
+            if (! $this->canAskEmploymentForResidenceTitle($formData, $contractStartDate)) {
+                return;
+            }
+
+            $employmentAllowed = $this->normalizedNonEmptyString($formData[self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD] ?? null);
+            if ($employmentAllowed === null) {
+                throw ValidationException::withMessages([
+                    self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD => [__('The employment authorization decision is required.')],
+                ]);
+            }
+
             return;
         }
 
@@ -326,6 +373,17 @@ final class OnboardingFormDataSchemaValidationService
         if ($expiryDate === null) {
             throw ValidationException::withMessages([
                 self::RESIDENCE_PERMIT_EXPIRY_FIELD => [__('The residence title expiry date is required.')],
+            ]);
+        }
+
+        if (! $this->canAskEmploymentForResidenceTitle($formData, $contractStartDate)) {
+            return;
+        }
+
+        $employmentAllowed = $this->normalizedNonEmptyString($formData[self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD] ?? null);
+        if ($employmentAllowed === null) {
+            throw ValidationException::withMessages([
+                self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD => [__('The employment authorization decision is required.')],
             ]);
         }
     }
@@ -436,5 +494,63 @@ final class OnboardingFormDataSchemaValidationService
         $normalized = trim($value);
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function resolveContractStartDate(
+        array $formData,
+        ?Employee $employee,
+    ): ?string {
+        $formValue = $this->normalizedNonEmptyString(
+            $formData[self::CONTRACT_START_DATE_FIELD] ?? null
+        );
+        if ($formValue !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $formValue) === 1) {
+            return $formValue;
+        }
+
+        $employeeStartDate = $employee?->contract_start_date?->toDateString();
+        if (is_string($employeeStartDate) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $employeeStartDate) === 1) {
+            return $employeeStartDate;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function canAskEmploymentForResidenceTitle(
+        array $formData,
+        ?string $contractStartDate,
+    ): bool {
+        $residenceTitle = $this->normalizedNonEmptyString(
+            $formData[self::RESIDENCE_PERMIT_TITLE_FIELD] ?? null
+        );
+        if ($residenceTitle === null) {
+            return false;
+        }
+
+        if ($this->isResidencePermitUnlimited($formData)) {
+            return true;
+        }
+
+        if ($contractStartDate === null) {
+            return false;
+        }
+
+        $expiryDate = $this->normalizedNonEmptyString(
+            $formData[self::RESIDENCE_PERMIT_EXPIRY_FIELD] ?? null
+        );
+        if (
+            $expiryDate === null
+            || preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiryDate) !== 1
+            || $expiryDate <= now()->toDateString()
+        ) {
+            return false;
+        }
+
+        return $expiryDate > $contractStartDate;
     }
 }
