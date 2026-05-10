@@ -336,7 +336,9 @@ class EmployeeController extends Controller
                 ?? Employee::WORKFLOW_STATUS_ACTIVE;
 
             $employee = Employee::create(array_merge($data, $validated));
-            $this->syncEmployeeAddresses($employee, is_array($addresses) ? $addresses : []);
+            /** @var array<int, array<string, mixed>> $normalizedAddresses */
+            $normalizedAddresses = is_array($addresses) ? $addresses : [];
+            $this->syncEmployeeAddresses($employee, $normalizedAddresses);
 
             return $employee;
         });
@@ -394,7 +396,9 @@ class EmployeeController extends Controller
             }
 
             if ($addressPayload !== null) {
-                $this->syncEmployeeAddresses($employee, is_array($addressPayload) ? $addressPayload : []);
+                /** @var array<int, array<string, mixed>> $normalizedPayload */
+                $normalizedPayload = is_array($addressPayload) ? $addressPayload : [];
+                $this->syncEmployeeAddresses($employee, $normalizedPayload);
             }
         });
 

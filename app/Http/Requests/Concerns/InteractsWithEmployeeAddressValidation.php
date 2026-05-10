@@ -51,13 +51,13 @@ trait InteractsWithEmployeeAddressValidation
             }
 
             $untilRaw = $row['resided_until'] ?? null;
-            $until = ($untilRaw === null || $untilRaw === '') ? null : (string) $untilRaw;
+            $until = (is_string($untilRaw) && $untilRaw !== '') ? $untilRaw : null;
             if ($until === null) {
                 $currentRows[] = $index;
             }
 
             $fromRaw = $row['resided_from'] ?? null;
-            $from = ($fromRaw === null || $fromRaw === '') ? null : (string) $fromRaw;
+            $from = (is_string($fromRaw) && $fromRaw !== '') ? $fromRaw : null;
 
             if ($from !== null && $until !== null) {
                 try {
@@ -74,7 +74,7 @@ trait InteractsWithEmployeeAddressValidation
                 }
             }
 
-            if ($until !== null && ($from === null || $from === '')) {
+            if ($until !== null && $from === null) {
                 $validator->errors()->add(
                     'addresses.'.$index.'.resided_from',
                     __('A start date is required for past addresses.'),

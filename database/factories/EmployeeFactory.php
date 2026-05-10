@@ -16,12 +16,9 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class EmployeeFactory extends Factory
 {
-    /**
-     * @return $this
-     */
     public function configure(): static
     {
-        return $this->afterCreating(function (Employee $employee): void {
+        return $this->afterCreating(function (Employee $employee): void { // @phpstan-ignore return.type
             if ($employee->addresses()->exists()) {
                 return;
             }

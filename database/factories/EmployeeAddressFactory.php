@@ -23,7 +23,7 @@ class EmployeeAddressFactory extends Factory
     {
         return [
             'employee_id' => Employee::factory(),
-            'tenant_id' => fn (array $attributes) => Employee::query()->findOrFail($attributes['employee_id'])->tenant_id,
+            'tenant_id' => fn (array $attributes) => Employee::query()->where('id', $attributes['employee_id'])->firstOrFail()->tenant_id,
             'street' => fake()->streetName(),
             'house_number' => fake()->buildingNumber(),
             'postal_code' => fake()->postcode(),
@@ -39,7 +39,7 @@ class EmployeeAddressFactory extends Factory
     public function current(): static
     {
         return $this->state(fn (array $attributes) => [
-            'resided_from' => fake()->optional(0.4)->dateTimeBetween('-2 years', 'now')?->format('Y-m-d'),
+            'resided_from' => fake()->boolean(40) ? fake()->dateTimeBetween('-2 years', 'now')->format('Y-m-d') : null,
             'resided_until' => null,
         ]);
     }

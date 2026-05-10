@@ -273,8 +273,7 @@ class BewacherregisterExportService
         $appName = config('app.name');
         $employerName = is_string($appName) && $appName !== '' ? $appName : 'SecPal';
 
-        /** @var EmployeeAddress|null $current */
-        $current = $employee->addresses->first(fn (EmployeeAddress $a): bool => $a->resided_until === null);
+        $current = $employee->addresses->first(fn (EmployeeAddress $a): bool => $a->resided_until === null) ?: null;
 
         return [
             'last_name' => $employee->last_name,
@@ -286,11 +285,11 @@ class BewacherregisterExportService
             'birth_city' => (string) $employee->birth_city,
             'birth_country' => (string) $employee->birth_country,
             'nationalities' => implode(', ', $employee->nationalities ?? []),
-            'address_street' => (string) ($current?->street ?? ''),
-            'address_house_number' => (string) ($current?->house_number ?? ''),
-            'address_postal_code' => (string) ($current?->postal_code ?? ''),
-            'address_city' => (string) ($current?->city ?? ''),
-            'address_country' => (string) ($current?->country ?? ''),
+            'address_street' => $current !== null ? (string) ($current->street ?? '') : '',
+            'address_house_number' => $current !== null ? (string) ($current->house_number ?? '') : '',
+            'address_postal_code' => $current !== null ? (string) ($current->postal_code ?? '') : '',
+            'address_city' => $current !== null ? (string) ($current->city ?? '') : '',
+            'address_country' => $current !== null ? (string) ($current->country ?? '') : '',
             'address_history' => $this->formatAddressHistoryFromRelation($employee),
             'intended_activities' => implode(', ', $employee->intended_activities ?? []),
             'sachkunde_type' => (string) $employee->sachkunde_type,
