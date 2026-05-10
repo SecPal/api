@@ -196,14 +196,7 @@ not_registered → pending → active
 | `birth_country`               | § 16 Abs. 2 Nr. 1            | string(2)   | No        | ISO 3166-1 alpha-2                  | `DE`                              |
 | `birth_state`                 | § 16 Abs. 2 Nr. 1            | string(100) | No        | Nullable                            | "Berlin"                          |
 | `nationalities`               | § 16 Abs. 2 Nr. 2            | JSON        | No        | Array of ISO codes                  | `["DE", "PL"]`                    |
-| `address_street_enc`          | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Required if BWR pending/active      | "Hauptstraße"                     |
-| `address_house_number_enc`    | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Nullable                            | "42"                              |
-| `address_postal_code_enc`     | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Required if BWR pending/active      | "10115"                           |
-| `address_city_enc`            | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Required if BWR pending/active      | "Berlin"                          |
-| `address_supplement_enc`      | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Nullable                            | "3. OG rechts"                    |
-| `address_country`             | § 16 Abs. 2 Nr. 1            | string(2)   | No        | ISO 3166-1 alpha-2                  | `DE`                              |
-| `address_state`               | § 16 Abs. 2 Nr. 1            | string(100) | No        | Nullable                            | "NRW"                             |
-| `address_history`             | § 16 Abs. 2 Nr. 6 (5 years)  | JSON        | No        | Array of address objects            | See example below                 |
+| `employee_addresses` rows     | § 16 Abs. 2 Nr. 1 / history  | relation    | Mixed     | See `EmployeeAddress` model         | Current + history rows            |
 | `intended_activities`         | § 16 Abs. 2 Nr. 4            | JSON        | No        | Array of §34a work types            | `["Objektschutz", "Citystreife"]` |
 | `id_document_type`            | § 16 Abs. 2 Nr. 1 (implicit) | enum        | No        | ID card, passport, residence permit | `id_card`                         |
 | `id_document_number_enc`      | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Nullable                            | "L01234567"                       |
@@ -214,35 +207,20 @@ not_registered → pending → active
 | `sachkunde_exam_date`         | § 16 Abs. 2 Nr. 4            | date        | No        | Nullable                            | `2023-05-20`                      |
 | `sachkunde_issued_date`       | § 16 Abs. 2 Nr. 4            | date        | No        | Nullable                            | `2023-06-01`                      |
 
-**Address History JSON Example:**
+**Residential addresses (`employee_addresses`):**
 
-```json
-[
-  {
-    "from": "2019-01-01",
-    "to": "2021-06-30",
-    "street": "Alte Straße 10",
-    "city": "Hamburg",
-    "postal_code": "20095",
-    "country": "DE"
-  },
-  {
-    "from": "2021-07-01",
-    "to": "2023-12-31",
-    "street": "Neue Straße 5",
-    "city": "Berlin",
-    "postal_code": "10115",
-    "country": "DE"
-  }
-]
-```
+- Stored as separate rows linked to `employees` with encrypted street/postal/city fields (same encryption approach as the former flat columns).
+- **Current address:** exactly one row per employee with `resided_until = null`.
+- **Historical addresses:** `resided_from` / `resided_until` set; `resided_from` may be null when unknown.
+- **API:** clients send/receive `addresses[]` with `street`, `house_number`, `postal_code`, `city`, `supplement`, `country`, `state`, `resided_from`, `resided_until`. Updates replace the full list for that employee. There is no automatic import from removed flat columns—use `addresses[]` only.
+- **BWR five-year continuity** for exports is enforced in `BewacherregisterExportService` (gaps/overlaps and coverage), not by requiring a complete history at employee creation.
 
-**Computed Property:**
+**Computed property:**
 
 ```php
-// structured_address - Combines all address fields into formatted string
+// structured_address — formatted string from the current address row
 $employee->structured_address;
-// Returns: "Hauptstraße 42, 10115 Berlin, DE"
+// Returns e.g. "Hauptstraße 42, Hinterhaus, 10115 Berlin, DE"
 ```
 
 ### Non-EU Work Authorization Core

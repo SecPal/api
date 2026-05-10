@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Employee residential addresses live in `employee_addresses` (encrypted street/postal/city fields per row, optional residence date range). The API uses `addresses[]` instead of flat `address_*` attributes and `address_history` JSON on `employees`. Legacy columns are dropped without importing prior values—clients must adopt `addresses[]`.
+
 ### Fixed
 
 - aligned onboarding attachment gating with the draft-first upload flow by allowing first-time submitted forms to opt into identity/residence uploads before a submission id exists, while keeping the stricter `document_subtype` requirement for existing editable submissions and legacy `id_document` uploads during resubmission

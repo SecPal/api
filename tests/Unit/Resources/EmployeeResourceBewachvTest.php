@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
+use App\Models\EmployeeAddress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 
@@ -31,6 +32,7 @@ function employeeResourceRequest(bool $canReadSensitive = false): Request
 
 test('EmployeeResource includes all BewachV fields', function () {
     $employee = Employee::factory()->withCompleteBewachvData()->create();
+    $employee->load('addresses');
     $resource = new EmployeeResource($employee);
     $array = $resource->toArray(employeeResourceRequest(true));
 
@@ -56,19 +58,11 @@ test('EmployeeResource includes all BewachV fields', function () {
     // Nationalities
     expect($array)->toHaveKey('nationalities');
 
-    // Structured address + computed property
-    expect($array)->toHaveKey('address_street')
-        ->and($array)->toHaveKey('address_house_number')
-        ->and($array)->toHaveKey('address_postal_code')
-        ->and($array)->toHaveKey('address_city')
-        ->and($array)->toHaveKey('address_supplement')
-        ->and($array)->toHaveKey('address_country')
-        ->and($array)->toHaveKey('address_state')
+    expect($array)->toHaveKey('addresses')
+        ->and($array)->toHaveKey('current_address')
         ->and($array)->toHaveKey('structured_address');
 
-    // Address history
-    expect($array)->toHaveKey('address_history')
-        ->and($array)->toHaveKey('emergency_contacts');
+    expect($array)->toHaveKey('emergency_contacts');
 
     // Intended activities
     expect($array)->toHaveKey('intended_activities');
@@ -150,6 +144,7 @@ test('EmployeeResource formats dates consistently', function () {
 
 test('EmployeeResource handles null BewachV fields gracefully', function () {
     $employee = Employee::factory()->create();
+    $employee->load('addresses');
 
     $resource = new EmployeeResource($employee);
     $array = $resource->toArray(request());
@@ -159,7 +154,7 @@ test('EmployeeResource handles null BewachV fields gracefully', function () {
         ->and($array)->toHaveKey('gender')
         ->and($array)->toHaveKey('birth_country')
         ->and($array)->toHaveKey('nationalities')
-        ->and($array)->toHaveKey('address_history');
+        ->and($array)->toHaveKey('addresses');
 });
 
 test('EmployeeResource omits regulated identifiers without employees.read_sensitive', function () {
@@ -217,13 +212,20 @@ test('EmployeeResource includes certification expiry context', function () {
 });
 
 test('EmployeeResource includes computed structured_address property', function () {
-    $employee = Employee::factory()->create([
-        'address_street' => 'Hauptstraße',
-        'address_house_number' => '42',
-        'address_postal_code' => '10115',
-        'address_city' => 'Berlin',
-        'address_country' => 'DE',
+    $employee = Employee::factory()->create();
+    $employee->addresses()->delete();
+
+    EmployeeAddress::factory()->current()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $employee->tenant_id,
+        'street' => 'Hauptstraße',
+        'house_number' => '42',
+        'postal_code' => '10115',
+        'city' => 'Berlin',
+        'country' => 'DE',
     ]);
+
+    $employee->load('addresses');
 
     $resource = new EmployeeResource($employee);
     $array = $resource->toArray(request());
@@ -248,16 +250,16 @@ test('EmployeeResource preserves BWR-ID leading zeros', function () {
 
 test('EmployeeResource does not expose encrypted field names', function () {
     $employee = Employee::factory()->withCompleteBewachvData()->create();
+    $employee->load('addresses');
     $resource = new EmployeeResource($employee);
     $array = $resource->toArray(employeeResourceRequest(true));
 
     // Encrypted fields should not have _enc suffix in API
     expect($array)->not->toHaveKey('birth_name_enc')
-        ->and($array)->not->toHaveKey('address_street_enc')
         ->and($array)->not->toHaveKey('id_document_number_enc');
 
     // But decrypted versions should exist
     expect($array)->toHaveKey('birth_name')
-        ->and($array)->toHaveKey('address_street')
+        ->and($array)->toHaveKey('addresses')
         ->and($array)->toHaveKey('id_document_number');
 });

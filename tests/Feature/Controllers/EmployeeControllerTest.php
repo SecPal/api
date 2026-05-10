@@ -9,6 +9,7 @@
 use App\Mail\BwrIdDocumentAutoDeletedMail;
 use App\Mail\OnboardingInvitationMail;
 use App\Models\Employee;
+use App\Models\EmployeeAddress;
 use App\Models\EmployeeOnboardingToken;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
@@ -1333,20 +1334,6 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             'birth_city' => 'Berlin',
             'birth_country' => 'DE',
             'nationalities' => ['DE'],
-            'address_street' => 'Hauptstrasse',
-            'address_house_number' => '42A',
-            'address_postal_code' => '10115',
-            'address_city' => 'Berlin',
-            'address_country' => 'DE',
-            'address_history' => [[
-                'from' => '2021-01-01',
-                'to' => '2023-12-31',
-                'street' => 'Altstrasse',
-                'house_number' => '5',
-                'postal_code' => '20095',
-                'city' => 'Hamburg',
-                'country' => 'DE',
-            ]],
             'intended_activities' => ['object_protection'],
             'id_document_type' => 'id_card',
             'id_document_number' => 'L01X00T47',
@@ -1360,6 +1347,31 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             'contract_start_date' => now()->toDateString(),
             'management_level' => 0,
             'work_permit_type' => 'none',
+        ]);
+
+        $employee->addresses()->delete();
+
+        EmployeeAddress::factory()->create([
+            'employee_id' => $employee->id,
+            'tenant_id' => $this->tenant->id,
+            'street' => 'Altstrasse',
+            'house_number' => '5',
+            'postal_code' => '20095',
+            'city' => 'Hamburg',
+            'country' => 'DE',
+            'resided_from' => '2021-01-01',
+            'resided_until' => '2023-12-31',
+        ]);
+
+        EmployeeAddress::factory()->current()->create([
+            'employee_id' => $employee->id,
+            'tenant_id' => $this->tenant->id,
+            'street' => 'Hauptstrasse',
+            'house_number' => '42A',
+            'postal_code' => '10115',
+            'city' => 'Berlin',
+            'country' => 'DE',
+            'resided_from' => '2024-01-01',
         ]);
 
         $response = $this->withToken($this->token)
@@ -1497,20 +1509,6 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             'birth_city' => 'Berlin',
             'birth_country' => 'DE',
             'nationalities' => ['DE'],
-            'address_street' => 'Hauptstrasse',
-            'address_house_number' => '42A',
-            'address_postal_code' => '10115',
-            'address_city' => 'Berlin',
-            'address_country' => 'DE',
-            'address_history' => [[
-                'from' => '2021-01-01',
-                'to' => '2023-12-31',
-                'street' => 'Altstrasse',
-                'house_number' => '5',
-                'postal_code' => '20095',
-                'city' => 'Hamburg',
-                'country' => 'DE',
-            ]],
             'intended_activities' => ['object_protection'],
             'id_document_type' => 'id_card',
             'id_document_number' => 'L01X00T47',
@@ -1524,6 +1522,31 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             'contract_start_date' => now()->toDateString(),
             'management_level' => 0,
             'work_permit_type' => 'none',
+        ]);
+
+        $employee->addresses()->delete();
+
+        EmployeeAddress::factory()->create([
+            'employee_id' => $employee->id,
+            'tenant_id' => $this->tenant->id,
+            'street' => 'Altstrasse',
+            'house_number' => '5',
+            'postal_code' => '20095',
+            'city' => 'Hamburg',
+            'country' => 'DE',
+            'resided_from' => '2021-01-01',
+            'resided_until' => '2023-12-31',
+        ]);
+
+        EmployeeAddress::factory()->current()->create([
+            'employee_id' => $employee->id,
+            'tenant_id' => $this->tenant->id,
+            'street' => 'Hauptstrasse',
+            'house_number' => '42A',
+            'postal_code' => '10115',
+            'city' => 'Berlin',
+            'country' => 'DE',
+            'resided_from' => '2024-01-01',
         ]);
 
         $response = $this->withToken($this->token)
@@ -1574,20 +1597,6 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             'birth_city' => 'Berlin',
             'birth_country' => 'DE',
             'nationalities' => ['DE'],
-            'address_street' => 'Hauptstrasse',
-            'address_house_number' => '42A',
-            'address_postal_code' => '10115',
-            'address_city' => 'Berlin',
-            'address_country' => 'DE',
-            'address_history' => [[
-                'from' => '2021-01-01',
-                'to' => '2023-12-31',
-                'street' => 'Altstrasse',
-                'house_number' => '5',
-                'postal_code' => '20095',
-                'city' => 'Hamburg',
-                'country' => 'DE',
-            ]],
             'intended_activities' => ['object_protection'],
             'id_document_type' => 'id_card',
             'id_document_number' => 'L01X00T47',
@@ -1605,6 +1614,31 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
             'contract_start_date' => now()->toDateString(),
             'management_level' => 0,
             'work_permit_type' => 'none',
+        ]);
+
+        $employee->addresses()->delete();
+
+        EmployeeAddress::factory()->create([
+            'employee_id' => $employee->id,
+            'tenant_id' => $this->tenant->id,
+            'street' => 'Altstrasse',
+            'house_number' => '5',
+            'postal_code' => '20095',
+            'city' => 'Hamburg',
+            'country' => 'DE',
+            'resided_from' => '2021-01-01',
+            'resided_until' => '2023-12-31',
+        ]);
+
+        EmployeeAddress::factory()->current()->create([
+            'employee_id' => $employee->id,
+            'tenant_id' => $this->tenant->id,
+            'street' => 'Hauptstrasse',
+            'house_number' => '42A',
+            'postal_code' => '10115',
+            'city' => 'Berlin',
+            'country' => 'DE',
+            'resided_from' => '2024-01-01',
         ]);
 
         $exportResponse = $this->withToken($this->token)
@@ -1720,20 +1754,6 @@ describe('GET /v1/employees/{employee}/bwr/exports/{file}/download', function ()
             'birth_city' => 'Berlin',
             'birth_country' => 'DE',
             'nationalities' => ['DE'],
-            'address_street' => 'Hauptstrasse',
-            'address_house_number' => '42A',
-            'address_postal_code' => '10115',
-            'address_city' => 'Berlin',
-            'address_country' => 'DE',
-            'address_history' => [[
-                'from' => '2021-01-01',
-                'to' => '2023-12-31',
-                'street' => 'Altstrasse',
-                'house_number' => '5',
-                'postal_code' => '20095',
-                'city' => 'Hamburg',
-                'country' => 'DE',
-            ]],
             'intended_activities' => ['object_protection'],
             'id_document_type' => 'id_card',
             'id_document_number' => 'L01X00T47',
@@ -1747,6 +1767,31 @@ describe('GET /v1/employees/{employee}/bwr/exports/{file}/download', function ()
             'contract_start_date' => now()->toDateString(),
             'management_level' => 0,
             'work_permit_type' => 'none',
+        ]);
+
+        $employee->addresses()->delete();
+
+        EmployeeAddress::factory()->create([
+            'employee_id' => $employee->id,
+            'tenant_id' => $this->tenant->id,
+            'street' => 'Altstrasse',
+            'house_number' => '5',
+            'postal_code' => '20095',
+            'city' => 'Hamburg',
+            'country' => 'DE',
+            'resided_from' => '2021-01-01',
+            'resided_until' => '2023-12-31',
+        ]);
+
+        EmployeeAddress::factory()->current()->create([
+            'employee_id' => $employee->id,
+            'tenant_id' => $this->tenant->id,
+            'street' => 'Hauptstrasse',
+            'house_number' => '42A',
+            'postal_code' => '10115',
+            'city' => 'Berlin',
+            'country' => 'DE',
+            'resided_from' => '2024-01-01',
         ]);
 
         $exportResponse = $this->withToken($this->token)

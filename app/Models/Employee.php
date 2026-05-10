@@ -49,14 +49,6 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string|null $email
  * @property string|null $phone_enc Encrypted phone number
  * @property string|null $phone_idx Blind index for phone number
- * @property string|null $address_street_enc Encrypted street name
- * @property string|null $address_house_number_enc Encrypted house number
- * @property string|null $address_postal_code_enc Encrypted postal code
- * @property string|null $address_city_enc Encrypted city
- * @property string|null $address_supplement_enc Encrypted address supplement
- * @property string|null $address_country ISO 3166-1 alpha-2
- * @property string|null $address_state
- * @property array<int, array{from: string, to: string, street: string, house_number: string, postal_code: string, city: string, country: string, state: ?string}>|null $address_history Array of address objects (5 years)
  * @property array<int, array{name: string, relationship?: ?string, phone: string, email?: ?string, notes?: ?string}>|null $emergency_contacts Optional emergency contacts
  * @property array<int, string>|null $intended_activities Array of activity codes
  * @property string|null $id_document_type id_card|passport|residence_permit
@@ -137,11 +129,6 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read string|null $birth_name Decrypted birth name
  * @property-read string|null $date_of_birth Decrypted date of birth (string, not Carbon)
  * @property-read string|null $phone Decrypted phone number
- * @property-read string|null $address_street Decrypted street
- * @property-read string|null $address_house_number Decrypted house number
- * @property-read string|null $address_postal_code Decrypted postal code
- * @property-read string|null $address_city Decrypted city
- * @property-read string|null $address_supplement Decrypted address supplement
  * @property-read string|null $id_document_number Decrypted document number
  * @property-read string|null $work_permit_number Decrypted work permit number
  * @property-read float|null $hourly_rate Decrypted hourly rate
@@ -156,6 +143,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read Collection<int, Qualification> $qualifications
  * @property-read Collection<int, EmployeeDocument> $documents
  * @property-read Collection<int, OnboardingFormSubmission> $onboardingSubmissions
+ * @property-read Collection<int, EmployeeAddress> $addresses
  */
 class Employee extends Model
 {
@@ -337,20 +325,6 @@ class Employee extends Model
         'phone', // plaintext field → triggers mutator → sets phone_enc → triggers cast
         'phone_enc',
         'phone_idx',
-        // Structured Address
-        'address_street', // plaintext → address_street_enc
-        'address_street_enc',
-        'address_house_number', // plaintext → address_house_number_enc
-        'address_house_number_enc',
-        'address_postal_code', // plaintext → address_postal_code_enc
-        'address_postal_code_enc',
-        'address_city', // plaintext → address_city_enc
-        'address_city_enc',
-        'address_supplement', // plaintext → address_supplement_enc
-        'address_supplement_enc',
-        'address_country',
-        'address_state',
-        'address_history',
         'emergency_contacts',
         // Intended Activities
         'intended_activities',
@@ -448,11 +422,6 @@ class Employee extends Model
         'date_of_birth_idx',
         'phone_enc',
         'phone_idx',
-        'address_street_enc',
-        'address_house_number_enc',
-        'address_postal_code_enc',
-        'address_city_enc',
-        'address_supplement_enc',
         'id_document_number_enc',
         'work_permit_number_enc',
         'firearms_license_number_enc',
@@ -476,11 +445,6 @@ class Employee extends Model
             'birth_name_enc' => \App\Casts\EncryptedWithDek::class,
             'date_of_birth_enc' => \App\Casts\EncryptedWithDek::class,
             'phone_enc' => \App\Casts\EncryptedWithDek::class,
-            'address_street_enc' => \App\Casts\EncryptedWithDek::class,
-            'address_house_number_enc' => \App\Casts\EncryptedWithDek::class,
-            'address_postal_code_enc' => \App\Casts\EncryptedWithDek::class,
-            'address_city_enc' => \App\Casts\EncryptedWithDek::class,
-            'address_supplement_enc' => \App\Casts\EncryptedWithDek::class,
             'id_document_number_enc' => \App\Casts\EncryptedWithDek::class,
             'work_permit_number_enc' => \App\Casts\EncryptedWithDek::class,
             'firearms_license_number_enc' => \App\Casts\EncryptedWithDek::class,
@@ -490,7 +454,6 @@ class Employee extends Model
             // JSON arrays
             'previous_names' => 'array',
             'nationalities' => 'array',
-            'address_history' => 'array',
             'emergency_contacts' => 'array',
             'intended_activities' => 'array',
             'additional_certifications' => 'array',
@@ -656,21 +619,6 @@ class Employee extends Model
             if ($employee->isDirty('birth_name_enc') && $employee->hasActuallyChanged('birth_name')) {
                 $changedFields[] = 'birth_name';
             }
-            if ($employee->isDirty('address_street_enc') && $employee->hasActuallyChanged('address_street')) {
-                $changedFields[] = 'address_street';
-            }
-            if ($employee->isDirty('address_house_number_enc') && $employee->hasActuallyChanged('address_house_number')) {
-                $changedFields[] = 'address_house_number';
-            }
-            if ($employee->isDirty('address_postal_code_enc') && $employee->hasActuallyChanged('address_postal_code')) {
-                $changedFields[] = 'address_postal_code';
-            }
-            if ($employee->isDirty('address_city_enc') && $employee->hasActuallyChanged('address_city')) {
-                $changedFields[] = 'address_city';
-            }
-            if ($employee->isDirty('address_supplement_enc') && $employee->hasActuallyChanged('address_supplement')) {
-                $changedFields[] = 'address_supplement';
-            }
             if ($employee->isDirty('id_document_number_enc') && $employee->hasActuallyChanged('id_document_number')) {
                 $changedFields[] = 'id_document_number';
             }
@@ -820,6 +768,21 @@ class Employee extends Model
         return $this->hasMany(OnboardingFormSubmission::class);
     }
 
+    /**
+     * Residential addresses (current and historical).
+     *
+     * @return HasMany<EmployeeAddress, $this>
+     */
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(EmployeeAddress::class);
+    }
+
+    public function currentAddress(): ?EmployeeAddress
+    {
+        return $this->addresses()->whereNull('resided_until')->first();
+    }
+
     // === ACCESSORS (Decrypt encrypted fields) ===
 
     /**
@@ -965,86 +928,6 @@ class Employee extends Model
     }
 
     /**
-     * Get decrypted address street (via EncryptedWithDek cast).
-     */
-    public function getAddressStreetAttribute(): ?string
-    {
-        return $this->address_street_enc;
-    }
-
-    /**
-     * Set plaintext address street - Cast handles encryption.
-     */
-    public function setAddressStreetAttribute(?string $value): void
-    {
-        $this->address_street_enc = $value;
-    }
-
-    /**
-     * Get decrypted house number (via EncryptedWithDek cast).
-     */
-    public function getAddressHouseNumberAttribute(): ?string
-    {
-        return $this->address_house_number_enc;
-    }
-
-    /**
-     * Set plaintext house number - Cast handles encryption.
-     */
-    public function setAddressHouseNumberAttribute(?string $value): void
-    {
-        $this->address_house_number_enc = $value;
-    }
-
-    /**
-     * Get decrypted postal code (via EncryptedWithDek cast).
-     */
-    public function getAddressPostalCodeAttribute(): ?string
-    {
-        return $this->address_postal_code_enc;
-    }
-
-    /**
-     * Set plaintext postal code - Cast handles encryption.
-     */
-    public function setAddressPostalCodeAttribute(?string $value): void
-    {
-        $this->address_postal_code_enc = $value;
-    }
-
-    /**
-     * Get decrypted city (via EncryptedWithDek cast).
-     */
-    public function getAddressCityAttribute(): ?string
-    {
-        return $this->address_city_enc;
-    }
-
-    /**
-     * Set plaintext city - Cast handles encryption.
-     */
-    public function setAddressCityAttribute(?string $value): void
-    {
-        $this->address_city_enc = $value;
-    }
-
-    /**
-     * Get decrypted address supplement (via EncryptedWithDek cast).
-     */
-    public function getAddressSupplementAttribute(): ?string
-    {
-        return $this->address_supplement_enc;
-    }
-
-    /**
-     * Set plaintext address supplement - Cast handles encryption.
-     */
-    public function setAddressSupplementAttribute(?string $value): void
-    {
-        $this->address_supplement_enc = $value;
-    }
-
-    /**
      * Get decrypted ID document number (via EncryptedWithDek cast).
      */
     public function getIdDocumentNumberAttribute(): ?string
@@ -1099,15 +982,23 @@ class Employee extends Model
      */
     public function getStructuredAddressAttribute(): ?string
     {
-        if (! $this->address_street && ! $this->address_city) {
+        $current = $this->relationLoaded('addresses')
+            ? $this->addresses->first(fn (EmployeeAddress $a): bool => $a->resided_until === null)
+            : $this->currentAddress();
+
+        if (! $current instanceof EmployeeAddress) {
+            return null;
+        }
+
+        if (! $current->street && ! $current->city) {
             return null;
         }
 
         $parts = array_filter([
-            trim(($this->address_street ?? '').' '.($this->address_house_number ?? '')),
-            $this->address_supplement,
-            trim(($this->address_postal_code ?? '').' '.($this->address_city ?? '')),
-            $this->address_country ? strtoupper($this->address_country) : null,
+            trim(($current->street ?? '').' '.($current->house_number ?? '')),
+            $current->supplement,
+            trim(($current->postal_code ?? '').' '.($current->city ?? '')),
+            $current->country ? strtoupper($current->country) : null,
         ]);
 
         return implode(', ', $parts);

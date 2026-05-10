@@ -6,6 +6,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\InteractsWithCertificationValidation;
+use App\Http\Requests\Concerns\InteractsWithEmployeeAddressValidation;
 use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
@@ -24,6 +25,7 @@ use Illuminate\Validation\Validator;
 class UpdateEmployeeRequest extends FormRequest
 {
     use InteractsWithCertificationValidation;
+    use InteractsWithEmployeeAddressValidation;
     use InteractsWithWorkPermitValidation;
 
     /**
@@ -45,6 +47,7 @@ class UpdateEmployeeRequest extends FormRequest
             }
 
             $this->validateEmployeeScopeConstraints($validator);
+            $this->validateEmployeeAddressesPayload($validator);
         });
     }
 
@@ -88,23 +91,7 @@ class UpdateEmployeeRequest extends FormRequest
             'nationalities' => ['sometimes', 'nullable', 'array'],
             'nationalities.*' => ['string', 'size:2', 'regex:/^[A-Z]{2}$/'],
 
-            // BewachV § 16 Abs. 2 Nr. 5: Structured Current Address
-            'address_street' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'address_house_number' => ['sometimes', 'nullable', 'string', 'max:10'],
-            'address_postal_code' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'address_city' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'address_supplement' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'address_country' => ['sometimes', 'nullable', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'],
-            'address_state' => ['sometimes', 'nullable', 'string', 'max:100'],
-
-            // BewachV § 16 Abs. 2 Nr. 6: Address History
-            'address_history' => ['sometimes', 'nullable', 'array'],
-            'address_history.*.from' => ['required', 'date'],
-            'address_history.*.to' => ['required', 'date', 'after_or_equal:address_history.*.from'],
-            'address_history.*.street' => ['required', 'string', 'max:255'],
-            'address_history.*.city' => ['required', 'string', 'max:255'],
-            'address_history.*.postal_code' => ['required', 'string', 'max:20'],
-            'address_history.*.country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'],
+            'addresses' => ['sometimes', 'nullable', 'array'],
 
             // Emergency contacts
             'emergency_contacts' => ['sometimes', 'nullable', 'array'],
@@ -220,7 +207,7 @@ class UpdateEmployeeRequest extends FormRequest
                     }
                 },
             ],
-        ], $this->certificationValidationRules(true));
+        ], $this->employeeAddressItemRules(), $this->certificationValidationRules(true));
     }
 
     /**
@@ -245,13 +232,10 @@ class UpdateEmployeeRequest extends FormRequest
             // ISO country codes
             'birth_country.size' => 'Geburtsland muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
             'birth_country.regex' => 'Geburtsland muss aus 2 Großbuchstaben bestehen.',
-            'address_country.size' => 'Land muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
-            'address_country.regex' => 'Land muss aus 2 Großbuchstaben bestehen.',
+            'addresses.*.country.size' => 'Land muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
+            'addresses.*.country.regex' => 'Land muss aus 2 Großbuchstaben bestehen.',
             'nationalities.*.size' => 'Staatsangehörigkeit muss ISO-Code mit 2 Buchstaben sein (z.B. DE, TR).',
             'nationalities.*.regex' => 'Staatsangehörigkeit muss aus 2 Großbuchstaben bestehen.',
-
-            // Address history
-            'address_history.*.to.after_or_equal' => 'End-Datum muss nach Start-Datum liegen.',
 
             // Emergency contacts
             'emergency_contacts.*.name.required' => 'Name für Notfallkontakt ist erforderlich.',

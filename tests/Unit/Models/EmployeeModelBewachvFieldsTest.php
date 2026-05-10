@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
+use App\Models\EmployeeAddress;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -31,12 +32,18 @@ test('it encrypts and decrypts birth name', function () {
 
 test('it encrypts and decrypts structured address street', function () {
     $street = 'Hauptstraße';
-    $this->employee->address_street = $street;
-    $this->employee->save();
+    $this->employee->addresses()->delete();
 
-    expect($this->employee->getAttributes()['address_street_enc'])->not->toEqual($street);
-    $this->employee->refresh();
-    expect($this->employee->address_street)->toEqual($street);
+    $address = EmployeeAddress::factory()->current()->create([
+        'employee_id' => $this->employee->id,
+        'tenant_id' => $this->employee->tenant_id,
+        'street' => $street,
+        'country' => 'DE',
+    ]);
+
+    expect($address->getAttributes()['street_enc'])->not->toEqual($street);
+    $address->refresh();
+    expect($address->street)->toEqual($street);
 });
 
 test('it encrypts and decrypts id document number', function () {
@@ -74,16 +81,20 @@ test('it encrypts and decrypts firearms license number', function () {
 });
 
 test('it formats structured address correctly', function () {
-    $this->employee->update([
-        'address_street' => 'Hauptstraße',
-        'address_house_number' => '42',
-        'address_postal_code' => '10115',
-        'address_city' => 'Berlin',
-        'address_supplement' => 'Hinterhaus',
-        'address_country' => 'DE',
+    $this->employee->addresses()->delete();
+
+    EmployeeAddress::factory()->current()->create([
+        'employee_id' => $this->employee->id,
+        'tenant_id' => $this->employee->tenant_id,
+        'street' => 'Hauptstraße',
+        'house_number' => '42',
+        'postal_code' => '10115',
+        'city' => 'Berlin',
+        'supplement' => 'Hinterhaus',
+        'country' => 'DE',
     ]);
 
-    expect($this->employee->structured_address)->toEqual('Hauptstraße 42, Hinterhaus, 10115 Berlin, DE');
+    expect($this->employee->fresh(['addresses'])->structured_address)->toEqual('Hauptstraße 42, Hinterhaus, 10115 Berlin, DE');
 });
 
 test('it casts nationalities to array', function () {
@@ -198,13 +209,24 @@ test('it aggregates expiring employee certifications and additional certificatio
         ->not->toContain('fire_safety_certificate');
 });
 
-test('it casts address history to array', function () {
-    $addressHistory = [['from' => '2019-01-01', 'to' => '2021-12-31', 'street' => 'Alte Straße', 'city' => 'Hamburg', 'postal_code' => '20095', 'country' => 'DE']];
-    $this->employee->address_history = $addressHistory;
-    $this->employee->save();
+test('it persists historical addresses as separate rows', function () {
+    $this->employee->addresses()->delete();
 
-    $this->employee->refresh();
-    expect($this->employee->address_history)->toBeArray()->and($this->employee->address_history)->toEqual($addressHistory);
+    EmployeeAddress::factory()->create([
+        'employee_id' => $this->employee->id,
+        'tenant_id' => $this->employee->tenant_id,
+        'street' => 'Alte Straße',
+        'city' => 'Hamburg',
+        'postal_code' => '20095',
+        'country' => 'DE',
+        'resided_from' => '2019-01-01',
+        'resided_until' => '2021-12-31',
+    ]);
+
+    $employee = $this->employee->fresh(['addresses']);
+
+    expect($employee->addresses)->toHaveCount(1)
+        ->and($employee->addresses->first()->street)->toBe('Alte Straße');
 });
 
 test('it casts emergency contacts to array', function () {
@@ -247,19 +269,17 @@ test('it casts bwr registered at to datetime', function () {
 });
 
 test('it handles null values for optional encrypted fields', function () {
-    $this->employee->update(['birth_name' => null, 'address_supplement' => null, 'id_document_number' => null]);
+    $this->employee->update(['birth_name' => null, 'id_document_number' => null]);
     expect($this->employee->birth_name)->toBeNull()
-        ->and($this->employee->address_supplement)->toBeNull()
         ->and($this->employee->id_document_number)->toBeNull();
 });
 
 test('it hides encrypted fields from array', function () {
-    $this->employee->update(['birth_name' => 'TestName', 'address_street' => 'TestStreet', 'id_document_number' => 'TEST123']);
+    $this->employee->update(['birth_name' => 'TestName', 'id_document_number' => 'TEST123']);
     $array = $this->employee->toArray();
 
     // Encrypted *_enc fields should be hidden (in $hidden array)
     expect($array)->not->toHaveKey('birth_name_enc')
-        ->and($array)->not->toHaveKey('address_street_enc')
         ->and($array)->not->toHaveKey('id_document_number_enc')
         ->and($array)->not->toHaveKey('first_name_enc')
         ->and($array)->not->toHaveKey('last_name_enc')
