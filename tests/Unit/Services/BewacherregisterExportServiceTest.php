@@ -209,3 +209,45 @@ test('export throws when id_document_expiry is in the past', function (): void {
     expect(fn () => $this->service->exportCsv($employee, 'HR Operations'))
         ->toThrow(RuntimeException::class, __('bwr_export.missing_fields.id_document_expiry_expired'));
 });
+
+test('address continuity check ignores segments entirely before the export window', function (): void {
+    // Employee has two historical address rows with a gap between them, but both rows
+    // end before the 5-year export window starts. The current address covers the full
+    // window. The algorithm must not report a false-positive gap.
+    $windowStart = now()->startOfDay()->subYears(5);
+
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
+    $employee->addresses()->delete();
+
+    // Historical address that ends well before the 5-year window.
+    EmployeeAddress::factory()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $this->tenant->id,
+        'street' => 'Altweg',
+        'house_number' => '1',
+        'postal_code' => '20095',
+        'city' => 'Hamburg',
+        'country' => 'DE',
+        'resided_from' => $windowStart->copy()->subYears(5)->toDateString(),
+        'resided_until' => $windowStart->copy()->subYears(1)->toDateString(),
+    ]);
+
+    // Current address that starts AFTER the historical one ends (gap of 6 months,
+    // entirely before the window start) but covers the full 5-year window.
+    EmployeeAddress::factory()->current()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $this->tenant->id,
+        'street' => 'Hauptstrasse',
+        'house_number' => '42',
+        'postal_code' => '10115',
+        'city' => 'Berlin',
+        'country' => 'DE',
+        'resided_from' => $windowStart->copy()->subMonths(6)->toDateString(),
+        'resided_until' => null,
+    ]);
+
+    $fresh = $employee->fresh(['addresses']);
+    // Must succeed — the full export window is covered by the current address.
+    $result = $this->service->exportCsv($fresh, 'HR Operations');
+    expect($result)->toHaveKey('path');
+});

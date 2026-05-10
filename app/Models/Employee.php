@@ -780,6 +780,10 @@ class Employee extends Model
 
     public function currentAddress(): ?EmployeeAddress
     {
+        if ($this->relationLoaded('addresses')) {
+            return $this->addresses->firstWhere('resided_until', null);
+        }
+
         return $this->addresses()->whereNull('resided_until')->first();
     }
 

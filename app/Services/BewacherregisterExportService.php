@@ -200,6 +200,12 @@ class BewacherregisterExportService
 
         usort($segments, fn (array $a, array $b): int => $a['start'] <=> $b['start']);
 
+        // Discard segments that end entirely before the window starts; they do not
+        // contribute to window coverage and would produce false-positive gaps.
+        $segments = array_values(
+            array_filter($segments, fn (array $seg): bool => $seg['end']->gte($windowStart)),
+        );
+
         $mergedEnd = null;
         foreach ($segments as $seg) {
             if ($mergedEnd === null) {
