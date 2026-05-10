@@ -19,6 +19,7 @@ class OnboardingSubmissionFile extends Model
         'onboarding_form_submission_id',
         'uploaded_by',
         'document_type',
+        'document_subtype',
         'file_path',
         'file_name',
         'mime_type',

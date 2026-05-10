@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -47,6 +48,33 @@ use Illuminate\Validation\ValidationException;
  */
 class OnboardingController extends Controller
 {
+    private const ID_DOCUMENT_UPLOAD_NOW_FIELD = 'id_document_upload_now';
+
+    private const ID_DOCUMENT_KIND_FIELD = 'id_document_kind';
+
+    private const RESIDENCE_PERMIT_UPLOAD_NOW_FIELD = 'residence_permit_upload_now';
+
+    private const RESIDENCE_PERMIT_TITLE_FIELD = 'residence_permit_title';
+
+    private const RESIDENCE_PERMIT_UNLIMITED_FIELD = 'residence_permit_unlimited';
+
+    private const RESIDENCE_PERMIT_EXPIRY_FIELD = 'residence_permit_expiry';
+
+    private const RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD = 'residence_permit_employment_allowed';
+
+    private const CONTRACT_START_DATE_FIELD = 'contract_start_date';
+
+    /**
+     * Must stay in sync with frontend gating.
+     *
+     * @var list<string>
+     */
+    private const RESIDENCE_TITLE_EXEMPT_COUNTRY_CODES = [
+        'AT', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR',
+        'GR', 'HR', 'HU', 'IE', 'IS', 'IT', 'LI', 'LT', 'LU', 'LV', 'MT', 'NL',
+        'NO', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK',
+    ];
+
     public function __construct(
         private readonly OnboardingSubmissionFileStorageService $submissionFileStorageService,
         private readonly OnboardingSchemaLocalizationService $onboardingSchemaLocalizationService,
@@ -562,7 +590,16 @@ class OnboardingController extends Controller
             $template,
             $formData,
             $status === 'submitted',
+            $employee,
         );
+        if ($status === 'submitted') {
+            $this->assertUploadDecisionRequirements(
+                $formData,
+                is_array($template->form_schema) ? $template->form_schema : [],
+                $existing,
+                $employee
+            );
+        }
 
         $submission = DB::transaction(function () use ($existing, $validated, $formData, $status, $submittedAt, $employee): OnboardingFormSubmission {
             if ($existing) {
@@ -678,7 +715,16 @@ class OnboardingController extends Controller
             $formTemplate,
             $effectiveFormData,
             $status === 'submitted',
+            $employee,
         );
+        if ($status === 'submitted') {
+            $this->assertUploadDecisionRequirements(
+                $effectiveFormData,
+                is_array($formTemplate->form_schema) ? $formTemplate->form_schema : [],
+                $submission,
+                $employee
+            );
+        }
 
         $submission = DB::transaction(function () use ($employee, $status, $submittedAt, $submission, $effectiveFormData, $shouldResetReview): OnboardingFormSubmission {
             $submission->update([
@@ -754,6 +800,7 @@ class OnboardingController extends Controller
                 'onboarding_form_submission_id' => $submission->id,
                 'uploaded_by' => $user->id,
                 'document_type' => $validated['document_type'],
+                'document_subtype' => $validated['document_subtype'] ?? null,
                 'file_path' => $storedFile['file_path'],
                 'file_name' => $storedFile['file_name'],
                 'mime_type' => $storedFile['mime_type'],
@@ -761,7 +808,7 @@ class OnboardingController extends Controller
             ]));
         } catch (\Throwable $e) {
             if ($storedFilePath !== null) {
-                \Illuminate\Support\Facades\Storage::disk('local')->delete($storedFilePath);
+                Storage::disk('local')->delete($storedFilePath);
             }
 
             throw $e;
@@ -773,6 +820,45 @@ class OnboardingController extends Controller
                 'filename' => $uploadedFile->file_name,
             ],
         ], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Delete a previously uploaded file for an editable onboarding submission.
+     *
+     * DELETE /v1/onboarding/submissions/{submission}/files/{file}
+     */
+    public function deleteSubmissionFile(Request $request, OnboardingFormSubmission $submission, string $file): JsonResponse|Response
+    {
+        $this->authorize('uploadFile', $submission);
+
+        if (! in_array($submission->status, ['draft', 'rejected'], true)) {
+            throw ValidationException::withMessages([
+                'status' => __('Files can only be deleted while the onboarding submission is editable'),
+            ]);
+        }
+
+        $submissionFile = OnboardingSubmissionFile::query()
+            ->where('onboarding_form_submission_id', $submission->id)
+            ->whereKey($file)
+            ->first();
+
+        if ($submissionFile === null) {
+            return response()->json([
+                'message' => __('File not found for this onboarding submission.'),
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        $filePath = $submissionFile->file_path;
+
+        DB::transaction(function () use ($submissionFile, $filePath): void {
+            $submissionFile->delete();
+
+            DB::afterCommit(static function () use ($filePath): void {
+                Storage::disk('local')->delete($filePath);
+            });
+        });
+
+        return response()->noContent();
     }
 
     /**
@@ -966,6 +1052,260 @@ class OnboardingController extends Controller
         $trimmed = trim($displayName);
 
         return $trimmed !== '' ? $trimmed : $countryCode;
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     * @param  array<string, mixed>  $schema
+     */
+    private function assertUploadDecisionRequirements(
+        array $formData,
+        array $schema,
+        ?OnboardingFormSubmission $submission,
+        Employee $employee,
+    ): void {
+        if (! $this->schemaDefinesProperty($schema, 'nationalities')) {
+            return;
+        }
+
+        $primaryNationalityCode = $this->getPrimaryNationalityCode(
+            $formData['nationalities'] ?? null
+        );
+        if ($primaryNationalityCode === null) {
+            return;
+        }
+
+        if ($this->schemaDefinesProperty($schema, self::ID_DOCUMENT_UPLOAD_NOW_FIELD)) {
+            $identityUploadNow = $this->normalizeYesNo(
+                $formData[self::ID_DOCUMENT_UPLOAD_NOW_FIELD] ?? null
+            );
+            if ($identityUploadNow === null) {
+                throw ValidationException::withMessages([
+                    self::ID_DOCUMENT_UPLOAD_NOW_FIELD => [__('Please choose whether you want to upload your identity document now.')],
+                ]);
+            }
+
+            if ($identityUploadNow !== 'yes') {
+                $identityUploadNow = null;
+            }
+        } else {
+            $identityUploadNow = null;
+        }
+
+        if ($identityUploadNow === 'yes') {
+            if ($primaryNationalityCode === 'DE') {
+                $documentKind = $this->normalizedNonEmptyString(
+                    $formData[self::ID_DOCUMENT_KIND_FIELD] ?? null
+                );
+                if (! in_array($documentKind, ['id_card', 'passport'], true)) {
+                    throw ValidationException::withMessages([
+                        self::ID_DOCUMENT_KIND_FIELD => [__('Please choose which identity document you are uploading.')],
+                    ]);
+                }
+            }
+
+            if (
+                $submission !== null
+                && ! $this->hasUploadedSubmissionFile($submission, [
+                    'identity_document',
+                    'identity_document_front',
+                    'identity_document_back',
+                ])
+            ) {
+                throw ValidationException::withMessages([
+                    self::ID_DOCUMENT_UPLOAD_NOW_FIELD => [__('Please upload at least one identity document file before continuing.')],
+                ]);
+            }
+        }
+
+        if (in_array($primaryNationalityCode, self::RESIDENCE_TITLE_EXEMPT_COUNTRY_CODES, true)) {
+            return;
+        }
+
+        if (! $this->shouldAskEmploymentQuestion($formData, $employee)) {
+            return;
+        }
+
+        $employmentAllowed = strtolower(
+            $this->normalizedNonEmptyString(
+                $formData[self::RESIDENCE_PERMIT_EMPLOYMENT_ALLOWED_FIELD] ?? null
+            ) ?? ''
+        );
+        if ($employmentAllowed !== 'yes') {
+            return;
+        }
+
+        if (! $this->schemaDefinesProperty($schema, self::RESIDENCE_PERMIT_UPLOAD_NOW_FIELD)) {
+            return;
+        }
+
+        $residenceUploadNow = $this->normalizeYesNo(
+            $formData[self::RESIDENCE_PERMIT_UPLOAD_NOW_FIELD] ?? null
+        );
+        if ($residenceUploadNow === null) {
+            throw ValidationException::withMessages([
+                self::RESIDENCE_PERMIT_UPLOAD_NOW_FIELD => [__('Please choose whether you want to upload your residence title now.')],
+            ]);
+        }
+
+        if (
+            $residenceUploadNow === 'yes'
+            && $submission !== null
+            && ! $this->hasUploadedSubmissionFile($submission, [
+                'residence_permit_front',
+                'residence_permit_back',
+            ])
+        ) {
+            throw ValidationException::withMessages([
+                self::RESIDENCE_PERMIT_UPLOAD_NOW_FIELD => [__('Please upload at least one residence title file before continuing.')],
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     */
+    private function schemaDefinesProperty(array $schema, string $field): bool
+    {
+        $properties = $schema['properties'] ?? null;
+
+        return is_array($properties) && array_key_exists($field, $properties);
+    }
+
+    /**
+     * @param  array<int, string>  $subtypes
+     */
+    private function hasUploadedSubmissionFile(
+        ?OnboardingFormSubmission $submission,
+        array $subtypes
+    ): bool {
+        if ($submission === null) {
+            return false;
+        }
+
+        return OnboardingSubmissionFile::query()
+            ->where('onboarding_form_submission_id', $submission->id)
+            ->where('document_type', 'id_document')
+            ->whereIn('document_subtype', $subtypes)
+            ->exists();
+    }
+
+    private function getPrimaryNationalityCode(mixed $nationalities): ?string
+    {
+        if (! is_array($nationalities)) {
+            return null;
+        }
+
+        $first = $nationalities[0] ?? null;
+        if (! is_string($first) && ! is_int($first)) {
+            return null;
+        }
+
+        $normalized = strtoupper(trim((string) $first));
+
+        return preg_match('/^[A-Z]{2}$/', $normalized) === 1 ? $normalized : null;
+    }
+
+    private function normalizeYesNo(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($value));
+
+        return in_array($normalized, ['yes', 'no'], true) ? $normalized : null;
+    }
+
+    private function normalizedNonEmptyString(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function shouldAskEmploymentQuestion(
+        array $formData,
+        Employee $employee,
+    ): bool {
+        $title = $this->normalizedNonEmptyString(
+            $formData[self::RESIDENCE_PERMIT_TITLE_FIELD] ?? null
+        );
+        if ($title === null) {
+            return false;
+        }
+
+        if ($this->isResidencePermitUnlimited($formData)) {
+            return true;
+        }
+
+        $contractStartDate = $this->resolveContractStartDate($formData, $employee);
+        if ($contractStartDate === null) {
+            return false;
+        }
+
+        $expiry = $this->normalizedNonEmptyString(
+            $formData[self::RESIDENCE_PERMIT_EXPIRY_FIELD] ?? null
+        );
+        if (
+            $expiry === null
+            || preg_match('/^\d{4}-\d{2}-\d{2}$/', $expiry) !== 1
+            || $expiry <= now()->toDateString()
+        ) {
+            return false;
+        }
+
+        return $expiry > $contractStartDate;
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function resolveContractStartDate(
+        array $formData,
+        Employee $employee,
+    ): ?string {
+        $fromForm = $this->normalizedNonEmptyString(
+            $formData[self::CONTRACT_START_DATE_FIELD] ?? null
+        );
+        if ($fromForm !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromForm) === 1) {
+            return $fromForm;
+        }
+
+        $fromEmployee = $employee->contract_start_date?->toDateString();
+
+        return is_string($fromEmployee) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromEmployee) === 1
+            ? $fromEmployee
+            : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     */
+    private function isResidencePermitUnlimited(array $formData): bool
+    {
+        $value = $formData[self::RESIDENCE_PERMIT_UNLIMITED_FIELD] ?? null;
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            return $value === 1;
+        }
+
+        if (! is_string($value)) {
+            return false;
+        }
+
+        return in_array(strtolower(trim($value)), ['1', 'true', 'yes'], true);
     }
 
     /**
