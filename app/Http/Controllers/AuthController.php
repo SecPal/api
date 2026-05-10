@@ -975,7 +975,7 @@ class AuthController extends Controller
      * viewable rank ranges (0-255), granting access to all leadership
      * levels and non-leadership employees.
      *
-     * @return array{id: string, name: string, email: string, emailVerified: bool, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool, employeeStatus: string|null, onboardingWorkflowStatus: string|null}
+     * @return array{id: string, name: string, email: string, emailVerified: bool, roles: list<string>, permissions: list<string>, hasOrganizationalScopes: bool, hasCustomerAccess: bool, hasSiteAccess: bool, employeeStatus: string|null, onboardingWorkflowStatus: string|null, employee: array{id: string, contract_start_date: string|null}|null}
      */
     private function buildUserAuthorizationData(User $user): array
     {
@@ -1016,6 +1016,12 @@ class AuthController extends Controller
             'hasSiteAccess' => $hasSiteAccess,
             'employeeStatus' => $employee?->status,
             'onboardingWorkflowStatus' => $employee?->resolveOnboardingWorkflowStatus(),
+            'employee' => $employee
+                ? [
+                    'id' => (string) $employee->id,
+                    'contract_start_date' => $employee->contract_start_date?->toDateString(),
+                ]
+                : null,
         ];
     }
 
