@@ -6,6 +6,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Employee;
+use App\Models\EmployeeAddress;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -69,18 +70,15 @@ class EmployeeResource extends JsonResource
             // BewachV § 16 Abs. 2 Nr. 4: Nationalities (supports dual citizenship)
             'nationalities' => $this->nationalities, // JSON array of ISO codes
 
-            // BewachV § 16 Abs. 2 Nr. 5: Structured Current Address (decrypted)
-            'address_street' => $this->address_street,
-            'address_house_number' => $this->address_house_number,
-            'address_postal_code' => $this->address_postal_code,
-            'address_city' => $this->address_city,
-            'address_supplement' => $this->address_supplement,
-            'address_country' => $this->address_country, // ISO 3166-1 alpha-2
-            'address_state' => $this->address_state,
-            'structured_address' => $this->structured_address, // Computed property
+            // BewachV § 16: Residential addresses (relation)
+            'addresses' => EmployeeAddressResource::collection($this->whenLoaded('addresses')),
+            'current_address' => $this->when($this->relationLoaded('addresses'), function (): mixed {
+                /** @var EmployeeAddress|null $current */
+                $current = $this->addresses->first(fn (EmployeeAddress $a): bool => $a->resided_until === null);
 
-            // BewachV § 16 Abs. 2 Nr. 6: Address History (Last 5 Years)
-            'address_history' => $this->address_history, // JSON array
+                return $current instanceof EmployeeAddress ? new EmployeeAddressResource($current) : null;
+            }),
+            'structured_address' => $this->structured_address,
 
             // Additional contact data
             'emergency_contacts' => $this->emergency_contacts, // JSON array

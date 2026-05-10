@@ -12,7 +12,9 @@ use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Validator;
+use Spatie\Permission\PermissionRegistrar;
 
 uses(RefreshDatabase::class)->group('bewachv', 'validation', 'feature');
 
@@ -22,13 +24,25 @@ beforeEach(function (): void {
     TenantKey::generateKek();
 
     $this->tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($this->tenant->id);
+    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+
     $this->user = User::factory()->create();
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+    $registrar->setPermissionsTeamId(null);
+
     $this->organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
+    // Rank 0 (non-management) requires scopes whose view/assign ranges are exactly [0,0] (see UserInternalOrganizationalScope).
+    giveOrganizationalScope($this->user, $this->organizationalUnit, 0, 0, 0, 0);
 });
 
 afterEach(function (): void {
+    app(PermissionRegistrar::class)->setPermissionsTeamId(null);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -55,11 +69,14 @@ function makeStoreEmployeeValidator(object $testCase, array $data): Illuminate\C
     $request = StoreEmployeeRequest::create('/v1/employees', 'POST', $data);
     $request->setUserResolver(fn (): User => $testCase->user);
 
-    return Validator::make(
+    $validator = Validator::make(
         $request->all(),
         $request->rules(),
         $request->messages()
     );
+    $request->withValidator($validator);
+
+    return $validator;
 }
 
 function makeUpdateEmployeeValidator(object $testCase, Employee $employee, array $data): Illuminate\Contracts\Validation\Validator
@@ -78,11 +95,14 @@ function makeUpdateEmployeeValidator(object $testCase, Employee $employee, array
         };
     });
 
-    return Validator::make(
+    $validator = Validator::make(
         $request->all(),
         $request->rules(),
         $request->messages()
     );
+    $request->withValidator($validator);
+
+    return $validator;
 }
 
 test('BWR-ID must be exactly 7 digits', function () {
@@ -146,25 +166,19 @@ test('gender is required when BWR status is pending or active', function () {
 test('structured address fields are required when BWR status is pending or active', function () {
     $baseData = validStoreEmployeeData($this);
 
-    // Test with pending status - should fail without address
+    // Test with pending status - should fail without addresses payload
     $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['bwr_status' => 'pending']));
     expect($validator->fails())->toBeTrue()
-        ->and($validator->errors()->has('address_street'))->toBeTrue()
-        ->and($validator->errors()->has('address_postal_code'))->toBeTrue()
-        ->and($validator->errors()->has('address_city'))->toBeTrue();
+        ->and($validator->errors()->has('addresses'))->toBeTrue();
 
-    // Test with active status - should fail without address
+    // Test with active status - should fail without addresses payload
     $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['bwr_status' => 'active', 'email' => 'test2@example.com']));
     expect($validator->fails())->toBeTrue()
-        ->and($validator->errors()->has('address_street'))->toBeTrue()
-        ->and($validator->errors()->has('address_postal_code'))->toBeTrue()
-        ->and($validator->errors()->has('address_city'))->toBeTrue();
+        ->and($validator->errors()->has('addresses'))->toBeTrue();
 
-    // Test with not_registered status - should pass without address
+    // Test with not_registered status - should pass without addresses payload
     $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['bwr_status' => 'not_registered', 'email' => 'test3@example.com']));
-    expect($validator->errors()->has('address_street'))->toBeFalse()
-        ->and($validator->errors()->has('address_postal_code'))->toBeFalse()
-        ->and($validator->errors()->has('address_city'))->toBeFalse();
+    expect($validator->errors()->has('addresses'))->toBeFalse();
 });
 
 test('country and state codes must be ISO 3166-1 alpha-2 format', function () {
@@ -181,9 +195,20 @@ test('country and state codes must be ISO 3166-1 alpha-2 format', function () {
     expect($validator->fails())->toBeTrue()
         ->and($validator->errors()->has('birth_country'))->toBeTrue();
 
-    // Test address_country with valid format
-    $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['address_country' => 'DE', 'email' => 'test3@example.com']));
-    expect($validator->errors()->has('address_country'))->toBeFalse();
+    // Test nested addresses.*.country with valid format
+    $validator = makeStoreEmployeeValidator($this, array_merge($baseData, [
+        'addresses' => [
+            [
+                'street' => 'Str',
+                'postal_code' => '10115',
+                'city' => 'Berlin',
+                'country' => 'DE',
+                'resided_until' => null,
+            ],
+        ],
+        'email' => 'test3@example.com',
+    ]));
+    expect($validator->errors()->has('addresses.0.country'))->toBeFalse();
 });
 
 test('nationalities array items must be valid ISO codes', function () {

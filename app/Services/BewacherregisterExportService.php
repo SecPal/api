@@ -9,10 +9,15 @@ namespace App\Services;
 
 use App\Exceptions\BewacherregisterExportNotReadyException;
 use App\Models\Employee;
+use App\Models\EmployeeAddress;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 class BewacherregisterExportService
 {
+    private const EXPORT_ADDRESS_LOOKBACK_YEARS = 5;
+
     /**
      * @return array{disk: string, path: string, file_name: string, file_size_bytes: int}
      */
@@ -72,6 +77,8 @@ class BewacherregisterExportService
 
     private function assertReadyForExport(Employee $employee): void
     {
+        $employee->loadMissing('addresses');
+
         $errors = [];
 
         foreach ($this->requiredFieldValues($employee) as $field => $value) {
@@ -87,6 +94,8 @@ class BewacherregisterExportService
         if ($employee->requiresWorkPermit() && ! $employee->hasValidWorkAuthorization()) {
             $errors[] = $this->missingExportFieldMessage('valid_work_authorization');
         }
+
+        $this->validateAddressHistoryForExport($employee, $errors);
 
         if ($errors !== []) {
             throw new BewacherregisterExportNotReadyException($errors);
@@ -106,12 +115,6 @@ class BewacherregisterExportService
             'birth_city' => $employee->birth_city,
             'birth_country' => $employee->birth_country,
             'nationalities' => $employee->nationalities,
-            'address_street' => $employee->address_street,
-            'address_house_number' => $employee->address_house_number,
-            'address_postal_code' => $employee->address_postal_code,
-            'address_city' => $employee->address_city,
-            'address_country' => $employee->address_country,
-            'address_history' => $employee->address_history,
             'intended_activities' => $employee->intended_activities,
             'id_document_type' => $employee->id_document_type,
             'id_document_number' => $employee->id_document_number,
@@ -119,6 +122,123 @@ class BewacherregisterExportService
             'sachkunde_type' => $employee->sachkunde_type,
             'sachkunde_certificate' => $employee->sachkunde_certificate,
         ];
+    }
+
+    /**
+     * @param  list<string>  $errors
+     */
+    private function validateAddressHistoryForExport(Employee $employee, array &$errors): void
+    {
+        /** @var Collection<int, EmployeeAddress> $addresses */
+        $addresses = $employee->addresses;
+
+        $current = $addresses->filter(fn (EmployeeAddress $a): bool => $a->resided_until === null);
+        if ($current->count() === 0) {
+            $errors[] = $this->missingExportFieldMessage('current_address_missing');
+
+            return;
+        }
+
+        if ($current->count() > 1) {
+            $errors[] = $this->missingExportFieldMessage('current_address_ambiguous');
+
+            return;
+        }
+
+        /** @var EmployeeAddress $currentRow */
+        $currentRow = $current->firstOrFail();
+
+        foreach (
+            [
+                'street' => 'address_street',
+                'house_number' => 'address_house_number',
+                'postal_code' => 'address_postal_code',
+                'city' => 'address_city',
+                'country' => 'address_country',
+            ] as $attr => $messageKey
+        ) {
+            if ($this->isMissing($currentRow->getAttribute($attr))) {
+                $errors[] = $this->missingExportFieldMessage($messageKey);
+            }
+        }
+
+        $past = $addresses->filter(fn (EmployeeAddress $a): bool => $a->resided_until !== null);
+        if ($currentRow->resided_from === null && $past->isNotEmpty()) {
+            $errors[] = $this->missingExportFieldMessage('current_address_resided_from_required');
+
+            return;
+        }
+
+        foreach ($past as $row) {
+            if ($row->resided_from === null || $row->resided_until === null) {
+                $errors[] = $this->missingExportFieldMessage('address_history_incomplete');
+
+                return;
+            }
+        }
+
+        $windowStart = now()->startOfDay()->copy()->subYears(self::EXPORT_ADDRESS_LOOKBACK_YEARS);
+        $windowEnd = now()->startOfDay();
+
+        /** @var array<int, array{start: Carbon, end: Carbon}> $segments */
+        $segments = [];
+
+        foreach ($addresses as $addr) {
+            if ($addr->resided_until === null) {
+                $from = $addr->resided_from?->copy()->startOfDay() ?? $windowStart->copy();
+                $segments[] = [
+                    'start' => $from,
+                    'end' => $windowEnd->copy(),
+                ];
+            } else {
+                $segments[] = [
+                    'start' => $addr->resided_from?->copy()->startOfDay() ?? $windowStart->copy(),
+                    'end' => $addr->resided_until->copy()->startOfDay(),
+                ];
+            }
+        }
+
+        usort($segments, fn (array $a, array $b): int => $a['start'] <=> $b['start']);
+
+        // Discard segments that end entirely before the window starts; they do not
+        // contribute to window coverage and would produce false-positive gaps.
+        $segments = array_values(
+            array_filter($segments, fn (array $seg): bool => $seg['end']->gte($windowStart)),
+        );
+
+        $mergedEnd = null;
+        foreach ($segments as $seg) {
+            if ($mergedEnd === null) {
+                if ($seg['start']->gt($windowStart)) {
+                    $errors[] = $this->missingExportFieldMessage('address_history_incomplete');
+
+                    return;
+                }
+                $mergedEnd = $seg['end']->copy();
+
+                continue;
+            }
+
+            if ($seg['start']->lte($mergedEnd)) {
+                $errors[] = $this->missingExportFieldMessage('address_history_overlap');
+
+                return;
+            }
+
+            if ($seg['start']->gt($mergedEnd->copy()->addDay())) {
+                $errors[] = $this->missingExportFieldMessage('address_history_gap');
+
+                return;
+            }
+
+            if ($seg['end']->gt($mergedEnd)) {
+                $mergedEnd = $seg['end']->copy();
+            }
+        }
+
+        if ($mergedEnd === null || $mergedEnd->lt($windowEnd)) {
+            $errors[] = $this->missingExportFieldMessage('address_history_incomplete');
+        }
     }
 
     private function missingExportFieldMessage(string $field): string
@@ -154,8 +274,12 @@ class BewacherregisterExportService
      */
     private function buildExportData(Employee $employee, string $exportedBy): array
     {
+        $employee->loadMissing('addresses');
+
         $appName = config('app.name');
         $employerName = is_string($appName) && $appName !== '' ? $appName : 'SecPal';
+
+        $current = $employee->addresses->first(fn (EmployeeAddress $a): bool => $a->resided_until === null) ?: null;
 
         return [
             'last_name' => $employee->last_name,
@@ -167,12 +291,12 @@ class BewacherregisterExportService
             'birth_city' => (string) $employee->birth_city,
             'birth_country' => (string) $employee->birth_country,
             'nationalities' => implode(', ', $employee->nationalities ?? []),
-            'address_street' => (string) $employee->address_street,
-            'address_house_number' => (string) $employee->address_house_number,
-            'address_postal_code' => (string) $employee->address_postal_code,
-            'address_city' => (string) $employee->address_city,
-            'address_country' => (string) $employee->address_country,
-            'address_history' => $this->formatAddressHistory($employee->address_history ?? []),
+            'address_street' => $current !== null ? (string) ($current->street ?? '') : '',
+            'address_house_number' => $current !== null ? (string) ($current->house_number ?? '') : '',
+            'address_postal_code' => $current !== null ? (string) ($current->postal_code ?? '') : '',
+            'address_city' => $current !== null ? (string) ($current->city ?? '') : '',
+            'address_country' => $current !== null ? (string) ($current->country ?? '') : '',
+            'address_history' => $this->formatAddressHistoryFromRelation($employee),
             'intended_activities' => implode(', ', $employee->intended_activities ?? []),
             'sachkunde_type' => (string) $employee->sachkunde_type,
             'sachkunde_certificate' => (string) $employee->sachkunde_certificate,
@@ -186,21 +310,20 @@ class BewacherregisterExportService
         ];
     }
 
-    /**
-     * @param  array<int, array{from?: string, to?: string, street?: string, house_number?: string, postal_code?: string, city?: string, country?: string, state?: string|null}>  $history
-     */
-    private function formatAddressHistory(array $history): string
+    private function formatAddressHistoryFromRelation(Employee $employee): string
     {
-        return collect($history)
-            ->map(fn (array $address): string => sprintf(
+        return $employee->addresses
+            ->filter(fn (EmployeeAddress $a): bool => $a->resided_until !== null)
+            ->sortBy(fn (EmployeeAddress $a) => $a->resided_from?->toDateString() ?? '')
+            ->map(fn (EmployeeAddress $address): string => sprintf(
                 '%s - %s: %s %s, %s %s, %s',
-                $address['from'] ?? '',
-                $address['to'] ?? '',
-                $address['street'] ?? '',
-                $address['house_number'] ?? '',
-                $address['postal_code'] ?? '',
-                $address['city'] ?? '',
-                $address['country'] ?? '',
+                $address->resided_from?->toDateString() ?? '',
+                $address->resided_until?->toDateString() ?? '',
+                $address->street ?? '',
+                $address->house_number ?? '',
+                $address->postal_code ?? '',
+                $address->city ?? '',
+                $address->country ?? '',
             ))
             ->implode("\n");
     }

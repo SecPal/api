@@ -6,6 +6,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\InteractsWithCertificationValidation;
+use App\Http\Requests\Concerns\InteractsWithEmployeeAddressValidation;
 use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
@@ -23,6 +24,7 @@ use Illuminate\Validation\Validator;
 class StoreEmployeeRequest extends FormRequest
 {
     use InteractsWithCertificationValidation;
+    use InteractsWithEmployeeAddressValidation;
     use InteractsWithWorkPermitValidation;
 
     /**
@@ -41,6 +43,7 @@ class StoreEmployeeRequest extends FormRequest
             }
 
             $this->validateEmployeeScopeConstraints($validator);
+            $this->validateEmployeeAddressesPayload($validator);
         });
     }
 
@@ -91,38 +94,7 @@ class StoreEmployeeRequest extends FormRequest
             'nationalities' => ['nullable', 'array'], // JSON array of ISO codes
             'nationalities.*' => ['string', 'size:2', 'regex:/^[A-Z]{2}$/'], // e.g., ["DE", "PL"]
 
-            // BewachV § 16 Abs. 2 Nr. 5: Structured Current Address
-            'address_street' => [
-                'required_if:bwr_status,pending,active', // MANDATORY for BWR submission
-                'nullable',
-                'string',
-                'max:255',
-            ],
-            'address_house_number' => ['nullable', 'string', 'max:10'],
-            'address_postal_code' => [
-                'required_if:bwr_status,pending,active', // MANDATORY for BWR submission
-                'nullable',
-                'string',
-                'max:20',
-            ],
-            'address_city' => [
-                'required_if:bwr_status,pending,active', // MANDATORY for BWR submission
-                'nullable',
-                'string',
-                'max:255',
-            ],
-            'address_supplement' => ['nullable', 'string', 'max:255'],
-            'address_country' => ['nullable', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'], // ISO 3166-1 alpha-2
-            'address_state' => ['nullable', 'string', 'max:100'],
-
-            // BewachV § 16 Abs. 2 Nr. 6: Address History (Last 5 Years)
-            'address_history' => ['nullable', 'array'], // JSON array of address objects
-            'address_history.*.from' => ['required', 'date'],
-            'address_history.*.to' => ['required', 'date', 'after_or_equal:address_history.*.from'],
-            'address_history.*.street' => ['required', 'string', 'max:255'],
-            'address_history.*.city' => ['required', 'string', 'max:255'],
-            'address_history.*.postal_code' => ['required', 'string', 'max:20'],
-            'address_history.*.country' => ['required', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'],
+            'addresses' => ['required_if:bwr_status,pending,active', 'nullable', 'array'],
 
             // Emergency contacts
             'emergency_contacts' => ['nullable', 'array'],
@@ -253,7 +225,7 @@ class StoreEmployeeRequest extends FormRequest
                     }
                 },
             ],
-        ], $this->certificationValidationRules());
+        ], $this->employeeAddressItemRules(), $this->certificationValidationRules());
     }
 
     /**
@@ -292,27 +264,13 @@ class StoreEmployeeRequest extends FormRequest
             // Gender (mandatory for BWR)
             'gender.required_if' => 'Geschlecht ist für BWR-Anmeldung verpflichtend.',
 
-            // Structured address (mandatory for BWR)
-            'address_street.required_if' => 'Straße ist für BWR-Anmeldung verpflichtend.',
-            'address_postal_code.required_if' => 'PLZ ist für BWR-Anmeldung verpflichtend.',
-            'address_city.required_if' => 'Stadt/Ort ist für BWR-Anmeldung verpflichtend.',
-
             // ISO country codes
             'birth_country.size' => 'Geburtsland muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
             'birth_country.regex' => 'Geburtsland muss aus 2 Großbuchstaben bestehen.',
-            'address_country.size' => 'Land muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
-            'address_country.regex' => 'Land muss aus 2 Großbuchstaben bestehen.',
+            'addresses.*.country.size' => 'Land muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
+            'addresses.*.country.regex' => 'Land muss aus 2 Großbuchstaben bestehen.',
             'nationalities.*.size' => 'Staatsangehörigkeit muss ISO-Code mit 2 Buchstaben sein (z.B. DE, TR).',
             'nationalities.*.regex' => 'Staatsangehörigkeit muss aus 2 Großbuchstaben bestehen.',
-
-            // Address history
-            'address_history.*.to.after_or_equal' => 'End-Datum muss nach Start-Datum liegen.',
-            'address_history.*.from.required' => 'Start-Datum für Adresshistorie erforderlich.',
-            'address_history.*.to.required' => 'End-Datum für Adresshistorie erforderlich.',
-            'address_history.*.street.required' => 'Straße für Adresshistorie erforderlich.',
-            'address_history.*.city.required' => 'Stadt für Adresshistorie erforderlich.',
-            'address_history.*.postal_code.required' => 'PLZ für Adresshistorie erforderlich.',
-            'address_history.*.country.required' => 'Land für Adresshistorie erforderlich.',
 
             // Emergency contacts
             'emergency_contacts.*.name.required' => 'Name für Notfallkontakt ist erforderlich.',

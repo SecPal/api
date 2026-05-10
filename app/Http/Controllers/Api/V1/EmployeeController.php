@@ -14,6 +14,7 @@ use App\Http\Requests\UpdateEmployeeBwrStatusRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
+use App\Models\EmployeeAddress;
 use App\Models\OrganizationalUnitClosure;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -320,6 +321,9 @@ class EmployeeController extends Controller
         $employee = DB::transaction(function () use ($tenantId, $validated): Employee {
             TenantKey::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
 
+            $addresses = $validated['addresses'] ?? [];
+            unset($validated['addresses']);
+
             $data = ['tenant_id' => $tenantId];
             $data['employee_number'] = $this->generateEmployeeNumber($tenantId);
 
@@ -331,7 +335,12 @@ class EmployeeController extends Controller
             $data['onboarding_workflow_status'] = Employee::defaultWorkflowStatusForLifecycleStatus($lifecycleStatus)
                 ?? Employee::WORKFLOW_STATUS_ACTIVE;
 
-            return Employee::create(array_merge($data, $validated));
+            $employee = Employee::create(array_merge($data, $validated));
+            /** @var array<int, array<string, mixed>> $normalizedAddresses */
+            $normalizedAddresses = is_array($addresses) ? $addresses : [];
+            $this->syncEmployeeAddresses($employee, $normalizedAddresses);
+
+            return $employee;
         });
 
         if ($shouldSendInvitation) {
@@ -340,7 +349,7 @@ class EmployeeController extends Controller
 
         /** @var Employee $freshEmployee */
         $freshEmployee = $employee->fresh();
-        $freshEmployee->load(['user', 'organizationalUnit']);
+        $freshEmployee->load(['user', 'organizationalUnit', 'addresses']);
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
@@ -356,7 +365,7 @@ class EmployeeController extends Controller
     {
         $this->authorize('view', $employee);
 
-        $employee->load(['user', 'organizationalUnit', 'employeeQualifications.qualification', 'documents']);
+        $employee->load(['user', 'organizationalUnit', 'employeeQualifications.qualification', 'documents', 'addresses']);
 
         return response()->json([
             'data' => new EmployeeResource($employee),
@@ -375,7 +384,23 @@ class EmployeeController extends Controller
         /** @var array<string, mixed> $validated */
         $validated = $request->validated();
 
-        $employee->update($validated);
+        DB::transaction(function () use ($employee, $validated): void {
+            $addressPayload = null;
+            if (array_key_exists('addresses', $validated)) {
+                $addressPayload = $validated['addresses'];
+                unset($validated['addresses']);
+            }
+
+            if ($validated !== []) {
+                $employee->update($validated);
+            }
+
+            if ($addressPayload !== null) {
+                /** @var array<int, array<string, mixed>> $normalizedPayload */
+                $normalizedPayload = is_array($addressPayload) ? $addressPayload : [];
+                $this->syncEmployeeAddresses($employee, $normalizedPayload);
+            }
+        });
 
         // Note: lifecycle transitions (activate, placeOnLeave, returnFromLeave, terminate)
         // are handled by dedicated endpoints. The observer handles passive side effects only
@@ -383,7 +408,7 @@ class EmployeeController extends Controller
 
         /** @var Employee $freshEmployee */
         $freshEmployee = $employee->fresh();
-        $freshEmployee->load(['user', 'organizationalUnit']);
+        $freshEmployee->load(['user', 'organizationalUnit', 'addresses']);
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
@@ -535,7 +560,7 @@ class EmployeeController extends Controller
 
         /** @var Employee $freshEmployee */
         $freshEmployee = $employee->fresh();
-        $freshEmployee->load(['user', 'organizationalUnit']);
+        $freshEmployee->load(['user', 'organizationalUnit', 'addresses']);
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
@@ -652,6 +677,52 @@ class EmployeeController extends Controller
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
         ]);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $addressRows
+     */
+    private function syncEmployeeAddresses(Employee $employee, array $addressRows): void
+    {
+        $employee->addresses()->delete();
+
+        foreach ($addressRows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            EmployeeAddress::query()->create([
+                'employee_id' => $employee->id,
+                'tenant_id' => $employee->tenant_id,
+                'street' => $this->nullableRequestString($row['street'] ?? null),
+                'house_number' => $this->nullableRequestString($row['house_number'] ?? null),
+                'postal_code' => $this->nullableRequestString($row['postal_code'] ?? null),
+                'city' => $this->nullableRequestString($row['city'] ?? null),
+                'supplement' => $this->nullableRequestString($row['supplement'] ?? null),
+                'country' => $this->nullableRequestString($row['country'] ?? null),
+                'state' => $this->nullableRequestString($row['state'] ?? null),
+                'resided_from' => $this->nullableRequestDate($row['resided_from'] ?? null),
+                'resided_until' => $this->nullableRequestDate($row['resided_until'] ?? null),
+            ]);
+        }
+    }
+
+    private function nullableRequestString(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_string($value) ? $value : null;
+    }
+
+    private function nullableRequestDate(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_string($value) ? $value : null;
     }
 
     /**

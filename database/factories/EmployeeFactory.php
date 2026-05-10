@@ -6,6 +6,7 @@
 namespace Database\Factories;
 
 use App\Models\Employee;
+use App\Models\EmployeeAddress;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -15,6 +16,25 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class EmployeeFactory extends Factory
 {
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Employee $employee): void { // @phpstan-ignore return.type
+            if ($employee->addresses()->exists()) {
+                return;
+            }
+
+            EmployeeAddress::factory()->current()->create([
+                'employee_id' => $employee->id,
+                'tenant_id' => $employee->tenant_id,
+                'street' => fake()->streetName(),
+                'house_number' => fake()->buildingNumber(),
+                'postal_code' => fake()->postcode(),
+                'city' => fake()->randomElement(['Berlin', 'Hamburg', 'München', 'Köln', 'Frankfurt', 'Stuttgart', 'Düsseldorf', 'Dortmund', 'Essen', 'Leipzig']),
+                'country' => 'DE',
+            ]);
+        });
+    }
+
     /**
      * Define the model's default state.
      *
@@ -61,13 +81,6 @@ class EmployeeFactory extends Factory
             'birth_city' => fake()->randomElement($germanCities),
             'birth_country' => 'DE', // Default to Germany
             'nationalities' => ['DE'], // Default German nationality
-
-            // BewachV § 16: Structured Address
-            'address_street' => fake()->streetName(),
-            'address_house_number' => fake()->buildingNumber(),
-            'address_postal_code' => fake()->postcode(),
-            'address_city' => fake()->randomElement($germanCities),
-            'address_country' => 'DE',
 
             'tax_id' => fake()->numerify('##########'), // 11-digit German tax ID
             'social_security_number' => fake()->numerify('## ########## ####'), // German format: 12 digits with spaces
@@ -154,10 +167,17 @@ class EmployeeFactory extends Factory
             'bwr_registered_at' => $status === 'active' ? fake()->dateTimeBetween('-2 years', 'now') : null,
             'bwr_submission_date' => fake()->dateTimeBetween('-3 months', 'now'),
             'gender' => fake()->randomElement(['male', 'female', 'diverse']), // MANDATORY for BWR
-            'address_street' => fake()->streetName(), // MANDATORY for BWR
-            'address_postal_code' => fake()->postcode(), // MANDATORY for BWR
-            'address_city' => fake()->city(), // MANDATORY for BWR
-        ]);
+        ])->afterCreating(function (Employee $employee): void {
+            $employee->addresses()->delete();
+            EmployeeAddress::factory()->current()->create([
+                'employee_id' => $employee->id,
+                'tenant_id' => $employee->tenant_id,
+                'street' => fake()->streetName(),
+                'postal_code' => fake()->postcode(),
+                'city' => fake()->city(),
+                'country' => 'DE',
+            ]);
+        });
     }
 
     /**
@@ -183,35 +203,6 @@ class EmployeeFactory extends Factory
             'birth_country' => fake()->randomElement($europeanCountries),
             'nationalities' => fake()->randomElement([['DE'], ['DE', 'PL'], ['DE', 'IT']]), // Dual citizenship
 
-            // Structured Address
-            'address_street' => fake()->streetName(),
-            'address_house_number' => fake()->buildingNumber(),
-            'address_postal_code' => fake()->postcode(),
-            'address_city' => fake()->randomElement($germanCities),
-            'address_supplement' => fake()->optional(0.2)->randomElement(['Hinterhof', 'Seiteneingang', 'c/o Müller']),
-            'address_country' => 'DE',
-            'address_state' => fake()->randomElement(['NRW', 'BY', 'BW', 'BE', 'HH']),
-
-            // Address History (last 5 years) - 1-2 previous addresses
-            'address_history' => fake()->randomElements([
-                [
-                    'from' => '2019-01-01',
-                    'to' => '2021-06-30',
-                    'street' => fake()->streetName(),
-                    'city' => fake()->city(),
-                    'postal_code' => fake()->postcode(),
-                    'country' => 'DE',
-                ],
-                [
-                    'from' => '2021-07-01',
-                    'to' => '2023-12-31',
-                    'street' => fake()->streetName(),
-                    'city' => fake()->city(),
-                    'postal_code' => fake()->postcode(),
-                    'country' => 'DE',
-                ],
-            ], fake()->numberBetween(0, 2)),
-
             // Intended Activities (BewachV §34a work types)
             'intended_activities' => fake()->randomElements([
                 'Bewachung_Objektschutz',
@@ -230,7 +221,36 @@ class EmployeeFactory extends Factory
             'sachkunde_ihk_number' => fake()->bothify('IHK-#######'),
             'sachkunde_exam_date' => fake()->dateTimeBetween('-3 years', '-1 year'),
             'sachkunde_issued_date' => fake()->dateTimeBetween('-3 years', '-1 year'),
-        ]);
+        ])->afterCreating(function (Employee $employee) use ($germanCities): void {
+            $employee->addresses()->delete();
+
+            EmployeeAddress::factory()->create([
+                'employee_id' => $employee->id,
+                'tenant_id' => $employee->tenant_id,
+                'street' => fake()->streetName(),
+                'house_number' => fake()->buildingNumber(),
+                'postal_code' => fake()->postcode(),
+                'city' => fake()->city(),
+                'country' => 'DE',
+                'state' => fake()->randomElement(['NRW', 'BY', 'BW', 'BE', 'HH']),
+                'supplement' => fake()->optional(0.2)->randomElement(['Hinterhof', 'Seiteneingang', 'c/o Müller']),
+                'resided_from' => '2019-01-01',
+                'resided_until' => '2023-12-31',
+            ]);
+
+            EmployeeAddress::factory()->current()->create([
+                'employee_id' => $employee->id,
+                'tenant_id' => $employee->tenant_id,
+                'street' => fake()->streetName(),
+                'house_number' => fake()->buildingNumber(),
+                'postal_code' => fake()->postcode(),
+                'city' => fake()->randomElement($germanCities),
+                'supplement' => fake()->optional(0.2)->randomElement(['Hinterhof', 'Seiteneingang', 'c/o Müller']),
+                'country' => 'DE',
+                'state' => fake()->randomElement(['NRW', 'BY', 'BW', 'BE', 'HH']),
+                'resided_from' => '2024-01-01',
+            ]);
+        });
     }
 
     /**
@@ -251,18 +271,31 @@ class EmployeeFactory extends Factory
      */
     public function withAddressHistory(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'address_history' => [
-                [
-                    'from' => '2019-01-01',
-                    'to' => '2022-06-30',
-                    'street' => fake()->streetName(),
-                    'city' => fake()->city(),
-                    'postal_code' => fake()->postcode(),
-                    'country' => 'DE',
-                ],
-            ],
-        ]);
+        return $this->afterCreating(function (Employee $employee): void {
+            $employee->addresses()->delete();
+
+            EmployeeAddress::factory()->create([
+                'employee_id' => $employee->id,
+                'tenant_id' => $employee->tenant_id,
+                'street' => fake()->streetName(),
+                'city' => fake()->city(),
+                'postal_code' => fake()->postcode(),
+                'country' => 'DE',
+                'resided_from' => '2019-01-01',
+                'resided_until' => '2022-06-30',
+            ]);
+
+            EmployeeAddress::factory()->current()->create([
+                'employee_id' => $employee->id,
+                'tenant_id' => $employee->tenant_id,
+                'street' => fake()->streetName(),
+                'house_number' => fake()->buildingNumber(),
+                'postal_code' => fake()->postcode(),
+                'city' => fake()->city(),
+                'country' => 'DE',
+                'resided_from' => '2022-07-01',
+            ]);
+        });
     }
 
     /**

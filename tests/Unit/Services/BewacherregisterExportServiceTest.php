@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 use App\Models\Employee;
+use App\Models\EmployeeAddress;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Services\BewacherregisterExportService;
@@ -37,7 +38,7 @@ afterEach(function (): void {
 
 function createBewacherregisterReadyEmployee(TenantKey $tenant, OrganizationalUnit $organizationalUnit, array $overrides = []): Employee
 {
-    return Employee::factory()->create(array_merge([
+    $employee = Employee::factory()->create(array_merge([
         'tenant_id' => $tenant->id,
         'organizational_unit_id' => $organizationalUnit->id,
         'first_name' => 'Taylor',
@@ -50,21 +51,6 @@ function createBewacherregisterReadyEmployee(TenantKey $tenant, OrganizationalUn
         'birth_country' => 'DE',
         'nationalities' => ['DE'],
         'email' => 'taylor.export@example.com',
-        'address_street' => 'Hauptstrasse',
-        'address_house_number' => '42A',
-        'address_postal_code' => '10115',
-        'address_city' => 'Berlin',
-        'address_country' => 'DE',
-        'address_history' => [[
-            'from' => '2021-01-01',
-            'to' => '2023-12-31',
-            'street' => 'Altstrasse',
-            'house_number' => '5',
-            'postal_code' => '20095',
-            'city' => 'Hamburg',
-            'country' => 'DE',
-            'state' => null,
-        ]],
         'intended_activities' => ['object_protection', 'event_security'],
         'id_document_type' => 'id_card',
         'id_document_number' => 'L01X00T47',
@@ -79,6 +65,34 @@ function createBewacherregisterReadyEmployee(TenantKey $tenant, OrganizationalUn
         'management_level' => 0,
         'work_permit_type' => 'none',
     ], $overrides));
+
+    $employee->addresses()->delete();
+
+    EmployeeAddress::factory()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $tenant->id,
+        'street' => 'Altstrasse',
+        'house_number' => '5',
+        'postal_code' => '20095',
+        'city' => 'Hamburg',
+        'country' => 'DE',
+        'resided_from' => '2021-01-01',
+        'resided_until' => '2023-12-31',
+    ]);
+
+    EmployeeAddress::factory()->current()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $tenant->id,
+        'street' => 'Hauptstrasse',
+        'house_number' => '42A',
+        'postal_code' => '10115',
+        'city' => 'Berlin',
+        'country' => 'DE',
+        'resided_from' => '2024-01-01',
+        'resided_until' => null,
+    ]);
+
+    return $employee->fresh(['addresses']);
 }
 
 test('exports a BWR-ready employee to CSV storage', function (): void {
@@ -125,19 +139,20 @@ test('exports a BWR-ready employee to XML storage', function (): void {
 });
 
 test('export throws when required BWR fields are missing', function (): void {
-    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
+    $employee->addresses()->delete();
+    $employee->forceFill([
         'gender' => null,
-        'address_history' => null,
         'id_document_number' => null,
-    ]);
+    ])->save();
 
     $expectedMessage = implode(', ', [
         __('bwr_export.missing_fields.gender'),
-        __('bwr_export.missing_fields.address_history'),
         __('bwr_export.missing_fields.id_document_number'),
+        __('bwr_export.missing_fields.current_address_missing'),
     ]);
 
-    expect(fn () => $this->service->exportCsv($employee, 'HR Operations'))
+    expect(fn () => $this->service->exportCsv($employee->fresh(['addresses']), 'HR Operations'))
         ->toThrow(RuntimeException::class, $expectedMessage);
 });
 
@@ -193,4 +208,46 @@ test('export throws when id_document_expiry is in the past', function (): void {
 
     expect(fn () => $this->service->exportCsv($employee, 'HR Operations'))
         ->toThrow(RuntimeException::class, __('bwr_export.missing_fields.id_document_expiry_expired'));
+});
+
+test('address continuity check ignores segments entirely before the export window', function (): void {
+    // Employee has two historical address rows with a gap between them, but both rows
+    // end before the 5-year export window starts. The current address covers the full
+    // window. The algorithm must not report a false-positive gap.
+    $windowStart = now()->startOfDay()->subYears(5);
+
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
+    $employee->addresses()->delete();
+
+    // Historical address that ends well before the 5-year window.
+    EmployeeAddress::factory()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $this->tenant->id,
+        'street' => 'Altweg',
+        'house_number' => '1',
+        'postal_code' => '20095',
+        'city' => 'Hamburg',
+        'country' => 'DE',
+        'resided_from' => $windowStart->copy()->subYears(5)->toDateString(),
+        'resided_until' => $windowStart->copy()->subYears(1)->toDateString(),
+    ]);
+
+    // Current address that starts AFTER the historical one ends (gap of 6 months,
+    // entirely before the window start) but covers the full 5-year window.
+    EmployeeAddress::factory()->current()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $this->tenant->id,
+        'street' => 'Hauptstrasse',
+        'house_number' => '42',
+        'postal_code' => '10115',
+        'city' => 'Berlin',
+        'country' => 'DE',
+        'resided_from' => $windowStart->copy()->subMonths(6)->toDateString(),
+        'resided_until' => null,
+    ]);
+
+    $fresh = $employee->fresh(['addresses']);
+    // Must succeed — the full export window is covered by the current address.
+    $result = $this->service->exportCsv($fresh, 'HR Operations');
+    expect($result)->toHaveKey('path');
 });
