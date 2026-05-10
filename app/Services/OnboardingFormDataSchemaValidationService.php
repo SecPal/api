@@ -290,14 +290,8 @@ final class OnboardingFormDataSchemaValidationService
             ]);
         }
 
-        if (! $enforceContractStartRule) {
+        if (! $enforceContractStartRule || $contractStartDate === null) {
             return;
-        }
-
-        if ($contractStartDate === null) {
-            throw ValidationException::withMessages([
-                self::RESIDENCE_PERMIT_EXPIRY_FIELD => [__('The residence title must remain valid after your contract start date.')],
-            ]);
         }
 
         if ($expiryDateString <= $contractStartDate) {
