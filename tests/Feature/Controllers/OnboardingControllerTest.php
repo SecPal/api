@@ -841,6 +841,40 @@ describe('POST /v1/onboarding/submissions', function () {
             ->assertJsonValidationErrors(['residence_permit_expiry']);
     });
 
+    test('does not require identity upload decisions on templates that do not define that field', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string', 'pattern' => '^[A-Z]{2}$'],
+                        'minItems' => 1,
+                    ],
+                    'id_document_kind' => ['type' => 'string'],
+                ],
+                'required' => ['nationalities'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'nationalities' => ['DE'],
+                    'id_document_kind' => 'passport',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'submitted');
+    });
+
     test('allows first submitted onboarding data to choose identity upload before a draft submission exists', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
@@ -965,6 +999,52 @@ describe('POST /v1/onboarding/submissions', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['residence_permit_upload_now']);
+    });
+
+    test('does not require residence upload decisions on templates that do not define that field', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+        $this->employee->update(['contract_start_date' => '2026-06-01']);
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'nationalities' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string', 'pattern' => '^[A-Z]{2}$'],
+                        'minItems' => 1,
+                    ],
+                    'id_document_upload_now' => ['type' => 'string'],
+                    'residence_permit_title' => ['type' => 'string'],
+                    'residence_permit_unlimited' => ['type' => 'boolean'],
+                    'residence_permit_expiry' => [
+                        'type' => 'string',
+                        'pattern' => '^\d{4}-\d{2}-\d{2}$',
+                    ],
+                    'residence_permit_employment_allowed' => ['type' => 'string'],
+                ],
+                'required' => ['nationalities', 'residence_permit_title', 'residence_permit_expiry'],
+            ],
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $template->id,
+                'form_data' => [
+                    'nationalities' => ['IN'],
+                    'id_document_upload_now' => 'no',
+                    'residence_permit_title' => 'Niederlassungserlaubnis',
+                    'residence_permit_unlimited' => true,
+                    'residence_permit_expiry' => '2027-06-01',
+                    'residence_permit_employment_allowed' => 'yes',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.status', 'submitted');
     });
 
     test('rejects legacy identity uploads without a document_subtype when resubmitting an existing draft', function (): void {

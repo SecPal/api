@@ -848,9 +848,14 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        DB::transaction(function () use ($submissionFile): void {
-            Storage::disk('local')->delete($submissionFile->file_path);
+        $filePath = $submissionFile->file_path;
+
+        DB::transaction(function () use ($submissionFile, $filePath): void {
             $submissionFile->delete();
+
+            DB::afterCommit(static function () use ($filePath): void {
+                Storage::disk('local')->delete($filePath);
+            });
         });
 
         return response()->noContent();
@@ -1070,13 +1075,21 @@ class OnboardingController extends Controller
             return;
         }
 
-        $identityUploadNow = $this->normalizeYesNo(
-            $formData[self::ID_DOCUMENT_UPLOAD_NOW_FIELD] ?? null
-        );
-        if ($identityUploadNow === null) {
-            throw ValidationException::withMessages([
-                self::ID_DOCUMENT_UPLOAD_NOW_FIELD => [__('Please choose whether you want to upload your identity document now.')],
-            ]);
+        if ($this->schemaDefinesProperty($schema, self::ID_DOCUMENT_UPLOAD_NOW_FIELD)) {
+            $identityUploadNow = $this->normalizeYesNo(
+                $formData[self::ID_DOCUMENT_UPLOAD_NOW_FIELD] ?? null
+            );
+            if ($identityUploadNow === null) {
+                throw ValidationException::withMessages([
+                    self::ID_DOCUMENT_UPLOAD_NOW_FIELD => [__('Please choose whether you want to upload your identity document now.')],
+                ]);
+            }
+
+            if ($identityUploadNow !== 'yes') {
+                $identityUploadNow = null;
+            }
+        } else {
+            $identityUploadNow = null;
         }
 
         if ($identityUploadNow === 'yes') {
@@ -1119,6 +1132,10 @@ class OnboardingController extends Controller
             ) ?? ''
         );
         if ($employmentAllowed !== 'yes') {
+            return;
+        }
+
+        if (! $this->schemaDefinesProperty($schema, self::RESIDENCE_PERMIT_UPLOAD_NOW_FIELD)) {
             return;
         }
 

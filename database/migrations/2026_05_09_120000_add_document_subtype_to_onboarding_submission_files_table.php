@@ -20,8 +20,8 @@ return new class extends Migration
                 ->after('document_type');
 
             $table->index(
-                ['onboarding_form_submission_id', 'document_subtype'],
-                'onboarding_sub_files_submission_subtype_idx'
+                ['onboarding_form_submission_id', 'document_type', 'document_subtype'],
+                'onboarding_sub_files_submission_type_subtype_idx'
             );
         });
     }
@@ -32,7 +32,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('onboarding_submission_files', function (Blueprint $table): void {
-            $table->dropIndex('onboarding_sub_files_submission_subtype_idx');
+            $table->dropIndex('onboarding_sub_files_submission_type_subtype_idx');
             $table->dropColumn('document_subtype');
         });
     }
