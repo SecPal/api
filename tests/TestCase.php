@@ -18,6 +18,11 @@ abstract class TestCase extends BaseTestCase
 {
     private static bool $postgresTestDatabasesEnsured = false;
 
+    /**
+     * @var array<string, string>|null
+     */
+    private static ?array $phpUnitEnvironmentOverrides = null;
+
     private static ?string $temporaryBootstrapEnvironmentFile = null;
 
     /**
@@ -27,6 +32,7 @@ abstract class TestCase extends BaseTestCase
 
     public static function setUpBeforeClass(): void
     {
+        self::applyPhpUnitEnvironmentOverrides();
         self::ensurePostgresTestDatabasesExist();
 
         parent::setUpBeforeClass();
@@ -34,10 +40,12 @@ abstract class TestCase extends BaseTestCase
 
     public function createApplication(): Application
     {
+        self::applyPhpUnitEnvironmentOverrides();
         self::ensureBootstrapEnvironmentFileExists();
 
         /** @var Application $app */
         $app = parent::createApplication();
+        self::normalizeApplicationConfiguration($app);
 
         return $app;
     }
@@ -248,6 +256,43 @@ abstract class TestCase extends BaseTestCase
         return $default;
     }
 
+    protected static function applyPhpUnitEnvironmentOverrides(): void
+    {
+        foreach (self::phpUnitEnvironmentOverrides() as $name => $value) {
+            putenv($name.'='.$value);
+            $_ENV[$name] = $value;
+            $_SERVER[$name] = $value;
+
+            if ($name === 'DB_DATABASE') {
+                putenv('SECPAL_TEST_DATABASE='.$value);
+                $_ENV['SECPAL_TEST_DATABASE'] = $value;
+                $_SERVER['SECPAL_TEST_DATABASE'] = $value;
+            }
+        }
+    }
+
+    protected static function normalizeApplicationConfiguration(Application $app): void
+    {
+        $databaseConnection = self::phpUnitEnvironmentOverrides()['DB_CONNECTION'] ?? null;
+        $databaseName = self::phpUnitEnvironmentOverrides()['DB_DATABASE'] ?? null;
+
+        if (is_string($databaseConnection) && $databaseConnection !== '') {
+            $app['config']->set('database.default', $databaseConnection);
+        }
+
+        if (
+            is_string($databaseConnection) && $databaseConnection !== ''
+            && is_string($databaseName) && $databaseName !== ''
+        ) {
+            $app['config']->set("database.connections.{$databaseConnection}.database", $databaseName);
+            $app['config']->set("database.connections.{$databaseConnection}.url", null);
+        }
+
+        if (isset($app['db'])) {
+            $app['db']->purge();
+        }
+    }
+
     protected static function bootstrapEnvironmentPath(): string
     {
         return dirname(__DIR__);
@@ -329,5 +374,54 @@ abstract class TestCase extends BaseTestCase
         self::$localEnvironmentValues = $values;
 
         return self::$localEnvironmentValues;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function phpUnitEnvironmentOverrides(): array
+    {
+        if (self::$phpUnitEnvironmentOverrides !== null) {
+            return self::$phpUnitEnvironmentOverrides;
+        }
+
+        $configurationPath = dirname(__DIR__).'/phpunit.xml';
+
+        if (! is_file($configurationPath)) {
+            self::$phpUnitEnvironmentOverrides = [];
+
+            return self::$phpUnitEnvironmentOverrides;
+        }
+
+        $configuration = simplexml_load_file($configurationPath);
+
+        if (! $configuration instanceof \SimpleXMLElement) {
+            self::$phpUnitEnvironmentOverrides = [];
+
+            return self::$phpUnitEnvironmentOverrides;
+        }
+
+        $overrides = [];
+
+        /** @var \SimpleXMLElement[]|false $envNodes */
+        $envNodes = $configuration->xpath('/phpunit/php/env');
+
+        if ($envNodes !== false) {
+            foreach ($envNodes as $envNode) {
+                $name = (string) ($envNode['name'] ?? '');
+                $value = (string) ($envNode['value'] ?? '');
+                $force = strtolower((string) ($envNode['force'] ?? 'false'));
+
+                if ($name === '' || ! in_array($force, ['1', 'true', 'yes'], true)) {
+                    continue;
+                }
+
+                $overrides[$name] = $value;
+            }
+        }
+
+        self::$phpUnitEnvironmentOverrides = $overrides;
+
+        return self::$phpUnitEnvironmentOverrides;
     }
 }
