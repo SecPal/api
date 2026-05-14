@@ -187,6 +187,10 @@ function runConcurrentJsonPosts(
             }
 
             if ($pid === 0) {
+                if (function_exists('xdebug_stop_code_coverage')) {
+                    xdebug_stop_code_coverage(false);
+                }
+
                 DB::disconnect();
                 app(PermissionRegistrar::class)->forgetCachedPermissions();
 
