@@ -36,28 +36,37 @@ final class AddressSuggestionService
         $id = Cache::remember(
             self::CACHE_PREFIX_IMPORT_ID.$countryCode,
             self::CACHE_TTL_SECONDS,
-            function () use ($countryCode): ?int {
-                $row = AddressDataImport::query()
-                    ->where('country_code', $countryCode)
-                    ->where('status', AddressDataImport::STATUS_SUCCEEDED)
-                    ->whereNotNull('activated_at')
-                    ->orderByDesc('id')
-                    ->first();
-
-                return $row?->id;
-            },
+            fn (): ?int => $this->activeImportQuery($countryCode)->value('id'),
         );
 
         if ($id === null) {
             return null;
         }
 
-        $import = AddressDataImport::query()->find($id);
-        if ($import === null) {
-            $this->forgetActiveImportCache($countryCode);
+        /** @var AddressDataImport|null $import */
+        $import = $this->activeImportQuery($countryCode)
+            ->whereKey($id)
+            ->first();
+        if ($import !== null) {
+            return $import;
         }
 
-        return $import;
+        $this->forgetActiveImportCache($countryCode);
+
+        /** @var AddressDataImport|null */
+        return $this->activeImportQuery($countryCode)->first();
+    }
+
+    /**
+     * @return Builder<AddressDataImport>
+     */
+    private function activeImportQuery(string $countryCode): Builder
+    {
+        return AddressDataImport::query()
+            ->where('country_code', $countryCode)
+            ->where('status', AddressDataImport::STATUS_SUCCEEDED)
+            ->whereNotNull('activated_at')
+            ->orderByDesc('id');
     }
 
     /**

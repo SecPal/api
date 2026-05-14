@@ -24,6 +24,25 @@ beforeEach(function (): void {
     ]);
 });
 
+test('active import ignores stale cached ids for deactivated imports', function (): void {
+    expect($this->service->activeImport('DE')?->is($this->import))->toBeTrue();
+
+    $this->import->update(['activated_at' => null]);
+
+    $replacement = AddressDataImport::create([
+        'country_code' => 'DE',
+        'source_name' => 'Replacement import',
+        'source_url' => 'https://example.com/address-data-new.csv',
+        'status' => AddressDataImport::STATUS_SUCCEEDED,
+        'activated_at' => now(),
+    ]);
+
+    $active = $this->service->activeImport('DE');
+
+    expect($active)->not->toBeNull()
+        ->and($active?->is($replacement))->toBeTrue();
+});
+
 test('street suggestions escape wildcard characters in name prefixes', function (): void {
     AddressStreet::create([
         'import_id' => $this->import->id,
