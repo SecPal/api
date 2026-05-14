@@ -18,9 +18,6 @@ final class AddressSearchNormalizer
         'ö' => 'oe',
         'ü' => 'ue',
         'ß' => 'ss',
-        'Ä' => 'ae',
-        'Ö' => 'oe',
-        'Ü' => 'ue',
     ];
 
     /**
@@ -31,9 +28,6 @@ final class AddressSearchNormalizer
         'ö' => 'o',
         'ü' => 'u',
         'ß' => 'ss',
-        'Ä' => 'a',
-        'Ö' => 'o',
-        'Ü' => 'u',
     ];
 
     public static function normalize(string $value): string
