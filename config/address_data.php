@@ -30,8 +30,6 @@ return [
 
     'chunk_rows' => (int) env('ADDRESS_DATA_CHUNK_ROWS', 2000),
 
-    'chunk_size' => (int) env('ADDRESS_DATA_CHUNK_SIZE', 8192),
-
     'default_limit' => (int) env('ADDRESS_DATA_DEFAULT_LIMIT', 20),
 
     'max_limit' => (int) env('ADDRESS_DATA_MAX_LIMIT', 50),
