@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
+use App\Support\ResidentialAddressHistorySchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
@@ -401,45 +402,6 @@ return new class extends Migration
      */
     private function residentialAddressHistorySchema(): array
     {
-        return [
-            'title' => 'Residential Address History',
-            'description' => 'Provide your current residential address, the date since you live there, and earlier residences covering the last five years.',
-            'type' => 'object',
-            'properties' => [
-                'current_address' => [
-                    'type' => 'object',
-                    'title' => 'Current Residential Address',
-                    'properties' => [
-                        'street' => ['type' => 'string', 'title' => 'Street', 'maxLength' => 255],
-                        'house_number' => ['type' => 'string', 'title' => 'House Number', 'maxLength' => 50],
-                        'postal_code' => ['type' => 'string', 'title' => 'Postal Code', 'maxLength' => 20],
-                        'city' => ['type' => 'string', 'title' => 'City', 'maxLength' => 255],
-                        'supplement' => ['type' => 'string', 'title' => 'Address Supplement', 'maxLength' => 255],
-                        'country' => ['type' => 'string', 'title' => 'Country', 'pattern' => '^[A-Z]{2}$'],
-                        'resided_from' => ['type' => 'string', 'title' => 'Living There Since', 'pattern' => '^\d{4}-\d{2}-\d{2}$'],
-                    ],
-                    'required' => ['street', 'house_number', 'postal_code', 'city', 'country', 'resided_from'],
-                ],
-                'previous_addresses' => [
-                    'type' => 'array',
-                    'title' => 'Previous Residences',
-                    'items' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'street' => ['type' => 'string', 'title' => 'Street', 'maxLength' => 255],
-                            'house_number' => ['type' => 'string', 'title' => 'House Number', 'maxLength' => 50],
-                            'postal_code' => ['type' => 'string', 'title' => 'Postal Code', 'maxLength' => 20],
-                            'city' => ['type' => 'string', 'title' => 'City', 'maxLength' => 255],
-                            'supplement' => ['type' => 'string', 'title' => 'Address Supplement', 'maxLength' => 255],
-                            'country' => ['type' => 'string', 'title' => 'Country', 'pattern' => '^[A-Z]{2}$'],
-                            'resided_from' => ['type' => 'string', 'title' => 'Resided From', 'pattern' => '^\d{4}-\d{2}-\d{2}$'],
-                            'resided_until' => ['type' => 'string', 'title' => 'Resided Until', 'pattern' => '^\d{4}-\d{2}-\d{2}$'],
-                        ],
-                        'required' => ['street', 'house_number', 'postal_code', 'city', 'country', 'resided_from', 'resided_until'],
-                    ],
-                ],
-            ],
-            'required' => ['current_address'],
-        ];
+        return ResidentialAddressHistorySchema::definition();
     }
 };

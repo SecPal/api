@@ -90,7 +90,7 @@ final class AddressSuggestionService
             $this->applySearchPrefixConstraint($query, 'locality', $locality);
         }
 
-        $this->orderStreetResults($query, $postalCodePrefix, $name, $locality);
+        $this->orderStreetResults($query, $name, $locality);
 
         return $query->limit($limit)->get();
     }
@@ -143,7 +143,6 @@ final class AddressSuggestionService
      */
     private function orderStreetResults(
         Builder $query,
-        ?string $postalCodePrefix,
         ?string $name,
         ?string $locality,
     ): void {
