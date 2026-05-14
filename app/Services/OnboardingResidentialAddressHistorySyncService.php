@@ -98,7 +98,7 @@ class OnboardingResidentialAddressHistorySyncService
             return null;
         }
 
-        return [
+        $normalized = [
             'street' => $this->nullableString($value['street'] ?? null),
             'house_number' => $this->nullableString($value['house_number'] ?? null),
             'postal_code' => $this->nullableString($value['postal_code'] ?? null),
@@ -108,6 +108,10 @@ class OnboardingResidentialAddressHistorySyncService
             'resided_from' => $this->nullableString($value['resided_from'] ?? null),
             'resided_until' => $current ? null : $this->nullableString($value['resided_until'] ?? null),
         ];
+
+        return array_filter($normalized, static fn (mixed $field): bool => $field !== null) !== []
+            ? $normalized
+            : null;
     }
 
     private function nullableString(mixed $value): ?string

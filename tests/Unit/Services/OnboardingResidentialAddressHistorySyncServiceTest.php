@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
+use App\Models\EmployeeAddress;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\TenantKey;
@@ -80,4 +81,47 @@ test('it syncs approved residential address history submissions into employee ad
     expect($previous)->not->toBeNull()
         ->and($previous?->street)->toBe('Alte Straße')
         ->and($previous?->resided_until?->toDateString())->toBe('2023-12-31');
+});
+
+test('it ignores blank current addresses instead of replacing existing rows', function () {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    EmployeeAddress::factory()->current()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $employee->tenant_id,
+        'street' => 'Existing Street',
+        'house_number' => '22A',
+        'postal_code' => '50667',
+        'city' => 'Cologne',
+        'country' => 'DE',
+    ]);
+
+    $template = OnboardingFormTemplate::query()
+        ->where('template_key', 'residential_address_history')
+        ->whereNull('tenant_id')
+        ->firstOrFail();
+
+    $submission = OnboardingFormSubmission::factory()->approved()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => $template->id,
+        'form_data' => [
+            'current_address' => [],
+            'previous_addresses' => [
+                [],
+            ],
+        ],
+    ]);
+
+    $submission->load(['employee', 'formTemplate']);
+
+    app(OnboardingResidentialAddressHistorySyncService::class)
+        ->syncFromApprovedSubmission($submission);
+
+    $employee->load('addresses');
+
+    expect($employee->addresses)->toHaveCount(1)
+        ->and($employee->addresses->first()?->street)->toBe('Existing Street')
+        ->and($employee->addresses->first()?->city)->toBe('Cologne');
 });
