@@ -52,6 +52,7 @@ function validPreviousAddress(string $residedFrom, string $residedUntil): array
 beforeEach(function () {
     $this->service = new OnboardingFormDataSchemaValidationService;
     $this->template = OnboardingFormTemplate::factory()->make([
+        'tenant_id' => null,
         'template_key' => 'residential_address_history',
         'form_schema' => residentialAddressHistorySchema(),
         'is_required' => true,
