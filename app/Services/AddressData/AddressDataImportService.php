@@ -77,7 +77,8 @@ final class AddressDataImportService
         }
 
         if ($dryRun) {
-            $dummy = new AddressDataImport(['id' => 0]);
+            $dummy = new AddressDataImport;
+            $dummy->id = 0;
             try {
                 $rows = $this->csvImporter->importFile($path, $dummy, true, $onProgress);
             } catch (Throwable $e) {

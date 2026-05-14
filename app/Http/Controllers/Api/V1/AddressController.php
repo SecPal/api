@@ -34,6 +34,7 @@ class AddressController extends Controller
             $request->filled('postal_code') ? $request->string('postal_code')->toString() : null,
             $request->filled('locality') ? $request->string('locality')->toString() : null,
             $limit,
+            $active,
         );
 
         return response()->json([
@@ -67,6 +68,7 @@ class AddressController extends Controller
             $request->filled('postal_code') ? $request->string('postal_code')->toString() : null,
             $request->filled('locality') ? $request->string('locality')->toString() : null,
             $limit,
+            $active,
         );
 
         return response()->json([

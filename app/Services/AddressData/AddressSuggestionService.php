@@ -69,8 +69,9 @@ final class AddressSuggestionService
         ?string $postalCodePrefix,
         ?string $locality,
         int $limit,
+        ?AddressDataImport $import = null,
     ): Collection {
-        $import = $this->activeImport($countryCode);
+        $import ??= $this->activeImport($countryCode);
         if ($import === null) {
             return AddressStreet::query()->whereRaw('0 = 1')->get();
         }
@@ -102,8 +103,9 @@ final class AddressSuggestionService
         ?string $postalCodePrefix,
         ?string $locality,
         int $limit,
+        ?AddressDataImport $import = null,
     ): Collection {
-        $import = $this->activeImport($countryCode);
+        $import ??= $this->activeImport($countryCode);
         if ($import === null) {
             return new Collection;
         }
