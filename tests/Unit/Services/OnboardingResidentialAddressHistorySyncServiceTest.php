@@ -4,7 +4,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
-use App\Models\EmployeeAddress;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\TenantKey;
@@ -84,19 +83,15 @@ test('it syncs approved residential address history submissions into employee ad
 });
 
 test('it ignores blank current addresses instead of replacing existing rows', function () {
+    // The EmployeeFactory afterCreating hook auto-creates a current address.
+    // Use that address for assertion instead of creating a second current one
+    // (which would violate the one-current-per-employee unique constraint).
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
 
-    EmployeeAddress::factory()->current()->create([
-        'employee_id' => $employee->id,
-        'tenant_id' => $employee->tenant_id,
-        'street' => 'Existing Street',
-        'house_number' => '22A',
-        'postal_code' => '50667',
-        'city' => 'Cologne',
-        'country' => 'DE',
-    ]);
+    $existingAddress = $employee->currentAddress();
+    assert($existingAddress !== null, 'EmployeeFactory must create a default current address');
 
     $template = OnboardingFormTemplate::query()
         ->where('template_key', 'residential_address_history')
@@ -122,6 +117,6 @@ test('it ignores blank current addresses instead of replacing existing rows', fu
     $employee->load('addresses');
 
     expect($employee->addresses)->toHaveCount(1)
-        ->and($employee->addresses->first()?->street)->toBe('Existing Street')
-        ->and($employee->addresses->first()?->city)->toBe('Cologne');
+        ->and($employee->addresses->first()?->street)->toBe($existingAddress->street)
+        ->and($employee->addresses->first()?->city)->toBe($existingAddress->city);
 });

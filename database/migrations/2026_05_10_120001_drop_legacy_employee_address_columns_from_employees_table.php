@@ -7,7 +7,6 @@ use App\Models\TenantKey;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -148,62 +147,74 @@ return new class extends Migration
 
     private function restoreLegacyEmployeeAddressColumns(): void
     {
-        collect(DB::table('employee_addresses')
-            ->select([
-                'employee_id',
-                'tenant_id',
-                'street_enc',
-                'house_number_enc',
-                'postal_code_enc',
-                'city_enc',
-                'supplement_enc',
-                'country',
-                'resided_from',
-                'resided_until',
-            ])
-            ->orderBy('employee_id')
-            ->orderByRaw('resided_until is null desc')
-            ->orderBy('resided_from')
-            ->get()
-            ->groupBy('employee_id'))
-            ->each(function (Collection $rows, string $employeeId): void {
-                $current = $rows->first(fn (object $row): bool => $row->resided_until === null);
-                $currentArr = $current !== null ? $this->objectToStringKeyedArray($current) : null;
+        // Process one employee at a time to keep memory usage bounded.
+        DB::table('employees')
+            ->select(['id'])
+            ->orderBy('id')
+            ->chunkById(500, function ($employees): void {
+                foreach ($employees as $employee) {
+                    $arr = $this->objectToStringKeyedArray($employee);
+                    $employeeId = $this->requireNonEmptyString($arr['id'] ?? null, 'employee id');
 
-                $history = $rows
-                    ->filter(fn (object $row): bool => $row->resided_until !== null)
-                    ->map(function (object $row): array {
-                        $r = $this->objectToStringKeyedArray($row);
-                        $tenantId = $this->requireTenantId($r['tenant_id'] ?? null);
+                    $rows = DB::table('employee_addresses')
+                        ->select([
+                            'tenant_id',
+                            'street_enc',
+                            'house_number_enc',
+                            'postal_code_enc',
+                            'city_enc',
+                            'supplement_enc',
+                            'country',
+                            'resided_from',
+                            'resided_until',
+                        ])
+                        ->where('employee_id', $employeeId)
+                        ->orderByRaw('resided_until is null desc')
+                        ->orderBy('resided_from')
+                        ->get();
 
-                        return [
-                            'street' => $this->decryptLegacyCiphertext($tenantId, $r['street_enc'] ?? null),
-                            'house_number' => $this->decryptLegacyCiphertext($tenantId, $r['house_number_enc'] ?? null),
-                            'postal_code' => $this->decryptLegacyCiphertext($tenantId, $r['postal_code_enc'] ?? null),
-                            'city' => $this->decryptLegacyCiphertext($tenantId, $r['city_enc'] ?? null),
-                            'supplement' => $this->decryptLegacyCiphertext($tenantId, $r['supplement_enc'] ?? null),
-                            'country' => $this->nullableString($r['country'] ?? null),
-                            'resided_from' => $r['resided_from'] ?? null,
-                            'resided_until' => $r['resided_until'] ?? null,
-                        ];
-                    })
-                    ->values()
-                    ->all();
+                    if ($rows->isEmpty()) {
+                        continue;
+                    }
 
-                DB::table('employees')
-                    ->where('id', $employeeId)
-                    ->update([
-                        'address_street_enc' => $currentArr['street_enc'] ?? null,
-                        'address_house_number_enc' => $currentArr['house_number_enc'] ?? null,
-                        'address_postal_code_enc' => $currentArr['postal_code_enc'] ?? null,
-                        'address_city_enc' => $currentArr['city_enc'] ?? null,
-                        'address_supplement_enc' => $currentArr['supplement_enc'] ?? null,
-                        'address_country' => $currentArr['country'] ?? null,
-                        'address_state' => null,
-                        'address_history' => $history === []
-                            ? null
-                            : json_encode($history, JSON_THROW_ON_ERROR),
-                    ]);
+                    $current = $rows->first(fn (object $row): bool => $row->resided_until === null);
+                    $currentArr = $current !== null ? $this->objectToStringKeyedArray($current) : null;
+
+                    $history = $rows
+                        ->filter(fn (object $row): bool => $row->resided_until !== null)
+                        ->map(function (object $row): array {
+                            $r = $this->objectToStringKeyedArray($row);
+                            $tenantId = $this->requireTenantId($r['tenant_id'] ?? null);
+
+                            return [
+                                'street' => $this->decryptLegacyCiphertext($tenantId, $r['street_enc'] ?? null),
+                                'house_number' => $this->decryptLegacyCiphertext($tenantId, $r['house_number_enc'] ?? null),
+                                'postal_code' => $this->decryptLegacyCiphertext($tenantId, $r['postal_code_enc'] ?? null),
+                                'city' => $this->decryptLegacyCiphertext($tenantId, $r['city_enc'] ?? null),
+                                'supplement' => $this->decryptLegacyCiphertext($tenantId, $r['supplement_enc'] ?? null),
+                                'country' => $this->nullableString($r['country'] ?? null),
+                                'resided_from' => $r['resided_from'] ?? null,
+                                'resided_until' => $r['resided_until'] ?? null,
+                            ];
+                        })
+                        ->values()
+                        ->all();
+
+                    DB::table('employees')
+                        ->where('id', $employeeId)
+                        ->update([
+                            'address_street_enc' => $currentArr['street_enc'] ?? null,
+                            'address_house_number_enc' => $currentArr['house_number_enc'] ?? null,
+                            'address_postal_code_enc' => $currentArr['postal_code_enc'] ?? null,
+                            'address_city_enc' => $currentArr['city_enc'] ?? null,
+                            'address_supplement_enc' => $currentArr['supplement_enc'] ?? null,
+                            'address_country' => $currentArr['country'] ?? null,
+                            'address_state' => null,
+                            'address_history' => $history === []
+                                ? null
+                                : json_encode($history, JSON_THROW_ON_ERROR),
+                        ]);
+                }
             });
     }
 
