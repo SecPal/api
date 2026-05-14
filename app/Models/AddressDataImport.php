@@ -69,6 +69,7 @@ class AddressDataImport extends Model
     protected function casts(): array
     {
         return [
+            'row_count' => 'integer',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
             'activated_at' => 'datetime',

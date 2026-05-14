@@ -135,11 +135,13 @@ test('address status returns active import metadata', function (): void {
     $user = User::factory()->create();
     Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
 
-    $this->getJson('/v1/addresses/de/status')
+    $response = $this->getJson('/v1/addresses/de/status')
         ->assertOk()
         ->assertJsonPath('data.country', 'DE')
         ->assertJsonPath('data.row_count', $import->row_count)
         ->assertJsonPath('meta.version_hash', str_repeat('a', 64));
+
+    expect($response->json('data.row_count'))->toBeInt();
 });
 
 test('localities search applies limit to distinct postal codes not street rows', function (): void {
