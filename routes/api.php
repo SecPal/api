@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Http\Controllers\Api\V1\ActivityLogController;
+use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\AndroidEnrollmentSessionController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CustomerAssignmentController;
@@ -100,6 +101,12 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/email/verification-notification', [AuthController::class, 'sendVerificationNotification'])
             ->middleware('throttle:6,1');
         Route::get('/me', [AuthController::class, 'me']);
+
+        Route::middleware('throttle:address-autocomplete')->group(function () {
+            Route::get('/addresses/de/streets', [AddressController::class, 'streets']);
+            Route::get('/addresses/de/localities', [AddressController::class, 'localities']);
+            Route::get('/addresses/de/status', [AddressController::class, 'status']);
+        });
 
         Route::middleware('verified')->group(function () {
             Route::get('/android-enrollment-sessions', [AndroidEnrollmentSessionController::class, 'index'])

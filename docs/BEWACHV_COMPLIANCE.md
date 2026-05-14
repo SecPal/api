@@ -193,8 +193,7 @@ not_registered → pending → active
 | `birth_name_enc`              | § 16 Abs. 2 Nr. 1            | text        | **Yes**   | Nullable string                     | "Schmidt" (birth name)            |
 | `previous_names`              | § 16 Abs. 2 Nr. 1 (implicit) | JSON        | No        | Array of strings                    | `["Mueller", "Schneider"]`        |
 | `birth_city`                  | § 16 Abs. 2 Nr. 1            | string(255) | No        | Nullable                            | "Berlin"                          |
-| `birth_country`               | § 16 Abs. 2 Nr. 1            | string(2)   | No        | ISO 3166-1 alpha-2                  | `DE`                              |
-| `birth_state`                 | § 16 Abs. 2 Nr. 1            | string(100) | No        | Nullable                            | "Berlin"                          |
+| `birth_country`               | § 16 Abs. 2 Nr. 1            | string(2)   | No        | ISO 3166-1 alpha-2 (Geburtsland)    | `DE`                              |
 | `nationalities`               | § 16 Abs. 2 Nr. 2            | JSON        | No        | Array of ISO codes                  | `["DE", "PL"]`                    |
 | `employee_addresses` rows     | § 16 Abs. 2 Nr. 1 / history  | relation    | Mixed     | See `EmployeeAddress` model         | Current + history rows            |
 | `intended_activities`         | § 16 Abs. 2 Nr. 4            | JSON        | No        | Array of §34a work types            | `["Objektschutz", "Citystreife"]` |
@@ -212,7 +211,7 @@ not_registered → pending → active
 - Stored as separate rows linked to `employees` with encrypted street/postal/city fields (same encryption approach as the former flat columns).
 - **Current address:** at most one row per employee with `resided_until = null` (enforced by a unique partial index). A current address row is required only for BWR-pending and BWR-active employees.
 - **Historical addresses:** `resided_from` / `resided_until` set; `resided_from` may be null when unknown.
-- **API:** clients send/receive `addresses[]` with `street`, `house_number`, `postal_code`, `city`, `supplement`, `country`, `state`, `resided_from`, `resided_until`. Updates replace the full list for that employee. There is no automatic import from removed flat columns—use `addresses[]` only.
+- **API:** clients send/receive `addresses[]` with `street`, `house_number`, `postal_code`, `city`, `supplement`, `country`, `resided_from`, `resided_until`. (No separate Bundesland/state field—0.x product scope is DE-focused.) Updates replace the full list for that employee. There is no automatic import from removed flat columns—use `addresses[]` only.
 - **BWR five-year continuity** for exports is enforced in `BewacherregisterExportService` (gaps/overlaps and coverage), not by requiring a complete history at employee creation.
 
 **Computed property:**
@@ -488,7 +487,7 @@ If auditors or authorities question this implementation, refer them to:
 'address_encrypted' => 'Full address as single encrypted blob'
 ```
 
-**After (7 Structured Fields):**
+**After (structured flat columns on `employees`, later superseded by `employee_addresses`):**
 
 ```php
 'address_street_enc' => 'Hauptstraße',
@@ -497,7 +496,6 @@ If auditors or authorities question this implementation, refer them to:
 'address_city_enc' => 'Berlin',
 'address_supplement_enc' => '3. OG',
 'address_country' => 'DE',
-'address_state' => 'NRW',
 ```
 
 **Rationale:**

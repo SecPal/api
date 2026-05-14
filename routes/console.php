@@ -60,3 +60,6 @@ Schedule::command('ots:monitor')->everySixHours()->name('ots-health-monitor');
 // Runs every Monday at 03:00 to check for new versions
 // Manual update with: php artisan ots:update
 Schedule::command('ots:check --update-check')->weekly()->mondays()->at('03:00')->name('ots-update-check');
+
+// OpenPLZ German street reference data (ODbL). Hash-based runs skip quickly when unchanged.
+Schedule::command('addresses:import')->weekly()->mondays()->at('03:30')->name('address-data-update');

@@ -24,7 +24,6 @@ trait InteractsWithEmployeeAddressValidation
             'addresses.*.city' => ['nullable', 'string', 'max:255'],
             'addresses.*.supplement' => ['nullable', 'string', 'max:255'],
             'addresses.*.country' => ['nullable', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'],
-            'addresses.*.state' => ['nullable', 'string', 'max:100'],
             'addresses.*.resided_from' => ['nullable', 'date'],
             'addresses.*.resided_until' => ['nullable', 'date'],
         ];
@@ -38,7 +37,18 @@ trait InteractsWithEmployeeAddressValidation
 
         /** @var array<int, mixed>|null $addresses */
         $addresses = $this->input('addresses');
-        if ($addresses === null || ! is_array($addresses)) {
+        if ($addresses === null) {
+            if ($this->exists('addresses') && $this->employeeAddressesPayloadRequiresBwrFields()) {
+                $validator->errors()->add(
+                    'addresses',
+                    __('For BWR submission, exactly one current address is required (resided_until empty).'),
+                );
+            }
+
+            return;
+        }
+
+        if (! is_array($addresses)) {
             return;
         }
 
@@ -46,6 +56,15 @@ trait InteractsWithEmployeeAddressValidation
         foreach ($addresses as $index => $row) {
             if (! is_array($row)) {
                 $validator->errors()->add('addresses.'.$index, __('Each address entry must be an object.'));
+
+                continue;
+            }
+
+            if (! $this->employeeAddressRowHasContent($row)) {
+                $validator->errors()->add(
+                    'addresses.'.$index,
+                    __('Address rows must contain at least one non-empty field.')
+                );
 
                 continue;
             }
@@ -132,5 +151,34 @@ trait InteractsWithEmployeeAddressValidation
         return $employee instanceof Employee
             && is_string($employee->bwr_status)
             && in_array($employee->bwr_status, ['pending', 'active'], true);
+    }
+
+    /**
+     * @param  array<mixed, mixed>  $row
+     */
+    private function employeeAddressRowHasContent(array $row): bool
+    {
+        foreach ([
+            'street',
+            'house_number',
+            'postal_code',
+            'city',
+            'supplement',
+            'country',
+            'resided_from',
+            'resided_until',
+        ] as $field) {
+            $value = $row[$field] ?? null;
+
+            if (is_string($value) && trim($value) !== '') {
+                return true;
+            }
+
+            if ($value !== null && ! is_string($value)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

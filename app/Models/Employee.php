@@ -43,8 +43,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string|null $date_of_birth_enc Encrypted date of birth (text, not date)
  * @property string|null $date_of_birth_idx Blind index for date of birth
  * @property string|null $birth_city
- * @property string|null $birth_country ISO 3166-1 alpha-2
- * @property string|null $birth_state
+ * @property string|null $birth_country ISO 3166-1 alpha-2 Geburtsland
  * @property array<int, string>|null $nationalities Array of ISO 3166-1 alpha-2 codes
  * @property string|null $email
  * @property string|null $phone_enc Encrypted phone number
@@ -318,7 +317,6 @@ class Employee extends Model
         'date_of_birth_idx',
         'birth_city',
         'birth_country',
-        'birth_state',
         'nationalities',
         // Contact
         'email',
@@ -1171,6 +1169,18 @@ class Employee extends Model
             return true;
         }
 
+        if (
+            $currentStatus === self::WORKFLOW_STATUS_READY_FOR_ACTIVATION
+            && $this->status === self::STATUS_PRE_CONTRACT
+            && ! $this->onboarding_completed
+            && in_array($targetStatus, [
+                self::WORKFLOW_STATUS_IN_PROGRESS,
+                self::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+            ], true)
+        ) {
+            return true;
+        }
+
         return in_array($targetStatus, self::ALLOWED_WORKFLOW_TRANSITIONS[$currentStatus] ?? [], true);
     }
 
@@ -1212,6 +1222,25 @@ class Employee extends Model
         }
 
         return $this->transitionOnboardingWorkflowTo(self::WORKFLOW_STATUS_READY_FOR_ACTIVATION);
+    }
+
+    /**
+     * Authenticated onboarding users must not remain in the initial invitation
+     * state. Once they have an authenticated session, the workflow can be
+     * treated as account-initialized so subsequent draft saves do not fail on
+     * an invited -> in_progress gap.
+     */
+    public function promoteAuthenticatedOnboardingWorkflow(): bool
+    {
+        if ($this->status !== self::STATUS_PRE_CONTRACT) {
+            return false;
+        }
+
+        if ($this->resolveOnboardingWorkflowStatus() !== self::WORKFLOW_STATUS_INVITED) {
+            return false;
+        }
+
+        return $this->transitionOnboardingWorkflowTo(self::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
     }
 
     public function canActivate(): bool
@@ -1402,6 +1431,13 @@ class Employee extends Model
                 [
                     'id' => 'personal_data',
                     'name' => 'Persönliche Daten',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+                [
+                    'id' => 'residential_address_history',
+                    'name' => 'Wohnanschriften',
                     'completed' => false,
                     'completed_at' => null,
                     'form_submission_id' => null,

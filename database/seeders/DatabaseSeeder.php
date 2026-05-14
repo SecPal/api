@@ -8,14 +8,11 @@ namespace Database\Seeders;
 use App\Models\Permission;
 use App\Models\TenantKey;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\PermissionRegistrar;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed the application's database.
      */
@@ -29,6 +26,9 @@ class DatabaseSeeder extends Seeder
 
         // Seed standard onboarding form templates (system-wide)
         $this->call(OnboardingFormTemplatesSeeder::class);
+
+        // Pre-contract demo employee for onboarding UI (independent from test@example.com)
+        $this->call(OnboardingDemoUserSeeder::class);
 
         // Get tenant ID from created tenant key (OrganizationalUnitSeeder ensures it exists)
         $tenant = TenantKey::firstOrFail();

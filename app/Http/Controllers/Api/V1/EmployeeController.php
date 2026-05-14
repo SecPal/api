@@ -385,8 +385,10 @@ class EmployeeController extends Controller
         $validated = $request->validated();
 
         DB::transaction(function () use ($employee, $validated): void {
+            $addressesProvided = false;
             $addressPayload = null;
             if (array_key_exists('addresses', $validated)) {
+                $addressesProvided = true;
                 $addressPayload = $validated['addresses'];
                 unset($validated['addresses']);
             }
@@ -395,7 +397,7 @@ class EmployeeController extends Controller
                 $employee->update($validated);
             }
 
-            if ($addressPayload !== null) {
+            if ($addressesProvided) {
                 /** @var array<int, array<string, mixed>> $normalizedPayload */
                 $normalizedPayload = is_array($addressPayload) ? $addressPayload : [];
                 $this->syncEmployeeAddresses($employee, $normalizedPayload);
@@ -700,7 +702,6 @@ class EmployeeController extends Controller
                 'city' => $this->nullableRequestString($row['city'] ?? null),
                 'supplement' => $this->nullableRequestString($row['supplement'] ?? null),
                 'country' => $this->nullableRequestString($row['country'] ?? null),
-                'state' => $this->nullableRequestString($row['state'] ?? null),
                 'resided_from' => $this->nullableRequestDate($row['resided_from'] ?? null),
                 'resided_until' => $this->nullableRequestDate($row['resided_until'] ?? null),
             ]);

@@ -25,7 +25,6 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string|null $city_enc
  * @property string|null $supplement_enc
  * @property string|null $country
- * @property string|null $state
  * @property \Illuminate\Support\Carbon|null $resided_from
  * @property \Illuminate\Support\Carbon|null $resided_until
  * @property-read string|null $street
@@ -65,7 +64,6 @@ class EmployeeAddress extends Model
         'supplement',
         'supplement_enc',
         'country',
-        'state',
         'resided_from',
         'resided_until',
     ];
@@ -100,7 +98,7 @@ class EmployeeAddress extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['employee_id', 'country', 'state', 'resided_from', 'resided_until'])
+            ->logOnly(['employee_id', 'country', 'resided_from', 'resided_until'])
             ->dontLogIfAttributesChangedOnly(['updated_at'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()

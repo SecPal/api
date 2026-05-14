@@ -30,6 +30,8 @@ final class OnboardingFormDataSchemaValidationService
 
     private const RESIDENCE_PERMIT_UNLIMITED_FIELD = 'residence_permit_unlimited';
 
+    private const RESIDENTIAL_ADDRESS_HISTORY_TEMPLATE_KEY = 'residential_address_history';
+
     /**
      * EEA + Switzerland (frontend parity for work-permit exemption).
      *
@@ -107,6 +109,12 @@ final class OnboardingFormDataSchemaValidationService
             throw ValidationException::withMessages([
                 'form_data' => [__('The submitted form data could not be validated.')],
             ]);
+        }
+
+        if ($template->template_key === self::RESIDENTIAL_ADDRESS_HISTORY_TEMPLATE_KEY) {
+            $this->assertResidentialAddressHistoryValid($formData);
+
+            return;
         }
 
         if (! $this->schemaDefinesResidencePermitFields($schema)) {
@@ -552,5 +560,161 @@ final class OnboardingFormDataSchemaValidationService
         }
 
         return $expiryDate > $contractStartDate;
+    }
+
+    /**
+     * @param  array<string, mixed>  $formData
+     *
+     * @throws ValidationException
+     */
+    private function assertResidentialAddressHistoryValid(array $formData): void
+    {
+        $messages = [];
+
+        $currentAddress = $formData['current_address'] ?? null;
+        if (! is_array($currentAddress)) {
+            throw ValidationException::withMessages([
+                'current_address' => [$this->validationMessageString('Current Residential Address: This field is required.')],
+            ]);
+        }
+
+        $this->appendResidentialAddressMessages(
+            $messages,
+            'current_address',
+            'Current Residential Address',
+            $this->stringKeyedAddressRow($currentAddress),
+            requireUntilDate: false,
+        );
+
+        $previousAddresses = $formData['previous_addresses'] ?? [];
+        if (! is_array($previousAddresses)) {
+            $messages['previous_addresses'][] = $this->validationMessageString(
+                'Previous Residences: Invalid address list.',
+            );
+        } else {
+            foreach ($previousAddresses as $index => $address) {
+                if (! is_array($address)) {
+                    $messages["previous_addresses.{$index}"][] = $this->validationMessageString(
+                        'Previous Residences: Invalid address entry.',
+                    );
+
+                    continue;
+                }
+
+                $this->appendResidentialAddressMessages(
+                    $messages,
+                    "previous_addresses.{$index}",
+                    $this->validationMessageString('Previous residence #:number', ['number' => $index + 1]),
+                    $this->stringKeyedAddressRow($address),
+                    requireUntilDate: true,
+                );
+            }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages($messages);
+        }
+    }
+
+    /**
+     * @param  array<string, array<int, string>>  $messages
+     * @param  array<string, mixed>  $address
+     */
+    private function appendResidentialAddressMessages(
+        array &$messages,
+        string $path,
+        string $label,
+        array $address,
+        bool $requireUntilDate,
+    ): void {
+        foreach ([
+            'street' => $this->validationMessageString('Street'),
+            'house_number' => $this->validationMessageString('House Number'),
+            'postal_code' => $this->validationMessageString('Postal Code'),
+            'city' => $this->validationMessageString('City'),
+            'country' => $this->validationMessageString('Country'),
+            'resided_from' => $requireUntilDate
+                ? $this->validationMessageString('Resided From')
+                : $this->validationMessageString('Living There Since'),
+        ] as $field => $fieldLabel) {
+            if ($this->normalizedNonEmptyString($address[$field] ?? null) !== null) {
+                continue;
+            }
+
+            $messages["{$path}.{$field}"][] = $this->validationMessageString(
+                ':label: :field is required.',
+                ['label' => $label, 'field' => $fieldLabel],
+            );
+        }
+
+        $country = $this->normalizedNonEmptyString($address['country'] ?? null);
+        if ($country !== null && preg_match('/^[A-Z]{2}$/', $country) !== 1) {
+            $messages["{$path}.country"][] = $this->validationMessageString(
+                ':label: Use a two-letter country code in uppercase, for example DE.',
+                ['label' => $label],
+            );
+        }
+
+        $from = $this->normalizedNonEmptyString($address['resided_from'] ?? null);
+        if ($from !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) !== 1) {
+            $messages["{$path}.resided_from"][] = $this->validationMessageString(
+                ':label: Please use the required format (YYYY-MM-DD).',
+                ['label' => $label],
+            );
+        }
+
+        $until = $this->normalizedNonEmptyString($address['resided_until'] ?? null);
+        if ($requireUntilDate) {
+            if ($until === null) {
+                $messages["{$path}.resided_until"][] = $this->validationMessageString(
+                    ':label: Resided Until is required.',
+                    ['label' => $label],
+                );
+            } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $until) !== 1) {
+                $messages["{$path}.resided_until"][] = $this->validationMessageString(
+                    ':label: Please use the required format (YYYY-MM-DD).',
+                    ['label' => $label],
+                );
+            }
+        }
+
+        if (
+            $from !== null
+            && $until !== null
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) === 1
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $until) === 1
+            && $from > $until
+        ) {
+            $messages["{$path}.resided_until"][] = $this->validationMessageString(
+                ':label: The end date must be on or after the start date.',
+                ['label' => $label],
+            );
+        }
+    }
+
+    /**
+     * @param  array<mixed, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function stringKeyedAddressRow(array $row): array
+    {
+        $out = [];
+        foreach ($row as $key => $value) {
+            if (is_string($key)) {
+                $out[$key] = $value;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, bool|float|int|string|null>  $replace
+     */
+    private function validationMessageString(string $key, array $replace = []): string
+    {
+        $resolved = __($key, $replace);
+
+        return is_string($resolved) ? $resolved : $key;
     }
 }

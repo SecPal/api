@@ -16,24 +16,24 @@ beforeEach(function () {
     OnboardingFormTemplate::query()->forceDelete();
 });
 
-test('seeder creates exactly 5 standard templates', function () {
+test('seeder creates exactly 6 standard templates', function () {
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
 
-    expect(OnboardingFormTemplate::count())->toBe(5);
+    expect(OnboardingFormTemplate::count())->toBe(6);
 });
 
 test('all templates are system templates', function () {
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
 
     $systemTemplates = OnboardingFormTemplate::where('is_system_template', true)->count();
-    expect($systemTemplates)->toBe(5);
+    expect($systemTemplates)->toBe(6);
 });
 
 test('all templates have null tenant_id (system-wide)', function () {
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
 
     $systemWideTemplates = OnboardingFormTemplate::whereNull('tenant_id')->count();
-    expect($systemWideTemplates)->toBe(5);
+    expect($systemWideTemplates)->toBe(6);
 });
 
 test('personal information form is required', function () {
@@ -57,17 +57,19 @@ test('templates have correct sort order', function () {
 
     $templates = OnboardingFormTemplate::orderBy('sort_order')->get();
 
-    expect($templates)->toHaveCount(5);
+    expect($templates)->toHaveCount(6);
     expect($templates[0]->name)->toBe('Personal Information Form');
     expect($templates[0]->sort_order)->toBe(1);
-    expect($templates[1]->name)->toBe('Nationality and Residence');
+    expect($templates[1]->name)->toBe('Residential Address History');
     expect($templates[1]->sort_order)->toBe(2);
-    expect($templates[2]->name)->toBe('Bank Account Details');
+    expect($templates[2]->name)->toBe('Nationality and Residence');
     expect($templates[2]->sort_order)->toBe(3);
-    expect($templates[3]->name)->toBe('Emergency Contact');
+    expect($templates[3]->name)->toBe('Bank Account Details');
     expect($templates[3]->sort_order)->toBe(4);
-    expect($templates[4]->name)->toBe('Tax Identification Number');
+    expect($templates[4]->name)->toBe('Emergency Contact');
     expect($templates[4]->sort_order)->toBe(5);
+    expect($templates[5]->name)->toBe('Tax Identification Number');
+    expect($templates[5]->sort_order)->toBe(6);
 });
 
 test('personal information schema has correct structure', function () {
@@ -109,6 +111,21 @@ test('nationality and residence schema has nationality as required field', funct
     expect($schema['properties'])->toHaveKey('residence_permit_expiry');
     expect($schema['properties']['residence_permit_employment_allowed']['enum'])->toBe(['yes', 'no']);
     expect($schema['required'])->toContain('nationalities');
+});
+
+test('residential address history schema contains current and previous residences', function () {
+    artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
+
+    $template = OnboardingFormTemplate::where('name', 'Residential Address History')->first();
+    $schema = $template->form_schema;
+
+    expect($schema)->toBeArray();
+    expect($schema['properties'])->toHaveKey('current_address');
+    expect($schema['properties'])->toHaveKey('previous_addresses');
+    expect($schema['properties']['current_address']['properties'])->toHaveKey('street');
+    expect($schema['properties']['current_address']['properties'])->toHaveKey('resided_from');
+    expect($schema['properties']['previous_addresses']['items']['properties'])->toHaveKey('resided_until');
+    expect($schema['required'])->toContain('current_address');
 });
 
 test('personal information schema validates gender enum', function () {
@@ -242,8 +259,8 @@ test('seeder is idempotent (can be run multiple times)', function () {
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
     artisan('db:seed', ['--class' => OnboardingFormTemplatesSeeder::class]);
 
-    // Should still have exactly 5 templates
-    expect(OnboardingFormTemplate::count())->toBe(5);
+    // Should still have exactly 6 templates
+    expect(OnboardingFormTemplate::count())->toBe(6);
 });
 
 test('all templates have descriptions', function () {

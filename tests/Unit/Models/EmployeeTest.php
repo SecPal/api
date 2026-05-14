@@ -267,6 +267,7 @@ test('get default onboarding steps returns consistent structure with completed a
     expect($steps['steps'])->toBeArray();
     expect(array_column($steps['steps'], 'id'))->toBe([
         'personal_data',
+        'residential_address_history',
         'nationality_and_residence',
         'bank_details',
         'tax_info',

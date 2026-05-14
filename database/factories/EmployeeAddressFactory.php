@@ -30,7 +30,6 @@ class EmployeeAddressFactory extends Factory
             'city' => fake()->city(),
             'supplement' => fake()->optional(0.15)->randomElement(['Hinterhof', 'c/o Test']),
             'country' => 'DE',
-            'state' => fake()->optional(0.5)->randomElement(['BE', 'NW', 'BY']),
             'resided_from' => fake()->dateTimeBetween('-8 years', '-1 year')->format('Y-m-d'),
             'resided_until' => fake()->dateTimeBetween('-1 year', '-1 month')->format('Y-m-d'),
         ];

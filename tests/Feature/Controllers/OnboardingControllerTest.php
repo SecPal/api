@@ -485,6 +485,27 @@ describe('POST /v1/onboarding/submissions', function () {
         expect($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_IN_PROGRESS);
     });
 
+    test('promotes invited authenticated employees before creating a draft submission', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_INVITED,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $this->template->id,
+                'form_data' => ['name' => 'John Doe', 'email' => 'john@example.com'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.status', 'draft');
+
+        expect($this->employee->fresh()->onboarding_workflow_status)
+            ->toBe(Employee::WORKFLOW_STATUS_IN_PROGRESS);
+    });
+
     test('creates submission with submitted status and timestamp', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 

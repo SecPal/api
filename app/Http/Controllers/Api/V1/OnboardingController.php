@@ -20,6 +20,7 @@ use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
 use App\Services\OnboardingCompletionService;
 use App\Services\OnboardingFormDataSchemaValidationService;
+use App\Services\OnboardingResidentialAddressHistorySyncService;
 use App\Services\OnboardingSchemaLocalizationService;
 use App\Services\OnboardingSubmissionFileStorageService;
 use App\Services\OnboardingTaxIdentificationSyncService;
@@ -80,8 +81,18 @@ class OnboardingController extends Controller
         private readonly OnboardingSchemaLocalizationService $onboardingSchemaLocalizationService,
         private readonly OnboardingFormDataSchemaValidationService $onboardingFormDataSchemaValidationService,
         private readonly OnboardingCompletionService $onboardingCompletionService,
+        private readonly OnboardingResidentialAddressHistorySyncService $onboardingResidentialAddressHistorySyncService,
         private readonly OnboardingTaxIdentificationSyncService $onboardingTaxIdentificationSyncService,
     ) {}
+
+    private function normalizeAuthenticatedEmployeeWorkflow(Employee $employee): Employee
+    {
+        if ($employee->promoteAuthenticatedOnboardingWorkflow()) {
+            $employee->refresh();
+        }
+
+        return $employee;
+    }
 
     /**
      * Validate onboarding token and return employee data for prefilling.
@@ -376,6 +387,8 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        $employee = $this->normalizeAuthenticatedEmployeeWorkflow($employee);
+
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([
                 'message' => __('Onboarding is only available for pre-contract employees'),
@@ -514,6 +527,8 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        $employee = $this->normalizeAuthenticatedEmployeeWorkflow($employee);
+
         $submissions = $employee->onboardingSubmissions()
             ->with('formTemplate')
             ->get();
@@ -547,6 +562,8 @@ class OnboardingController extends Controller
                 'message' => __('No employee record found for user'),
             ], Response::HTTP_NOT_FOUND);
         }
+
+        $employee = $this->normalizeAuthenticatedEmployeeWorkflow($employee);
 
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([
@@ -681,6 +698,8 @@ class OnboardingController extends Controller
                 'message' => __('No employee record found for submission'),
             ], Response::HTTP_NOT_FOUND);
         }
+
+        $employee = $this->normalizeAuthenticatedEmployeeWorkflow($employee);
 
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([
@@ -886,6 +905,7 @@ class OnboardingController extends Controller
                 'reviewed_at' => now(),
             ]);
 
+            $this->onboardingResidentialAddressHistorySyncService->syncFromApprovedSubmission($submission);
             $this->onboardingTaxIdentificationSyncService->syncFromApprovedSubmission($submission);
 
             /** @var Employee $employee */

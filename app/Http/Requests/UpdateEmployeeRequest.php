@@ -85,7 +85,6 @@ class UpdateEmployeeRequest extends FormRequest
             // BewachV § 16 Abs. 2 Nr. 3: Birth Place
             'birth_city' => ['sometimes', 'nullable', 'string', 'max:255'],
             'birth_country' => ['sometimes', 'nullable', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'],
-            'birth_state' => ['sometimes', 'nullable', 'string', 'max:100'],
 
             // BewachV § 16 Abs. 2 Nr. 4: Nationalities
             'nationalities' => ['sometimes', 'nullable', 'array'],

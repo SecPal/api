@@ -83,6 +83,10 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        RateLimiter::for('address-autocomplete', function (Request $request) {
+            return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
+        });
+
         // Password reset rate limiter (5 per 60 minutes by IP)
         RateLimiter::for('password-reset', function (Request $request) {
             return Limit::perMinutes(60, 5)->by($request->ip());

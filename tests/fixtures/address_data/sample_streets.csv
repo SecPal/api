@@ -1,0 +1,4 @@
+Name,PostalCode,Locality,RegionalKey,Borough,Suburb
+"Grabstraße",13156,Berlin,11000000,,Pankow
+Müllerweg,01067,Dresden,14612000,,
+"Test ""Quoted"" Street",01234,Ort,,,

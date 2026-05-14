@@ -1,0 +1,9 @@
+Open Database License (ODbL) v1.0 — full text
+
+This file documents that SecPal redistributes or references upstream OpenPLZ / OpenStreetMap-derived data under ODbL-1.0.
+
+The canonical license text is maintained by the Open Knowledge Foundation. Retrieve the current full text from:
+
+https://opendatacommons.org/licenses/odbl/1-0/
+
+You must comply with all ODbL obligations (attribution, share-alike for derivative databases as applicable, and notice requirements) when using imported street data in production.
