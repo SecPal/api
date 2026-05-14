@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - aligned onboarding completion email verification with the invited employee mailbox by syncing the user login email before verification and dispatching the `Verified` event in that path; auth payloads now also expose resolved onboarding workflow state via `Employee::resolveOnboardingWorkflowStatus()`, with regression tests for login, `/v1/me`, and onboarding completion
 - fixed residential-address onboarding step rollout to reopen already-completed pre-contract dossiers when the new mandatory step is inserted, preserve existing completed residential-address step state, reject blank employee address rows before they can wipe persisted history, and let address autocomplete match common ASCII fallback input such as `Muller`/`Koln` for umlauted source data
 - made the employee-address migrations preserve legacy flat/current-history data during forward rollout and rollback, and tightened the residential-address-history rollback so only migration-inserted empty steps are removed while pre-existing tenant/global templates, submissions, and completed employee state stay consistent
+- removed ineffective `use RuntimeException;` imports from the anonymous employee-address and residential-address-history migrations so PHP 8.4 no longer aborts Polyscope preview setup during migration discovery
 
 ### Added
 
