@@ -204,6 +204,7 @@ final class AddressDataImportService
 
         $deleteImportIds = AddressDataImport::query()
             ->where('country_code', $countryCode)
+            ->where('status', '!=', AddressDataImport::STATUS_RUNNING)
             ->whereNotIn('id', $keepIds)
             ->pluck('id')
             ->all();

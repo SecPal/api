@@ -155,3 +155,27 @@ test('addresses:import keep-imports preserves the prior successful dataset when 
     expect(AddressDataImport::query()->whereKey($previousSuccessfulImport->id)->exists())->toBeTrue();
     expect(AddressStreet::query()->where('import_id', $previousSuccessfulImport->id)->count())->toBe(1);
 });
+
+test('addresses:import pruning does not delete concurrently running imports', function (): void {
+    $fixture = base_path('tests/fixtures/address_data/sample_streets.csv');
+
+    $runningImport = AddressDataImport::query()->create([
+        'country_code' => 'DE',
+        'source_name' => 'Fixture',
+        'source_url' => 'https://example.test/data.csv',
+        'status' => AddressDataImport::STATUS_RUNNING,
+        'row_count' => 0,
+        'started_at' => now(),
+        'finished_at' => null,
+        'activated_at' => null,
+        'license' => 'ODbL-1.0',
+        'attribution' => 'Fixture',
+        'source_sha256' => null,
+    ]);
+    createAddressStreet($runningImport, '11111', 'Parallelstrasse');
+
+    $this->artisan('addresses:import', ['--source' => $fixture])->assertSuccessful();
+
+    expect(AddressDataImport::query()->whereKey($runningImport->id)->exists())->toBeTrue();
+    expect(AddressStreet::query()->where('import_id', $runningImport->id)->count())->toBe(1);
+});
