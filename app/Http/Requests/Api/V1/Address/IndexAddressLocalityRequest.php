@@ -33,6 +33,10 @@ class IndexAddressLocalityRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->hasAny(['postal_code', 'locality'])) {
+                return;
+            }
+
             $postal = $this->string('postal_code')->toString();
             $locality = $this->string('locality')->toString();
 

@@ -44,7 +44,7 @@ final class AddressStreetCsvImporter
             }
 
             $headerLine = preg_replace('/^\xEF\xBB\xBF/', '', $headerLine) ?? $headerLine;
-            $header = str_getcsv(trim($headerLine));
+            $header = str_getcsv(trim($headerLine), separator: ',', enclosure: '"', escape: '');
             if ($header !== self::EXPECTED_HEADER) {
                 throw new InvalidArgumentException(
                     'Unexpected CSV header. Expected: '.implode(',', self::EXPECTED_HEADER),
@@ -98,7 +98,7 @@ final class AddressStreetCsvImporter
                 }
             };
 
-            while (($row = fgetcsv($handle)) !== false) {
+            while (($row = fgetcsv($handle, length: 0, separator: ',', enclosure: '"', escape: '')) !== false) {
                 if ($this->isBlankRow($row)) {
                     continue;
                 }

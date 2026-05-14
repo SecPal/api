@@ -276,3 +276,21 @@ test('localities search matches ascii fallback input for umlauted localities', f
         ->assertOk()
         ->assertJsonFragment(['locality' => 'Köln']);
 });
+
+test('street search returns 422 and no 500 when name param is an array', function () {
+    /** @var User $user */
+    $user = User::factory()->create();
+    Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+    $this->getJson('/v1/addresses/de/streets?name[]=foo&name[]=bar&postal_code=10115&locality=Berlin')
+        ->assertUnprocessable();
+});
+
+test('locality search returns 422 and no 500 when locality param is an array', function () {
+    /** @var User $user */
+    $user = User::factory()->create();
+    Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+    $this->getJson('/v1/addresses/de/localities?locality[]=Berlin&locality[]=Hamburg')
+        ->assertUnprocessable();
+});

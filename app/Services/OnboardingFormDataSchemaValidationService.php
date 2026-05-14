@@ -493,6 +493,13 @@ final class OnboardingFormDataSchemaValidationService
         return in_array(strtolower(trim($rawValue)), ['1', 'true', 'yes'], true);
     }
 
+    private function isValidCalendarDate(string $value): bool
+    {
+        $date = \DateTime::createFromFormat('Y-m-d', $value);
+
+        return $date instanceof \DateTime && $date->format('Y-m-d') === $value;
+    }
+
     private function normalizedNonEmptyString(mixed $value): ?string
     {
         if (! is_string($value)) {
@@ -656,7 +663,7 @@ final class OnboardingFormDataSchemaValidationService
         }
 
         $from = $this->normalizedNonEmptyString($address['resided_from'] ?? null);
-        if ($from !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) !== 1) {
+        if ($from !== null && ! $this->isValidCalendarDate($from)) {
             $messages["{$path}.resided_from"][] = $this->validationMessageString(
                 ':label: Please use the required format (YYYY-MM-DD).',
                 ['label' => $label],
@@ -670,7 +677,7 @@ final class OnboardingFormDataSchemaValidationService
                     ':label: Resided Until is required.',
                     ['label' => $label],
                 );
-            } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $until) !== 1) {
+            } elseif (! $this->isValidCalendarDate($until)) {
                 $messages["{$path}.resided_until"][] = $this->validationMessageString(
                     ':label: Please use the required format (YYYY-MM-DD).',
                     ['label' => $label],
@@ -681,8 +688,8 @@ final class OnboardingFormDataSchemaValidationService
         if (
             $from !== null
             && $until !== null
-            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) === 1
-            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $until) === 1
+            && $this->isValidCalendarDate($from)
+            && $this->isValidCalendarDate($until)
             && $from > $until
         ) {
             $messages["{$path}.resided_until"][] = $this->validationMessageString(

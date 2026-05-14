@@ -34,6 +34,10 @@ class IndexAddressStreetRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->hasAny(['name', 'postal_code', 'locality'])) {
+                return;
+            }
+
             $name = $this->string('name')->toString();
             $postal = $this->string('postal_code')->toString();
             $locality = $this->string('locality')->toString();

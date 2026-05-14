@@ -55,7 +55,7 @@ return new class extends Migration
     {
         $now = Carbon::now();
 
-        collect(DB::table('employees')
+        DB::table('employees')
             ->select([
                 'id',
                 'tenant_id',
@@ -68,80 +68,81 @@ return new class extends Migration
                 'address_history',
             ])
             ->orderBy('id')
-            ->get())
-            ->each(function (object $employee) use ($now): void {
-                $employeeArr = $this->objectToStringKeyedArray($employee);
-                $employeeId = $this->requireNonEmptyString($employeeArr['id'] ?? null, 'employee id');
-                $tenantId = $this->requireTenantId($employeeArr['tenant_id'] ?? null);
+            ->chunkById(500, function ($employees) use ($now): void {
+                foreach ($employees as $employee) {
+                    $employeeArr = $this->objectToStringKeyedArray($employee);
+                    $employeeId = $this->requireNonEmptyString($employeeArr['id'] ?? null, 'employee id');
+                    $tenantId = $this->requireTenantId($employeeArr['tenant_id'] ?? null);
 
-                $existingAddresses = DB::table('employee_addresses')
-                    ->where('employee_id', $employeeId)
-                    ->orderByRaw('resided_until is null desc')
-                    ->orderBy('resided_from')
-                    ->get();
-                $rows = [];
+                    $existingAddresses = DB::table('employee_addresses')
+                        ->where('employee_id', $employeeId)
+                        ->orderByRaw('resided_until is null desc')
+                        ->orderBy('resided_from')
+                        ->get();
+                    $rows = [];
 
-                if ($this->hasLegacyCurrentAddress($employeeArr)) {
-                    $existingCurrent = $existingAddresses->first(fn (object $row): bool => $row->resided_until === null);
+                    if ($this->hasLegacyCurrentAddress($employeeArr)) {
+                        $existingCurrent = $existingAddresses->first(fn (object $row): bool => $row->resided_until === null);
 
-                    if ($existingCurrent === null) {
+                        if ($existingCurrent === null) {
+                            $rows[] = [
+                                'id' => (string) Str::uuid(),
+                                'employee_id' => $employeeId,
+                                'tenant_id' => $tenantId,
+                                'street_enc' => $employeeArr['address_street_enc'] ?? null,
+                                'house_number_enc' => $employeeArr['address_house_number_enc'] ?? null,
+                                'postal_code_enc' => $employeeArr['address_postal_code_enc'] ?? null,
+                                'city_enc' => $employeeArr['address_city_enc'] ?? null,
+                                'supplement_enc' => $employeeArr['address_supplement_enc'] ?? null,
+                                'country' => $this->nullableString($employeeArr['address_country'] ?? null),
+                                'resided_from' => null,
+                                'resided_until' => null,
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ];
+                        } elseif (! $this->existingCurrentAddressMatchesLegacy($existingCurrent, $employeeArr, $tenantId)) {
+                            throw new RuntimeException(
+                                sprintf('Cannot migrate mixed employee address state for employee %s.', $employeeId)
+                            );
+                        }
+                    }
+
+                    foreach ($this->decodeLegacyAddressHistory($employeeArr['address_history'] ?? null) as $historyRow) {
+                        if (! $this->legacyHistoryRowHasContent($historyRow)) {
+                            continue;
+                        }
+
+                        if ($this->legacyHistoricalRowAlreadyExists(
+                            $existingAddresses->filter(fn (object $row): bool => $row->resided_until !== null),
+                            $tenantId,
+                            $historyRow
+                        )) {
+                            continue;
+                        }
+
                         $rows[] = [
                             'id' => (string) Str::uuid(),
                             'employee_id' => $employeeId,
                             'tenant_id' => $tenantId,
-                            'street_enc' => $employeeArr['address_street_enc'] ?? null,
-                            'house_number_enc' => $employeeArr['address_house_number_enc'] ?? null,
-                            'postal_code_enc' => $employeeArr['address_postal_code_enc'] ?? null,
-                            'city_enc' => $employeeArr['address_city_enc'] ?? null,
-                            'supplement_enc' => $employeeArr['address_supplement_enc'] ?? null,
-                            'country' => $this->nullableString($employeeArr['address_country'] ?? null),
-                            'resided_from' => null,
-                            'resided_until' => null,
+                            'street_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['street'] ?? null),
+                            'house_number_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['house_number'] ?? null),
+                            'postal_code_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['postal_code'] ?? null),
+                            'city_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['city'] ?? null),
+                            'supplement_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['supplement'] ?? null),
+                            'country' => $this->nullableString($historyRow['country'] ?? null),
+                            'resided_from' => $this->nullableString($historyRow['resided_from'] ?? null),
+                            'resided_until' => $this->nullableString($historyRow['resided_until'] ?? null),
                             'created_at' => $now,
                             'updated_at' => $now,
                         ];
-                    } elseif (! $this->existingCurrentAddressMatchesLegacy($existingCurrent, $employeeArr)) {
-                        throw new RuntimeException(
-                            sprintf('Cannot migrate mixed employee address state for employee %s.', $employeeId)
-                        );
                     }
-                }
 
-                foreach ($this->decodeLegacyAddressHistory($employeeArr['address_history'] ?? null) as $historyRow) {
-                    if (! $this->legacyHistoryRowHasContent($historyRow)) {
+                    if ($rows === []) {
                         continue;
                     }
 
-                    if ($this->legacyHistoricalRowAlreadyExists(
-                        $existingAddresses->filter(fn (object $row): bool => $row->resided_until !== null),
-                        $tenantId,
-                        $historyRow
-                    )) {
-                        continue;
-                    }
-
-                    $rows[] = [
-                        'id' => (string) Str::uuid(),
-                        'employee_id' => $employeeId,
-                        'tenant_id' => $tenantId,
-                        'street_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['street'] ?? null),
-                        'house_number_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['house_number'] ?? null),
-                        'postal_code_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['postal_code'] ?? null),
-                        'city_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['city'] ?? null),
-                        'supplement_enc' => $this->encryptLegacyPlaintext($tenantId, $historyRow['supplement'] ?? null),
-                        'country' => $this->nullableString($historyRow['country'] ?? null),
-                        'resided_from' => $this->nullableString($historyRow['resided_from'] ?? null),
-                        'resided_until' => $this->nullableString($historyRow['resided_until'] ?? null),
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
+                    DB::table('employee_addresses')->insert($rows);
                 }
-
-                if ($rows === []) {
-                    return;
-                }
-
-                DB::table('employee_addresses')->insert($rows);
             });
     }
 
@@ -227,7 +228,9 @@ return new class extends Migration
         if (is_string($addressHistory) && $addressHistory !== '') {
             $decoded = json_decode($addressHistory, true);
             if (! is_array($decoded)) {
-                return [];
+                throw new RuntimeException(
+                    'Legacy address_history column contains invalid JSON; manual repair required before migration can proceed.',
+                );
             }
 
             $items = array_values(array_filter($decoded, 'is_array'));
@@ -268,15 +271,15 @@ return new class extends Migration
     /**
      * @param  array<string, mixed>  $employee
      */
-    private function existingCurrentAddressMatchesLegacy(object $existingCurrent, array $employee): bool
+    private function existingCurrentAddressMatchesLegacy(object $existingCurrent, array $employee, int $tenantId): bool
     {
         $current = $this->objectToStringKeyedArray($existingCurrent);
 
-        return ($current['street_enc'] ?? null) === ($employee['address_street_enc'] ?? null)
-            && ($current['house_number_enc'] ?? null) === ($employee['address_house_number_enc'] ?? null)
-            && ($current['postal_code_enc'] ?? null) === ($employee['address_postal_code_enc'] ?? null)
-            && ($current['city_enc'] ?? null) === ($employee['address_city_enc'] ?? null)
-            && ($current['supplement_enc'] ?? null) === ($employee['address_supplement_enc'] ?? null)
+        return $this->decryptLegacyCiphertext($tenantId, $current['street_enc'] ?? null) === $this->decryptLegacyCiphertext($tenantId, $employee['address_street_enc'] ?? null)
+            && $this->decryptLegacyCiphertext($tenantId, $current['house_number_enc'] ?? null) === $this->decryptLegacyCiphertext($tenantId, $employee['address_house_number_enc'] ?? null)
+            && $this->decryptLegacyCiphertext($tenantId, $current['postal_code_enc'] ?? null) === $this->decryptLegacyCiphertext($tenantId, $employee['address_postal_code_enc'] ?? null)
+            && $this->decryptLegacyCiphertext($tenantId, $current['city_enc'] ?? null) === $this->decryptLegacyCiphertext($tenantId, $employee['address_city_enc'] ?? null)
+            && $this->decryptLegacyCiphertext($tenantId, $current['supplement_enc'] ?? null) === $this->decryptLegacyCiphertext($tenantId, $employee['address_supplement_enc'] ?? null)
             && $this->nullableString($current['country'] ?? null) === $this->nullableString($employee['address_country'] ?? null);
     }
 

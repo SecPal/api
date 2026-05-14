@@ -120,6 +120,19 @@ final class AddressDataImportService
             return ['status' => 'failed', 'message' => $e->getMessage(), 'import_id' => $import->id];
         }
 
+        if ($rowCount === 0) {
+            $message = 'Import aborted: CSV contained no data rows. Previous active dataset preserved.';
+            $import->update([
+                'status' => AddressDataImport::STATUS_FAILED,
+                'finished_at' => now(),
+                'error_message' => $message,
+            ]);
+            AddressStreet::query()->where('import_id', $import->id)->delete();
+            $this->cleanupTempDownload($path, $sourcePath);
+
+            return ['status' => 'failed', 'message' => $message, 'import_id' => $import->id];
+        }
+
         $emit('Activating import and pruning superseded datasets…');
 
         try {

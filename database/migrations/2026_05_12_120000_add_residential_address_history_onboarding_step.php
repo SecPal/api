@@ -101,35 +101,36 @@ return new class extends Migration
             ->whereNotNull('onboarding_steps')
             ->select(['id', 'status', 'onboarding_completed', 'onboarding_completed_at', 'onboarding_steps'])
             ->orderBy('id')
-            ->get()
-            ->each(function (Employee $employee) use ($now): void {
-                $updatedOnboardingSteps = $this->insertResidentialAddressHistoryStep(
-                    $employee->onboarding_steps
-                );
-                $shouldReopenOnboarding = $this->shouldReopenEmployeeOnboarding(
-                    $employee,
-                    $updatedOnboardingSteps
-                );
+            ->chunkById(500, function ($employees) use ($now): void {
+                foreach ($employees as $employee) {
+                    $updatedOnboardingSteps = $this->insertResidentialAddressHistoryStep(
+                        $employee->onboarding_steps
+                    );
+                    $shouldReopenOnboarding = $this->shouldReopenEmployeeOnboarding(
+                        $employee,
+                        $updatedOnboardingSteps
+                    );
 
-                if ($updatedOnboardingSteps === $employee->onboarding_steps && ! $shouldReopenOnboarding) {
-                    return;
+                    if ($updatedOnboardingSteps === $employee->onboarding_steps && ! $shouldReopenOnboarding) {
+                        continue;
+                    }
+
+                    $updates = [
+                        'updated_at' => $now,
+                    ];
+
+                    if ($updatedOnboardingSteps !== $employee->onboarding_steps) {
+                        $updates['onboarding_steps'] = json_encode($updatedOnboardingSteps, JSON_THROW_ON_ERROR);
+                    }
+
+                    if ($shouldReopenOnboarding) {
+                        $updates['onboarding_completed'] = false;
+                    }
+
+                    DB::table('employees')
+                        ->where('id', $employee->id)
+                        ->update($updates);
                 }
-
-                $updates = [
-                    'updated_at' => $now,
-                ];
-
-                if ($updatedOnboardingSteps !== $employee->onboarding_steps) {
-                    $updates['onboarding_steps'] = json_encode($updatedOnboardingSteps, JSON_THROW_ON_ERROR);
-                }
-
-                if ($shouldReopenOnboarding) {
-                    $updates['onboarding_completed'] = false;
-                }
-
-                DB::table('employees')
-                    ->where('id', $employee->id)
-                    ->update($updates);
             });
     }
 
@@ -141,37 +142,38 @@ return new class extends Migration
             ->whereNotNull('onboarding_steps')
             ->select(['id', 'status', 'onboarding_completed', 'onboarding_completed_at', 'onboarding_workflow_status', 'onboarding_steps'])
             ->orderBy('id')
-            ->get()
-            ->each(function (Employee $employee) use ($now, $removeOnlyEmptyInsertedSteps): void {
-                $updatedOnboardingSteps = $this->removeResidentialAddressHistoryStep(
-                    $employee->onboarding_steps,
-                    $removeOnlyEmptyInsertedSteps
-                );
-                $shouldRestoreCompletedState = $this->shouldRestoreCompletedStateOnRollback(
-                    $employee,
-                    $updatedOnboardingSteps
-                );
+            ->chunkById(500, function ($employees) use ($now, $removeOnlyEmptyInsertedSteps): void {
+                foreach ($employees as $employee) {
+                    $updatedOnboardingSteps = $this->removeResidentialAddressHistoryStep(
+                        $employee->onboarding_steps,
+                        $removeOnlyEmptyInsertedSteps
+                    );
+                    $shouldRestoreCompletedState = $this->shouldRestoreCompletedStateOnRollback(
+                        $employee,
+                        $updatedOnboardingSteps
+                    );
 
-                if ($updatedOnboardingSteps === $employee->onboarding_steps && ! $shouldRestoreCompletedState) {
-                    return;
+                    if ($updatedOnboardingSteps === $employee->onboarding_steps && ! $shouldRestoreCompletedState) {
+                        continue;
+                    }
+
+                    $updates = [
+                        'updated_at' => $now,
+                    ];
+
+                    if ($updatedOnboardingSteps !== $employee->onboarding_steps) {
+                        $updates['onboarding_steps'] = json_encode($updatedOnboardingSteps, JSON_THROW_ON_ERROR);
+                    }
+
+                    if ($shouldRestoreCompletedState) {
+                        $updates['onboarding_completed'] = true;
+                        $updates['onboarding_completed_at'] = $employee->onboarding_completed_at ?? $now;
+                    }
+
+                    DB::table('employees')
+                        ->where('id', $employee->id)
+                        ->update($updates);
                 }
-
-                $updates = [
-                    'updated_at' => $now,
-                ];
-
-                if ($updatedOnboardingSteps !== $employee->onboarding_steps) {
-                    $updates['onboarding_steps'] = json_encode($updatedOnboardingSteps, JSON_THROW_ON_ERROR);
-                }
-
-                if ($shouldRestoreCompletedState) {
-                    $updates['onboarding_completed'] = true;
-                    $updates['onboarding_completed_at'] = $employee->onboarding_completed_at ?? $now;
-                }
-
-                DB::table('employees')
-                    ->where('id', $employee->id)
-                    ->update($updates);
             });
     }
 

@@ -80,6 +80,7 @@ final class AddressDataDownloader
             ->get($sourceUrl);
 
         if (! $response->successful()) {
+            @unlink($fullPath);
             throw new RuntimeException(
                 'Address data download failed with HTTP '.$response->status().' for '.$sourceUrl,
             );
