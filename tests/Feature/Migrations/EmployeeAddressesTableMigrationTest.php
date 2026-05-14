@@ -369,18 +369,11 @@ test('dropping legacy employee address columns reuses tenant key lookups during 
             ], JSON_THROW_ON_ERROR),
         ]);
 
-    DB::flushQueryLog();
-    DB::enableQueryLog();
-
     $migration->up();
 
-    $queries = DB::getQueryLog();
-    DB::disableQueryLog();
+    $tenantKeysCache = (new ReflectionClass($migration))->getProperty('tenantKeysById');
+    $tenantKeysCache->setAccessible(true);
 
-    $tenantKeyQueries = array_values(array_filter(
-        $queries,
-        static fn (array $query): bool => str_contains((string) ($query['query'] ?? ''), 'tenant_keys')
-    ));
-
-    expect($tenantKeyQueries)->toHaveCount(1);
+    expect($tenantKeysCache->getValue($migration))->toHaveCount(1)
+        ->and($tenantKeysCache->getValue($migration))->toHaveKey($employee->tenant_id);
 });
