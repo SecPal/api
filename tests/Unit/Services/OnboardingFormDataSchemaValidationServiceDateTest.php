@@ -5,10 +5,9 @@
 
 use App\Models\OnboardingFormTemplate;
 use App\Services\OnboardingFormDataSchemaValidationService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 
-uses(RefreshDatabase::class)->group('unit', 'services');
+uses()->group('unit', 'services');
 
 /** Minimal residential_address_history form_schema that accepts any object. */
 function residentialAddressHistorySchema(): array
@@ -52,7 +51,7 @@ function validPreviousAddress(string $residedFrom, string $residedUntil): array
 
 beforeEach(function () {
     $this->service = new OnboardingFormDataSchemaValidationService;
-    $this->template = OnboardingFormTemplate::factory()->create([
+    $this->template = OnboardingFormTemplate::factory()->make([
         'template_key' => 'residential_address_history',
         'form_schema' => residentialAddressHistorySchema(),
         'is_required' => true,
