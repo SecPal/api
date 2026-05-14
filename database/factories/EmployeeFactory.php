@@ -18,7 +18,7 @@ class EmployeeFactory extends Factory
 {
     public function configure(): static
     {
-        return $this->afterCreating(function (Employee $employee): void { // @phpstan-ignore return.type
+        return $this->afterCreating(function (Employee $employee): void {
             if ($employee->addresses()->exists()) {
                 return;
             }
