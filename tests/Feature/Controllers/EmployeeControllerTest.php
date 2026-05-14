@@ -1198,7 +1198,7 @@ describe('PATCH /v1/employees/{employee}', function () {
             ->toBe($existingAddressIds);
     });
 
-    test('treats addresses null as clearing existing address history', function (): void {
+    test('treats addresses null as a no-op for existing address history', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
         grantDualManagementScopes($this->user, $this->organizationalUnit->id);
@@ -1208,7 +1208,9 @@ describe('PATCH /v1/employees/{employee}', function () {
             'organizational_unit_id' => $this->organizationalUnit->id,
         ]);
 
-        expect($employee->addresses()->count())->toBeGreaterThan(0);
+        $existingAddressIds = $employee->addresses()->orderBy('id')->pluck('id')->all();
+
+        expect($existingAddressIds)->not->toBeEmpty();
 
         $response = $this->withToken($this->token)
             ->patchJson("/v1/employees/{$employee->id}", [
@@ -1217,7 +1219,8 @@ describe('PATCH /v1/employees/{employee}', function () {
 
         $response->assertOk();
 
-        expect($employee->fresh()->addresses()->count())->toBe(0);
+        expect($employee->fresh()->addresses()->orderBy('id')->pluck('id')->all())
+            ->toBe($existingAddressIds);
     });
 
     test('rejects an address row where all fields are empty', function (): void {

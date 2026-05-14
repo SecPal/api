@@ -397,7 +397,7 @@ class EmployeeController extends Controller
                 $employee->update($validated);
             }
 
-            if ($addressesProvided) {
+            if ($addressesProvided && $addressPayload !== null) {
                 /** @var array<int, array<string, mixed>> $normalizedPayload */
                 $normalizedPayload = is_array($addressPayload) ? $addressPayload : [];
                 $this->syncEmployeeAddresses($employee, $normalizedPayload);
