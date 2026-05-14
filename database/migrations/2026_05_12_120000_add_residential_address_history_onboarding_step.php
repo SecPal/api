@@ -74,10 +74,6 @@ return new class extends Migration
         }
 
         if ($insertedTemplateIds !== []) {
-            DB::table('onboarding_form_submissions')
-                ->whereIn('form_template_id', $insertedTemplateIds)
-                ->delete();
-
             DB::table('onboarding_form_templates')
                 ->whereIn('id', $insertedTemplateIds)
                 ->delete();
