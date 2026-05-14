@@ -36,7 +36,7 @@ final class AddressSuggestionService
         $id = Cache::remember(
             self::CACHE_PREFIX_IMPORT_ID.$countryCode,
             self::CACHE_TTL_SECONDS,
-            fn (): ?int => $this->activeImportQuery($countryCode)->value('id'),
+            fn (): ?int => $this->activeImportQuery($countryCode)->first()?->id,
         );
 
         if ($id === null) {
