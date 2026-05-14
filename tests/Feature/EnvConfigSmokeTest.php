@@ -21,6 +21,9 @@ test('application config is loaded correctly', function (): void {
 });
 
 test('database connection is working', function (): void {
-    expect(fn () => DB::select('SELECT 1'))
-        ->not->toThrow(QueryException::class);
+    expect(function (): void {
+        // Long parallel+coverage runs can leave a stale pooled connection; reconnect before probing.
+        DB::reconnect();
+        DB::select('SELECT 1');
+    })->not->toThrow(QueryException::class);
 });
