@@ -306,3 +306,81 @@ test('dropping legacy employee address columns merges remaining legacy history w
         ->and($rows->where('resided_until', '2020-12-31'))->toHaveCount(1)
         ->and(decryptLegacyAddressValue($employee->tenant_id, (string) $rows->firstWhere('resided_until', '2020-12-31')->street_enc))->toBe('Altstadtweg');
 });
+
+test('dropping legacy employee address columns reuses tenant key lookups during legacy backfill', function (): void {
+    $employee = Employee::factory()->create();
+    $employee->addresses()->delete();
+
+    $existingHistoricalStreet = encryptLegacyAddressValue($employee->tenant_id, 'Altstadtweg');
+    $existingHistoricalHouseNumber = encryptLegacyAddressValue($employee->tenant_id, '11');
+    $existingHistoricalPostalCode = encryptLegacyAddressValue($employee->tenant_id, '50667');
+    $existingHistoricalCity = encryptLegacyAddressValue($employee->tenant_id, 'Koeln');
+
+    DB::table('employee_addresses')->insert([
+        'id' => (string) Str::uuid(),
+        'employee_id' => $employee->id,
+        'tenant_id' => $employee->tenant_id,
+        'street_enc' => $existingHistoricalStreet,
+        'house_number_enc' => $existingHistoricalHouseNumber,
+        'postal_code_enc' => $existingHistoricalPostalCode,
+        'city_enc' => $existingHistoricalCity,
+        'supplement_enc' => null,
+        'country' => 'DE',
+        'resided_from' => '2018-01-01',
+        'resided_until' => '2020-12-31',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $migration = loadDropLegacyEmployeeAddressColumnsMigration();
+    $migration->down();
+
+    DB::table('employees')
+        ->where('id', $employee->id)
+        ->update([
+            'address_street_enc' => null,
+            'address_house_number_enc' => null,
+            'address_postal_code_enc' => null,
+            'address_city_enc' => null,
+            'address_supplement_enc' => null,
+            'address_country' => null,
+            'address_state' => null,
+            'address_history' => json_encode([
+                [
+                    'street' => 'Altstadtweg',
+                    'house_number' => '11',
+                    'postal_code' => '50667',
+                    'city' => 'Koeln',
+                    'supplement' => null,
+                    'country' => 'DE',
+                    'resided_from' => '2018-01-01',
+                    'resided_until' => '2020-12-31',
+                ],
+                [
+                    'street' => 'Neustadtweg',
+                    'house_number' => '12',
+                    'postal_code' => '50668',
+                    'city' => 'Koeln',
+                    'supplement' => 'Hinterhaus',
+                    'country' => 'DE',
+                    'resided_from' => '2021-01-01',
+                    'resided_until' => '2022-12-31',
+                ],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $migration->up();
+
+    $queries = DB::getQueryLog();
+    DB::disableQueryLog();
+
+    $tenantKeyQueries = array_values(array_filter(
+        $queries,
+        static fn (array $query): bool => str_contains((string) ($query['query'] ?? ''), 'tenant_keys')
+    ));
+
+    expect($tenantKeyQueries)->toHaveCount(1);
+});

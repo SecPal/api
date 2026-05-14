@@ -78,7 +78,7 @@ final class AddressSuggestionService
         $query = AddressStreet::query()->where('import_id', $import->id);
 
         if ($postalCodePrefix !== null && $postalCodePrefix !== '') {
-            $query->where('postal_code', 'like', $postalCodePrefix.'%');
+            $this->applyPostalCodePrefixConstraint($query, $postalCodePrefix);
         }
 
         if ($name !== null && $name !== '') {
@@ -116,7 +116,7 @@ final class AddressSuggestionService
             ->select(['postal_code', 'locality']);
 
         if ($postalCodePrefix !== null && $postalCodePrefix !== '') {
-            $q->where('postal_code', 'like', $postalCodePrefix.'%');
+            $this->applyPostalCodePrefixConstraint($q, $postalCodePrefix);
         }
 
         if ($locality !== null && $locality !== '') {
@@ -189,5 +189,13 @@ final class AddressSuggestionService
             $nestedQuery->where($normalizedColumn, 'like', $normalizedPattern);
             $nestedQuery->orWhere($asciiColumn, 'like', $asciiFallbackPattern);
         });
+    }
+
+    /**
+     * @param  Builder<AddressStreet>  $query
+     */
+    private function applyPostalCodePrefixConstraint(Builder $query, string $postalCodePrefix): void
+    {
+        $query->where('postal_code', 'like', LikePattern::escape($postalCodePrefix).'%');
     }
 }

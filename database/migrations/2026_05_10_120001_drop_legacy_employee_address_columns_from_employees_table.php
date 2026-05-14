@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\TenantKey;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
@@ -14,6 +15,9 @@ use RuntimeException;
 
 return new class extends Migration
 {
+    /** @var array<int, TenantKey> */
+    private array $tenantKeysById = [];
+
     public function up(): void
     {
         $this->backfillLegacyEmployeeAddresses();
@@ -318,7 +322,7 @@ return new class extends Migration
             return null;
         }
 
-        $tenant = App\Models\TenantKey::query()->findOrFail($tenantId);
+        $tenant = $this->tenantKeyFor($tenantId);
         $encrypted = $tenant->encrypt($plaintext);
 
         return json_encode([
@@ -341,7 +345,7 @@ return new class extends Migration
             return null;
         }
 
-        $tenant = App\Models\TenantKey::query()->findOrFail($tenantId);
+        $tenant = $this->tenantKeyFor($tenantId);
 
         $cipherRaw = $decoded['ciphertext'];
         $nonceRaw = $decoded['nonce'];
@@ -357,6 +361,12 @@ return new class extends Migration
         }
 
         return $tenant->decrypt($decodedCiphertext, $decodedNonce);
+    }
+
+    private function tenantKeyFor(int $tenantId): TenantKey
+    {
+        return $this->tenantKeysById[$tenantId]
+            ??= TenantKey::query()->findOrFail($tenantId);
     }
 
     private function nullableString(mixed $value): ?string

@@ -83,3 +83,63 @@ test('locality suggestions escape wildcard characters in locality prefixes', fun
 
     expect($results)->toHaveCount(0);
 });
+
+test('street suggestions escape wildcard characters in postal code prefixes', function (): void {
+    AddressStreet::create([
+        'import_id' => $this->import->id,
+        'country_code' => 'DE',
+        'name' => 'Alpha Street',
+        'postal_code' => '10115',
+        'locality' => 'Berlin',
+        'name_search' => AddressSearchNormalizer::normalize('Alpha Street'),
+        'name_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Alpha Street'),
+        'locality_search' => AddressSearchNormalizer::normalize('Berlin'),
+        'locality_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Berlin'),
+    ]);
+
+    AddressStreet::create([
+        'import_id' => $this->import->id,
+        'country_code' => 'DE',
+        'name' => 'Beta Street',
+        'postal_code' => '20115',
+        'locality' => 'Hamburg',
+        'name_search' => AddressSearchNormalizer::normalize('Beta Street'),
+        'name_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Beta Street'),
+        'locality_search' => AddressSearchNormalizer::normalize('Hamburg'),
+        'locality_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Hamburg'),
+    ]);
+
+    $results = $this->service->suggestStreets('DE', null, '10%', null, 10);
+
+    expect($results)->toHaveCount(0);
+});
+
+test('locality suggestions escape wildcard characters in postal code prefixes', function (): void {
+    AddressStreet::create([
+        'import_id' => $this->import->id,
+        'country_code' => 'DE',
+        'name' => 'Alpha Street',
+        'postal_code' => '10115',
+        'locality' => 'Berlin',
+        'name_search' => AddressSearchNormalizer::normalize('Alpha Street'),
+        'name_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Alpha Street'),
+        'locality_search' => AddressSearchNormalizer::normalize('Berlin'),
+        'locality_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Berlin'),
+    ]);
+
+    AddressStreet::create([
+        'import_id' => $this->import->id,
+        'country_code' => 'DE',
+        'name' => 'Gamma Street',
+        'postal_code' => '10125',
+        'locality' => 'Berlin',
+        'name_search' => AddressSearchNormalizer::normalize('Gamma Street'),
+        'name_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Gamma Street'),
+        'locality_search' => AddressSearchNormalizer::normalize('Berlin'),
+        'locality_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Berlin'),
+    ]);
+
+    $results = $this->service->suggestLocalities('DE', '10_', null, 10);
+
+    expect($results)->toHaveCount(0);
+});
