@@ -1170,7 +1170,10 @@ class Employee extends Model
         }
 
         if (
-            $currentStatus === self::WORKFLOW_STATUS_READY_FOR_ACTIVATION
+            in_array($currentStatus, [
+                self::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
+                self::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+            ], true)
             && $this->status === self::STATUS_PRE_CONTRACT
             && ! $this->onboarding_completed
             && in_array($targetStatus, [

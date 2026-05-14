@@ -93,6 +93,51 @@ test('migration reopens completed pre-contract onboarding when the new required 
         ->and($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW))->toBeTrue();
 });
 
+test('migration reopens completed contract-confirmed onboarding without blocking the new required step', function (): void {
+    $completedAt = now()->subDay()->startOfSecond();
+
+    $employee = Employee::factory()->preContract()->create([
+        'onboarding_completed' => true,
+        'onboarding_completed_at' => $completedAt,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
+        'contract_start_date' => now()->addWeek()->toDateString(),
+        'onboarding_steps' => [
+            'steps' => [
+                [
+                    'id' => 'personal_data',
+                    'name' => 'Persönliche Daten',
+                    'completed' => true,
+                    'completed_at' => now()->subDays(2)->toIso8601String(),
+                    'form_submission_id' => 'personal-submission',
+                ],
+                [
+                    'id' => 'bank_details',
+                    'name' => 'Bankverbindung',
+                    'completed' => true,
+                    'completed_at' => now()->subDay()->toIso8601String(),
+                    'form_submission_id' => 'bank-submission',
+                ],
+            ],
+        ],
+    ]);
+
+    $migration = loadResidentialAddressHistoryMigration();
+    $migration->up();
+
+    $employee->refresh();
+
+    expect(array_column($employee->onboarding_steps['steps'], 'id'))->toBe([
+        'personal_data',
+        'residential_address_history',
+        'bank_details',
+    ])
+        ->and($employee->onboarding_completed)->toBeFalse()
+        ->and($employee->onboarding_completed_at?->toISOString())->toBe($completedAt->toISOString())
+        ->and($employee->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED)
+        ->and($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_IN_PROGRESS))->toBeTrue()
+        ->and($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW))->toBeTrue();
+});
+
 test('migration preserves an existing completed residential address history step', function (): void {
     $completedAt = now()->subHour()->toIso8601String();
 
