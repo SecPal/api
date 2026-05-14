@@ -105,6 +105,21 @@ describe('GET /v1/onboarding/steps', function () {
         expect($response->json('data.status'))->toBe(Employee::STATUS_PRE_CONTRACT);
     });
 
+    test('does not promote invited employees when fetching onboarding steps', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_INVITED,
+        ]);
+
+        $this->withToken($this->token)
+            ->getJson('/v1/onboarding/steps')
+            ->assertOk();
+
+        expect($this->employee->fresh()->onboarding_workflow_status)
+            ->toBe(Employee::WORKFLOW_STATUS_INVITED);
+    });
+
     test('returns 403 when employee is not pre-contract', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
 
@@ -400,6 +415,21 @@ describe('GET /v1/onboarding/submissions', function () {
 
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['employee_id'])->toBe($this->employee->id);
+    });
+
+    test('does not promote invited employees when listing submissions', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_INVITED,
+        ]);
+
+        $this->withToken($this->token)
+            ->getJson('/v1/onboarding/submissions')
+            ->assertOk();
+
+        expect($this->employee->fresh()->onboarding_workflow_status)
+            ->toBe(Employee::WORKFLOW_STATUS_INVITED);
     });
 
     test('localizes nested submission form template metadata using request locale', function (): void {

@@ -378,8 +378,6 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $employee = $employee->normalizeAuthenticatedOnboardingWorkflow();
-
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([
                 'message' => __('Onboarding is only available for pre-contract employees'),
@@ -517,8 +515,6 @@ class OnboardingController extends Controller
                 'message' => __('No employee record found for user'),
             ], Response::HTTP_NOT_FOUND);
         }
-
-        $employee = $employee->normalizeAuthenticatedOnboardingWorkflow();
 
         $submissions = $employee->onboardingSubmissions()
             ->with('formTemplate')
