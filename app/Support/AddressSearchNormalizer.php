@@ -23,21 +23,33 @@ final class AddressSearchNormalizer
         'Ü' => 'ue',
     ];
 
+    /**
+     * @var array<string, string>
+     */
+    private const ASCII_UMLAUT_MAP = [
+        'ä' => 'a',
+        'ö' => 'o',
+        'ü' => 'u',
+        'ß' => 'ss',
+        'Ä' => 'a',
+        'Ö' => 'o',
+        'Ü' => 'u',
+    ];
+
     public static function normalize(string $value): string
     {
-        $value = mb_strtolower(trim($value), 'UTF-8');
-        $value = preg_replace('/\s+/u', ' ', $value) ?? '';
-
-        return strtr($value, self::UMLAUT_MAP);
+        return strtr(self::normalizeBase($value), self::UMLAUT_MAP);
     }
 
     public static function normalizeAsciiFallback(string $value): string
     {
-        return self::foldExpandedDigraphs(self::normalize($value));
+        return strtr(self::normalizeBase($value), self::ASCII_UMLAUT_MAP);
     }
 
-    public static function foldExpandedDigraphs(string $normalizedValue): string
+    private static function normalizeBase(string $value): string
     {
-        return str_replace(['ae', 'oe', 'ue'], ['a', 'o', 'u'], $normalizedValue);
+        $value = mb_strtolower(trim($value), 'UTF-8');
+
+        return preg_replace('/\s+/u', ' ', $value) ?? '';
     }
 }

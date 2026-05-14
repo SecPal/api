@@ -6,8 +6,11 @@
 use App\Models\Employee;
 use App\Models\TenantKey;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\OnboardingDemoUserSeeder;
 use Database\Seeders\OrganizationalUnitSeeder;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 
@@ -56,4 +59,24 @@ test('OnboardingDemoUserSeeder is idempotent', function (): void {
 
     expect(Employee::query()->where('email', 'onboarding@example.com')->count())->toBe(1)
         ->and(User::query()->where('email', 'onboarding@example.com')->count())->toBe(1);
+});
+
+test('DatabaseSeeder keeps child seeders inside WithoutModelEvents by default', function (): void {
+    expect(class_uses_recursive(DatabaseSeeder::class))->toContain(WithoutModelEvents::class);
+});
+
+test('OnboardingDemoUserSeeder restores model events when invoked from an eventless seeder', function (): void {
+    artisan('db:seed', ['--class' => OrganizationalUnitSeeder::class]);
+
+    Model::withoutEvents(function (): void {
+        artisan('db:seed', ['--class' => OnboardingDemoUserSeeder::class]);
+    });
+
+    $employee = Employee::query()
+        ->where('email', 'onboarding@example.com')
+        ->firstOrFail();
+
+    expect($employee->first_name_idx)->not->toBeNull()
+        ->and($employee->last_name_idx)->not->toBeNull()
+        ->and($employee->date_of_birth_idx)->not->toBeNull();
 });

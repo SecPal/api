@@ -9,3 +9,9 @@ test('normalizes whitespace case and German umlauts', function (): void {
     expect(AddressSearchNormalizer::normalize('  Müllerstraße  '))->toBe('muellerstrasse');
     expect(AddressSearchNormalizer::normalize('Großer Platz'))->toBe('grosser platz');
 });
+
+test('ascii fallback only folds literal umlauts', function (): void {
+    expect(AddressSearchNormalizer::normalizeAsciiFallback('Müllerstraße'))->toBe('mullerstrasse')
+        ->and(AddressSearchNormalizer::normalizeAsciiFallback('Neue Straße'))->toBe('neue strasse')
+        ->and(AddressSearchNormalizer::normalizeAsciiFallback('Raeuberweg'))->toBe('raeuberweg');
+});
