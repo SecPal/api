@@ -5,12 +5,15 @@
 
 namespace App\Http\Requests\Api\V1\Address;
 
+use App\Http\Requests\Concerns\InteractsWithAddressLimit;
 use App\Support\AddressDataConfig;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class IndexAddressLocalityRequest extends FormRequest
 {
+    use InteractsWithAddressLimit;
+
     public function authorize(): bool
     {
         return true;
@@ -52,12 +55,4 @@ class IndexAddressLocalityRequest extends FormRequest
         });
     }
 
-    public function limitResolved(): int
-    {
-        $default = AddressDataConfig::int('address_data.default_limit', 20);
-        $limit = $this->integer('limit', $default);
-        $cap = AddressDataConfig::int('address_data.max_limit', 50);
-
-        return max(1, min($limit, $cap));
-    }
 }
