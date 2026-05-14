@@ -236,6 +236,18 @@ test('employee onboarding workflow transitions follow the allowed state machine'
     expect($employee->canTransitionOnboardingWorkflowTo(Employee::WORKFLOW_STATUS_ACTIVE))->toBeFalse();
 });
 
+test('employee normalizes authenticated onboarding workflow for invited pre-contract users', function () {
+    $employee = Employee::factory()->create([
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_INVITED,
+    ]);
+
+    $normalized = $employee->normalizeAuthenticatedOnboardingWorkflow();
+
+    expect($normalized->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
+    expect($employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
+});
+
 test('employee onboarding workflow readiness sync promotes contract confirmed employees with started contracts', function () {
     $employee = Employee::factory()->create([
         'status' => Employee::STATUS_PRE_CONTRACT,

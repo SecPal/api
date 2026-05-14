@@ -8,6 +8,7 @@ namespace App\Services\AddressData;
 use App\Models\AddressDataImport;
 use App\Models\AddressStreet;
 use App\Support\AddressSearchNormalizer;
+use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -174,17 +175,19 @@ final class AddressSuggestionService
     {
         $normalized = AddressSearchNormalizer::normalize($value);
         $asciiFallback = AddressSearchNormalizer::normalizeAsciiFallback($value);
+        $normalizedPattern = LikePattern::escape($normalized).'%';
+        $asciiFallbackPattern = LikePattern::escape($asciiFallback).'%';
         $normalizedColumn = $fieldPrefix.'_search';
         $asciiColumn = $fieldPrefix.'_search_ascii';
 
         $query->where(function (Builder $nestedQuery) use (
-            $normalized,
-            $asciiFallback,
+            $normalizedPattern,
+            $asciiFallbackPattern,
             $normalizedColumn,
             $asciiColumn
         ): void {
-            $nestedQuery->where($normalizedColumn, 'like', $normalized.'%');
-            $nestedQuery->orWhere($asciiColumn, 'like', $asciiFallback.'%');
+            $nestedQuery->where($normalizedColumn, 'like', $normalizedPattern);
+            $nestedQuery->orWhere($asciiColumn, 'like', $asciiFallbackPattern);
         });
     }
 }

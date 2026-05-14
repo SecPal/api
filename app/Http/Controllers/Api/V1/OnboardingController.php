@@ -85,15 +85,6 @@ class OnboardingController extends Controller
         private readonly OnboardingTaxIdentificationSyncService $onboardingTaxIdentificationSyncService,
     ) {}
 
-    private function normalizeAuthenticatedEmployeeWorkflow(Employee $employee): Employee
-    {
-        if ($employee->promoteAuthenticatedOnboardingWorkflow()) {
-            $employee->refresh();
-        }
-
-        return $employee;
-    }
-
     /**
      * Validate onboarding token and return employee data for prefilling.
      *
@@ -387,7 +378,7 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $employee = $this->normalizeAuthenticatedEmployeeWorkflow($employee);
+        $employee = $employee->normalizeAuthenticatedOnboardingWorkflow();
 
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([
@@ -527,7 +518,7 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $employee = $this->normalizeAuthenticatedEmployeeWorkflow($employee);
+        $employee = $employee->normalizeAuthenticatedOnboardingWorkflow();
 
         $submissions = $employee->onboardingSubmissions()
             ->with('formTemplate')
@@ -563,7 +554,7 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $employee = $this->normalizeAuthenticatedEmployeeWorkflow($employee);
+        $employee = $employee->normalizeAuthenticatedOnboardingWorkflow();
 
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([
@@ -699,7 +690,7 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        $employee = $this->normalizeAuthenticatedEmployeeWorkflow($employee);
+        $employee = $employee->normalizeAuthenticatedOnboardingWorkflow();
 
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([

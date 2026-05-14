@@ -1039,12 +1039,7 @@ class AuthController extends Controller
             return;
         }
 
-        if (! $employee->promoteAuthenticatedOnboardingWorkflow()) {
-            return;
-        }
-
-        $employee->refresh();
-        $user->setRelation('employee', $employee);
+        $user->setRelation('employee', $employee->normalizeAuthenticatedOnboardingWorkflow());
     }
 
     /**

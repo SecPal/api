@@ -1243,6 +1243,15 @@ class Employee extends Model
         return $this->transitionOnboardingWorkflowTo(self::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
     }
 
+    public function normalizeAuthenticatedOnboardingWorkflow(): static
+    {
+        if ($this->promoteAuthenticatedOnboardingWorkflow()) {
+            $this->refresh();
+        }
+
+        return $this;
+    }
+
     public function canActivate(): bool
     {
         return $this->status === self::STATUS_PRE_CONTRACT
