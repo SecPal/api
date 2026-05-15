@@ -657,7 +657,7 @@ final class OnboardingFormDataSchemaValidationService
             'country' => $this->validationMessageString('Country'),
             'resided_from' => $requireUntilDate
                 ? $this->validationMessageString('Resided From')
-                : $this->validationMessageString('Living There Since'),
+                : $this->validationMessageString('Date You Started Living There'),
         ] as $field => $fieldLabel) {
             if ($this->normalizedNonEmptyString($address[$field] ?? null) !== null) {
                 continue;

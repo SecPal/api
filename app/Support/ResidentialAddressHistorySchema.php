@@ -29,7 +29,7 @@ final class ResidentialAddressHistorySchema
                         'country' => ['type' => 'string', 'title' => 'Country', 'pattern' => '^[A-Z]{2}$'],
                         'resided_from' => [
                             'type' => 'string',
-                            'title' => 'Living There Since',
+                            'title' => 'Date You Started Living There',
                             'pattern' => '^\d{4}-\d{2}-\d{2}$',
                         ],
                     ],
