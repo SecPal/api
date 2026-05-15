@@ -59,7 +59,6 @@ class AttachQualificationRequest extends FormRequest
             'certificate_number' => ['nullable', 'string', 'max:255'],
             'issuing_authority' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:1000'],
-            'document_path' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', Rule::in(['valid', 'expiring_soon', 'expired'])],
         ];
     }

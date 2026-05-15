@@ -24,7 +24,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $certificate_number
  * @property string|null $issuing_authority
  * @property string|null $notes
- * @property string|null $document_path
  * @property string $status
  */
 class EmployeeQualification extends Model
@@ -59,7 +58,6 @@ class EmployeeQualification extends Model
         'certificate_number',
         'issuing_authority',
         'notes',
-        'document_path',
         'status',
     ];
 
