@@ -48,6 +48,12 @@ function createAddressStreet(AddressDataImport $import, string $postalCode, stri
     ]);
 }
 
+test('addresses:import exits with failure and error output when import fails', function (): void {
+    $this->artisan('addresses:import', ['--source' => '/nonexistent/csv/path.csv'])
+        ->assertFailed()
+        ->expectsOutputToContain('Address data source file is not readable');
+});
+
 test('addresses:import imports fixture and activates dataset', function (): void {
     $fixture = base_path('tests/fixtures/address_data/sample_streets.csv');
 
