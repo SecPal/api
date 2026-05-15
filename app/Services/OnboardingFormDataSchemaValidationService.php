@@ -33,6 +33,11 @@ final class OnboardingFormDataSchemaValidationService
     private const RESIDENTIAL_ADDRESS_HISTORY_TEMPLATE_KEY = 'residential_address_history';
 
     /**
+     * Matches {@see BewacherregisterExportService} address-history lookback for onboarding parity.
+     */
+    private const RESIDENTIAL_ADDRESS_HISTORY_LOOKBACK_YEARS = 5;
+
+    /**
      * EEA + Switzerland (frontend parity for work-permit exemption).
      *
      * @var list<string>
@@ -622,12 +627,14 @@ final class OnboardingFormDataSchemaValidationService
             throw ValidationException::withMessages($messages);
         }
 
-        // Check five-year address history coverage for submissions.
+        // Require at least one prior residence when the current address alone does not cover the
+        // regulatory lookback window (aligned with export address-history validation).
         $residedFrom = $this->normalizedNonEmptyString($currentAddress['resided_from'] ?? null);
+        $windowStart = now()->startOfDay()->copy()->subYears(self::RESIDENTIAL_ADDRESS_HISTORY_LOOKBACK_YEARS)->toDateString();
         if (
             $residedFrom !== null
             && $this->isValidCalendarDate($residedFrom)
-            && $residedFrom > now()->subYears(5)->format('Y-m-d')
+            && $residedFrom > $windowStart
             && (! is_array($previousAddresses) || $previousAddresses === [])
         ) {
             throw ValidationException::withMessages([
