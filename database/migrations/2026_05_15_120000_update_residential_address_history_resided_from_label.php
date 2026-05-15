@@ -27,7 +27,23 @@ return new class extends Migration
     public function down(): void
     {
         $now = Carbon::now();
-        $schema = json_encode($this->legacyResidentialAddressHistorySchema(), JSON_THROW_ON_ERROR);
+        $schema = json_encode(
+            array_replace_recursive(
+                ResidentialAddressHistorySchema::definition(),
+                [
+                    'properties' => [
+                        'current_address' => [
+                            'properties' => [
+                                'resided_from' => [
+                                    'title' => 'Living There Since',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ),
+            JSON_THROW_ON_ERROR,
+        );
 
         DB::table('onboarding_form_templates')
             ->whereNull('tenant_id')
@@ -36,16 +52,5 @@ return new class extends Migration
                 'form_schema' => $schema,
                 'updated_at' => $now,
             ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function legacyResidentialAddressHistorySchema(): array
-    {
-        $schema = ResidentialAddressHistorySchema::definition();
-        $schema['properties']['current_address']['properties']['resided_from']['title'] = 'Living There Since';
-
-        return $schema;
     }
 };
