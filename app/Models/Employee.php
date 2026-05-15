@@ -741,7 +741,6 @@ class Employee extends Model
             'certificate_number',
             'issuing_authority',
             'notes',
-            'document_path',
             'status',
         ])->withTimestamps();
     }

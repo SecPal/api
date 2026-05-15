@@ -414,6 +414,71 @@ describe('PATCH /v1/employee-qualifications/{employeeQualification}', function (
     });
 });
 
+describe('document_path is not exposed via the public API', function () {
+    test('attach ignores document_path in request and omits it from response', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.write');
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/employees/{$this->employee->id}/qualifications", [
+                'qualification_id' => $this->qualification->id,
+                'obtained_date' => now()->subMonth()->toDateString(),
+                'status' => 'valid',
+                'document_path' => 'employees/1/qualifications/leaked.pdf',
+            ]);
+
+        $response->assertStatus(201);
+        expect(array_key_exists('document_path', $response->json('data')))->toBeFalse();
+
+        $employeeQualification = EmployeeQualification::query()->findOrFail($response->json('data.id'));
+        expect($employeeQualification->document_path)->toBeNull();
+    });
+
+    test('update ignores document_path in request and omits it from response', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.write');
+
+        $pivot = EmployeeQualification::factory()->create([
+            'employee_id' => $this->employee->id,
+            'qualification_id' => $this->qualification->id,
+            'status' => 'valid',
+        ]);
+        $pivot->forceFill(['document_path' => 'employees/1/qualifications/internal.enc'])->save();
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employee-qualifications/{$pivot->id}", [
+                'notes' => 'Updated notes',
+                'document_path' => 'employees/1/qualifications/leaked.pdf',
+            ]);
+
+        $response->assertStatus(200);
+        expect(array_key_exists('document_path', $response->json('data')))->toBeFalse();
+        expect($response->json('data.notes'))->toBe('Updated notes');
+
+        $pivot->refresh();
+        expect($pivot->document_path)->toBe('employees/1/qualifications/internal.enc');
+    });
+
+    test('read endpoints omit document_path even when stored internally', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.read');
+
+        $pivot = EmployeeQualification::factory()->create([
+            'employee_id' => $this->employee->id,
+            'qualification_id' => $this->qualification->id,
+            'status' => 'valid',
+        ]);
+        $pivot->forceFill(['document_path' => 'employees/1/qualifications/internal.enc'])->save();
+
+        $showResponse = $this->withToken($this->token)
+            ->getJson("/v1/employee-qualifications/{$pivot->id}");
+        $showResponse->assertStatus(200);
+        expect(array_key_exists('document_path', $showResponse->json('data')))->toBeFalse();
+
+        $listResponse = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$this->employee->id}/qualifications");
+        $listResponse->assertStatus(200);
+        expect(array_key_exists('document_path', $listResponse->json('data.0')))->toBeFalse();
+    });
+});
+
 describe('DELETE /v1/employee-qualifications/{employeeQualification}', function () {
     test('returns 401 when not authenticated', function (): void {
         $pivot = EmployeeQualification::factory()->create([

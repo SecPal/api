@@ -30,7 +30,6 @@ class EmployeeQualificationFactory extends Factory
             'certificate_number' => fake()->optional()->bothify('CERT-####-????'),
             'issuing_authority' => fake()->optional()->company(),
             'notes' => fake()->optional()->sentence(),
-            'document_path' => fake()->optional()->filePath(),
             'status' => EmployeeQualification::STATUS_ACTIVE,
         ];
     }
