@@ -83,7 +83,6 @@ class EmployeeQualificationController extends Controller
             'certificate_number' => $validated['certificate_number'] ?? null,
             'issuing_authority' => $validated['issuing_authority'] ?? null,
             'notes' => $validated['notes'] ?? null,
-            'document_path' => $validated['document_path'] ?? null,
             'status' => $validated['status'] ?? 'valid',
         ]);
 

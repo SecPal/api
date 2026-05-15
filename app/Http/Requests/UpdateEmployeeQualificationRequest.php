@@ -38,7 +38,6 @@ class UpdateEmployeeQualificationRequest extends FormRequest
             'certificate_number' => ['sometimes', 'nullable', 'string', 'max:255'],
             'issuing_authority' => ['sometimes', 'nullable', 'string', 'max:255'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:1000'],
-            'document_path' => ['sometimes', 'nullable', 'string', 'max:255'],
             'status' => ['sometimes', 'nullable', Rule::in(['valid', 'expiring_soon', 'expired'])],
         ];
     }

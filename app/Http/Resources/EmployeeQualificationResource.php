@@ -40,7 +40,6 @@ class EmployeeQualificationResource extends JsonResource
             'certificate_number' => $this->certificate_number,
             'issuing_authority' => $this->issuing_authority,
             'notes' => $this->notes,
-            'document_path' => $this->document_path,
             'status' => $this->status,
 
             // Relationships (optional)
