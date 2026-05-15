@@ -156,8 +156,6 @@ final class AddressSuggestionService
         ?string $postalCodePrefix,
         ?string $locality,
     ): void {
-        $query->orderBy('postal_code');
-
         if ($postalCodePrefix !== null && $postalCodePrefix !== '') {
             $query->orderByRaw(
                 'CASE WHEN postal_code = ? THEN 0 ELSE 1 END',
@@ -183,7 +181,9 @@ final class AddressSuggestionService
             );
         }
 
-        $query->orderBy('name_search')->orderBy('locality_search');
+        $query->orderBy('postal_code')
+            ->orderBy('name_search')
+            ->orderBy('locality_search');
     }
 
     /**

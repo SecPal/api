@@ -162,3 +162,36 @@ test('locality suggestions escape wildcard characters in postal code prefixes', 
 
     expect($results)->toHaveCount(0);
 });
+
+test('street suggestions prioritize exact locality matches before postal code fallback ordering', function (): void {
+    AddressStreet::create([
+        'import_id' => $this->import->id,
+        'country_code' => 'DE',
+        'name' => 'Alpha Street',
+        'postal_code' => '10115',
+        'locality' => 'Berlinersiedlung',
+        'name_search' => AddressSearchNormalizer::normalize('Alpha Street'),
+        'name_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Alpha Street'),
+        'locality_search' => AddressSearchNormalizer::normalize('Berlinersiedlung'),
+        'locality_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Berlinersiedlung'),
+    ]);
+
+    AddressStreet::create([
+        'import_id' => $this->import->id,
+        'country_code' => 'DE',
+        'name' => 'Alpha Street',
+        'postal_code' => '50667',
+        'locality' => 'Berlin',
+        'name_search' => AddressSearchNormalizer::normalize('Alpha Street'),
+        'name_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Alpha Street'),
+        'locality_search' => AddressSearchNormalizer::normalize('Berlin'),
+        'locality_search_ascii' => AddressSearchNormalizer::normalizeAsciiFallback('Berlin'),
+    ]);
+
+    $results = $this->service->suggestStreets('DE', 'Alpha', null, 'Berlin', 10);
+
+    expect($results->pluck('locality')->all())->toBe([
+        'Berlin',
+        'Berlinersiedlung',
+    ]);
+});
