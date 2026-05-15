@@ -7,6 +7,7 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\OnboardingFormTemplate;
+use App\Support\AddressHistoryLookback;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use JsonException as JsonEncodeException;
@@ -622,12 +623,14 @@ final class OnboardingFormDataSchemaValidationService
             throw ValidationException::withMessages($messages);
         }
 
-        // Check five-year address history coverage for submissions.
+        // Require at least one prior residence when the current address alone does not cover the
+        // regulatory lookback window (see {@see AddressHistoryLookback} and {@see BewacherregisterExportService}).
         $residedFrom = $this->normalizedNonEmptyString($currentAddress['resided_from'] ?? null);
+        $windowStart = now()->startOfDay()->copy()->subYears(AddressHistoryLookback::YEARS)->toDateString();
         if (
             $residedFrom !== null
             && $this->isValidCalendarDate($residedFrom)
-            && $residedFrom > now()->subYears(5)->format('Y-m-d')
+            && $residedFrom > $windowStart
             && (! is_array($previousAddresses) || $previousAddresses === [])
         ) {
             throw ValidationException::withMessages([

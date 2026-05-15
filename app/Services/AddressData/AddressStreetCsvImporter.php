@@ -60,6 +60,7 @@ final class AddressStreetCsvImporter
             $chunkTarget = AddressDataConfig::int('address_data.chunk_rows', 2000);
             $countryCode = AddressDataConfig::string('address_data.country', 'DE');
             $now = now()->toDateTimeString();
+            $expectedColumnCount = count(self::EXPECTED_HEADER);
 
             $buffer = [];
             $total = 0;
@@ -106,8 +107,12 @@ final class AddressStreetCsvImporter
 
                 $rowNumber++;
 
-                if (count($row) !== 6) {
-                    throw new InvalidArgumentException("CSV data row {$rowNumber} has wrong column count (expected 6).");
+                if (count($row) !== $expectedColumnCount) {
+                    $got = count($row);
+                    $preview = $this->csvRowPreviewForError($row);
+                    throw new InvalidArgumentException(
+                        "CSV data row {$rowNumber} has wrong column count (expected {$expectedColumnCount}, got {$got}). {$preview}",
+                    );
                 }
 
                 $name = (string) ($row[0] ?? '');
@@ -187,5 +192,25 @@ final class AddressStreetCsvImporter
         $trimmed = trim($postalCode);
 
         return preg_replace('/\s+/u', '', $trimmed) ?? $trimmed;
+    }
+
+    /**
+     * @param  array<int, string|null>  $row
+     */
+    private function csvRowPreviewForError(array $row): string
+    {
+        $cells = [];
+        foreach ($row as $cell) {
+            $value = str_replace(["\r", "\n"], ' ', (string) $cell);
+            $cells[] = str_contains($value, ',') ? '"'.str_replace('"', '""', $value).'"' : $value;
+        }
+
+        $joined = implode(',', $cells);
+        $max = 200;
+        if (mb_strlen($joined) > $max) {
+            $joined = mb_substr($joined, 0, $max).'…';
+        }
+
+        return 'Row preview: '.$joined;
     }
 }

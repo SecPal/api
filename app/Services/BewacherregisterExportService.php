@@ -10,14 +10,13 @@ namespace App\Services;
 use App\Exceptions\BewacherregisterExportNotReadyException;
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
+use App\Support\AddressHistoryLookback;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 class BewacherregisterExportService
 {
-    private const EXPORT_ADDRESS_LOOKBACK_YEARS = 5;
-
     /**
      * @return array{disk: string, path: string, file_name: string, file_size_bytes: int}
      */
@@ -177,7 +176,7 @@ class BewacherregisterExportService
             }
         }
 
-        $windowStart = now()->startOfDay()->copy()->subYears(self::EXPORT_ADDRESS_LOOKBACK_YEARS);
+        $windowStart = now()->startOfDay()->copy()->subYears(AddressHistoryLookback::YEARS);
         $windowEnd = now()->startOfDay();
 
         /** @var array<int, array{start: Carbon, end: Carbon}> $segments */

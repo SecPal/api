@@ -32,10 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - forced the PHPUnit `DB_CONNECTION` and `DB_DATABASE` overrides so the early PostgreSQL test bootstrap always provisions `testing*_test_*` databases instead of inheriting runtime `secpal*` names from the shell environment during parallel runs
 - fixed address-street and address-locality `withValidator` callbacks to use `is_scalar` guards before casting, preventing a 500 error when an array is submitted for a filter field
 - fixed `AddressDataDownloader` to wrap the HTTP download and hash in a try/catch that removes the partial temp file on any exception, not just on a non-2xx response
-- fixed `AddressStreetCsvImporter` to include the data row number in the wrong-column-count error message
+- improved `AddressStreetCsvImporter` wrong-column-count errors with row number, expected versus observed counts, and a truncated row preview for large-file debugging
 - fixed `AddressSuggestionService` to pass `postalCodePrefix` into `orderStreetResults` and use it as an exact-match relevance tiebreaker
 - fixed `AddressDataImportService` pruning to expire stale `running` imports (older than 6 hours) before the delete pass, so crashed runs no longer accumulate indefinitely
-- fixed residential address history submission to require at least one previous address when the current address start date is within the last five years
+- aligned onboarding residential-address-history five-year previous-address enforcement with export address-history lookback (`startOfDay` boundary) via shared `App\Support\AddressHistoryLookback::YEARS`, and expanded Pest coverage for submit validation
 - fixed `ImportAddressDataCommand` to output failed results with `error()` and skipped results with `warn()` instead of always using `info()`
 - gated `OnboardingDemoUserSeeder` to non-production environments so production deployments cannot accidentally expose the demo onboarding account
 - fixed rollback of the residential address history onboarding step migration to only restore `onboarding_completed` for employees who previously completed onboarding (i.e., have `onboarding_completed_at` set), preventing false completion of in-progress dossiers

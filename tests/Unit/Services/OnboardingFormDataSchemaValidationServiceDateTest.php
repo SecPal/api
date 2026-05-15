@@ -5,6 +5,7 @@
 
 use App\Models\OnboardingFormTemplate;
 use App\Services\OnboardingFormDataSchemaValidationService;
+use Carbon\Carbon;
 use Illuminate\Validation\ValidationException;
 
 uses()->group('unit', 'services');
@@ -108,3 +109,35 @@ test('impossible day in resided_until is rejected', function () {
         forSubmittedStatus: true,
     );
 })->throws(ValidationException::class);
+
+test('residential history rejects empty previous_addresses when current resided_from is after the five-year lookback start', function () {
+    Carbon::setTestNow(Carbon::parse('2026-05-15 12:00:00', 'UTC'));
+    try {
+        $this->service->assertMatchesTemplate(
+            $this->template,
+            [
+                'current_address' => validCurrentAddress('2024-06-01'),
+                'previous_addresses' => [],
+            ],
+            forSubmittedStatus: true,
+        );
+    } finally {
+        Carbon::setTestNow();
+    }
+})->throws(ValidationException::class);
+
+test('residential history allows empty previous_addresses when current resided_from is on or before the five-year lookback start', function () {
+    Carbon::setTestNow(Carbon::parse('2026-05-15 12:00:00', 'UTC'));
+    try {
+        $this->service->assertMatchesTemplate(
+            $this->template,
+            [
+                'current_address' => validCurrentAddress('2021-05-15'),
+                'previous_addresses' => [],
+            ],
+            forSubmittedStatus: true,
+        );
+    } finally {
+        Carbon::setTestNow();
+    }
+})->throwsNoExceptions();
