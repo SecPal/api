@@ -52,7 +52,9 @@ test('up() stores a schema equal to ResidentialAddressHistorySchema::definition(
 
     $template = globalResidentialTemplate();
 
-    expect($template->form_schema)->toBe(ResidentialAddressHistorySchema::definition());
+    expect($template->form_schema)->toBe(ResidentialAddressHistorySchema::definition())
+        ->and($template->form_schema['properties']['current_address']['properties']['resided_from']['title'])
+        ->toBe('Date You Started Living There');
 });
 
 test('down() restores global template schema to legacy resided_from label', function (): void {
