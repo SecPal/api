@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- renamed the `resided_from` field label in the current-address block of the residential address history onboarding form from "Living There Since" to "Date You Started Living There" for clarity
 - fixed OpenPLZ address-import retention so pruning only removes superseded imports for the active country and keeps the prior successful dataset even when failed attempts exist between successful runs
 - made the `birth_state` and `employee_addresses.state` cleanup migrations intentionally irreversible in `0.x`, so rollbacks no longer recreate removed compatibility columns
 - fixed BWR address-history continuity check reporting false-positive gaps when an employee has a pre-window historical address followed by a current address that fully covers the 5-year export window; segments ending before the window start are now discarded before the merge pass

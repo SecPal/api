@@ -75,7 +75,7 @@ return [
                     'city' => ['title' => 'City'],
                     'supplement' => ['title' => 'Address Supplement'],
                     'country' => ['title' => 'Country'],
-                    'resided_from' => ['title' => 'Living There Since'],
+                    'resided_from' => ['title' => 'Date You Started Living There'],
                 ],
                 'previous_addresses' => [
                     'title' => 'Previous Residences',
