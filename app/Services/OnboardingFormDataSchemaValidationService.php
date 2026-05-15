@@ -7,6 +7,7 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\OnboardingFormTemplate;
+use App\Support\AddressHistoryLookback;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use JsonException as JsonEncodeException;
@@ -31,11 +32,6 @@ final class OnboardingFormDataSchemaValidationService
     private const RESIDENCE_PERMIT_UNLIMITED_FIELD = 'residence_permit_unlimited';
 
     private const RESIDENTIAL_ADDRESS_HISTORY_TEMPLATE_KEY = 'residential_address_history';
-
-    /**
-     * Matches {@see BewacherregisterExportService} address-history lookback for onboarding parity.
-     */
-    private const RESIDENTIAL_ADDRESS_HISTORY_LOOKBACK_YEARS = 5;
 
     /**
      * EEA + Switzerland (frontend parity for work-permit exemption).
@@ -628,9 +624,9 @@ final class OnboardingFormDataSchemaValidationService
         }
 
         // Require at least one prior residence when the current address alone does not cover the
-        // regulatory lookback window (aligned with export address-history validation).
+        // regulatory lookback window (see {@see AddressHistoryLookback} and {@see BewacherregisterExportService}).
         $residedFrom = $this->normalizedNonEmptyString($currentAddress['resided_from'] ?? null);
-        $windowStart = now()->startOfDay()->copy()->subYears(self::RESIDENTIAL_ADDRESS_HISTORY_LOOKBACK_YEARS)->toDateString();
+        $windowStart = now()->startOfDay()->copy()->subYears(AddressHistoryLookback::YEARS)->toDateString();
         if (
             $residedFrom !== null
             && $this->isValidCalendarDate($residedFrom)

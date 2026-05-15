@@ -32,7 +32,7 @@ test('CSV importer error for wrong column count includes row number, expected an
         $threw = true;
         expect($e->getMessage())
             ->toContain('CSV data row 1')
-            ->and($e->getMessage())->toContain('expected 6, got 3')
+            ->and($e->getMessage())->toContain('expected '.count(AddressStreetCsvImporter::EXPECTED_HEADER).', got 3')
             ->and($e->getMessage())->toContain('Row preview:')
             ->and($e->getMessage())->toContain('Only,Two,Cols');
     } finally {

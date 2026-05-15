@@ -60,6 +60,7 @@ final class AddressStreetCsvImporter
             $chunkTarget = AddressDataConfig::int('address_data.chunk_rows', 2000);
             $countryCode = AddressDataConfig::string('address_data.country', 'DE');
             $now = now()->toDateTimeString();
+            $expectedColumnCount = count(self::EXPECTED_HEADER);
 
             $buffer = [];
             $total = 0;
@@ -106,11 +107,11 @@ final class AddressStreetCsvImporter
 
                 $rowNumber++;
 
-                if (count($row) !== 6) {
+                if (count($row) !== $expectedColumnCount) {
                     $got = count($row);
                     $preview = $this->csvRowPreviewForError($row);
                     throw new InvalidArgumentException(
-                        "CSV data row {$rowNumber} has wrong column count (expected 6, got {$got}). {$preview}",
+                        "CSV data row {$rowNumber} has wrong column count (expected {$expectedColumnCount}, got {$got}). {$preview}",
                     );
                 }
 
