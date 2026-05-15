@@ -63,6 +63,7 @@ final class AddressStreetCsvImporter
 
             $buffer = [];
             $total = 0;
+            $rowNumber = 0;
             $nextProgressMilestone = 50_000;
             $reportedStart = false;
 
@@ -103,8 +104,10 @@ final class AddressStreetCsvImporter
                     continue;
                 }
 
+                $rowNumber++;
+
                 if (count($row) !== 6) {
-                    throw new InvalidArgumentException('CSV row has wrong column count (expected 6).');
+                    throw new InvalidArgumentException("CSV data row {$rowNumber} has wrong column count (expected 6).");
                 }
 
                 $name = (string) ($row[0] ?? '');

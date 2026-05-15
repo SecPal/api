@@ -40,8 +40,11 @@ class IndexAddressLocalityRequest extends FormRequest
                 return;
             }
 
-            $postal = $this->string('postal_code')->toString();
-            $locality = $this->string('locality')->toString();
+            $rawPostal = $this->input('postal_code');
+            $rawLocality = $this->input('locality');
+
+            $postal = is_scalar($rawPostal) ? (string) $rawPostal : '';
+            $locality = is_scalar($rawLocality) ? (string) $rawLocality : '';
 
             $hasPostal = strlen($postal) >= 1;
             $hasLocality = mb_strlen(trim($locality)) >= 2;

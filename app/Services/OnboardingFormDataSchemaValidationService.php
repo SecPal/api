@@ -621,6 +621,21 @@ final class OnboardingFormDataSchemaValidationService
         if ($messages !== []) {
             throw ValidationException::withMessages($messages);
         }
+
+        // Check five-year address history coverage for submissions.
+        $residedFrom = $this->normalizedNonEmptyString($currentAddress['resided_from'] ?? null);
+        if (
+            $residedFrom !== null
+            && $this->isValidCalendarDate($residedFrom)
+            && $residedFrom > now()->subYears(5)->format('Y-m-d')
+            && (! is_array($previousAddresses) || $previousAddresses === [])
+        ) {
+            throw ValidationException::withMessages([
+                'previous_addresses' => [$this->validationMessageString(
+                    'Please provide all previous residences covering the last five years.',
+                )],
+            ]);
+        }
     }
 
     /**

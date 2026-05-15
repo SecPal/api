@@ -64,7 +64,7 @@ return [
             'description' => 'Current residential address and previous residences from the last five years.',
             'schema' => [
                 'title' => 'Residential Address History',
-                'description' => 'Provide your current residential address, the date since you live there, and earlier residences covering the last five years.',
+                'description' => 'Provide your current residential address, the date since you have lived there, and earlier residences covering the last five years.',
             ],
             'fields' => [
                 'current_address' => [

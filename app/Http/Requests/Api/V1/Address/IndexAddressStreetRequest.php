@@ -41,9 +41,13 @@ class IndexAddressStreetRequest extends FormRequest
                 return;
             }
 
-            $name = $this->string('name')->toString();
-            $postal = $this->string('postal_code')->toString();
-            $locality = $this->string('locality')->toString();
+            $rawName = $this->input('name');
+            $rawPostal = $this->input('postal_code');
+            $rawLocality = $this->input('locality');
+
+            $name = is_scalar($rawName) ? (string) $rawName : '';
+            $postal = is_scalar($rawPostal) ? (string) $rawPostal : '';
+            $locality = is_scalar($rawLocality) ? (string) $rawLocality : '';
 
             $hasName = mb_strlen(trim($name)) >= 2;
             $hasPostal = strlen($postal) >= 1;

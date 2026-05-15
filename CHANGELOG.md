@@ -28,6 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - enforced server-side residence-title requirements during onboarding submission for non-exempt nationalities (title + employment authorization, and expiry when not unlimited) so clients can no longer bypass the frontend-only checks by posting `nationalities` without required residence data
 - aligned passkey credential mapping with WebAuthn-lib 5.3 by using `PublicKeyCredentialSource` directly, fixing passkey challenge flows that were failing with a `TypeError` (return type mismatch)
 - forced the PHPUnit `DB_CONNECTION` and `DB_DATABASE` overrides so the early PostgreSQL test bootstrap always provisions `testing*_test_*` databases instead of inheriting runtime `secpal*` names from the shell environment during parallel runs
+- fixed address-street and address-locality `withValidator` callbacks to use `is_scalar` guards before casting, preventing a 500 error when an array is submitted for a filter field
+- fixed `AddressDataDownloader` to wrap the HTTP download and hash in a try/catch that removes the partial temp file on any exception, not just on a non-2xx response
+- fixed `AddressStreetCsvImporter` to include the data row number in the wrong-column-count error message
+- fixed `AddressSuggestionService` to pass `postalCodePrefix` into `orderStreetResults` and use it as an exact-match relevance tiebreaker
+- fixed `AddressDataImportService` pruning to expire stale `running` imports (older than 6 hours) before the delete pass, so crashed runs no longer accumulate indefinitely
+- fixed residential address history submission to require at least one previous address when the current address start date is within the last five years
+- fixed `ImportAddressDataCommand` to output failed results with `error()` and skipped results with `warn()` instead of always using `info()`
+- gated `OnboardingDemoUserSeeder` to non-production environments so production deployments cannot accidentally expose the demo onboarding account
+- fixed rollback of the residential address history onboarding step migration to only restore `onboarding_completed` for employees who previously completed onboarding (i.e., have `onboarding_completed_at` set), preventing false completion of in-progress dossiers
+- added `timeout-minutes: 30` to the `test` job in `php-ci.yml` to prevent runaway CI runs
+- updated `BEWACHV_COMPLIANCE.md` to accurately reflect that the migration backfills legacy flat-column addresses before dropping them
+- corrected description grammar from "the date since you live there" to "the date since you have lived there" in the residential address history schema and language file
+- updated SPDX copyright years to 2025-2026 in `DatabaseSeeder`, `routes/console.php`, `REUSE.toml`, and `2026_01_04` migration
 - stopped Xdebug code-coverage tracking in forked child processes inside the concurrency tests so the parent worker's coverage collection is not corrupted when `XDEBUG_MODE=coverage` is active
 - aligned php-ci.yml PostgreSQL service and step env to use `testing` as the initial database instead of `db`, matching the phpunit.xml-forced `DB_DATABASE=testing` so `EnvConfigSmokeTest` and other tests that do not use `RefreshDatabase` can connect to the base database in parallel runs; also corrected the pre-create step to produce `testing_test_N` worker databases instead of unused `db_test_N` names
 - made local API preflight run `serial`-group tests outside the parallel Pest run, so the dedicated concurrency regressions no longer race each other by repeatedly `migrate:fresh`-ing the shared base `testing` database during `PREFLIGHT_RUN_TESTS=1`

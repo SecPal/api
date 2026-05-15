@@ -26,6 +26,7 @@ jobs:
   test:
     name: PEST Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: ${{ !startsWith(github.head_ref, 'spike/') && !startsWith(github.ref, 'refs/heads/spike/') }}
 
     services:

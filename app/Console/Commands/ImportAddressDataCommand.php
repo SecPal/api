@@ -47,7 +47,11 @@ class ImportAddressDataCommand extends Command
             onProgress: $onProgress,
         );
 
-        $this->components->info($result['message']);
+        match ($result['status']) {
+            'failed' => $this->components->error($result['message']),
+            'skipped' => $this->components->warn($result['message']),
+            default => $this->components->info($result['message']),
+        };
 
         return match ($result['status']) {
             'failed' => self::FAILURE,

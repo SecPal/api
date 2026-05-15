@@ -208,6 +208,18 @@ final class AddressDataImportService
 
     private function pruneStreetRows(string $countryCode, int $keepImports): void
     {
+        // Expire stale running imports (started before the current completed import) so they
+        // are included in the delete set instead of being skipped indefinitely.
+        AddressDataImport::query()
+            ->where('country_code', $countryCode)
+            ->where('status', AddressDataImport::STATUS_RUNNING)
+            ->where('started_at', '<', now()->subHours(6))
+            ->update([
+                'status' => AddressDataImport::STATUS_FAILED,
+                'finished_at' => now(),
+                'error_message' => 'Import timed out and was marked failed during pruning.',
+            ]);
+
         $keepIds = AddressDataImport::query()
             ->where('country_code', $countryCode)
             ->where('status', AddressDataImport::STATUS_SUCCEEDED)

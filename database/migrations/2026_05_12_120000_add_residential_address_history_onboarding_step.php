@@ -292,6 +292,7 @@ return new class extends Migration
         if (
             $employee->status !== Employee::STATUS_PRE_CONTRACT
             || $employee->onboarding_completed
+            || $employee->onboarding_completed_at === null
             || ! $this->hasIncompleteResidentialAddressHistoryStep($employee->onboarding_steps)
         ) {
             return false;

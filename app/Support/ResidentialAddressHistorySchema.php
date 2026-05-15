@@ -14,7 +14,7 @@ final class ResidentialAddressHistorySchema
     {
         return [
             'title' => 'Residential Address History',
-            'description' => 'Provide your current residential address, the date since you live there, and earlier residences covering the last five years.',
+            'description' => 'Provide your current residential address, the date since you have lived there, and earlier residences covering the last five years.',
             'type' => 'object',
             'properties' => [
                 'current_address' => [

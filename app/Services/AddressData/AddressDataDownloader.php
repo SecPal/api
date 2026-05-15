@@ -74,34 +74,38 @@ final class AddressDataDownloader
 
         $emit('Starting HTTP download (streaming to disk)…');
 
-        $response = Http::timeout($timeout)
-            ->connectTimeout(30)
-            ->sink($fullPath)
-            ->get($sourceUrl);
+        try {
+            $response = Http::timeout($timeout)
+                ->connectTimeout(30)
+                ->sink($fullPath)
+                ->get($sourceUrl);
 
-        if (! $response->successful()) {
+            if (! $response->successful()) {
+                throw new RuntimeException(
+                    'Address data download failed with HTTP '.$response->status().' for '.$sourceUrl,
+                );
+            }
+
+            $bytes = @filesize($fullPath);
+            $sizeLabel = is_int($bytes) ? number_format($bytes).' bytes' : 'unknown size';
+            $emit('Download finished ('.$sizeLabel.'), computing SHA-256…');
+
+            $sha256 = hash_file('sha256', $fullPath);
+            if ($sha256 === false) {
+                throw new RuntimeException('Could not hash downloaded address data file.');
+            }
+
+            $emit('Checksum: '.$sha256);
+
+            return [
+                'path' => $fullPath,
+                'sha256' => $sha256,
+                'etag' => is_string($etag) && $etag !== '' ? $etag : null,
+                'last_modified' => is_string($lastModified) && $lastModified !== '' ? $lastModified : null,
+            ];
+        } catch (\Throwable $e) {
             @unlink($fullPath);
-            throw new RuntimeException(
-                'Address data download failed with HTTP '.$response->status().' for '.$sourceUrl,
-            );
+            throw $e;
         }
-
-        $bytes = @filesize($fullPath);
-        $sizeLabel = is_int($bytes) ? number_format($bytes).' bytes' : 'unknown size';
-        $emit('Download finished ('.$sizeLabel.'), computing SHA-256…');
-
-        $sha256 = hash_file('sha256', $fullPath);
-        if ($sha256 === false) {
-            throw new RuntimeException('Could not hash downloaded address data file.');
-        }
-
-        $emit('Checksum: '.$sha256);
-
-        return [
-            'path' => $fullPath,
-            'sha256' => $sha256,
-            'etag' => is_string($etag) && $etag !== '' ? $etag : null,
-            'last_modified' => is_string($lastModified) && $lastModified !== '' ? $lastModified : null,
-        ];
     }
 }

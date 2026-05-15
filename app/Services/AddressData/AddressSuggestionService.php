@@ -99,7 +99,7 @@ final class AddressSuggestionService
             $this->applySearchPrefixConstraint($query, 'locality', $locality);
         }
 
-        $this->orderStreetResults($query, $name, $locality);
+        $this->orderStreetResults($query, $name, $postalCodePrefix, $locality);
 
         return $query->limit($limit)->get();
     }
@@ -153,9 +153,17 @@ final class AddressSuggestionService
     private function orderStreetResults(
         Builder $query,
         ?string $name,
+        ?string $postalCodePrefix,
         ?string $locality,
     ): void {
         $query->orderBy('postal_code');
+
+        if ($postalCodePrefix !== null && $postalCodePrefix !== '') {
+            $query->orderByRaw(
+                'CASE WHEN postal_code = ? THEN 0 ELSE 1 END',
+                [$postalCodePrefix]
+            );
+        }
 
         if ($locality !== null && $locality !== '') {
             $nl = AddressSearchNormalizer::normalize($locality);

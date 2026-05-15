@@ -211,7 +211,7 @@ not_registered → pending → active
 - Stored as separate rows linked to `employees` with encrypted street/postal/city fields (same encryption approach as the former flat columns).
 - **Current address:** at most one row per employee with `resided_until = null` (enforced by a unique partial index). A current address row is required only for BWR-pending and BWR-active employees.
 - **Historical addresses:** `resided_from` / `resided_until` set; `resided_from` may be null when unknown.
-- **API:** clients send/receive `addresses[]` with `street`, `house_number`, `postal_code`, `city`, `supplement`, `country`, `resided_from`, `resided_until`. (No separate Bundesland/state field—0.x product scope is DE-focused.) Updates replace the full list for that employee. There is no automatic import from removed flat columns—use `addresses[]` only.
+- **API:** clients send/receive `addresses[]` with `street`, `house_number`, `postal_code`, `city`, `supplement`, `country`, `resided_from`, `resided_until`. (No separate Bundesland/state field—0.x product scope is DE-focused.) Updates replace the full list for that employee. The migration that introduced `employee_addresses` backfilled legacy flat-column values into address rows before dropping those columns—use `addresses[]` for all current reads and writes.
 - **BWR five-year continuity** for exports is enforced in `BewacherregisterExportService` (gaps/overlaps and coverage), not by requiring a complete history at employee creation.
 
 **Computed property:**
