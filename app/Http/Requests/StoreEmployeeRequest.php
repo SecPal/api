@@ -87,8 +87,7 @@ class StoreEmployeeRequest extends FormRequest
 
             // BewachV § 16 Abs. 2 Nr. 3: Birth Place
             'birth_city' => ['nullable', 'string', 'max:255'],
-            'birth_country' => ['nullable', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'], // ISO 3166-1 alpha-2
-            'birth_state' => ['nullable', 'string', 'max:100'],
+            'birth_country' => ['nullable', 'string', 'size:2', 'regex:/^[A-Z]{2}$/'], // ISO 3166-1 alpha-2 Geburtsland
 
             // BewachV § 16 Abs. 2 Nr. 4: Nationalities (supports dual citizenship)
             'nationalities' => ['nullable', 'array'], // JSON array of ISO codes

@@ -232,7 +232,6 @@ class EmployeeFactory extends Factory
                 'postal_code' => fake()->postcode(),
                 'city' => fake()->city(),
                 'country' => 'DE',
-                'state' => fake()->randomElement(['NRW', 'BY', 'BW', 'BE', 'HH']),
                 'supplement' => fake()->optional(0.2)->randomElement(['Hinterhof', 'Seiteneingang', 'c/o Müller']),
                 'resided_from' => '2019-01-01',
                 'resided_until' => '2023-12-31',
@@ -247,7 +246,6 @@ class EmployeeFactory extends Factory
                 'city' => fake()->randomElement($germanCities),
                 'supplement' => fake()->optional(0.2)->randomElement(['Hinterhof', 'Seiteneingang', 'c/o Müller']),
                 'country' => 'DE',
-                'state' => fake()->randomElement(['NRW', 'BY', 'BW', 'BE', 'HH']),
                 'resided_from' => '2024-01-01',
             ]);
         });

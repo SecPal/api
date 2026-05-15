@@ -64,8 +64,7 @@ class EmployeeResource extends JsonResource
 
             // BewachV § 16 Abs. 2 Nr. 3: Birth Place
             'birth_city' => $this->birth_city,
-            'birth_country' => $this->birth_country, // ISO 3166-1 alpha-2
-            'birth_state' => $this->birth_state,
+            'birth_country' => $this->birth_country, // ISO 3166-1 alpha-2 Geburtsland
 
             // BewachV § 16 Abs. 2 Nr. 4: Nationalities (supports dual citizenship)
             'nationalities' => $this->nationalities, // JSON array of ISO codes

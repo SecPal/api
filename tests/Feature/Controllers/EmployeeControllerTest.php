@@ -1163,6 +1163,141 @@ describe('PATCH /v1/employees/{employee}', function () {
         expect($response->json('data.weekly_hours'))->toBe('35.00'); // decimal:2 cast returns string
     });
 
+    test('rejects blank address rows without deleting existing address history', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
+
+        $employee = Employee::factory()->withAddressHistory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $existingAddressIds = $employee->addresses()->orderBy('id')->pluck('id')->all();
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'addresses' => [
+                    [
+                        'street' => '',
+                        'house_number' => '',
+                        'postal_code' => '',
+                        'city' => '',
+                        'supplement' => '',
+                        'country' => null,
+                        'resided_from' => null,
+                        'resided_until' => null,
+                    ],
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['addresses.0']);
+
+        expect($employee->addresses()->orderBy('id')->pluck('id')->all())
+            ->toBe($existingAddressIds);
+    });
+
+    test('treats addresses null as a no-op for existing address history', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
+
+        $employee = Employee::factory()->withAddressHistory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $existingAddressIds = $employee->addresses()->orderBy('id')->pluck('id')->all();
+
+        expect($existingAddressIds)->not->toBeEmpty();
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'addresses' => null,
+            ]);
+
+        $response->assertOk();
+
+        expect($employee->fresh()->addresses()->orderBy('id')->pluck('id')->all())
+            ->toBe($existingAddressIds);
+    });
+
+    test('rejects an address row where all fields are empty', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $existingCount = $employee->addresses()->count();
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'addresses' => [
+                    ['street' => null, 'house_number' => null, 'postal_code' => null, 'city' => null, 'supplement' => null, 'country' => null, 'resided_from' => null, 'resided_until' => null],
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['addresses.0']);
+
+        expect($employee->fresh()->addresses()->count())->toBe($existingCount);
+    });
+
+    test('rejects an address row where all fields are blank strings', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $existingCount = $employee->addresses()->count();
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'addresses' => [
+                    ['street' => '   ', 'house_number' => '', 'postal_code' => '', 'city' => '', 'supplement' => '', 'country' => null, 'resided_from' => null, 'resided_until' => null],
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['addresses.0']);
+
+        expect($employee->fresh()->addresses()->count())->toBe($existingCount);
+    });
+
+    test('rejects addresses null for employees that require a current BWR address', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
+
+        $employee = Employee::factory()->withAddressHistory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'pending',
+        ]);
+
+        $existingAddressIds = $employee->addresses()->orderBy('id')->pluck('id')->all();
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'addresses' => null,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['addresses']);
+
+        expect($employee->fresh()->addresses()->orderBy('id')->pluck('id')->all())
+            ->toBe($existingAddressIds);
+    });
+
     test('rejects direct status changes via patch', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 

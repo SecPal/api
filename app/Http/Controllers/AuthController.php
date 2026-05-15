@@ -18,6 +18,7 @@ use App\Http\Requests\TotpCodeRequest;
 use App\Http\Requests\UpdateUserLanguageRequest;
 use App\Http\Requests\UserMfaResetRequest;
 use App\Mail\PasswordResetMail;
+use App\Models\Employee;
 use App\Models\PasskeyCredential;
 use App\Models\User;
 use App\Services\ActivityLogService;
@@ -979,6 +980,8 @@ class AuthController extends Controller
      */
     private function buildUserAuthorizationData(User $user): array
     {
+        $this->normalizeAuthenticatedEmployeeWorkflow($user);
+
         // Ensure the Spatie Permission team context is set before querying
         // roles and permissions.  Authentication routes (login, passkey verify,
         // MFA verify) execute before the global InjectTenantId middleware can
@@ -1023,6 +1026,20 @@ class AuthController extends Controller
                 ]
                 : null,
         ];
+    }
+
+    private function normalizeAuthenticatedEmployeeWorkflow(User $user): void
+    {
+        $user->loadMissing('employee');
+
+        /** @var Employee|null $employee */
+        $employee = $user->employee;
+
+        if (! $employee) {
+            return;
+        }
+
+        $user->setRelation('employee', $employee->normalizeAuthenticatedOnboardingWorkflow());
     }
 
     /**

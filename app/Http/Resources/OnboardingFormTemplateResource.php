@@ -48,6 +48,7 @@ class OnboardingFormTemplateResource extends JsonResource
         return [
             'id' => $this->id,
             'tenant_id' => $this->tenant_id,
+            'template_key' => $this->template_key,
             'name' => $localizedTemplate['name'],
             'description' => $localizedTemplate['description'],
             'form_schema' => $localizedTemplate['form_schema'],

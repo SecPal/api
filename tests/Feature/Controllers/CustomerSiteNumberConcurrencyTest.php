@@ -13,12 +13,47 @@ use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\ParallelTesting;
 use Spatie\Permission\PermissionRegistrar;
 
 uses()->group('serial');
 
+/**
+ * Align the default connection with Laravel's parallel worker database (e.g. testing_test_3).
+ * This file does not use RefreshDatabase, so without this call every worker would run
+ * migrate:fresh against the shared base name from phpunit.xml and deadlock under --parallel.
+ */
+function ensureParallelWorkerDatabaseForSiteNumberConcurrency(): void
+{
+    $token = ParallelTesting::token();
+    if ($token === false || $token === '') {
+        return;
+    }
+
+    $connectionName = (string) config('database.default');
+    $currentDatabase = (string) config("database.connections.{$connectionName}.database");
+    $suffix = '_test_'.$token;
+
+    if (str_ends_with($currentDatabase, $suffix)) {
+        return;
+    }
+
+    $rootDatabase = preg_replace('/_test_\d+$/', '', $currentDatabase);
+    if ($rootDatabase === '') {
+        return;
+    }
+
+    config()->set("database.connections.{$connectionName}.database", $rootDatabase.$suffix);
+    config()->set("database.connections.{$connectionName}.url", null);
+
+    DB::purge();
+    DB::reconnect();
+}
+
 function refreshCustomerSiteNumberConcurrencyDatabase(): void
 {
+    ensureParallelWorkerDatabaseForSiteNumberConcurrency();
+
     Artisan::call('migrate:fresh', ['--force' => true]);
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 }
@@ -152,6 +187,10 @@ function runConcurrentJsonPosts(
             }
 
             if ($pid === 0) {
+                if (function_exists('xdebug_stop_code_coverage')) {
+                    xdebug_stop_code_coverage(false);
+                }
+
                 DB::disconnect();
                 app(PermissionRegistrar::class)->forgetCachedPermissions();
 

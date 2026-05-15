@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Breaking:** Employee residential addresses live in `employee_addresses` (encrypted street/postal/city fields per row, optional residence date range). The API uses `addresses[]` instead of flat `address_*` attributes and `address_history` JSON on `employees`. Legacy columns are dropped without importing prior values—clients must adopt `addresses[]`.
+- **Breaking:** Employee residential addresses live in `employee_addresses` (encrypted street/postal/city fields per row, optional residence date range). The API uses `addresses[]` instead of flat `address_*` attributes and `address_history` JSON on `employees`. Legacy values are migrated into `employee_addresses` during rollout, but clients must adopt `addresses[]` going forward.
 
 ### Fixed
 
+- fixed OpenPLZ address-import retention so pruning only removes superseded imports for the active country and keeps the prior successful dataset even when failed attempts exist between successful runs
+- made the `birth_state` and `employee_addresses.state` cleanup migrations intentionally irreversible in `0.x`, so rollbacks no longer recreate removed compatibility columns
 - fixed BWR address-history continuity check reporting false-positive gaps when an employee has a pre-window historical address followed by a current address that fully covers the 5-year export window; segments ending before the window start are now discarded before the merge pass
 - aligned onboarding attachment gating with the draft-first upload flow by allowing first-time submitted forms to opt into identity/residence uploads before a submission id exists, while keeping the stricter `document_subtype` requirement for existing editable submissions and legacy `id_document` uploads during resubmission
 - fixed optional onboarding template validation to keep undeclared-key schema checks authoritative even when declared fields are empty, so payloads with undeclared keys now fail `additionalProperties` validation instead of bypassing it as `semantically empty`
@@ -26,14 +28,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - enforced server-side residence-title requirements during onboarding submission for non-exempt nationalities (title + employment authorization, and expiry when not unlimited) so clients can no longer bypass the frontend-only checks by posting `nationalities` without required residence data
 - aligned passkey credential mapping with WebAuthn-lib 5.3 by using `PublicKeyCredentialSource` directly, fixing passkey challenge flows that were failing with a `TypeError` (return type mismatch)
 - forced the PHPUnit `DB_CONNECTION` and `DB_DATABASE` overrides so the early PostgreSQL test bootstrap always provisions `testing*_test_*` databases instead of inheriting runtime `secpal*` names from the shell environment during parallel runs
+- fixed address-street and address-locality `withValidator` callbacks to use `is_scalar` guards before casting, preventing a 500 error when an array is submitted for a filter field
+- fixed `AddressDataDownloader` to wrap the HTTP download and hash in a try/catch that removes the partial temp file on any exception, not just on a non-2xx response
+- fixed `AddressStreetCsvImporter` to include the data row number in the wrong-column-count error message
+- fixed `AddressSuggestionService` to pass `postalCodePrefix` into `orderStreetResults` and use it as an exact-match relevance tiebreaker
+- fixed `AddressDataImportService` pruning to expire stale `running` imports (older than 6 hours) before the delete pass, so crashed runs no longer accumulate indefinitely
+- fixed residential address history submission to require at least one previous address when the current address start date is within the last five years
+- fixed `ImportAddressDataCommand` to output failed results with `error()` and skipped results with `warn()` instead of always using `info()`
+- gated `OnboardingDemoUserSeeder` to non-production environments so production deployments cannot accidentally expose the demo onboarding account
+- fixed rollback of the residential address history onboarding step migration to only restore `onboarding_completed` for employees who previously completed onboarding (i.e., have `onboarding_completed_at` set), preventing false completion of in-progress dossiers
+- added `timeout-minutes: 30` to the `test` job in `php-ci.yml` to prevent runaway CI runs
+- updated `BEWACHV_COMPLIANCE.md` to accurately reflect that the migration backfills legacy flat-column addresses before dropping them
+- corrected description grammar from "the date since you live there" to "the date since you have lived there" in the residential address history schema and language file
+- updated SPDX copyright years to 2025-2026 in `DatabaseSeeder`, `routes/console.php`, `REUSE.toml`, and `2026_01_04` migration
+- stopped Xdebug code-coverage tracking in forked child processes inside the concurrency tests so the parent worker's coverage collection is not corrupted when `XDEBUG_MODE=coverage` is active
+- aligned php-ci.yml PostgreSQL service and step env to use `testing` as the initial database instead of `db`, matching the phpunit.xml-forced `DB_DATABASE=testing` so `EnvConfigSmokeTest` and other tests that do not use `RefreshDatabase` can connect to the base database in parallel runs; also corrected the pre-create step to produce `testing_test_N` worker databases instead of unused `db_test_N` names
 - made local API preflight run `serial`-group tests outside the parallel Pest run, so the dedicated concurrency regressions no longer race each other by repeatedly `migrate:fresh`-ing the shared base `testing` database during `PREFLIGHT_RUN_TESTS=1`
 - made the PostgreSQL test bootstrap fail fast with an explicit owner/`public`-schema permission error when an existing `testing_test_*` database is not writable by the configured app user, so local ownership drift no longer degrades into late migration failures across large parallel test runs
 - fixed `OnboardingFormDataSchemaValidationService::isPropertySemanticallyEmpty` treating non-string values (e.g. integers) for `string`-type fields as empty, which previously allowed malformed payloads to bypass JSON Schema validation for optional templates; proved with a new regression test
 - wrapped onboarding submission approval state updates and completion checks in one transaction, and restricted tax-identifier employee sync to the canonical `tax_identification_number` template key so approval can no longer commit partial state or mutate PII from name-matched custom templates
 - aligned onboarding completion email verification with the invited employee mailbox by syncing the user login email before verification and dispatching the `Verified` event in that path; auth payloads now also expose resolved onboarding workflow state via `Employee::resolveOnboardingWorkflowStatus()`, with regression tests for login, `/v1/me`, and onboarding completion
+- fixed residential-address onboarding step rollout to reopen already-completed pre-contract dossiers when the new mandatory step is inserted, preserve existing completed residential-address step state, reject blank employee address rows before they can wipe persisted history, and let address autocomplete match common ASCII fallback input such as `Muller`/`Koln` for umlauted source data
+- made the employee-address migrations preserve legacy flat/current-history data during forward rollout and rollback, and tightened the residential-address-history rollback so only migration-inserted empty steps are removed while pre-existing tenant/global templates, submissions, and completed employee state stay consistent
+- removed ineffective `use RuntimeException;` imports from the anonymous employee-address and residential-address-history migrations so PHP 8.4 no longer aborts Polyscope preview setup during migration discovery
 
 ### Added
 
+- added OpenPLZ-backed German address reference imports, weekly refresh scheduling, and authenticated `/v1/addresses/de/*` autocomplete/status endpoints for street and locality lookup
 - added optional employee `emergency_contacts` support across request validation, persistence (new nullable JSON column on `employees`), and API resource serialization, with targeted regression tests for validation, model casting, resource output, and schema presence
 
 ### Changed
@@ -417,7 +438,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **30+ New Fields** across 7 categories:
     - **BWR Tracking**: `bwr_id` (7-digit unique ID), `bwr_status` (5-state enum), `bwr_registered_at`, `bwr_submission_date`, `bwr_notes`
     - **Retention Management**: `employment_end_date`, `retention_period_end` (auto-calculated: end-of-year + 3 years)
-    - **Identity Data**: `gender` (mandatory for BWR), `birth_name_enc`, `previous_names` (JSON), `birth_city`, `birth_country` (ISO 3166-1), `birth_state`
+    - **Identity Data**: `gender` (mandatory for BWR), `birth_name_enc`, `previous_names` (JSON), `birth_city`, `birth_country` (ISO 3166-1 Geburtsland)
     - **Nationalities**: `nationalities` (JSON array with dual citizenship support, ISO 3166-1 alpha-2)
     - **Structured Address**: 7 encrypted fields (`address_street_enc`, `address_house_number_enc`, `address_postal_code_enc`, `address_city_enc`, `address_supplement_enc`, `address_country`, `address_state`)
     - **Address History**: `address_history` (JSON, 5-year requirement per BewachV § 16 Abs. 2 Nr. 6)

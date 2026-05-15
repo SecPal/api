@@ -131,6 +131,10 @@ test('concurrent employee creation requests produce distinct employee numbers', 
             }
 
             if ($pid === 0) {
+                if (function_exists('xdebug_stop_code_coverage')) {
+                    xdebug_stop_code_coverage(false);
+                }
+
                 DB::purge();
                 DB::reconnect();
                 app(PermissionRegistrar::class)->forgetCachedPermissions();

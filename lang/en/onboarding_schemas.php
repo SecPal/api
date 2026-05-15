@@ -59,6 +59,37 @@ return [
                 'residence_permit_expiry' => ['title' => 'Residence Title Expiry Date'],
             ],
         ],
+        'residential_address_history' => [
+            'name' => 'Residential Address History',
+            'description' => 'Current residential address and previous residences from the last five years.',
+            'schema' => [
+                'title' => 'Residential Address History',
+                'description' => 'Provide your current residential address, the date since you have lived there, and earlier residences covering the last five years.',
+            ],
+            'fields' => [
+                'current_address' => [
+                    'title' => 'Current Residential Address',
+                    'street' => ['title' => 'Street'],
+                    'house_number' => ['title' => 'House Number'],
+                    'postal_code' => ['title' => 'Postal Code'],
+                    'city' => ['title' => 'City'],
+                    'supplement' => ['title' => 'Address Supplement'],
+                    'country' => ['title' => 'Country'],
+                    'resided_from' => ['title' => 'Living There Since'],
+                ],
+                'previous_addresses' => [
+                    'title' => 'Previous Residences',
+                    'street' => ['title' => 'Street'],
+                    'house_number' => ['title' => 'House Number'],
+                    'postal_code' => ['title' => 'Postal Code'],
+                    'city' => ['title' => 'City'],
+                    'supplement' => ['title' => 'Address Supplement'],
+                    'country' => ['title' => 'Country'],
+                    'resided_from' => ['title' => 'Resided From'],
+                    'resided_until' => ['title' => 'Resided Until'],
+                ],
+            ],
+        ],
         'bank_account_details' => [
             'name' => 'Bank Account Details',
             'description' => 'Account information for salary payment',

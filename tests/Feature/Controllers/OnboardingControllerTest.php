@@ -105,6 +105,21 @@ describe('GET /v1/onboarding/steps', function () {
         expect($response->json('data.status'))->toBe(Employee::STATUS_PRE_CONTRACT);
     });
 
+    test('does not promote invited employees when fetching onboarding steps', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_INVITED,
+        ]);
+
+        $this->withToken($this->token)
+            ->getJson('/v1/onboarding/steps')
+            ->assertOk();
+
+        expect($this->employee->fresh()->onboarding_workflow_status)
+            ->toBe(Employee::WORKFLOW_STATUS_INVITED);
+    });
+
     test('returns 403 when employee is not pre-contract', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
 
@@ -402,6 +417,21 @@ describe('GET /v1/onboarding/submissions', function () {
         expect($response->json('data')[0]['employee_id'])->toBe($this->employee->id);
     });
 
+    test('does not promote invited employees when listing submissions', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_INVITED,
+        ]);
+
+        $this->withToken($this->token)
+            ->getJson('/v1/onboarding/submissions')
+            ->assertOk();
+
+        expect($this->employee->fresh()->onboarding_workflow_status)
+            ->toBe(Employee::WORKFLOW_STATUS_INVITED);
+    });
+
     test('localizes nested submission form template metadata using request locale', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.read');
 
@@ -483,6 +513,27 @@ describe('POST /v1/onboarding/submissions', function () {
         expect($response->json('data.status'))->toBe('draft');
         expect($response->json('data.submitted_at'))->toBeNull();
         expect($this->employee->fresh()->onboarding_workflow_status)->toBe(Employee::WORKFLOW_STATUS_IN_PROGRESS);
+    });
+
+    test('promotes invited authenticated employees before creating a draft submission', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_INVITED,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/onboarding/submissions', [
+                'form_template_id' => $this->template->id,
+                'form_data' => ['name' => 'John Doe', 'email' => 'john@example.com'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.status', 'draft');
+
+        expect($this->employee->fresh()->onboarding_workflow_status)
+            ->toBe(Employee::WORKFLOW_STATUS_IN_PROGRESS);
     });
 
     test('creates submission with submitted status and timestamp', function (): void {

@@ -59,6 +59,37 @@ return [
                 'residence_permit_expiry' => ['title' => 'Ablaufdatum des Aufenthaltstitels'],
             ],
         ],
+        'residential_address_history' => [
+            'name' => 'Wohnanschriften',
+            'description' => 'Aktuelle Wohnanschrift und frühere Wohnorte der letzten fünf Jahre.',
+            'schema' => [
+                'title' => 'Wohnanschriften',
+                'description' => 'Geben Sie Ihre aktuelle Wohnanschrift, seit wann Sie dort wohnen, und frühere Wohnorte der letzten fünf Jahre an.',
+            ],
+            'fields' => [
+                'current_address' => [
+                    'title' => 'Aktuelle Wohnanschrift',
+                    'street' => ['title' => 'Straße'],
+                    'house_number' => ['title' => 'Hausnummer'],
+                    'postal_code' => ['title' => 'Postleitzahl'],
+                    'city' => ['title' => 'Ort'],
+                    'supplement' => ['title' => 'Adresszusatz'],
+                    'country' => ['title' => 'Land'],
+                    'resided_from' => ['title' => 'Wohnhaft seit'],
+                ],
+                'previous_addresses' => [
+                    'title' => 'Frühere Wohnorte',
+                    'street' => ['title' => 'Straße'],
+                    'house_number' => ['title' => 'Hausnummer'],
+                    'postal_code' => ['title' => 'Postleitzahl'],
+                    'city' => ['title' => 'Ort'],
+                    'supplement' => ['title' => 'Adresszusatz'],
+                    'country' => ['title' => 'Land'],
+                    'resided_from' => ['title' => 'Wohnhaft von'],
+                    'resided_until' => ['title' => 'Wohnhaft bis'],
+                ],
+            ],
+        ],
         'bank_account_details' => [
             'name' => 'Bankverbindung',
             'description' => 'Kontodaten für die Gehaltszahlung',

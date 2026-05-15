@@ -20,6 +20,7 @@ use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
 use App\Services\OnboardingCompletionService;
 use App\Services\OnboardingFormDataSchemaValidationService;
+use App\Services\OnboardingResidentialAddressHistorySyncService;
 use App\Services\OnboardingSchemaLocalizationService;
 use App\Services\OnboardingSubmissionFileStorageService;
 use App\Services\OnboardingTaxIdentificationSyncService;
@@ -80,6 +81,7 @@ class OnboardingController extends Controller
         private readonly OnboardingSchemaLocalizationService $onboardingSchemaLocalizationService,
         private readonly OnboardingFormDataSchemaValidationService $onboardingFormDataSchemaValidationService,
         private readonly OnboardingCompletionService $onboardingCompletionService,
+        private readonly OnboardingResidentialAddressHistorySyncService $onboardingResidentialAddressHistorySyncService,
         private readonly OnboardingTaxIdentificationSyncService $onboardingTaxIdentificationSyncService,
     ) {}
 
@@ -548,6 +550,8 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        $employee = $employee->normalizeAuthenticatedOnboardingWorkflow();
+
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([
                 'message' => __('Onboarding forms can only be submitted by pre-contract employees'),
@@ -681,6 +685,8 @@ class OnboardingController extends Controller
                 'message' => __('No employee record found for submission'),
             ], Response::HTTP_NOT_FOUND);
         }
+
+        $employee = $employee->normalizeAuthenticatedOnboardingWorkflow();
 
         if ($employee->status !== Employee::STATUS_PRE_CONTRACT) {
             return response()->json([
@@ -886,6 +892,7 @@ class OnboardingController extends Controller
                 'reviewed_at' => now(),
             ]);
 
+            $this->onboardingResidentialAddressHistorySyncService->syncFromApprovedSubmission($submission);
             $this->onboardingTaxIdentificationSyncService->syncFromApprovedSubmission($submission);
 
             /** @var Employee $employee */

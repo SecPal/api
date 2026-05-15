@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Database\Seeders;
@@ -29,6 +29,11 @@ class DatabaseSeeder extends Seeder
 
         // Seed standard onboarding form templates (system-wide)
         $this->call(OnboardingFormTemplatesSeeder::class);
+
+        // Pre-contract demo employee for onboarding UI (non-production only)
+        if (app()->environment('local', 'staging', 'testing', 'demo')) {
+            $this->call(OnboardingDemoUserSeeder::class);
+        }
 
         // Get tenant ID from created tenant key (OrganizationalUnitSeeder ensures it exists)
         $tenant = TenantKey::firstOrFail();

@@ -23,7 +23,6 @@ return new class extends Migration
             $table->text('city_enc')->nullable();
             $table->text('supplement_enc')->nullable();
             $table->string('country', 2)->nullable();
-            $table->string('state', 100)->nullable();
 
             $table->date('resided_from')->nullable();
             $table->date('resided_until')->nullable();

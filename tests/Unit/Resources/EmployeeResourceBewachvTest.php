@@ -52,8 +52,7 @@ test('EmployeeResource includes all BewachV fields', function () {
         ->and($array)->toHaveKey('birth_name')
         ->and($array)->toHaveKey('previous_names')
         ->and($array)->toHaveKey('birth_city')
-        ->and($array)->toHaveKey('birth_country')
-        ->and($array)->toHaveKey('birth_state');
+        ->and($array)->toHaveKey('birth_country');
 
     // Nationalities
     expect($array)->toHaveKey('nationalities');

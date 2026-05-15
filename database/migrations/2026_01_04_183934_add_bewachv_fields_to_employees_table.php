@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Illuminate\Database\Migrations\Migration;
@@ -100,10 +100,7 @@ return new class extends Migration
                 ->comment('City/town of birth (BewachV §16 Abs. 2 Nr. 3)');
 
             $table->string('birth_country', 2)->nullable()->after('birth_city')
-                ->comment('ISO 3166-1 alpha-2 country code (e.g., DE, PL, TR)');
-
-            $table->string('birth_state', 100)->nullable()->after('birth_country')
-                ->comment('State/province of birth (if applicable, e.g., Bayern, Texas)');
+                ->comment('ISO 3166-1 alpha-2 Geburtsland (e.g., DE, PL, TR)');
 
             // ═══════════════════════════════════════════════════════════════
             // BewachV § 16 Abs. 2 Nr. 4: Nationalities (can have multiple!)
@@ -111,7 +108,7 @@ return new class extends Migration
 
             // JSON array of ISO 3166-1 alpha-2 country codes: ["DE", "PL"]
             // Note: Multiple nationalities possible (dual citizenship)
-            $table->json('nationalities')->nullable()->after('birth_state')
+            $table->json('nationalities')->nullable()->after('birth_country')
                 ->comment('Array of ISO 3166-1 alpha-2 codes (e.g., ["DE", "TR"])');
 
             // ═══════════════════════════════════════════════════════════════
@@ -268,7 +265,6 @@ return new class extends Migration
                 'nationalities',
 
                 // Birth Location
-                'birth_state',
                 'birth_country',
                 'birth_city',
 

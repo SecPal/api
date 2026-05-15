@@ -131,7 +131,7 @@ describe('SPA Session Login', function () {
             'password' => 'password123',
         ])->assertOk()
             ->assertJsonPath('user.employeeStatus', Employee::STATUS_PRE_CONTRACT)
-            ->assertJsonPath('user.onboardingWorkflowStatus', Employee::WORKFLOW_STATUS_INVITED)
+            ->assertJsonPath('user.onboardingWorkflowStatus', Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED)
             ->assertJsonPath('user.employee.id', (string) $employee->id)
             ->assertJsonPath('user.employee.contractStartDate', '2026-06-01');
 
@@ -139,7 +139,7 @@ describe('SPA Session Login', function () {
             ->getJson('/v1/me')
             ->assertOk()
             ->assertJsonPath('employeeStatus', Employee::STATUS_PRE_CONTRACT)
-            ->assertJsonPath('onboardingWorkflowStatus', Employee::WORKFLOW_STATUS_INVITED)
+            ->assertJsonPath('onboardingWorkflowStatus', Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED)
             ->assertJsonPath('employee.id', (string) $employee->id)
             ->assertJsonPath('employee.contractStartDate', '2026-06-01');
     });

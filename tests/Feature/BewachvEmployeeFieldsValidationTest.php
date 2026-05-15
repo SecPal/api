@@ -181,7 +181,51 @@ test('structured address fields are required when BWR status is pending or activ
     expect($validator->errors()->has('addresses'))->toBeFalse();
 });
 
-test('country and state codes must be ISO 3166-1 alpha-2 format', function () {
+test('blank current address rows are rejected for store and update requests', function () {
+    $storeValidator = makeStoreEmployeeValidator($this, validStoreEmployeeData($this, [
+        'email' => 'blank-address@example.com',
+        'addresses' => [
+            [
+                'street' => '',
+                'house_number' => '',
+                'postal_code' => '',
+                'city' => '',
+                'supplement' => '',
+                'country' => null,
+                'resided_from' => null,
+                'resided_until' => null,
+            ],
+        ],
+    ]));
+
+    expect($storeValidator->fails())->toBeTrue()
+        ->and($storeValidator->errors()->has('addresses.0'))->toBeTrue();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->organizationalUnit->id,
+    ]);
+
+    $updateValidator = makeUpdateEmployeeValidator($this, $employee, [
+        'addresses' => [
+            [
+                'street' => '',
+                'house_number' => '',
+                'postal_code' => '',
+                'city' => '',
+                'supplement' => '',
+                'country' => null,
+                'resided_from' => null,
+                'resided_until' => null,
+            ],
+        ],
+    ]);
+
+    expect($updateValidator->fails())->toBeTrue()
+        ->and($updateValidator->errors()->has('addresses.0'))->toBeTrue();
+});
+
+test('birth country code must be ISO 3166-1 alpha-2 format', function () {
     $baseData = validStoreEmployeeData($this);
 
     // Test birth_country with invalid format

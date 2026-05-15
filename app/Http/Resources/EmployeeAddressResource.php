@@ -29,7 +29,6 @@ class EmployeeAddressResource extends JsonResource
             'city' => $this->city,
             'supplement' => $this->supplement,
             'country' => $this->country,
-            'state' => $this->state,
             'resided_from' => $this->resided_from?->toDateString(),
             'resided_until' => $this->resided_until?->toDateString(),
         ];

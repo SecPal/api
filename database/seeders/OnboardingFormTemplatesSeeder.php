@@ -6,6 +6,7 @@
 namespace Database\Seeders;
 
 use App\Models\OnboardingFormTemplate;
+use App\Support\ResidentialAddressHistorySchema;
 use Illuminate\Database\Seeder;
 
 class OnboardingFormTemplatesSeeder extends Seeder
@@ -33,6 +34,16 @@ class OnboardingFormTemplatesSeeder extends Seeder
                 'form_schema' => $this->getNationalityAndResidenceSchema(),
                 'is_required' => true,
                 'is_system_template' => true,
+                'sort_order' => 3,
+                'tenant_id' => null,
+            ],
+            [
+                'name' => 'Residential Address History',
+                'template_key' => 'residential_address_history',
+                'description' => 'Current residential address and previous residences from the last five years.',
+                'form_schema' => $this->getResidentialAddressHistorySchema(),
+                'is_required' => true,
+                'is_system_template' => true,
                 'sort_order' => 2,
                 'tenant_id' => null,
             ],
@@ -43,7 +54,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                 'form_schema' => $this->getBankAccountSchema(),
                 'is_required' => false,
                 'is_system_template' => true,
-                'sort_order' => 3,
+                'sort_order' => 4,
                 'tenant_id' => null,
             ],
             [
@@ -53,7 +64,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                 'form_schema' => $this->getEmergencyContactSchema(),
                 'is_required' => false,
                 'is_system_template' => true,
-                'sort_order' => 4,
+                'sort_order' => 5,
                 'tenant_id' => null,
             ],
             [
@@ -63,7 +74,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
                 'form_schema' => $this->getTaxIdentificationSchema(),
                 'is_required' => true,
                 'is_system_template' => true,
-                'sort_order' => 5,
+                'sort_order' => 6,
                 'tenant_id' => null,
             ],
         ];
@@ -78,7 +89,7 @@ class OnboardingFormTemplatesSeeder extends Seeder
             );
         }
 
-        $this->command->info('Created 5 standard onboarding form templates.');
+        $this->command->info('Created 6 standard onboarding form templates.');
     }
 
     /**
@@ -175,6 +186,16 @@ class OnboardingFormTemplatesSeeder extends Seeder
             ],
             'required' => ['nationalities'],
         ];
+    }
+
+    /**
+     * Get JSON schema for residential address history.
+     *
+     * @return array<string, mixed>
+     */
+    private function getResidentialAddressHistorySchema(): array
+    {
+        return ResidentialAddressHistorySchema::definition();
     }
 
     /**
