@@ -75,24 +75,44 @@ return new class extends Migration
         }
 
         if ($insertedTemplateIds !== []) {
-            DB::table('onboarding_form_templates')
-                ->whereIn('id', $insertedTemplateIds)
-                ->delete();
+            $this->assertNoProtectedResidentialAddressHistoryStepsOnRollback();
         }
 
-        DB::table('onboarding_form_templates')
-            ->whereNull('tenant_id')
-            ->where('sort_order', '>', 2)
-            ->where(function (Builder $query): void {
-                $query->whereNull('template_key')
-                    ->orWhere('template_key', '!=', 'residential_address_history');
-            })
-            ->decrement('sort_order');
+        DB::transaction(function () use ($now, $insertedTemplateIds): void {
+            if ($insertedTemplateIds !== []) {
+                DB::table('onboarding_form_templates')
+                    ->whereIn('id', $insertedTemplateIds)
+                    ->delete();
+            }
 
-        $this->removeResidentialAddressHistoryStepFromEmployees(
-            $now,
-            $insertedTemplateIds === []
-        );
+            DB::table('onboarding_form_templates')
+                ->whereNull('tenant_id')
+                ->where('sort_order', '>', 2)
+                ->where(function (Builder $query): void {
+                    $query->whereNull('template_key')
+                        ->orWhere('template_key', '!=', 'residential_address_history');
+                })
+                ->decrement('sort_order');
+
+            $this->removeResidentialAddressHistoryStepFromEmployees($now);
+        });
+    }
+
+    private function assertNoProtectedResidentialAddressHistoryStepsOnRollback(): void
+    {
+        Employee::query()
+            ->whereNotNull('onboarding_steps')
+            ->select(['id', 'onboarding_steps'])
+            ->orderBy('id')
+            ->chunkById(500, function ($employees): void {
+                foreach ($employees as $employee) {
+                    if ($this->hasProtectedResidentialAddressHistoryStep($employee->onboarding_steps)) {
+                        throw new RuntimeException(
+                            'Cannot rollback residential address history migration while employees have completed residential address history onboarding steps.'
+                        );
+                    }
+                }
+            });
     }
 
     private function addResidentialAddressHistoryStepToEmployees(Carbon $now): void
@@ -134,19 +154,16 @@ return new class extends Migration
             });
     }
 
-    private function removeResidentialAddressHistoryStepFromEmployees(
-        Carbon $now,
-        bool $removeOnlyEmptyInsertedSteps
-    ): void {
+    private function removeResidentialAddressHistoryStepFromEmployees(Carbon $now): void
+    {
         Employee::query()
             ->whereNotNull('onboarding_steps')
             ->select(['id', 'status', 'onboarding_completed', 'onboarding_completed_at', 'onboarding_workflow_status', 'onboarding_steps'])
             ->orderBy('id')
-            ->chunkById(500, function ($employees) use ($now, $removeOnlyEmptyInsertedSteps): void {
+            ->chunkById(500, function ($employees) use ($now): void {
                 foreach ($employees as $employee) {
                     $updatedOnboardingSteps = $this->removeResidentialAddressHistoryStep(
-                        $employee->onboarding_steps,
-                        $removeOnlyEmptyInsertedSteps
+                        $employee->onboarding_steps
                     );
                     $shouldRestoreCompletedState = $this->shouldRestoreCompletedStateOnRollback(
                         $employee,
@@ -330,10 +347,8 @@ return new class extends Migration
      * @param  array<string, mixed>|null  $onboardingSteps
      * @return array<string, mixed>|null
      */
-    private function removeResidentialAddressHistoryStep(
-        ?array $onboardingSteps,
-        bool $removeOnlyEmptyInsertedSteps
-    ): ?array {
+    private function removeResidentialAddressHistoryStep(?array $onboardingSteps): ?array
+    {
         if (! is_array($onboardingSteps)) {
             return $onboardingSteps;
         }
@@ -346,30 +361,75 @@ return new class extends Migration
         return array_merge($onboardingSteps, [
             'steps' => array_values(array_filter(
                 $steps,
-                fn (mixed $step): bool => ! $this->shouldRemoveResidentialAddressHistoryStep(
-                    $step,
-                    $removeOnlyEmptyInsertedSteps
-                )
+                fn (mixed $step): bool => ! $this->shouldRemoveResidentialAddressHistoryStep($step)
             )),
         ]);
     }
 
-    private function shouldRemoveResidentialAddressHistoryStep(
-        mixed $step,
-        bool $removeOnlyEmptyInsertedSteps
-    ): bool {
+    private function shouldRemoveResidentialAddressHistoryStep(mixed $step): bool
+    {
         if (! is_array($step) || ($step['id'] ?? null) !== 'residential_address_history') {
             return false;
         }
 
-        if (! $removeOnlyEmptyInsertedSteps) {
-            return true;
+        if ($this->isProtectedResidentialAddressHistoryStep($this->arrayOnlyStringKeys($step))) {
+            return false;
         }
 
         return ($step['name'] ?? null) === 'Wohnanschriften'
             && ($step['completed'] ?? false) !== true
             && ($step['completed_at'] ?? null) === null
             && ($step['form_submission_id'] ?? null) === null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $onboardingSteps
+     */
+    private function hasProtectedResidentialAddressHistoryStep(?array $onboardingSteps): bool
+    {
+        $payload = $this->normalizeOnboardingStepsPayload($onboardingSteps);
+        if ($payload === null) {
+            return false;
+        }
+
+        $steps = $payload['steps'] ?? null;
+        if (! is_array($steps)) {
+            return false;
+        }
+
+        foreach ($steps as $step) {
+            if (! is_array($step) || ($step['id'] ?? null) !== 'residential_address_history') {
+                continue;
+            }
+
+            if ($this->isProtectedResidentialAddressHistoryStep($this->arrayOnlyStringKeys($step))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $step
+     */
+    private function isProtectedResidentialAddressHistoryStep(array $step): bool
+    {
+        if (($step['completed'] ?? false) === true) {
+            return true;
+        }
+
+        if (($step['completed_at'] ?? null) !== null) {
+            return true;
+        }
+
+        if (($step['form_submission_id'] ?? null) !== null) {
+            return true;
+        }
+
+        $status = $step['status'] ?? null;
+
+        return is_string($status) && in_array($status, ['completed', 'approved'], true);
     }
 
     /**

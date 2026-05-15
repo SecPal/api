@@ -434,3 +434,151 @@ test('rollback is refused once residential address submissions exist for the ins
     expect(fn (): mixed => $migration->down())
         ->toThrow(RuntimeException::class, 'Cannot rollback residential address history migration after submissions exist.');
 });
+
+test('rollback removes empty migration-inserted residential steps when the inserted global template has no completed employee steps', function (): void {
+    $completedAt = now()->subDay()->startOfSecond();
+
+    $employee = Employee::factory()->preContract()->create([
+        'onboarding_completed' => true,
+        'onboarding_completed_at' => $completedAt,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+        'onboarding_steps' => [
+            'steps' => [
+                [
+                    'id' => 'personal_data',
+                    'name' => 'Persönliche Daten',
+                    'completed' => true,
+                    'completed_at' => now()->subDays(2)->toIso8601String(),
+                    'form_submission_id' => 'personal-submission',
+                ],
+                [
+                    'id' => 'bank_details',
+                    'name' => 'Bankverbindung',
+                    'completed' => true,
+                    'completed_at' => now()->subDay()->toIso8601String(),
+                    'form_submission_id' => 'bank-submission',
+                ],
+            ],
+        ],
+    ]);
+
+    $migration = loadResidentialAddressHistoryMigration();
+    $migration->up();
+    $migration->down();
+
+    $employee->refresh();
+
+    expect(array_column($employee->onboarding_steps['steps'], 'id'))->toBe([
+        'personal_data',
+        'bank_details',
+    ])
+        ->and($employee->onboarding_completed)->toBeTrue()
+        ->and($employee->onboarding_completed_at?->toISOString())->toBe($completedAt->toISOString());
+});
+
+test('rollback removes unprotected residential steps on legacy install where the global template pre-existed', function (): void {
+    $completedAt = now()->subDay()->startOfSecond();
+
+    $employee = Employee::factory()->preContract()->create([
+        'onboarding_completed' => true,
+        'onboarding_completed_at' => $completedAt,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+        'onboarding_steps' => [
+            'steps' => [
+                [
+                    'id' => 'personal_data',
+                    'name' => 'Persönliche Daten',
+                    'completed' => true,
+                    'completed_at' => now()->subDays(2)->toIso8601String(),
+                    'form_submission_id' => 'personal-submission',
+                ],
+                [
+                    'id' => 'bank_details',
+                    'name' => 'Bankverbindung',
+                    'completed' => true,
+                    'completed_at' => now()->subDay()->toIso8601String(),
+                    'form_submission_id' => 'bank-submission',
+                ],
+            ],
+        ],
+    ]);
+
+    // Simulate a legacy install: the global residential template already existed
+    // before this migration ran, so down() will find insertedTemplateIds === [].
+    markGlobalResidentialTemplateAsPreExisting();
+
+    $migration = loadResidentialAddressHistoryMigration();
+    $migration->up();
+    $migration->down();
+
+    $employee->refresh();
+
+    // The migration-inserted (empty, unprotected) residential step must be removed.
+    expect(array_column($employee->onboarding_steps['steps'], 'id'))->toBe([
+        'personal_data',
+        'bank_details',
+    ])
+        ->and($employee->onboarding_completed)->toBeTrue()
+        ->and($employee->onboarding_completed_at?->toISOString())->toBe($completedAt->toISOString());
+});
+
+test('rollback is refused when an employee completed a migration-inserted residential address history step', function (): void {
+    $completedAt = now()->subHour()->toIso8601String();
+
+    $employee = Employee::factory()->preContract()->create([
+        'onboarding_steps' => [
+            'steps' => [
+                [
+                    'id' => 'personal_data',
+                    'name' => 'Persönliche Daten',
+                    'completed' => true,
+                    'completed_at' => now()->subDay()->toIso8601String(),
+                    'form_submission_id' => 'personal-submission',
+                ],
+                [
+                    'id' => 'bank_details',
+                    'name' => 'Bankverbindung',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+            ],
+        ],
+    ]);
+
+    $migration = loadResidentialAddressHistoryMigration();
+    $migration->up();
+
+    $employee->refresh();
+
+    $employee->update([
+        'onboarding_steps' => [
+            'steps' => collect($employee->onboarding_steps['steps'])
+                ->map(function (array $step) use ($completedAt): array {
+                    if (($step['id'] ?? null) !== 'residential_address_history') {
+                        return $step;
+                    }
+
+                    return [
+                        ...$step,
+                        'completed' => true,
+                        'completed_at' => $completedAt,
+                        'form_submission_id' => 'address-submission',
+                    ];
+                })
+                ->all(),
+        ],
+    ]);
+
+    expect(fn (): mixed => $migration->down())
+        ->toThrow(
+            RuntimeException::class,
+            'Cannot rollback residential address history migration while employees have completed residential address history onboarding steps.'
+        );
+
+    $employee->refresh();
+
+    expect(collect($employee->onboarding_steps['steps'])
+        ->where('id', 'residential_address_history')
+        ->count())->toBe(1);
+});
