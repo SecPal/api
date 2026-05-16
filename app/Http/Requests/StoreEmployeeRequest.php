@@ -73,8 +73,8 @@ class StoreEmployeeRequest extends FormRequest
             ],
             'bwr_status' => ['missing'],
             'bwr_registered_at' => ['missing'],
-            'bwr_submission_date' => ['nullable', 'date'],
-            'bwr_notes' => ['nullable', 'string', 'max:1000'],
+            'bwr_submission_date' => ['missing'],
+            'bwr_notes' => ['missing'],
 
             // BewachV § 16 Abs. 2 Nr. 2: Identity Data
             'gender' => ['nullable', Rule::in(['male', 'female', 'diverse'])],
@@ -250,6 +250,8 @@ class StoreEmployeeRequest extends FormRequest
             'send_invitation.boolean' => __('Invitation sending must be true or false'),
             'bwr_status.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'bwr_registered_at.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
+            'bwr_submission_date.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
+            'bwr_notes.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'employment_end_date.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),
             'retention_period_end.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),

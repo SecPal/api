@@ -962,6 +962,8 @@ describe('POST /v1/employees', function () {
                 'management_level' => 0,
                 'bwr_status' => 'active',
                 'bwr_registered_at' => now()->toDateString(),
+                'bwr_submission_date' => now()->toDateString(),
+                'bwr_notes' => 'bypassed note',
                 'gender' => 'female',
                 'addresses' => [
                     [
@@ -979,6 +981,8 @@ describe('POST /v1/employees', function () {
             ->assertJsonValidationErrors([
                 'bwr_status' => 'BWR fields must be changed via the dedicated BWR status endpoint.',
                 'bwr_registered_at',
+                'bwr_submission_date',
+                'bwr_notes' => 'BWR fields must be changed via the dedicated BWR status endpoint.',
             ]);
 
         $this->assertDatabaseMissing('employees', [

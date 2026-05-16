@@ -152,6 +152,10 @@ test('gender is not conditionally required when BWR status is rejected on create
     expect($validator->fails())->toBeTrue()
         ->and($validator->errors()->has('bwr_status'))->toBeTrue()
         ->and($validator->errors()->has('gender'))->toBeFalse();
+
+    // positive path: valid payload without bwr_status accepts omitted gender
+    $validValidator = makeStoreEmployeeValidator($this, $baseData);
+    expect($validValidator->errors()->has('gender'))->toBeFalse();
 });
 
 test('structured address fields are not conditionally required when BWR status is rejected on create', function () {
@@ -161,6 +165,10 @@ test('structured address fields are not conditionally required when BWR status i
     expect($validator->fails())->toBeTrue()
         ->and($validator->errors()->has('bwr_status'))->toBeTrue()
         ->and($validator->errors()->has('addresses'))->toBeFalse();
+
+    // positive path: valid payload without bwr_status accepts omitted addresses
+    $validValidator = makeStoreEmployeeValidator($this, $baseData);
+    expect($validValidator->errors()->has('addresses'))->toBeFalse();
 });
 
 test('blank current address rows are rejected for store and update requests', function () {
