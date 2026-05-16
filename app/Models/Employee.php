@@ -1468,6 +1468,13 @@ class Employee extends Model
                     'form_submission_id' => null,
                 ],
                 [
+                    'id' => 'emergency_contact',
+                    'name' => 'Notfallkontakt',
+                    'completed' => false,
+                    'completed_at' => null,
+                    'form_submission_id' => null,
+                ],
+                [
                     'id' => 'tax_info',
                     'name' => 'Steuerinformationen',
                     'completed' => false,
