@@ -34,10 +34,10 @@ jobs:
         image: postgres:17-alpine
         env:
           POSTGRES_DB: testing
-          POSTGRES_USER: db
-          POSTGRES_PASSWORD: db
+          POSTGRES_USER: testing
+          POSTGRES_PASSWORD: testing
         options: >-
-          --health-cmd pg_isready
+          --health-cmd="pg_isready -U testing"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -85,11 +85,11 @@ jobs:
 
       - name: Create parallel test databases
         env:
-          PGPASSWORD: db
+          PGPASSWORD: testing
         run: |
           # Create databases for parallel test workers (base DB is testing, workers use testing_test_N)
           for i in {1..8}; do
-            psql -h localhost -U db -d testing -c "CREATE DATABASE testing_test_$i;" || true
+            psql -h localhost -U testing -d testing -c "CREATE DATABASE testing_test_$i;" || true
           done
 
       - name: Generate KEK for testing
@@ -108,8 +108,8 @@ jobs:
           DB_HOST: localhost
           DB_PORT: 5432
           DB_DATABASE: testing
-          DB_USERNAME: db
-          DB_PASSWORD: db
+          DB_USERNAME: testing
+          DB_PASSWORD: testing
           XDEBUG_MODE: coverage
         run: php artisan test --parallel --coverage-clover coverage.xml
 
@@ -120,8 +120,8 @@ jobs:
           DB_HOST: localhost
           DB_PORT: 5432
           DB_DATABASE: testing
-          DB_USERNAME: db
-          DB_PASSWORD: db
+          DB_USERNAME: testing
+          DB_PASSWORD: testing
         run: |
           # Verify the validate-setup command exists and runs
           # Expected to fail (no KEK/tenant keys) but command must be callable
