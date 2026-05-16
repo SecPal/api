@@ -23,12 +23,12 @@ SecPal ships **German street autocomplete** sourced from the OpenPLZ API Data re
 
 See `config/address_data.php` and `.env.example`:
 
-| Variable                        | Purpose                                                                                                                                                                      |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ADDRESS_DATA_SOURCE_URL`       | CSV URL (defaults to OpenPLZ GitHub raw path).                                                                                                                               |
-| `ADDRESS_DATA_UPDATE_FREQUENCY` | Documented cadence; scheduler defaults to weekly Monday 03:30.                                                                                                               |
-| `ADDRESS_DATA_IMPORT_ON_SETUP`  | Default `true`: `composer setup` and the standard `DatabaseSeeder` run an if-empty setup import after migrations (requires network unless a local source path is set). Set `false` for offline installs or CI without egress. |
-| `ADDRESS_DATA_SETUP_SOURCE_PATH` | Optional absolute path to a local `streets.updated.csv` used by setup seeding/imports instead of downloading from `ADDRESS_DATA_SOURCE_URL`. |
+| Variable                         | Purpose                                                                                                                                                                                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADDRESS_DATA_SOURCE_URL`        | CSV URL (defaults to OpenPLZ GitHub raw path).                                                                                                                                                                                |
+| `ADDRESS_DATA_UPDATE_FREQUENCY`  | Documented cadence; scheduler defaults to weekly Monday 03:30.                                                                                                                                                                |
+| `ADDRESS_DATA_IMPORT_ON_SETUP`   | Default `true`: `composer setup` and the standard `DatabaseSeeder` run an if-empty setup import after migrations (requires network unless a local source path is set). Set `false` for offline installs or CI without egress. |
+| `ADDRESS_DATA_SETUP_SOURCE_PATH` | Optional absolute path to a local `streets.updated.csv` used by setup seeding/imports instead of downloading from `ADDRESS_DATA_SOURCE_URL`.                                                                                  |
 
 Downloaded files live under `storage/app/address-data/` (temporary artifacts are cleaned up automatically).
 

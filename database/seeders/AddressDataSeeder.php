@@ -32,7 +32,7 @@ class AddressDataSeeder extends Seeder
             setupOnly: true,
             keepImports: 0,
             onProgress: function (string $message): void {
-                $this->command?->line('  '.$message);
+                $this->command->line('  '.$message);
             },
         );
 
@@ -41,8 +41,8 @@ class AddressDataSeeder extends Seeder
         }
 
         match ($result['status']) {
-            'skipped' => $this->command?->warn($result['message']),
-            default => $this->command?->info($result['message']),
+            'skipped' => $this->command->warn($result['message']),
+            default => $this->command->info($result['message']),
         };
     }
 }
