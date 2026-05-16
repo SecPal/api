@@ -7,6 +7,7 @@ use App\Models\AddressDataImport;
 use App\Models\AddressStreet;
 use Database\Seeders\AddressDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 use function Pest\Laravel\artisan;
 
@@ -37,4 +38,17 @@ test('address data seeder respects disabled setup import flag', function (): voi
 
     expect(AddressDataImport::query()->count())->toBe(0)
         ->and(AddressStreet::query()->count())->toBe(0);
+});
+
+test('address data seeder skips gracefully when address data tables are missing', function (): void {
+    config([
+        'address_data.import_on_setup' => true,
+        'address_data.setup_source_path' => base_path('tests/fixtures/address_data/sample_streets.csv'),
+    ]);
+
+    DB::statement('ALTER TABLE address_data_imports RENAME TO address_data_imports_hidden');
+
+    artisan('db:seed', ['--class' => AddressDataSeeder::class])
+        ->expectsOutputToContain('Skipped: address data tables are missing')
+        ->assertSuccessful();
 });
