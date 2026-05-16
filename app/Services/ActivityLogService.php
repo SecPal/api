@@ -78,19 +78,17 @@ class ActivityLogService
      *
      * All cases are logged, including completely unknown emails for security auditing.
      */
-    public function logLoginFailed(string $email, string $reason, ?int $tenantId = null): ?Activity
+    public function logLoginFailed(string $email, string $reason): ?Activity
     {
         // Try to find user by email to get their tenant_id
         $user = User::where('email', $email)->first();
 
-        // Determine tenant_id: user's tenant > provided fallback > first existing tenant > skip logging
+        // Determine tenant_id from server-side state only.
         if ($user !== null) {
             $targetTenantId = $user->tenant_id;
-        } elseif ($tenantId !== null) {
-            $targetTenantId = $tenantId;
         } else {
-            // Fallback: use first tenant key ID if available
-            $firstTenant = \App\Models\TenantKey::first();
+            // Fallback: use lowest-id tenant key to ensure deterministic attribution
+            $firstTenant = \App\Models\TenantKey::orderBy('id')->first();
             if ($firstTenant === null) {
                 // No tenant exists - skip activity logging (e.g. in tests without tenant setup)
                 return null;

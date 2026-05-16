@@ -82,7 +82,6 @@ class AuthController extends Controller
         $user = $this->validatePrimaryCredentials(
             $credentials['email'],
             $credentials['password'],
-            $request->integer('tenant_id') ?: null,
         );
 
         if ($user->hasTwoFactorEnabled()) {
@@ -128,7 +127,6 @@ class AuthController extends Controller
         $user = $this->validatePrimaryCredentials(
             $validated['email'],
             $validated['password'],
-            $request->integer('tenant_id') ?: null,
         );
 
         $deviceName = $validated['device_name'] ?? 'api-client';
@@ -178,7 +176,7 @@ class AuthController extends Controller
         $validated = $request->validated();
 
         if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
-            $this->activityLogService->logLoginFailed($user->email, 'invalid_mfa_code', $user->tenant_id);
+            $this->activityLogService->logLoginFailed($user->email, 'invalid_mfa_code');
 
             throw ValidationException::withMessages([
                 'code' => ['The provided multi-factor authentication code is invalid.'],
@@ -1047,12 +1045,12 @@ class AuthController extends Controller
      *
      * @throws ValidationException
      */
-    private function validatePrimaryCredentials(string $email, string $password, ?int $tenantId = null): User
+    private function validatePrimaryCredentials(string $email, string $password): User
     {
         $user = User::where('email', $email)->first();
 
         if (! $user || ! Hash::check($password, $user->password)) {
-            $this->activityLogService->logLoginFailed($email, 'invalid_credentials', $tenantId);
+            $this->activityLogService->logLoginFailed($email, 'invalid_credentials');
 
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],

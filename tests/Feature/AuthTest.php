@@ -161,6 +161,38 @@ describe('SPA Session Login', function () {
             ->assertJsonValidationErrors(['email']);
     });
 
+    test('spa failed login logs real user tenant instead of client supplied tenant', function () {
+        $actualTenant = App\Models\TenantKey::factory()->create();
+        $spoofedTenant = App\Models\TenantKey::factory()->create();
+        $email = 'spa-tenant-log-'.Str::uuid().'@secpal.dev';
+
+        User::factory()->create([
+            'email' => $email,
+            'password' => bcrypt('correct-password'),
+            'tenant_id' => $actualTenant->id,
+        ]);
+
+        $this->withHeaders(spaCsrfHeaders($this))
+            ->postJson('/v1/auth/login?tenant_id='.$spoofedTenant->id, [
+                'email' => $email,
+                'password' => 'wrong-password',
+                'tenant_id' => $spoofedTenant->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+
+        $activity = Activity::query()
+            ->where('log_name', 'authentication')
+            ->where('description', 'Failed login attempt')
+            ->latest('id')
+            ->first();
+
+        expect($activity)->toBeInstanceOf(Activity::class)
+            ->and($activity->tenant_id)->toBe($actualTenant->id)
+            ->and($activity->tenant_id)->not->toBe($spoofedTenant->id)
+            ->and($activity->properties['email'])->toBe($email);
+    });
+
     test('spa login authenticates user via session', function () {
         User::factory()->create([
             'email' => 'spa@secpal.dev',
@@ -352,6 +384,37 @@ describe('Auth Token Generation', function () {
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['email']);
+    });
+
+    test('token failed login for unknown email ignores client supplied tenant', function () {
+        // $lowestIdTenant is created first and therefore has the lowest PK; the service
+        // falls back to TenantKey::orderBy('id')->first() for unknown emails, so this
+        // tenant must be the one attributed in the audit log regardless of which tenant
+        // the client supplied.
+        $lowestIdTenant = App\Models\TenantKey::factory()->create();
+        $spoofedTenant = App\Models\TenantKey::factory()->create();
+        $email = 'unknown-token-tenant-log-'.Str::uuid().'@example.com';
+
+        $response = $this->postJson('/v1/auth/token?tenant_id='.$spoofedTenant->id, [
+            'email' => $email,
+            'password' => 'password123',
+            'tenant_id' => $spoofedTenant->id,
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+
+        $activity = Activity::query()
+            ->where('log_name', 'authentication')
+            ->where('description', 'Failed login attempt')
+            ->latest('id')
+            ->first();
+
+        expect($activity)->toBeInstanceOf(Activity::class)
+            ->and($activity->tenant_id)->toBe($lowestIdTenant->id)
+            ->and($activity->tenant_id)->not->toBe($spoofedTenant->id)
+            ->and($activity->properties['email'])->toBe($email)
+            ->and($activity->properties['user_exists'])->toBeFalse();
     });
 
     test('token generation fails with invalid password', function () {
