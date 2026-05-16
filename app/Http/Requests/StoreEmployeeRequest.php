@@ -250,7 +250,7 @@ class StoreEmployeeRequest extends FormRequest
             'send_invitation.boolean' => __('Invitation sending must be true or false'),
             'bwr_status.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'bwr_registered_at.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
-            'bwr_submission_date.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
+            'bwr_submission_date.missing' => __('BWR submission date can only be set when updating an existing employee via PATCH.'),
             'bwr_notes.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'employment_end_date.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),
             'retention_period_end.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),

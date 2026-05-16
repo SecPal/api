@@ -981,7 +981,7 @@ describe('POST /v1/employees', function () {
             ->assertJsonValidationErrors([
                 'bwr_status' => 'BWR fields must be changed via the dedicated BWR status endpoint.',
                 'bwr_registered_at',
-                'bwr_submission_date',
+                'bwr_submission_date' => 'BWR submission date can only be set when updating an existing employee via PATCH.',
                 'bwr_notes' => 'BWR fields must be changed via the dedicated BWR status endpoint.',
             ]);
 
