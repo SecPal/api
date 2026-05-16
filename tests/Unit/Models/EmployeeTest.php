@@ -282,6 +282,7 @@ test('get default onboarding steps returns consistent structure with completed a
         'residential_address_history',
         'nationality_and_residence',
         'bank_details',
+        'emergency_contact',
         'tax_info',
         'qualifications',
         'documents',
