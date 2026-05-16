@@ -1789,6 +1789,77 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             ->and($fresh->form_data['name'])->toBe('Stored');
     });
 
+    test('returns 422 when patch submit provides form data that violates the template schema', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                ],
+                'required' => ['iban'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => ['iban' => 'not-an-iban'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['iban']);
+    });
+
+    test('returns 422 when a rejected submission is resubmitted with schema-invalid form data', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                ],
+                'required' => ['iban'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'status' => 'rejected',
+            'review_notes' => 'Please correct the banking data.',
+            'reviewed_at' => now(),
+            'reviewed_by' => $this->user->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => ['iban' => 'not-an-iban'],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['iban']);
+    });
+
     test('allows a rejected submission to be corrected and resubmitted', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
