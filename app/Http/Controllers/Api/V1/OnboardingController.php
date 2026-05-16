@@ -792,6 +792,12 @@ class OnboardingController extends Controller
         $mergedFormData = $storedFormData;
 
         foreach ($incomingFormData as $key => $value) {
+            if ($value === null) {
+                unset($mergedFormData[$key]);
+
+                continue;
+            }
+
             $existingValue = $mergedFormData[$key] ?? null;
 
             if (
