@@ -7,6 +7,11 @@ set -euo pipefail
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 PHP_CI="$ROOT_DIR/.github/workflows/php-ci.yml"
 
+if [[ ! -f "$PHP_CI" ]]; then
+  echo "Cannot find $PHP_CI — is this a sparse checkout or was the file removed?" >&2
+  exit 1
+fi
+
 require_line() {
   local needle="$1"
   if ! grep -Fqx "$needle" "$PHP_CI"; then
