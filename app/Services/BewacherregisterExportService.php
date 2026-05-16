@@ -78,26 +78,26 @@ class BewacherregisterExportService
     {
         $employee->loadMissing('addresses');
 
-        $errors = [];
+        $errorCodes = [];
 
         foreach ($this->requiredFieldValues($employee) as $field => $value) {
             if ($this->isMissing($value)) {
-                $errors[] = $this->missingExportFieldMessage($field);
+                $errorCodes[] = $field;
             }
         }
 
         if ($employee->id_document_expiry !== null && $employee->id_document_expiry->lt(today())) {
-            $errors[] = $this->missingExportFieldMessage('id_document_expiry_expired');
+            $errorCodes[] = 'id_document_expiry_expired';
         }
 
         if ($employee->requiresWorkPermit() && ! $employee->hasValidWorkAuthorization()) {
-            $errors[] = $this->missingExportFieldMessage('valid_work_authorization');
+            $errorCodes[] = 'valid_work_authorization';
         }
 
-        $this->validateAddressHistoryForExport($employee, $errors);
+        $this->validateAddressHistoryForExport($employee, $errorCodes);
 
-        if ($errors !== []) {
-            throw new BewacherregisterExportNotReadyException($errors);
+        if ($errorCodes !== []) {
+            throw new BewacherregisterExportNotReadyException($errorCodes);
         }
     }
 
@@ -124,22 +124,22 @@ class BewacherregisterExportService
     }
 
     /**
-     * @param  list<string>  $errors
+     * @param  list<string>  $errorCodes
      */
-    private function validateAddressHistoryForExport(Employee $employee, array &$errors): void
+    private function validateAddressHistoryForExport(Employee $employee, array &$errorCodes): void
     {
         /** @var Collection<int, EmployeeAddress> $addresses */
         $addresses = $employee->addresses;
 
         $current = $addresses->filter(fn (EmployeeAddress $a): bool => $a->resided_until === null);
         if ($current->count() === 0) {
-            $errors[] = $this->missingExportFieldMessage('current_address_missing');
+            $errorCodes[] = 'current_address_missing';
 
             return;
         }
 
         if ($current->count() > 1) {
-            $errors[] = $this->missingExportFieldMessage('current_address_ambiguous');
+            $errorCodes[] = 'current_address_ambiguous';
 
             return;
         }
@@ -157,20 +157,20 @@ class BewacherregisterExportService
             ] as $attr => $messageKey
         ) {
             if ($this->isMissing($currentRow->getAttribute($attr))) {
-                $errors[] = $this->missingExportFieldMessage($messageKey);
+                $errorCodes[] = $messageKey;
             }
         }
 
         $past = $addresses->filter(fn (EmployeeAddress $a): bool => $a->resided_until !== null);
         if ($currentRow->resided_from === null && $past->isNotEmpty()) {
-            $errors[] = $this->missingExportFieldMessage('current_address_resided_from_required');
+            $errorCodes[] = 'current_address_resided_from_required';
 
             return;
         }
 
         foreach ($past as $row) {
             if ($row->resided_from === null || $row->resided_until === null) {
-                $errors[] = $this->missingExportFieldMessage('address_history_incomplete');
+                $errorCodes[] = 'address_history_incomplete';
 
                 return;
             }
@@ -209,7 +209,7 @@ class BewacherregisterExportService
         foreach ($segments as $seg) {
             if ($mergedEnd === null) {
                 if ($seg['start']->gt($windowStart)) {
-                    $errors[] = $this->missingExportFieldMessage('address_history_incomplete');
+                    $errorCodes[] = 'address_history_incomplete';
 
                     return;
                 }
@@ -219,13 +219,13 @@ class BewacherregisterExportService
             }
 
             if ($seg['start']->lte($mergedEnd)) {
-                $errors[] = $this->missingExportFieldMessage('address_history_overlap');
+                $errorCodes[] = 'address_history_overlap';
 
                 return;
             }
 
             if ($seg['start']->gt($mergedEnd->copy()->addDay())) {
-                $errors[] = $this->missingExportFieldMessage('address_history_gap');
+                $errorCodes[] = 'address_history_gap';
 
                 return;
             }
@@ -236,15 +236,8 @@ class BewacherregisterExportService
         }
 
         if ($mergedEnd === null || $mergedEnd->lt($windowEnd)) {
-            $errors[] = $this->missingExportFieldMessage('address_history_incomplete');
+            $errorCodes[] = 'address_history_incomplete';
         }
-    }
-
-    private function missingExportFieldMessage(string $field): string
-    {
-        $key = 'bwr_export.missing_fields.'.$field;
-
-        return __($key);
     }
 
     private function isMissing(mixed $value): bool
