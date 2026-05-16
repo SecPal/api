@@ -23,15 +23,15 @@
 - {{ __('Personal information, including gender and previous names') }}
 - {{ __('Residential address history covering the last five years') }}
 - {{ __('Nationalities plus residence and work authorization details when applicable') }}
-- {{ __('Tax identification number and social security details') }}
 
 ### {{ __('Optional steps') }}
 
 - {{ __('Bank account details for salary payment') }}
 - {{ __('Emergency contacts') }}
+- {{ __('Tax identification number and social security details') }}
 - {{ __('Qualifications and certificates you want HR to review early') }}
 
-### {{ __('Supporting documents') }}
+### {{ __('Final steps') }}
 
 - {{ __('Upload identity, residence, banking, or qualification documents where requested.') }}
 - {{ __('Review and confirm your information before you submit onboarding.') }}

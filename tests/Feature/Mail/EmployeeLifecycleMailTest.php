@@ -119,17 +119,19 @@ test('onboarding invitation mail renders key onboarding copy sections', function
         ->toContain('Personal information, including gender and previous names')
         ->toContain('Residential address history covering the last five years')
         ->toContain('Nationalities plus residence and work authorization details when applicable')
-        ->toContain('Tax identification number and social security details')
         ->toContain('Bank account details for salary payment')
         ->toContain('Emergency contacts')
+        ->toContain('Tax identification number and social security details')
         ->toContain('Qualifications and certificates you want HR to review early')
+        ->toContain('Final steps')
         ->toContain('Upload identity, residence, banking, or qualification documents where requested.')
         ->toContain('Review and confirm your information before you submit onboarding.')
         ->toContain($contractStartDate->copy()->subDays(3)->format('d.m.Y'))
         ->toContain('Please do not reply directly to this email.');
 
     expect($rendered)
-        ->not->toContain('Tax identification number (Steuer-ID)');
+        ->not->toContain('Tax identification number (Steuer-ID)')
+        ->not->toContain('Supporting documents');
 });
 
 test('onboarding invitation URL includes token and email parameters', function () {
