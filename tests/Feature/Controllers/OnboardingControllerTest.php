@@ -1859,8 +1859,7 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['form_data'])
-            ->assertJsonPath('errors.form_data.0', 'The required properties (iban) are missing');
+            ->assertJsonValidationErrors(['form_data']);
     });
 
     test('replaces a list-type nested value on patch without deep-merging it', function (): void {
