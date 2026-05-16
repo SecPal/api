@@ -10,6 +10,7 @@ use App\Models\AddressStreet;
 use App\Support\AddressSearchNormalizer;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -30,6 +31,19 @@ final class AddressSuggestionService
     }
 
     public function activeImport(string $countryCode = 'DE'): ?AddressDataImport
+    {
+        try {
+            return $this->resolveActiveImport($countryCode);
+        } catch (QueryException $exception) {
+            if ($this->isMissingAddressDataImportsTable($exception)) {
+                return null;
+            }
+
+            throw $exception;
+        }
+    }
+
+    private function resolveActiveImport(string $countryCode): ?AddressDataImport
     {
         // Cache the primary key only. Serializing Eloquent models in Cache::remember()
         // can yield __PHP_Incomplete_Class on unserialize (500 TypeError) in production.
@@ -55,6 +69,21 @@ final class AddressSuggestionService
 
         /** @var AddressDataImport|null */
         return $this->activeImportQuery($countryCode)->first();
+    }
+
+    private function isMissingAddressDataImportsTable(QueryException $exception): bool
+    {
+        $message = $exception->getMessage();
+        $code = (string) $exception->getCode();
+
+        if (! str_contains($message, 'address_data_imports')) {
+            return false;
+        }
+
+        return in_array($code, ['42P01', '42S02'], true)
+            || str_contains($message, 'Undefined table')
+            || str_contains($message, 'Base table or view not found')
+            || str_contains($message, 'no such table');
     }
 
     /**

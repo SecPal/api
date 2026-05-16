@@ -7,6 +7,7 @@ use App\Models\AddressDataImport;
 use App\Models\AddressStreet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
@@ -101,6 +102,20 @@ test('address endpoints return 503 without active import', function (): void {
     Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
 
     $this->getJson('/v1/addresses/de/streets?name=gr')
+        ->assertStatus(503)
+        ->assertJsonPath('code', 'address_data_unavailable');
+});
+
+test('address endpoints return 503 when address data tables are missing', function (): void {
+    // PostgreSQL DDL is transactional; both renames are rolled back with the test transaction.
+    DB::statement('ALTER TABLE address_streets RENAME TO address_streets_hidden');
+    DB::statement('ALTER TABLE address_data_imports RENAME TO address_data_imports_hidden');
+
+    /** @var User $user */
+    $user = User::factory()->create();
+    Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+    $this->getJson('/v1/addresses/de/localities?postal_code=101')
         ->assertStatus(503)
         ->assertJsonPath('code', 'address_data_unavailable');
 });
@@ -288,11 +303,29 @@ test('street search returns 422 and no 500 when name param is an array', functio
         ->assertUnprocessable();
 });
 
+test('street search returns 422 and no 500 when postal code param is an array', function () {
+    /** @var User $user */
+    $user = User::factory()->create();
+    Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+    $this->getJson('/v1/addresses/de/streets?name=foo&postal_code[]=10115&postal_code[]=10117&locality=Berlin')
+        ->assertUnprocessable();
+});
+
 test('locality search returns 422 and no 500 when locality param is an array', function () {
     /** @var User $user */
     $user = User::factory()->create();
     Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
 
     $this->getJson('/v1/addresses/de/localities?locality[]=Berlin&locality[]=Hamburg')
+        ->assertUnprocessable();
+});
+
+test('locality search returns 422 and no 500 when postal code param is an array', function () {
+    /** @var User $user */
+    $user = User::factory()->create();
+    Sanctum::actingAs($user, [User::API_ACCESS_ABILITY]);
+
+    $this->getJson('/v1/addresses/de/localities?postal_code[]=10115&postal_code[]=10117&locality=Berlin')
         ->assertUnprocessable();
 });

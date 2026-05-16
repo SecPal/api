@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- fixed address autocomplete availability checks to return `503 address_data_unavailable` when address data tables are missing, instead of leaking a database exception as a 500
 - stopped exposing `employee_qualifications.document_path` through the public qualification attach/update API and `EmployeeQualificationResource`; the storage path remains internal and regression coverage now proves requests ignore it while list/show responses omit it
 - renamed the `resided_from` field label in the current-address block of the residential address history onboarding form from "Living There Since" to "Date You Started Living There" for clarity
 - fixed OpenPLZ address-import retention so pruning only removes superseded imports for the active country and keeps the prior successful dataset even when failed attempts exist between successful runs
