@@ -7,6 +7,7 @@ namespace Database\Seeders;
 
 use App\Services\AddressData\AddressDataImportService;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 class AddressDataSeeder extends Seeder
@@ -16,6 +17,12 @@ class AddressDataSeeder extends Seeder
      */
     public function run(): void
     {
+        if (! Schema::hasTable('address_data_imports') || ! Schema::hasTable('address_streets')) {
+            $this->command->warn('Skipped: address data tables are missing; run migrations before setup import.');
+
+            return;
+        }
+
         /** @var AddressDataImportService $importService */
         $importService = app(AddressDataImportService::class);
 
