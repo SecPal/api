@@ -30,6 +30,7 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
@@ -46,6 +47,11 @@ class AuthController extends Controller
      * Password reset token expiry time in minutes.
      */
     private const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
+
+    /**
+     * Cache key for the placeholder hash used on unknown-user logins.
+     */
+    private const DUMMY_PASSWORD_HASH_CACHE_KEY = 'auth:dummy-password-hash:v1';
 
     /**
      * Activity log service for authentication events.
@@ -1071,20 +1077,16 @@ class AuthController extends Controller
 
     /**
      * Return a stable bcrypt placeholder used to neutralize the login timing
-     * oracle when no user matches the submitted email address. The hash is
-     * generated lazily with the application's hashing config so its cost
-     * tracks any future tuning of {@see config/hashing.php}.
+     * oracle when no user matches the submitted email address. Cache the
+     * generated hash across requests so unknown-user logins only pay the same
+     * single password verification cost as real users.
      */
     private function dummyPasswordHash(): string
     {
-        /** @var string|null $hash */
-        static $hash = null;
-
-        if ($hash === null) {
-            $hash = (string) Hash::make('secpal-timing-protection-placeholder');
-        }
-
-        return $hash;
+        return Cache::rememberForever(
+            self::DUMMY_PASSWORD_HASH_CACHE_KEY,
+            static fn (): string => (string) Hash::make('secpal-timing-protection-placeholder'),
+        );
     }
 
     /**
