@@ -7,6 +7,7 @@ use App\Models\AddressDataImport;
 use App\Models\AddressStreet;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -126,6 +127,14 @@ test('addresses:check reports the active import metadata', function (): void {
         ->assertSuccessful();
 
     expect($activeImport->fresh()?->id)->toBe($activeImport->id);
+});
+
+test('addresses:check reports no active import when address data tables are missing', function (): void {
+    DB::statement('ALTER TABLE address_data_imports RENAME TO address_data_imports_hidden');
+
+    $this->artisan('addresses:check')
+        ->expectsOutputToContain('No activated address import is available.')
+        ->assertSuccessful();
 });
 
 test('addresses:import keeps street rows from other countries when pruning old imports', function (): void {

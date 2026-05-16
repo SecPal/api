@@ -6,6 +6,7 @@
 namespace App\Console\Commands;
 
 use App\Models\AddressDataImport;
+use App\Services\AddressData\AddressSuggestionService;
 use App\Support\AddressDataConfig;
 use Illuminate\Console\Command;
 
@@ -21,14 +22,10 @@ class CheckAddressDataCommand extends Command
      */
     protected $description = 'Show the active OpenPLZ address import status.';
 
-    public function handle(): int
+    public function handle(AddressSuggestionService $suggestions): int
     {
         $country = AddressDataConfig::string('address_data.country', 'DE');
-        $active = AddressDataImport::query()
-            ->where('country_code', $country)
-            ->whereNotNull('activated_at')
-            ->orderByDesc('id')
-            ->first();
+        $active = $suggestions->activeImport($country);
 
         if ($active === null) {
             $this->components->warn('No activated address import is available.');
