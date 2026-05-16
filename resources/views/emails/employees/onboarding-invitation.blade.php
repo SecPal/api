@@ -1,4 +1,4 @@
-{{-- SPDX-FileCopyrightText: 2025 SecPal Contributors --}}
+{{-- SPDX-FileCopyrightText: 2025-2026 SecPal Contributors --}}
 {{-- SPDX-License-Identifier: AGPL-3.0-or-later --}}
 
 <x-mail::message>
@@ -18,19 +18,23 @@
 
 ## {{ __('What to expect:') }}
 
-### {{ __('Required information') }}
+### {{ __('Required steps') }}
 
-- {{ __('Personal information for onboarding (including gender and nationalities)') }}
+- {{ __('Personal information, including gender and previous names') }}
+- {{ __('Residential address history covering the last five years') }}
+- {{ __('Nationalities plus residence and work authorization details when applicable') }}
 
-### {{ __('Optional sections') }}
+### {{ __('Optional steps') }}
 
 - {{ __('Bank account details for salary payment') }}
 - {{ __('Emergency contacts') }}
-- {{ __('Tax identification number (Steuer-ID)') }}
+- {{ __('Tax identification number and social security details') }}
+- {{ __('Qualifications and certificates you want HR to review early') }}
 
-### {{ __('Supporting documents') }}
+### {{ __('Final steps') }}
 
-- {{ __('On every onboarding step you can upload PDF, JPG, or PNG files up to 10 MB — choose contract, identity document, or banking verification as appropriate.') }}
+- {{ __('Upload identity, residence, banking, or qualification documents where requested.') }}
+- {{ __('Review and confirm your information before you submit onboarding.') }}
 
 {{ __('**Important:** Please complete the onboarding by **:deadline** at the latest.', ['deadline' => $employee->contract_start_date->copy()->subDays(3)->format('d.m.Y')]) }}
 

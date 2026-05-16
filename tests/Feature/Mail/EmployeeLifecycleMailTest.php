@@ -77,7 +77,17 @@ test('onboarding invitation mail renders key onboarding copy sections', function
 
     $fallbackStepIds = array_column(Employee::getDefaultOnboardingSteps()['steps'], 'id');
 
-    expect($fallbackStepIds)->toContain('personal_data', 'bank_details', 'tax_info', 'emergency_contact');
+    expect($fallbackStepIds)->toContain(
+        'personal_data',
+        'residential_address_history',
+        'nationality_and_residence',
+        'bank_details',
+        'emergency_contact',
+        'tax_info',
+        'qualifications',
+        'documents',
+        'confirmation',
+    );
 
     $contractStartDate = now()->addDays(14);
 
@@ -106,10 +116,22 @@ test('onboarding invitation mail renders key onboarding copy sections', function
         ->toContain($contractStartDate->format('d.m.Y'))
         ->toContain('Start Onboarding')
         ->toContain('What to expect:')
-        ->toContain('Personal information for onboarding (including gender and nationalities)')
+        ->toContain('Personal information, including gender and previous names')
+        ->toContain('Residential address history covering the last five years')
+        ->toContain('Nationalities plus residence and work authorization details when applicable')
+        ->toContain('Bank account details for salary payment')
         ->toContain('Emergency contacts')
+        ->toContain('Tax identification number and social security details')
+        ->toContain('Qualifications and certificates you want HR to review early')
+        ->toContain('Final steps')
+        ->toContain('Upload identity, residence, banking, or qualification documents where requested.')
+        ->toContain('Review and confirm your information before you submit onboarding.')
         ->toContain($contractStartDate->copy()->subDays(3)->format('d.m.Y'))
         ->toContain('Please do not reply directly to this email.');
+
+    expect($rendered)
+        ->not->toContain('Tax identification number (Steuer-ID)')
+        ->not->toContain('Supporting documents');
 });
 
 test('onboarding invitation URL includes token and email parameters', function () {
