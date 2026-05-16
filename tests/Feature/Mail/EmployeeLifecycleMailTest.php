@@ -75,6 +75,10 @@ test('onboarding invitation mail has correct content', function () {
 test('onboarding invitation mail renders key onboarding copy sections', function () {
     app()->setLocale('en');
 
+    $fallbackStepIds = array_column(Employee::getDefaultOnboardingSteps()['steps'], 'id');
+
+    expect($fallbackStepIds)->toContain('personal_data', 'bank_details', 'tax_info', 'emergency_contact');
+
     $contractStartDate = now()->addDays(14);
 
     $employee = Employee::factory()->create([
