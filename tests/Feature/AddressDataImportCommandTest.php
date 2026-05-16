@@ -5,6 +5,7 @@
 
 use App\Models\AddressDataImport;
 use App\Models\AddressStreet;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -49,9 +50,15 @@ function createAddressStreet(AddressDataImport $import, string $postalCode, stri
 }
 
 test('addresses:import exits with failure and error output when import fails', function (): void {
-    $this->artisan('addresses:import', ['--source' => '/nonexistent/csv/path.csv'])
-        ->expectsOutputToContain('Address data source file is not readable')
-        ->assertFailed();
+    $this->withoutMockingConsoleOutput();
+
+    $exitCode = $this->artisan('addresses:import', ['--source' => '/nonexistent/csv/path.csv']);
+    $output = $this->app->make(Kernel::class)->output();
+
+    expect($exitCode)->toBe(1);
+    expect($output)
+        ->toContain('ERROR')
+        ->toContain('Address data source file is not readable');
 });
 
 test('addresses:import imports fixture and activates dataset', function (): void {
