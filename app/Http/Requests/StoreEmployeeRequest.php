@@ -77,10 +77,7 @@ class StoreEmployeeRequest extends FormRequest
             'bwr_notes' => ['nullable', 'string', 'max:1000'],
 
             // BewachV § 16 Abs. 2 Nr. 2: Identity Data
-            'gender' => [
-                'required_if:bwr_status,pending,active', // MANDATORY for BWR submission
-                Rule::in(['male', 'female', 'diverse']),
-            ],
+            'gender' => ['nullable', Rule::in(['male', 'female', 'diverse'])],
             'birth_name' => ['nullable', 'string', 'max:255'], // Will be encrypted
             'previous_names' => ['nullable', 'array'], // JSON array of strings
             'previous_names.*' => ['string', 'max:255'],
@@ -93,7 +90,7 @@ class StoreEmployeeRequest extends FormRequest
             'nationalities' => ['nullable', 'array'], // JSON array of ISO codes
             'nationalities.*' => ['string', 'size:2', 'regex:/^[A-Z]{2}$/'], // e.g., ["DE", "PL"]
 
-            'addresses' => ['required_if:bwr_status,pending,active', 'nullable', 'array'],
+            'addresses' => ['nullable', 'array'],
 
             // Emergency contacts
             'emergency_contacts' => ['nullable', 'array'],
@@ -261,9 +258,6 @@ class StoreEmployeeRequest extends FormRequest
             'bwr_id.size' => 'Die Bewacher-ID muss exakt 7 Ziffern haben.',
             'bwr_id.regex' => 'Die Bewacher-ID darf nur Ziffern enthalten (0000000-9999999).',
             'bwr_id.unique' => 'Diese Bewacher-ID ist bereits vergeben.',
-
-            // Gender (mandatory for BWR)
-            'gender.required_if' => 'Geschlecht ist für BWR-Anmeldung verpflichtend.',
 
             // ISO country codes
             'birth_country.size' => 'Geburtsland muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
