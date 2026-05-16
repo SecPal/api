@@ -30,8 +30,9 @@ class DatabaseSeeder extends Seeder
         // Seed standard onboarding form templates (system-wide)
         $this->call(OnboardingFormTemplatesSeeder::class);
 
-        // Pre-contract demo employee for onboarding UI (non-production only)
+        // Seed address autocomplete data and demo content (non-production only)
         if (app()->environment('local', 'staging', 'testing', 'demo')) {
+            $this->call(AddressDataSeeder::class);
             $this->call(OnboardingDemoUserSeeder::class);
         }
 

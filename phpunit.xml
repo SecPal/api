@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 
 SPDX-License-Identifier: CC0-1.0
 -->
@@ -37,6 +37,7 @@ SPDX-License-Identifier: CC0-1.0
         <env name="DB_DATABASE" value="testing" force="true"/>
         <env name="MAIL_MAILER" value="array" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="ADDRESS_DATA_IMPORT_ON_SETUP" value="false" force="true"/>
         <env name="SANCTUM_STATEFUL_DOMAINS" value="app.secpal.dev" force="true"/>
         <!-- database driver is required so Sanctum stateful SPA flows can persist sessions between test requests -->
         <env name="SESSION_DRIVER" value="database" force="true"/>
