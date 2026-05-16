@@ -7,6 +7,7 @@ use App\Models\AddressDataImport;
 use App\Models\AddressStreet;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -95,6 +96,20 @@ test('addresses:import setup-only skips when import_on_setup disabled', function
     $this->artisan('addresses:import', ['--setup-only' => true])->assertSuccessful();
 });
 
+test('addresses:import setup-only uses configured setup source path', function (): void {
+    config([
+        'address_data.import_on_setup' => true,
+        'address_data.setup_source_path' => base_path('tests/fixtures/address_data/sample_streets.csv'),
+    ]);
+
+    $this->artisan('addresses:import', ['--setup-only' => true])->assertSuccessful();
+
+    $active = AddressDataImport::query()->whereNotNull('activated_at')->first();
+    expect($active)->not->toBeNull();
+    expect($active->row_count)->toBe(3);
+    expect(AddressStreet::query()->where('import_id', $active->id)->count())->toBe(3);
+});
+
 test('addresses:check reports the active import metadata', function (): void {
     $activeImport = createAddressImport(
         countryCode: 'DE',
@@ -112,6 +127,14 @@ test('addresses:check reports the active import metadata', function (): void {
         ->assertSuccessful();
 
     expect($activeImport->fresh()?->id)->toBe($activeImport->id);
+});
+
+test('addresses:check reports no active import when address data tables are missing', function (): void {
+    DB::statement('ALTER TABLE address_data_imports RENAME TO address_data_imports_hidden');
+
+    $this->artisan('addresses:check')
+        ->expectsOutputToContain('No activated address import is available.')
+        ->assertSuccessful();
 });
 
 test('addresses:import keeps street rows from other countries when pruning old imports', function (): void {

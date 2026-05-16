@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- skipped `AddressDataSeeder` gracefully when `address_data_imports` or `address_streets` is unavailable during setup seeding, so fresh workspace provisioning no longer aborts the full `db:seed` run on partial or drifted address-data schemas
+- made `addresses:check` treat missing address-data tables like an unavailable dataset instead of aborting with a database exception, so partially provisioned workspaces can still report status cleanly
 - normalized BWR export readiness `errors` responses to stable field codes independent of request locale, and exposed translated human messages separately via `error_messages`
 - fixed address autocomplete availability checks to return `503 address_data_unavailable` when address data tables are missing, instead of leaking a database exception as a 500
 - stopped exposing `employee_qualifications.document_path` through the public qualification attach/update API and `EmployeeQualificationResource`; the storage path remains internal and regression coverage now proves requests ignore it while list/show responses omit it
@@ -63,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added `AddressDataSeeder` to the standard setup seeding flow (non-production environments) with an optional `ADDRESS_DATA_SETUP_SOURCE_PATH` config key for offline/local CSV-backed setup without a network download
 - added OpenPLZ-backed German address reference imports, weekly refresh scheduling, and authenticated `/v1/addresses/de/*` autocomplete/status endpoints for street and locality lookup
 - added optional employee `emergency_contacts` support across request validation, persistence (new nullable JSON column on `employees`), and API resource serialization, with targeted regression tests for validation, model casting, resource output, and schema presence
 

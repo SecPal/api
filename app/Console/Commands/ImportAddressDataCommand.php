@@ -40,7 +40,7 @@ class ImportAddressDataCommand extends Command
         $result = $importService->run(
             force: (bool) $this->option('force'),
             dryRun: (bool) $this->option('dry-run'),
-            sourcePath: $this->option('source') !== null ? (string) $this->option('source') : null,
+            sourcePath: $this->sourcePath(),
             ifEmpty: (bool) $this->option('if-empty'),
             setupOnly: (bool) $this->option('setup-only'),
             keepImports: max(0, (int) $this->option('keep-imports')),
@@ -57,5 +57,23 @@ class ImportAddressDataCommand extends Command
             'failed' => self::FAILURE,
             default => self::SUCCESS,
         };
+    }
+
+    private function sourcePath(): ?string
+    {
+        $explicitSource = $this->option('source');
+        if ($explicitSource !== null && trim((string) $explicitSource) !== '') {
+            return (string) $explicitSource;
+        }
+
+        if (! (bool) $this->option('setup-only')) {
+            return null;
+        }
+
+        $setupSourcePath = config('address_data.setup_source_path');
+
+        return is_string($setupSourcePath) && trim($setupSourcePath) !== ''
+            ? $setupSourcePath
+            : null;
     }
 }
