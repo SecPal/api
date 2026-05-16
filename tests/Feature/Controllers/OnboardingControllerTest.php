@@ -1586,6 +1586,95 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             ->and($response->json('data.status'))->toBe('draft');
     });
 
+    test('merges patch form data with the existing draft payload before validating a submitted update', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                    'account_holder' => [
+                        'type' => 'string',
+                        'minLength' => 1,
+                    ],
+                ],
+                'required' => ['iban', 'account_holder'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'iban' => 'DE44500105175407324931',
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => [
+                    'account_holder' => 'Jane Doe',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.form_data.iban', 'DE44500105175407324931')
+            ->assertJsonPath('data.form_data.account_holder', 'Jane Doe');
+    });
+
+    test('rejects patch submit when merged form data becomes invalid', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                    'account_holder' => [
+                        'type' => 'string',
+                        'minLength' => 1,
+                    ],
+                ],
+                'required' => ['iban', 'account_holder'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'iban' => 'DE44500105175407324931',
+                'account_holder' => 'Jane Doe',
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => [
+                    'iban' => 'not-an-iban',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['iban']);
+    });
+
     test('allows a rejected submission to be corrected and resubmitted', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
