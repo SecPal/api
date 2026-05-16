@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Http\Controllers\AuthController;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\Employee;
@@ -991,7 +992,7 @@ describe('Login Rate Limiting', function () {
     });
 
     test('token endpoint is rate limited after 5 failed attempts for a non-existent account too', function () {
-        $email = 'definitely-no-account-'.Str::uuid().'@example.com';
+        $email = 'definitely-no-account-'.Str::uuid().'@secpal.dev';
 
         for ($i = 0; $i < 5; $i++) {
             $this->postJson('/v1/auth/token', [
@@ -1026,7 +1027,7 @@ describe('Login Rate Limiting', function () {
         ]);
 
         $unknownResponse = $this->postJson('/v1/auth/token', [
-            'email' => 'unknown-token-user-'.Str::uuid().'@example.com',
+            'email' => 'unknown-token-user-'.Str::uuid().'@secpal.dev',
             'password' => 'wrong-password',
         ]);
 
@@ -1037,17 +1038,58 @@ describe('Login Rate Limiting', function () {
     });
 
     test('token login runs password hashing for non-existent accounts to neutralize timing oracle', function () {
-        Hash::spy();
+        Hash::partialMock()
+            ->shouldReceive('check')
+            ->once()
+            ->withArgs(fn ($password, $hash): bool => $password === 'whatever-password'
+                && is_string($hash)
+                && password_get_info($hash)['algoName'] === 'bcrypt')
+            ->andReturnFalse();
 
         $this->postJson('/v1/auth/token', [
-            'email' => 'absent-token-user-'.Str::uuid().'@example.com',
+            'email' => 'absent-token-user-'.Str::uuid().'@secpal.dev',
             'password' => 'whatever-password',
         ])->assertUnprocessable();
+    });
 
-        // Invariant: password verification work must run regardless of whether the
-        // email exists in the database. Skipping Hash::check() for unknown emails
-        // leaks user existence through response timing (bcrypt is ~100ms).
-        Hash::shouldHaveReceived('check')->atLeast()->once();
+    test('unknown-account placeholder hash cache key tracks hashing configuration', function () {
+        $controller = app(AuthController::class);
+        $method = new ReflectionMethod($controller, 'dummyPasswordHash');
+        $method->setAccessible(true);
+        $cacheKeys = [];
+
+        Cache::shouldReceive('rememberForever')
+            ->twice()
+            ->withArgs(function ($key, $callback) use (&$cacheKeys): bool {
+                $cacheKeys[] = $key;
+
+                return is_string($key) && is_callable($callback);
+            })
+            ->andReturn('$2y$12$fAJGA/LIzR7AAtIjg4UYxuj6V0hnGJxYaEB5pvNIjO9CJt6KPU8Hy');
+
+        config(['hashing' => ['driver' => 'bcrypt', 'bcrypt' => ['rounds' => 12]]]);
+        $method->invoke($controller);
+
+        config(['hashing' => ['driver' => 'bcrypt', 'bcrypt' => ['rounds' => 13]]]);
+        $method->invoke($controller);
+
+        expect($cacheKeys)->toHaveCount(2)
+            ->and($cacheKeys[0])->not->toBe($cacheKeys[1]);
+    });
+
+    test('unknown-account placeholder hash falls back when cache is unavailable', function () {
+        $controller = app(AuthController::class);
+        $method = new ReflectionMethod($controller, 'dummyPasswordHash');
+        $method->setAccessible(true);
+
+        Cache::shouldReceive('rememberForever')
+            ->once()
+            ->andThrow(new RuntimeException('cache unavailable'));
+
+        $hash = $method->invoke($controller);
+
+        expect(password_get_info($hash)['algoName'])->toBe('bcrypt')
+            ->and(Hash::check('secpal-timing-protection-placeholder', $hash))->toBeTrue();
     });
 
     test('token login MFA challenges do not consume the wrong-password throttle bucket', function () {
@@ -1442,7 +1484,7 @@ describe('Login Rate Limiting', function () {
     });
 
     test('session login endpoint is also rate limited for a non-existent account', function () {
-        $email = 'definitely-no-session-account-'.Str::uuid().'@example.com';
+        $email = 'definitely-no-session-account-'.Str::uuid().'@secpal.dev';
         $xsrfToken = issueSpaCsrfToken($this);
 
         for ($i = 0; $i < 5; $i++) {
@@ -1488,7 +1530,7 @@ describe('Login Rate Limiting', function () {
 
         $unknownResponse = $this->withHeaders($headers)
             ->postJson('/v1/auth/login', [
-                'email' => 'unknown-session-user-'.Str::uuid().'@example.com',
+                'email' => 'unknown-session-user-'.Str::uuid().'@secpal.dev',
                 'password' => 'wrong-password',
             ]);
 
@@ -1499,19 +1541,20 @@ describe('Login Rate Limiting', function () {
     });
 
     test('session login runs password hashing for non-existent accounts to neutralize timing oracle', function () {
-        Hash::spy();
+        Hash::partialMock()
+            ->shouldReceive('check')
+            ->once()
+            ->withArgs(fn ($password, $hash): bool => $password === 'whatever-password'
+                && is_string($hash)
+                && password_get_info($hash)['algoName'] === 'bcrypt')
+            ->andReturnFalse();
 
         $this->withHeaders(spaCsrfHeaders($this))
             ->postJson('/v1/auth/login', [
-                'email' => 'absent-session-user-'.Str::uuid().'@example.com',
+                'email' => 'absent-session-user-'.Str::uuid().'@secpal.dev',
                 'password' => 'whatever-password',
             ])
             ->assertUnprocessable();
-
-        // Invariant: password verification work must run regardless of whether the
-        // email exists in the database. Skipping Hash::check() for unknown emails
-        // leaks user existence through response timing (bcrypt is ~100ms).
-        Hash::shouldHaveReceived('check')->atLeast()->once();
     });
 
     test('session login MFA challenges do not consume the wrong-password throttle bucket', function () {
