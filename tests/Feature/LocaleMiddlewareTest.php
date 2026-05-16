@@ -81,7 +81,7 @@ test('middleware does not resolve user during the global pass when request has n
         ->and($response->getStatusCode())->toBe(204);
 });
 
-test('middleware resolves bearer-token user locale at most once across both middleware passes', function (): void {
+test('middleware skips bearer-token user lookup during the global pass and resolves user locale during the api pass', function (): void {
     $request = Request::create('/v1/example', 'GET', [], [], [], [
         'HTTP_ACCEPT_LANGUAGE' => 'en',
         'HTTP_AUTHORIZATION' => 'Bearer token',
@@ -96,10 +96,14 @@ test('middleware resolves bearer-token user locale at most once across both midd
 
     $middleware = app(SetLocaleFromHeader::class);
 
-    $middleware->handle(
+    $globalResponse = $middleware->handle(
         $request,
         static fn (Request $request): Illuminate\Http\Response => response()->noContent(),
     );
+
+    expect($lookupCount)->toBe(0)
+        ->and(App::getLocale())->toBe('en')
+        ->and($globalResponse->getStatusCode())->toBe(204);
 
     $response = $middleware->handle(
         $request,

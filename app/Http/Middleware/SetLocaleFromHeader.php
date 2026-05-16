@@ -40,10 +40,7 @@ class SetLocaleFromHeader
         }
 
         $canResolveUserLocale = ! $request->attributes->getBoolean(self::USER_LOOKUP_COMPLETED_ATTRIBUTE)
-            && (
-                $request->attributes->getBoolean(self::ALLOW_USER_LOOKUP_ATTRIBUTE)
-                || $request->bearerToken() !== null
-            );
+            && $request->attributes->getBoolean(self::ALLOW_USER_LOOKUP_ATTRIBUTE);
 
         $request->attributes->set(self::ALLOW_USER_LOOKUP_ATTRIBUTE, true);
 

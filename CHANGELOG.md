@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- normalized BWR export readiness `errors` responses to stable field codes independent of request locale, and exposed translated human messages separately via `error_messages`
 - fixed address autocomplete availability checks to return `503 address_data_unavailable` when address data tables are missing, instead of leaking a database exception as a 500
 - stopped exposing `employee_qualifications.document_path` through the public qualification attach/update API and `EmployeeQualificationResource`; the storage path remains internal and regression coverage now proves requests ignore it while list/show responses omit it
 - renamed the `resided_from` field label in the current-address block of the residential address history onboarding form from "Living There Since" to "Date You Started Living There" for clarity
@@ -25,8 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - made the `birth_state` and `employee_addresses.state` cleanup migrations intentionally irreversible in `0.x`, so rollbacks no longer recreate removed compatibility columns
 - fixed BWR address-history continuity check reporting false-positive gaps when an employee has a pre-window historical address followed by a current address that fully covers the 5-year export window; segments ending before the window start are now discarded before the merge pass
 - aligned onboarding attachment gating with the draft-first upload flow by allowing first-time submitted forms to opt into identity/residence uploads before a submission id exists, while keeping the stricter `document_subtype` requirement for existing editable submissions and legacy `id_document` uploads during resubmission
+- fixed PATCH onboarding submission updates to merge partial `form_data` with the stored draft before schema validation and persistence, so submit-time validation now sees the full effective payload instead of only the incoming delta; guarded against list-type root payloads that would otherwise corrupt the stored associative object with numeric keys
+- aligned the default onboarding-step fallback with the invitation email by adding the missing `emergency_contact` step to pre-contract onboarding initialization paths
 - fixed optional onboarding template validation to keep undeclared-key schema checks authoritative even when declared fields are empty, so payloads with undeclared keys now fail `additionalProperties` validation instead of bypassing it as `semantically empty`
-- avoided unnecessary locale user-resolution work in the global middleware pass when no bearer token is present, while still allowing the later API pass to honor session-authenticated `preferred_locale` overrides
+- avoided unnecessary locale user-resolution work in the global middleware pass for bearer-token requests too, while still allowing the later API pass to honor authenticated `preferred_locale` overrides
 - scoped onboarding submission `form_template_id` existence validation to the authenticated tenant plus global templates, so cross-tenant template UUID probes now fail with `422` validation errors instead of leaking into later tenant-scoped `404` responses
 - enforced server-side residence-title requirements during onboarding submission for non-exempt nationalities (title + employment authorization, and expiry when not unlimited) so clients can no longer bypass the frontend-only checks by posting `nationalities` without required residence data
 - aligned passkey credential mapping with WebAuthn-lib 5.3 by using `PublicKeyCredentialSource` directly, fixing passkey challenge flows that were failing with a `TypeError` (return type mismatch)
