@@ -711,11 +711,21 @@ class OnboardingController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
+        /** @var array<string, mixed> $storedFormData */
+        $storedFormData = is_array($submission->form_data) ? $submission->form_data : [];
+
+        // Guard: a list-type root payload cannot be safely merged into the stored
+        // associative object; treat it as if no form_data was provided to prevent
+        // numeric keys from corrupting the stored structure.
+        /** @var non-empty-array<string, mixed>|null $incomingFormData */
+        $incomingFormData = isset($validated['form_data']) && is_array($validated['form_data']) && ! array_is_list($validated['form_data'])
+            ? $validated['form_data']
+            : null;
+
         /** @var array<string, mixed> $effectiveFormData */
-        $effectiveFormData = $validated['form_data'] ?? $submission->form_data ?? [];
-        if (! is_array($effectiveFormData)) {
-            $effectiveFormData = [];
-        }
+        $effectiveFormData = is_array($incomingFormData)
+            ? $this->mergeSubmissionFormData($storedFormData, $incomingFormData)
+            : $storedFormData;
 
         $this->onboardingFormDataSchemaValidationService->assertMatchesTemplate(
             $formTemplate,
@@ -770,6 +780,44 @@ class OnboardingController extends Controller
         return response()->json([
             'data' => new OnboardingFormSubmissionResource($submission),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $storedFormData
+     * @param  array<string, mixed>  $incomingFormData
+     * @return array<string, mixed>
+     */
+    private function mergeSubmissionFormData(array $storedFormData, array $incomingFormData): array
+    {
+        $mergedFormData = $storedFormData;
+
+        foreach ($incomingFormData as $key => $value) {
+            $existingValue = $mergedFormData[$key] ?? null;
+
+            if (
+                is_array($value)
+                && is_array($existingValue)
+                && ! array_is_list($value)
+                && ! array_is_list($existingValue)
+            ) {
+                /** @var array<string, mixed> $existingNestedValue */
+                $existingNestedValue = $existingValue;
+
+                /** @var array<string, mixed> $incomingNestedValue */
+                $incomingNestedValue = $value;
+
+                $mergedFormData[$key] = $this->mergeSubmissionFormData(
+                    $existingNestedValue,
+                    $incomingNestedValue,
+                );
+
+                continue;
+            }
+
+            $mergedFormData[$key] = $value;
+        }
+
+        return $mergedFormData;
     }
 
     /**

@@ -1586,6 +1586,209 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             ->and($response->json('data.status'))->toBe('draft');
     });
 
+    test('merges patch form data with the existing draft payload before validating a submitted update', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                    'account_holder' => [
+                        'type' => 'string',
+                        'minLength' => 1,
+                    ],
+                ],
+                'required' => ['iban', 'account_holder'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'iban' => 'DE44500105175407324931',
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => [
+                    'account_holder' => 'Jane Doe',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'submitted')
+            ->assertJsonPath('data.form_data.iban', 'DE44500105175407324931')
+            ->assertJsonPath('data.form_data.account_holder', 'Jane Doe');
+    });
+
+    test('rejects patch submit when merged form data becomes invalid', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                    'account_holder' => [
+                        'type' => 'string',
+                        'minLength' => 1,
+                    ],
+                ],
+                'required' => ['iban', 'account_holder'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'iban' => 'DE44500105175407324931',
+                'account_holder' => 'Jane Doe',
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => [
+                    'iban' => 'not-an-iban',
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['iban']);
+    });
+
+    test('deep-merges nested associative objects on patch without dropping stored sibling keys', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'address' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'city' => ['type' => 'string'],
+                            'country' => ['type' => 'string'],
+                        ],
+                        'required' => ['city', 'country'],
+                    ],
+                ],
+                'required' => ['address'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => ['address' => ['country' => 'DE']],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => ['address' => ['city' => 'Berlin']],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.form_data.address.city', 'Berlin')
+            ->assertJsonPath('data.form_data.address.country', 'DE');
+    });
+
+    test('replaces a list-type nested value on patch without deep-merging it', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'languages' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                    ],
+                ],
+                'required' => ['languages'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => ['languages' => ['fr']],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => ['languages' => ['en', 'de']],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.form_data.languages', ['en', 'de']);
+
+        expect($submission->fresh()->form_data['languages'])->toBe(['en', 'de']);
+    });
+
+    test('ignores a root list-type form_data payload and preserves the stored object without numeric key corruption', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => ['name' => ['type' => 'string']],
+                'required' => ['name'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => ['name' => 'Stored'],
+            'status' => 'draft',
+        ]);
+
+        // A list-type form_data must not corrupt the stored object with numeric keys.
+        // The list is treated as if no form_data was provided; stored data is preserved.
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => ['unexpected', 'list'],
+                'status' => 'draft',
+            ]);
+
+        $response->assertOk();
+
+        $fresh = $submission->fresh();
+        expect($fresh->form_data)
+            ->not->toHaveKey(0)
+            ->not->toHaveKey(1)
+            ->and($fresh->form_data['name'])->toBe('Stored');
+    });
+
     test('allows a rejected submission to be corrected and resubmitted', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
