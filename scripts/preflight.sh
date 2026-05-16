@@ -61,6 +61,9 @@ if [ -d .github/workflows ]; then
     echo "Warning: .github/workflows found but actionlint not installed - skipping workflow lint" >&2
   fi
 fi
+if [ -f scripts/check-php-ci-postgres-bootstrap.sh ]; then
+  bash scripts/check-php-ci-postgres-bootstrap.sh || FORMAT_EXIT=1
+fi
 if command -v reuse >/dev/null 2>&1; then
   reuse lint || FORMAT_EXIT=1
 fi
