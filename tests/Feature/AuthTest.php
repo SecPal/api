@@ -13,6 +13,7 @@ use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -1035,6 +1036,20 @@ describe('Login Rate Limiting', function () {
         expect($unknownResponse->json())->toEqual($existingResponse->json());
     });
 
+    test('token login runs password hashing for non-existent accounts to neutralize timing oracle', function () {
+        Hash::spy();
+
+        $this->postJson('/v1/auth/token', [
+            'email' => 'absent-token-user-'.Str::uuid().'@example.com',
+            'password' => 'whatever-password',
+        ])->assertUnprocessable();
+
+        // Invariant: password verification work must run regardless of whether the
+        // email exists in the database. Skipping Hash::check() for unknown emails
+        // leaks user existence through response timing (bcrypt is ~100ms).
+        Hash::shouldHaveReceived('check')->atLeast()->once();
+    });
+
     test('token login MFA challenges do not consume the wrong-password throttle bucket', function () {
         $user = User::factory()->create([
             'email' => 'mfa-token-limit@secpal.dev',
@@ -1481,6 +1496,22 @@ describe('Login Rate Limiting', function () {
         $unknownResponse->assertUnprocessable();
 
         expect($unknownResponse->json())->toEqual($existingResponse->json());
+    });
+
+    test('session login runs password hashing for non-existent accounts to neutralize timing oracle', function () {
+        Hash::spy();
+
+        $this->withHeaders(spaCsrfHeaders($this))
+            ->postJson('/v1/auth/login', [
+                'email' => 'absent-session-user-'.Str::uuid().'@example.com',
+                'password' => 'whatever-password',
+            ])
+            ->assertUnprocessable();
+
+        // Invariant: password verification work must run regardless of whether the
+        // email exists in the database. Skipping Hash::check() for unknown emails
+        // leaks user existence through response timing (bcrypt is ~100ms).
+        Hash::shouldHaveReceived('check')->atLeast()->once();
     });
 
     test('session login MFA challenges do not consume the wrong-password throttle bucket', function () {

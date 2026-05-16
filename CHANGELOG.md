@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- hardened the email/password login path against user-enumeration timing leaks by always running the configured password hasher against a placeholder hash when no account matches the submitted email, so `/v1/auth/login` and `/v1/auth/token` response times no longer leak account existence through the short-circuited `Hash::check()` call in `AuthController::validatePrimaryCredentials()`
 - skipped `AddressDataSeeder` gracefully when `address_data_imports` or `address_streets` is unavailable during setup seeding, so fresh workspace provisioning no longer aborts the full `db:seed` run on partial or drifted address-data schemas
 - made `addresses:check` treat missing address-data tables like an unavailable dataset instead of aborting with a database exception, so partially provisioned workspaces can still report status cleanly
 - normalized BWR export readiness `errors` responses to stable field codes independent of request locale, and exposed translated human messages separately via `error_messages`

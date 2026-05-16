@@ -1045,13 +1045,20 @@ class AuthController extends Controller
     /**
      * Validate primary email/password credentials for either login flow.
      *
+     * Always runs the configured password hasher, even when the lookup misses,
+     * so the response time does not leak whether an account exists. Otherwise
+     * the bcrypt cost (~100 ms) would create a measurable timing oracle.
+     *
      * @throws ValidationException
      */
     private function validatePrimaryCredentials(string $email, string $password, ?int $tenantId = null): User
     {
         $user = User::where('email', $email)->first();
 
-        if (! $user || ! Hash::check($password, $user->password)) {
+        $hashToCheck = $user !== null ? $user->password : $this->dummyPasswordHash();
+        $passwordValid = Hash::check($password, $hashToCheck);
+
+        if (! $user || ! $passwordValid) {
             $this->activityLogService->logLoginFailed($email, 'invalid_credentials', $tenantId);
 
             throw ValidationException::withMessages([
@@ -1060,6 +1067,24 @@ class AuthController extends Controller
         }
 
         return $user;
+    }
+
+    /**
+     * Return a stable bcrypt placeholder used to neutralize the login timing
+     * oracle when no user matches the submitted email address. The hash is
+     * generated lazily with the application's hashing config so its cost
+     * tracks any future tuning of {@see config/hashing.php}.
+     */
+    private function dummyPasswordHash(): string
+    {
+        /** @var string|null $hash */
+        static $hash = null;
+
+        if ($hash === null) {
+            $hash = (string) Hash::make('secpal-timing-protection-placeholder');
+        }
+
+        return $hash;
     }
 
     /**
