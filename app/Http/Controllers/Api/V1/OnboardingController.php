@@ -714,8 +714,11 @@ class OnboardingController extends Controller
         /** @var array<string, mixed> $storedFormData */
         $storedFormData = is_array($submission->form_data) ? $submission->form_data : [];
 
-        /** @var array<string, mixed>|null $incomingFormData */
-        $incomingFormData = isset($validated['form_data']) && is_array($validated['form_data'])
+        // Guard: a list-type root payload cannot be safely merged into the stored
+        // associative object; treat it as if no form_data was provided to prevent
+        // numeric keys from corrupting the stored structure.
+        /** @var non-empty-array<string, mixed>|null $incomingFormData */
+        $incomingFormData = isset($validated['form_data']) && is_array($validated['form_data']) && ! array_is_list($validated['form_data'])
             ? $validated['form_data']
             : null;
 
