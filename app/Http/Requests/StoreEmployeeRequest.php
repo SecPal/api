@@ -71,16 +71,13 @@ class StoreEmployeeRequest extends FormRequest
                 'regex:/^[0-9]{7}$/',
                 'unique:employees,bwr_id',
             ],
-            'bwr_status' => ['nullable', Rule::in(['not_registered', 'pending', 'active', 'suspended', 'revoked'])],
-            'bwr_registered_at' => ['nullable', 'date'],
-            'bwr_submission_date' => ['nullable', 'date'],
-            'bwr_notes' => ['nullable', 'string', 'max:1000'],
+            'bwr_status' => ['missing'],
+            'bwr_registered_at' => ['missing'],
+            'bwr_submission_date' => ['missing'],
+            'bwr_notes' => ['missing'],
 
             // BewachV § 16 Abs. 2 Nr. 2: Identity Data
-            'gender' => [
-                'required_if:bwr_status,pending,active', // MANDATORY for BWR submission
-                Rule::in(['male', 'female', 'diverse']),
-            ],
+            'gender' => ['nullable', Rule::in(['male', 'female', 'diverse'])],
             'birth_name' => ['nullable', 'string', 'max:255'], // Will be encrypted
             'previous_names' => ['nullable', 'array'], // JSON array of strings
             'previous_names.*' => ['string', 'max:255'],
@@ -93,7 +90,7 @@ class StoreEmployeeRequest extends FormRequest
             'nationalities' => ['nullable', 'array'], // JSON array of ISO codes
             'nationalities.*' => ['string', 'size:2', 'regex:/^[A-Z]{2}$/'], // e.g., ["DE", "PL"]
 
-            'addresses' => ['required_if:bwr_status,pending,active', 'nullable', 'array'],
+            'addresses' => ['nullable', 'array'],
 
             // Emergency contacts
             'emergency_contacts' => ['nullable', 'array'],
@@ -251,6 +248,10 @@ class StoreEmployeeRequest extends FormRequest
             ]),
             'organizational_unit_id.required' => __('Organizational unit is required'),
             'send_invitation.boolean' => __('Invitation sending must be true or false'),
+            'bwr_status.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
+            'bwr_registered_at.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
+            'bwr_submission_date.missing' => __('BWR submission date can only be set when updating an existing employee via PATCH.'),
+            'bwr_notes.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'employment_end_date.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),
             'retention_period_end.missing' => __('Retention fields are managed by the employee lifecycle and cannot be written directly.'),
             'termination_date.after_or_equal' => __('Termination date must be after or equal to contract start date'),
@@ -259,9 +260,6 @@ class StoreEmployeeRequest extends FormRequest
             'bwr_id.size' => 'Die Bewacher-ID muss exakt 7 Ziffern haben.',
             'bwr_id.regex' => 'Die Bewacher-ID darf nur Ziffern enthalten (0000000-9999999).',
             'bwr_id.unique' => 'Diese Bewacher-ID ist bereits vergeben.',
-
-            // Gender (mandatory for BWR)
-            'gender.required_if' => 'Geschlecht ist für BWR-Anmeldung verpflichtend.',
 
             // ISO country codes
             'birth_country.size' => 'Geburtsland muss ISO-Code mit 2 Buchstaben sein (z.B. DE, PL).',
