@@ -30,6 +30,7 @@ use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
@@ -38,6 +39,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
+use Throwable;
 use Webauthn\Exception\WebauthnException;
 
 class AuthController extends Controller
@@ -46,6 +48,15 @@ class AuthController extends Controller
      * Password reset token expiry time in minutes.
      */
     private const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 60;
+
+    /**
+     * Cache prefix for the placeholder hash used on unknown-user logins.
+     */
+    private const DUMMY_PASSWORD_HASH_CACHE_PREFIX = 'auth:dummy-password-hash:v1';
+
+    private const DUMMY_PASSWORD_PLACEHOLDER = 'secpal-timing-protection-placeholder';
+
+    private const FALLBACK_DUMMY_PASSWORD_HASH = '$2y$12$fAJGA/LIzR7AAtIjg4UYxuj6V0hnGJxYaEB5pvNIjO9CJt6KPU8Hy';
 
     /**
      * Activity log service for authentication events.
@@ -483,7 +494,7 @@ class AuthController extends Controller
             $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
 
             throw $this->passkeyCredentialValidationException($exception);
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
 
             report($exception);
@@ -1045,13 +1056,20 @@ class AuthController extends Controller
     /**
      * Validate primary email/password credentials for either login flow.
      *
+     * Always runs the configured password hasher, even when the lookup misses,
+     * so the response time does not leak whether an account exists. Otherwise
+     * the bcrypt cost (~100 ms) would create a measurable timing oracle.
+     *
      * @throws ValidationException
      */
     private function validatePrimaryCredentials(string $email, string $password, ?int $tenantId = null): User
     {
         $user = User::where('email', $email)->first();
 
-        if (! $user || ! Hash::check($password, $user->password)) {
+        $hashToCheck = $user !== null ? $user->password : $this->dummyPasswordHash();
+        $passwordValid = Hash::check($password, $hashToCheck);
+
+        if (! $user || ! $passwordValid) {
             $this->activityLogService->logLoginFailed($email, 'invalid_credentials', $tenantId);
 
             throw ValidationException::withMessages([
@@ -1060,6 +1078,34 @@ class AuthController extends Controller
         }
 
         return $user;
+    }
+
+    /**
+     * Return a stable bcrypt placeholder used to neutralize the login timing
+     * oracle when no user matches the submitted email address. Cache entries
+     * are scoped by hasher config so cost/driver changes regenerate the hash.
+     */
+    private function dummyPasswordHash(): string
+    {
+        try {
+            return Cache::rememberForever(
+                $this->dummyPasswordHashCacheKey(),
+                static fn (): string => (string) Hash::make(self::DUMMY_PASSWORD_PLACEHOLDER),
+            );
+        } catch (Throwable) {
+            return self::FALLBACK_DUMMY_PASSWORD_HASH;
+        }
+    }
+
+    private function dummyPasswordHashCacheKey(): string
+    {
+        $hashConfig = config('hashing', []);
+
+        if (! is_array($hashConfig)) {
+            $hashConfig = ['value' => $hashConfig];
+        }
+
+        return self::DUMMY_PASSWORD_HASH_CACHE_PREFIX.':'.hash('sha256', serialize($hashConfig));
     }
 
     /**
@@ -1247,7 +1293,7 @@ class AuthController extends Controller
             $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
 
             throw $this->passkeyCredentialValidationException($exception);
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
 
             report($exception);
