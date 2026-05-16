@@ -794,8 +794,8 @@ class OnboardingController extends Controller
             if (
                 is_array($value)
                 && is_array($existingValue)
-                && $this->isAssociativeArray($value)
-                && $this->isAssociativeArray($existingValue)
+                && ! array_is_list($value)
+                && ! array_is_list($existingValue)
             ) {
                 /** @var array<string, mixed> $existingNestedValue */
                 $existingNestedValue = $existingValue;
@@ -815,18 +815,6 @@ class OnboardingController extends Controller
         }
 
         return $mergedFormData;
-    }
-
-    /**
-     * @param  array<mixed, mixed>  $value
-     */
-    private function isAssociativeArray(array $value): bool
-    {
-        if ($value === []) {
-            return false;
-        }
-
-        return array_keys($value) !== range(0, count($value) - 1);
     }
 
     /**
