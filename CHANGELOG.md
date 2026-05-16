@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- blocked direct `POST /v1/employees` writes to `bwr_status` and `bwr_registered_at` so employee creation can no longer bypass the dedicated BWR status workflow and its audit trail
 - skipped `AddressDataSeeder` gracefully when `address_data_imports` or `address_streets` is unavailable during setup seeding, so fresh workspace provisioning no longer aborts the full `db:seed` run on partial or drifted address-data schemas
 - made `addresses:check` treat missing address-data tables like an unavailable dataset instead of aborting with a database exception, so partially provisioned workspaces can still report status cleanly
 - normalized BWR export readiness `errors` responses to stable field codes independent of request locale, and exposed translated human messages separately via `error_messages`

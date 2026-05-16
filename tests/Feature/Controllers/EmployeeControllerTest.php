@@ -939,6 +939,52 @@ describe('POST /v1/employees', function () {
             'email' => 'rita.retention@example.com',
         ]);
     });
+
+    test('rejects direct bwr workflow state writes on employee creation', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'Bianca',
+                'last_name' => 'Bypass',
+                'email' => 'bianca.bypass@example.com',
+                'date_of_birth' => '1990-01-15',
+                'position' => 'Security Guard',
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->addWeek()->toDateString(),
+                'weekly_hours' => 40,
+                'hourly_rate' => 15.50,
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'sachkunde_type' => 'none',
+                'work_permit_type' => 'none',
+                'criminal_record_status' => 'valid',
+                'management_level' => 0,
+                'bwr_status' => 'active',
+                'bwr_registered_at' => now()->toDateString(),
+                'gender' => 'female',
+                'addresses' => [
+                    [
+                        'street' => 'Hauptstrasse',
+                        'house_number' => '42A',
+                        'postal_code' => '10115',
+                        'city' => 'Berlin',
+                        'country' => 'DE',
+                        'resided_from' => '2024-01-01',
+                    ],
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'bwr_status' => 'BWR fields must be changed via the dedicated BWR status endpoint.',
+                'bwr_registered_at',
+            ]);
+
+        $this->assertDatabaseMissing('employees', [
+            'email' => 'bianca.bypass@example.com',
+        ]);
+    });
 });
 
 describe('GET /v1/employees/{employee}', function () {
