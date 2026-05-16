@@ -714,9 +714,14 @@ class OnboardingController extends Controller
         /** @var array<string, mixed> $storedFormData */
         $storedFormData = is_array($submission->form_data) ? $submission->form_data : [];
 
+        /** @var array<string, mixed>|null $incomingFormData */
+        $incomingFormData = isset($validated['form_data']) && is_array($validated['form_data'])
+            ? $validated['form_data']
+            : null;
+
         /** @var array<string, mixed> $effectiveFormData */
-        $effectiveFormData = isset($validated['form_data']) && is_array($validated['form_data'])
-            ? $this->mergeSubmissionFormData($storedFormData, $validated['form_data'])
+        $effectiveFormData = is_array($incomingFormData)
+            ? $this->mergeSubmissionFormData($storedFormData, $incomingFormData)
             : $storedFormData;
 
         $this->onboardingFormDataSchemaValidationService->assertMatchesTemplate(
@@ -812,6 +817,9 @@ class OnboardingController extends Controller
         return $mergedFormData;
     }
 
+    /**
+     * @param  array<mixed, mixed>  $value
+     */
     private function isAssociativeArray(array $value): bool
     {
         if ($value === []) {
