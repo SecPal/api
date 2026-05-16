@@ -449,6 +449,7 @@ class EmployeeController extends Controller
             return response()->json([
                 'message' => __('Employee is not ready for BWR export.'),
                 'errors' => $exception->errors,
+                'error_messages' => $exception->translatedErrors(),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 

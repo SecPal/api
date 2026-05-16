@@ -1571,8 +1571,41 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
         $response->assertStatus(422)
             ->assertJsonPath('message', 'Employee is not ready for BWR export.');
 
-        expect($response->json('errors'))->toContain(__('bwr_export.missing_fields.gender'))
+        expect($response->json('errors'))->toContain('gender')
+            ->and($response->json('error_messages'))->toContain(__('bwr_export.missing_fields.gender'))
             ->and($employee->fresh()->bwr_status)->toBe('not_registered');
+    });
+
+    test('returns locale-independent bwr export error codes under a German Accept-Language header', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'bwr_status' => 'not_registered',
+            'gender' => null,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->withHeaders(['Accept-Language' => 'de'])
+            ->postJson("/v1/employees/{$employee->id}/bwr/export", [
+                'format' => 'csv',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Der Mitarbeiter ist nicht bereit für den BWR-Export.');
+
+        expect($response->json('errors'))->toContain('gender')
+            ->and($response->json('error_messages'))->toContain('Das Geschlecht muss im Mitarbeiterprofil gesetzt sein.');
     });
 
     test('returns 422 when employee already left not_registered status', function (): void {
