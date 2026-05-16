@@ -1715,6 +1715,154 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
             ->assertJsonPath('data.form_data.address.country', 'DE');
     });
 
+    test('removes a stored top-level key when patch form data sets it to null', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => false,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string'],
+                    'nickname' => ['type' => 'string'],
+                ],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'name' => 'Jane Doe',
+                'nickname' => 'JD',
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => [
+                    'nickname' => null,
+                ],
+                'status' => 'draft',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.form_data.name', 'Jane Doe');
+
+        expect($response->json('data.form_data'))
+            ->not->toHaveKey('nickname');
+
+        expect($submission->fresh()->form_data)
+            ->toBe(['name' => 'Jane Doe']);
+    });
+
+    test('removes a stored nested key when patch form data sets it to null', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => false,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'address' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'city' => ['type' => 'string'],
+                            'country' => ['type' => 'string'],
+                            'line2' => ['type' => 'string'],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'address' => [
+                    'city' => 'Berlin',
+                    'country' => 'DE',
+                    'line2' => 'Floor 3',
+                ],
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => [
+                    'address' => [
+                        'line2' => null,
+                    ],
+                ],
+                'status' => 'draft',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.form_data.address.city', 'Berlin')
+            ->assertJsonPath('data.form_data.address.country', 'DE');
+
+        expect($response->json('data.form_data.address'))
+            ->not->toHaveKey('line2');
+
+        expect($submission->fresh()->form_data)
+            ->toBe([
+                'address' => [
+                    'city' => 'Berlin',
+                    'country' => 'DE',
+                ],
+            ]);
+    });
+
+    test('rejects patch submit when null sentinel removes a required field from the effective payload', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $template = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_required' => true,
+            'form_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'iban' => [
+                        'type' => 'string',
+                        'pattern' => '^[A-Z]{2}\d{2}[A-Z0-9]+$',
+                    ],
+                    'account_holder' => [
+                        'type' => 'string',
+                        'minLength' => 1,
+                    ],
+                ],
+                'required' => ['iban', 'account_holder'],
+            ],
+        ]);
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $template->id,
+            'form_data' => [
+                'iban' => 'DE44500105175407324931',
+                'account_holder' => 'Jane Doe',
+            ],
+            'status' => 'draft',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/onboarding/submissions/{$submission->id}", [
+                'form_data' => [
+                    'iban' => null,
+                ],
+                'status' => 'submitted',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['form_data'])
+            ->assertJsonPath('errors.form_data.0', 'The required properties (iban) are missing');
+    });
+
     test('replaces a list-type nested value on patch without deep-merging it', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
 
