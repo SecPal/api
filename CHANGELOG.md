@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added `AddressDataSeeder` to the standard setup seeding flow (non-production environments) with an optional `ADDRESS_DATA_SETUP_SOURCE_PATH` config key for offline/local CSV-backed setup without a network download
 - added OpenPLZ-backed German address reference imports, weekly refresh scheduling, and authenticated `/v1/addresses/de/*` autocomplete/status endpoints for street and locality lookup
 - added optional employee `emergency_contacts` support across request validation, persistence (new nullable JSON column on `employees`), and API resource serialization, with targeted regression tests for validation, model casting, resource output, and schema presence
 

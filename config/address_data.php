@@ -43,6 +43,8 @@ return [
 
     'import_on_setup' => filter_var(env('ADDRESS_DATA_IMPORT_ON_SETUP', 'true'), FILTER_VALIDATE_BOOLEAN),
 
+    'setup_source_path' => env('ADDRESS_DATA_SETUP_SOURCE_PATH'),
+
     /*
     |--------------------------------------------------------------------------
     | License & attribution (ODbL — verify suitability before production use)
