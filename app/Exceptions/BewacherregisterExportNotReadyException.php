@@ -17,6 +17,17 @@ class BewacherregisterExportNotReadyException extends RuntimeException
     public function __construct(
         public readonly array $errors,
     ) {
-        parent::__construct(implode(', ', $errors));
+        parent::__construct(implode(', ', $this->translatedErrors()));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function translatedErrors(): array
+    {
+        return array_map(
+            static fn (string $error): string => __('bwr_export.missing_fields.'.$error),
+            $this->errors,
+        );
     }
 }

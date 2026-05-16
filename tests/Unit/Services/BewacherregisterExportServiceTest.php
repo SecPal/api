@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\BewacherregisterExportNotReadyException;
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
 use App\Models\OrganizationalUnit;
@@ -154,6 +155,23 @@ test('export throws when required BWR fields are missing', function (): void {
 
     expect(fn () => $this->service->exportCsv($employee->fresh(['addresses']), 'HR Operations'))
         ->toThrow(RuntimeException::class, $expectedMessage);
+});
+
+test('export exception exposes stable missing field codes even when the locale is German', function (): void {
+    app()->setLocale('de');
+
+    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
+        'gender' => null,
+    ]);
+
+    try {
+        $this->service->exportCsv($employee, 'HR Operations');
+
+        $this->fail('Expected BWR export to fail when a required field is missing.');
+    } catch (BewacherregisterExportNotReadyException $exception) {
+        expect($exception->errors)->toBe(['gender'])
+            ->and($exception->getMessage())->toBe('Das Geschlecht muss im Mitarbeiterprofil gesetzt sein.');
+    }
 });
 
 test('export requires valid work authorization for non exempt nationalities', function (): void {
