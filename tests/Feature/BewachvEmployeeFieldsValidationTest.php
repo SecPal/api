@@ -145,40 +145,30 @@ test('BWR-ID must be unique', function () {
         ->and($validator->errors()->first('bwr_id'))->toContain('bereits');
 });
 
-test('gender is required when BWR status is pending or active', function () {
+test('gender is not conditionally required when BWR status is rejected on create', function () {
     $baseData = validStoreEmployeeData($this);
 
-    // Test with pending status - should fail without gender
     $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['bwr_status' => 'pending']));
     expect($validator->fails())->toBeTrue()
-        ->and($validator->errors()->has('gender'))->toBeTrue();
+        ->and($validator->errors()->has('bwr_status'))->toBeTrue()
+        ->and($validator->errors()->has('gender'))->toBeFalse();
 
-    // Test with active status - should fail without gender
-    $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['bwr_status' => 'active', 'email' => 'test2@example.com']));
-    expect($validator->fails())->toBeTrue()
-        ->and($validator->errors()->has('gender'))->toBeTrue();
-
-    // Test with not_registered status - should pass without gender
-    $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['bwr_status' => 'not_registered', 'email' => 'test3@example.com']));
-    expect($validator->errors()->has('gender'))->toBeFalse();
+    // positive path: valid payload without bwr_status accepts omitted gender
+    $validValidator = makeStoreEmployeeValidator($this, $baseData);
+    expect($validValidator->errors()->has('gender'))->toBeFalse();
 });
 
-test('structured address fields are required when BWR status is pending or active', function () {
+test('structured address fields are not conditionally required when BWR status is rejected on create', function () {
     $baseData = validStoreEmployeeData($this);
 
-    // Test with pending status - should fail without addresses payload
     $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['bwr_status' => 'pending']));
     expect($validator->fails())->toBeTrue()
-        ->and($validator->errors()->has('addresses'))->toBeTrue();
+        ->and($validator->errors()->has('bwr_status'))->toBeTrue()
+        ->and($validator->errors()->has('addresses'))->toBeFalse();
 
-    // Test with active status - should fail without addresses payload
-    $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['bwr_status' => 'active', 'email' => 'test2@example.com']));
-    expect($validator->fails())->toBeTrue()
-        ->and($validator->errors()->has('addresses'))->toBeTrue();
-
-    // Test with not_registered status - should pass without addresses payload
-    $validator = makeStoreEmployeeValidator($this, array_merge($baseData, ['bwr_status' => 'not_registered', 'email' => 'test3@example.com']));
-    expect($validator->errors()->has('addresses'))->toBeFalse();
+    // positive path: valid payload without bwr_status accepts omitted addresses
+    $validValidator = makeStoreEmployeeValidator($this, $baseData);
+    expect($validValidator->errors()->has('addresses'))->toBeFalse();
 });
 
 test('blank current address rows are rejected for store and update requests', function () {
