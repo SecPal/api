@@ -188,6 +188,7 @@ class AuthController extends Controller
 
         if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
             $this->activityLogService->logLoginFailed($user->email, 'invalid_mfa_code');
+            $this->loginMfaChallengeService->forget($challengeId);
 
             throw ValidationException::withMessages([
                 'code' => ['The provided multi-factor authentication code is invalid.'],

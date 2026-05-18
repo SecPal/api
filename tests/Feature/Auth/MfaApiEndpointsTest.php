@@ -5,8 +5,10 @@
 
 use App\Models\Activity;
 use App\Models\User;
+use App\Services\LoginMfaChallengeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Laragear\TwoFactor\Models\TwoFactorAuthentication;
 
 uses(RefreshDatabase::class);
@@ -126,25 +128,29 @@ test('invalid TOTP challenge attempts are rate limited with retry headers', func
     $user->createTwoFactorAuth();
     expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
 
-    $loginResponse = $this->postJson('/v1/auth/token', [
-        'email' => 'mfa-rate-limit-totp@secpal.dev',
-        'password' => 'password123',
-        'device_name' => 'mfa-rate-limit-totp',
-    ]);
+    $startChallenge = function () {
+        $loginResponse = $this->postJson('/v1/auth/token', [
+            'email' => 'mfa-rate-limit-totp@secpal.dev',
+            'password' => 'password123',
+            'device_name' => 'mfa-rate-limit-totp',
+        ]);
 
-    $loginResponse->assertStatus(202)
-        ->assertJsonPath('challenge.id', fn (mixed $value): bool => is_string($value) && $value !== '');
+        $loginResponse->assertStatus(202)
+            ->assertJsonPath('challenge.id', fn (mixed $value): bool => is_string($value) && $value !== '');
 
-    $challengeId = (string) $loginResponse->json('challenge.id');
+        return (string) $loginResponse->json('challenge.id');
+    };
 
     for ($i = 0; $i < 5; $i++) {
+        $challengeId = $startChallenge();
+
         $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
             'method' => 'totp',
             'code' => '000000',
         ])->assertUnprocessable();
     }
 
-    $response = $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
+    $response = $this->postJson('/v1/auth/mfa-challenges/'.(string) Str::uuid().'/verify', [
         'method' => 'totp',
         'code' => '000000',
     ]);
@@ -157,6 +163,34 @@ test('invalid TOTP challenge attempts are rate limited with retry headers', func
         ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
 });
 
+test('invalid MFA verification forgets the login challenge', function () {
+    $user = User::factory()->create([
+        'email' => 'mfa-forget-challenge@secpal.dev',
+        'password' => bcrypt('password123'),
+    ]);
+
+    $user->createTwoFactorAuth();
+    expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
+
+    $loginResponse = $this->postJson('/v1/auth/token', [
+        'email' => 'mfa-forget-challenge@secpal.dev',
+        'password' => 'password123',
+        'device_name' => 'mfa-forget-challenge',
+    ]);
+
+    $loginResponse->assertStatus(202)
+        ->assertJsonPath('challenge.id', fn (mixed $value): bool => is_string($value) && $value !== '');
+
+    $challengeId = (string) $loginResponse->json('challenge.id');
+
+    $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
+        'method' => 'totp',
+        'code' => '000000',
+    ])->assertUnprocessable();
+
+    expect(app(LoginMfaChallengeService::class)->find($challengeId))->toBeNull();
+});
+
 test('invalid recovery-code challenge attempts are rate limited with retry headers', function () {
     $user = User::factory()->create([
         'email' => 'mfa-rate-limit-recovery@secpal.dev',
@@ -166,25 +200,29 @@ test('invalid recovery-code challenge attempts are rate limited with retry heade
     $user->createTwoFactorAuth();
     expect($user->confirmTwoFactorAuth($user->makeTwoFactorCode()))->toBeTrue();
 
-    $loginResponse = $this->postJson('/v1/auth/token', [
-        'email' => 'mfa-rate-limit-recovery@secpal.dev',
-        'password' => 'password123',
-        'device_name' => 'mfa-rate-limit-recovery',
-    ]);
+    $startChallenge = function () {
+        $loginResponse = $this->postJson('/v1/auth/token', [
+            'email' => 'mfa-rate-limit-recovery@secpal.dev',
+            'password' => 'password123',
+            'device_name' => 'mfa-rate-limit-recovery',
+        ]);
 
-    $loginResponse->assertStatus(202)
-        ->assertJsonPath('challenge.id', fn (mixed $value): bool => is_string($value) && $value !== '');
+        $loginResponse->assertStatus(202)
+            ->assertJsonPath('challenge.id', fn (mixed $value): bool => is_string($value) && $value !== '');
 
-    $challengeId = (string) $loginResponse->json('challenge.id');
+        return (string) $loginResponse->json('challenge.id');
+    };
 
     for ($i = 0; $i < 5; $i++) {
+        $challengeId = $startChallenge();
+
         $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
             'method' => 'recovery_code',
             'code' => 'ZZZZZZZZ',
         ])->assertUnprocessable();
     }
 
-    $response = $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
+    $response = $this->postJson('/v1/auth/mfa-challenges/'.(string) Str::uuid().'/verify', [
         'method' => 'recovery_code',
         'code' => 'ZZZZZZZZ',
     ]);
