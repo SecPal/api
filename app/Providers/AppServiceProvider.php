@@ -376,9 +376,12 @@ class AppServiceProvider extends ServiceProvider
 
     private function mfaChallengeThrottleKey(Request $request): string
     {
-        $challengeId = (string) ($request->route('challengeId') ?? 'unknown');
+        // Failed MFA verification now invalidates the login challenge, so challenge IDs
+        // rotate across retries. Key by IP + route scope so the limiter still
+        // accumulates repeated invalid MFA attempts across fresh challenges.
+        $scope = $request->route()?->uri() ?? $request->path();
 
-        return $request->ip().'|'.$challengeId;
+        return $request->ip().'|'.$scope;
     }
 
     private function passkeyVerifyThrottleKey(Request $request): string
