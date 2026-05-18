@@ -41,16 +41,17 @@ test('logLoginSuccess creates authentication log with 8-year retention', functio
 });
 
 test('logLoginFailed creates authentication log without causer', function (): void {
-    // Note: In real scenarios, failed logins happen before authentication, so causer_id would be null.
-    // In this test environment, a user is already authenticated from beforeEach(),
-    // so Activity's booted() hook will auto-inject the authenticated user's ID as causer.
-    // This is acceptable since the test verifies the core logging functionality.
+    // Failed logins happen before authentication, so no user is authenticated.
+    // Reset all guard instances to clear the user set by beforeEach() and verify
+    // that causer_id is truly null, matching production conditions.
+    Auth::forgetGuards();
 
-    $activity = $this->service->logLoginFailed('test@example.com', 'Invalid password', $this->tenant->id);
+    $activity = $this->service->logLoginFailed('test@example.com', 'Invalid password');
 
     expect($activity)->toBeInstanceOf(Activity::class)
         ->and($activity->log_name)->toBe('authentication')
         ->and($activity->description)->toBe('Failed login attempt')
+        ->and($activity->causer_id)->toBeNull()
         ->and($activity->properties['event'])->toBe('login_failed')
         ->and($activity->properties['email'])->toBe('test@example.com')
         ->and($activity->properties['reason'])->toBe('Invalid password')
