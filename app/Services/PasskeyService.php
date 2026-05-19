@@ -34,8 +34,6 @@ class PasskeyService
 {
     private const AUTHENTICATION_FALLBACK_SCOPE = 'passkey-authentication-fallback:v1';
 
-    private const ANONYMOUS_AUTHENTICATION_FALLBACK_SCOPE = '[anonymous]';
-
     private Serializer $serializer;
 
     private AuthenticatorAttestationResponseValidator $attestationValidator;
@@ -316,15 +314,11 @@ class PasskeyService
         ];
     }
 
-    private function buildFallbackAuthenticationCredentialId(?string $email): string
+    private function buildFallbackAuthenticationCredentialId(string $email): string
     {
-        $emailScope = is_string($email) && $email !== ''
-            ? mb_strtolower($email)
-            : self::ANONYMOUS_AUTHENTICATION_FALLBACK_SCOPE;
-
         return hash_hmac(
             'sha256',
-            self::AUTHENTICATION_FALLBACK_SCOPE.'|'.$emailScope,
+            self::AUTHENTICATION_FALLBACK_SCOPE.'|'.mb_strtolower($email),
             $this->authenticationFallbackSecret(),
             true,
         );
