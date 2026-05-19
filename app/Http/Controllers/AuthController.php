@@ -1233,9 +1233,7 @@ class AuthController extends Controller
         if (is_string($email) && $email !== '') {
             $userQuery->whereRaw('LOWER(email) = ?', [mb_strtolower($email)]);
         } else {
-            $userQuery
-                ->whereRaw('LOWER(email) = ?', [''])
-                ->whereRaw('1 = 0');
+            $userQuery->whereRaw('1 = 0');
         }
 
         $user = $userQuery->first();

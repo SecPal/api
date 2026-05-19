@@ -326,7 +326,7 @@ class PasskeyService
 
     private function authenticationFallbackSecret(): string
     {
-        $secret = config('passkeys.authentication_fallback_secret', config('app.key', ''));
+        $secret = config('passkeys.authentication_fallback_secret', '');
 
         if (! is_string($secret) || $secret === '') {
             throw new \RuntimeException(

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Breaking:** Employee residential addresses live in `employee_addresses` (encrypted street/postal/city fields per row, optional residence date range). The API uses `addresses[]` instead of flat `address_*` attributes and `address_history` JSON on `employees`. Legacy values are migrated into `employee_addresses` during rollout, but clients must adopt `addresses[]` going forward.
+- **Breaking:** The `PASSKEY_AUTHENTICATION_MEDIATION` environment variable and the `passkeys.authentication_mediation` config key have been removed. The passkey authentication challenge mediation is now always `optional`; remove the env var from your deployment configuration.
 
 ### Fixed
 
