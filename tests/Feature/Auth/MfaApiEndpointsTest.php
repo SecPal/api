@@ -163,7 +163,7 @@ test('invalid TOTP challenge attempts are rate limited with retry headers', func
         ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
 });
 
-test('invalid MFA verification forgets the login challenge', function () {
+test('invalid MFA verification invalidates the login challenge for later retries', function () {
     $user = User::factory()->create([
         'email' => 'mfa-forget-challenge@secpal.dev',
         'password' => bcrypt('password123'),
@@ -189,6 +189,11 @@ test('invalid MFA verification forgets the login challenge', function () {
     ])->assertUnprocessable();
 
     expect(app(LoginMfaChallengeService::class)->find($challengeId))->toBeNull();
+
+    $this->postJson('/v1/auth/mfa-challenges/'.$challengeId.'/verify', [
+        'method' => 'totp',
+        'code' => $user->fresh()->makeTwoFactorCode(),
+    ])->assertNotFound();
 });
 
 test('invalid recovery-code challenge attempts are rate limited with retry headers', function () {
