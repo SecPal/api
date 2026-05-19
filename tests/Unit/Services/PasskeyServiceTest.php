@@ -75,7 +75,7 @@ describe('PasskeyService authentication fallback secret', function () {
 
         expect(fn () => $service->buildAuthenticationOptions(null, 'missing@secpal.dev'))
             ->toThrow(
-                \RuntimeException::class,
+                RuntimeException::class,
                 'Passkey authentication fallback secret must be configured via PASSKEY_AUTHENTICATION_FALLBACK_SECRET or APP_KEY.',
             );
     });
