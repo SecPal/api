@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- hardened the public passkey authentication challenge endpoints against account-existence and passkey-enrollment enumeration by always returning the same created challenge shape, using deterministic fallback `allow_credentials` descriptors for unknown / unenrolled / anonymous flows, and aligning the lookup query path across all challenge entry variants
+- hardened the public passkey authentication challenge endpoints against account-existence and passkey-enrollment enumeration by always returning the same created challenge shape, using deterministic fallback `allow_credentials` descriptors for unknown or unenrolled flows, and aligning the lookup query path across all challenge entry variants; the fallback secret is now only required when a fallback descriptor is actually generated, so enrolled users with real credentials are unaffected by a missing `PASSKEY_AUTHENTICATION_FALLBACK_SECRET`
 - ignored client-supplied tenant identifiers when recording failed login activity, so spoofed `tenant_id` values can no longer misattribute SPA or token login failures to another tenant
 - hardened the email/password login path against user-enumeration timing leaks by always running the configured password hasher against a placeholder hash when no account matches the submitted email, so `/v1/auth/login` and `/v1/auth/token` response times no longer leak account existence through the short-circuited `Hash::check()` call in `AuthController::validatePrimaryCredentials()`
 - blocked direct `POST /v1/employees` writes to `bwr_status` and `bwr_registered_at` so employee creation can no longer bypass the dedicated BWR status workflow and its audit trail

@@ -77,10 +77,6 @@ class PasskeyService
     {
         $timeout = $this->challengeTimeoutMs();
 
-        if (is_string($email) && $email !== '') {
-            $this->authenticationFallbackSecret();
-        }
-
         $allowCredentials = $this->resolveAuthenticationAllowCredentials($user, $email);
 
         $options = PublicKeyCredentialRequestOptions::create(
@@ -309,6 +305,12 @@ class PasskeyService
         if (! is_string($email) || $email === '') {
             return [];
         }
+
+        // Validate the secret only when the fallback descriptor is actually needed
+        // (i.e., no real credentials exist). Enrolled users must not receive a 503
+        // due to a missing fallback secret when their real allow_credentials would
+        // have been returned.
+        $this->authenticationFallbackSecret();
 
         return [
             PublicKeyCredentialDescriptor::create(

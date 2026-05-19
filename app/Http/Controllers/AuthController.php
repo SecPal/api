@@ -1253,6 +1253,10 @@ class AuthController extends Controller
 
         $user = $userQuery->first();
 
+        // Always execute the passkey_credentials query to align the DB lookup
+        // count across all account states. When no real user matched, query
+        // against the nil UUID (PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID),
+        // which must never be assigned to a real user or seeded credential.
         $passkeyCredentials = PasskeyCredential::query()
             ->where('user_id', $user instanceof User ? $user->id : self::PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID)
             ->get();

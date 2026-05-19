@@ -97,7 +97,7 @@ dataset('public passkey challenge endpoints', [
 ]);
 
 describe('Public passkey challenge enumeration hardening', function () {
-    test('email-scoped challenges fail closed uniformly when the fallback secret is not configured', function (string $endpoint) {
+    test('missing fallback secret causes 503 only for unenrolled or unknown emails, not for enrolled users', function (string $endpoint) {
         config()->set('passkeys.authentication_fallback_secret', '');
 
         $userWithPasskey = User::factory()->create([
@@ -113,17 +113,20 @@ describe('Public passkey challenge enumeration hardening', function () {
             'email' => 'without-passkey@secpal.dev',
         ]);
 
-        $responses = [
-            postPublicPasskeyChallenge($endpoint, ['email' => 'missing@secpal.dev'], '127.0.0.1'),
-            postPublicPasskeyChallenge($endpoint, ['email' => 'without-passkey@secpal.dev'], '127.0.0.2'),
-            postPublicPasskeyChallenge($endpoint, ['email' => 'with-passkey@secpal.dev'], '127.0.0.3'),
-        ];
+        // Unenrolled and unknown email-scoped requests require the fallback
+        // descriptor and must fail closed when the secret is not configured.
+        postPublicPasskeyChallenge($endpoint, ['email' => 'missing@secpal.dev'], '127.0.0.1')
+            ->assertStatus(503)->assertJsonStructure(['message']);
 
-        foreach ($responses as $response) {
-            $response->assertStatus(503)
-                ->assertJsonStructure(['message']);
-        }
+        postPublicPasskeyChallenge($endpoint, ['email' => 'without-passkey@secpal.dev'], '127.0.0.2')
+            ->assertStatus(503)->assertJsonStructure(['message']);
 
+        // Enrolled users have real allow_credentials; the fallback descriptor is
+        // never generated, so a missing secret must not cause a 503.
+        postPublicPasskeyChallenge($endpoint, ['email' => 'with-passkey@secpal.dev'], '127.0.0.3')
+            ->assertCreated();
+
+        // Anonymous discoverable flow never uses the fallback secret either.
         postPublicPasskeyChallenge($endpoint, [], '127.0.0.4')
             ->assertCreated();
     })->with('public passkey challenge endpoints');
