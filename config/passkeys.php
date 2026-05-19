@@ -19,7 +19,7 @@ return [
     'challenge_timeout_ms' => (int) env('PASSKEY_CHALLENGE_TIMEOUT_MS', 60000),
     'challenge_expiration_minutes' => (int) env('PASSKEY_CHALLENGE_EXPIRATION_MINUTES', 10),
     'attestation' => (string) env('PASSKEY_ATTESTATION', 'none'),
-    'authentication_mediation' => (string) env('PASSKEY_AUTHENTICATION_MEDIATION', 'conditional'),
+    'authentication_mediation' => (string) env('PASSKEY_AUTHENTICATION_MEDIATION', 'optional'),
     'authentication_fallback_secret' => (string) (env('PASSKEY_AUTHENTICATION_FALLBACK_SECRET') ?? env('APP_KEY', '')),
     'user_verification' => (string) env('PASSKEY_USER_VERIFICATION', 'preferred'),
     'resident_key' => (string) env('PASSKEY_RESIDENT_KEY', 'preferred'),

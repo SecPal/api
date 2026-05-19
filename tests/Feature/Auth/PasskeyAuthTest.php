@@ -43,6 +43,17 @@ describe('Passkey Authentication', function () {
             ->and($response->json('data.public_key.allow_credentials'))->toBeArray()->not->toBeEmpty();
     });
 
+    test('browser passkey login challenge uses the configured mediation value', function () {
+        config()->set('passkeys.authentication_mediation', 'conditional');
+
+        $response = $this->withHeaders(spaHeaders())
+            ->postJson('/v1/auth/passkeys/challenges');
+
+        $response->assertCreated();
+
+        expect($response->json('data.mediation'))->toBe('conditional');
+    });
+
     test('browser passkey login challenge returns allow_credentials for an email-scoped fallback', function () {
         $user = User::factory()->create([
             'email' => 'test@secpal.dev',
