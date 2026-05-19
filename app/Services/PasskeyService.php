@@ -311,23 +311,23 @@ class PasskeyService
         // (i.e., no real credentials exist). Enrolled users must not receive a 503
         // due to a missing fallback secret when their real allow_credentials would
         // have been returned.
-        $this->authenticationFallbackSecret();
+        $fallbackSecret = $this->authenticationFallbackSecret();
 
         return [
             PublicKeyCredentialDescriptor::create(
                 PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
-                $this->buildFallbackAuthenticationCredentialId($email),
+                $this->buildFallbackAuthenticationCredentialId($email, $fallbackSecret),
                 [PublicKeyCredentialDescriptor::AUTHENTICATOR_TRANSPORT_INTERNAL],
             ),
         ];
     }
 
-    private function buildFallbackAuthenticationCredentialId(string $email): string
+    private function buildFallbackAuthenticationCredentialId(string $email, string $fallbackSecret): string
     {
         return hash_hmac(
             'sha256',
             self::AUTHENTICATION_FALLBACK_SCOPE.'|'.mb_strtolower($email),
-            $this->authenticationFallbackSecret(),
+            $fallbackSecret,
             true,
         );
     }
