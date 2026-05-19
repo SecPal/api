@@ -32,6 +32,10 @@ use Webauthn\PublicKeyCredentialUserEntity;
 
 class PasskeyService
 {
+    private const AUTHENTICATION_FALLBACK_SCOPE = 'passkey-authentication-fallback:v1';
+
+    private const ANONYMOUS_AUTHENTICATION_FALLBACK_SCOPE = '[anonymous]';
+
     private Serializer $serializer;
 
     private AuthenticatorAttestationResponseValidator $attestationValidator;
@@ -71,12 +75,10 @@ class PasskeyService
     /**
      * @return array<string, mixed>
      */
-    public function buildAuthenticationOptions(?User $user = null): array
+    public function buildAuthenticationOptions(?User $user = null, ?string $email = null): array
     {
         $timeout = $this->challengeTimeoutMs();
-        $allowCredentials = $user?->passkeyCredentials
-            ->map(fn (PasskeyCredential $credential): PublicKeyCredentialDescriptor => $credential->toPublicKeyCredentialSource()->getPublicKeyCredentialDescriptor())
-            ->all() ?? [];
+        $allowCredentials = $this->resolveAuthenticationAllowCredentials($user, $email);
 
         $options = PublicKeyCredentialRequestOptions::create(
             random_bytes(32),
@@ -286,6 +288,62 @@ class PasskeyService
         $normalized = $this->serializer->normalize($options);
 
         return $normalized;
+    }
+
+    /**
+     * @return list<PublicKeyCredentialDescriptor>
+     */
+    private function resolveAuthenticationAllowCredentials(?User $user, ?string $email): array
+    {
+        $allowCredentials = $user?->passkeyCredentials
+            ->map(fn (PasskeyCredential $credential): PublicKeyCredentialDescriptor => $credential->toPublicKeyCredentialSource()->getPublicKeyCredentialDescriptor())
+            ->values()
+            ->all() ?? [];
+
+        if ($allowCredentials !== []) {
+            return $allowCredentials;
+        }
+
+        return [
+            PublicKeyCredentialDescriptor::create(
+                PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
+                $this->buildFallbackAuthenticationCredentialId($email),
+                [PublicKeyCredentialDescriptor::AUTHENTICATOR_TRANSPORT_INTERNAL],
+            ),
+        ];
+    }
+
+    private function buildFallbackAuthenticationCredentialId(?string $email): string
+    {
+        $emailScope = is_string($email) && $email !== ''
+            ? mb_strtolower($email)
+            : self::ANONYMOUS_AUTHENTICATION_FALLBACK_SCOPE;
+
+        return hash_hmac(
+            'sha256',
+            self::AUTHENTICATION_FALLBACK_SCOPE.'|'.$emailScope,
+            $this->authenticationFallbackSecret(),
+            true,
+        );
+    }
+
+    private function authenticationFallbackSecret(): string
+    {
+        $secret = config('passkeys.authentication_fallback_secret', config('app.key', ''));
+
+        if (! is_string($secret) || $secret === '') {
+            return self::AUTHENTICATION_FALLBACK_SCOPE;
+        }
+
+        if (Str::startsWith($secret, 'base64:')) {
+            $decodedSecret = base64_decode(Str::after($secret, 'base64:'), true);
+
+            if (is_string($decodedSecret) && $decodedSecret !== '') {
+                return $decodedSecret;
+            }
+        }
+
+        return $secret;
     }
 
     /**

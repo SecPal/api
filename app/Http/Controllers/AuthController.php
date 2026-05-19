@@ -58,6 +58,10 @@ class AuthController extends Controller
 
     private const FALLBACK_DUMMY_PASSWORD_HASH = '$2y$12$fAJGA/LIzR7AAtIjg4UYxuj6V0hnGJxYaEB5pvNIjO9CJt6KPU8Hy';
 
+    private const PASSKEY_AUTHENTICATION_PLACEHOLDER_EMAIL = 'passkey-authentication-placeholder@secpal.invalid';
+
+    private const PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID = '00000000-0000-0000-0000-000000000000';
+
     /**
      * Activity log service for authentication events.
      */
@@ -1206,11 +1210,10 @@ class AuthController extends Controller
         ?string $deviceName = null,
     ): JsonResponse {
         $user = $this->resolvePasskeyAuthenticationUser($email);
-        $mediation = $this->resolvePasskeyAuthenticationMediation($user);
 
         $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
-            $this->passkeyService->buildAuthenticationOptions($user),
-            $mediation,
+            $this->passkeyService->buildAuthenticationOptions($user, $email),
+            'optional',
             $loginContext,
             $deviceName,
         );
@@ -1227,36 +1230,25 @@ class AuthController extends Controller
 
     private function resolvePasskeyAuthenticationUser(?string $email): ?User
     {
-        if (! is_string($email) || $email === '') {
+        $normalizedEmail = is_string($email) && $email !== ''
+            ? mb_strtolower($email)
+            : self::PASSKEY_AUTHENTICATION_PLACEHOLDER_EMAIL;
+
+        $user = User::query()
+            ->whereRaw('LOWER(email) = ?', [$normalizedEmail])
+            ->first();
+
+        $passkeyCredentials = PasskeyCredential::query()
+            ->where('user_id', $user?->id ?? self::PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID)
+            ->get();
+
+        if (! $user instanceof User) {
             return null;
         }
 
-        $user = User::query()
-            ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
-            ->first();
+        $user->setRelation('passkeyCredentials', $passkeyCredentials);
 
-        if ($user instanceof User) {
-            $user->loadMissing('passkeyCredentials');
-        }
-
-        if (! $user instanceof User || $user->passkeyCredentials->isEmpty()) {
-            throw ValidationException::withMessages([
-                'email' => ['Passkey sign-in is not available for the provided email address.'],
-            ]);
-        }
-
-        return $user;
-    }
-
-    private function resolvePasskeyAuthenticationMediation(?User $user): string
-    {
-        $mediation = config('passkeys.authentication_mediation', 'conditional');
-
-        if (! is_string($mediation) || $mediation === '') {
-            $mediation = 'conditional';
-        }
-
-        return $user instanceof User ? 'optional' : $mediation;
+        return $passkeyCredentials->isNotEmpty() ? $user : null;
     }
 
     private function completePasskeyAuthenticationChallenge(
