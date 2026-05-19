@@ -1209,8 +1209,23 @@ class AuthController extends Controller
     ): JsonResponse {
         $user = $this->resolvePasskeyAuthenticationUser($email);
 
+        try {
+            $options = $this->passkeyService->buildAuthenticationOptions($user, $email);
+        } catch (\RuntimeException $exception) {
+            report($exception);
+
+            Log::error('Passkey authentication challenge could not be issued due to missing configuration', [
+                'exception_class' => $exception::class,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => __('Passkey sign-in is currently unavailable. Please try again later or use a different sign-in method.'),
+            ], 503);
+        }
+
         $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
-            $this->passkeyService->buildAuthenticationOptions($user, $email),
+            $options,
             'optional',
             $loginContext,
             $deviceName,

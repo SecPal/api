@@ -40,10 +40,10 @@ function passkeyChallengeJsonShape(mixed $payload): array|string
 
     if (array_is_list($payload)) {
         if ($payload === []) {
-            return ['list' => []];
+            return ['list_count' => 0, 'list_item' => null];
         }
 
-        return ['list' => passkeyChallengeJsonShape($payload[0])];
+        return ['list_count' => count($payload), 'list_item' => passkeyChallengeJsonShape($payload[0])];
     }
 
     $shape = [];
@@ -97,6 +97,37 @@ dataset('public passkey challenge endpoints', [
 ]);
 
 describe('Public passkey challenge enumeration hardening', function () {
+    test('email-scoped challenges fail closed uniformly when the fallback secret is not configured', function (string $endpoint) {
+        config()->set('passkeys.authentication_fallback_secret', '');
+
+        $userWithPasskey = User::factory()->create([
+            'email' => 'with-passkey@secpal.dev',
+        ]);
+
+        PasskeyCredential::factory()->create([
+            'user_id' => $userWithPasskey->id,
+            'credential_id' => 'Cx9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+        ]);
+
+        User::factory()->create([
+            'email' => 'without-passkey@secpal.dev',
+        ]);
+
+        $responses = [
+            postPublicPasskeyChallenge($endpoint, ['email' => 'missing@secpal.dev'], '127.0.0.1'),
+            postPublicPasskeyChallenge($endpoint, ['email' => 'without-passkey@secpal.dev'], '127.0.0.2'),
+            postPublicPasskeyChallenge($endpoint, ['email' => 'with-passkey@secpal.dev'], '127.0.0.3'),
+        ];
+
+        foreach ($responses as $response) {
+            $response->assertStatus(503)
+                ->assertJsonStructure(['message']);
+        }
+
+        postPublicPasskeyChallenge($endpoint, [], '127.0.0.4')
+            ->assertCreated();
+    })->with('public passkey challenge endpoints');
+
     test('email-scoped challenge responses stay structurally indistinguishable across account states', function (string $endpoint) {
         $userWithPasskey = User::factory()->create([
             'email' => 'with-passkey@secpal.dev',
@@ -150,6 +181,14 @@ describe('Public passkey challenge enumeration hardening', function () {
 
         expect(array_values(array_unique(array_map('serialize', $shapes))))
             ->toHaveCount(1);
+
+        // In this fixture, all compared email-scoped branches should expose a single
+        // descriptor. If one branch starts returning a different list length, the
+        // enumeration regression is back for this 1-passkey scenario.
+        foreach ($responses as $state => $response) {
+            expect($response->json('data.public_key.allow_credentials'))
+                ->toHaveCount(1, "allow_credentials count must be 1 for account state '{$state}' to prevent enrollment-count enumeration");
+        }
     })->with('public passkey challenge endpoints');
 
     test('anonymous challenge flow omits allow_credentials to preserve discoverable passkeys', function (string $endpoint) {

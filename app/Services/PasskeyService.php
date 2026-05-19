@@ -76,6 +76,11 @@ class PasskeyService
     public function buildAuthenticationOptions(?User $user = null, ?string $email = null): array
     {
         $timeout = $this->challengeTimeoutMs();
+
+        if (is_string($email) && $email !== '') {
+            $this->authenticationFallbackSecret();
+        }
+
         $allowCredentials = $this->resolveAuthenticationAllowCredentials($user, $email);
 
         $options = PublicKeyCredentialRequestOptions::create(
