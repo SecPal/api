@@ -329,7 +329,9 @@ class PasskeyService
         $secret = config('passkeys.authentication_fallback_secret', config('app.key', ''));
 
         if (! is_string($secret) || $secret === '') {
-            return self::AUTHENTICATION_FALLBACK_SCOPE;
+            throw new \RuntimeException(
+                'Passkey authentication fallback secret must be configured via PASSKEY_AUTHENTICATION_FALLBACK_SECRET or APP_KEY.',
+            );
         }
 
         if (Str::startsWith($secret, 'base64:')) {
