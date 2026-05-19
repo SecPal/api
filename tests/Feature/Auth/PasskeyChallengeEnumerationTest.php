@@ -97,7 +97,7 @@ dataset('public passkey challenge endpoints', [
 ]);
 
 describe('Public passkey challenge enumeration hardening', function () {
-    test('challenge responses stay structurally indistinguishable across account states', function (string $endpoint) {
+    test('email-scoped challenge responses stay structurally indistinguishable across account states', function (string $endpoint) {
         $userWithPasskey = User::factory()->create([
             'email' => 'with-passkey@secpal.dev',
         ]);
@@ -112,7 +112,6 @@ describe('Public passkey challenge enumeration hardening', function () {
         ]);
 
         $responses = [
-            'omitted' => postPublicPasskeyChallenge($endpoint, [], '127.0.0.1'),
             'unknown' => postPublicPasskeyChallenge($endpoint, ['email' => 'missing@secpal.dev'], '127.0.0.2'),
             'without_passkey' => postPublicPasskeyChallenge($endpoint, ['email' => 'without-passkey@secpal.dev'], '127.0.0.3'),
             'with_passkey' => postPublicPasskeyChallenge($endpoint, ['email' => 'with-passkey@secpal.dev'], '127.0.0.4'),
@@ -153,6 +152,15 @@ describe('Public passkey challenge enumeration hardening', function () {
             ->toHaveCount(1);
     })->with('public passkey challenge endpoints');
 
+    test('anonymous challenge flow omits allow_credentials to preserve discoverable passkeys', function (string $endpoint) {
+        $response = postPublicPasskeyChallenge($endpoint, [], '127.0.0.1');
+
+        $response->assertCreated();
+
+        expect($response->json('data.mediation'))->toBe('optional')
+            ->and($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
+    })->with('public passkey challenge endpoints');
+
     test('fallback passkey descriptors are deterministic for non-enrolled challenge responses', function (string $endpoint) {
         User::factory()->create([
             'email' => 'without-passkey@secpal.dev',
@@ -170,7 +178,7 @@ describe('Public passkey challenge enumeration hardening', function () {
             ->toBe($withoutPasskeyB->json('data.public_key.allow_credentials'))
             ->and($missingA->json('data.public_key.allow_credentials'))
             ->not->toBe($withoutPasskeyA->json('data.public_key.allow_credentials'))
-            ->and($omitted->json('data.public_key.allow_credentials'))->toBeArray()->not->toBeEmpty();
+            ->and($omitted->json('data.public_key'))->not->toHaveKey('allow_credentials');
     })->with('public passkey challenge endpoints');
 
     test('passkey lookup query shapes stay aligned across account states', function (string $endpoint) {
@@ -197,9 +205,10 @@ describe('Public passkey challenge enumeration hardening', function () {
         $withoutPasskeyResponse->assertCreated();
         $withPasskeyResponse->assertCreated();
 
-        expect($omittedQueries)->toBe($withPasskeyQueries)
-            ->and($unknownQueries)->toBe($withPasskeyQueries)
+        expect($unknownQueries)->toBe($withPasskeyQueries)
             ->and($withoutPasskeyQueries)->toBe($withPasskeyQueries)
             ->and($withPasskeyQueries)->toHaveCount(2);
+
+        expect($omittedQueries)->toHaveCount(2);
     })->with('public passkey challenge endpoints');
 });

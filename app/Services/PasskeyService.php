@@ -303,6 +303,10 @@ class PasskeyService
             return $allowCredentials;
         }
 
+        if (! is_string($email) || $email === '') {
+            return [];
+        }
+
         return [
             PublicKeyCredentialDescriptor::create(
                 PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,

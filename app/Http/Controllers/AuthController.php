@@ -58,8 +58,6 @@ class AuthController extends Controller
 
     private const FALLBACK_DUMMY_PASSWORD_HASH = '$2y$12$fAJGA/LIzR7AAtIjg4UYxuj6V0hnGJxYaEB5pvNIjO9CJt6KPU8Hy';
 
-    private const PASSKEY_AUTHENTICATION_PLACEHOLDER_EMAIL = 'passkey-authentication-placeholder@secpal.invalid';
-
     private const PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID = '00000000-0000-0000-0000-000000000000';
 
     /**
@@ -1230,13 +1228,17 @@ class AuthController extends Controller
 
     private function resolvePasskeyAuthenticationUser(?string $email): ?User
     {
-        $normalizedEmail = is_string($email) && $email !== ''
-            ? mb_strtolower($email)
-            : self::PASSKEY_AUTHENTICATION_PLACEHOLDER_EMAIL;
+        $userQuery = User::query();
 
-        $user = User::query()
-            ->whereRaw('LOWER(email) = ?', [$normalizedEmail])
-            ->first();
+        if (is_string($email) && $email !== '') {
+            $userQuery->whereRaw('LOWER(email) = ?', [mb_strtolower($email)]);
+        } else {
+            $userQuery
+                ->whereRaw('LOWER(email) = ?', [''])
+                ->whereRaw('1 = 0');
+        }
+
+        $user = $userQuery->first();
 
         $passkeyCredentials = PasskeyCredential::query()
             ->where('user_id', $user instanceof User ? $user->id : self::PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID)

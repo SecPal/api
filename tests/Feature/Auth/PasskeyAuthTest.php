@@ -28,9 +28,6 @@ describe('Passkey Authentication', function () {
                         'rp_id',
                         'timeout',
                         'user_verification',
-                        'allow_credentials' => [
-                            ['id', 'type'],
-                        ],
                     ],
                     'mediation',
                     'expires_at',
@@ -40,7 +37,7 @@ describe('Passkey Authentication', function () {
         expect($response->json('data.public_key.rp_id'))->toBe('app.secpal.dev')
             ->and($response->json('data.public_key.user_verification'))->toBe('preferred')
             ->and($response->json('data.mediation'))->toBe('optional')
-            ->and($response->json('data.public_key.allow_credentials'))->toBeArray()->not->toBeEmpty();
+            ->and($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
     });
 
     test('browser passkey login challenge returns allow_credentials for an email-scoped fallback', function () {
@@ -114,15 +111,13 @@ describe('Passkey Authentication', function () {
             ->and($response->json('data.public_key.allow_credentials.0.type'))->toBe('public-key');
     });
 
-    test('browser passkey login challenge returns a fallback credential descriptor for anonymous flows', function () {
+    test('browser passkey login challenge omits allow_credentials for anonymous discoverable flows', function () {
         $response = $this->withHeaders(spaHeaders())
             ->postJson('/v1/auth/passkeys/challenges');
 
         $response->assertCreated();
 
-        expect($response->json('data.public_key.allow_credentials'))->toBeArray()->not->toBeEmpty()
-            ->and($response->json('data.public_key.allow_credentials.0.id'))->toBeString()
-            ->and($response->json('data.public_key.allow_credentials.0.type'))->toBe('public-key');
+        expect($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
     });
 
     test('token passkey login challenge stores token context and device name', function () {
