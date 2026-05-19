@@ -1213,8 +1213,6 @@ class AuthController extends Controller
         try {
             $options = $this->passkeyService->buildAuthenticationOptions($user, $email);
         } catch (PasskeyAuthenticationFallbackSecretException $exception) {
-            report($exception);
-
             Log::error('Passkey authentication challenge could not be issued due to missing configuration', [
                 'exception_class' => $exception::class,
                 'error' => $exception->getMessage(),

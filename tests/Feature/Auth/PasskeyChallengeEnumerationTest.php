@@ -139,6 +139,7 @@ describe('Public passkey challenge enumeration hardening', function () {
         PasskeyCredential::factory()->create([
             'user_id' => $userWithPasskey->id,
             'credential_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+            'transports' => [],
         ]);
 
         User::factory()->create([

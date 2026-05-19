@@ -317,7 +317,6 @@ class PasskeyService
             PublicKeyCredentialDescriptor::create(
                 PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
                 $this->buildFallbackAuthenticationCredentialId($email, $fallbackSecret),
-                [PublicKeyCredentialDescriptor::AUTHENTICATOR_TRANSPORT_INTERNAL],
             ),
         ];
     }
