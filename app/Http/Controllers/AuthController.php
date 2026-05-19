@@ -1244,7 +1244,7 @@ class AuthController extends Controller
             ->first();
 
         $passkeyCredentials = PasskeyCredential::query()
-            ->where('user_id', $user?->id ?? self::PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID)
+            ->where('user_id', $user instanceof User ? $user->id : self::PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID)
             ->get();
 
         if (! $user instanceof User) {

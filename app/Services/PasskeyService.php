@@ -295,10 +295,9 @@ class PasskeyService
      */
     private function resolveAuthenticationAllowCredentials(?User $user, ?string $email): array
     {
-        $allowCredentials = $user?->passkeyCredentials
+        $allowCredentials = array_values($user?->passkeyCredentials
             ->map(fn (PasskeyCredential $credential): PublicKeyCredentialDescriptor => $credential->toPublicKeyCredentialSource()->getPublicKeyCredentialDescriptor())
-            ->values()
-            ->all() ?? [];
+            ->all() ?? []);
 
         if ($allowCredentials !== []) {
             return $allowCredentials;
