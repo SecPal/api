@@ -1210,15 +1210,10 @@ class AuthController extends Controller
         ?string $deviceName = null,
     ): JsonResponse {
         $user = $this->resolvePasskeyAuthenticationUser($email);
-        $mediation = config('passkeys.authentication_mediation', 'optional');
-
-        if (! is_string($mediation) || $mediation === '') {
-            $mediation = 'optional';
-        }
 
         $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
             $this->passkeyService->buildAuthenticationOptions($user, $email),
-            $mediation,
+            'optional',
             $loginContext,
             $deviceName,
         );
