@@ -79,6 +79,30 @@ describe('PasskeyService authentication fallback secret', function () {
                 'Passkey authentication fallback secret must be configured via PASSKEY_AUTHENTICATION_FALLBACK_SECRET or APP_KEY.',
             );
     });
+
+    test('the config resolves APP_KEY when PASSKEY_AUTHENTICATION_FALLBACK_SECRET is blank', function () {
+        // The ?: operator in config/passkeys.php resolves at config-load time.
+        // Simulate the resulting config value as if APP_KEY was used as the fallback.
+        $appKey = 'base64:'.base64_encode(str_repeat('k', 32));
+        config()->set('passkeys.authentication_fallback_secret', $appKey);
+
+        $service = app(PasskeyService::class);
+
+        expect(fn () => $service->buildAuthenticationOptions(null, 'user@secpal.dev'))
+            ->not->toThrow(RuntimeException::class);
+    });
+
+    test('an invalid base64 payload in the fallback secret throws rather than silently using the raw prefix string', function () {
+        config()->set('passkeys.authentication_fallback_secret', 'base64:!!!not-valid-base64!!!');
+
+        $service = app(PasskeyService::class);
+
+        expect(fn () => $service->buildAuthenticationOptions(null, 'user@secpal.dev'))
+            ->toThrow(
+                RuntimeException::class,
+                'Passkey authentication fallback secret must be configured via PASSKEY_AUTHENTICATION_FALLBACK_SECRET or APP_KEY.',
+            );
+    });
 });
 
 describe('PasskeyService native Android origin support', function () {

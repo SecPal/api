@@ -337,9 +337,13 @@ class PasskeyService
         if (Str::startsWith($secret, 'base64:')) {
             $decodedSecret = base64_decode(Str::after($secret, 'base64:'), true);
 
-            if (is_string($decodedSecret) && $decodedSecret !== '') {
-                return $decodedSecret;
+            if (! is_string($decodedSecret) || $decodedSecret === '') {
+                throw new \RuntimeException(
+                    'Passkey authentication fallback secret must be configured via PASSKEY_AUTHENTICATION_FALLBACK_SECRET or APP_KEY.',
+                );
             }
+
+            return $decodedSecret;
         }
 
         return $secret;
