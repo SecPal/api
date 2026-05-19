@@ -5,6 +5,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\PasskeyAuthenticationFallbackSecretException;
 use App\Models\PasskeyCredential;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -336,7 +337,7 @@ class PasskeyService
         $secret = config('passkeys.authentication_fallback_secret', '');
 
         if (! is_string($secret) || $secret === '') {
-            throw new \RuntimeException(
+            throw new PasskeyAuthenticationFallbackSecretException(
                 'Passkey authentication fallback secret must be configured via PASSKEY_AUTHENTICATION_FALLBACK_SECRET or APP_KEY.',
             );
         }
@@ -345,7 +346,7 @@ class PasskeyService
             $decodedSecret = base64_decode(Str::after($secret, 'base64:'), true);
 
             if (! is_string($decodedSecret) || $decodedSecret === '') {
-                throw new \RuntimeException(
+                throw new PasskeyAuthenticationFallbackSecretException(
                     'Passkey authentication fallback secret must be configured via PASSKEY_AUTHENTICATION_FALLBACK_SECRET or APP_KEY.',
                 );
             }

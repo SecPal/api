@@ -111,6 +111,24 @@ describe('Passkey Authentication', function () {
             ->and($response->json('data.public_key.allow_credentials.0.type'))->toBe('public-key');
     });
 
+    test('unexpected runtime exceptions during browser passkey login challenge creation still surface as 500 errors', function () {
+        /** @var PasskeyService&Mockery\MockInterface $mockService */
+        $mockService = $this->mock(PasskeyService::class);
+        $mockService->shouldReceive('buildAuthenticationOptions')
+            ->once()
+            ->andThrow(new RuntimeException('Serializer exploded'));
+
+        $response = $this->withHeaders(spaHeaders())
+            ->postJson('/v1/auth/passkeys/challenges', [
+                'email' => 'test@secpal.dev',
+            ]);
+
+        $response->assertStatus(500)
+            ->assertExactJson([
+                'message' => 'Internal server error.',
+            ]);
+    });
+
     test('browser passkey login challenge omits allow_credentials for anonymous discoverable flows', function () {
         $response = $this->withHeaders(spaHeaders())
             ->postJson('/v1/auth/passkeys/challenges');

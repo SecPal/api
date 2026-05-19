@@ -5,6 +5,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\PasskeyAuthenticationFallbackSecretException;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
 use App\Http\Requests\PasskeyAuthenticationChallengeRequest;
@@ -1211,7 +1212,7 @@ class AuthController extends Controller
 
         try {
             $options = $this->passkeyService->buildAuthenticationOptions($user, $email);
-        } catch (\RuntimeException $exception) {
+        } catch (PasskeyAuthenticationFallbackSecretException $exception) {
             report($exception);
 
             Log::error('Passkey authentication challenge could not be issued due to missing configuration', [
