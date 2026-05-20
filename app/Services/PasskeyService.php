@@ -295,8 +295,14 @@ class PasskeyService
         $formatted = $this->keysToSnakeCase($payload);
 
         if (isset($formatted['authenticator_selection']) && is_array($formatted['authenticator_selection'])) {
+            // Enforce the discoverable-only enrollment contract. requireResidentKey()
+            // encodes the full policy (true for required, false for discouraged,
+            // config-driven for preferred). Always write an explicit boolean or
+            // strip the key so the library's null placeholder never leaks as JSON null.
             if ($this->requireResidentKey()) {
                 $formatted['authenticator_selection']['require_resident_key'] = true;
+            } else {
+                unset($formatted['authenticator_selection']['require_resident_key']);
             }
 
             // Strip null authenticator_attachment so browsers don't receive the
@@ -506,14 +512,39 @@ class PasskeyService
 
     private function residentKey(): string
     {
-        $residentKey = config('passkeys.resident_key', 'preferred');
+        $residentKey = config('passkeys.resident_key', AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_REQUIRED);
 
-        return is_string($residentKey) && $residentKey !== '' ? $residentKey : 'preferred';
+        // The login contract is discoverable-only, so any unrecognized or empty
+        // configuration falls back to "required" instead of permitting a silent
+        // downgrade to compatibility-oriented non-discoverable enrollment.
+        $allowed = [
+            AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_REQUIRED,
+            AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_PREFERRED,
+            AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_DISCOURAGED,
+        ];
+
+        return is_string($residentKey) && in_array($residentKey, $allowed, true)
+            ? $residentKey
+            : AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_REQUIRED;
     }
 
     private function requireResidentKey(): bool
     {
-        return (bool) config('passkeys.require_resident_key', false);
+        $residentKey = $this->residentKey();
+
+        // When residentKey is "required" the legacy WebAuthn level-1 flag must
+        // also be true; we never accept a config that contradicts that pairing.
+        if ($residentKey === AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_REQUIRED) {
+            return true;
+        }
+
+        // "discouraged" explicitly opts out of resident credentials; forcing
+        // require_resident_key=true alongside it is a spec-violating contradiction.
+        if ($residentKey === AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_DISCOURAGED) {
+            return false;
+        }
+
+        return (bool) config('passkeys.require_resident_key', true);
     }
 
     private function authenticatorAttachment(): ?string

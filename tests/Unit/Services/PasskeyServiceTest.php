@@ -3,7 +3,11 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\User;
 use App\Services\PasskeyService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
 
 describe('PasskeyService::formatApiPayload', function () {
     test('registration options are converted to snake_case for the API response', function () {
@@ -27,7 +31,7 @@ describe('PasskeyService::formatApiPayload', function () {
             ],
             'authenticatorSelection' => [
                 'authenticatorAttachment' => null,
-                'residentKey' => 'preferred',
+                'residentKey' => 'required',
                 'userVerification' => 'preferred',
             ],
             'attestation' => 'none',
@@ -41,6 +45,8 @@ describe('PasskeyService::formatApiPayload', function () {
             ->and($formatted)->toHaveKey('authenticator_selection')
             ->and($formatted['user'])->toHaveKey('display_name')
             ->and($formatted['authenticator_selection'])->toHaveKey('resident_key')
+            ->and($formatted['authenticator_selection']['resident_key'])->toBe('required')
+            ->and($formatted['authenticator_selection']['require_resident_key'])->toBeTrue('require_resident_key must be true alongside resident_key=required')
             ->and($formatted['authenticator_selection'])->toHaveKey('user_verification')
             ->and($formatted['authenticator_selection'])->not->toHaveKey('authenticator_attachment', 'null authenticator_attachment must be stripped')
             ->and($formatted['rp'])->not->toHaveKey('icon', 'null rp.icon must be stripped')
@@ -77,6 +83,83 @@ describe('PasskeyService::buildAuthenticationOptions', function () {
             ->and($formatted)->toHaveKey('timeout')
             ->and($formatted)->toHaveKey('user_verification')
             ->and($formatted)->not->toHaveKey('allow_credentials');
+    });
+});
+
+describe('PasskeyService::buildRegistrationOptions', function () {
+    test('registration options require discoverable resident credentials by default', function () {
+        $service = app(PasskeyService::class);
+        $user = User::factory()->create();
+
+        $formatted = $service->formatApiPayload($service->buildRegistrationOptions($user));
+
+        expect($formatted)->toHaveKey('authenticator_selection')
+            ->and($formatted['authenticator_selection']['resident_key'])->toBe('required', 'discoverable-only login requires resident_key=required for enrollment')
+            ->and($formatted['authenticator_selection']['require_resident_key'])->toBeTrue('legacy require_resident_key must be true for resident_key=required');
+    });
+
+    test('an invalid resident_key configuration falls back to the discoverable-only default', function () {
+        config()->set('passkeys.resident_key', 'not-a-valid-policy');
+        config()->set('passkeys.require_resident_key', false);
+
+        $service = app(PasskeyService::class);
+        $user = User::factory()->create();
+
+        $formatted = $service->formatApiPayload($service->buildRegistrationOptions($user));
+
+        expect($formatted['authenticator_selection']['resident_key'])->toBe('required')
+            ->and($formatted['authenticator_selection']['require_resident_key'])->toBeTrue('require_resident_key must be coerced back to true when resident_key is required');
+    });
+
+    test('an explicit preferred resident_key still emits require_resident_key by default', function () {
+        config()->set('passkeys.resident_key', 'preferred');
+        // require_resident_key left at config default (true)
+
+        $service = app(PasskeyService::class);
+        $user = User::factory()->create();
+
+        $formatted = $service->formatApiPayload($service->buildRegistrationOptions($user));
+
+        expect($formatted['authenticator_selection']['resident_key'])->toBe('preferred')
+            ->and($formatted['authenticator_selection']['require_resident_key'])->toBeTrue('preferred resident_key must still emit require_resident_key=true unless PASSKEY_REQUIRE_RESIDENT_KEY=false is explicitly set');
+    });
+
+    test('preferred resident_key with require_resident_key=false omits the key entirely instead of emitting null', function () {
+        config()->set('passkeys.resident_key', 'preferred');
+        config()->set('passkeys.require_resident_key', false);
+
+        $service = app(PasskeyService::class);
+        $user = User::factory()->create();
+
+        $formatted = $service->formatApiPayload($service->buildRegistrationOptions($user));
+
+        expect($formatted['authenticator_selection']['resident_key'])->toBe('preferred')
+            ->and($formatted['authenticator_selection'])->not->toHaveKey('require_resident_key', 'the library null placeholder must be stripped — JSON null is not a valid WebAuthn boolean');
+    });
+
+    test('an explicit preferred resident_key with require_resident_key opted in propagates both flags', function () {
+        config()->set('passkeys.resident_key', 'preferred');
+        config()->set('passkeys.require_resident_key', true);
+
+        $service = app(PasskeyService::class);
+        $user = User::factory()->create();
+
+        $formatted = $service->formatApiPayload($service->buildRegistrationOptions($user));
+
+        expect($formatted['authenticator_selection']['resident_key'])->toBe('preferred')
+            ->and($formatted['authenticator_selection']['require_resident_key'])->toBeTrue('require_resident_key override must propagate even when resident_key is preferred');
+    });
+
+    test('a discouraged resident_key never emits require_resident_key true', function () {
+        config()->set('passkeys.resident_key', 'discouraged');
+
+        $service = app(PasskeyService::class);
+        $user = User::factory()->create();
+
+        $formatted = $service->formatApiPayload($service->buildRegistrationOptions($user));
+
+        expect($formatted['authenticator_selection']['resident_key'])->toBe('discouraged')
+            ->and($formatted['authenticator_selection'])->not->toHaveKey('require_resident_key');
     });
 });
 
