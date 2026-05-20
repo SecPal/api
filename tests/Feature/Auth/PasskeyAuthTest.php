@@ -615,7 +615,7 @@ describe('Passkey Management', function () {
         $response->assertCreated();
 
         expect($response->json('data.public_key.authenticator_selection.resident_key'))->toBe('discouraged')
-            ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('require_resident_key', 'discouraged resident_key must never emit require_resident_key=true — the pair is a WebAuthn spec contradiction');
+            ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('require_resident_key');
     });
 
     test('authenticated users are rate limited when starting passkey registration challenges', function () {

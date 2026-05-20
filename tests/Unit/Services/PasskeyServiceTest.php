@@ -146,7 +146,7 @@ describe('PasskeyService::buildRegistrationOptions', function () {
         $formatted = $service->formatApiPayload($service->buildRegistrationOptions($user));
 
         expect($formatted['authenticator_selection']['resident_key'])->toBe('discouraged')
-            ->and($formatted['authenticator_selection'])->not->toHaveKey('require_resident_key', 'discouraged resident_key must never emit require_resident_key=true — that pairing is a WebAuthn spec contradiction');
+            ->and($formatted['authenticator_selection'])->not->toHaveKey('require_resident_key');
     });
 });
 
