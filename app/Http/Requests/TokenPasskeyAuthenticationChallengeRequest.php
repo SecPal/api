@@ -41,6 +41,7 @@ class TokenPasskeyAuthenticationChallengeRequest extends PasskeyAuthenticationCh
     public function messages(): array
     {
         return [
+            ...parent::messages(),
             'device_name.required' => 'Device name is required.',
             'device_name.max' => 'Device name must not exceed 255 characters.',
         ];

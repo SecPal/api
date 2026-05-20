@@ -5,7 +5,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Exceptions\PasskeyAuthenticationFallbackSecretException;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
 use App\Http\Requests\PasskeyAuthenticationChallengeRequest;
@@ -58,8 +57,6 @@ class AuthController extends Controller
     private const DUMMY_PASSWORD_PLACEHOLDER = 'secpal-timing-protection-placeholder';
 
     private const FALLBACK_DUMMY_PASSWORD_HASH = '$2y$12$fAJGA/LIzR7AAtIjg4UYxuj6V0hnGJxYaEB5pvNIjO9CJt6KPU8Hy';
-
-    private const PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID = '00000000-0000-0000-0000-000000000000';
 
     /**
      * Activity log service for authentication events.
@@ -372,10 +369,7 @@ class AuthController extends Controller
             return $contextResponse;
         }
 
-        /** @var array{email?: string|null} $validated */
-        $validated = $request->validated();
-
-        return $this->createPasskeyAuthenticationChallengeResponse($validated['email'] ?? null);
+        return $this->createPasskeyAuthenticationChallengeResponse();
     }
 
     /**
@@ -383,11 +377,10 @@ class AuthController extends Controller
      */
     public function startTokenPasskeyAuthenticationChallenge(TokenPasskeyAuthenticationChallengeRequest $request): JsonResponse
     {
-        /** @var array{email?: string|null, device_name: string} $validated */
+        /** @var array{device_name: string} $validated */
         $validated = $request->validated();
 
         return $this->createPasskeyAuthenticationChallengeResponse(
-            $validated['email'] ?? null,
             LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN,
             $validated['device_name'],
         );
@@ -1204,24 +1197,10 @@ class AuthController extends Controller
     }
 
     private function createPasskeyAuthenticationChallengeResponse(
-        ?string $email,
         string $loginContext = LoginMfaChallengeService::LOGIN_CONTEXT_SESSION,
         ?string $deviceName = null,
     ): JsonResponse {
-        $user = $this->resolvePasskeyAuthenticationUser($email);
-
-        try {
-            $options = $this->passkeyService->buildAuthenticationOptions($user, $email);
-        } catch (PasskeyAuthenticationFallbackSecretException $exception) {
-            Log::error('Passkey authentication challenge could not be issued due to missing configuration', [
-                'exception_class' => $exception::class,
-                'error' => $exception->getMessage(),
-            ]);
-
-            return response()->json([
-                'message' => __('Passkey sign-in is currently unavailable. Please try again later or use a different sign-in method.'),
-            ], 503);
-        }
+        $options = $this->passkeyService->buildAuthenticationOptions();
 
         $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
             $options,
@@ -1238,35 +1217,6 @@ class AuthController extends Controller
                 'expires_at' => $challenge['expires_at'],
             ],
         ], 201);
-    }
-
-    private function resolvePasskeyAuthenticationUser(?string $email): ?User
-    {
-        $userQuery = User::query();
-
-        if (is_string($email) && $email !== '') {
-            $userQuery->whereRaw('LOWER(email) = ?', [mb_strtolower($email)]);
-        } else {
-            $userQuery->whereRaw('1 = 0');
-        }
-
-        $user = $userQuery->first();
-
-        // Always execute the passkey_credentials query to align the DB lookup
-        // count across all account states. When no real user matched, query
-        // against the nil UUID (PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID),
-        // which must never be assigned to a real user or seeded credential.
-        $passkeyCredentials = PasskeyCredential::query()
-            ->where('user_id', $user instanceof User ? $user->id : self::PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID)
-            ->get();
-
-        if (! $user instanceof User) {
-            return null;
-        }
-
-        $user->setRelation('passkeyCredentials', $passkeyCredentials);
-
-        return $passkeyCredentials->isNotEmpty() ? $user : null;
     }
 
     private function completePasskeyAuthenticationChallenge(

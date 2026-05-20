@@ -20,22 +20,17 @@ class PasskeyAuthenticationChallengeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['nullable', 'email'],
+            'email' => ['prohibited'],
         ];
     }
 
-    protected function prepareForValidation(): void
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
     {
-        $email = $this->input('email');
-
-        if (! is_string($email)) {
-            return;
-        }
-
-        $normalizedEmail = strtolower(trim($email));
-
-        $this->merge([
-            'email' => $normalizedEmail !== '' ? $normalizedEmail : null,
-        ]);
+        return [
+            'email.prohibited' => 'Email-scoped public passkey challenges are no longer supported. Start passkey sign-in without an email address.',
+        ];
     }
 }
