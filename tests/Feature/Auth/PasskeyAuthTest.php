@@ -40,75 +40,14 @@ describe('Passkey Authentication', function () {
             ->and($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
     });
 
-    test('browser passkey login challenge returns allow_credentials for an email-scoped fallback', function () {
-        $user = User::factory()->create([
-            'email' => 'test@secpal.dev',
-        ]);
-        $credential = PasskeyCredential::factory()->create([
-            'user_id' => $user->id,
-        ]);
-
-        $response = $this->withHeaders(spaHeaders())
-            ->postJson('/v1/auth/passkeys/challenges', [
-                'email' => ' TEST@SECPAL.DEV ',
-            ]);
-
-        $response->assertCreated();
-
-        expect($response->json('data.mediation'))->toBe('optional')
-            ->and($response->json('data.public_key.allow_credentials'))->toBeArray()
-            ->and($response->json('data.public_key.allow_credentials.0.id'))->toBe($credential->credential_id)
-            ->and($response->json('data.public_key.allow_credentials.0.type'))->toBe('public-key');
-    });
-
-    test('email-scoped passkey login lookup stays consistent with the passkey management list', function () {
-        $user = User::factory()->create([
-            'email' => 'test@secpal.dev',
-        ]);
-        $token = $user->issueApiToken('test-suite')->plainTextToken;
-        $credential = $user->passkeyCredentials()->create([
-            'credential_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
-            'label' => 'Touch ID',
-            'transports' => ['internal'],
-            'attestation_type' => 'none',
-            'credential_public_key' => 'dGVzdA',
-            'user_handle' => 'dGVzdA',
-            'counter' => 0,
-        ]);
-
-        $listResponse = $this->withToken($token)
-            ->getJson('/v1/me/passkeys');
-
-        $listResponse->assertOk();
-
-        $challengeResponse = $this->withHeaders(spaHeaders())
-            ->postJson('/v1/auth/passkeys/challenges', [
-                'email' => $user->email,
-            ]);
-
-        $challengeResponse->assertCreated();
-
-        expect($listResponse->json('data.0.id'))->toBe($credential->credential_id)
-            ->and($challengeResponse->json('data.public_key.allow_credentials.0.id'))->toBe($credential->credential_id);
-    });
-
-    test('browser passkey login challenge returns a fallback credential descriptor when the account has no enrolled passkeys', function () {
-        User::factory()->create([
-            'email' => 'test@secpal.dev',
-        ]);
-
+    test('browser passkey login challenge rejects email-scoped startup payloads', function () {
         $response = $this->withHeaders(spaHeaders())
             ->postJson('/v1/auth/passkeys/challenges', [
                 'email' => 'test@secpal.dev',
             ]);
 
-        $response->assertCreated();
-
-        expect($response->json())->not->toHaveKey('errors')
-            ->and($response->json('data.mediation'))->toBe('optional')
-            ->and($response->json('data.public_key.allow_credentials'))->toBeArray()->not->toBeEmpty()
-            ->and($response->json('data.public_key.allow_credentials.0.id'))->toBeString()
-            ->and($response->json('data.public_key.allow_credentials.0.type'))->toBe('public-key');
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
     });
 
     test('unexpected runtime exceptions during browser passkey login challenge creation still surface as 500 errors', function () {
@@ -119,23 +58,12 @@ describe('Passkey Authentication', function () {
             ->andThrow(new RuntimeException('Serializer exploded'));
 
         $response = $this->withHeaders(spaHeaders())
-            ->postJson('/v1/auth/passkeys/challenges', [
-                'email' => 'test@secpal.dev',
-            ]);
+            ->postJson('/v1/auth/passkeys/challenges');
 
         $response->assertStatus(500)
             ->assertExactJson([
                 'message' => 'Internal server error.',
             ]);
-    });
-
-    test('browser passkey login challenge omits allow_credentials for anonymous discoverable flows', function () {
-        $response = $this->withHeaders(spaHeaders())
-            ->postJson('/v1/auth/passkeys/challenges');
-
-        $response->assertCreated();
-
-        expect($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
     });
 
     test('token passkey login challenge stores token context and device name', function () {
@@ -164,7 +92,18 @@ describe('Passkey Authentication', function () {
         expect($storedChallenge)->not->toBeNull()
             ->and($storedChallenge['login_context'])->toBe(LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN)
             ->and($storedChallenge['device_name'])->toBe('android-phone')
-            ->and($response->json('data.public_key.rp_id'))->toBe('app.secpal.dev');
+            ->and($response->json('data.public_key.rp_id'))->toBe('app.secpal.dev')
+            ->and($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
+    });
+
+    test('token passkey login challenge rejects email-scoped startup payloads', function () {
+        $response = $this->postJson('/v1/auth/token/passkeys/challenges', [
+            'email' => 'test@secpal.dev',
+            'device_name' => 'android-phone',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
     });
 
     test('token passkey login challenge requires a device name', function () {

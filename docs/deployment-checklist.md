@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -60,14 +60,15 @@ Quick reference checklist for SecPal API production deployment.
 - [ ] Restrict `.env` permissions: `chmod 0600 .env`
 - [ ] Set `.env` ownership: `chown www-data:www-data .env`
 
-### Passkey Authentication Fallback Secret
+### Public Passkey Login
 
-- [ ] Set `PASSKEY_AUTHENTICATION_FALLBACK_SECRET` to an independent random value
-      (e.g. `base64:$(php -r "echo base64_encode(random_bytes(32));")`) so that
-      deterministic passkey fallback `allow_credentials` IDs remain stable across
-      `APP_KEY` rotations. Falling back to `APP_KEY` is supported but emits a
-      `Log::warning` once per request whenever the fallback path is exercised.
-      See [deployment.md → Passkey Authentication Fallback Secret](./deployment.md#3-passkey-authentication-fallback-secret).
+- [ ] Verify browser and native clients start public passkey sign-in without an
+      `email` payload on `POST /v1/auth/passkeys/challenges` and
+      `POST /v1/auth/token/passkeys/challenges`.
+- [ ] Verify client WebAuthn handling tolerates the discoverable-only contract:
+      the public challenge response omits `allow_credentials`, and user identity
+      is resolved only after the authenticator returns the assertion. See
+      [deployment.md → Public Passkey Challenge Contract](./deployment.md#3-public-passkey-challenge-contract).
 
 ---
 
