@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking:** Employee residential addresses live in `employee_addresses` (encrypted street/postal/city fields per row, optional residence date range). The API uses `addresses[]` instead of flat `address_*` attributes and `address_history` JSON on `employees`. Legacy values are migrated into `employee_addresses` during rollout, but clients must adopt `addresses[]` going forward.
 - **Breaking:** The `PASSKEY_AUTHENTICATION_MEDIATION` environment variable and the `passkeys.authentication_mediation` config key have been removed. The passkey authentication challenge mediation is now always `optional`; remove the env var from your deployment configuration.
+- documented the `APP_KEY` rotation impact on the passkey authentication fallback `allow_credentials` HMAC in `.env.example`, `docs/deployment.md`, and `docs/deployment-checklist.md`, and surfaced an operational `Log::warning` (deduped to one entry per request) from `PasskeyService` whenever a fallback descriptor is generated while `PASSKEY_AUTHENTICATION_FALLBACK_SECRET` is unset and `APP_KEY` is being used as the HMAC source; there is no real-user authentication impact (fallback descriptors are phantom credential IDs), but operators are now alerted to the silent coupling so APP_KEY rotation does not surprise incident investigators
 
 ### Fixed
 

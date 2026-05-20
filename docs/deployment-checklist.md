@@ -60,6 +60,15 @@ Quick reference checklist for SecPal API production deployment.
 - [ ] Restrict `.env` permissions: `chmod 0600 .env`
 - [ ] Set `.env` ownership: `chown www-data:www-data .env`
 
+### Passkey Authentication Fallback Secret
+
+- [ ] Set `PASSKEY_AUTHENTICATION_FALLBACK_SECRET` to an independent random value
+      (e.g. `base64:$(php -r "echo base64_encode(random_bytes(32));")`) so that
+      deterministic passkey fallback `allow_credentials` IDs remain stable across
+      `APP_KEY` rotations. Falling back to `APP_KEY` is supported but emits a
+      `Log::warning` once per request whenever the fallback path is exercised.
+      See [deployment.md → Passkey Authentication Fallback Secret](./deployment.md#3-passkey-authentication-fallback-secret).
+
 ---
 
 ## Initial Setup

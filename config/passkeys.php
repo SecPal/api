@@ -11,6 +11,15 @@ $frontendOriginEntries = array_values(array_filter(array_map(
 
 $frontendHost = parse_url($frontendUrl, PHP_URL_HOST);
 
+// Dedicated fallback secret (preferred). When unset/blank the deterministic
+// fallback `allow_credentials` HMAC is derived from APP_KEY, which means an
+// APP_KEY rotation will silently change the phantom credential IDs issued for
+// unknown / unenrolled emails. Set PASSKEY_AUTHENTICATION_FALLBACK_SECRET
+// independently when stable fallback IDs across APP_KEY rotations are desired.
+$dedicatedFallbackSecret = (string) env('PASSKEY_AUTHENTICATION_FALLBACK_SECRET', '');
+$appKeyFallbackSecret = (string) env('APP_KEY', '');
+$resolvedFallbackSecret = $dedicatedFallbackSecret !== '' ? $dedicatedFallbackSecret : $appKeyFallbackSecret;
+
 return [
     'rp_id' => (string) env('PASSKEY_RP_ID', is_string($frontendHost) ? $frontendHost : 'app.secpal.dev'),
     'rp_name' => (string) env('PASSKEY_RP_NAME', env('APP_NAME', 'SecPal')),
@@ -19,7 +28,8 @@ return [
     'challenge_timeout_ms' => (int) env('PASSKEY_CHALLENGE_TIMEOUT_MS', 60000),
     'challenge_expiration_minutes' => (int) env('PASSKEY_CHALLENGE_EXPIRATION_MINUTES', 10),
     'attestation' => (string) env('PASSKEY_ATTESTATION', 'none'),
-    'authentication_fallback_secret' => (string) (env('PASSKEY_AUTHENTICATION_FALLBACK_SECRET') ?: env('APP_KEY', '')),
+    'authentication_fallback_secret' => $resolvedFallbackSecret,
+    'authentication_fallback_uses_app_key' => $dedicatedFallbackSecret === '' && $appKeyFallbackSecret !== '',
     'user_verification' => (string) env('PASSKEY_USER_VERIFICATION', 'preferred'),
     'resident_key' => (string) env('PASSKEY_RESIDENT_KEY', 'preferred'),
     'require_resident_key' => filter_var(env('PASSKEY_REQUIRE_RESIDENT_KEY', false), FILTER_VALIDATE_BOOL),
