@@ -618,6 +618,22 @@ describe('Passkey Management', function () {
             ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('require_resident_key');
     });
 
+    test('passkey registration challenge omits require_resident_key entirely when preferred and operator opts out', function () {
+        config()->set('passkeys.resident_key', 'preferred');
+        config()->set('passkeys.require_resident_key', false);
+
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration');
+
+        $response->assertCreated();
+
+        expect($response->json('data.public_key.authenticator_selection.resident_key'))->toBe('preferred')
+            ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('require_resident_key', 'null from the library must be stripped — JSON null is not a valid WebAuthn boolean');
+    });
+
     test('authenticated users are rate limited when starting passkey registration challenges', function () {
         $user = User::factory()->create();
         $token = $user->issueApiToken('test-suite')->plainTextToken;

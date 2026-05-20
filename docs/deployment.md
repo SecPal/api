@@ -226,12 +226,12 @@ cannot silently re-enable non-discoverable enrollment.
 
 **`PASSKEY_REQUIRE_RESIDENT_KEY` coupling by `resident_key` value:**
 
-| `PASSKEY_RESIDENT_KEY` | `PASSKEY_REQUIRE_RESIDENT_KEY` unset | Effective `require_resident_key` |
-|---|---|---|
-| `required` (default) | — | `true` (always forced) |
-| `preferred` | unset | `true` (config default) |
-| `preferred` | `false` | `false` |
-| `discouraged` | — | `false` (always forced — the pair is a WebAuthn spec contradiction) |
+| `PASSKEY_RESIDENT_KEY` | `PASSKEY_REQUIRE_RESIDENT_KEY` unset | Effective `require_resident_key`                                    |
+| ---------------------- | ------------------------------------ | ------------------------------------------------------------------- |
+| `required` (default)   | —                                    | `true` (always forced)                                              |
+| `preferred`            | unset                                | `true` (config default)                                             |
+| `preferred`            | `false`                              | `false`                                                             |
+| `discouraged`          | —                                    | `false` (always forced — the pair is a WebAuthn spec contradiction) |
 
 When `PASSKEY_RESIDENT_KEY=discouraged`, `require_resident_key` is **always
 `false`** regardless of `PASSKEY_REQUIRE_RESIDENT_KEY`; setting both

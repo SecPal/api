@@ -295,13 +295,14 @@ class PasskeyService
         $formatted = $this->keysToSnakeCase($payload);
 
         if (isset($formatted['authenticator_selection']) && is_array($formatted['authenticator_selection'])) {
-            // Enforce the discoverable-only enrollment contract: when residentKey
-            // is "required" (or any operator override that requires discoverable
-            // credentials), always advertise the legacy WebAuthn level-1 flag so
-            // older authenticators still honor the discoverable requirement.
-            if ($this->residentKey() === AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_REQUIRED
-                || $this->requireResidentKey()) {
+            // Enforce the discoverable-only enrollment contract. requireResidentKey()
+            // encodes the full policy (true for required, false for discouraged,
+            // config-driven for preferred). Always write an explicit boolean or
+            // strip the key so the library's null placeholder never leaks as JSON null.
+            if ($this->requireResidentKey()) {
                 $formatted['authenticator_selection']['require_resident_key'] = true;
+            } else {
+                unset($formatted['authenticator_selection']['require_resident_key']);
             }
 
             // Strip null authenticator_attachment so browsers don't receive the

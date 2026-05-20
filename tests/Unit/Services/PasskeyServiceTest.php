@@ -124,6 +124,19 @@ describe('PasskeyService::buildRegistrationOptions', function () {
             ->and($formatted['authenticator_selection']['require_resident_key'])->toBeTrue('preferred resident_key must still emit require_resident_key=true unless PASSKEY_REQUIRE_RESIDENT_KEY=false is explicitly set');
     });
 
+    test('preferred resident_key with require_resident_key=false omits the key entirely instead of emitting null', function () {
+        config()->set('passkeys.resident_key', 'preferred');
+        config()->set('passkeys.require_resident_key', false);
+
+        $service = app(PasskeyService::class);
+        $user = User::factory()->create();
+
+        $formatted = $service->formatApiPayload($service->buildRegistrationOptions($user));
+
+        expect($formatted['authenticator_selection']['resident_key'])->toBe('preferred')
+            ->and($formatted['authenticator_selection'])->not->toHaveKey('require_resident_key', 'the library null placeholder must be stripped — JSON null is not a valid WebAuthn boolean');
+    });
+
     test('an explicit preferred resident_key with require_resident_key opted in propagates both flags', function () {
         config()->set('passkeys.resident_key', 'preferred');
         config()->set('passkeys.require_resident_key', true);
