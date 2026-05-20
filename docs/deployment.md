@@ -257,20 +257,31 @@ Affected users must:
    `DELETE /v1/me/passkeys/{id}` if desired.
 
 Operators should communicate the re-enrollment requirement in their release
-notes and consider a pre-deployment audit:
+notes. The `passkey_credentials` schema does **not** store a discoverability
+flag, so there is no query that can definitively single out non-discoverable
+credentials. Instead, operators can inventory credentials enrolled **before**
+the rollout of this change as a `created_at`-based cutoff heuristic — every
+credential in that bucket was enrolled under the old `resident_key=preferred`
+default and may or may not be discoverable depending on the authenticator that
+created it:
 
 ```sql
--- Audit non-discoverable credentials (best-effort heuristic):
--- The transports column does not record discoverability, but credentials
--- enrolled before this change may need re-enrollment. Operators with strict
--- compliance requirements can prompt all users to re-enroll passkeys.
+-- Inventory passkey credentials enrolled before the discoverable-only rollout.
+-- This is NOT an authoritative list of non-discoverable credentials — the
+-- schema does not record discoverability — but every row here was enrolled
+-- under the old resident_key=preferred default, so the authenticator may have
+-- chosen to skip discoverable storage. Treat the result as the at-risk cohort
+-- that should be notified to re-enroll.
 SELECT user_id, credential_id, created_at, last_used_at
 FROM passkey_credentials
+WHERE created_at < '<discoverable-only deployment timestamp, e.g. 2026-05-21 00:00:00+00>'
 ORDER BY created_at;
 ```
 
-There is no schema-level "is_discoverable" flag, so operators that want a hard
-cutoff should plan a coordinated rotation window during the upgrade.
+Replace the placeholder with the actual UTC timestamp at which this release was
+deployed in the target environment. Operators with strict compliance
+requirements can also drop the `WHERE` clause and prompt **all** existing
+passkey users to re-enroll, trading a wider blast radius for a clean cutoff.
 
 ---
 
