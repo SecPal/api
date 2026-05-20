@@ -12,6 +12,9 @@ Complete guide for deploying SecPal API to production environments.
 - [Prerequisites](#prerequisites)
 - [Environment Setup](#environment-setup)
 - [Security Configuration](#security-configuration)
+  - [1. Generate Key Encryption Key (KEK)](#1-generate-key-encryption-key-kek)
+  - [2. File Permissions](#2-file-permissions)
+  - [3. Passkey Authentication Fallback Secret](#3-passkey-authentication-fallback-secret)
 - [Database Setup](#database-setup)
 - [Tenant Key Initialization](#tenant-key-initialization)
 - [Health Check Verification](#health-check-verification)
@@ -183,6 +186,53 @@ sudo chmod -R 775 storage bootstrap/cache
 sudo chmod 0600 .env
 sudo chown www-data:www-data .env
 ```
+
+### 3. Passkey Authentication Fallback Secret
+
+The public passkey challenge endpoints (`/v1/auth/passkey/challenge`,
+`/v1/auth/token/passkey/challenge`) return a deterministic fallback
+`allow_credentials` descriptor for unknown or unenrolled emails so the response
+shape cannot be used to enumerate accounts. The HMAC key for that descriptor is
+sourced from `PASSKEY_AUTHENTICATION_FALLBACK_SECRET`, falling back to
+`APP_KEY` when the dedicated variable is not set.
+
+There is **no real-user authentication impact** in either configuration:
+fallback descriptors are phantom credential IDs that never match a real
+authenticator entry.
+
+**APP_KEY rotation coupling (operational):**
+
+When `PASSKEY_AUTHENTICATION_FALLBACK_SECRET` is **not** configured, rotating
+`APP_KEY` (a normal operational task) silently changes the fallback descriptor
+IDs issued before vs. after the rotation. The service emits a single
+`Log::warning` per request whenever the fallback path is exercised under this
+configuration, e.g.:
+
+```txt
+Passkey authentication fallback HMAC secret is derived from APP_KEY because
+PASSKEY_AUTHENTICATION_FALLBACK_SECRET is not set. Rotating APP_KEY will
+silently change the deterministic fallback allow_credentials descriptors
+issued for unknown / unenrolled emails (no real-user impact). Set
+PASSKEY_AUTHENTICATION_FALLBACK_SECRET independently to decouple the fallback
+IDs from APP_KEY rotation.
+```
+
+**Recommended for production:** set `PASSKEY_AUTHENTICATION_FALLBACK_SECRET`
+to an independent random value so that fallback descriptor IDs remain stable
+across `APP_KEY` rotations. This makes log correlation and incident
+investigation easier and removes the silent coupling.
+
+```bash
+# Generate a 32-byte random secret and write it to .env (preserving any
+# existing entry — review the file after running).
+php -r "echo 'PASSKEY_AUTHENTICATION_FALLBACK_SECRET=base64:'.base64_encode(random_bytes(32)).PHP_EOL;" >> .env
+```
+
+This secret is **not** used to authenticate real users and does not require
+the same backup/rotation discipline as `APP_KEY` or the KEK. Treat it like
+any other application secret: keep it out of version control, scope it to
+each environment, and rotate only when you intentionally want to invalidate
+historical fallback descriptor IDs.
 
 ---
 

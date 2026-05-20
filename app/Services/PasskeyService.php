@@ -9,6 +9,7 @@ use App\Exceptions\PasskeyAuthenticationFallbackSecretException;
 use App\Models\PasskeyCredential;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use ParagonIE\ConstantTime\Base64UrlSafe;
 use Symfony\Component\Serializer\Serializer;
@@ -40,6 +41,13 @@ class PasskeyService
     private AuthenticatorAttestationResponseValidator $attestationValidator;
 
     private AuthenticatorAssertionResponseValidator $assertionValidator;
+
+    /**
+     * Dedupes the APP_KEY-fallback warning to a single log entry per service
+     * instance (one per request via DI), so repeated unknown-email challenge
+     * lookups don't spam logs while still leaving a visible operational trail.
+     */
+    private bool $appKeyFallbackWarningEmitted = false;
 
     public function __construct()
     {
@@ -341,6 +349,8 @@ class PasskeyService
             );
         }
 
+        $this->warnIfFallbackSecretIsAppKey();
+
         if (Str::startsWith($secret, 'base64:')) {
             $decodedSecret = base64_decode(Str::after($secret, 'base64:'), true);
 
@@ -354,6 +364,33 @@ class PasskeyService
         }
 
         return $secret;
+    }
+
+    /**
+     * Surface an operational warning when the fallback HMAC secret is being
+     * sourced from APP_KEY rather than the dedicated
+     * PASSKEY_AUTHENTICATION_FALLBACK_SECRET. APP_KEY rotation (a routine
+     * operational task) silently changes the deterministic fallback
+     * allow_credentials descriptors issued for unknown / unenrolled emails.
+     * There is no real-user authentication impact (fallback descriptors are
+     * phantom IDs that never match a real authenticator), but the coupling is
+     * non-obvious during incident investigation. See issue #1096.
+     */
+    private function warnIfFallbackSecretIsAppKey(): void
+    {
+        if ($this->appKeyFallbackWarningEmitted) {
+            return;
+        }
+
+        if (! (bool) config('passkeys.authentication_fallback_uses_app_key', false)) {
+            return;
+        }
+
+        $this->appKeyFallbackWarningEmitted = true;
+
+        Log::warning(
+            'Passkey authentication fallback HMAC secret is derived from APP_KEY because PASSKEY_AUTHENTICATION_FALLBACK_SECRET is not set. Rotating APP_KEY will silently change the deterministic fallback allow_credentials descriptors issued for unknown / unenrolled emails (no real-user impact). Set PASSKEY_AUTHENTICATION_FALLBACK_SECRET independently to decouple the fallback IDs from APP_KEY rotation.',
+        );
     }
 
     /**
