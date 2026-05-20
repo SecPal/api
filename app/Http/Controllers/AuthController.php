@@ -5,6 +5,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\PasskeyAuthenticationFallbackSecretException;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
 use App\Http\Requests\PasskeyAuthenticationChallengeRequest;
@@ -57,6 +58,8 @@ class AuthController extends Controller
     private const DUMMY_PASSWORD_PLACEHOLDER = 'secpal-timing-protection-placeholder';
 
     private const FALLBACK_DUMMY_PASSWORD_HASH = '$2y$12$fAJGA/LIzR7AAtIjg4UYxuj6V0hnGJxYaEB5pvNIjO9CJt6KPU8Hy';
+
+    private const PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID = '00000000-0000-0000-0000-000000000000';
 
     /**
      * Activity log service for authentication events.
@@ -1206,11 +1209,23 @@ class AuthController extends Controller
         ?string $deviceName = null,
     ): JsonResponse {
         $user = $this->resolvePasskeyAuthenticationUser($email);
-        $mediation = $this->resolvePasskeyAuthenticationMediation($user);
+
+        try {
+            $options = $this->passkeyService->buildAuthenticationOptions($user, $email);
+        } catch (PasskeyAuthenticationFallbackSecretException $exception) {
+            Log::error('Passkey authentication challenge could not be issued due to missing configuration', [
+                'exception_class' => $exception::class,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => __('Passkey sign-in is currently unavailable. Please try again later or use a different sign-in method.'),
+            ], 503);
+        }
 
         $challenge = $this->passkeyChallengeService->createAuthenticationChallenge(
-            $this->passkeyService->buildAuthenticationOptions($user),
-            $mediation,
+            $options,
+            'optional',
             $loginContext,
             $deviceName,
         );
@@ -1227,36 +1242,31 @@ class AuthController extends Controller
 
     private function resolvePasskeyAuthenticationUser(?string $email): ?User
     {
-        if (! is_string($email) || $email === '') {
+        $userQuery = User::query();
+
+        if (is_string($email) && $email !== '') {
+            $userQuery->whereRaw('LOWER(email) = ?', [mb_strtolower($email)]);
+        } else {
+            $userQuery->whereRaw('1 = 0');
+        }
+
+        $user = $userQuery->first();
+
+        // Always execute the passkey_credentials query to align the DB lookup
+        // count across all account states. When no real user matched, query
+        // against the nil UUID (PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID),
+        // which must never be assigned to a real user or seeded credential.
+        $passkeyCredentials = PasskeyCredential::query()
+            ->where('user_id', $user instanceof User ? $user->id : self::PASSKEY_AUTHENTICATION_PLACEHOLDER_USER_ID)
+            ->get();
+
+        if (! $user instanceof User) {
             return null;
         }
 
-        $user = User::query()
-            ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
-            ->first();
+        $user->setRelation('passkeyCredentials', $passkeyCredentials);
 
-        if ($user instanceof User) {
-            $user->loadMissing('passkeyCredentials');
-        }
-
-        if (! $user instanceof User || $user->passkeyCredentials->isEmpty()) {
-            throw ValidationException::withMessages([
-                'email' => ['Passkey sign-in is not available for the provided email address.'],
-            ]);
-        }
-
-        return $user;
-    }
-
-    private function resolvePasskeyAuthenticationMediation(?User $user): string
-    {
-        $mediation = config('passkeys.authentication_mediation', 'conditional');
-
-        if (! is_string($mediation) || $mediation === '') {
-            $mediation = 'conditional';
-        }
-
-        return $user instanceof User ? 'optional' : $mediation;
+        return $passkeyCredentials->isNotEmpty() ? $user : null;
     }
 
     private function completePasskeyAuthenticationChallenge(

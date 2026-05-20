@@ -36,7 +36,8 @@ describe('Passkey Authentication', function () {
 
         expect($response->json('data.public_key.rp_id'))->toBe('app.secpal.dev')
             ->and($response->json('data.public_key.user_verification'))->toBe('preferred')
-            ->and($response->json('data.mediation'))->toBe('conditional');
+            ->and($response->json('data.mediation'))->toBe('optional')
+            ->and($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
     });
 
     test('browser passkey login challenge returns allow_credentials for an email-scoped fallback', function () {
@@ -91,7 +92,7 @@ describe('Passkey Authentication', function () {
             ->and($challengeResponse->json('data.public_key.allow_credentials.0.id'))->toBe($credential->credential_id);
     });
 
-    test('browser passkey login challenge rejects email-scoped fallback when the account has no enrolled passkeys', function () {
+    test('browser passkey login challenge returns a fallback credential descriptor when the account has no enrolled passkeys', function () {
         User::factory()->create([
             'email' => 'test@secpal.dev',
         ]);
@@ -101,13 +102,34 @@ describe('Passkey Authentication', function () {
                 'email' => 'test@secpal.dev',
             ]);
 
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['email']);
+        $response->assertCreated();
 
-        expect($response->json('errors.email.0'))->toBe('Passkey sign-in is not available for the provided email address.');
+        expect($response->json())->not->toHaveKey('errors')
+            ->and($response->json('data.mediation'))->toBe('optional')
+            ->and($response->json('data.public_key.allow_credentials'))->toBeArray()->not->toBeEmpty()
+            ->and($response->json('data.public_key.allow_credentials.0.id'))->toBeString()
+            ->and($response->json('data.public_key.allow_credentials.0.type'))->toBe('public-key');
     });
 
-    test('browser passkey login challenge omits allow_credentials for discoverable credential flow', function () {
+    test('unexpected runtime exceptions during browser passkey login challenge creation still surface as 500 errors', function () {
+        /** @var PasskeyService&Mockery\MockInterface $mockService */
+        $mockService = $this->mock(PasskeyService::class);
+        $mockService->shouldReceive('buildAuthenticationOptions')
+            ->once()
+            ->andThrow(new RuntimeException('Serializer exploded'));
+
+        $response = $this->withHeaders(spaHeaders())
+            ->postJson('/v1/auth/passkeys/challenges', [
+                'email' => 'test@secpal.dev',
+            ]);
+
+        $response->assertStatus(500)
+            ->assertExactJson([
+                'message' => 'Internal server error.',
+            ]);
+    });
+
+    test('browser passkey login challenge omits allow_credentials for anonymous discoverable flows', function () {
         $response = $this->withHeaders(spaHeaders())
             ->postJson('/v1/auth/passkeys/challenges');
 

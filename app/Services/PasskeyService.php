@@ -5,6 +5,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\PasskeyAuthenticationFallbackSecretException;
 use App\Models\PasskeyCredential;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,8 @@ use Webauthn\PublicKeyCredentialUserEntity;
 
 class PasskeyService
 {
+    private const AUTHENTICATION_FALLBACK_SCOPE = 'passkey-authentication-fallback:v1';
+
     private Serializer $serializer;
 
     private AuthenticatorAttestationResponseValidator $attestationValidator;
@@ -71,12 +74,11 @@ class PasskeyService
     /**
      * @return array<string, mixed>
      */
-    public function buildAuthenticationOptions(?User $user = null): array
+    public function buildAuthenticationOptions(?User $user = null, ?string $email = null): array
     {
         $timeout = $this->challengeTimeoutMs();
-        $allowCredentials = $user?->passkeyCredentials
-            ->map(fn (PasskeyCredential $credential): PublicKeyCredentialDescriptor => $credential->toPublicKeyCredentialSource()->getPublicKeyCredentialDescriptor())
-            ->all() ?? [];
+
+        $allowCredentials = $this->resolveAuthenticationAllowCredentials($user, $email);
 
         $options = PublicKeyCredentialRequestOptions::create(
             random_bytes(32),
@@ -286,6 +288,72 @@ class PasskeyService
         $normalized = $this->serializer->normalize($options);
 
         return $normalized;
+    }
+
+    /**
+     * @return list<PublicKeyCredentialDescriptor>
+     */
+    private function resolveAuthenticationAllowCredentials(?User $user, ?string $email): array
+    {
+        $allowCredentials = array_values($user?->passkeyCredentials
+            ->map(fn (PasskeyCredential $credential): PublicKeyCredentialDescriptor => $credential->toPublicKeyCredentialSource()->getPublicKeyCredentialDescriptor())
+            ->all() ?? []);
+
+        if ($allowCredentials !== []) {
+            return $allowCredentials;
+        }
+
+        if (! is_string($email) || $email === '') {
+            return [];
+        }
+
+        // Validate the secret only when the fallback descriptor is actually needed
+        // (i.e., no real credentials exist). Enrolled users must not receive a 503
+        // due to a missing fallback secret when their real allow_credentials would
+        // have been returned.
+        $fallbackSecret = $this->authenticationFallbackSecret();
+
+        return [
+            PublicKeyCredentialDescriptor::create(
+                PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
+                $this->buildFallbackAuthenticationCredentialId($email, $fallbackSecret),
+            ),
+        ];
+    }
+
+    private function buildFallbackAuthenticationCredentialId(string $email, string $fallbackSecret): string
+    {
+        return hash_hmac(
+            'sha256',
+            self::AUTHENTICATION_FALLBACK_SCOPE.'|'.mb_strtolower($email),
+            $fallbackSecret,
+            true,
+        );
+    }
+
+    private function authenticationFallbackSecret(): string
+    {
+        $secret = config('passkeys.authentication_fallback_secret', '');
+
+        if (! is_string($secret) || $secret === '') {
+            throw new PasskeyAuthenticationFallbackSecretException(
+                'Passkey authentication fallback secret must be configured via PASSKEY_AUTHENTICATION_FALLBACK_SECRET or APP_KEY.',
+            );
+        }
+
+        if (Str::startsWith($secret, 'base64:')) {
+            $decodedSecret = base64_decode(Str::after($secret, 'base64:'), true);
+
+            if (! is_string($decodedSecret) || $decodedSecret === '') {
+                throw new PasskeyAuthenticationFallbackSecretException(
+                    'Passkey authentication fallback secret must be configured via PASSKEY_AUTHENTICATION_FALLBACK_SECRET or APP_KEY.',
+                );
+            }
+
+            return $decodedSecret;
+        }
+
+        return $secret;
     }
 
     /**
