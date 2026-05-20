@@ -15,6 +15,7 @@ Complete guide for deploying SecPal API to production environments.
   - [1. Generate Key Encryption Key (KEK)](#1-generate-key-encryption-key-kek)
   - [2. File Permissions](#2-file-permissions)
   - [3. Public Passkey Challenge Contract](#3-public-passkey-challenge-contract)
+  - [4. Passkey Enrollment Contract](#4-passkey-enrollment-contract)
 - [Database Setup](#database-setup)
 - [Tenant Key Initialization](#tenant-key-initialization)
 - [Health Check Verification](#health-check-verification)
@@ -203,6 +204,73 @@ Operationally this means:
 Legacy email-scoped startup payloads now fail validation. The API no longer
 generates public fallback credential descriptors or requires a dedicated
 passkey-authentication fallback secret for these endpoints.
+
+### 4. Passkey Enrollment Contract
+
+To match the discoverable-only login contract above, passkey **enrollment** at
+`POST /v1/me/passkeys/challenges/registration` now defaults to
+**discoverable / resident credentials**:
+
+- `authenticator_selection.resident_key` defaults to `required`
+- `authenticator_selection.require_resident_key` defaults to `true`
+- WebAuthn enrollment fails on authenticators that cannot store a discoverable
+  credential for the relying party
+
+The defaults are configurable via the optional `PASSKEY_RESIDENT_KEY` and
+`PASSKEY_REQUIRE_RESIDENT_KEY` environment variables, but the application now
+**ignores** unrecognized `PASSKEY_RESIDENT_KEY` values (anything other than
+`required`, `preferred`, or `discouraged`) and falls back to `required`.
+Whenever `PASSKEY_RESIDENT_KEY=required`, `require_resident_key` is forced to
+`true` regardless of `PASSKEY_REQUIRE_RESIDENT_KEY`, so a misconfigured pair
+cannot silently re-enable non-discoverable enrollment.
+
+**`PASSKEY_REQUIRE_RESIDENT_KEY` coupling by `resident_key` value:**
+
+| `PASSKEY_RESIDENT_KEY` | `PASSKEY_REQUIRE_RESIDENT_KEY` unset | Effective `require_resident_key` |
+|---|---|---|
+| `required` (default) | — | `true` (always forced) |
+| `preferred` | unset | `true` (config default) |
+| `preferred` | `false` | `false` |
+| `discouraged` | — | `false` (always forced — the pair is a WebAuthn spec contradiction) |
+
+When `PASSKEY_RESIDENT_KEY=discouraged`, `require_resident_key` is **always
+`false`** regardless of `PASSKEY_REQUIRE_RESIDENT_KEY`; setting both
+`discouraged` + `require_resident_key=true` is forbidden by the WebAuthn Level 2
+spec (§5.4.6) and the application enforces this at runtime.
+
+**Operator and user impact for existing non-discoverable credentials:**
+
+Any passkey credential previously enrolled when `resident_key` was `preferred`
+and the authenticator chose not to store a discoverable credential is **no
+longer usable** for the public, discoverable-only login flow. There is no
+public, email-scoped recovery path: re-introducing one would re-open the
+enumeration vector that the discoverable-only contract closed.
+
+Affected users must:
+
+1. Sign in with their primary credentials (email + password) and complete MFA
+   if enrolled, then
+2. Open the authenticated passkey management endpoints
+   (`GET /v1/me/passkeys` / `POST /v1/me/passkeys/challenges/registration`),
+3. Enroll a **new** discoverable passkey on a supported authenticator, and
+4. Delete the legacy non-discoverable credential through
+   `DELETE /v1/me/passkeys/{id}` if desired.
+
+Operators should communicate the re-enrollment requirement in their release
+notes and consider a pre-deployment audit:
+
+```sql
+-- Audit non-discoverable credentials (best-effort heuristic):
+-- The transports column does not record discoverability, but credentials
+-- enrolled before this change may need re-enrollment. Operators with strict
+-- compliance requirements can prompt all users to re-enroll passkeys.
+SELECT user_id, credential_id, created_at, last_used_at
+FROM passkey_credentials
+ORDER BY created_at;
+```
+
+There is no schema-level "is_discoverable" flag, so operators that want a hard
+cutoff should plan a coordinated rotation window during the upgrade.
 
 ---
 

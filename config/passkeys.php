@@ -20,7 +20,7 @@ return [
     'challenge_expiration_minutes' => (int) env('PASSKEY_CHALLENGE_EXPIRATION_MINUTES', 10),
     'attestation' => (string) env('PASSKEY_ATTESTATION', 'none'),
     'user_verification' => (string) env('PASSKEY_USER_VERIFICATION', 'preferred'),
-    'resident_key' => (string) env('PASSKEY_RESIDENT_KEY', 'preferred'),
-    'require_resident_key' => filter_var(env('PASSKEY_REQUIRE_RESIDENT_KEY', false), FILTER_VALIDATE_BOOL),
+    'resident_key' => (string) env('PASSKEY_RESIDENT_KEY', 'required'),
+    'require_resident_key' => filter_var(env('PASSKEY_REQUIRE_RESIDENT_KEY', true), FILTER_VALIDATE_BOOL),
     'authenticator_attachment' => env('PASSKEY_AUTHENTICATOR_ATTACHMENT'),
 ];

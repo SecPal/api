@@ -563,11 +563,59 @@ describe('Passkey Management', function () {
 
         expect($response->json('data.public_key.rp.id'))->toBe('app.secpal.dev')
             ->and($response->json('data.public_key.attestation'))->toBe('none')
-            ->and($response->json('data.public_key.authenticator_selection.resident_key'))->toBe('preferred')
-            ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('require_resident_key', 'deprecated require_resident_key should be omitted when false')
+            ->and($response->json('data.public_key.authenticator_selection.resident_key'))->toBe('required', 'discoverable-only login requires resident_key=required for enrollment')
+            ->and($response->json('data.public_key.authenticator_selection.require_resident_key'))->toBeTrue('legacy WebAuthn level-1 require_resident_key must accompany resident_key=required')
+            ->and($response->json('data.public_key.authenticator_selection.user_verification'))->toBe('preferred')
             ->and($response->json('data.public_key'))->not->toHaveKey('exclude_credentials', 'empty exclude_credentials must be omitted')
             ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('authenticator_attachment', 'null authenticator_attachment must be omitted')
             ->and($response->json('data.public_key.rp'))->not->toHaveKey('icon', 'null rp.icon must be omitted');
+    });
+
+    test('passkey registration challenge cannot be downgraded to non-discoverable when the resident_key config is invalid', function () {
+        config()->set('passkeys.resident_key', 'maybe');
+        config()->set('passkeys.require_resident_key', false);
+
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration');
+
+        $response->assertCreated();
+
+        expect($response->json('data.public_key.authenticator_selection.resident_key'))->toBe('required', 'invalid resident_key config must fall back to required')
+            ->and($response->json('data.public_key.authenticator_selection.require_resident_key'))->toBeTrue('require_resident_key must be coerced back to true when resident_key is required');
+    });
+
+    test('passkey registration challenge emits require_resident_key by default when resident_key is relaxed to preferred', function () {
+        config()->set('passkeys.resident_key', 'preferred');
+        // require_resident_key left at its config default (true) to verify the default path
+
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration');
+
+        $response->assertCreated();
+
+        expect($response->json('data.public_key.authenticator_selection.resident_key'))->toBe('preferred')
+            ->and($response->json('data.public_key.authenticator_selection.require_resident_key'))->toBeTrue('preferred resident_key still emits require_resident_key=true unless operator explicitly sets PASSKEY_REQUIRE_RESIDENT_KEY=false');
+    });
+
+    test('passkey registration challenge omits require_resident_key when resident_key is discouraged', function () {
+        config()->set('passkeys.resident_key', 'discouraged');
+
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration');
+
+        $response->assertCreated();
+
+        expect($response->json('data.public_key.authenticator_selection.resident_key'))->toBe('discouraged')
+            ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('require_resident_key', 'discouraged resident_key must never emit require_resident_key=true — the pair is a WebAuthn spec contradiction');
     });
 
     test('authenticated users are rate limited when starting passkey registration challenges', function () {
@@ -637,7 +685,8 @@ describe('Passkey Management', function () {
             'timeout' => 60000,
             'exclude_credentials' => [],
             'authenticator_selection' => [
-                'resident_key' => 'preferred',
+                'resident_key' => 'required',
+                'require_resident_key' => true,
                 'user_verification' => 'preferred',
             ],
             'attestation' => 'none',
@@ -681,7 +730,7 @@ describe('Passkey Management', function () {
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
-            'authenticator_selection' => ['resident_key' => 'preferred', 'user_verification' => 'preferred'],
+            'authenticator_selection' => ['resident_key' => 'required', 'require_resident_key' => true, 'user_verification' => 'preferred'],
             'attestation' => 'none',
         ]);
 
@@ -723,7 +772,7 @@ describe('Passkey Management', function () {
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
-            'authenticator_selection' => ['resident_key' => 'preferred', 'user_verification' => 'preferred'],
+            'authenticator_selection' => ['resident_key' => 'required', 'require_resident_key' => true, 'user_verification' => 'preferred'],
             'attestation' => 'none',
         ]);
 
@@ -795,7 +844,7 @@ describe('Passkey Management', function () {
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
-            'authenticator_selection' => ['resident_key' => 'preferred', 'user_verification' => 'preferred'],
+            'authenticator_selection' => ['resident_key' => 'required', 'require_resident_key' => true, 'user_verification' => 'preferred'],
             'attestation' => 'none',
         ]);
 
@@ -868,7 +917,7 @@ describe('Passkey Management', function () {
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
-            'authenticator_selection' => ['resident_key' => 'preferred', 'user_verification' => 'preferred'],
+            'authenticator_selection' => ['resident_key' => 'required', 'require_resident_key' => true, 'user_verification' => 'preferred'],
             'attestation' => 'none',
         ];
 
