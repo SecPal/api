@@ -189,8 +189,8 @@ sudo chown www-data:www-data .env
 
 ### 3. Passkey Authentication Fallback Secret
 
-The public passkey challenge endpoints (`/v1/auth/passkey/challenge`,
-`/v1/auth/token/passkey/challenge`) return a deterministic fallback
+The public passkey challenge endpoints (`POST /v1/auth/passkeys/challenges`,
+`POST /v1/auth/token/passkeys/challenges`) return a deterministic fallback
 `allow_credentials` descriptor for unknown or unenrolled emails so the response
 shape cannot be used to enumerate accounts. The HMAC key for that descriptor is
 sourced from `PASSKEY_AUTHENTICATION_FALLBACK_SECRET`, falling back to
