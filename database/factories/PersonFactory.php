@@ -33,10 +33,7 @@ final class PersonFactory extends Factory
         // Resolve the latest tenant so factory defaults follow the current test context.
         $tenant = TenantKey::query()->latest('id')->first();
         if (! $tenant) {
-            // Ensure KEK exists for testing
-            if (! file_exists(TenantKey::getKekPath())) {
-                TenantKey::generateKek();
-            }
+            TenantKey::ensureKekExists();
             $keys = TenantKey::generateEnvelopeKeys();
             $tenant = TenantKey::create($keys);
         }

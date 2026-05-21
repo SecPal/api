@@ -36,9 +36,7 @@ class SiteAssignmentFactory extends Factory
     {
         $tenant = TenantKey::query()->latest('id')->first();
         if (! $tenant) {
-            if (! file_exists(TenantKey::getKekPath())) {
-                TenantKey::generateKek();
-            }
+            TenantKey::ensureKekExists();
             $keys = TenantKey::generateEnvelopeKeys();
             $tenant = TenantKey::create($keys);
         }

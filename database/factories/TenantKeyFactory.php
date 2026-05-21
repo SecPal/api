@@ -31,12 +31,10 @@ final class TenantKeyFactory extends Factory
      */
     public function definition(): array
     {
-        // Ensure KEK exists for testing
-        if (! file_exists(TenantKey::getKekPath())) {
-            TenantKey::generateKek();
-        }
+        // ensureKekExists() is race-safe across parallel Pest workers that
+        // share the default KEK path; generateKek() would TOCTOU-race here.
+        TenantKey::ensureKekExists();
 
-        // Generate envelope keys using the model's static method
         return TenantKey::generateEnvelopeKeys();
     }
 

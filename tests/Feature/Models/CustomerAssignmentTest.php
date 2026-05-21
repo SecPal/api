@@ -19,10 +19,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    // Ensure KEK exists and create tenant
-    if (! file_exists(TenantKey::getKekPath())) {
-        TenantKey::generateKek();
-    }
+    TenantKey::ensureKekExists();
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 

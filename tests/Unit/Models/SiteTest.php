@@ -23,10 +23,7 @@ beforeEach(function () {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
 
-    // Ensure KEK exists
-    if (! file_exists(TenantKey::getKekPath())) {
-        TenantKey::generateKek();
-    }
+    TenantKey::ensureKekExists();
 
     // Create tenant for testing
     if (! TenantKey::first()) {

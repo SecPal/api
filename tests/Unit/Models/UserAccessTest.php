@@ -36,9 +36,7 @@ beforeEach(function () {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
 
-    if (! file_exists(TenantKey::getKekPath())) {
-        TenantKey::generateKek();
-    }
+    TenantKey::ensureKekExists();
 
     if (! TenantKey::first()) {
         $keys = TenantKey::generateEnvelopeKeys();

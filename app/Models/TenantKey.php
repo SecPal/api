@@ -239,11 +239,77 @@ class TenantKey extends Model
     /**
      * Generate a new KEK and store it securely.
      *
-     * @throws \RuntimeException if unable to create directory or write file
+     * Production-safe: refuses to overwrite an existing KEK file. Use
+     * {@see self::ensureKekExists()} when an idempotent, race-tolerant
+     * "create if missing" is desired (e.g. test factories, seeders).
+     *
+     * @throws \RuntimeException if the KEK file already exists, the keys
+     *                           directory cannot be created, or the file
+     *                           cannot be written/secured
      */
     public static function generateKek(): void
     {
         $path = self::getKekPath();
+
+        if (! self::tryCreateKekFile($path)) {
+            throw new \RuntimeException('KEK file already exists at: '.$path);
+        }
+    }
+
+    /**
+     * Ensure a KEK file exists, creating it if missing.
+     *
+     * Race-safe variant of {@see self::generateKek()} suitable for parallel
+     * test bootstrapping and seeders. If another process wins the create
+     * race, this method silently treats the file as already present without
+     * overwriting it.
+     *
+     * @throws \RuntimeException if the file cannot be created and no valid
+     *                           KEK file exists after the attempt
+     */
+    public static function ensureKekExists(): void
+    {
+        $path = self::getKekPath();
+
+        clearstatcache(true, $path);
+
+        if (file_exists($path)) {
+            return;
+        }
+
+        if (self::tryCreateKekFile($path)) {
+            return;
+        }
+
+        // Another writer won the race; treat any existing file as valid here.
+        // The winning writer will either complete successfully or its own error
+        // path will unlink the partial file. A size check is intentionally
+        // omitted: the winning writer may still be flushing, so checking
+        // filesize() here would race against the in-progress write and produce
+        // a spurious RuntimeException even when the KEK will be valid moments later.
+        clearstatcache(true, $path);
+
+        if (file_exists($path)) {
+            return;
+        }
+
+        throw new \RuntimeException('Failed to create KEK file at: '.$path);
+    }
+
+    /**
+     * Attempt to create a KEK file with exclusive semantics.
+     *
+     * Returns true when this process successfully created the file; returns
+     * false when another writer already created it (TOCTOU race). All other
+     * failure modes throw RuntimeException so callers can decide whether to
+     * surface them.
+     *
+     * The fopen() warning is suppressed because Laravel converts E_WARNING
+     * into ErrorException during tests; under parallel workers this would
+     * unwind the stack before we can inspect the false return value.
+     */
+    private static function tryCreateKekFile(string $path): bool
+    {
         $dir = dirname($path);
 
         if (! self::ensureKeysDirectoryExists($dir)) {
@@ -257,10 +323,10 @@ class TenantKey extends Model
         $handle = false;
 
         try {
-            $handle = fopen($path, 'xb');
+            $handle = @fopen($path, 'xb');
 
             if ($handle === false) {
-                throw new \RuntimeException('KEK file already exists or could not be created at: '.$path);
+                return false;
             }
 
             $bytesWritten = fwrite($handle, $kek);
@@ -294,6 +360,8 @@ class TenantKey extends Model
 
             throw new \RuntimeException('Failed to set KEK file permissions');
         }
+
+        return true;
     }
 
     /**

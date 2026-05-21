@@ -128,3 +128,138 @@ test('tenant key factory keys are functional for blind index', function (): void
     $index3 = $tenantKey->generateBlindIndex('different-value');
     expect($index)->not->toBe($index3);
 });
+
+// ============================================================================
+// Parallel-Safety Tests (Issue #1106)
+// ============================================================================
+
+test('ensureKekExists creates the KEK when missing', function (): void {
+    $kekPath = TenantKey::getKekPath();
+    expect(file_exists($kekPath))->toBeFalse();
+
+    TenantKey::ensureKekExists();
+
+    expect(file_exists($kekPath))->toBeTrue()
+        ->and(filesize($kekPath))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES)
+        ->and(fileperms($kekPath) & 0777)->toBe(0600);
+})->group('parallel-safety', 'issue-1106');
+
+test('ensureKekExists is idempotent and preserves existing KEK bytes', function (): void {
+    TenantKey::ensureKekExists();
+
+    $kekPath = TenantKey::getKekPath();
+    $originalBytes = file_get_contents($kekPath);
+    $originalInode = fileinode($kekPath);
+
+    // Second call must not overwrite or recreate the file.
+    TenantKey::ensureKekExists();
+
+    clearstatcache(true, $kekPath);
+
+    expect(file_get_contents($kekPath))->toBe($originalBytes)
+        ->and(fileinode($kekPath))->toBe($originalInode);
+})->group('parallel-safety', 'issue-1106');
+
+test('ensureKekExists is a no-op when the KEK already exists', function (): void {
+    $kekPath = TenantKey::getKekPath();
+
+    // Pre-populate with a known KEK byte pattern. ensureKekExists() must not
+    // touch it, because overwriting an in-use KEK would corrupt every tenant.
+    @mkdir(dirname($kekPath), 0700, true);
+    $marker = str_repeat("\x42", SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+    file_put_contents($kekPath, $marker);
+    chmod($kekPath, 0600);
+
+    TenantKey::ensureKekExists();
+
+    expect(file_get_contents($kekPath))->toBe($marker);
+})->group('parallel-safety', 'issue-1106');
+
+test('generateKek still refuses to overwrite an existing KEK', function (): void {
+    TenantKey::generateKek();
+
+    expect(fn () => TenantKey::generateKek())
+        ->toThrow(RuntimeException::class, 'KEK file already exists');
+})->group('parallel-safety', 'issue-1106');
+
+test('ensureKekExists does not throw when a partial file exists after losing the create race', function (): void {
+    $kekPath = TenantKey::getKekPath();
+
+    // Simulate the winning writer having created the file but not yet finished
+    // flushing: the file exists with zero bytes. The loser must not throw.
+    @mkdir(dirname($kekPath), 0700, true);
+    file_put_contents($kekPath, '');
+    chmod($kekPath, 0600);
+
+    // Must succeed without throwing even though filesize() === 0.
+    TenantKey::ensureKekExists();
+
+    expect(file_exists($kekPath))->toBeTrue();
+})->group('parallel-safety', 'issue-1106');
+
+test('concurrent ensureKekExists calls survive the create race', function (): void {
+    if (! function_exists('pcntl_fork') || ! function_exists('posix_kill')) {
+        $this->markTestSkipped('pcntl + posix extensions required to simulate concurrent KEK creation.');
+    }
+
+    // Use a dedicated path so we can reliably observe the race outcome and
+    // avoid interfering with any other tests' KEK isolation helpers.
+    $uniqueSuffix = getmypid().'-'.uniqid('', true);
+    $kekPath = storage_path('app/keys/kek-race-'.$uniqueSuffix.'.key');
+    $statusDir = sys_get_temp_dir().'/kek-race-'.$uniqueSuffix;
+    @mkdir($statusDir, 0700, true);
+    @unlink($kekPath);
+    TenantKey::setKekPath($kekPath);
+
+    $workerCount = 8;
+    $pids = [];
+
+    try {
+        for ($i = 0; $i < $workerCount; $i++) {
+            $pid = pcntl_fork();
+
+            if ($pid === -1) {
+                $this->fail('Failed to fork worker process.');
+            }
+
+            if ($pid === 0) {
+                // Child: only race on the KEK file. We SIGKILL ourselves on
+                // exit because PHP's shutdown handlers would otherwise close
+                // the inherited PDO connection and break the parent runner's
+                // RefreshDatabase rollback. A marker file communicates success.
+                $marker = $statusDir.'/worker-'.posix_getpid().'.ok';
+
+                try {
+                    TenantKey::ensureKekExists();
+                    @touch($marker);
+                } catch (Throwable) {
+                    // No marker on failure; parent will detect via the count.
+                }
+
+                posix_kill(posix_getpid(), SIGKILL);
+            }
+
+            $pids[] = $pid;
+        }
+
+        foreach ($pids as $childPid) {
+            pcntl_waitpid($childPid, $status);
+        }
+
+        $successMarkers = glob($statusDir.'/worker-*.ok') ?: [];
+
+        expect(count($successMarkers))->toBe($workerCount)
+            ->and(file_exists($kekPath))->toBeTrue()
+            ->and(filesize($kekPath))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES)
+            ->and(fileperms($kekPath) & 0777)->toBe(0600);
+    } finally {
+        @unlink($kekPath);
+
+        foreach (glob($statusDir.'/*') ?: [] as $marker) {
+            @unlink($marker);
+        }
+        @rmdir($statusDir);
+
+        TenantKey::setKekPath(null);
+    }
+})->group('parallel-safety', 'issue-1106');

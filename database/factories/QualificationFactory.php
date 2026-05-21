@@ -24,9 +24,7 @@ class QualificationFactory extends Factory
         // Get the most recently created tenant from the current test context.
         $tenant = TenantKey::query()->latest('id')->first();
         if (! $tenant) {
-            if (! file_exists(TenantKey::getKekPath())) {
-                TenantKey::generateKek();
-            }
+            TenantKey::ensureKekExists();
             $keys = TenantKey::generateEnvelopeKeys();
             $tenant = TenantKey::create($keys);
         }
