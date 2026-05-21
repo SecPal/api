@@ -179,7 +179,38 @@ test('generateKek still refuses to overwrite an existing KEK', function (): void
     TenantKey::generateKek();
 
     expect(fn () => TenantKey::generateKek())
-        ->toThrow(RuntimeException::class, 'KEK file already exists');
+        ->toThrow(RuntimeException::class, 'KEK file already exists or could not be created at:');
+})->group('parallel-safety', 'issue-1106');
+
+test('ensureKekExists throws a clear error when the create attempt fails and no file appears', function (): void {
+    // A symlink pointing at a target in a non-existent parent directory
+    // deterministically reproduces the race-loser recovery branch in a single
+    // process:
+    //   * file_exists() returns false (symlink target does not exist)
+    //   * fopen($path, 'xb') returns false (link present at path, target's
+    //     parent missing, so fopen can neither create nor open through it)
+    // After tryCreateKekFile() fails the recheck still reports the file as
+    // missing, so ensureKekExists() must surface a clear RuntimeException
+    // instead of leaving callers with the raw fopen warning.
+    $uniqueSuffix = getmypid().'-'.uniqid('', true);
+    $kekPath = sys_get_temp_dir().'/kek-dangling-'.$uniqueSuffix.'.key';
+    $danglingTarget = '/nonexistent/'.$uniqueSuffix.'/target.key';
+
+    @unlink($kekPath);
+
+    if (! @symlink($danglingTarget, $kekPath)) {
+        $this->markTestSkipped('Unable to create symlink for race-loser path test.');
+    }
+
+    TenantKey::setKekPath($kekPath);
+
+    try {
+        expect(fn (): null => TenantKey::ensureKekExists() ?? null)
+            ->toThrow(RuntimeException::class, 'Failed to create KEK file');
+    } finally {
+        @unlink($kekPath);
+        TenantKey::setKekPath(null);
+    }
 })->group('parallel-safety', 'issue-1106');
 
 test('ensureKekExists does not throw when a partial file exists after losing the create race', function (): void {
@@ -237,6 +268,7 @@ test('concurrent ensureKekExists calls survive the create race', function (): vo
                 }
 
                 posix_kill(posix_getpid(), SIGKILL);
+                exit(0); // never reached; guards against signal delivery delay
             }
 
             $pids[] = $pid;

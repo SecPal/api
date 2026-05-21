@@ -252,7 +252,7 @@ class TenantKey extends Model
         $path = self::getKekPath();
 
         if (! self::tryCreateKekFile($path)) {
-            throw new \RuntimeException('KEK file already exists at: '.$path);
+            throw new \RuntimeException('KEK file already exists or could not be created at: '.$path);
         }
     }
 
@@ -289,11 +289,9 @@ class TenantKey extends Model
         // a spurious RuntimeException even when the KEK will be valid moments later.
         clearstatcache(true, $path);
 
-        if (file_exists($path)) {
-            return;
+        if (! file_exists($path)) {
+            throw new \RuntimeException('Failed to create KEK file at: '.$path);
         }
-
-        throw new \RuntimeException('Failed to create KEK file at: '.$path);
     }
 
     /**
@@ -353,6 +351,8 @@ class TenantKey extends Model
             if (is_resource($handle)) {
                 fclose($handle);
             }
+
+            sodium_memzero($kek);
         }
 
         if (! chmod($path, self::KEK_FILE_PERMISSIONS)) {
