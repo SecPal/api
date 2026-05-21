@@ -814,7 +814,32 @@ class AuthController extends Controller
     /**
      * Request a password reset email.
      *
-     * Security: Always returns 200 to prevent email enumeration.
+     * Security: this endpoint must not leak whether the submitted email maps
+     * to an existing account. Three defenses are layered:
+     *
+     * 1. The HTTP response is identical regardless of branch (same status,
+     *    body, and externally observable headers).
+     * 2. The dominant request cost — bcrypt hashing of a fresh reset token —
+     *    is paid unconditionally. At production hashing cost the bcrypt step
+     *    dominates the request budget by orders of magnitude over the
+     *    conditional DB writes and queue enqueue, which makes the residual
+     *    timing delta between the two branches statistically indistinguishable
+     *    from network jitter under the rate-limited request budget.
+     * 3. A configurable minimum response delay (auth.password_reset_min_response_time_ms)
+     *    is enforced as defense in depth so the equalization still holds if
+     *    the hasher is reconfigured to something cheap.
+     *
+     * The token store and mail queue writes are intentionally kept conditional
+     * on the user actually existing. Those side effects are not observable to
+     * unauthenticated clients (only to operators with database / queue access),
+     * and unconditionally writing them for arbitrary user input would create
+     * spam and storage growth without strengthening the client-side anti-
+     * enumeration guarantee that this endpoint protects.
+     *
+     * The mail dispatch is placed inside the DB transaction so that a
+     * queue-write failure atomically rolls back the token insert. This
+     * ensures no token is ever stored without a corresponding mail being
+     * queued.
      */
     public function passwordResetRequest(PasswordResetRequestRequest $request): JsonResponse
     {
@@ -823,29 +848,36 @@ class AuthController extends Controller
 
         $user = User::where('email', $validated['email'])->first();
 
+        // Always allocate the token and compute the bcrypt hash, regardless of
+        // whether the email matched a real account. This is the dominant cost
+        // of the "known" branch and running it unconditionally collapses the
+        // primary timing oracle. The resulting hash is only persisted when a
+        // real user exists; for the missing-account branch the value is
+        // discarded after the hash work has been performed.
+        $token = Str::random(64);
+        $hashedToken = Hash::make($token);
+
         if ($user) {
-            // Delete any existing tokens for this email
-            DB::table('password_reset_tokens')
-                ->where('email', $user->email)
-                ->delete();
+            DB::transaction(function () use ($user, $hashedToken, $token): void {
+                DB::table('password_reset_tokens')
+                    ->where('email', $user->email)
+                    ->delete();
 
-            // Generate secure token
-            $token = Str::random(64);
+                DB::table('password_reset_tokens')->insert([
+                    'email' => $user->email,
+                    'token' => $hashedToken,
+                    'created_at' => now(),
+                ]);
 
-            // Store hashed token
-            DB::table('password_reset_tokens')->insert([
-                'email' => $user->email,
-                'token' => Hash::make($token),
-                'created_at' => now(),
-            ]);
-
-            // Send password reset email (queued for async processing)
-            Mail::to($user)->queue(new PasswordResetMail($user, $token));
+                // Mail dispatch is inside the transaction so a queue-write
+                // failure causes the whole transaction to roll back. No token
+                // is left in the DB without a corresponding mail being queued.
+                Mail::to($user)->queue(new PasswordResetMail($user, $token));
+            });
         }
 
         $this->enforcePasswordResetMinimumResponseTime($startedAt);
 
-        // Always return same response to prevent email enumeration
         return response()->json([
             'message' => __('Password reset email sent if account exists'),
         ]);

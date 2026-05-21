@@ -127,8 +127,11 @@ return [
     |--------------------------------------------------------------------------
     |
     | The password reset request endpoint intentionally waits until at least
-    | this many milliseconds have elapsed before it returns. This reduces the
-    | small timing gap between existing and non-existing account paths.
+    | this many milliseconds have elapsed before it returns. This is layered
+    | defense in depth: AuthController::passwordResetRequest() already
+    | equalizes the dominant request cost by running the bcrypt token hash
+    | unconditionally, so the floor primarily protects deployments where the
+    | hasher has been reconfigured to something cheap.
     |
     */
 
