@@ -814,7 +814,38 @@ class AuthController extends Controller
     /**
      * Request a password reset email.
      *
-     * Security: Always returns 200 to prevent email enumeration.
+     * Security: this endpoint must not leak whether the submitted email maps
+     * to an existing account. Three defenses are layered:
+     *
+     * 1. The HTTP response is identical regardless of branch (same status,
+     *    body, and externally observable headers).
+     * 2. The dominant request cost — bcrypt hashing of a fresh reset token —
+     *    is paid unconditionally. At production hashing cost the bcrypt step
+     *    dominates the request budget by orders of magnitude over the
+     *    conditional DB writes and queue enqueue, which makes the residual
+     *    timing delta between the two branches statistically indistinguishable
+     *    from network jitter under the rate-limited request budget.
+     * 3. A configurable minimum response delay (auth.password_reset_min_response_time_ms)
+     *    is enforced as defense in depth so the equalization still holds if
+     *    the hasher is reconfigured to something cheap.
+     *
+     * The token store and mail queue writes are intentionally kept conditional
+     * on the user actually existing. Those side effects are not observable to
+     * unauthenticated clients (only to operators with database / queue access),
+     * and unconditionally writing them for arbitrary user input would create
+     * spam and storage growth without strengthening the client-side anti-
+     * enumeration guarantee that this endpoint protects.
+     *
+     * The DB transaction wraps only the token DELETE+INSERT so the row
+     * replacement is atomic. The mail enqueue runs after the transaction
+     * commits — keeping it inside the transaction would race against
+     * non-database queue backends (redis, sqs, beanstalkd) whose
+     * `after_commit` flag is `false` and whose workers would otherwise pick
+     * up the job before the outer DB transaction is visible. The whole
+     * existing-user block is wrapped in a try/catch that reports failures
+     * but still returns the uniform 200 response, so an infrastructure
+     * incident on the existing-user branch cannot leak a 500 / 200 status
+     * code differential and become an enumeration oracle (see #1086).
      */
     public function passwordResetRequest(PasswordResetRequestRequest $request): JsonResponse
     {
@@ -823,29 +854,51 @@ class AuthController extends Controller
 
         $user = User::where('email', $validated['email'])->first();
 
+        // Always allocate the token and compute the bcrypt hash, regardless of
+        // whether the email matched a real account. This is the dominant cost
+        // of the "known" branch and running it unconditionally collapses the
+        // primary timing oracle. The resulting hash is only persisted when a
+        // real user exists; for the missing-account branch the value is
+        // discarded after the hash work has been performed.
+        $token = Str::random(64);
+        $hashedToken = Hash::make($token);
+
         if ($user) {
-            // Delete any existing tokens for this email
-            DB::table('password_reset_tokens')
-                ->where('email', $user->email)
-                ->delete();
+            try {
+                DB::transaction(function () use ($user, $hashedToken): void {
+                    DB::table('password_reset_tokens')
+                        ->where('email', $user->email)
+                        ->delete();
 
-            // Generate secure token
-            $token = Str::random(64);
+                    DB::table('password_reset_tokens')->insert([
+                        'email' => $user->email,
+                        'token' => $hashedToken,
+                        'created_at' => now(),
+                    ]);
+                });
 
-            // Store hashed token
-            DB::table('password_reset_tokens')->insert([
-                'email' => $user->email,
-                'token' => Hash::make($token),
-                'created_at' => now(),
-            ]);
-
-            // Send password reset email (queued for async processing)
-            Mail::to($user)->queue(new PasswordResetMail($user, $token));
+                // Enqueue the mail only after the token row is committed so
+                // that out-of-process queue backends (redis, sqs, beanstalkd)
+                // cannot deliver an email referencing a token that the worker
+                // would not yet (or never) see in the database.
+                Mail::to($user)->queue(new PasswordResetMail($user, $token));
+            } catch (Throwable $exception) {
+                // Log at error level so monitoring can surface users that
+                // received a generic 200 without an actual delivery attempt.
+                // The uniform 200 is intentional (prevents 500/200 enumeration
+                // oracle), but silent swallowing would leave operators blind to
+                // delivery failures. report() alone is insufficient when the
+                // exception reporter is not wired to an alerting channel.
+                Log::error('password_reset_delivery_failed', [
+                    'email' => $user->email,
+                    'exception' => $exception->getMessage(),
+                ]);
+                report($exception);
+            }
         }
 
         $this->enforcePasswordResetMinimumResponseTime($startedAt);
 
-        // Always return same response to prevent email enumeration
         return response()->json([
             'message' => __('Password reset email sent if account exists'),
         ]);
