@@ -237,30 +237,153 @@ class TenantKey extends Model
     }
 
     /**
+     * Verify that a KEK file at the given path is complete, readable, and
+     * has secure permissions. Used by {@see self::ensureKekExists()} to honor
+     * its "any file at the canonical path is a valid KEK" guarantee even on
+     * the early-return paths, where the file may have been created by an
+     * earlier run, a manually-placed file, or a race winner.
+     *
+     * @throws \RuntimeException if permissions, readability, or size do not
+     *                           match a freshly published KEK
+     */
+    private static function assertPublishedKekFile(string $path): void
+    {
+        self::assertSecureKekPermissions($path);
+        self::assertReadableKekFile($path);
+
+        clearstatcache(true, $path);
+        $size = filesize($path);
+
+        if ($size !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
+            throw new \RuntimeException(sprintf(
+                'KEK file has invalid size: %s bytes (expected %d) at: %s',
+                $size === false ? 'unknown' : (string) $size,
+                SODIUM_CRYPTO_SECRETBOX_KEYBYTES,
+                $path,
+            ));
+        }
+    }
+
+    /**
      * Generate a new KEK and store it securely.
      *
-     * @throws \RuntimeException if unable to create directory or write file
+     * Production-safe: refuses to overwrite an existing KEK file. Use
+     * {@see self::ensureKekExists()} when an idempotent, race-tolerant
+     * "create if missing" is desired (e.g. test factories, seeders).
+     *
+     * @throws \RuntimeException if the KEK file already exists, the keys
+     *                           directory cannot be created, or the file
+     *                           cannot be written/secured
      */
     public static function generateKek(): void
     {
         $path = self::getKekPath();
+
+        // tryCreateKekFile() only returns false when the canonical path is
+        // already published (atomic link() lost the race). Any other failure
+        // surfaces as a RuntimeException from inside tryCreateKekFile() with
+        // the underlying PHP error attached.
+        if (! self::tryCreateKekFile($path)) {
+            throw new \RuntimeException('KEK file already exists at: '.$path);
+        }
+    }
+
+    /**
+     * Ensure a KEK file exists, creating it if missing.
+     *
+     * Race-safe variant of {@see self::generateKek()} suitable for parallel
+     * test bootstrapping and seeders. If another process wins the create
+     * race, this method silently treats the published file as canonical
+     * without overwriting it.
+     *
+     * The underlying writer uses an atomic temp-write + hard-link publish,
+     * so once the canonical path exists it is GUARANTEED to be a complete,
+     * `SODIUM_CRYPTO_SECRETBOX_KEYBYTES`-byte KEK with `0600` permissions —
+     * concurrent readers never observe a partial or zero-length file.
+     *
+     * @throws \RuntimeException if the file cannot be created and no valid
+     *                           KEK file exists after the attempt
+     */
+    public static function ensureKekExists(): void
+    {
+        $path = self::getKekPath();
+
+        clearstatcache(true, $path);
+
+        if (file_exists($path)) {
+            // The early-return path can land on a file we did not create
+            // (a leftover from an earlier run, a manually-placed file, or
+            // even a race winner's file). Validating permissions, readability
+            // and size here makes the docblock guarantee true regardless of
+            // who produced the file, and surfaces tampering early instead of
+            // letting loadKek() fail later with a generic "Invalid KEK file".
+            self::assertPublishedKekFile($path);
+
+            return;
+        }
+
+        if (self::tryCreateKekFile($path)) {
+            // Just published by us with chmod 0600 and the correct byte count.
+            return;
+        }
+
+        // Race lost: tryCreateKekFile() only returns false after confirming
+        // the canonical path now exists. Because publication is atomic the
+        // file the next reader will see is fully written. Validate it here
+        // for the same reason as the initial early-return branch.
+        clearstatcache(true, $path);
+
+        if (! file_exists($path)) {
+            throw new \RuntimeException('Failed to create KEK file at: '.$path);
+        }
+
+        self::assertPublishedKekFile($path);
+    }
+
+    /**
+     * Attempt to publish a KEK file with atomic, race-safe semantics.
+     *
+     * Strategy: write a fully-formed, chmod'd KEK to a unique temp file in
+     * the same directory, then `link()` the temp into the canonical path.
+     * On POSIX filesystems `link()` is atomic and fails with EEXIST when
+     * the target already exists, which is exactly the race-lost signal we
+     * want. Concurrent readers either observe a complete KEK or no file at
+     * all — never a partial or zero-length one.
+     *
+     * Returns true when this process published the canonical file; returns
+     * false when another writer's published file is already in place. All
+     * other failure modes (write errors, permission denied, missing
+     * directory, etc.) raise RuntimeException with the underlying PHP error
+     * detail attached so operators can diagnose the failure.
+     *
+     * The fopen() / link() warnings are suppressed because Laravel converts
+     * E_WARNING into ErrorException during tests; under parallel workers
+     * this would unwind the stack before we can inspect the false return
+     * value.
+     */
+    private static function tryCreateKekFile(string $path): bool
+    {
         $dir = dirname($path);
 
         if (! self::ensureKeysDirectoryExists($dir)) {
             throw new \RuntimeException('Failed to create keys directory');
         }
 
+        $tempPath = $dir.'/.kek-tmp-'.bin2hex(random_bytes(16));
+
         $kek = sodium_crypto_secretbox_keygen();
-
         $previousUmask = umask(0077);
-
         $handle = false;
 
         try {
-            $handle = fopen($path, 'xb');
+            $handle = @fopen($tempPath, 'xb');
 
             if ($handle === false) {
-                throw new \RuntimeException('KEK file already exists or could not be created at: '.$path);
+                // 32 crypto-random hex chars — a collision is a real failure,
+                // not a race we want to swallow.
+                throw new \RuntimeException(self::describeError(
+                    'Failed to create temporary KEK file at: '.$tempPath,
+                ));
             }
 
             $bytesWritten = fwrite($handle, $kek);
@@ -268,32 +391,65 @@ class TenantKey extends Model
             if ($bytesWritten !== strlen($kek)) {
                 fclose($handle);
                 $handle = false;
-                @unlink($path);
 
-                throw new \RuntimeException('Failed to write KEK file');
+                throw new \RuntimeException('Failed to write temporary KEK file');
             }
 
             if (! fclose($handle)) {
                 $handle = false;
-                @unlink($path);
 
-                throw new \RuntimeException('Failed to finalize KEK file');
+                throw new \RuntimeException('Failed to finalize temporary KEK file');
             }
 
             $handle = false;
+
+            if (! chmod($tempPath, self::KEK_FILE_PERMISSIONS)) {
+                throw new \RuntimeException('Failed to set KEK file permissions');
+            }
+
+            if (@link($tempPath, $path)) {
+                return true;
+            }
+
+            // link() failed. Distinguish the expected race-lost case (target
+            // already published by another writer — link() raises EEXIST and
+            // file_exists() now reports the canonical path) from real errors
+            // such as permission denied, missing parent, or read-only FS.
+            clearstatcache(true, $path);
+
+            if (file_exists($path)) {
+                return false;
+            }
+
+            throw new \RuntimeException(self::describeError(
+                'Failed to publish KEK file at: '.$path,
+            ));
         } finally {
             umask($previousUmask);
 
             if (is_resource($handle)) {
                 fclose($handle);
             }
-        }
 
-        if (! chmod($path, self::KEK_FILE_PERMISSIONS)) {
-            @unlink($path);
+            if (is_file($tempPath)) {
+                @unlink($tempPath);
+            }
 
-            throw new \RuntimeException('Failed to set KEK file permissions');
+            sodium_memzero($kek);
         }
+    }
+
+    /**
+     * Build a RuntimeException message that includes the most recent PHP
+     * error detail when available so operators can diagnose link/fopen
+     * failures without re-reading raw warnings.
+     */
+    private static function describeError(string $context): string
+    {
+        $error = error_get_last();
+        $detail = is_array($error) ? trim($error['message']) : '';
+
+        return $detail !== '' ? $context.' ('.$detail.')' : $context;
     }
 
     /**

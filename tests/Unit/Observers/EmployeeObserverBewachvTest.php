@@ -14,9 +14,7 @@ use Spatie\Activitylog\Models\Activity;
 uses(RefreshDatabase::class)->group('unit', 'observer', 'bewachv');
 
 beforeEach(function () {
-    if (! file_exists(TenantKey::getKekPath())) {
-        TenantKey::generateKek();
-    }
+    TenantKey::ensureKekExists();
 
     Mail::fake();
     Storage::fake('local');

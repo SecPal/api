@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal
+// SPDX-FileCopyrightText: 2025-2026 SecPal
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -33,10 +33,7 @@ final class PersonFactory extends Factory
         // Resolve the latest tenant so factory defaults follow the current test context.
         $tenant = TenantKey::query()->latest('id')->first();
         if (! $tenant) {
-            // Ensure KEK exists for testing
-            if (! file_exists(TenantKey::getKekPath())) {
-                TenantKey::generateKek();
-            }
+            TenantKey::ensureKekExists();
             $keys = TenantKey::generateEnvelopeKeys();
             $tenant = TenantKey::create($keys);
         }

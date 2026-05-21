@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Database\Factories;
@@ -32,10 +32,7 @@ class OrganizationalUnitFactory extends Factory
         // Don't cache between tests (RefreshDatabase clears everything)
         $tenant = TenantKey::query()->latest('id')->first();
         if (! $tenant) {
-            // Ensure KEK exists for testing
-            if (! file_exists(TenantKey::getKekPath())) {
-                TenantKey::generateKek();
-            }
+            TenantKey::ensureKekExists();
             $keys = TenantKey::generateEnvelopeKeys();
             $tenant = TenantKey::create($keys);
         }

@@ -11,9 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class)->group('unit', 'employee', 'bewachv');
 
 beforeEach(function () {
-    if (! file_exists(TenantKey::getKekPath())) {
-        TenantKey::generateKek();
-    }
+    TenantKey::ensureKekExists();
     $this->employee = Employee::factory()->create();
 });
 

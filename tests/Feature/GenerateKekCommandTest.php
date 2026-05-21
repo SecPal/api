@@ -48,7 +48,7 @@ test('keys generate kek command refuses to overwrite an existing KEK file', func
     $originalContents = file_get_contents(TenantKey::getKekPath());
 
     $this->artisan('keys:generate-kek')
-        ->expectsOutputToContain('KEK file already exists')
+        ->expectsOutputToContain('KEK file already exists at:')
         ->expectsOutputToContain('php artisan keys:rotate-kek')
         ->assertExitCode(1);
 
