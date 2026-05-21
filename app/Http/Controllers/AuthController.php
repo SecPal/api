@@ -836,10 +836,16 @@ class AuthController extends Controller
      * spam and storage growth without strengthening the client-side anti-
      * enumeration guarantee that this endpoint protects.
      *
-     * The mail dispatch is placed inside the DB transaction so that a
-     * queue-write failure atomically rolls back the token insert. This
-     * ensures no token is ever stored without a corresponding mail being
-     * queued.
+     * The DB transaction wraps only the token DELETE+INSERT so the row
+     * replacement is atomic. The mail enqueue runs after the transaction
+     * commits — keeping it inside the transaction would race against
+     * non-database queue backends (redis, sqs, beanstalkd) whose
+     * `after_commit` flag is `false` and whose workers would otherwise pick
+     * up the job before the outer DB transaction is visible. The whole
+     * existing-user block is wrapped in a try/catch that reports failures
+     * but still returns the uniform 200 response, so an infrastructure
+     * incident on the existing-user branch cannot leak a 500 / 200 status
+     * code differential and become an enumeration oracle (see #1086).
      */
     public function passwordResetRequest(PasswordResetRequestRequest $request): JsonResponse
     {
@@ -859,7 +865,7 @@ class AuthController extends Controller
 
         if ($user) {
             try {
-                DB::transaction(function () use ($user, $hashedToken, $token): void {
+                DB::transaction(function () use ($user, $hashedToken): void {
                     DB::table('password_reset_tokens')
                         ->where('email', $user->email)
                         ->delete();
@@ -869,13 +875,24 @@ class AuthController extends Controller
                         'token' => $hashedToken,
                         'created_at' => now(),
                     ]);
-
-                    // Mail dispatch is inside the transaction so a queue-write
-                    // failure causes the whole transaction to roll back. No token
-                    // is left in the DB without a corresponding mail being queued.
-                    Mail::to($user)->queue(new PasswordResetMail($user, $token));
                 });
+
+                // Enqueue the mail only after the token row is committed so
+                // that out-of-process queue backends (redis, sqs, beanstalkd)
+                // cannot deliver an email referencing a token that the worker
+                // would not yet (or never) see in the database.
+                Mail::to($user)->queue(new PasswordResetMail($user, $token));
             } catch (Throwable $exception) {
+                // Log at error level so monitoring can surface users that
+                // received a generic 200 without an actual delivery attempt.
+                // The uniform 200 is intentional (prevents 500/200 enumeration
+                // oracle), but silent swallowing would leave operators blind to
+                // delivery failures. report() alone is insufficient when the
+                // exception reporter is not wired to an alerting channel.
+                Log::error('password_reset_delivery_failed', [
+                    'email' => $user->email,
+                    'exception' => $exception->getMessage(),
+                ]);
                 report($exception);
             }
         }

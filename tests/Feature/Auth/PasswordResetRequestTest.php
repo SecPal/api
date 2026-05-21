@@ -8,10 +8,13 @@ declare(strict_types=1);
 use App\Mail\PasswordResetMail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Hashing\HashManager;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
+use Mockery\MockInterface;
 
 /**
  * Feature tests for password reset request endpoint.
@@ -318,10 +321,21 @@ it('invokes the password hasher unconditionally so timing variance does not leak
         ]);
     }
 
-    Hash::shouldReceive('make')
-        ->once()
-        ->withArgs(fn ($value): bool => is_string($value) && strlen($value) === 64)
-        ->andReturnUsing(fn (string $value): string => password_hash($value, PASSWORD_BCRYPT, ['cost' => 4]));
+    // Replace the 'hash' service binding (the key the Hash facade resolves
+    // through) with a container-managed Mockery mock. Using $this->instance()
+    // rather than Hash::shouldReceive() ensures the mock is wired through the
+    // same container binding that production code uses, satisfying the
+    // "resolve framework-managed collaborators through the container" rule.
+    // Clearing the facade's resolved-instance cache is required so that any
+    // earlier resolution (e.g. during factory user creation) does not cause
+    // the facade to keep serving the real HashManager instead of the mock.
+    $this->instance('hash', Mockery::mock(HashManager::class, function (MockInterface $mock): void {
+        $mock->shouldReceive('make')
+            ->once()
+            ->withArgs(fn ($value): bool => is_string($value) && strlen($value) === 64)
+            ->andReturnUsing(fn (string $value): string => password_hash($value, PASSWORD_BCRYPT, ['cost' => 4]));
+    }));
+    Hash::clearResolvedInstances();
 
     $this->postJson('/v1/auth/password/reset-request', [
         'email' => $email,
@@ -397,7 +411,7 @@ it('does not write password reset side effects for unknown emails', function () 
     )->toBe(0);
 });
 
-it('preserves the generic response and rolls back the token insert when the mail queue write fails', function () {
+it('preserves the generic response when the mail queue write fails so a queue outage cannot enumerate accounts', function () {
     config()->set('auth.password_reset_min_response_time_ms', 0);
 
     $user = User::factory()->create([
@@ -414,9 +428,38 @@ it('preserves the generic response and rolls back the token insert when the mail
         'message' => 'Password reset email sent if account exists',
     ]);
 
+    // The token row is committed before the mail enqueue runs. Keeping the
+    // token persisted is the intended trade-off: a transient queue outage
+    // leaves the user able to retry without re-requesting a reset, and
+    // avoids the queue-vs-transaction races that would arise if the mail
+    // dispatch were placed inside the DB transaction (out-of-process queue
+    // backends with `after_commit=false` could otherwise deliver an email
+    // for a token that was not yet — or never — visible to the worker).
     expect(
         DB::table('password_reset_tokens')
             ->where('email', $user->email)
             ->count()
-    )->toBe(0);
+    )->toBe(1);
+});
+
+it('preserves the generic response when the token write fails so a database outage cannot enumerate accounts', function () {
+    config()->set('auth.password_reset_min_response_time_ms', 0);
+    Mail::fake();
+
+    User::factory()->create([
+        'email' => 'db-fail@example.com',
+    ]);
+
+    // Drop the reset-token table so the DB::transaction() body fails with a
+    // real database exception. The user-lookup SELECT above is on `users`
+    // and is unaffected.
+    Schema::drop('password_reset_tokens');
+
+    $this->postJson('/v1/auth/password/reset-request', [
+        'email' => 'db-fail@example.com',
+    ])->assertOk()->assertJson([
+        'message' => 'Password reset email sent if account exists',
+    ]);
+
+    Mail::assertNothingQueued();
 });
