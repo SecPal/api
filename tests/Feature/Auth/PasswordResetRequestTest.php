@@ -397,7 +397,7 @@ it('does not write password reset side effects for unknown emails', function () 
     )->toBe(0);
 });
 
-it('rolls back the token insert when the mail queue write fails so no orphaned token is left in the database', function () {
+it('preserves the generic response and rolls back the token insert when the mail queue write fails', function () {
     config()->set('auth.password_reset_min_response_time_ms', 0);
 
     $user = User::factory()->create([
@@ -410,7 +410,9 @@ it('rolls back the token insert when the mail queue write fails so no orphaned t
 
     $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'queue-fail@example.com',
-    ])->assertServerError();
+    ])->assertOk()->assertJson([
+        'message' => 'Password reset email sent if account exists',
+    ]);
 
     expect(
         DB::table('password_reset_tokens')

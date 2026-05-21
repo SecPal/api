@@ -858,22 +858,26 @@ class AuthController extends Controller
         $hashedToken = Hash::make($token);
 
         if ($user) {
-            DB::transaction(function () use ($user, $hashedToken, $token): void {
-                DB::table('password_reset_tokens')
-                    ->where('email', $user->email)
-                    ->delete();
+            try {
+                DB::transaction(function () use ($user, $hashedToken, $token): void {
+                    DB::table('password_reset_tokens')
+                        ->where('email', $user->email)
+                        ->delete();
 
-                DB::table('password_reset_tokens')->insert([
-                    'email' => $user->email,
-                    'token' => $hashedToken,
-                    'created_at' => now(),
-                ]);
+                    DB::table('password_reset_tokens')->insert([
+                        'email' => $user->email,
+                        'token' => $hashedToken,
+                        'created_at' => now(),
+                    ]);
 
-                // Mail dispatch is inside the transaction so a queue-write
-                // failure causes the whole transaction to roll back. No token
-                // is left in the DB without a corresponding mail being queued.
-                Mail::to($user)->queue(new PasswordResetMail($user, $token));
-            });
+                    // Mail dispatch is inside the transaction so a queue-write
+                    // failure causes the whole transaction to roll back. No token
+                    // is left in the DB without a corresponding mail being queued.
+                    Mail::to($user)->queue(new PasswordResetMail($user, $token));
+                });
+            } catch (Throwable $exception) {
+                report($exception);
+            }
         }
 
         $this->enforcePasswordResetMinimumResponseTime($startedAt);
