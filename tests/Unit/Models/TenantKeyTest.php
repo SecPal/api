@@ -175,23 +175,49 @@ test('ensureKekExists is a no-op when the KEK already exists', function (): void
     expect(file_get_contents($kekPath))->toBe($marker);
 })->group('parallel-safety', 'issue-1106');
 
+test('ensureKekExists publishes the canonical path atomically (loadKek-safe)', function (): void {
+    // Atomic publish guarantee: once ensureKekExists() returns successfully
+    // the canonical path is a complete, KEYBYTES-sized, 0600 KEK that
+    // loadKek() will accept. This prevents the race that callers like
+    // TenantKeyFactory hit when they chain ensureKekExists() -> loadKek()
+    // and a partial/zero-length file would make loadKek() throw.
+    TenantKey::ensureKekExists();
+
+    $kekPath = TenantKey::getKekPath();
+
+    expect(filesize($kekPath))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES)
+        ->and(fileperms($kekPath) & 0777)->toBe(0600);
+
+    // loadKek() must accept the just-published file without retry/wait.
+    $kek = TenantKey::loadKek();
+
+    expect(strlen($kek))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+
+    sodium_memzero($kek);
+
+    // Temp files created during the atomic publish must not linger.
+    $leftoverTempFiles = glob(dirname($kekPath).'/.kek-tmp-*') ?: [];
+    expect($leftoverTempFiles)->toBe([]);
+})->group('parallel-safety', 'issue-1106');
+
 test('generateKek still refuses to overwrite an existing KEK', function (): void {
     TenantKey::generateKek();
 
     expect(fn () => TenantKey::generateKek())
-        ->toThrow(RuntimeException::class, 'KEK file already exists or could not be created at:');
+        ->toThrow(RuntimeException::class, 'KEK file already exists');
 })->group('parallel-safety', 'issue-1106');
 
-test('ensureKekExists throws a clear error when the create attempt fails and no file appears', function (): void {
+test('tryCreateKekFile surfaces real failures with the underlying error message', function (): void {
     // A symlink pointing at a target in a non-existent parent directory
-    // deterministically reproduces the race-loser recovery branch in a single
-    // process:
-    //   * file_exists() returns false (symlink target does not exist)
-    //   * fopen($path, 'xb') returns false (link present at path, target's
-    //     parent missing, so fopen can neither create nor open through it)
-    // After tryCreateKekFile() fails the recheck still reports the file as
-    // missing, so ensureKekExists() must surface a clear RuntimeException
-    // instead of leaving callers with the raw fopen warning.
+    // reproduces the "publish failed for a non-race reason" branch in a
+    // single process:
+    //   * file_exists($path) returns false (symlink target does not exist)
+    //   * the atomic link() into $path fails because the link already
+    //     occupies that name, and the recheck still reports the target as
+    //     missing — so this is a real failure, not a race we should swallow.
+    // ensureKekExists() must surface a clear RuntimeException with the
+    // underlying PHP error attached instead of leaving callers with a raw
+    // fopen/link warning or a silent success.
     $uniqueSuffix = getmypid().'-'.uniqid('', true);
     $kekPath = sys_get_temp_dir().'/kek-dangling-'.$uniqueSuffix.'.key';
     $danglingTarget = '/nonexistent/'.$uniqueSuffix.'/target.key';
@@ -206,26 +232,11 @@ test('ensureKekExists throws a clear error when the create attempt fails and no 
 
     try {
         expect(fn (): null => TenantKey::ensureKekExists() ?? null)
-            ->toThrow(RuntimeException::class, 'Failed to create KEK file');
+            ->toThrow(RuntimeException::class, 'Failed to publish KEK file at:');
     } finally {
         @unlink($kekPath);
         TenantKey::setKekPath(null);
     }
-})->group('parallel-safety', 'issue-1106');
-
-test('ensureKekExists does not throw when a partial file exists after losing the create race', function (): void {
-    $kekPath = TenantKey::getKekPath();
-
-    // Simulate the winning writer having created the file but not yet finished
-    // flushing: the file exists with zero bytes. The loser must not throw.
-    @mkdir(dirname($kekPath), 0700, true);
-    file_put_contents($kekPath, '');
-    chmod($kekPath, 0600);
-
-    // Must succeed without throwing even though filesize() === 0.
-    TenantKey::ensureKekExists();
-
-    expect(file_exists($kekPath))->toBeTrue();
 })->group('parallel-safety', 'issue-1106');
 
 test('concurrent ensureKekExists calls survive the create race', function (): void {
