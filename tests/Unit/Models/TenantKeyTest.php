@@ -175,6 +175,36 @@ test('ensureKekExists is a no-op when the KEK already exists', function (): void
     expect(file_get_contents($kekPath))->toBe($marker);
 })->group('parallel-safety', 'issue-1106');
 
+test('ensureKekExists rejects a pre-existing file with wrong size before returning', function (): void {
+    $kekPath = TenantKey::getKekPath();
+
+    // Pre-populate the canonical path with a too-short payload (e.g. a stale
+    // leftover from a crashed write or a manually-placed file). The early-
+    // return path must NOT silently accept it -- doing so would let downstream
+    // loadKek() throw a generic "Invalid KEK file" instead of pointing at the
+    // real problem.
+    @mkdir(dirname($kekPath), 0700, true);
+    file_put_contents($kekPath, str_repeat("\x00", 8));
+    chmod($kekPath, 0600);
+
+    expect(fn (): null => TenantKey::ensureKekExists() ?? null)
+        ->toThrow(RuntimeException::class, 'KEK file has invalid size');
+})->group('parallel-safety', 'issue-1106');
+
+test('ensureKekExists rejects a pre-existing file with insecure permissions', function (): void {
+    $kekPath = TenantKey::getKekPath();
+
+    // World-readable KEK files are a security incident. The early-return
+    // path must refuse to trust them instead of silently treating them as
+    // valid just because file_exists() is true.
+    @mkdir(dirname($kekPath), 0700, true);
+    file_put_contents($kekPath, str_repeat("\x42", SODIUM_CRYPTO_SECRETBOX_KEYBYTES));
+    chmod($kekPath, 0644);
+
+    expect(fn (): null => TenantKey::ensureKekExists() ?? null)
+        ->toThrow(RuntimeException::class, 'KEK file has insecure permissions');
+})->group('parallel-safety', 'issue-1106');
+
 test('ensureKekExists publishes the canonical path atomically (loadKek-safe)', function (): void {
     // Atomic publish guarantee: once ensureKekExists() returns successfully
     // the canonical path is a complete, KEYBYTES-sized, 0600 KEK that

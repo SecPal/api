@@ -237,6 +237,34 @@ class TenantKey extends Model
     }
 
     /**
+     * Verify that a KEK file at the given path is complete, readable, and
+     * has secure permissions. Used by {@see self::ensureKekExists()} to honor
+     * its "any file at the canonical path is a valid KEK" guarantee even on
+     * the early-return paths, where the file may have been created by an
+     * earlier run, a manually-placed file, or a race winner.
+     *
+     * @throws \RuntimeException if permissions, readability, or size do not
+     *                           match a freshly published KEK
+     */
+    private static function assertPublishedKekFile(string $path): void
+    {
+        self::assertSecureKekPermissions($path);
+        self::assertReadableKekFile($path);
+
+        clearstatcache(true, $path);
+        $size = filesize($path);
+
+        if ($size !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
+            throw new \RuntimeException(sprintf(
+                'KEK file has invalid size: %s bytes (expected %d) at: %s',
+                $size === false ? 'unknown' : (string) $size,
+                SODIUM_CRYPTO_SECRETBOX_KEYBYTES,
+                $path,
+            ));
+        }
+    }
+
+    /**
      * Generate a new KEK and store it securely.
      *
      * Production-safe: refuses to overwrite an existing KEK file. Use
@@ -283,23 +311,33 @@ class TenantKey extends Model
         clearstatcache(true, $path);
 
         if (file_exists($path)) {
+            // The early-return path can land on a file we did not create
+            // (a leftover from an earlier run, a manually-placed file, or
+            // even a race winner's file). Validating permissions, readability
+            // and size here makes the docblock guarantee true regardless of
+            // who produced the file, and surfaces tampering early instead of
+            // letting loadKek() fail later with a generic "Invalid KEK file".
+            self::assertPublishedKekFile($path);
+
             return;
         }
 
         if (self::tryCreateKekFile($path)) {
+            // Just published by us with chmod 0600 and the correct byte count.
             return;
         }
 
         // Race lost: tryCreateKekFile() only returns false after confirming
         // the canonical path now exists. Because publication is atomic the
-        // file the next reader will see is fully written. The recheck below
-        // is defense-in-depth against an unrelated process unlinking it
-        // between the publish observation and this return.
+        // file the next reader will see is fully written. Validate it here
+        // for the same reason as the initial early-return branch.
         clearstatcache(true, $path);
 
         if (! file_exists($path)) {
             throw new \RuntimeException('Failed to create KEK file at: '.$path);
         }
+
+        self::assertPublishedKekFile($path);
     }
 
     /**
