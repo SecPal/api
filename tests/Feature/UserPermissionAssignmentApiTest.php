@@ -451,6 +451,26 @@ test('global permission catalog endpoints are not exposed at runtime', function 
         ->assertExactJson([
             'message' => 'Resource not found.',
         ]);
+
+    postJson('/v1/permissions', [
+        'name' => 'reports.generate',
+    ])->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
+
+    $this->patchJson('/v1/permissions/1', [
+        'description' => 'Updated description',
+    ])->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
+
+    deleteJson('/v1/permissions/1')
+        ->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
 });
 
 test('validation fails when permissions array is empty', function () {

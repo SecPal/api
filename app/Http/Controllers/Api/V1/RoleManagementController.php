@@ -11,6 +11,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\CreateRoleRequest;
 use App\Http\Requests\Api\V1\UpdateRoleRequest;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
@@ -26,9 +27,7 @@ class RoleManagementController extends Controller
     {
         Gate::authorize('viewAny', Role::class);
 
-        $tenantId = $this->currentTenantId();
-        $roles = Role::withCount(['permissions', 'users'])
-            ->where('tenant_id', $tenantId)
+        $roles = $this->scopeToCurrentTenant(Role::withCount(['permissions', 'users']))
             ->orderBy('name')
             ->get();
 
@@ -79,8 +78,7 @@ class RoleManagementController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $role = Role::with('permissions')
-            ->where('tenant_id', $this->currentTenantId())
+        $role = $this->scopeToCurrentTenant(Role::with('permissions'))
             ->findOrFail($id);
         Gate::authorize('view', $role);
 
@@ -101,8 +99,7 @@ class RoleManagementController extends Controller
      */
     public function update(UpdateRoleRequest $request, int $id): JsonResponse
     {
-        $role = Role::query()
-            ->where('tenant_id', $this->currentTenantId())
+        $role = $this->scopeToCurrentTenant(Role::query())
             ->findOrFail($id);
         Gate::authorize('update', $role);
 
@@ -139,8 +136,7 @@ class RoleManagementController extends Controller
      */
     public function destroy(int $id): Response|JsonResponse
     {
-        $role = Role::query()
-            ->where('tenant_id', $this->currentTenantId())
+        $role = $this->scopeToCurrentTenant(Role::query())
             ->findOrFail($id);
         Gate::authorize('delete', $role);
 
@@ -158,11 +154,28 @@ class RoleManagementController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * @param  Builder<Role>  $query
+     * @return Builder<Role>
+     */
+    private function scopeToCurrentTenant(Builder $query): Builder
+    {
+        return $query->where($this->teamForeignKeyColumn(), $this->currentTenantId());
+    }
+
     private function currentTenantId(): int
     {
         $tenantId = app(PermissionRegistrar::class)->getPermissionsTeamId();
         abort_unless(is_int($tenantId), Response::HTTP_FORBIDDEN);
 
         return $tenantId;
+    }
+
+    private function teamForeignKeyColumn(): string
+    {
+        $column = config('permission.column_names.team_foreign_key');
+        abort_unless(is_string($column) && $column !== '', Response::HTTP_INTERNAL_SERVER_ERROR);
+
+        return $column;
     }
 }
