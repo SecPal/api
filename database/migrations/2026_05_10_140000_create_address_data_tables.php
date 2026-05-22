@@ -84,19 +84,27 @@ return new class extends Migration
 
     private function tryCreatePgTrgmIndexes(): void
     {
+        // Each optional step runs inside its own nested transaction so a PostgreSQL
+        // statement error (e.g. pg_trgm installed in a schema outside search_path)
+        // only rolls back its own SAVEPOINT instead of aborting the entire migration
+        // transaction and silently dropping the just-created address tables.
         try {
-            DB::statement('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+            DB::transaction(static function (): void {
+                DB::statement('CREATE EXTENSION IF NOT EXISTS pg_trgm');
+            });
         } catch (Throwable) {
             return;
         }
 
         try {
-            DB::statement(
-                'CREATE INDEX address_streets_name_search_trgm_idx ON address_streets USING gin (name_search gin_trgm_ops)',
-            );
-            DB::statement(
-                'CREATE INDEX address_streets_locality_search_trgm_idx ON address_streets USING gin (locality_search gin_trgm_ops)',
-            );
+            DB::transaction(static function (): void {
+                DB::statement(
+                    'CREATE INDEX address_streets_name_search_trgm_idx ON address_streets USING gin (name_search gin_trgm_ops)',
+                );
+                DB::statement(
+                    'CREATE INDEX address_streets_locality_search_trgm_idx ON address_streets USING gin (locality_search gin_trgm_ops)',
+                );
+            });
         } catch (Throwable) {
             // Prefix/B-tree indexes remain for lookup when extension or CREATE INDEX fails.
         }
