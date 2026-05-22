@@ -413,6 +413,19 @@ describe('POST /v1/roles - Create Role', function () {
 
         $this->registrar->setPermissionsTeamId($this->tenant->id);
     });
+
+    test('accepts numeric-string team ids when resolving current tenant scope', function (): void {
+        $controller = new App\Http\Controllers\Api\V1\RoleManagementController;
+        $reflector = new ReflectionClass($controller);
+        $method = $reflector->getMethod('currentTenantId');
+        $method->setAccessible(true);
+
+        $this->registrar->setPermissionsTeamId((string) $this->tenant->id);
+
+        expect($method->invoke($controller))->toBe($this->tenant->id);
+
+        $this->registrar->setPermissionsTeamId($this->tenant->id);
+    });
 });
 
 describe('GET /v1/roles/{id} - Get Role Details', function () {

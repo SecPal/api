@@ -168,9 +168,16 @@ class RoleManagementController extends Controller
     private function currentTenantId(): int
     {
         $tenantId = app(PermissionRegistrar::class)->getPermissionsTeamId();
-        abort_unless(is_int($tenantId), Response::HTTP_FORBIDDEN);
 
-        return $tenantId;
+        if (is_int($tenantId)) {
+            return $tenantId;
+        }
+
+        if (is_string($tenantId) && ctype_digit($tenantId)) {
+            return (int) $tenantId;
+        }
+
+        abort(Response::HTTP_FORBIDDEN);
     }
 
     private function teamForeignKeyColumn(): string
