@@ -169,7 +169,7 @@ class BootstrapController extends Controller
 
     private function bootstrapPublicEnabled(): bool
     {
-        return $this->booleanConfig('bootstrap.public_enabled', true);
+        return $this->booleanConfig('bootstrap.public_enabled', false);
     }
 
     private function retryAfterSeconds(): int

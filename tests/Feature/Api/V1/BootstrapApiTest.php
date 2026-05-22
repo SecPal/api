@@ -110,3 +110,19 @@ test('public bootstrap can report that configuration is temporarily unavailable'
             ],
         ]);
 });
+
+test('public bootstrap fails closed when the public enabled config is missing', function (): void {
+    app('config')->offsetUnset('bootstrap.public_enabled');
+
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
+        ->assertStatus(503)
+        ->assertHeader('Retry-After', '60')
+        ->assertExactJson([
+            'message' => 'Public bootstrap configuration is temporarily unavailable.',
+            'code' => 'BOOTSTRAP_CONFIG_UNAVAILABLE',
+            'details' => [
+                'retryable' => true,
+                'retry_after_seconds' => 60,
+            ],
+        ]);
+});
