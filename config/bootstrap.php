@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 return [
-    'public_enabled' => filter_var(env('BOOTSTRAP_PUBLIC_ENABLED', true), FILTER_VALIDATE_BOOL),
+    'public_enabled' => filter_var(env('BOOTSTRAP_PUBLIC_ENABLED', false), FILTER_VALIDATE_BOOL),
     'instance_display_name' => env('BOOTSTRAP_INSTANCE_DISPLAY_NAME'),
     'retryable' => filter_var(env('BOOTSTRAP_RETRYABLE', true), FILTER_VALIDATE_BOOL),
     'retry_after_seconds' => (int) env('BOOTSTRAP_RETRY_AFTER_SECONDS', 60),
