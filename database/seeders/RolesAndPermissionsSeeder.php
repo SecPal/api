@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace Database\Seeders;
@@ -148,7 +148,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'activity_log' => [
                 'read',
                 'read_all', // Access to global logs (no organizational unit)
-                'read_system', // View activities from admin/system users (Issue #440)
+                'read_system', // View activities from privileged or system actors (Issue #440)
             ],
             'onboarding' => [
                 'read',
@@ -201,10 +201,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'extend_expiration',  // Phase 3: PATCH /users/{user}/roles/{role}/extend
             ],
             'permissions' => [
-                'read',           // Phase 4: GET /permissions
-                'create',         // Phase 4: POST /permissions
-                'update',         // Phase 4: PATCH /permissions/{id}
-                'delete',         // Phase 4: DELETE /permissions/{id}
+                'read',           // View another user's permissions (GET /users/{user}/permissions)
                 'assign_direct',  // Phase 4: POST /users/{user}/permissions
                 'revoke_direct',  // Phase 4: DELETE /users/{user}/permissions/{permission}
             ],
@@ -328,7 +325,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     'qualification.read',
                     // Epic #385: Activity Logging & Audit Trail (Issue #396)
                     'activity_log.read',
-                    'activity_log.read_system', // View activities from admin/system users (Issue #440)
+                    'activity_log.read_system', // View activities from privileged or system actors (Issue #440)
                     'onboarding.read',
                     'onboarding.write',
                     'android_enrollment.read',

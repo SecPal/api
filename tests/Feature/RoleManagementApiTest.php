@@ -59,6 +59,19 @@ function createRoleManagementRole(string $name, string $guardName = 'sanctum'): 
     return $role;
 }
 
+function createRoleManagementRoleInTenant(TenantKey $tenant, string $name, string $guardName = 'sanctum'): Role
+{
+    $registrar = app(PermissionRegistrar::class);
+    $previousTeamId = $registrar->getPermissionsTeamId();
+
+    $registrar->setPermissionsTeamId($tenant->id);
+    $role = createRoleManagementRole($name, $guardName);
+    $registrar->setPermissionsTeamId($previousTeamId);
+    $registrar->forgetCachedPermissions();
+
+    return $role;
+}
+
 function resetRoleManagementRbacState(): void
 {
     DB::table('role_has_permissions')->delete();
@@ -177,6 +190,21 @@ describe('GET /v1/roles - List Roles', function () {
             ])
             ->assertJsonFragment(['name' => 'Manager', 'permissions_count' => 3])
             ->assertJsonFragment(['name' => 'Guard', 'permissions_count' => 1]);
+    });
+
+    test('does not list roles from another tenant', function (): void {
+        $this->user->givePermissionTo('roles.read');
+
+        createRoleManagementRole('Manager');
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        createRoleManagementRoleInTenant($otherTenant, 'Other Tenant Manager');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/roles');
+
+        $response->assertOk()
+            ->assertJsonFragment(['name' => 'Manager'])
+            ->assertJsonMissing(['name' => 'Other Tenant Manager']);
     });
 });
 
@@ -369,6 +397,35 @@ describe('POST /v1/roles - Create Role', function () {
         $response->assertCreated()
             ->assertJsonPath('data.permissions', []);
     });
+
+    test('aborts with 403 when PermissionRegistrar has no team id set', function (): void {
+        $this->user->givePermissionTo('roles.create');
+
+        $controller = new App\Http\Controllers\Api\V1\RoleManagementController;
+        $reflector = new ReflectionClass($controller);
+        $method = $reflector->getMethod('currentTenantId');
+        $method->setAccessible(true);
+
+        $this->registrar->setPermissionsTeamId(null);
+
+        expect(fn () => $method->invoke($controller))
+            ->toThrow(Symfony\Component\HttpKernel\Exception\HttpException::class);
+
+        $this->registrar->setPermissionsTeamId($this->tenant->id);
+    });
+
+    test('accepts numeric-string team ids when resolving current tenant scope', function (): void {
+        $controller = new App\Http\Controllers\Api\V1\RoleManagementController;
+        $reflector = new ReflectionClass($controller);
+        $method = $reflector->getMethod('currentTenantId');
+        $method->setAccessible(true);
+
+        $this->registrar->setPermissionsTeamId((string) $this->tenant->id);
+
+        expect($method->invoke($controller))->toBe($this->tenant->id);
+
+        $this->registrar->setPermissionsTeamId($this->tenant->id);
+    });
 });
 
 describe('GET /v1/roles/{id} - Get Role Details', function () {
@@ -416,6 +473,21 @@ describe('GET /v1/roles/{id} - Get Role Details', function () {
             ])
             ->assertJsonFragment(['name' => 'Manager'])
             ->assertJsonPath('data.permissions', fn ($permissions) => count($permissions) === 2);
+    });
+
+    test('returns 404 when accessing a role from another tenant', function (): void {
+        $this->user->givePermissionTo('roles.read');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignRole = createRoleManagementRoleInTenant($otherTenant, 'Other Tenant Manager');
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/roles/{$foreignRole->id}");
+
+        $response->assertNotFound()
+            ->assertExactJson([
+                'message' => 'Resource not found.',
+            ]);
     });
 });
 
@@ -594,6 +666,25 @@ describe('PATCH /v1/roles/{id} - Update Role', function () {
             ->toHaveCount(2);
     });
 
+    test('returns 404 when updating a role from another tenant', function (): void {
+        $this->user->givePermissionTo('roles.update');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignRole = createRoleManagementRoleInTenant($otherTenant, 'Other Tenant Manager');
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/roles/{$foreignRole->id}", [
+                'name' => 'Compromised Name',
+            ]);
+
+        $response->assertNotFound()
+            ->assertExactJson([
+                'message' => 'Resource not found.',
+            ]);
+
+        expect($foreignRole->fresh()?->name)->toBe('Other Tenant Manager');
+    });
+
     test('returns 422 when permissions is explicitly null', function (): void {
         $this->user->givePermissionTo('roles.update');
         $role = createRoleManagementRole('Manager');
@@ -666,5 +757,22 @@ describe('DELETE /v1/roles/{id} - Delete Role', function () {
         $response->assertNoContent();
 
         expect(Role::where('id', $role->id)->exists())->toBeFalse();
+    });
+
+    test('returns 404 when deleting a role from another tenant', function (): void {
+        $this->user->givePermissionTo('roles.delete');
+
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignRole = createRoleManagementRoleInTenant($otherTenant, 'Other Tenant Manager');
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/v1/roles/{$foreignRole->id}");
+
+        $response->assertNotFound()
+            ->assertExactJson([
+                'message' => 'Resource not found.',
+            ]);
+
+        expect(Role::whereKey($foreignRole->id)->exists())->toBeTrue();
     });
 });

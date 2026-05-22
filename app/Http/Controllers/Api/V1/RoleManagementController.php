@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -11,10 +11,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\CreateRoleRequest;
 use App\Http\Requests\Api\V1\UpdateRoleRequest;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleManagementController extends Controller
 {
@@ -25,7 +27,7 @@ class RoleManagementController extends Controller
     {
         Gate::authorize('viewAny', Role::class);
 
-        $roles = Role::withCount(['permissions', 'users'])
+        $roles = $this->scopeToCurrentTenant(Role::withCount(['permissions', 'users']))
             ->orderBy('name')
             ->get();
 
@@ -47,6 +49,8 @@ class RoleManagementController extends Controller
     public function store(CreateRoleRequest $request): JsonResponse
     {
         Gate::authorize('create', Role::class);
+
+        $this->currentTenantId();
 
         $validated = $request->validated();
 
@@ -76,7 +80,8 @@ class RoleManagementController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $role = Role::with('permissions')->findOrFail($id);
+        $role = $this->scopeToCurrentTenant(Role::with('permissions'))
+            ->findOrFail($id);
         Gate::authorize('view', $role);
 
         return response()->json([
@@ -96,7 +101,8 @@ class RoleManagementController extends Controller
      */
     public function update(UpdateRoleRequest $request, int $id): JsonResponse
     {
-        $role = Role::findOrFail($id);
+        $role = $this->scopeToCurrentTenant(Role::query())
+            ->findOrFail($id);
         Gate::authorize('update', $role);
 
         $validated = $request->validated();
@@ -132,7 +138,8 @@ class RoleManagementController extends Controller
      */
     public function destroy(int $id): Response|JsonResponse
     {
-        $role = Role::findOrFail($id);
+        $role = $this->scopeToCurrentTenant(Role::query())
+            ->findOrFail($id);
         Gate::authorize('delete', $role);
 
         $usersCount = $role->users()->count();
@@ -147,5 +154,37 @@ class RoleManagementController extends Controller
         $role->delete();
 
         return response()->noContent();
+    }
+
+    /**
+     * @param  Builder<Role>  $query
+     * @return Builder<Role>
+     */
+    private function scopeToCurrentTenant(Builder $query): Builder
+    {
+        return $query->where($this->teamForeignKeyColumn(), $this->currentTenantId());
+    }
+
+    private function currentTenantId(): int
+    {
+        $tenantId = app(PermissionRegistrar::class)->getPermissionsTeamId();
+
+        if (is_int($tenantId)) {
+            return $tenantId;
+        }
+
+        if (is_string($tenantId) && ctype_digit($tenantId)) {
+            return (int) $tenantId;
+        }
+
+        abort(Response::HTTP_FORBIDDEN);
+    }
+
+    private function teamForeignKeyColumn(): string
+    {
+        $column = config('permission.column_names.team_foreign_key');
+        abort_unless(is_string($column) && $column !== '', Response::HTTP_INTERNAL_SERVER_ERROR);
+
+        return $column;
     }
 }

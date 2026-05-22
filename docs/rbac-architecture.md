@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2025 SecPal -->
+<!-- SPDX-FileCopyrightText: 2025-2026 SecPal -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # RBAC Architecture
@@ -1259,20 +1259,6 @@ Role permission membership is managed through create/update payloads (`permissio
 
 **Documentation:** See Issue #137 and Issue #140
 
-### Permission Management API (Phase 4)
-
-| Method   | Endpoint               | Description                                |
-| -------- | ---------------------- | ------------------------------------------ |
-| `GET`    | `/v1/permissions`      | List all permissions (grouped by resource) |
-| `POST`   | `/v1/permissions`      | Create custom permission                   |
-| `GET`    | `/v1/permissions/{id}` | Get permission details                     |
-| `PATCH`  | `/v1/permissions/{id}` | Update permission description              |
-| `DELETE` | `/v1/permissions/{id}` | Delete permission (if not assigned)        |
-
-**Authorization:** Requires the corresponding permission-management permission (`permissions.read`, `permissions.create`, `permissions.update`, `permissions.delete`)
-
-**Documentation:** See Issue #138 and Issue #140
-
 ### Direct Permission API (Phase 4)
 
 | Method   | Endpoint                                  | Description                                     |
@@ -1282,7 +1268,7 @@ Role permission membership is managed through create/update payloads (`permissio
 | `DELETE` | `/v1/users/{id}/permissions/{permission}` | Revoke direct permission                        |
 | `GET`    | `/v1/users/{id}/permissions/direct`       | List only direct permissions                    |
 
-**Authorization:** Users may view their own direct permissions; assignment and revocation require `permissions.assign_direct` / `permissions.revoke_direct`, and viewing another user's permissions requires `permissions.read`
+**Authorization:** Users may view their own direct permissions; assignment and revocation require `permissions.assign_direct` / `permissions.revoke_direct`, and viewing another user's permissions requires tenant-scoped `permissions.read`
 
 **Documentation:** See Issue #139 and Issue #140
 

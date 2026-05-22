@@ -15,7 +15,6 @@ use App\Http\Controllers\Api\V1\EmployeeQualificationController;
 use App\Http\Controllers\Api\V1\OnboardingController;
 use App\Http\Controllers\Api\V1\OrganizationalScopeController;
 use App\Http\Controllers\Api\V1\OrganizationalUnitController;
-use App\Http\Controllers\Api\V1\PermissionManagementController;
 use App\Http\Controllers\Api\V1\QualificationController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\Api\V1\SiteAssignmentController;
@@ -147,19 +146,6 @@ Route::prefix('v1')->group(function () {
                 ->middleware('permission:roles.update');
             Route::delete('/roles/{id}', [RoleManagementController::class, 'destroy'])
                 ->middleware('permission:roles.delete');
-
-            // Permission Management CRUD API
-            // Authorization: Route-level permission middleware + Policy (defense-in-depth)
-            Route::get('/permissions', [PermissionManagementController::class, 'index'])
-                ->middleware('permission:permissions.read');
-            Route::post('/permissions', [PermissionManagementController::class, 'store'])
-                ->middleware('permission:permissions.create');
-            Route::get('/permissions/{id}', [PermissionManagementController::class, 'show'])
-                ->middleware('permission:permissions.read');
-            Route::patch('/permissions/{id}', [PermissionManagementController::class, 'update'])
-                ->middleware('permission:permissions.update');
-            Route::delete('/permissions/{id}', [PermissionManagementController::class, 'destroy'])
-                ->middleware('permission:permissions.delete');
 
             // Role management endpoints
             Route::post('/users/{user}/roles', [RoleController::class, 'store'])

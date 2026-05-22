@@ -14,6 +14,7 @@ use Spatie\Permission\PermissionRegistrar;
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\deleteJson;
 use function Pest\Laravel\getJson;
+use function Pest\Laravel\patchJson;
 use function Pest\Laravel\postJson;
 
 /**
@@ -430,6 +431,47 @@ test('unauthenticated user cannot access permissions endpoints', function () {
 
     getJson("/v1/users/{$user->id}/permissions/direct")
         ->assertUnauthorized();
+});
+
+test('global permission catalog endpoints are not exposed at runtime', function () {
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
+
+    $admin = createTenantUser($tenant);
+    grantUserPermissionManagementAccess($admin, $tenant->id);
+
+    actingAs($admin, 'sanctum');
+
+    getJson('/v1/permissions')
+        ->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
+
+    getJson('/v1/permissions/1')
+        ->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
+
+    postJson('/v1/permissions', [
+        'name' => 'reports.generate',
+    ])->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
+
+    patchJson('/v1/permissions/1', [
+        'description' => 'Updated description',
+    ])->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
+
+    deleteJson('/v1/permissions/1')
+        ->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
 });
 
 test('validation fails when permissions array is empty', function () {
