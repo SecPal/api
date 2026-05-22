@@ -6,6 +6,7 @@
 use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Controllers\Api\V1\AddressController;
 use App\Http\Controllers\Api\V1\AndroidEnrollmentSessionController;
+use App\Http\Controllers\Api\V1\BootstrapController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CustomerAssignmentController;
 use App\Http\Controllers\Api\V1\CustomerController;
@@ -55,6 +56,9 @@ Route::middleware('throttle:health')->group(function () {
 
 // API v1 routes
 Route::prefix('v1')->group(function () {
+    Route::get('/bootstrap', [BootstrapController::class, 'show'])
+        ->middleware('throttle:bootstrap');
+
     // Authentication routes (public)
     // SPA Login (session-based, for web browsers)
     // EnsureFrontendRequestsAreStateful middleware handles session/cookie middleware automatically

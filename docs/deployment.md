@@ -95,6 +95,17 @@ APP_ENV=production
 APP_DEBUG=false
 APP_URL=https://api.secpal.dev
 
+# Public mobile bootstrap (pre-login Android runtime discovery)
+BOOTSTRAP_PUBLIC_ENABLED=true
+BOOTSTRAP_INSTANCE_DISPLAY_NAME=Customer SecPal
+BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION=1.4.0
+BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD=10400
+BOOTSTRAP_PASSWORD_LOGIN_ENABLED=true
+BOOTSTRAP_PASSKEY_LOGIN_ENABLED=true
+BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED=false
+BOOTSTRAP_RETRYABLE=true
+BOOTSTRAP_RETRY_AFTER_SECONDS=60
+
 # Database
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
@@ -131,6 +142,22 @@ LOG_LEVEL=warning
 - Set `APP_DEBUG=false` in production
 - Configure `SESSION_DOMAIN` to match your domain
 - Use environment-specific SMTP credentials
+
+## Public Mobile Bootstrap
+
+Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after the deployment-local bootstrap values are configured.
+
+- `APP_URL` must be the externally reachable API origin for this deployment. The endpoint derives the canonical `api_base_url` from `APP_URL` and appends `/v1`.
+- `APP_NAME` is used as the public instance display name unless `BOOTSTRAP_INSTANCE_DISPLAY_NAME` overrides it.
+- `BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION` and `BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD` are required. If either is missing, the endpoint fails closed with `500 BOOTSTRAP_STATE_INVALID` instead of falling back to SecPal-hosted defaults.
+- Set `BOOTSTRAP_PUBLIC_ENABLED=false` when the deployment should return the documented `503 BOOTSTRAP_CONFIG_UNAVAILABLE` response instead of serving bootstrap metadata.
+- `BOOTSTRAP_PASSWORD_LOGIN_ENABLED`, `BOOTSTRAP_PASSKEY_LOGIN_ENABLED`, and `BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED` define the pre-login feature flags Android receives before login.
+
+Verify the deployed response with the canonical public origin:
+
+```bash
+curl --fail 'https://api.example.com/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400'
+```
 
 ---
 

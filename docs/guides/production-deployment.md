@@ -316,6 +316,17 @@ APP_FALLBACK_LOCALE=en
 APP_FAKER_LOCALE=en_US
 APP_MAINTENANCE_DRIVER=file
 
+# Public mobile bootstrap (pre-login Android runtime discovery)
+BOOTSTRAP_PUBLIC_ENABLED=true
+BOOTSTRAP_INSTANCE_DISPLAY_NAME=Customer SecPal
+BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION=1.4.0
+BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD=10400
+BOOTSTRAP_PASSWORD_LOGIN_ENABLED=true
+BOOTSTRAP_PASSKEY_LOGIN_ENABLED=true
+BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED=false
+BOOTSTRAP_RETRYABLE=true
+BOOTSTRAP_RETRY_AFTER_SECONDS=60
+
 # Database
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
@@ -367,6 +378,8 @@ LOG_CHANNEL=stack
 LOG_STACK=single
 LOG_LEVEL=warning
 ```
+
+`GET /v1/bootstrap` derives the canonical `api_base_url` from `APP_URL` and appends `/v1`. Keep `APP_URL` pointed at the externally reachable API origin, and set the `BOOTSTRAP_MINIMUM_SUPPORTED_APP_*` values before exposing the public bootstrap endpoint on a customer-hosted deployment.
 
 ## Client Configuration
 
