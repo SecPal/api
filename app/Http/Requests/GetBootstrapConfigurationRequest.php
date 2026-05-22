@@ -24,7 +24,7 @@ class GetBootstrapConfigurationRequest extends FormRequest
     {
         return [
             'client_platform' => ['required', Rule::in(['android'])],
-            'app_version' => ['required', 'string', 'max:50'],
+            'app_version' => ['required', 'string', 'max:50', 'regex:/^\d+\.\d+\.\d+$/'],
             'app_build' => ['required', 'integer', 'min:1'],
         ];
     }

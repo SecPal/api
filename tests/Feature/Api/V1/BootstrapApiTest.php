@@ -91,6 +91,20 @@ test('public bootstrap fails closed when required bootstrap metadata is missing'
         ]);
 });
 
+test('public bootstrap accepts minimum_supported_app_build when it arrives as a string from env', function (): void {
+    config(['bootstrap.minimum_supported_app_build' => '10400']);
+
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
+        ->assertOk()
+        ->assertJsonPath('data.compatibility.minimum_supported_app_build', 10400);
+});
+
+test('public bootstrap rejects app_version that does not match semver format', function (): void {
+    getJson('/v1/bootstrap?client_platform=android&app_version=not-a-version&app_build=10400')
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['app_version']);
+});
+
 test('public bootstrap can report that configuration is temporarily unavailable', function (): void {
     config([
         'bootstrap.public_enabled' => false,

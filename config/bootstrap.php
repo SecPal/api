@@ -9,7 +9,7 @@ return [
     'retryable' => filter_var(env('BOOTSTRAP_RETRYABLE', true), FILTER_VALIDATE_BOOL),
     'retry_after_seconds' => (int) env('BOOTSTRAP_RETRY_AFTER_SECONDS', 60),
     'minimum_supported_app_version' => env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION'),
-    'minimum_supported_app_build' => env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD'),
+    'minimum_supported_app_build' => env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD') !== null ? (int) env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD') : null,
     'features' => [
         'password_login' => filter_var(env('BOOTSTRAP_PASSWORD_LOGIN_ENABLED', true), FILTER_VALIDATE_BOOL),
         'passkey_login' => filter_var(env('BOOTSTRAP_PASSKEY_LOGIN_ENABLED', true), FILTER_VALIDATE_BOOL),
