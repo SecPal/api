@@ -50,6 +50,8 @@ class RoleManagementController extends Controller
     {
         Gate::authorize('create', Role::class);
 
+        $this->currentTenantId();
+
         $validated = $request->validated();
 
         /** @var string $name */

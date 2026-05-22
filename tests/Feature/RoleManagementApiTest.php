@@ -397,6 +397,22 @@ describe('POST /v1/roles - Create Role', function () {
         $response->assertCreated()
             ->assertJsonPath('data.permissions', []);
     });
+
+    test('aborts with 403 when PermissionRegistrar has no team id set', function (): void {
+        $this->user->givePermissionTo('roles.create');
+
+        $controller = new App\Http\Controllers\Api\V1\RoleManagementController;
+        $reflector = new ReflectionClass($controller);
+        $method = $reflector->getMethod('currentTenantId');
+        $method->setAccessible(true);
+
+        $this->registrar->setPermissionsTeamId(null);
+
+        expect(fn () => $method->invoke($controller))
+            ->toThrow(Symfony\Component\HttpKernel\Exception\HttpException::class);
+
+        $this->registrar->setPermissionsTeamId($this->tenant->id);
+    });
 });
 
 describe('GET /v1/roles/{id} - Get Role Details', function () {

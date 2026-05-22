@@ -14,6 +14,7 @@ use Spatie\Permission\PermissionRegistrar;
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\deleteJson;
 use function Pest\Laravel\getJson;
+use function Pest\Laravel\patchJson;
 use function Pest\Laravel\postJson;
 
 /**
@@ -459,7 +460,7 @@ test('global permission catalog endpoints are not exposed at runtime', function 
             'message' => 'Resource not found.',
         ]);
 
-    $this->patchJson('/v1/permissions/1', [
+    patchJson('/v1/permissions/1', [
         'description' => 'Updated description',
     ])->assertNotFound()
         ->assertExactJson([
