@@ -345,10 +345,7 @@ class AppServiceProvider extends ServiceProvider
 
     private function bootstrapThrottleKey(Request $request): string
     {
-        $clientPlatformInput = $request->query('client_platform');
-        $clientPlatform = is_string($clientPlatformInput) ? strtolower(trim($clientPlatformInput)) : 'unknown';
-
-        return 'bootstrap|'.$request->ip().'|'.$clientPlatform;
+        return 'bootstrap|'.$request->ip();
     }
 
     /**

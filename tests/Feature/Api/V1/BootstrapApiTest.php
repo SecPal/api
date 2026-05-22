@@ -105,6 +105,30 @@ test('public bootstrap rejects app_version that does not match semver format', f
         ->assertJsonValidationErrors(['app_version']);
 });
 
+test('public bootstrap rate limiting cannot be bypassed by rotating client_platform values', function (): void {
+    $server = ['REMOTE_ADDR' => '203.0.113.25'];
+
+    foreach (range(1, 5) as $attempt) {
+        $this->call('GET', '/v1/bootstrap', [
+            'client_platform' => 'invalid-'.$attempt,
+            'app_version' => '1.4.0',
+            'app_build' => 10400,
+        ], [], [], $server)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['client_platform']);
+    }
+
+    $response = $this->call('GET', '/v1/bootstrap', [
+        'client_platform' => 'invalid-6',
+        'app_version' => '1.4.0',
+        'app_build' => 10400,
+    ], [], [], $server);
+
+    $response->assertTooManyRequests();
+    expect($response->json('message'))->toContain('Too many bootstrap requests.');
+    expect($response->headers->get('Retry-After'))->not->toBeNull();
+});
+
 test('public bootstrap can report that configuration is temporarily unavailable', function (): void {
     config([
         'bootstrap.public_enabled' => false,
