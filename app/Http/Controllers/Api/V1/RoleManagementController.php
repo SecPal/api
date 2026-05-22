@@ -1,7 +1,7 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class RoleManagementController extends Controller
 {
@@ -25,7 +26,9 @@ class RoleManagementController extends Controller
     {
         Gate::authorize('viewAny', Role::class);
 
+        $tenantId = $this->currentTenantId();
         $roles = Role::withCount(['permissions', 'users'])
+            ->where('tenant_id', $tenantId)
             ->orderBy('name')
             ->get();
 
@@ -76,7 +79,9 @@ class RoleManagementController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $role = Role::with('permissions')->findOrFail($id);
+        $role = Role::with('permissions')
+            ->where('tenant_id', $this->currentTenantId())
+            ->findOrFail($id);
         Gate::authorize('view', $role);
 
         return response()->json([
@@ -96,7 +101,9 @@ class RoleManagementController extends Controller
      */
     public function update(UpdateRoleRequest $request, int $id): JsonResponse
     {
-        $role = Role::findOrFail($id);
+        $role = Role::query()
+            ->where('tenant_id', $this->currentTenantId())
+            ->findOrFail($id);
         Gate::authorize('update', $role);
 
         $validated = $request->validated();
@@ -132,7 +139,9 @@ class RoleManagementController extends Controller
      */
     public function destroy(int $id): Response|JsonResponse
     {
-        $role = Role::findOrFail($id);
+        $role = Role::query()
+            ->where('tenant_id', $this->currentTenantId())
+            ->findOrFail($id);
         Gate::authorize('delete', $role);
 
         $usersCount = $role->users()->count();
@@ -147,5 +156,13 @@ class RoleManagementController extends Controller
         $role->delete();
 
         return response()->noContent();
+    }
+
+    private function currentTenantId(): int
+    {
+        $tenantId = app(PermissionRegistrar::class)->getPermissionsTeamId();
+        abort_unless(is_int($tenantId), Response::HTTP_FORBIDDEN);
+
+        return $tenantId;
     }
 }

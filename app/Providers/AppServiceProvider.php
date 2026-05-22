@@ -15,7 +15,6 @@ use App\Models\EmployeeQualification;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OrganizationalUnit;
-use App\Models\Permission;
 use App\Models\Person;
 use App\Models\Qualification;
 use App\Models\Site;
@@ -31,7 +30,6 @@ use App\Policies\EmployeeQualificationPolicy;
 use App\Policies\OnboardingFormSubmissionPolicy;
 use App\Policies\OnboardingFormTemplatePolicy;
 use App\Policies\OrganizationalUnitPolicy;
-use App\Policies\PermissionManagementPolicy;
 use App\Policies\QualificationPolicy;
 use App\Policies\RoleManagementPolicy;
 use App\Policies\SiteAssignmentPolicy;
@@ -225,9 +223,6 @@ class AppServiceProvider extends ServiceProvider
 
         // Register policy for Spatie Role model
         Gate::policy(Role::class, RoleManagementPolicy::class);
-
-        // Register policy for Spatie Permission model
-        Gate::policy(Permission::class, PermissionManagementPolicy::class);
 
         // Register policies for Customer & Site Management (Epic #210)
         Gate::policy(Customer::class, CustomerPolicy::class);

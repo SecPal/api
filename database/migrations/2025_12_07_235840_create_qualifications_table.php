@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Illuminate\Database\Migrations\Migration;
@@ -41,7 +41,7 @@ return new class extends Migration
 
             // System vs. Custom
             $table->boolean('is_system_qualification')->default(false);
-            // System qualifications: Cannot be deleted, editable only by admins
+            // System qualifications: Cannot be deleted, editable only via privileged management flows
             // Custom qualifications: Tenant-specific, fully editable
 
             // Sorting

@@ -338,7 +338,7 @@ Works Council:
 
 ### When to Create Custom Permissions
 
-**Create custom permission when:**
+**Add a new permission definition in code when:**
 
 - ✅ New feature requires new capability
 - ✅ Existing permissions too broad (need granularity)
@@ -365,38 +365,21 @@ Action: export
 Permission: employees.export
 ```
 
-#### 2. Create via API
+#### 2. Add to the code-owned catalog
 
-```bash
-curl -X POST https://api.secpal.dev/v1/permissions \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "employees.export",
-    "description": "Export employee data to CSV/Excel"
-  }'
+```php
+'employees' => [
+    'read',
+    'create',
+    'update',
+    'delete',
+    'export',
+],
 ```
 
-#### 3. Verify Creation
+#### 3. Seed or migrate the new permission
 
-```bash
-curl -X GET https://api.secpal.dev/v1/permissions/43 \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
-**Response:**
-
-```json
-{
-  "data": {
-    "id": 43,
-    "name": "employees.export",
-    "description": "Export employee data to CSV/Excel",
-    "roles_count": 0,
-    "created_at": "2025-11-15T10:00:00Z"
-  }
-}
-```
+Run the relevant seeder or migration path so the permission exists in the global catalog for all tenants.
 
 #### 4. Assign to Roles
 
@@ -419,7 +402,7 @@ curl -X PATCH https://api.secpal.dev/v1/roles/2 \
 
 ## Permission Lifecycle
 
-### 1. Creation
+### 1. Definition
 
 ```text
 Permission Created
@@ -475,30 +458,9 @@ DELETE /v1/users/{id}/permissions/employees.export
 
 ---
 
-### 4. Deletion
+### 4. Removal
 
-**Requirements:**
-
-- ✅ Permission not assigned to any role
-- ✅ Permission not assigned to any user
-
-**Delete:**
-
-```bash
-curl -X DELETE https://api.secpal.dev/v1/permissions/43 \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
-**Error if in use:**
-
-```json
-{
-  "message": "Cannot delete permission while assigned to roles or users",
-  "errors": {
-    "permission": ["This permission is assigned to 3 roles and 2 users."]
-  }
-}
-```
+Permission definitions are removed in code, then rolled out through the normal migration/seeding/deployment path. Runtime deletion through the API is intentionally unsupported.
 
 ---
 
@@ -616,17 +578,19 @@ $shiftPermissions = [
 
 **Steps:**
 
-1. Create permission:
+1. Add the permission definition in code (for example in `RolesAndPermissionsSeeder`):
 
-```bash
-POST /v1/permissions
-{
-  "name": "employees.export",
-  "description": "Export employee data to CSV/Excel"
-}
+```php
+'employees' => [
+    'read',
+    'create',
+    'update',
+    'delete',
+    'export',
+],
 ```
 
-1. Add to Manager role:
+1. Seed or migrate the new permission into the global catalog, then add it to the Manager role:
 
 ```bash
 PATCH /v1/roles/2
@@ -666,19 +630,6 @@ public function export(User $user): bool
 **Solution:**
 
 ```bash
-# Create two permissions
-POST /v1/permissions
-{
-  "name": "reports.view",
-  "description": "View existing reports"
-}
-
-POST /v1/permissions
-{
-  "name": "reports.generate",
-  "description": "Generate new reports"
-}
-
 # Assign to roles
 # Junior Manager: view only
 PATCH /v1/roles/junior_manager
@@ -702,19 +653,6 @@ PATCH /v1/roles/senior_manager
 **Solution:**
 
 ```bash
-# Create specific permissions
-POST /v1/permissions
-{
-  "name": "works_council.access_employee_files",
-  "description": "Access employee files for works council purposes"
-}
-
-POST /v1/permissions
-{
-  "name": "shifts.approve_as_br",
-  "description": "Approve shift plans as works council representative"
-}
-
 # Assign to Works Council role
 PATCH /v1/roles/works_council
 {
@@ -762,48 +700,9 @@ public function view(User $user, Employee $employee): bool
 
 ### "Permission already exists"
 
-**Cause:** Duplicate permission name
+**Cause:** Duplicate permission name in the code-owned permission catalog.
 
-**Solution:** Check existing permissions:
-
-```bash
-curl -X GET https://api.secpal.dev/v1/permissions \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
-Use different action or resource name.
-
----
-
-### "Cannot delete permission while assigned"
-
-**Cause:** Permission still in use
-
-**Solution:**
-
-1. Find where it's used:
-
-```bash
-GET /v1/permissions/43
-# Check "roles_count" and "direct_users_count"
-```
-
-1. Remove from all roles:
-
-```bash
-PATCH /v1/roles/{id}
-{
-  "permissions": [...]  # without the permission
-}
-```
-
-1. Revoke from all users:
-
-```bash
-DELETE /v1/users/{id}/permissions/{permission}
-```
-
-1. Then delete permission.
+**Solution:** Reuse the existing permission or introduce a new code-level permission name with distinct semantics.
 
 ---
 

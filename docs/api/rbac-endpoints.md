@@ -7,12 +7,11 @@ Complete API reference for SecPal's Role-Based Access Control (RBAC) system.
 
 ## Overview
 
-SecPal's RBAC API provides four functional areas:
+SecPal's RBAC API provides three functional areas:
 
 1. **[Role Assignment API](#role-assignment-api)** - Assign/revoke roles to/from users (Phase 3 ✅)
 2. **[Role Management API](#role-management-api)** - CRUD operations for roles (Phase 4 ✅)
-3. **[Permission Management API](#permission-management-api)** - CRUD operations for permissions (Phase 4 ✅)
-4. **[Direct Permission API](#direct-permission-api)** - Assign permissions directly to users (Phase 4 ✅)
+3. **[Direct Permission API](#direct-permission-api)** - View, assign, and revoke user permissions (Phase 4 ✅)
 
 **Base URL:** `https://api.secpal.dev/v1`
 
@@ -590,272 +589,6 @@ curl -X DELETE https://api.secpal.dev/v1/roles/6 \
 
 ---
 
-## Permission Management API
-
-### List All Permissions
-
-Get all permissions grouped by resource.
-
-**Endpoint:** `GET /v1/permissions`
-
-**Authorization:** Authorized via Laravel Policy. Note: Route-level middleware will be added in future release (see Issue #161).
-
-**Query Parameters:**
-
-| Parameter  | Type    | Description                            |
-| ---------- | ------- | -------------------------------------- |
-| `resource` | string  | Filter by resource (e.g., "employees") |
-| `page`     | integer | Page number for pagination             |
-| `per_page` | integer | Items per page (default: 50, max: 100) |
-
-**Success Response (200 OK):**
-
-```json
-{
-  "data": {
-    "employees": [
-      {
-        "id": 5,
-        "name": "employees.read",
-        "description": "View employee data",
-        "roles_count": 4,
-        "created_at": "2025-11-01T10:00:00Z"
-      },
-      {
-        "id": 6,
-        "name": "employees.create",
-        "description": "Create new employees",
-        "roles_count": 2,
-        "created_at": "2025-11-01T10:00:00Z"
-      }
-    ],
-    "shifts": [
-      {
-        "id": 15,
-        "name": "shifts.read",
-        "description": "View shift plans",
-        "roles_count": 5,
-        "created_at": "2025-11-01T10:00:00Z"
-      }
-    ]
-  },
-  "meta": {
-    "total": 42,
-    "resources": ["employees", "shifts", "work_instructions", "roles", "permissions"]
-  }
-}
-```
-
-**cURL Example:**
-
-```bash
-curl -X GET https://api.secpal.dev/v1/permissions \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
----
-
-### Create Permission
-
-Create a new custom permission.
-
-**Endpoint:** `POST /v1/permissions`
-
-**Authorization:** Requires `permissions.create` permission. Authorization is enforced at the route level via `permission:permissions.create` middleware, with additional policy/Gate checks applied in the request flow.
-
-**Request Body:**
-
-```json
-{
-  "name": "employees.export",
-  "description": "Export employee data to CSV/Excel"
-}
-```
-
-**Parameters:**
-
-| Field         | Type   | Required | Description                                 |
-| ------------- | ------ | -------- | ------------------------------------------- |
-| `name`        | string | Yes      | Permission name (format: `resource.action`) |
-| `description` | string | No       | Human-readable description (max 255 chars)  |
-
-**Success Response (201 Created):**
-
-```json
-{
-  "data": {
-    "id": 43,
-    "name": "employees.export",
-    "description": "Export employee data to CSV/Excel",
-    "roles_count": 0,
-    "created_at": "2025-11-15T10:00:00Z"
-  }
-}
-```
-
-**Error Responses:**
-
-**422 Unprocessable Entity** - Invalid permission name format
-
-```json
-{
-  "message": "The name format is invalid.",
-  "errors": {
-    "name": ["The name must follow the format: resource.action (e.g., employees.read)"]
-  }
-}
-```
-
-**cURL Example:**
-
-```bash
-curl -X POST https://api.secpal.dev/v1/permissions \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "employees.export",
-    "description": "Export employee data"
-  }'
-```
-
----
-
-### Get Permission Details
-
-Get detailed information about a specific permission.
-
-**Endpoint:** `GET /v1/permissions/{id}`
-
-**Authorization:** Authorized via Laravel Policy. Note: Route-level middleware will be added in future release (see Issue #161).
-
-**URL Parameters:**
-
-- `id` (integer) - Permission ID
-
-**Success Response (200 OK):**
-
-```json
-{
-  "data": {
-    "id": 5,
-    "name": "employees.read",
-    "description": "View employee data",
-    "roles": [
-      {
-        "id": 1,
-        "name": "Manager"
-      },
-      {
-        "id": 2,
-        "name": "HR"
-      }
-    ],
-    "roles_count": 4,
-    "direct_users_count": 2,
-    "created_at": "2025-11-01T10:00:00Z"
-  }
-}
-```
-
-**cURL Example:**
-
-```bash
-curl -X GET https://api.secpal.dev/v1/permissions/5 \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
----
-
-### Update Permission
-
-Update a permission's description. **Note:** Permission names are immutable for security reasons.
-
-**Endpoint:** `PATCH /v1/permissions/{id}`
-
-**Authorization:** Requires `permissions.update` permission. Authorization is enforced at the route level via `permission:permissions.update` middleware and additionally checked via Laravel Policy/Gate.
-
-**URL Parameters:**
-
-- `id` (integer) - Permission ID
-
-**Request Body:**
-
-```json
-{
-  "description": "View employee data (includes basic info only)"
-}
-```
-
-**Success Response (200 OK):**
-
-```json
-{
-  "data": {
-    "id": 5,
-    "name": "employees.read",
-    "description": "View employee data (includes basic info only)",
-    "updated_at": "2025-11-15T10:30:00Z"
-  }
-}
-```
-
-**cURL Example:**
-
-```bash
-curl -X PATCH https://api.secpal.dev/v1/permissions/5 \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "description": "Updated description"
-  }'
-```
-
----
-
-### Delete Permission
-
-Delete a custom permission. **Cannot delete if assigned to any role or user.**
-
-**Endpoint:** `DELETE /v1/permissions/{id}`
-
-**Authorization:** Requires `permissions.delete` permission. Authorization is enforced by route-level `permission:permissions.delete` middleware and Laravel Policy/Gate checks.
-
-**URL Parameters:**
-
-- `id` (integer) - Permission ID
-
-**Success Response (200 OK):**
-
-```json
-{
-  "message": "Permission deleted successfully"
-}
-```
-
-**Error Responses:**
-
-**422 Unprocessable Entity** - Permission is in use
-
-```json
-{
-  "message": "Cannot delete permission while assigned to roles or users",
-  "errors": {
-    "permission": [
-      "This permission is assigned to 3 roles and 2 users. Remove assignments before deleting."
-    ]
-  }
-}
-```
-
-**cURL Example:**
-
-```bash
-curl -X DELETE https://api.secpal.dev/v1/permissions/43 \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
----
-
 ## Direct Permission API
 
 ### List User's Permissions
@@ -864,7 +597,7 @@ Get all permissions for a user, showing role-based, direct, and combined permiss
 
 **Endpoint:** `GET /v1/users/{user}/permissions`
 
-**Authorization:** Users may view their own permissions; viewing another user's permissions requires `permissions.read`
+**Authorization:** Users may view their own permissions; viewing another user's permissions requires tenant-scoped `permissions.read`
 
 **URL Parameters:**
 
@@ -1043,7 +776,7 @@ Get only the permissions assigned directly to a user (excludes role-based permis
 
 **Endpoint:** `GET /v1/users/{user}/permissions/direct`
 
-**Authorization:** Users may view their own direct permissions; viewing another user's direct permissions requires `permissions.read`
+**Authorization:** Users may view their own direct permissions; viewing another user's direct permissions requires tenant-scoped `permissions.read`
 
 **URL Parameters:**
 

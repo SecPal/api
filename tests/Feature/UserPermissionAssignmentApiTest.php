@@ -432,6 +432,27 @@ test('unauthenticated user cannot access permissions endpoints', function () {
         ->assertUnauthorized();
 });
 
+test('global permission catalog endpoints are not exposed at runtime', function () {
+    ['tenant' => $tenant] = createUserPermissionAssignmentContext();
+
+    $admin = createTenantUser($tenant);
+    grantUserPermissionManagementAccess($admin, $tenant->id);
+
+    actingAs($admin, 'sanctum');
+
+    getJson('/v1/permissions')
+        ->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
+
+    getJson('/v1/permissions/1')
+        ->assertNotFound()
+        ->assertExactJson([
+            'message' => 'Resource not found.',
+        ]);
+});
+
 test('validation fails when permissions array is empty', function () {
     ['tenant' => $tenant] = createUserPermissionAssignmentContext();
 
