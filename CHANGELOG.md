@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Passkey **enrollment** at `POST /v1/me/passkeys/challenges/registration` now defaults to discoverable / resident credentials. `passkeys.resident_key` defaults to `required` (was `preferred`) and `passkeys.require_resident_key` defaults to `true` (was `false`); unrecognized `PASSKEY_RESIDENT_KEY` values are coerced back to `required`, and `require_resident_key` is forced to `true` whenever `resident_key === 'required'` so configuration drift cannot silently re-enable non-discoverable enrollment. Existing non-discoverable passkey credentials remain readable through `/v1/me/passkeys` but cannot be used for the discoverable-only public passkey login flow; affected users must sign in with primary credentials and enroll a new discoverable passkey. There is no public, email-scoped recovery path — reintroducing one would re-open the enumeration vector that the discoverable-only login contract closed. See [`docs/deployment.md` § Passkey Enrollment Contract](docs/deployment.md#4-passkey-enrollment-contract) for the operator/user runbook.
 - **Breaking:** Permission definitions are now strictly code-owned and seed-managed. The runtime API no longer exposes a permission-catalog management surface; `/v1/permissions*` has been removed, and the obsolete runtime permissions `permissions.create`, `permissions.update`, and `permissions.delete` are no longer seeded.
 
+### Security
+
+- enforced email verification on the HR onboarding-review endpoints (`POST /v1/onboarding-review/submissions/{submission}/approve`, `POST /v1/onboarding-review/submissions/{submission}/reject`, `POST /v1/onboarding-review/employees/{employee}/confirm`) by moving them into a dedicated route group with `verified` middleware, so unverified HR accounts can no longer approve, reject, or confirm onboarding dossiers
+
 ### Fixed
 
 - scoped `GET /v1/roles`, `GET /v1/roles/{id}`, `PATCH /v1/roles/{id}`, and `DELETE /v1/roles/{id}` to the authenticated tenant so cross-tenant role enumeration and mutation by raw role id now return `404` (refs `api#1078`)

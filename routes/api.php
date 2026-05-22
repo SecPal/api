@@ -337,7 +337,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/onboarding/submissions/{submission}/files', [OnboardingController::class, 'uploadSubmissionFile']);
             Route::delete('/onboarding/submissions/{submission}/files/{file}', [OnboardingController::class, 'deleteSubmissionFile']);
             Route::get('/onboarding/completion-status', [OnboardingController::class, 'getCompletionStatus']);
+        });
 
+        Route::middleware(['verified', 'tenant.inject'])->group(function () {
             // HR approval endpoints
             Route::post('/onboarding-review/submissions/{submission}/approve', [OnboardingController::class, 'approveSubmission']);
             Route::post('/onboarding-review/submissions/{submission}/reject', [OnboardingController::class, 'rejectSubmission']);
