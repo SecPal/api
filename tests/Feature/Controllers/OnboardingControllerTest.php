@@ -2647,6 +2647,25 @@ describe('POST /v1/onboarding-review/submissions/{submission}/approve', function
         $response->assertStatus(401);
     });
 
+    test('returns 403 when user email is not verified', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.approve');
+        $this->user->forceFill(['email_verified_at' => null])->save();
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'submitted',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/approve");
+
+        $response->assertForbidden()
+            ->assertJson([
+                'message' => 'Your email address is not verified.',
+            ]);
+    });
+
     test('returns 403 when user lacks onboarding.approve permission', function (): void {
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
@@ -2806,6 +2825,27 @@ describe('POST /v1/onboarding-review/submissions/{submission}/reject', function 
         $response->assertStatus(401);
     });
 
+    test('returns 403 when user email is not verified', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.approve');
+        $this->user->forceFill(['email_verified_at' => null])->save();
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'submitted',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/onboarding-review/submissions/{$submission->id}/reject", [
+                'reason' => 'Incomplete information',
+            ]);
+
+        $response->assertForbidden()
+            ->assertJson([
+                'message' => 'Your email address is not verified.',
+            ]);
+    });
+
     test('returns 403 when user lacks onboarding.approve permission', function (): void {
         $submission = OnboardingFormSubmission::factory()->create([
             'employee_id' => $this->employee->id,
@@ -2888,6 +2928,25 @@ describe('POST /v1/onboarding-review/employees/{employee}/confirm', function () 
         $response = $this->postJson("/v1/onboarding-review/employees/{$this->employee->id}/confirm");
 
         $response->assertStatus(401);
+    });
+
+    test('returns 403 when user email is not verified', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.confirm');
+        $this->user->forceFill(['email_verified_at' => null])->save();
+
+        $this->employee->update([
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_SUBMITTED_FOR_REVIEW,
+            'onboarding_completed' => true,
+            'contract_start_date' => now()->addWeek()->toDateString(),
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/onboarding-review/employees/{$this->employee->id}/confirm");
+
+        $response->assertForbidden()
+            ->assertJson([
+                'message' => 'Your email address is not verified.',
+            ]);
     });
 
     test('returns 403 when user lacks onboarding.confirm permission', function (): void {
