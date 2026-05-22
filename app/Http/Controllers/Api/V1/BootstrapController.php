@@ -110,6 +110,9 @@ class BootstrapController extends Controller
         return $missingFields;
     }
 
+    /**
+     * @param  array<int, string>  $missingFields
+     */
     private function invalidStateResponse(array $missingFields): JsonResponse
     {
         return response()->json([
