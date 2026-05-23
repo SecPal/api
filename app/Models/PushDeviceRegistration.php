@@ -51,8 +51,6 @@ class PushDeviceRegistration extends Model
         'provider',
         'device_name',
         'push_token_plain',
-        'push_token_enc',
-        'token_last_eight',
         'last_lifecycle_event',
         'package_name',
         'package_version_name',
