@@ -42,19 +42,12 @@ class BootstrapController extends Controller
             return $this->invalidStateResponse($missingFields);
         }
 
-        if (! is_string($apiBaseUrl)
-            || ! is_string($displayName)
-            || ! is_string($minimumSupportedAppVersion)
-            || ! is_int($minimumSupportedAppBuild)) {
-            return $this->invalidStateResponse(array_keys(array_filter([
-                'api_base_url' => ! is_string($apiBaseUrl),
-                'instance.display_name' => ! is_string($displayName),
-                'compatibility.minimum_supported_app_version' => ! is_string($minimumSupportedAppVersion),
-                'compatibility.minimum_supported_app_build' => ! is_int($minimumSupportedAppBuild),
-            ])));
-        }
-
-        if ($request->appBuild() < $minimumSupportedAppBuild) {
+        if ($this->clientIsBelowMinimumSupportedVersion(
+            $request->appVersion(),
+            $request->appBuild(),
+            $minimumSupportedAppVersion,
+            $minimumSupportedAppBuild,
+        )) {
             return $this->unsupportedClientVersionResponse(
                 $request->appVersion(),
                 $request->appBuild(),
@@ -165,6 +158,16 @@ class BootstrapController extends Controller
         ], Response::HTTP_SERVICE_UNAVAILABLE, [
             'Retry-After' => (string) $retryAfterSeconds,
         ]);
+    }
+
+    private function clientIsBelowMinimumSupportedVersion(
+        string $providedAppVersion,
+        int $providedAppBuild,
+        string $minimumSupportedAppVersion,
+        int $minimumSupportedAppBuild,
+    ): bool {
+        return version_compare($providedAppVersion, $minimumSupportedAppVersion, '<')
+            || $providedAppBuild < $minimumSupportedAppBuild;
     }
 
     private function bootstrapPublicEnabled(): bool

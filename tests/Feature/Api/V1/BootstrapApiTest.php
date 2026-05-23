@@ -67,6 +67,22 @@ test('public bootstrap rejects android clients below the configured minimum vers
         ]);
 });
 
+test('public bootstrap rejects clients whose app version is below minimum even when the build is newer', function (): void {
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.3.9&app_build=99999')
+        ->assertStatus(426)
+        ->assertExactJson([
+            'message' => 'This SecPal deployment requires app version 1.4.0 (build 10400) or newer before login may proceed.',
+            'code' => 'UNSUPPORTED_CLIENT_VERSION',
+            'details' => [
+                'provided_app_version' => '1.3.9',
+                'provided_app_build' => 99999,
+                'minimum_supported_app_version' => '1.4.0',
+                'minimum_supported_app_build' => 10400,
+                'bootstrap_version' => 'v1',
+            ],
+        ]);
+});
+
 test('public bootstrap fails closed when required bootstrap metadata is missing', function (): void {
     config([
         'app.name' => '',

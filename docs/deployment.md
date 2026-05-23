@@ -93,7 +93,7 @@ Edit `.env` with production values:
 APP_NAME=SecPal
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://api.secpal.dev
+APP_URL=https://customer-api.example
 
 # Public mobile bootstrap (pre-login Android runtime discovery)
 BOOTSTRAP_PUBLIC_ENABLED=true
@@ -156,7 +156,7 @@ Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after t
 Verify the deployed response with the canonical public origin:
 
 ```bash
-curl --fail 'https://api.example.com/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400'
+curl --fail 'https://customer-api.example/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400'
 ```
 
 ---

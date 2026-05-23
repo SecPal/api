@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- added the public `GET /v1/bootstrap` runtime-discovery endpoint for Android pre-login instance validation, deriving the canonical `api_base_url` from `APP_URL`, failing closed with documented `500`/`503`/`426` bootstrap responses when deployment metadata is incomplete or incompatible, and covering the success/failure slices with focused Pest tests plus operator bootstrap configuration docs (refs `api#1115`)
+
 ### Changed
 
 - **Breaking:** Employee residential addresses live in `employee_addresses` (encrypted street/postal/city fields per row, optional residence date range). The API uses `addresses[]` instead of flat `address_*` attributes and `address_history` JSON on `employees`. Legacy values are migrated into `employee_addresses` during rollout, but clients must adopt `addresses[]` going forward.
@@ -26,7 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- added the public `GET /v1/bootstrap` runtime-discovery endpoint for Android pre-login instance validation, deriving the canonical `api_base_url` from `APP_URL`, failing closed with documented `500`/`503`/`426` bootstrap responses when deployment metadata is incomplete or incompatible, and covering the success/failure slices with focused Pest tests plus operator bootstrap configuration docs (refs `api#1115`)
 - wrapped the optional `pg_trgm` `CREATE EXTENSION` and `gin_trgm_ops` `CREATE INDEX` steps of the `create_address_data_tables` migration in nested `DB::transaction()` calls so a PostgreSQL statement error (e.g. when `pg_trgm` lives in a schema outside the connection's `search_path`, as can happen in Polyscope preview schemas) only rolls back its own SAVEPOINT instead of aborting the migration's outer DDL transaction. Previously the silently-caught error left the transaction in `aborted` state, causing the subsequent `COMMIT` to behave like `ROLLBACK` and silently drop the just-created `address_data_imports` / `address_streets` tables while the migrator still recorded the migration as ran, which surfaced downstream as `AddressDataSeeder` printing `Skipped: address data tables are missing; run migrations before setup import.` after `php artisan migrate:fresh --seed`
 - scoped `GET /v1/roles`, `GET /v1/roles/{id}`, `PATCH /v1/roles/{id}`, and `DELETE /v1/roles/{id}` to the authenticated tenant so cross-tenant role enumeration and mutation by raw role id now return `404` (refs `api#1078`)
 - hardened the password reset request endpoint against user-enumeration timing leaks by always paying the reset-token bcrypt hashing cost before branching on account existence, while preserving identical client responses and avoiding token or mail side effects for unknown emails
