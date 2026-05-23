@@ -31,15 +31,16 @@ class BootstrapController extends Controller
         $minimumSupportedAppVersion = $this->minimumSupportedAppVersion();
         $minimumSupportedAppBuild = $this->minimumSupportedAppBuild();
 
-        $missingFields = $this->missingRequiredFields(
-            $apiBaseUrl,
-            $displayName,
-            $minimumSupportedAppVersion,
-            $minimumSupportedAppBuild,
-        );
-
-        if ($missingFields !== []) {
-            return $this->invalidStateResponse($missingFields);
+        if ($apiBaseUrl === null
+            || $displayName === null
+            || $minimumSupportedAppVersion === null
+            || $minimumSupportedAppBuild === null) {
+            return $this->invalidStateResponse($this->missingRequiredFields(
+                $apiBaseUrl,
+                $displayName,
+                $minimumSupportedAppVersion,
+                $minimumSupportedAppBuild,
+            ));
         }
 
         if ($this->clientIsBelowMinimumSupportedVersion(
