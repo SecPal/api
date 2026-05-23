@@ -592,10 +592,13 @@ test('SECURITY: rejects wrong date of birth with generic identity-verification e
     expect(Hash::check('SecurePassword123!', $user->password))->toBeFalse()
         ->and($user->hasVerifiedEmail())->toBeFalse();
 
-    // Token still valid for a legitimate retry
+    // Token must be burned immediately after a failed identity proof.
     $tokenModel = $tokenData['model'];
     $tokenModel->refresh();
-    expect($tokenModel->completed_at)->toBeNull();
+    expect($tokenModel->invalidated_at)->not->toBeNull()
+        ->and($tokenModel->invalidation_reason)->toBe('identity_verification_failed')
+        ->and($tokenModel->completed_at)->toBeNull()
+        ->and($tokenModel->isValid())->toBeFalse();
 
     // HR must NOT be notified — onboarding never reached the name-change pipeline
     Illuminate\Support\Facades\Mail::assertNothingQueued();
@@ -637,6 +640,58 @@ test('SECURITY: DOB-mismatch attempts count toward the onboarding-complete rate 
         ->assertJson([
             'message' => 'Too many onboarding attempts. Please try again later.',
         ]);
+});
+
+test('SECURITY: a missing stored date of birth blocks onboarding without burning the token', function () {
+    Illuminate\Support\Facades\Mail::fake();
+
+    /** @var User $user */
+    $user = User::factory()->unverified()->create([
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => null,
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+    ]);
+
+    $response->assertStatus(409)
+        ->assertJson([
+            'message' => 'Onboarding cannot be completed because your HR record is incomplete. Please contact HR before retrying this onboarding link.',
+        ]);
+
+    $employee->refresh();
+    expect($employee->first_name)->toBe('John')
+        ->and($employee->last_name)->toBe('Doe')
+        ->and($employee->onboarding_started_at)->toBeNull()
+        ->and($employee->onboarding_workflow_status)->not->toBe(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
+
+    $user->refresh();
+    expect(Hash::check('SecurePassword123!', $user->password))->toBeFalse()
+        ->and($user->hasVerifiedEmail())->toBeFalse();
+
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->toBeNull()
+        ->and($tokenModel->completed_at)->toBeNull()
+        ->and($tokenModel->isValid())->toBeTrue();
+
+    Illuminate\Support\Facades\Mail::assertNothingQueued();
 });
 
 // ===== SECURITY TESTS: Single-shot identity-proof policy =====

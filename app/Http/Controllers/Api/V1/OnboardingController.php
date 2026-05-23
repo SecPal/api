@@ -220,9 +220,18 @@ class OnboardingController extends Controller
         // cannot use the response as an oracle to enumerate one field at a time. The
         // throttle bucket in AppServiceProvider::shouldCountOnboardingAttempt counts
         // 422 responses without an `errors` key, so each failed attempt is rate-limited.
-        $storedDateOfBirth = is_string($employee->date_of_birth) ? trim($employee->date_of_birth) : '';
-        $dateOfBirthMatches = $storedDateOfBirth !== ''
-            && hash_equals($storedDateOfBirth, trim($submittedDateOfBirth));
+        /** @var string|null $storedDateOfBirth */
+        $storedDateOfBirth = is_string($employee->date_of_birth) ? trim($employee->date_of_birth) : null;
+
+        if ($storedDateOfBirth === null || $storedDateOfBirth === '') {
+            // Missing HR data is not a failed identity proof. Keep the token usable so
+            // the invitee can retry after HR corrects the underlying employee record.
+            return response()->json([
+                'message' => __('Onboarding cannot be completed because your HR record is incomplete. Please contact HR before retrying this onboarding link.'),
+            ], Response::HTTP_CONFLICT);
+        }
+
+        $dateOfBirthMatches = hash_equals($storedDateOfBirth, trim($submittedDateOfBirth));
 
         // Validate name changes (Hybrid approach: similarity check + HR notification).
         // We still gather severity for audit logging / HR notifications, but a "major"
