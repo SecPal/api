@@ -172,6 +172,25 @@ test('public bootstrap can report that configuration is temporarily unavailable'
         ]);
 });
 
+test('public bootstrap omits retry hints when configuration is unavailable and not retryable', function (): void {
+    config([
+        'bootstrap.public_enabled' => false,
+        'bootstrap.retryable' => false,
+        'bootstrap.retry_after_seconds' => 120,
+    ]);
+
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
+        ->assertStatus(503)
+        ->assertHeaderMissing('Retry-After')
+        ->assertExactJson([
+            'message' => 'Public bootstrap configuration is temporarily unavailable.',
+            'code' => 'BOOTSTRAP_CONFIG_UNAVAILABLE',
+            'details' => [
+                'retryable' => false,
+            ],
+        ]);
+});
+
 test('public bootstrap fails closed when the public enabled config is missing', function (): void {
     app('config')->offsetUnset('bootstrap.public_enabled');
 

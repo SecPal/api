@@ -146,18 +146,23 @@ class BootstrapController extends Controller
 
     private function configurationUnavailableResponse(): JsonResponse
     {
+        $retryable = $this->booleanConfig('bootstrap.retryable', true);
         $retryAfterSeconds = $this->retryAfterSeconds();
+        $details = [
+            'retryable' => $retryable,
+        ];
+        $headers = [];
+
+        if ($retryable) {
+            $details['retry_after_seconds'] = $retryAfterSeconds;
+            $headers['Retry-After'] = (string) $retryAfterSeconds;
+        }
 
         return response()->json([
             'message' => __('Public bootstrap configuration is temporarily unavailable.'),
             'code' => 'BOOTSTRAP_CONFIG_UNAVAILABLE',
-            'details' => [
-                'retryable' => $this->booleanConfig('bootstrap.retryable', true),
-                'retry_after_seconds' => $retryAfterSeconds,
-            ],
-        ], Response::HTTP_SERVICE_UNAVAILABLE, [
-            'Retry-After' => (string) $retryAfterSeconds,
-        ]);
+            'details' => $details,
+        ], Response::HTTP_SERVICE_UNAVAILABLE, $headers);
     }
 
     private function clientIsBelowMinimumSupportedVersion(
