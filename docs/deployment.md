@@ -103,6 +103,12 @@ BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD=10400
 BOOTSTRAP_PASSWORD_LOGIN_ENABLED=true
 BOOTSTRAP_PASSKEY_LOGIN_ENABLED=true
 BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED=false
+BOOTSTRAP_ANDROID_PUSH_ENABLED=true
+BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION=3
+BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY=public-client-api-key-demo-1234567890
+BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID=secpal-demo-push
+BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID=1:1234567890:android:abcdef1234567890
+BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID=1234567890
 BOOTSTRAP_RETRYABLE=true
 BOOTSTRAP_RETRY_AFTER_SECONDS=60
 
@@ -151,12 +157,58 @@ Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after t
 - `APP_NAME` is used as the public instance display name unless `BOOTSTRAP_INSTANCE_DISPLAY_NAME` overrides it.
 - `BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION` and `BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD` are required. If either is missing, the endpoint fails closed with `500 BOOTSTRAP_STATE_INVALID` instead of falling back to SecPal-hosted defaults.
 - Set `BOOTSTRAP_PUBLIC_ENABLED=false` when the deployment should return the documented `503 BOOTSTRAP_CONFIG_UNAVAILABLE` response instead of serving bootstrap metadata.
-- `BOOTSTRAP_PASSWORD_LOGIN_ENABLED`, `BOOTSTRAP_PASSKEY_LOGIN_ENABLED`, and `BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED` define the pre-login feature flags Android receives before login.
+- `BOOTSTRAP_PASSWORD_LOGIN_ENABLED`, `BOOTSTRAP_PASSKEY_LOGIN_ENABLED`, `BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED`, and `BOOTSTRAP_ANDROID_PUSH_ENABLED` define the pre-login feature flags Android receives before login.
+- When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the public bootstrap response also exposes an `android_push` object with provider `fcm`, the deployment-defined `metadata_revision`, and the public Android client metadata fields required for runtime initialization.
+- When Android push bootstrap is enabled, `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID`, and `BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID` are all required. Missing values fail closed with `500 BOOTSTRAP_STATE_INVALID`.
+- `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION` must be incremented whenever any public Android push client metadata changes so authenticated registrations with stale bootstrap state can be rejected deterministically.
+- Only public Android runtime metadata belongs here. Never place server credentials, service-account JSON, or private push delivery secrets in bootstrap configuration.
 
 Verify the deployed response with the canonical public origin:
 
 ```bash
 curl --fail 'https://customer-api.example/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400'
+```
+
+### Authenticated Android Push-Device Registration
+
+Authenticated Android clients register one stable installation identifier against the selected customer-hosted backend:
+
+- `PUT /v1/me/push-devices/{installationId}` creates or updates the authenticated app installation's push token and runtime metadata.
+- `DELETE /v1/me/push-devices/{installationId}` revokes the selected installation on logout, uninstall, or explicit cleanup.
+- Clients must echo the current `android_push.metadata_revision` from `GET /v1/bootstrap` in `runtime.push_metadata_revision`.
+- When the deployment disables Android push registration, the upsert endpoint fails closed with `409 ANDROID_PUSH_UNSUPPORTED`.
+- When the client presents stale bootstrap metadata, the upsert endpoint fails closed with `409 PUSH_RUNTIME_STATE_INVALID` and the expected revision details.
+
+Example registration request:
+
+```bash
+curl --fail-with-body \
+  -X PUT 'https://customer-api.example/v1/me/push-devices/a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b' \
+  -H 'Authorization: Bearer YOUR_API_TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "platform": "android",
+    "provider": "fcm",
+    "device_name": "SM-G556B reception tablet",
+    "push_token": "e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef",
+    "lifecycle_event": "registered",
+    "app": {
+      "package_name": "app.secpal",
+      "package_version_name": "1.5.0",
+      "package_version_code": 10500
+    },
+    "device": {
+      "manufacturer": "Samsung",
+      "model": "SM-G556B",
+      "android_version": "16",
+      "sdk_int": 36
+    },
+    "runtime": {
+      "bootstrap_version": "v1",
+      "schema_version": 2,
+      "push_metadata_revision": 3
+    }
+  }'
 ```
 
 ---
