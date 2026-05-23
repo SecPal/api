@@ -7,8 +7,12 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Support\Concerns\InteractsWithConfigValues;
+
 final class AndroidPushRuntimeConfiguration
 {
+    use InteractsWithConfigValues;
+
     public function isEnabled(): bool
     {
         return $this->booleanConfig('bootstrap.features.android_push', false);
@@ -95,41 +99,5 @@ final class AndroidPushRuntimeConfiguration
     private function publicClientMetadataValue(string $field): ?string
     {
         return $this->trimmedStringConfig('bootstrap.android_push.public_client_metadata.'.$field);
-    }
-
-    private function booleanConfig(string $key, bool $default): bool
-    {
-        $value = config($key, $default);
-
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (is_int($value)) {
-            return $value !== 0;
-        }
-
-        if (is_string($value)) {
-            $parsed = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
-
-            if ($parsed !== null) {
-                return $parsed;
-            }
-        }
-
-        return $default;
-    }
-
-    private function trimmedStringConfig(string $key): ?string
-    {
-        $value = config($key);
-
-        if (! is_string($value)) {
-            return null;
-        }
-
-        $value = trim($value);
-
-        return $value === '' ? null : $value;
     }
 }

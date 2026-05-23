@@ -11,12 +11,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\GetBootstrapConfigurationRequest;
 use App\Support\AndroidPushRuntimeConfiguration;
 use App\Support\BootstrapContract;
+use App\Support\Concerns\InteractsWithConfigValues;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use RuntimeException;
 
 class BootstrapController extends Controller
 {
+    use InteractsWithConfigValues;
+
     private const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
     public function show(
@@ -291,41 +294,5 @@ class BootstrapController extends Controller
         }
 
         return strtolower((string) $components['scheme']).'://'.$authority.'/v1';
-    }
-
-    private function booleanConfig(string $key, bool $default): bool
-    {
-        $value = config($key, $default);
-
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (is_int($value)) {
-            return $value !== 0;
-        }
-
-        if (is_string($value)) {
-            $parsed = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
-
-            if ($parsed !== null) {
-                return $parsed;
-            }
-        }
-
-        return $default;
-    }
-
-    private function trimmedStringConfig(string $key): ?string
-    {
-        $value = config($key);
-
-        if (! is_string($value)) {
-            return null;
-        }
-
-        $value = trim($value);
-
-        return $value === '' ? null : $value;
     }
 }

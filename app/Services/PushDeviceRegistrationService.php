@@ -24,13 +24,6 @@ final class PushDeviceRegistrationService
             throw new RuntimeException('Authenticated user must belong to a tenant before registering a push device.');
         }
 
-        $registration = PushDeviceRegistration::query()->firstOrNew([
-            'tenant_id' => $user->tenant_id,
-            'user_id' => $user->id,
-            'installation_id' => $installationId,
-        ]);
-
-        $created = ! $registration->exists;
         /** @var array<string, mixed> $app */
         $app = is_array($attributes['app'] ?? null) ? $attributes['app'] : [];
         /** @var array<string, mixed> $device */
@@ -38,25 +31,32 @@ final class PushDeviceRegistrationService
         /** @var array<string, mixed> $runtime */
         $runtime = is_array($attributes['runtime'] ?? null) ? $attributes['runtime'] : [];
 
-        $registration->tenant_id = $user->tenant_id;
-        $registration->user_id = $user->id;
-        $registration->installation_id = $installationId;
-        $registration->platform = $this->requiredString($attributes, 'platform');
-        $registration->provider = $this->requiredString($attributes, 'provider');
-        $registration->device_name = $this->requiredString($attributes, 'device_name');
-        $registration->push_token_plain = $this->requiredString($attributes, 'push_token');
-        $registration->last_lifecycle_event = $this->requiredString($attributes, 'lifecycle_event');
-        $registration->package_name = $this->requiredString($app, 'package_name');
-        $registration->package_version_name = $this->nullableString($app, 'package_version_name');
-        $registration->package_version_code = $this->nullableInt($app, 'package_version_code');
-        $registration->manufacturer = $this->nullableString($device, 'manufacturer');
-        $registration->model = $this->nullableString($device, 'model');
-        $registration->android_version = $this->nullableString($device, 'android_version');
-        $registration->sdk_int = $this->nullableInt($device, 'sdk_int');
-        $registration->bootstrap_version = $this->requiredString($runtime, 'bootstrap_version');
-        $registration->schema_version = $this->requiredInt($runtime, 'schema_version');
-        $registration->push_metadata_revision = $this->requiredInt($runtime, 'push_metadata_revision');
-        $registration->save();
+        $registration = PushDeviceRegistration::query()->updateOrCreate(
+            [
+                'tenant_id' => $user->tenant_id,
+                'user_id' => $user->id,
+                'installation_id' => $installationId,
+            ],
+            [
+                'platform' => $this->requiredString($attributes, 'platform'),
+                'provider' => $this->requiredString($attributes, 'provider'),
+                'device_name' => $this->requiredString($attributes, 'device_name'),
+                'push_token_plain' => $this->requiredString($attributes, 'push_token'),
+                'last_lifecycle_event' => $this->requiredString($attributes, 'lifecycle_event'),
+                'package_name' => $this->requiredString($app, 'package_name'),
+                'package_version_name' => $this->nullableString($app, 'package_version_name'),
+                'package_version_code' => $this->nullableInt($app, 'package_version_code'),
+                'manufacturer' => $this->nullableString($device, 'manufacturer'),
+                'model' => $this->nullableString($device, 'model'),
+                'android_version' => $this->nullableString($device, 'android_version'),
+                'sdk_int' => $this->nullableInt($device, 'sdk_int'),
+                'bootstrap_version' => $this->requiredString($runtime, 'bootstrap_version'),
+                'schema_version' => $this->requiredInt($runtime, 'schema_version'),
+                'push_metadata_revision' => $this->requiredInt($runtime, 'push_metadata_revision'),
+            ],
+        );
+
+        $created = $registration->wasRecentlyCreated;
 
         $freshRegistration = $registration->fresh();
 
