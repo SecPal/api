@@ -16,7 +16,6 @@ use App\Support\BootstrapContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use RuntimeException;
 
 class PushDeviceRegistrationController extends Controller
 {
@@ -31,15 +30,19 @@ class PushDeviceRegistrationController extends Controller
             return $this->unsupportedConfigurationResponse();
         }
 
-        if ($this->androidPushRuntimeConfiguration->missingFields() !== []) {
-            throw new RuntimeException('Android push runtime metadata is incomplete for this deployment.');
+        $missingFields = $this->androidPushRuntimeConfiguration->missingFields();
+
+        if ($missingFields !== []) {
+            return $this->invalidConfigurationResponse($missingFields);
         }
 
         $providedRevision = $request->integer('runtime.push_metadata_revision');
         $expectedRevision = $this->androidPushRuntimeConfiguration->metadataRevision();
 
         if ($expectedRevision === null) {
-            throw new RuntimeException('Android push runtime metadata revision is unavailable for this deployment.');
+            return $this->invalidConfigurationResponse([
+                'android_push.metadata_revision',
+            ]);
         }
 
         if ($providedRevision !== $expectedRevision) {
@@ -102,5 +105,19 @@ class PushDeviceRegistrationController extends Controller
                 'expected_push_metadata_revision' => $expectedRevision,
             ],
         ], Response::HTTP_CONFLICT);
+    }
+
+    /**
+     * @param  array<int, string>  $missingFields
+     */
+    private function invalidConfigurationResponse(array $missingFields): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Public bootstrap configuration is incomplete for this deployment.',
+            'code' => 'BOOTSTRAP_STATE_INVALID',
+            'details' => [
+                'missing_fields' => $missingFields,
+            ],
+        ], Response::HTTP_INTERNAL_SERVER_ERROR);
     }
 }

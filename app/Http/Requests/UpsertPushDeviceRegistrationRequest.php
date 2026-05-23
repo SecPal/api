@@ -18,6 +18,18 @@ class UpsertPushDeviceRegistrationRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $payload = $this->all();
+
+        $this->setNestedInteger($payload, ['app', 'package_version_code']);
+        $this->setNestedInteger($payload, ['device', 'sdk_int']);
+        $this->setNestedInteger($payload, ['runtime', 'schema_version']);
+        $this->setNestedInteger($payload, ['runtime', 'push_metadata_revision']);
+
+        $this->replace($payload);
+    }
+
     /**
      * @return array<string, array<int, mixed>>
      */
@@ -43,5 +55,31 @@ class UpsertPushDeviceRegistrationRequest extends FormRequest
             'runtime.schema_version' => ['required', 'integer', Rule::in([BootstrapContract::SCHEMA_VERSION])],
             'runtime.push_metadata_revision' => ['required', 'integer', 'min:1'],
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>  $path
+     */
+    private function setNestedInteger(array &$payload, array $path): void
+    {
+        $target = &$payload;
+        $lastIndex = array_key_last($path);
+
+        foreach ($path as $index => $segment) {
+            if (! is_array($target) || ! array_key_exists($segment, $target)) {
+                return;
+            }
+
+            if ($index === $lastIndex) {
+                if (is_string($target[$segment]) && filter_var($target[$segment], FILTER_VALIDATE_INT) !== false) {
+                    $target[$segment] = (int) $target[$segment];
+                }
+
+                return;
+            }
+
+            $target = &$target[$segment];
+        }
     }
 }

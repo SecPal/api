@@ -17,7 +17,7 @@ return [
         'android_push' => filter_var(env('BOOTSTRAP_ANDROID_PUSH_ENABLED', false), FILTER_VALIDATE_BOOL),
     ],
     'android_push' => [
-        'metadata_revision' => ($androidPushRevision = env('BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION')) !== null ? (int) $androidPushRevision : null,
+        'metadata_revision' => env('BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION'),
         'public_client_metadata' => [
             'api_key' => env('BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY'),
             'project_id' => env('BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID'),

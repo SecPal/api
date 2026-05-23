@@ -143,6 +143,66 @@ test('authenticated user can create android push device registration', function 
         'schema_version' => 2,
         'push_metadata_revision' => 3,
     ]);
+
+    $storedToken = DB::table('push_device_registrations')
+        ->where('tenant_id', $tenant->id)
+        ->where('user_id', $user->id)
+        ->where('installation_id', $installationId)
+        ->value('push_token_enc');
+
+    expect($storedToken)->toBeString()->not->toBe(
+        'e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'
+    );
+
+    $decodedToken = json_decode($storedToken, true);
+
+    expect($decodedToken)->toBeArray()
+        ->toHaveKeys(['ciphertext', 'nonce'])
+        ->and($decodedToken['ciphertext'])->toBeString()->not->toBe('')
+        ->and($decodedToken['nonce'])->toBeString()->not->toBe('');
+});
+
+test('android push device registration accepts integer-like numeric strings', function (): void {
+    ['tenant' => $tenant, 'user' => $user] = createPushDeviceContext();
+
+    actingAs($user, 'sanctum');
+
+    $installationId = 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b';
+
+    putJson('/v1/me/push-devices/'.$installationId, [
+        ...pushDevicePayload('e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'),
+        'app' => [
+            'package_name' => 'app.secpal',
+            'package_version_name' => '1.5.0',
+            'package_version_code' => '10500',
+        ],
+        'device' => [
+            'manufacturer' => 'Samsung',
+            'model' => 'SM-G556B',
+            'android_version' => '16',
+            'sdk_int' => '36',
+        ],
+        'runtime' => [
+            'bootstrap_version' => 'v1',
+            'schema_version' => '2',
+            'push_metadata_revision' => '3',
+        ],
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.app.package_version_code', 10500)
+        ->assertJsonPath('data.device.sdk_int', 36)
+        ->assertJsonPath('data.runtime.schema_version', 2)
+        ->assertJsonPath('data.runtime.push_metadata_revision', 3);
+
+    $this->assertDatabaseHas('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+        'package_version_code' => 10500,
+        'sdk_int' => 36,
+        'schema_version' => 2,
+        'push_metadata_revision' => 3,
+    ]);
 });
 
 test('repeating put updates the existing android push device registration', function (): void {
@@ -325,6 +385,28 @@ test('android push device registration rejects stale bootstrap metadata', functi
                 'provider' => 'fcm',
                 'provided_push_metadata_revision' => 2,
                 'expected_push_metadata_revision' => 3,
+            ],
+        ]);
+});
+
+test('android push device registration fails closed when android push metadata is invalid', function (): void {
+    ['user' => $user] = createPushDeviceContext();
+
+    config(['bootstrap.android_push.metadata_revision' => '3.5']);
+
+    actingAs($user, 'sanctum');
+
+    putJson('/v1/me/push-devices/a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b', pushDevicePayload(
+        'e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'
+    ))
+        ->assertInternalServerError()
+        ->assertExactJson([
+            'message' => 'Public bootstrap configuration is incomplete for this deployment.',
+            'code' => 'BOOTSTRAP_STATE_INVALID',
+            'details' => [
+                'missing_fields' => [
+                    'android_push.metadata_revision (present but invalid; must be a positive integer)',
+                ],
             ],
         ]);
 });

@@ -20,17 +20,7 @@ final class AndroidPushRuntimeConfiguration
 
     public function metadataRevision(): ?int
     {
-        $value = config('bootstrap.android_push.metadata_revision');
-
-        if (is_int($value) && $value > 0) {
-            return $value;
-        }
-
-        if (is_string($value) && is_numeric($value) && (int) $value > 0) {
-            return (int) $value;
-        }
-
-        return null;
+        return $this->positiveIntegerConfig('bootstrap.android_push.metadata_revision');
     }
 
     /**
@@ -99,5 +89,20 @@ final class AndroidPushRuntimeConfiguration
     private function publicClientMetadataValue(string $field): ?string
     {
         return $this->trimmedStringConfig('bootstrap.android_push.public_client_metadata.'.$field);
+    }
+
+    private function positiveIntegerConfig(string $key): ?int
+    {
+        $value = config($key);
+
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (! is_string($value) || ! preg_match('/^[1-9][0-9]*$/', $value)) {
+            return null;
+        }
+
+        return (int) $value;
     }
 }

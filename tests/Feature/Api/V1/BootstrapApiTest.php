@@ -160,6 +160,24 @@ test('public bootstrap fails closed when android push metadata is enabled but in
         ]);
 });
 
+test('public bootstrap fails closed when android push metadata revision is not a strict positive integer', function (): void {
+    config([
+        'bootstrap.android_push.metadata_revision' => '3.5',
+    ]);
+
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
+        ->assertInternalServerError()
+        ->assertExactJson([
+            'message' => 'Public bootstrap configuration is incomplete for this deployment.',
+            'code' => 'BOOTSTRAP_STATE_INVALID',
+            'details' => [
+                'missing_fields' => [
+                    'android_push.metadata_revision (present but invalid; must be a positive integer)',
+                ],
+            ],
+        ]);
+});
+
 test('public bootstrap fails closed when APP_URL contains a non-root path prefix', function (): void {
     config(['app.url' => 'https://api.secpal.dev/api']);
 
