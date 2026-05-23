@@ -280,6 +280,26 @@ test('android push device registration is rejected when the deployment disables 
         ]);
 });
 
+test('android push device revocation is rejected when the deployment disables the feature', function (): void {
+    ['user' => $user] = createPushDeviceContext();
+
+    config(['bootstrap.features.android_push' => false]);
+
+    actingAs($user, 'sanctum');
+
+    deleteJson('/v1/me/push-devices/a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b')
+        ->assertStatus(409)
+        ->assertExactJson([
+            'message' => 'This deployment does not accept authenticated Android push-device registrations.',
+            'code' => 'ANDROID_PUSH_UNSUPPORTED',
+            'details' => [
+                'feature_flag' => 'android_push',
+                'provider' => 'fcm',
+                'retryable' => false,
+            ],
+        ]);
+});
+
 test('android push device registration rejects stale bootstrap metadata', function (): void {
     ['user' => $user] = createPushDeviceContext();
 

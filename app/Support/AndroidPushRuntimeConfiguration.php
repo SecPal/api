@@ -40,8 +40,12 @@ final class AndroidPushRuntimeConfiguration
 
         $missingFields = [];
 
-        if ($this->metadataRevision() === null) {
+        $rawRevision = config('bootstrap.android_push.metadata_revision');
+
+        if ($rawRevision === null) {
             $missingFields[] = 'android_push.metadata_revision';
+        } elseif ($this->metadataRevision() === null) {
+            $missingFields[] = 'android_push.metadata_revision (present but invalid; must be a positive integer)';
         }
 
         foreach (['api_key', 'project_id', 'application_id', 'sender_id'] as $field) {

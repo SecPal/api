@@ -59,6 +59,10 @@ class PushDeviceRegistrationController extends Controller
 
     public function destroy(Request $request, string $installationId): JsonResponse
     {
+        if (! $this->androidPushRuntimeConfiguration->isEnabled()) {
+            return $this->unsupportedConfigurationResponse();
+        }
+
         /** @var User $user */
         $user = $request->user();
         $revocation = $this->pushDeviceRegistrationService->revoke($user, $installationId);

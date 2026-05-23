@@ -13,6 +13,7 @@ use App\Support\AndroidPushRuntimeConfiguration;
 use App\Support\BootstrapContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use RuntimeException;
 
 class BootstrapController extends Controller
 {
@@ -83,7 +84,13 @@ class BootstrapController extends Controller
         ];
 
         if ($androidPushRuntimeConfiguration->isEnabled()) {
-            $data['android_push'] = $androidPushRuntimeConfiguration->publicMetadata();
+            $androidPushMetadata = $androidPushRuntimeConfiguration->publicMetadata();
+
+            if ($androidPushMetadata === null) {
+                throw new RuntimeException('Android push metadata is enabled but could not be assembled; this is a deployment configuration error.');
+            }
+
+            $data['android_push'] = $androidPushMetadata;
         }
 
         return response()->json(['data' => $data]);
