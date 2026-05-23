@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- added the public `GET /v1/bootstrap` runtime-discovery endpoint for Android pre-login instance validation, deriving the canonical `api_base_url` from `APP_URL`, failing closed with documented `500`/`503`/`426` bootstrap responses when deployment metadata is incomplete or incompatible, and covering the success/failure slices with focused Pest tests plus operator bootstrap configuration docs (refs `api#1115`)
+
 ### Changed
 
 - **Breaking:** Employee residential addresses live in `employee_addresses` (encrypted street/postal/city fields per row, optional residence date range). The API uses `addresses[]` instead of flat `address_*` attributes and `address_history` JSON on `employees`. Legacy values are migrated into `employee_addresses` during rollout, but clients must adopt `addresses[]` going forward.
