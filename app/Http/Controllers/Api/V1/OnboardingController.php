@@ -86,14 +86,19 @@ class OnboardingController extends Controller
     ) {}
 
     /**
-     * Validate onboarding token and return employee data for prefilling.
+     * Validate onboarding token (existence + email match) without leaking personal data.
      *
      * GET /api/v1/onboarding/validate-token?token=xxx&email=xxx
      *
-     * This is a public endpoint (no authentication required).
-     * Used by frontend to validate token and prefill form with existing employee data.
+     * This is a public endpoint (no authentication required). It only confirms whether
+     * the link can proceed to the completion form. To prevent anyone who intercepts the
+     * invitation link from harvesting employee details, NO personal data (first name,
+     * last name, …) is returned here. The actual identity proof (date of birth, name)
+     * is verified inside POST /onboarding/complete.
      *
-     * Security: Both token AND email must match to prevent token hijacking.
+     * Security: Both token AND email must match. We also do not differentiate between
+     * "token unknown", "token expired", and "email does not match" in detail in error
+     * messages beyond what existing clients already rely on.
      */
     public function validateToken(Request $request): JsonResponse
     {
@@ -128,11 +133,12 @@ class OnboardingController extends Controller
             ], Response::HTTP_FORBIDDEN);
         }
 
+        // Intentionally do NOT echo first_name / last_name here. The form must collect
+        // them from the invitee directly and POST /onboarding/complete verifies them
+        // together with the date of birth before any account state is mutated.
         return response()->json([
             'data' => [
-                'first_name' => $employee->first_name,
-                'last_name' => $employee->last_name,
-                'email' => $employee->email,
+                'valid' => true,
             ],
         ]);
     }
@@ -153,13 +159,14 @@ class OnboardingController extends Controller
      */
     public function complete(Request $request): JsonResponse
     {
-        /** @var array{token: string, email: string, password: string, first_name: string, last_name: string} $validated */
+        /** @var array{token: string, email: string, password: string, first_name: string, last_name: string, date_of_birth: string} $validated */
         $validated = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
             'password' => ['required', Password::defaults()],
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
+            'date_of_birth' => ['required', 'string', 'date_format:Y-m-d', 'before:today'],
         ]);
 
         // Find token
@@ -200,39 +207,93 @@ class OnboardingController extends Controller
         $password = $validated['password'];
         /** @var string $onboardingEmail */
         $onboardingEmail = $validated['email'];
+        /** @var string $submittedDateOfBirth */
+        $submittedDateOfBirth = $validated['date_of_birth'];
 
-        // Validate name changes (Hybrid approach: similarity check + HR notification)
-        $firstNameValidation = null;
-        $lastNameValidation = null;
-        $shouldNotifyHR = false;
-        $validationErrors = [];
+        // SECURITY: Identity proof. Anyone with the link knows token + email; before we
+        // touch the employee record (or even hint at any stored data) the invitee must
+        // additionally prove knowledge of the date of birth on file AND a name that is
+        // similar enough to the HR-maintained record.
+        //
+        // We deliberately return ONE generic message for all identity mismatches (DOB
+        // wrong, name too different, both) and no `errors` payload, so an attacker
+        // cannot use the response as an oracle to enumerate one field at a time. The
+        // throttle bucket in AppServiceProvider::shouldCountOnboardingAttempt counts
+        // 422 responses without an `errors` key, so each failed attempt is rate-limited.
+        $storedDateOfBirth = is_string($employee->date_of_birth) ? trim($employee->date_of_birth) : '';
+        $dateOfBirthMatches = $storedDateOfBirth !== ''
+            && hash_equals($storedDateOfBirth, trim($submittedDateOfBirth));
 
-        // Validate both names first, collect all errors before returning
-        // This provides comprehensive feedback instead of one-at-a-time discovery
-        if ($oldFirstName !== $firstName) {
-            $firstNameValidation = $this->validateNameChange($oldFirstName, $firstName, 'first_name');
-            if (! $firstNameValidation['allowed']) {
-                $validationErrors['first_name'] = [$firstNameValidation['message']];
-            } elseif ($firstNameValidation['severity'] !== 'minor') {
-                $shouldNotifyHR = true;
-            }
-        }
+        // Validate name changes (Hybrid approach: similarity check + HR notification).
+        // We still gather severity for audit logging / HR notifications, but a "major"
+        // mismatch no longer leaks via a field-scoped 422 — it counts as an identity
+        // verification failure below.
+        $firstNameValidation = $oldFirstName !== $firstName
+            ? $this->validateNameChange($oldFirstName, $firstName, 'first_name')
+            : null;
+        $lastNameValidation = $oldLastName !== $lastName
+            ? $this->validateNameChange($oldLastName, $lastName, 'last_name')
+            : null;
 
-        if ($oldLastName !== $lastName) {
-            $lastNameValidation = $this->validateNameChange($oldLastName, $lastName, 'last_name');
-            if (! $lastNameValidation['allowed']) {
-                $validationErrors['last_name'] = [$lastNameValidation['message']];
-            } elseif ($lastNameValidation['severity'] !== 'minor') {
-                $shouldNotifyHR = true;
-            }
-        }
+        $namesAccepted = ($firstNameValidation === null || $firstNameValidation['allowed'])
+            && ($lastNameValidation === null || $lastNameValidation['allowed']);
 
-        // Return all validation errors at once for better UX
-        if (! empty($validationErrors)) {
+        if (! $dateOfBirthMatches || ! $namesAccepted) {
+            // SECURITY: single-shot identity proof. A legitimate invitee knows
+            // their own DOB and name; failing this check means either the link
+            // was stolen or somebody is guessing. We do not give a second try
+            // with the same link — HR must issue a new invitation.
+            $ip = $request->ip() ?? 'unknown';
+            $userAgent = $request->userAgent() ?? 'unknown';
+
+            DB::transaction(function () use (
+                $tokenModel,
+                $employee,
+                $ip,
+                $userAgent,
+                $dateOfBirthMatches,
+                $firstNameValidation,
+                $lastNameValidation,
+            ): void {
+                // Lock the token row so concurrent duplicate submissions cannot
+                // both pass the isValid() check outside this transaction and
+                // double-write the audit log. If the row is already burned or
+                // completed we skip the write — the caller will still receive
+                // the same 422 because findByPlainToken already filtered it out.
+                $locked = EmployeeOnboardingToken::whereKey($tokenModel->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $locked || ! $locked->isValid()) {
+                    return;
+                }
+
+                $locked->markAsInvalidated($ip, $userAgent, 'identity_verification_failed');
+
+                activity('employee-onboarding')
+                    ->performedOn($employee)
+                    ->withProperties([
+                        'reason' => 'identity_verification_failed',
+                        'date_of_birth_matched' => $dateOfBirthMatches,
+                        'first_name_severity' => $firstNameValidation['severity'] ?? 'none',
+                        'last_name_severity' => $lastNameValidation['severity'] ?? 'none',
+                        'ip' => $ip,
+                        'user_agent' => $userAgent,
+                    ])
+                    ->log('Onboarding link invalidated due to failed identity verification');
+            });
+
             return response()->json([
-                'message' => __('Name change validation failed.'),
-                'errors' => $validationErrors,
+                'message' => __('We could not verify your identity with the details provided. For security reasons this onboarding link has been deactivated. Please contact HR for a new invitation.'),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $shouldNotifyHR = false;
+        if ($firstNameValidation !== null && $firstNameValidation['severity'] !== 'minor') {
+            $shouldNotifyHR = true;
+        }
+        if ($lastNameValidation !== null && $lastNameValidation['severity'] !== 'minor') {
+            $shouldNotifyHR = true;
         }
 
         // Wrap all operations in a transaction to ensure atomicity

@@ -250,3 +250,63 @@ test('generates unique tokens for each call', function () {
     expect($result1['plain'])->not->toBe($result2['plain'])
         ->and($result1['model']->id)->not->toBe($result2['model']->id);
 });
+
+// ============================================================================
+// Identity-proof invalidation (single-shot policy)
+// ============================================================================
+//
+// Magic links are revoked the instant the recipient fails an identity proof
+// (wrong date of birth, name too different, …). A legitimate invitee knows
+// their own DOB and name; failing this proof either means the link was stolen
+// or someone is guessing. Either way, no further attempts are allowed.
+
+test('markAsInvalidated records audit trail and revokes the token', function () {
+    $employee = Employee::factory()->preContract()->create();
+    $token = EmployeeOnboardingToken::generate($employee)['model'];
+
+    expect($token->isValid())->toBeTrue();
+
+    $token->markAsInvalidated(
+        '203.0.113.42',
+        'Mozilla/5.0 (X11; Linux x86_64)',
+        'identity_verification_failed',
+    );
+    $token->refresh();
+
+    expect($token->isValid())->toBeFalse()
+        ->and($token->invalidated_at)->not->toBeNull()
+        ->and($token->invalidated_from_ip)->toBe('203.0.113.42')
+        ->and($token->invalidated_user_agent)->toBe('Mozilla/5.0 (X11; Linux x86_64)')
+        ->and($token->invalidation_reason)->toBe('identity_verification_failed');
+});
+
+test('markAsInvalidated truncates long user agents to 500 characters', function () {
+    $employee = Employee::factory()->preContract()->create();
+    $token = EmployeeOnboardingToken::generate($employee)['model'];
+
+    $token->markAsInvalidated('127.0.0.1', str_repeat('a', 600), 'identity_verification_failed');
+    $token->refresh();
+
+    expect($token->invalidated_user_agent)->toHaveLength(500);
+});
+
+test('findByPlainToken ignores invalidated tokens', function () {
+    $employee = Employee::factory()->preContract()->create();
+    $result = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $result['plain'];
+
+    $result['model']->markAsInvalidated('127.0.0.1', 'agent', 'identity_verification_failed');
+
+    expect(EmployeeOnboardingToken::findByPlainToken($plainToken))->toBeNull();
+});
+
+test('invalidated tokens are not valid even when not yet expired', function () {
+    $employee = Employee::factory()->preContract()->create();
+    $token = EmployeeOnboardingToken::generate($employee)['model'];
+
+    $token->markAsInvalidated('127.0.0.1', 'agent', 'identity_verification_failed');
+    $token->refresh();
+
+    expect($token->isValid())->toBeFalse()
+        ->and($token->expires_at)->toBeGreaterThan(now());
+});
