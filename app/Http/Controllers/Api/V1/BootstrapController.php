@@ -267,19 +267,13 @@ class BootstrapController extends Controller
             $authority .= ':'.$components['port'];
         }
 
-        $path = '/'.ltrim((string) ($components['path'] ?? ''), '/');
+        $rawPath = rtrim((string) ($components['path'] ?? ''), '/');
 
-        if ($path === '/') {
-            $path = '/v1';
-        } else {
-            $path = rtrim($path, '/');
-
-            if (! str_ends_with($path, '/v1')) {
-                $path .= '/v1';
-            }
+        if ($rawPath !== '' && $rawPath !== '/v1') {
+            return null;
         }
 
-        return strtolower((string) $components['scheme']).'://'.$authority.$path;
+        return strtolower((string) $components['scheme']).'://'.$authority.'/v1';
     }
 
     private function booleanConfig(string $key, bool $default): bool
