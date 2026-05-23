@@ -96,9 +96,9 @@ class OnboardingController extends Controller
      * last name, …) is returned here. The actual identity proof (date of birth, name)
      * is verified inside POST /onboarding/complete.
      *
-     * Security: Both token AND email must match. We also do not differentiate between
-     * "token unknown", "token expired", and "email does not match" in detail in error
-     * messages beyond what existing clients already rely on.
+     * Security: Both token AND email must match. We intentionally return the same
+     * generic 422 for "token unknown", "token expired", and "email does not match"
+     * so this endpoint cannot be used as a token-validity oracle.
      */
     public function validateToken(Request $request): JsonResponse
     {
@@ -123,7 +123,7 @@ class OnboardingController extends Controller
         // SECURITY: Validate that email matches employee email
         if ($employee->email !== $validated['email']) {
             return response()->json([
-                'message' => __('Invalid onboarding link. Email does not match.'),
+                'message' => __('Invalid or expired onboarding link. Please request a new invitation.'),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -184,7 +184,7 @@ class OnboardingController extends Controller
         // SECURITY: Validate that email matches employee email
         if ($employee->email !== $validated['email']) {
             return response()->json([
-                'message' => __('Invalid onboarding link. Email does not match.'),
+                'message' => __('Invalid or expired onboarding link. Please request a new invitation.'),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -220,18 +220,23 @@ class OnboardingController extends Controller
         // cannot use the response as an oracle to enumerate one field at a time. The
         // throttle bucket in AppServiceProvider::shouldCountOnboardingAttempt counts
         // 422 responses without an `errors` key, so each failed attempt is rate-limited.
-        /** @var string|null $storedDateOfBirth */
-        $storedDateOfBirth = is_string($employee->date_of_birth) ? trim($employee->date_of_birth) : null;
+        $storedDateOfBirth = $this->normalizeDateOfBirthForIdentityCheck($employee->date_of_birth);
+        $normalizedSubmittedDateOfBirth = $this->normalizeDateOfBirthForIdentityCheck($submittedDateOfBirth);
 
-        if ($storedDateOfBirth === null || $storedDateOfBirth === '') {
-            // Missing HR data is not a failed identity proof. Keep the token usable so
-            // the invitee can retry after HR corrects the underlying employee record.
+        if ($storedDateOfBirth === null) {
+            // Missing or legacy-unparseable HR data is not evidence of an attack.
+            // Keep the token usable so HR can correct the employee record first.
             return response()->json([
                 'message' => __('Onboarding cannot be completed because your HR record is incomplete. Please contact HR before retrying this onboarding link.'),
             ], Response::HTTP_CONFLICT);
         }
 
-        $dateOfBirthMatches = hash_equals($storedDateOfBirth, trim($submittedDateOfBirth));
+        // $storedDateOfBirth is non-null (checked above). $normalizedSubmittedDateOfBirth
+        // cannot be null in practice because the date_format:Y-m-d rule already rejected
+        // any unparseable value. The assert keeps static analysis honest without adding a
+        // dead early-return that would silently burn the token for an impossible input.
+        assert(is_string($normalizedSubmittedDateOfBirth));
+        $dateOfBirthMatches = hash_equals($storedDateOfBirth, $normalizedSubmittedDateOfBirth);
 
         // Validate name changes (Hybrid approach: similarity check + HR notification).
         // We still gather severity for audit logging / HR notifications, but a "major"
@@ -1357,6 +1362,27 @@ class OnboardingController extends Controller
         $normalized = trim($value);
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * Normalize DOB strings from HR data / onboarding input to a canonical Y-m-d value.
+     */
+    private function normalizeDateOfBirthForIdentityCheck(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        try {
+            return (new \DateTimeImmutable($trimmed))->format('Y-m-d');
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     /**

@@ -110,7 +110,7 @@ test('SECURITY: rejects valid token with wrong email', function () {
 
     $response->assertStatus(422)
         ->assertJson([
-            'message' => 'Invalid onboarding link. Email does not match.',
+            'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
         ]);
 });
 
@@ -136,7 +136,7 @@ test('SECURITY: validates email case-sensitively', function () {
 
     $response->assertStatus(422)
         ->assertJson([
-            'message' => 'Invalid onboarding link. Email does not match.',
+            'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
         ]);
 });
 

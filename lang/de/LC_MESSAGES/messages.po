@@ -178,8 +178,12 @@ msgstr "Namenänderungsvalidierung fehlgeschlagen."
 msgid "We could not verify your identity with the details provided. For security reasons this onboarding link has been deactivated. Please contact HR for a new invitation."
 msgstr "Ihre Identität konnte mit den angegebenen Daten nicht bestätigt werden. Aus Sicherheitsgründen wurde dieser Onboarding-Link deaktiviert. Bitte wenden Sie sich an die Personalabteilung, um eine neue Einladung zu erhalten."
 
-#: /app/Http/Controllers/Api/V1/OnboardingController.php:236
-#: /app/Http/Controllers/Api/V1/OnboardingController.php:254
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:231
+msgid "Onboarding cannot be completed because your HR record is incomplete. Please contact HR before retrying this onboarding link."
+msgstr "Das Onboarding kann nicht abgeschlossen werden, weil Ihr HR-Datensatz unvollständig ist. Bitte wenden Sie sich an die Personalabteilung, bevor Sie diesen Onboarding-Link erneut verwenden."
+
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:244
+#: /app/Http/Controllers/Api/V1/OnboardingController.php:262
 msgid "User account not found for employee."
 msgstr "Benutzerkonto für Mitarbeiter nicht gefunden."
 
