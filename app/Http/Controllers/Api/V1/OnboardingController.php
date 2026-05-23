@@ -232,10 +232,15 @@ class OnboardingController extends Controller
         }
 
         // $storedDateOfBirth is non-null (checked above). $normalizedSubmittedDateOfBirth
-        // cannot be null in practice because the date_format:Y-m-d rule already rejected
-        // any unparseable value. The assert keeps static analysis honest without adding a
-        // dead early-return that would silently burn the token for an impossible input.
-        assert(is_string($normalizedSubmittedDateOfBirth));
+        // is expected to be non-null because the date_format:Y-m-d rule already rejected
+        // any unparseable submitted value. Guard defensively so that a future change to
+        // the validation rules cannot accidentally burn a legitimate token.
+        if ($normalizedSubmittedDateOfBirth === null) {
+            return response()->json([
+                'message' => __('Onboarding cannot be completed because your HR record is incomplete. Please contact HR before retrying this onboarding link.'),
+            ], Response::HTTP_CONFLICT);
+        }
+
         $dateOfBirthMatches = hash_equals($storedDateOfBirth, $normalizedSubmittedDateOfBirth);
 
         // Validate name changes (Hybrid approach: similarity check + HR notification).
