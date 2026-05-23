@@ -83,6 +83,13 @@ test('public bootstrap rejects clients whose app version is below minimum even w
         ]);
 });
 
+test('public bootstrap accepts clients whose app version is newer even when the build is lower', function (): void {
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.5.0&app_build=1')
+        ->assertOk()
+        ->assertJsonPath('data.compatibility.minimum_supported_app_version', '1.4.0')
+        ->assertJsonPath('data.compatibility.minimum_supported_app_build', 10400);
+});
+
 test('public bootstrap fails closed when required bootstrap metadata is missing', function (): void {
     config([
         'app.name' => '',

@@ -167,7 +167,10 @@ class BootstrapController extends Controller
         int $minimumSupportedAppBuild,
     ): bool {
         return version_compare($providedAppVersion, $minimumSupportedAppVersion, '<')
-            || $providedAppBuild < $minimumSupportedAppBuild;
+            || (
+                version_compare($providedAppVersion, $minimumSupportedAppVersion, '==')
+                && $providedAppBuild < $minimumSupportedAppBuild
+            );
     }
 
     private function bootstrapPublicEnabled(): bool
