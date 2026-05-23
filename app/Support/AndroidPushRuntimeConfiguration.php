@@ -53,20 +53,37 @@ final class AndroidPushRuntimeConfiguration
         return $missingFields;
     }
 
+    /**
+     * @return array{provider: string, metadata_revision: int, public_client_metadata: array{api_key: string, project_id: string, application_id: string, sender_id: string}}|null
+     */
     public function publicMetadata(): ?array
     {
         if (! $this->isEnabled() || $this->missingFields() !== []) {
             return null;
         }
 
+        $metadataRevision = $this->metadataRevision();
+        $apiKey = $this->publicClientMetadataValue('api_key');
+        $projectId = $this->publicClientMetadataValue('project_id');
+        $applicationId = $this->publicClientMetadataValue('application_id');
+        $senderId = $this->publicClientMetadataValue('sender_id');
+
+        if ($metadataRevision === null
+            || $apiKey === null
+            || $projectId === null
+            || $applicationId === null
+            || $senderId === null) {
+            return null;
+        }
+
         return [
             'provider' => BootstrapContract::ANDROID_PUSH_PROVIDER,
-            'metadata_revision' => $this->metadataRevision(),
+            'metadata_revision' => $metadataRevision,
             'public_client_metadata' => [
-                'api_key' => $this->publicClientMetadataValue('api_key'),
-                'project_id' => $this->publicClientMetadataValue('project_id'),
-                'application_id' => $this->publicClientMetadataValue('application_id'),
-                'sender_id' => $this->publicClientMetadataValue('sender_id'),
+                'api_key' => $apiKey,
+                'project_id' => $projectId,
+                'application_id' => $applicationId,
+                'sender_id' => $senderId,
             ],
         ];
     }

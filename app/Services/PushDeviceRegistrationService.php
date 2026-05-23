@@ -9,6 +9,7 @@ namespace App\Services;
 
 use App\Models\PushDeviceRegistration;
 use App\Models\User;
+use InvalidArgumentException;
 use RuntimeException;
 
 final class PushDeviceRegistrationService
@@ -30,44 +31,41 @@ final class PushDeviceRegistrationService
         ]);
 
         $created = ! $registration->exists;
+        /** @var array<string, mixed> $app */
         $app = is_array($attributes['app'] ?? null) ? $attributes['app'] : [];
+        /** @var array<string, mixed> $device */
         $device = is_array($attributes['device'] ?? null) ? $attributes['device'] : [];
+        /** @var array<string, mixed> $runtime */
         $runtime = is_array($attributes['runtime'] ?? null) ? $attributes['runtime'] : [];
 
         $registration->tenant_id = $user->tenant_id;
         $registration->user_id = $user->id;
         $registration->installation_id = $installationId;
-        $registration->platform = (string) $attributes['platform'];
-        $registration->provider = (string) $attributes['provider'];
-        $registration->device_name = (string) $attributes['device_name'];
-        $registration->push_token_plain = (string) $attributes['push_token'];
-        $registration->last_lifecycle_event = (string) $attributes['lifecycle_event'];
-        $registration->package_name = (string) ($app['package_name'] ?? '');
-        $registration->package_version_name = is_string($app['package_version_name'] ?? null)
-            ? $app['package_version_name']
-            : null;
-        $registration->package_version_code = is_int($app['package_version_code'] ?? null)
-            ? $app['package_version_code']
-            : null;
-        $registration->manufacturer = is_string($device['manufacturer'] ?? null)
-            ? $device['manufacturer']
-            : null;
-        $registration->model = is_string($device['model'] ?? null)
-            ? $device['model']
-            : null;
-        $registration->android_version = is_string($device['android_version'] ?? null)
-            ? $device['android_version']
-            : null;
-        $registration->sdk_int = is_int($device['sdk_int'] ?? null)
-            ? $device['sdk_int']
-            : null;
-        $registration->bootstrap_version = (string) ($runtime['bootstrap_version'] ?? '');
-        $registration->schema_version = (int) ($runtime['schema_version'] ?? 0);
-        $registration->push_metadata_revision = (int) ($runtime['push_metadata_revision'] ?? 0);
+        $registration->platform = $this->requiredString($attributes, 'platform');
+        $registration->provider = $this->requiredString($attributes, 'provider');
+        $registration->device_name = $this->requiredString($attributes, 'device_name');
+        $registration->push_token_plain = $this->requiredString($attributes, 'push_token');
+        $registration->last_lifecycle_event = $this->requiredString($attributes, 'lifecycle_event');
+        $registration->package_name = $this->requiredString($app, 'package_name');
+        $registration->package_version_name = $this->nullableString($app, 'package_version_name');
+        $registration->package_version_code = $this->nullableInt($app, 'package_version_code');
+        $registration->manufacturer = $this->nullableString($device, 'manufacturer');
+        $registration->model = $this->nullableString($device, 'model');
+        $registration->android_version = $this->nullableString($device, 'android_version');
+        $registration->sdk_int = $this->nullableInt($device, 'sdk_int');
+        $registration->bootstrap_version = $this->requiredString($runtime, 'bootstrap_version');
+        $registration->schema_version = $this->requiredInt($runtime, 'schema_version');
+        $registration->push_metadata_revision = $this->requiredInt($runtime, 'push_metadata_revision');
         $registration->save();
 
+        $freshRegistration = $registration->fresh();
+
+        if (! $freshRegistration instanceof PushDeviceRegistration) {
+            throw new RuntimeException('Unable to reload push device registration after save.');
+        }
+
         return [
-            'registration' => $registration->fresh(),
+            'registration' => $freshRegistration,
             'created' => $created,
         ];
     }
@@ -98,5 +96,69 @@ final class PushDeviceRegistrationService
             'installation_id' => $installationId,
             'revoked_at' => $revokedAt->toIso8601String(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     */
+    private function requiredString(array $values, string $key): string
+    {
+        $value = $values[$key] ?? null;
+
+        if (! is_string($value)) {
+            throw new InvalidArgumentException(sprintf('Expected string value for "%s".', $key));
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     */
+    private function nullableString(array $values, string $key): ?string
+    {
+        $value = $values[$key] ?? null;
+
+        if ($value === null) {
+            return null;
+        }
+
+        if (! is_string($value)) {
+            throw new InvalidArgumentException(sprintf('Expected nullable string value for "%s".', $key));
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     */
+    private function requiredInt(array $values, string $key): int
+    {
+        $value = $values[$key] ?? null;
+
+        if (! is_int($value)) {
+            throw new InvalidArgumentException(sprintf('Expected integer value for "%s".', $key));
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     */
+    private function nullableInt(array $values, string $key): ?int
+    {
+        $value = $values[$key] ?? null;
+
+        if ($value === null) {
+            return null;
+        }
+
+        if (! is_int($value)) {
+            throw new InvalidArgumentException(sprintf('Expected nullable integer value for "%s".', $key));
+        }
+
+        return $value;
     }
 }

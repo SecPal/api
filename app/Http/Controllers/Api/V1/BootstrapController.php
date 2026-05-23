@@ -30,18 +30,22 @@ class BootstrapController extends Controller
         $displayName = $this->instanceDisplayName();
         $minimumSupportedAppVersion = $this->minimumSupportedAppVersion();
         $minimumSupportedAppBuild = $this->minimumSupportedAppBuild();
-        $missingFields = array_merge(
-            $this->missingRequiredFields(
+        if ($apiBaseUrl === null
+            || $displayName === null
+            || $minimumSupportedAppVersion === null
+            || $minimumSupportedAppBuild === null) {
+            return $this->invalidStateResponse($this->missingRequiredFields(
                 $apiBaseUrl,
                 $displayName,
                 $minimumSupportedAppVersion,
                 $minimumSupportedAppBuild,
-            ),
-            $androidPushRuntimeConfiguration->missingFields(),
-        );
+            ));
+        }
 
-        if ($missingFields !== []) {
-            return $this->invalidStateResponse($missingFields);
+        $androidPushMissingFields = $androidPushRuntimeConfiguration->missingFields();
+
+        if ($androidPushMissingFields !== []) {
+            return $this->invalidStateResponse($androidPushMissingFields);
         }
 
         if ($this->clientIsBelowMinimumSupportedVersion(
