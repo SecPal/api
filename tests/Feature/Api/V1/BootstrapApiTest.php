@@ -114,6 +114,23 @@ test('public bootstrap fails closed when required bootstrap metadata is missing'
         ]);
 });
 
+test('public bootstrap fails closed when APP_URL contains a non-root path prefix', function (): void {
+    config(['app.url' => 'https://api.example.com/api']);
+
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
+        ->assertInternalServerError()
+        ->assertJsonPath('code', 'BOOTSTRAP_STATE_INVALID')
+        ->assertJsonPath('details.missing_fields', ['api_base_url']);
+});
+
+test('public bootstrap accepts APP_URL already containing the /v1 path without doubling it', function (): void {
+    config(['app.url' => 'https://api.secpal.dev/v1']);
+
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
+        ->assertOk()
+        ->assertJsonPath('data.api_base_url', 'https://api.secpal.dev/v1');
+});
+
 test('public bootstrap accepts minimum_supported_app_build when it arrives as a string from env', function (): void {
     config(['bootstrap.minimum_supported_app_build' => '10400']);
 
