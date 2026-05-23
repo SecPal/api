@@ -115,7 +115,7 @@ test('public bootstrap fails closed when required bootstrap metadata is missing'
 });
 
 test('public bootstrap fails closed when APP_URL contains a non-root path prefix', function (): void {
-    config(['app.url' => 'https://api.example.com/api']);
+    config(['app.url' => 'https://api.secpal.dev/api']);
 
     getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
         ->assertInternalServerError()
