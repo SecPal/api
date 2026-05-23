@@ -28,7 +28,7 @@ afterEach(function () {
     TenantKey::setKekPath(null);
 });
 
-test('validates token with correct email and returns employee data', function () {
+test('validates token with correct email and returns minimal data only', function () {
     /** @var User $user */
     $user = User::factory()->create([
         'email' => 'test@secpal.dev',
@@ -48,13 +48,44 @@ test('validates token with correct email and returns employee data', function ()
     $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('test@secpal.dev'));
 
     $response->assertOk()
-        ->assertJson([
+        ->assertExactJson([
             'data' => [
-                'first_name' => 'Max',
-                'last_name' => 'Mustermann',
-                'email' => 'test@secpal.dev',
+                'valid' => true,
             ],
         ]);
+});
+
+test('SECURITY: validate-token does not leak personal data even when token is valid', function () {
+    // An attacker who intercepts the magic link must NOT be able to learn the
+    // invitee's first or last name from the public endpoint. Only the user who
+    // proves knowledge of name + date of birth at POST /onboarding/complete may
+    // proceed; the validation endpoint must stay information-poor.
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'leak-check@secpal.dev',
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'SuperSecret',
+        'last_name' => 'NeverLeaked',
+        'email' => 'leak-check@secpal.dev',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('leak-check@secpal.dev'));
+
+    $response->assertOk()
+        ->assertJsonMissingPath('data.first_name')
+        ->assertJsonMissingPath('data.last_name')
+        ->assertJsonMissingPath('data.email');
+
+    $body = $response->getContent();
+    expect($body)->not->toContain('SuperSecret')
+        ->and($body)->not->toContain('NeverLeaked');
 });
 
 test('SECURITY: rejects valid token with wrong email', function () {
@@ -79,7 +110,7 @@ test('SECURITY: rejects valid token with wrong email', function () {
 
     $response->assertStatus(422)
         ->assertJson([
-            'message' => 'Invalid onboarding link. Email does not match.',
+            'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
         ]);
 });
 
@@ -105,7 +136,7 @@ test('SECURITY: validates email case-sensitively', function () {
 
     $response->assertStatus(422)
         ->assertJson([
-            'message' => 'Invalid onboarding link. Email does not match.',
+            'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
         ]);
 });
 
@@ -200,6 +231,32 @@ test('rejects already completed token', function () {
         ]);
 });
 
+test('rejects invalidated (burned) token', function () {
+    /** @var User $user */
+    $user = User::factory()->create([
+        'email' => 'test@secpal.dev',
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'email' => 'test@secpal.dev',
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $plainToken = $tokenData['plain'];
+
+    // Simulate a burned link (failed identity proof)
+    $tokenData['model']->markAsInvalidated('127.0.0.1', 'test-agent', 'identity_verification_failed');
+
+    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email=test@secpal.dev');
+
+    $response->assertStatus(422)
+        ->assertJson([
+            'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
+        ]);
+});
+
 test('rejects token for non-pre-contract employee', function () {
     /** @var User $user */
     $user = User::factory()->create([
@@ -245,9 +302,9 @@ test('handles URL-encoded special characters in email', function () {
     $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('test+tag@secpal.dev'));
 
     $response->assertOk()
-        ->assertJson([
+        ->assertExactJson([
             'data' => [
-                'email' => 'test+tag@secpal.dev',
+                'valid' => true,
             ],
         ]);
 });

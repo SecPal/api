@@ -481,11 +481,21 @@ class AppServiceProvider extends ServiceProvider
 
     private function shouldCountOnboardingAttempt(SymfonyResponse $response): bool
     {
-        if ($response->getStatusCode() === 403) {
+        $status = $response->getStatusCode();
+
+        if ($status === 403) {
             return true;
         }
 
-        if ($response->getStatusCode() !== 422) {
+        // 409 means the HR record is incomplete (missing DOB). The token/email pair
+        // was already confirmed valid at that point, so repeated 409 requests can be
+        // used to confirm a token is live without consuming a rate-limit slot. Count
+        // them the same way as other non-attack-but-billable failures.
+        if ($status === 409) {
+            return true;
+        }
+
+        if ($status !== 422) {
             return false;
         }
 

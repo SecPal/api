@@ -44,6 +44,7 @@ test('completes onboarding with valid token', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'John', // Use realistic names to avoid validation issues
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -58,6 +59,7 @@ test('completes onboarding with valid token', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
     ]);
 
     // Assert: Response is successful
@@ -106,6 +108,7 @@ test('completes onboarding by syncing and verifying the invited employee email o
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Email',
         'last_name' => 'Mismatch',
+        'date_of_birth' => '1988-07-22',
         'email' => 'invited-employee@secpal.dev',
         'user_id' => $user->id,
     ]);
@@ -118,6 +121,7 @@ test('completes onboarding by syncing and verifying the invited employee email o
         'password' => 'SecurePassword123!',
         'first_name' => 'Email',
         'last_name' => 'Mismatch',
+        'date_of_birth' => '1988-07-22',
     ])->assertOk()
         ->assertJsonPath('data.user.email', $employee->email)
         ->assertJsonPath('data.user.email_verified', true);
@@ -140,6 +144,7 @@ test('dispatches verified event when onboarding completion verifies the user ema
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Event',
         'last_name' => 'Dispatch',
+        'date_of_birth' => '1992-02-29',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -152,6 +157,7 @@ test('dispatches verified event when onboarding completion verifies the user ema
         'password' => 'SecurePassword123!',
         'first_name' => 'Event',
         'last_name' => 'Dispatch',
+        'date_of_birth' => '1992-02-29',
     ])->assertOk();
 
     $user->refresh();
@@ -165,6 +171,7 @@ test('rejects invalid token', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertStatus(422)
@@ -177,6 +184,7 @@ test('rejects expired token', function () {
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'email' => 'test@secpal.dev',
+        'date_of_birth' => '1990-01-01',
     ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
@@ -190,6 +198,7 @@ test('rejects expired token', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertStatus(422)
@@ -207,6 +216,7 @@ test('rejects already used token', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -220,6 +230,7 @@ test('rejects already used token', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ])->assertOk();
 
     // Try to use same token again
@@ -229,6 +240,7 @@ test('rejects already used token', function () {
         'password' => 'DifferentPassword456!',
         'first_name' => 'Jane',
         'last_name' => 'Smith',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertStatus(422)
@@ -249,6 +261,7 @@ test('rejects onboarding for non-pre-contract employee', function () {
         'tenant_id' => $this->tenant->id,
         'status' => Employee::STATUS_ACTIVE,
         'email' => 'test@secpal.dev',
+        'date_of_birth' => '1990-01-01',
         'user_id' => $user->id,
     ]);
 
@@ -261,6 +274,7 @@ test('rejects onboarding for non-pre-contract employee', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertStatus(403)
@@ -273,7 +287,57 @@ test('validates required fields', function () {
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', []);
 
     $response->assertStatus(422)
-        ->assertJsonValidationErrors(['token', 'email', 'password', 'first_name', 'last_name']);
+        ->assertJsonValidationErrors(['token', 'email', 'password', 'first_name', 'last_name', 'date_of_birth']);
+});
+
+test('rejects date_of_birth that is not a Y-m-d date string', function () {
+    /** @var User $user */
+    $user = User::factory()->create(['email' => 'test@secpal.dev']);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'email' => 'test@secpal.dev',
+        'date_of_birth' => '1990-01-01',
+        'user_id' => $user->id,
+    ]);
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => 'test@secpal.dev',
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '01.01.1990', // wrong format
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['date_of_birth']);
+});
+
+test('rejects date_of_birth in the future', function () {
+    /** @var User $user */
+    $user = User::factory()->create(['email' => 'test@secpal.dev']);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'email' => 'test@secpal.dev',
+        'date_of_birth' => '1990-01-01',
+        'user_id' => $user->id,
+    ]);
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => 'test@secpal.dev',
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => now()->addYear()->format('Y-m-d'),
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['date_of_birth']);
 });
 
 test('validates password strength', function () {
@@ -285,6 +349,7 @@ test('validates password strength', function () {
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'email' => 'test@secpal.dev',
+        'date_of_birth' => '1990-01-01',
         'user_id' => $user->id,
     ]);
     $tokenData = EmployeeOnboardingToken::generate($employee);
@@ -296,6 +361,7 @@ test('validates password strength', function () {
         'password' => 'weak', // Too weak password
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertStatus(422)
@@ -311,6 +377,7 @@ test('rate limits onboarding attempts', function () {
             'password' => 'SecurePassword123!',
             'first_name' => 'John',
             'last_name' => 'Doe',
+            'date_of_birth' => '1990-01-01',
         ]);
     }
 
@@ -338,6 +405,7 @@ test('validation throttle bucket does not block onboarding completion for the sa
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Separate',
         'last_name' => 'Bucket',
+        'date_of_birth' => '1985-12-31',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -351,6 +419,7 @@ test('validation throttle bucket does not block onboarding completion for the sa
         'password' => 'SecurePassword123!',
         'first_name' => 'Separate',
         'last_name' => 'Bucket',
+        'date_of_birth' => '1985-12-31',
     ])->assertOk();
 });
 
@@ -365,6 +434,7 @@ test('SECURITY: rejects valid token with wrong email', function () {
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'email' => 'correct@secpal.dev',
+        'date_of_birth' => '1990-01-01',
         'user_id' => $user->id,
     ]);
 
@@ -378,11 +448,12 @@ test('SECURITY: rejects valid token with wrong email', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'Hacker',
         'last_name' => 'McHackface',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertStatus(422)
         ->assertJson([
-            'message' => 'Invalid onboarding link. Email does not match.',
+            'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
         ]);
 
     // Verify employee was NOT modified
@@ -399,6 +470,7 @@ test('SECURITY: validates email case-sensitively', function () {
     /** @var Employee $employee */
     $employee = Employee::factory()->preContract()->create([
         'email' => 'test@secpal.dev',
+        'date_of_birth' => '1990-01-01',
         'user_id' => $user->id,
     ]);
 
@@ -412,11 +484,12 @@ test('SECURITY: validates email case-sensitively', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertStatus(422)
         ->assertJson([
-            'message' => 'Invalid onboarding link. Email does not match.',
+            'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
         ]);
 });
 
@@ -433,6 +506,7 @@ test('SECURITY: prevents token hijacking scenario', function () {
     $victimEmployee = Employee::factory()->preContract()->create([
         'first_name' => 'Victim',
         'last_name' => 'User',
+        'date_of_birth' => '1990-01-01',
         'email' => 'victim@secpal.dev',
         'user_id' => $victimUser->id,
     ]);
@@ -447,12 +521,13 @@ test('SECURITY: prevents token hijacking scenario', function () {
         'password' => 'AttackerPassword123!',
         'first_name' => 'Attacker',
         'last_name' => 'McEvil',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     // Should be rejected
     $response->assertStatus(422)
         ->assertJson([
-            'message' => 'Invalid onboarding link. Email does not match.',
+            'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
         ]);
 
     // Verify victim's data was NOT compromised
@@ -466,6 +541,606 @@ test('SECURITY: prevents token hijacking scenario', function () {
     expect(Hash::check('AttackerPassword123!', $victimUser->password))->toBeFalse();
 });
 
+// ===== SECURITY TESTS: Date of Birth Verification =====
+
+test('SECURITY: rejects wrong date of birth with generic identity-verification error', function () {
+    Illuminate\Support\Facades\Mail::fake();
+
+    /** @var User $user */
+    $user = User::factory()->unverified()->create([
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1991-04-15', // off by one year
+    ]);
+
+    // Generic 422 without an `errors` payload so attackers cannot tell which field
+    // is wrong (DOB vs name) — and so the throttle bucket counts the attempt.
+    $response->assertStatus(422)
+        ->assertJsonStructure(['message'])
+        ->assertJsonMissing(['errors']);
+
+    expect($response->json('message'))
+        ->toBe('We could not verify your identity with the details provided. For security reasons this onboarding link has been deactivated. Please contact HR for a new invitation.');
+
+    // Employee record must be untouched (still pre-contract, no name update)
+    $employee->refresh();
+    expect($employee->first_name)->toBe('John')
+        ->and($employee->last_name)->toBe('Doe')
+        ->and($employee->onboarding_started_at)->toBeNull()
+        ->and($employee->onboarding_workflow_status)->not->toBe(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
+
+    // Password must NOT have been changed
+    $user->refresh();
+    expect(Hash::check('SecurePassword123!', $user->password))->toBeFalse()
+        ->and($user->hasVerifiedEmail())->toBeFalse();
+
+    // Token must be burned immediately after a failed identity proof.
+    $tokenModel = $tokenData['model'];
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->not->toBeNull()
+        ->and($tokenModel->invalidation_reason)->toBe('identity_verification_failed')
+        ->and($tokenModel->completed_at)->toBeNull()
+        ->and($tokenModel->isValid())->toBeFalse();
+
+    // HR must NOT be notified — onboarding never reached the name-change pipeline
+    Illuminate\Support\Facades\Mail::assertNothingQueued();
+});
+
+test('SECURITY: DOB-mismatch attempts count toward the onboarding-complete rate limit', function () {
+    /** @var User $user */
+    $user = User::factory()->unverified()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    $payloadWithWrongDob = [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+    ];
+
+    // Limit is 3 per 10 minutes. We must NOT be able to probe DOBs at will.
+    $response = null;
+    for ($i = 0; $i < 4; $i++) {
+        $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
+            ...$payloadWithWrongDob,
+            'date_of_birth' => sprintf('1990-04-%02d', $i + 16), // never matches
+        ]);
+    }
+
+    $response->assertStatus(429)
+        ->assertJson([
+            'message' => 'Too many onboarding attempts. Please try again later.',
+        ]);
+});
+
+test('SECURITY: a missing stored date of birth blocks onboarding without burning the token', function () {
+    Illuminate\Support\Facades\Mail::fake();
+
+    /** @var User $user */
+    $user = User::factory()->unverified()->create([
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => null,
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+    ]);
+
+    $response->assertStatus(409)
+        ->assertJson([
+            'message' => 'Onboarding cannot be completed because your HR record is incomplete. Please contact HR before retrying this onboarding link.',
+        ]);
+
+    $employee->refresh();
+    expect($employee->first_name)->toBe('John')
+        ->and($employee->last_name)->toBe('Doe')
+        ->and($employee->onboarding_started_at)->toBeNull()
+        ->and($employee->onboarding_workflow_status)->not->toBe(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
+
+    $user->refresh();
+    expect(Hash::check('SecurePassword123!', $user->password))->toBeFalse()
+        ->and($user->hasVerifiedEmail())->toBeFalse();
+
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->toBeNull()
+        ->and($tokenModel->completed_at)->toBeNull()
+        ->and($tokenModel->isValid())->toBeTrue();
+
+    Illuminate\Support\Facades\Mail::assertNothingQueued();
+});
+
+// ===== SECURITY TESTS: Single-shot identity-proof policy =====
+//
+// Policy (see issue: onboarding-verify-dob):
+//   A wrong date of birth (or a name too different from the HR record) is
+//   treated as a failed identity proof and BURNS the magic link immediately.
+//   Anyone in possession of the link who cannot also prove they know their
+//   own DOB/name is, by definition, not the intended recipient — so no
+//   second guess is allowed. A new invitation must be issued by HR.
+
+test('SECURITY: a wrong date of birth invalidates the token immediately (single-shot)', function () {
+    /** @var User $user */
+    $user = User::factory()->unverified()->create([
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    // First attempt: wrong DOB → generic 422
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1991-04-15',
+    ])->assertStatus(422);
+
+    // Token must be permanently invalidated (audit trail captured)
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->not->toBeNull()
+        ->and($tokenModel->invalidation_reason)->toBe('identity_verification_failed')
+        ->and($tokenModel->invalidated_from_ip)->not->toBeNull()
+        ->and($tokenModel->invalidated_user_agent)->not->toBeNull()
+        // The token must NOT be marked as completed: this was a rejection,
+        // not a successful onboarding.
+        ->and($tokenModel->completed_at)->toBeNull()
+        ->and($tokenModel->isValid())->toBeFalse();
+
+    // Password must NOT have been saved on the user account
+    $user->refresh();
+    expect(Hash::check('SecurePassword123!', $user->password))->toBeFalse()
+        ->and($user->hasVerifiedEmail())->toBeFalse();
+
+    // Employee record must be untouched
+    $employee->refresh();
+    expect($employee->onboarding_started_at)->toBeNull()
+        ->and($employee->onboarding_workflow_status)
+        ->not->toBe(Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED);
+});
+
+test('SECURITY: a retry on a burned token (even with correct details) is rejected as invalid link', function () {
+    /** @var User $user */
+    $user = User::factory()->unverified()->create([
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    // First attempt: wrong DOB burns the token.
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1991-04-15',
+    ])->assertStatus(422);
+
+    // Second attempt with the SAME token and now-correct DOB must be refused as
+    // "invalid or expired" — exactly like a stale token, leaking nothing extra.
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+    ])->assertStatus(422)
+        ->assertJson([
+            'message' => 'Invalid or expired onboarding link. Please request a new invitation.',
+        ]);
+
+    $user->refresh();
+    expect(Hash::check('SecurePassword123!', $user->password))->toBeFalse();
+});
+
+test('SECURITY: a too-different name also invalidates the token immediately', function () {
+    /** @var User $user */
+    $user = User::factory()->unverified()->create([
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Hans',
+        'last_name' => 'Müller',
+        'date_of_birth' => '1985-06-10',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Maria', // major change (<50% similar)
+        'last_name' => 'Schmidt',
+        'date_of_birth' => '1985-06-10',
+    ])->assertStatus(422);
+
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->not->toBeNull()
+        ->and($tokenModel->invalidation_reason)->toBe('identity_verification_failed');
+
+    $user->refresh();
+    expect(Hash::check('SecurePassword123!', $user->password))->toBeFalse();
+});
+
+test('SECURITY: the identity-mismatch event is written to the activity log', function () {
+    /** @var User $user */
+    $user = User::factory()->unverified()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1991-04-15',
+    ])->assertStatus(422);
+
+    $activity = Spatie\Activitylog\Models\Activity::where('subject_id', $employee->id)
+        ->where('log_name', 'employee-onboarding')
+        ->where('description', 'Onboarding link invalidated due to failed identity verification')
+        ->first();
+
+    expect($activity)->not->toBeNull();
+    $properties = $activity->properties;
+    expect($properties->get('reason'))->toBe('identity_verification_failed')
+        ->and($properties->get('date_of_birth_matched'))->toBeFalse()
+        ->and($properties->get('ip'))->not->toBeNull()
+        ->and($properties->get('user_agent'))->not->toBeNull();
+});
+
+test('SECURITY: shape-validation failures (weak password) do NOT burn the token', function () {
+    // Weak password is a recoverable user error, not an identity-proof failure.
+    // The invitee must be able to retry with a stronger password.
+    /** @var User $user */
+    $user = User::factory()->unverified()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'weak',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+    ])->assertStatus(422)
+        ->assertJsonValidationErrors(['password']);
+
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->toBeNull()
+        ->and($tokenModel->isValid())->toBeTrue();
+});
+
+test('SECURITY: malformed date_of_birth does NOT burn the token', function () {
+    /** @var User $user */
+    $user = User::factory()->unverified()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'date_of_birth' => '1990-04-15',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '15.04.1990', // wrong format, caught by date_format rule
+    ])->assertStatus(422)
+        ->assertJsonValidationErrors(['date_of_birth']);
+
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->toBeNull()
+        ->and($tokenModel->isValid())->toBeTrue();
+});
+
+test('SECURITY: pre-contract status mismatch does NOT burn the token', function () {
+    /** @var User $user */
+    $user = User::factory()->create(['email' => 'active@secpal.dev']);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'status' => Employee::STATUS_ACTIVE, // not pre_contract
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+    ])->assertStatus(403);
+
+    // Lifecycle-state problems are not attacks; we don't punish HR by burning
+    // their (legitimate) magic link. Re-issuing wouldn't help anyway.
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->toBeNull()
+        ->and($tokenModel->isValid())->toBeTrue();
+});
+
+test('SECURITY: a successful onboarding does NOT mark the token as invalidated', function () {
+    /** @var User $user */
+    $user = User::factory()->unverified()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-04-15',
+    ])->assertOk();
+
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->toBeNull()
+        ->and($tokenModel->completed_at)->not->toBeNull();
+});
+
+test('SECURITY: rejects too-different name with generic identity-verification error (no field oracle)', function () {
+    Illuminate\Support\Facades\Mail::fake();
+
+    /** @var User $user */
+    $user = User::factory()->unverified()->create([
+        'password' => Hash::make('temporary-password'),
+    ]);
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'Hans',
+        'last_name' => 'Müller',
+        'date_of_birth' => '1985-06-10',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'Maria', // major change (<50% similar) — would have leaked field error before
+        'last_name' => 'Schmidt',
+        'date_of_birth' => '1985-06-10', // correct DOB
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJsonMissing(['errors'])
+        ->assertJsonStructure(['message']);
+
+    expect($response->json('message'))
+        ->toBe('We could not verify your identity with the details provided. For security reasons this onboarding link has been deactivated. Please contact HR for a new invitation.');
+
+    // Employee record must be untouched
+    $employee->refresh();
+    expect($employee->first_name)->toBe('Hans')
+        ->and($employee->last_name)->toBe('Müller');
+
+    $user->refresh();
+    expect(Hash::check('SecurePassword123!', $user->password))->toBeFalse();
+
+    Illuminate\Support\Facades\Mail::assertNothingQueued();
+});
+
+test('SECURITY: missing HR date_of_birth returns conflict without burning the token', function () {
+    /** @var User $user */
+    $user = User::factory()->unverified()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => null,
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
+    ])->assertStatus(409)
+        ->assertJson([
+            'message' => 'Onboarding cannot be completed because your HR record is incomplete. Please contact HR before retrying this onboarding link.',
+        ]);
+
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->toBeNull()
+        ->and($tokenModel->completed_at)->toBeNull()
+        ->and($tokenModel->isValid())->toBeTrue();
+});
+
+test('SECURITY: repeated 409 (missing HR DOB) counts toward the rate limit', function () {
+    // 409 confirms that the token+email pair is valid. Without rate-limiting it, an
+    // attacker could use repeated 409s to confirm a live token without burning a slot.
+    /** @var User $user */
+    $user = User::factory()->unverified()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'date_of_birth' => null,
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+
+    $payload = [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
+    ];
+
+    // Limit is 3 per 10 minutes. The first three return 409; the fourth must be 429.
+    $response = null;
+    for ($i = 0; $i < 4; $i++) {
+        $response = $this->withSession([])->postJson('/v1/onboarding/complete', $payload);
+    }
+
+    $response->assertStatus(429)
+        ->assertJson([
+            'message' => 'Too many onboarding attempts. Please try again later.',
+        ]);
+});
+
+test('SECURITY: stored DOB formatting differences do not burn a valid token', function () {
+    /** @var User $user */
+    $user = User::factory()->unverified()->create();
+
+    /** @var Employee $employee */
+    $employee = Employee::factory()->preContract()->create([
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-1-1',
+        'email' => $user->email,
+        'user_id' => $user->id,
+    ]);
+
+    $tokenData = EmployeeOnboardingToken::generate($employee);
+    $tokenModel = $tokenData['model'];
+
+    $this->withSession([])->postJson('/v1/onboarding/complete', [
+        'token' => $tokenData['plain'],
+        'email' => $user->email,
+        'password' => 'SecurePassword123!',
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
+    ])->assertOk();
+
+    $tokenModel->refresh();
+    expect($tokenModel->invalidated_at)->toBeNull()
+        ->and($tokenModel->completed_at)->not->toBeNull();
+});
+
 test('logs name changes with enhanced activity log', function () {
     /** @var User $user */
     $user = User::factory()->create([
@@ -476,6 +1151,7 @@ test('logs name changes with enhanced activity log', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'OldFirst',
         'last_name' => 'OldLast',
+        'date_of_birth' => '1990-01-01',
         'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
@@ -483,15 +1159,18 @@ test('logs name changes with enhanced activity log', function () {
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    // Complete onboarding with different names
+    // Complete onboarding with names that pass the similarity check (medium severity).
     $response = $this->withSession([])->postJson('/v1/onboarding/complete', [
         'token' => $plainToken,
         'email' => 'test@secpal.dev',
         'password' => 'SecurePassword123!',
         'first_name' => 'NewFirst',
         'last_name' => 'NewLast',
+        'date_of_birth' => '1990-01-01',
     ]);
 
+    // NewFirst vs OldFirst / NewLast vs OldLast share the 'First'/'Last' suffix
+    // and are ~57% similar via Levenshtein, which falls in the "medium" range.
     $response->assertOk();
 
     // Verify activity log was created
@@ -519,6 +1198,7 @@ test('does not log activity if names unchanged', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
         'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
@@ -533,6 +1213,7 @@ test('does not log activity if names unchanged', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertOk();
@@ -558,6 +1239,7 @@ test('allows minor name correction (typo, >80% similar)', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hanns', // Typo
         'last_name' => 'Mueller', // Alternate spelling
+        'date_of_birth' => '1985-03-12',
         'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
@@ -572,6 +1254,7 @@ test('allows minor name correction (typo, >80% similar)', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'Hans', // Corrected
         'last_name' => 'Müller', // Corrected with umlaut
+        'date_of_birth' => '1985-03-12',
     ]);
 
     $response->assertOk();
@@ -602,6 +1285,7 @@ test('allows medium name change with warning (50-80% similar)', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hans',
         'last_name' => 'Müller',
+        'date_of_birth' => '1980-08-08',
         'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
@@ -616,6 +1300,7 @@ test('allows medium name change with warning (50-80% similar)', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'Hans-Peter', // Added hyphenated name
         'last_name' => 'Müller-Schmidt', // Added double name
+        'date_of_birth' => '1980-08-08',
     ]);
 
     $response->assertOk();
@@ -634,7 +1319,7 @@ test('allows medium name change with warning (50-80% similar)', function () {
     });
 });
 
-test('blocks major name change (<50% similar)', function () {
+test('blocks major name change (<50% similar) with generic identity-verification error', function () {
     /** @var User $user */
     $user = User::factory()->create(['email' => 'test@secpal.dev']);
 
@@ -642,6 +1327,7 @@ test('blocks major name change (<50% similar)', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hans',
         'last_name' => 'Müller',
+        'date_of_birth' => '1975-11-30',
         'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
@@ -656,13 +1342,17 @@ test('blocks major name change (<50% similar)', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'Maria', // Completely different
         'last_name' => 'Schmidt', // Completely different
+        'date_of_birth' => '1975-11-30',
     ]);
 
+    // Identity verification failures share ONE generic message so they cannot be
+    // used as a field oracle (and count toward the throttle bucket).
     $response->assertStatus(422)
-        ->assertJsonStructure([
-            'message',
-            'errors' => ['first_name'],
-        ]);
+        ->assertJsonStructure(['message'])
+        ->assertJsonMissing(['errors']);
+
+    expect($response->json('message'))
+        ->toBe('We could not verify your identity with the details provided. For security reasons this onboarding link has been deactivated. Please contact HR for a new invitation.');
 
     // Verify name was NOT updated
     $employee->refresh();
@@ -680,6 +1370,7 @@ test('allows unchanged name without HR notification', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
         'email' => 'test@secpal.dev',
         'user_id' => $user->id,
     ]);
@@ -694,6 +1385,7 @@ test('allows unchanged name without HR notification', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertOk();
@@ -716,6 +1408,7 @@ test('synchronizes user name with employee name after onboarding', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Max',
         'last_name' => 'Mustermann',
+        'date_of_birth' => '1990-01-01',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -730,6 +1423,7 @@ test('synchronizes user name with employee name after onboarding', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'Maximilian', // Name changed
         'last_name' => 'Mustermann',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertOk();
@@ -762,6 +1456,7 @@ test('creates activity log for automatic login after onboarding', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -776,6 +1471,7 @@ test('creates activity log for automatic login after onboarding', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertOk();
@@ -807,6 +1503,7 @@ test('automatically logs user in with session after onboarding (no token)', func
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -821,6 +1518,7 @@ test('automatically logs user in with session after onboarding (no token)', func
         'password' => 'SecurePassword123!',
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'date_of_birth' => '1990-01-01',
     ]);
 
     $response->assertOk();
@@ -849,6 +1547,7 @@ test('sends HR notification when only first name changes with medium severity', 
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Max',
         'last_name' => 'Mustermann',
+        'date_of_birth' => '1990-05-20',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -864,6 +1563,7 @@ test('sends HR notification when only first name changes with medium severity', 
         'password' => 'SecurePassword123!',
         'first_name' => 'Maximilian', // Medium change (prefix pattern ~72% similar)
         'last_name' => 'Mustermann',  // Unchanged
+        'date_of_birth' => '1990-05-20',
     ]);
 
     $response->assertOk();
@@ -885,6 +1585,7 @@ test('sends HR notification when only last name changes with medium severity', f
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hans',
         'last_name' => 'Müller',
+        'date_of_birth' => '1978-09-09',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -900,6 +1601,7 @@ test('sends HR notification when only last name changes with medium severity', f
         'password' => 'SecurePassword123!',
         'first_name' => 'Hans',                // Unchanged
         'last_name' => 'Müller-Schmidtmann',  // Medium change (prefix pattern ~73% similar)
+        'date_of_birth' => '1978-09-09',
     ]);
 
     $response->assertOk();
@@ -921,6 +1623,7 @@ test('sends HR notification when mixed severity changes occur', function () {
     $employee = Employee::factory()->preContract()->create([
         'first_name' => 'Hanz',
         'last_name' => 'Schmidt',
+        'date_of_birth' => '1982-12-12',
         'email' => $user->email,
         'user_id' => $user->id,
     ]);
@@ -936,6 +1639,7 @@ test('sends HR notification when mixed severity changes occur', function () {
         'password' => 'SecurePassword123!',
         'first_name' => 'Hans',       // Minor change (typo correction, >80% similar)
         'last_name' => 'Schmidt-Weber', // Medium change (hyphenated addition)
+        'date_of_birth' => '1982-12-12',
     ]);
 
     $response->assertOk();
