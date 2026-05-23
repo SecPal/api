@@ -9,19 +9,19 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GetBootstrapConfigurationRequest;
+use App\Support\AndroidPushRuntimeConfiguration;
+use App\Support\BootstrapContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
 class BootstrapController extends Controller
 {
-    private const BOOTSTRAP_VERSION = 'v1';
-
-    private const SCHEMA_VERSION = 1;
-
     private const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
-    public function show(GetBootstrapConfigurationRequest $request): JsonResponse
-    {
+    public function show(
+        GetBootstrapConfigurationRequest $request,
+        AndroidPushRuntimeConfiguration $androidPushRuntimeConfiguration,
+    ): JsonResponse {
         if (! $this->bootstrapPublicEnabled()) {
             return $this->configurationUnavailableResponse();
         }
@@ -30,17 +30,18 @@ class BootstrapController extends Controller
         $displayName = $this->instanceDisplayName();
         $minimumSupportedAppVersion = $this->minimumSupportedAppVersion();
         $minimumSupportedAppBuild = $this->minimumSupportedAppBuild();
-
-        if ($apiBaseUrl === null
-            || $displayName === null
-            || $minimumSupportedAppVersion === null
-            || $minimumSupportedAppBuild === null) {
-            return $this->invalidStateResponse($this->missingRequiredFields(
+        $missingFields = array_merge(
+            $this->missingRequiredFields(
                 $apiBaseUrl,
                 $displayName,
                 $minimumSupportedAppVersion,
                 $minimumSupportedAppBuild,
-            ));
+            ),
+            $androidPushRuntimeConfiguration->missingFields(),
+        );
+
+        if ($missingFields !== []) {
+            return $this->invalidStateResponse($missingFields);
         }
 
         if ($this->clientIsBelowMinimumSupportedVersion(
@@ -57,26 +58,31 @@ class BootstrapController extends Controller
             );
         }
 
-        return response()->json([
-            'data' => [
-                'client_platform' => $request->clientPlatform(),
-                'api_base_url' => $apiBaseUrl,
-                'instance' => [
-                    'display_name' => $displayName,
-                ],
-                'compatibility' => [
-                    'bootstrap_version' => self::BOOTSTRAP_VERSION,
-                    'schema_version' => self::SCHEMA_VERSION,
-                    'minimum_supported_app_version' => $minimumSupportedAppVersion,
-                    'minimum_supported_app_build' => $minimumSupportedAppBuild,
-                ],
-                'features' => [
-                    'password_login' => $this->booleanConfig('bootstrap.features.password_login', true),
-                    'passkey_login' => $this->booleanConfig('bootstrap.features.passkey_login', true),
-                    'managed_android_enrollment' => $this->booleanConfig('bootstrap.features.managed_android_enrollment', false),
-                ],
+        $data = [
+            'client_platform' => $request->clientPlatform(),
+            'api_base_url' => $apiBaseUrl,
+            'instance' => [
+                'display_name' => $displayName,
             ],
-        ]);
+            'compatibility' => [
+                'bootstrap_version' => BootstrapContract::VERSION,
+                'schema_version' => BootstrapContract::SCHEMA_VERSION,
+                'minimum_supported_app_version' => $minimumSupportedAppVersion,
+                'minimum_supported_app_build' => $minimumSupportedAppBuild,
+            ],
+            'features' => [
+                'password_login' => $this->booleanConfig('bootstrap.features.password_login', true),
+                'passkey_login' => $this->booleanConfig('bootstrap.features.passkey_login', true),
+                'managed_android_enrollment' => $this->booleanConfig('bootstrap.features.managed_android_enrollment', false),
+                'android_push' => $androidPushRuntimeConfiguration->isEnabled(),
+            ],
+        ];
+
+        if ($androidPushRuntimeConfiguration->isEnabled()) {
+            $data['android_push'] = $androidPushRuntimeConfiguration->publicMetadata();
+        }
+
+        return response()->json(['data' => $data]);
     }
 
     /**
@@ -140,7 +146,7 @@ class BootstrapController extends Controller
                 'provided_app_build' => $providedAppBuild,
                 'minimum_supported_app_version' => $minimumSupportedAppVersion,
                 'minimum_supported_app_build' => $minimumSupportedAppBuild,
-                'bootstrap_version' => self::BOOTSTRAP_VERSION,
+                'bootstrap_version' => BootstrapContract::VERSION,
             ],
         ], 426);
     }

@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\EmployeeQualificationController;
 use App\Http\Controllers\Api\V1\OnboardingController;
 use App\Http\Controllers\Api\V1\OrganizationalScopeController;
 use App\Http\Controllers\Api\V1\OrganizationalUnitController;
+use App\Http\Controllers\Api\V1\PushDeviceRegistrationController;
 use App\Http\Controllers\Api\V1\QualificationController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\Api\V1\SiteAssignmentController;
@@ -104,6 +105,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/email/verification-notification', [AuthController::class, 'sendVerificationNotification'])
             ->middleware('throttle:6,1');
         Route::get('/me', [AuthController::class, 'me']);
+        Route::put('/me/push-devices/{installationId}', [PushDeviceRegistrationController::class, 'upsert'])
+            ->whereUuid('installationId');
+        Route::delete('/me/push-devices/{installationId}', [PushDeviceRegistrationController::class, 'destroy'])
+            ->whereUuid('installationId');
 
         Route::middleware('throttle:address-autocomplete')->group(function () {
             Route::get('/addresses/de/streets', [AddressController::class, 'streets']);

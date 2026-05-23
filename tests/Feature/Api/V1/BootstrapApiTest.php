@@ -23,6 +23,12 @@ beforeEach(function (): void {
         'bootstrap.features.password_login' => true,
         'bootstrap.features.passkey_login' => true,
         'bootstrap.features.managed_android_enrollment' => true,
+        'bootstrap.features.android_push' => true,
+        'bootstrap.android_push.metadata_revision' => 3,
+        'bootstrap.android_push.public_client_metadata.api_key' => 'public-client-api-key-demo-1234567890',
+        'bootstrap.android_push.public_client_metadata.project_id' => 'secpal-demo-push',
+        'bootstrap.android_push.public_client_metadata.application_id' => '1:1234567890:android:abcdef1234567890',
+        'bootstrap.android_push.public_client_metadata.sender_id' => '1234567890',
     ]);
 });
 
@@ -38,7 +44,7 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                 ],
                 'compatibility' => [
                     'bootstrap_version' => 'v1',
-                    'schema_version' => 1,
+                    'schema_version' => 2,
                     'minimum_supported_app_version' => '1.4.0',
                     'minimum_supported_app_build' => 10400,
                 ],
@@ -46,9 +52,29 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                     'password_login' => true,
                     'passkey_login' => true,
                     'managed_android_enrollment' => true,
+                    'android_push' => true,
+                ],
+                'android_push' => [
+                    'provider' => 'fcm',
+                    'metadata_revision' => 3,
+                    'public_client_metadata' => [
+                        'api_key' => 'public-client-api-key-demo-1234567890',
+                        'project_id' => 'secpal-demo-push',
+                        'application_id' => '1:1234567890:android:abcdef1234567890',
+                        'sender_id' => '1234567890',
+                    ],
                 ],
             ],
         ]);
+});
+
+test('public bootstrap omits android push metadata when authenticated push registration is disabled', function (): void {
+    config(['bootstrap.features.android_push' => false]);
+
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
+        ->assertOk()
+        ->assertJsonPath('data.features.android_push', false)
+        ->assertJsonMissingPath('data.android_push');
 });
 
 test('public bootstrap rejects android clients below the configured minimum version', function (): void {
@@ -109,6 +135,26 @@ test('public bootstrap fails closed when required bootstrap metadata is missing'
                     'instance.display_name',
                     'compatibility.minimum_supported_app_version',
                     'compatibility.minimum_supported_app_build',
+                ],
+            ],
+        ]);
+});
+
+test('public bootstrap fails closed when android push metadata is enabled but incomplete', function (): void {
+    config([
+        'bootstrap.android_push.metadata_revision' => null,
+        'bootstrap.android_push.public_client_metadata.api_key' => null,
+    ]);
+
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
+        ->assertInternalServerError()
+        ->assertExactJson([
+            'message' => 'Public bootstrap configuration is incomplete for this deployment.',
+            'code' => 'BOOTSTRAP_STATE_INVALID',
+            'details' => [
+                'missing_fields' => [
+                    'android_push.metadata_revision',
+                    'android_push.public_client_metadata.api_key',
                 ],
             ],
         ]);
