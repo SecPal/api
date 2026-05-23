@@ -58,7 +58,7 @@ class UpsertPushDeviceRegistrationRequest extends FormRequest
     }
 
     /**
-     * @param  array<string, mixed>  $payload
+     * @param  array<array-key, mixed>  $payload
      * @param  list<string>  $path
      */
     private function setNestedInteger(array &$payload, array $path): void
