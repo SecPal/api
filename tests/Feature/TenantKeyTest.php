@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+use App\Exceptions\TenantKeyDecryptionException;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\TenantKeyReadabilityOverride;
@@ -136,7 +137,7 @@ test('throws exception on decryption with wrong nonce', function (): void {
     $wrongNonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
 
     expect(fn () => $tenantKey->decrypt($encrypted['ciphertext'], $wrongNonce))
-        ->toThrow(RuntimeException::class, 'Failed to decrypt data');
+        ->toThrow(TenantKeyDecryptionException::class, 'Failed to decrypt data');
 });
 
 test('generates consistent blind index for same plaintext', function (): void {

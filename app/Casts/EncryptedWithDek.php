@@ -9,6 +9,7 @@
 namespace App\Casts;
 
 use App\Exceptions\CorruptedEncryptedAttributeException;
+use App\Exceptions\TenantKeyDecryptionException;
 use App\Models\TenantKey;
 use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Database\Eloquent\Model;
@@ -65,11 +66,7 @@ class EncryptedWithDek implements CastsAttributes
 
         try {
             return $tenant->decrypt($ciphertext, $nonce);
-        } catch (\RuntimeException $exception) {
-            if ($exception->getMessage() !== 'Failed to decrypt data') {
-                throw $exception;
-            }
-
+        } catch (TenantKeyDecryptionException $exception) {
             throw new CorruptedEncryptedAttributeException(
                 "Failed to decrypt encrypted data for {$key}",
                 previous: $exception,

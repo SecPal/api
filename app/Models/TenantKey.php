@@ -8,6 +8,7 @@
 
 namespace App\Models;
 
+use App\Exceptions\TenantKeyDecryptionException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -580,7 +581,7 @@ class TenantKey extends Model
     /**
      * Decrypt ciphertext using the tenant's DEK.
      *
-     * @throws \RuntimeException if decryption fails
+     * @throws TenantKeyDecryptionException if decryption fails
      */
     public function decrypt(string $ciphertext, string $nonce): string
     {
@@ -590,7 +591,7 @@ class TenantKey extends Model
         sodium_memzero($dek);
 
         if ($plaintext === false) {
-            throw new \RuntimeException('Failed to decrypt data');
+            throw new TenantKeyDecryptionException('Failed to decrypt data');
         }
 
         return $plaintext;
