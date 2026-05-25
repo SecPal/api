@@ -215,20 +215,24 @@ final class AndroidPushDeliveryService
 
         $details = data_get($responseBody, 'error.details');
 
-        if (! is_array($details)) {
-            return null;
+        if (is_array($details)) {
+            foreach ($details as $detail) {
+                if (! is_array($detail)) {
+                    continue;
+                }
+
+                $errorCode = $detail['errorCode'] ?? null;
+
+                if (is_string($errorCode) && trim($errorCode) !== '') {
+                    return $errorCode;
+                }
+            }
         }
 
-        foreach ($details as $detail) {
-            if (! is_array($detail)) {
-                continue;
-            }
+        $status = data_get($responseBody, 'error.status');
 
-            $errorCode = $detail['errorCode'] ?? null;
-
-            if (is_string($errorCode) && trim($errorCode) !== '') {
-                return $errorCode;
-            }
+        if (is_string($status) && trim($status) !== '') {
+            return $status;
         }
 
         return null;
@@ -236,7 +240,7 @@ final class AndroidPushDeliveryService
 
     private function shouldDeleteRegistration(?string $providerErrorCode, mixed $responseBody): bool
     {
-        if (in_array($providerErrorCode, ['UNREGISTERED', 'SENDER_ID_MISMATCH'], true)) {
+        if ($providerErrorCode === 'UNREGISTERED') {
             return true;
         }
 

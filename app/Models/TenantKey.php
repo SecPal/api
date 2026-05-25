@@ -11,6 +11,7 @@ namespace App\Models;
 use App\Exceptions\TenantKeyDecryptionException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use SodiumException;
 
 /**
  * TenantKey model for managing per-tenant envelope encryption keys.
@@ -581,14 +582,21 @@ class TenantKey extends Model
     /**
      * Decrypt ciphertext using the tenant's DEK.
      *
-     * @throws TenantKeyDecryptionException if decryption fails
+     * @throws \RuntimeException if tenant key material cannot be loaded
+     * @throws TenantKeyDecryptionException if ciphertext authentication fails
+     * @throws \RuntimeException if tenant key material cannot be loaded
      */
     public function decrypt(string $ciphertext, string $nonce): string
     {
         $dek = $this->unwrapDek();
-        $plaintext = sodium_crypto_secretbox_open($ciphertext, $nonce, $dek);
 
-        sodium_memzero($dek);
+        try {
+            $plaintext = sodium_crypto_secretbox_open($ciphertext, $nonce, $dek);
+        } catch (SodiumException $exception) {
+            throw new TenantKeyDecryptionException('Failed to decrypt data', previous: $exception);
+        } finally {
+            sodium_memzero($dek);
+        }
 
         if ($plaintext === false) {
             throw new TenantKeyDecryptionException('Failed to decrypt data');

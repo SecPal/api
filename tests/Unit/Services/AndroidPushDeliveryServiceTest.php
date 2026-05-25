@@ -280,6 +280,44 @@ test('service deletes registration and returns invalid token when encrypted toke
     Http::assertNothingSent();
 });
 
+test('service deletes registration and returns invalid token when encrypted token nonce length is invalid', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    $storedPayload = json_decode((string) $registration->getRawOriginal('push_token_enc'), true, flags: JSON_THROW_ON_ERROR);
+
+    $registration->getConnection()
+        ->table('push_device_registrations')
+        ->where('id', $registration->id)
+        ->update(['push_token_enc' => json_encode([
+            'ciphertext' => $storedPayload['ciphertext'],
+            'nonce' => base64_encode('short'),
+        ], JSON_THROW_ON_ERROR)]);
+
+    $freshRegistration = PushDeviceRegistration::query()->findOrFail($registration->id);
+
+    Http::fake();
+
+    $result = app(AndroidPushDeliveryService::class)->send(
+        $freshRegistration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    );
+
+    expect($result)->toBe([
+        'delivered' => false,
+        'provider_message_id' => null,
+        'invalid_token' => true,
+        'provider_error_code' => 'DECRYPTION_FAILURE',
+    ]);
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+
+    Http::assertNothingSent();
+});
+
 test('service surfaces tenant key runtime failures without deleting registration', function (): void {
     $registration = createAndroidPushRegistration($this->tenant, $this->user);
 
@@ -367,6 +405,79 @@ test('service deletes stale registrations when firebase reports an unregistered 
     ]);
 
     $this->assertDatabaseMissing('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+});
+
+test('service deletes stale registrations when firebase reports invalid argument via status without details error code', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response([
+            'access_token' => 'google-access-token',
+            'token_type' => 'Bearer',
+            'expires_in' => 3600,
+        ], 200),
+        'https://fcm.googleapis.com/v1/projects/customer-owned-project/messages:send' => Http::response([
+            'error' => [
+                'code' => 400,
+                'message' => 'The registration token is not a valid FCM registration token.',
+                'status' => 'INVALID_ARGUMENT',
+            ],
+        ], 400),
+    ]);
+
+    $result = app(AndroidPushDeliveryService::class)->send(
+        $registration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    );
+
+    expect($result)->toBe([
+        'delivered' => false,
+        'provider_message_id' => null,
+        'invalid_token' => true,
+        'provider_error_code' => 'INVALID_ARGUMENT',
+    ]);
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+});
+
+test('service preserves registrations when firebase reports sender mismatch', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response([
+            'access_token' => 'google-access-token',
+            'token_type' => 'Bearer',
+            'expires_in' => 3600,
+        ], 200),
+        'https://fcm.googleapis.com/v1/projects/customer-owned-project/messages:send' => Http::response([
+            'error' => [
+                'code' => 403,
+                'message' => 'The authenticated sender does not match the sender for the registration token.',
+                'status' => 'PERMISSION_DENIED',
+                'details' => [
+                    [
+                        '@type' => 'type.googleapis.com/google.firebase.fcm.v1.FcmError',
+                        'errorCode' => 'SENDER_ID_MISMATCH',
+                    ],
+                ],
+            ],
+        ], 403),
+    ]);
+
+    expect(fn () => app(AndroidPushDeliveryService::class)->send(
+        $registration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    ))->toThrow(RuntimeException::class, 'Firebase push delivery failed with HTTP 403 (SENDER_ID_MISMATCH).');
+
+    $this->assertDatabaseHas('push_device_registrations', [
         'id' => $registration->id,
     ]);
 });
