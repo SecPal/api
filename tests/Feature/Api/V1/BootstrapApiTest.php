@@ -77,6 +77,26 @@ test('public bootstrap omits android push metadata when authenticated push regis
         ->assertJsonMissingPath('data.android_push');
 });
 
+test('public bootstrap never exposes server side android push credentials', function (): void {
+    config([
+        'services.fcm.project_id' => 'customer-owned-server-project',
+        'services.fcm.client_email' => 'firebase-adminsdk@customer-owned-server-project.iam.gserviceaccount.com',
+        'services.fcm.private_key' => "-----BEGIN PRIVATE KEY-----\nserver-only-secret\n-----END PRIVATE KEY-----\n",
+    ]);
+
+    $response = getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400');
+
+    $response->assertOk()
+        ->assertJsonMissingPath('data.android_push.project_id')
+        ->assertJsonMissingPath('data.android_push.client_email')
+        ->assertJsonMissingPath('data.android_push.private_key');
+
+    expect($response->getContent())
+        ->not->toContain('customer-owned-server-project')
+        ->not->toContain('firebase-adminsdk@customer-owned-server-project.iam.gserviceaccount.com')
+        ->not->toContain('server-only-secret');
+});
+
 test('public bootstrap rejects android clients below the configured minimum version', function (): void {
     getJson('/v1/bootstrap?client_platform=android&app_version=1.3.2&app_build=10302')
         ->assertStatus(426)

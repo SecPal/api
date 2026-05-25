@@ -104,6 +104,17 @@ class PushDeviceRegistration extends Model
         return $this->pushTokenPlain;
     }
 
+    public function deliveryToken(): ?string
+    {
+        $token = $this->getAttributeValue('push_token_enc');
+
+        if (! is_string($token) || trim($token) === '') {
+            return null;
+        }
+
+        return $token;
+    }
+
     /**
      * @return BelongsTo<TenantKey, $this>
      */
