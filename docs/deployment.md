@@ -109,6 +109,14 @@ BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY=public-client-api-key-demo-1234567890
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID=secpal-demo-push
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID=1:1234567890:android:abcdef1234567890
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID=1234567890
+# Customer-owned Android push delivery (backend-only)
+ANDROID_PUSH_FCM_PROJECT_ID=customer-owned-push
+ANDROID_PUSH_FCM_CLIENT_EMAIL=firebase-adminsdk-abc123@customer-owned-push.iam.gserviceaccount.com
+ANDROID_PUSH_FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nREPLACE_WITH_DEPLOYMENT_SECRET\n-----END PRIVATE KEY-----\n"
+ANDROID_PUSH_FCM_TOKEN_URI=https://oauth2.googleapis.com/token
+ANDROID_PUSH_FCM_API_BASE_URL=https://fcm.googleapis.com
+ANDROID_PUSH_FCM_CONNECT_TIMEOUT=5
+ANDROID_PUSH_FCM_TIMEOUT=10
 BOOTSTRAP_RETRYABLE=true
 BOOTSTRAP_RETRY_AFTER_SECONDS=60
 
@@ -162,6 +170,7 @@ Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after t
 - When Android push bootstrap is enabled, `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID`, and `BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID` are all required. Missing values fail closed with `500 BOOTSTRAP_STATE_INVALID`.
 - `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION` must be incremented whenever any public Android push client metadata changes so authenticated registrations with stale bootstrap state can be rejected deterministically.
 - Only public Android runtime metadata belongs here. Never place server credentials, service-account JSON, or private push delivery secrets in bootstrap configuration.
+- Customer-owned Android push delivery credentials stay backend-only in `ANDROID_PUSH_FCM_*`; they are not read from or exposed through the bootstrap payload.
 
 Verify the deployed response with the canonical public origin:
 
@@ -178,6 +187,16 @@ Authenticated Android clients register one stable installation identifier agains
 - Clients must echo the current `android_push.metadata_revision` from `GET /v1/bootstrap` in `runtime.push_metadata_revision`.
 - When the deployment disables Android push registration, the upsert endpoint fails closed with `409 ANDROID_PUSH_UNSUPPORTED`.
 - When the client presents stale bootstrap metadata, the upsert endpoint fails closed with `409 PUSH_RUNTIME_STATE_INVALID` and the expected revision details.
+
+### Customer-Owned Android Push Delivery
+
+Customer-hosted deployments can send Android push directly from the backend without any SecPal-operated relay.
+
+- Configure `ANDROID_PUSH_FCM_PROJECT_ID`, `ANDROID_PUSH_FCM_CLIENT_EMAIL`, and `ANDROID_PUSH_FCM_PRIVATE_KEY` on the API deployment. These values are required for server-side FCM HTTP v1 delivery and stay backend-only.
+- `ANDROID_PUSH_FCM_PRIVATE_KEY` may be provided either as a real multiline secret or as a single-line value containing literal `\n` escapes exactly like the example above.
+- Missing or invalid `ANDROID_PUSH_FCM_*` credentials fail closed during delivery. The backend does not fall back to SecPal-owned routing when customer-owned delivery is selected.
+- The queueable send primitive is `App\Jobs\DeliverAndroidPushMessage`; it runs on the default queue worker. Ensure the deployment's default queue worker is active before relying on asynchronous delivery.
+- Delivery outcomes that indicate a stale or invalid registration token (`UNREGISTERED`, `SENDER_ID_MISMATCH`, or token-specific invalid-argument responses) delete the stored registration so the next authenticated app session must re-register with fresh runtime metadata.
 
 Example registration request:
 

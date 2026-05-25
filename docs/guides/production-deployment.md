@@ -330,6 +330,13 @@ BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY=public-client-api-key-demo-1234567890
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID=secpal-demo-push
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID=1:1234567890:android:abcdef1234567890
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID=1234567890
+ANDROID_PUSH_FCM_PROJECT_ID=customer-owned-push
+ANDROID_PUSH_FCM_CLIENT_EMAIL=firebase-adminsdk-abc123@customer-owned-push.iam.gserviceaccount.com
+ANDROID_PUSH_FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nREPLACE_WITH_DEPLOYMENT_SECRET\n-----END PRIVATE KEY-----\n"
+ANDROID_PUSH_FCM_TOKEN_URI=https://oauth2.googleapis.com/token
+ANDROID_PUSH_FCM_API_BASE_URL=https://fcm.googleapis.com
+ANDROID_PUSH_FCM_CONNECT_TIMEOUT=5
+ANDROID_PUSH_FCM_TIMEOUT=10
 BOOTSTRAP_RETRYABLE=true
 BOOTSTRAP_RETRY_AFTER_SECONDS=60
 
@@ -390,6 +397,10 @@ LOG_LEVEL=warning
 When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the same bootstrap response advertises authenticated Android push registration support and returns an `android_push` object with the deployment-defined `metadata_revision` plus the public Android runtime metadata needed by the SDK. Missing `BOOTSTRAP_ANDROID_PUSH_*` public values fail closed with `500 BOOTSTRAP_STATE_INVALID`; there is no fallback to SecPal-owned defaults.
 
 Authenticated Android clients register against the selected customer-hosted backend via `PUT /v1/me/push-devices/{installationId}` and revoke via `DELETE /v1/me/push-devices/{installationId}`. Clients must echo the current `android_push.metadata_revision` in `runtime.push_metadata_revision`; stale registrations are rejected with `409 PUSH_RUNTIME_STATE_INVALID`, and deployments with Android push disabled reject registration with `409 ANDROID_PUSH_UNSUPPORTED`.
+
+Customer-owned Android push delivery uses the backend-only `ANDROID_PUSH_FCM_*` secrets above and sends directly to FCM HTTP v1 from the customer-hosted API. Those credentials never appear in `GET /v1/bootstrap`, and missing or invalid values fail closed during delivery instead of falling back to any SecPal-operated routing path.
+
+The queueable delivery primitive is `App\Jobs\DeliverAndroidPushMessage` on the default queue. Keep the default queue worker running, and expect delivery outcomes such as `UNREGISTERED`, `SENDER_ID_MISMATCH`, or token-specific invalid-argument responses to delete the stored device registration so clients must re-register.
 
 ## Client Configuration
 

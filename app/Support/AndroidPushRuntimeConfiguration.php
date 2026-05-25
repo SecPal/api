@@ -90,19 +90,4 @@ final class AndroidPushRuntimeConfiguration
     {
         return $this->trimmedStringConfig('bootstrap.android_push.public_client_metadata.'.$field);
     }
-
-    private function positiveIntegerConfig(string $key): ?int
-    {
-        $value = config($key);
-
-        if (is_int($value)) {
-            return $value > 0 ? $value : null;
-        }
-
-        if (! is_string($value) || ! preg_match('/^[1-9][0-9]*$/', $value)) {
-            return null;
-        }
-
-        return (int) $value;
-    }
 }

@@ -1,13 +1,15 @@
 <?php
 
 /*
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  *
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
 namespace App\Casts;
 
+use App\Exceptions\CorruptedEncryptedAttributeException;
+use App\Exceptions\TenantKeyDecryptionException;
 use App\Models\TenantKey;
 use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Database\Eloquent\Model;
@@ -38,31 +40,38 @@ class EncryptedWithDek implements CastsAttributes
         }
 
         if (! is_string($value)) {
-            throw new \RuntimeException("Expected string value for {$key}, got ".gettype($value));
+            throw new CorruptedEncryptedAttributeException("Expected string value for {$key}, got ".gettype($value));
         }
 
         // Decode JSON structure: {ciphertext: base64, nonce: base64}
         $data = json_decode($value, true);
         if (! is_array($data) || ! isset($data['ciphertext'], $data['nonce'])) {
-            throw new \RuntimeException("Invalid encrypted data format for {$key}");
+            throw new CorruptedEncryptedAttributeException("Invalid encrypted data format for {$key}");
         }
 
         if (! is_string($data['ciphertext']) || ! is_string($data['nonce'])) {
-            throw new \RuntimeException("Invalid ciphertext/nonce types for {$key}");
+            throw new CorruptedEncryptedAttributeException("Invalid ciphertext/nonce types for {$key}");
         }
 
         $ciphertext = base64_decode($data['ciphertext'], true);
         $nonce = base64_decode($data['nonce'], true);
 
         if ($ciphertext === false || $nonce === false) {
-            throw new \RuntimeException("Failed to decode base64 data for {$key}");
+            throw new CorruptedEncryptedAttributeException("Failed to decode base64 data for {$key}");
         }
 
         // Get tenant and decrypt
         /** @var TenantKey $tenant */
         $tenant = TenantKey::findOrFail($attributes['tenant_id']);
 
-        return $tenant->decrypt($ciphertext, $nonce);
+        try {
+            return $tenant->decrypt($ciphertext, $nonce);
+        } catch (TenantKeyDecryptionException $exception) {
+            throw new CorruptedEncryptedAttributeException(
+                "Failed to decrypt encrypted data for {$key}",
+                previous: $exception,
+            );
+        }
     }
 
     /**

@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - added the public `GET /v1/bootstrap` runtime-discovery endpoint for Android pre-login instance validation, deriving the canonical `api_base_url` from `APP_URL`, failing closed with documented `500`/`503`/`426` bootstrap responses when deployment metadata is incomplete or incompatible, and covering the success/failure slices with focused Pest tests plus operator bootstrap configuration docs (refs `api#1115`)
 - added authenticated Android push-device registration on the customer-hosted backend via `PUT/DELETE /v1/me/push-devices/{installationId}`, including tenant-safe encrypted token storage, bootstrap-advertised public Android push runtime metadata on `GET /v1/bootstrap`, deterministic `409` fail-closed handling for disabled or stale push runtime state, and focused Pest coverage plus deployment/operator documentation for the new `BOOTSTRAP_ANDROID_PUSH_*` settings (refs `api#1123`)
+- added customer-owned Android push delivery primitives for the customer-hosted backend, including backend-only `ANDROID_PUSH_FCM_*` operator configuration, direct FCM HTTP v1 send and queue job support, safe stale-token cleanup on invalid delivery outcomes, bootstrap non-leak coverage for private provider credentials, and deployment documentation that removes any dependency on SecPal-operated push routing for customer-owned installations (refs `api#1122`)
 
 ### Changed
 

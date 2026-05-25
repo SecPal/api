@@ -8,8 +8,11 @@
 
 namespace App\Models;
 
+use App\Exceptions\CorruptedEncryptedAttributeException;
+use App\Exceptions\TenantKeyDecryptionException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use SodiumException;
 
 /**
  * TenantKey model for managing per-tenant envelope encryption keys.
@@ -511,7 +514,8 @@ class TenantKey extends Model
     /**
      * Unwrap the Data Encryption Key (DEK).
      *
-     * @throws \RuntimeException if unwrapping fails
+     * @throws CorruptedEncryptedAttributeException if the wrapped DEK fails authentication (corrupt envelope)
+     * @throws \RuntimeException if the KEK cannot be loaded (operational/transient)
      */
     public function unwrapDek(): string
     {
@@ -526,7 +530,7 @@ class TenantKey extends Model
         sodium_memzero($kek);
 
         if ($dek === false) {
-            throw new \RuntimeException('Failed to unwrap DEK');
+            throw new CorruptedEncryptedAttributeException('Failed to unwrap DEK');
         }
 
         return $dek;
@@ -580,17 +584,23 @@ class TenantKey extends Model
     /**
      * Decrypt ciphertext using the tenant's DEK.
      *
-     * @throws \RuntimeException if decryption fails
+     * @throws TenantKeyDecryptionException if ciphertext authentication fails
+     * @throws \RuntimeException if tenant key material cannot be loaded
      */
     public function decrypt(string $ciphertext, string $nonce): string
     {
         $dek = $this->unwrapDek();
-        $plaintext = sodium_crypto_secretbox_open($ciphertext, $nonce, $dek);
 
-        sodium_memzero($dek);
+        try {
+            $plaintext = sodium_crypto_secretbox_open($ciphertext, $nonce, $dek);
+        } catch (SodiumException $exception) {
+            throw new TenantKeyDecryptionException('Failed to decrypt data', previous: $exception);
+        } finally {
+            sodium_memzero($dek);
+        }
 
         if ($plaintext === false) {
-            throw new \RuntimeException('Failed to decrypt data');
+            throw new TenantKeyDecryptionException('Failed to decrypt data');
         }
 
         return $plaintext;
