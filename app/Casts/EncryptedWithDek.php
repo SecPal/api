@@ -39,7 +39,7 @@ class EncryptedWithDek implements CastsAttributes
         }
 
         if (! is_string($value)) {
-            throw new \RuntimeException("Expected string value for {$key}, got ".gettype($value));
+            throw new CorruptedEncryptedAttributeException("Expected string value for {$key}, got ".gettype($value));
         }
 
         // Decode JSON structure: {ciphertext: base64, nonce: base64}
