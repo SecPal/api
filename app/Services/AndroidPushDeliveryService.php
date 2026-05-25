@@ -133,7 +133,7 @@ final class AndroidPushDeliveryService
             throw new RuntimeException('Android push delivery is not configured for this deployment.');
         }
 
-        $issuedAt = now()->timestamp;
+        $issuedAt = now()->getTimestamp();
 
         $encodedHeader = $this->base64UrlEncode(json_encode([
             'alg' => 'RS256',
@@ -156,10 +156,10 @@ final class AndroidPushDeliveryService
             throw new RuntimeException('Android push delivery private key is invalid.');
         }
 
-        $signature = '';
+        $signature = null;
         $signatureCreated = openssl_sign($unsignedToken, $signature, $opensslKey, OPENSSL_ALGO_SHA256);
 
-        if (! $signatureCreated) {
+        if (! $signatureCreated || ! is_string($signature)) {
             throw new RuntimeException('Unable to sign the Firebase service-account assertion.');
         }
 
