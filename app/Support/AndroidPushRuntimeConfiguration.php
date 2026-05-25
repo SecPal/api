@@ -42,10 +42,28 @@ final class AndroidPushRuntimeConfiguration
             return null;
         }
 
+        $publicRuntimeMetadata = $runtimeMetadata['public_runtime_metadata'];
+        $apiKey = $publicRuntimeMetadata['api_key'] ?? null;
+        $projectId = $publicRuntimeMetadata['project_id'] ?? null;
+        $applicationId = $publicRuntimeMetadata['application_id'] ?? null;
+        $senderId = $publicRuntimeMetadata['sender_id'] ?? null;
+
+        if (! is_string($apiKey)
+            || ! is_string($projectId)
+            || ! is_string($applicationId)
+            || ! is_string($senderId)) {
+            return null;
+        }
+
         return [
             'provider' => BootstrapContract::ANDROID_PUSH_PROVIDER,
             'metadata_revision' => $runtimeMetadata['metadata_revision'],
-            'public_client_metadata' => $runtimeMetadata['public_runtime_metadata'],
+            'public_client_metadata' => [
+                'api_key' => $apiKey,
+                'project_id' => $projectId,
+                'application_id' => $applicationId,
+                'sender_id' => $senderId,
+            ],
         ];
     }
 }
