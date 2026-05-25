@@ -40,20 +40,6 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-/**
- * @return array{tenant: TenantKey, user: User}
- */
-function createAndroidPushDeliveryContext(): array
-{
-    $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-    $user = User::factory()->create(['tenant_id' => $tenant->id]);
-
-    return [
-        'tenant' => $tenant,
-        'user' => $user,
-    ];
-}
-
 function createAndroidPushRegistration(TenantKey $tenant, User $user): PushDeviceRegistration
 {
     return PushDeviceRegistration::query()->create([
