@@ -165,9 +165,9 @@ Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after t
 - `APP_NAME` is used as the public instance display name unless `BOOTSTRAP_INSTANCE_DISPLAY_NAME` overrides it.
 - `BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION` and `BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD` are required. If either is missing, the endpoint fails closed with `500 BOOTSTRAP_STATE_INVALID` instead of falling back to SecPal-hosted defaults.
 - Set `BOOTSTRAP_PUBLIC_ENABLED=false` when the deployment should return the documented `503 BOOTSTRAP_CONFIG_UNAVAILABLE` response instead of serving bootstrap metadata.
-- `BOOTSTRAP_PASSWORD_LOGIN_ENABLED`, `BOOTSTRAP_PASSKEY_LOGIN_ENABLED`, `BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED`, and `BOOTSTRAP_ANDROID_PUSH_ENABLED` define the pre-login feature flags Android receives before login.
-- When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the public bootstrap response also exposes an `android_push` object with provider `fcm`, the deployment-defined `metadata_revision`, and the public Android client metadata fields required for runtime initialization.
-- When Android push bootstrap is enabled, `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID`, and `BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID` are all required. Missing values fail closed with `500 BOOTSTRAP_STATE_INVALID`.
+- `BOOTSTRAP_PASSWORD_LOGIN_ENABLED`, `BOOTSTRAP_PASSKEY_LOGIN_ENABLED`, `BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED`, and `BOOTSTRAP_ANDROID_PUSH_ENABLED` feed the public pre-login bootstrap feature flags. The canonical shared notification capability surface is `features.notification_channels`, which is exhaustive for the active backend schema and currently returns `android_fcm` plus explicit `web_push=false`.
+- When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the public bootstrap response exposes canonical `notification_channels.android_fcm` runtime metadata with channel `android_fcm`, the deployment-defined `metadata_revision`, and the public Android client metadata fields required for runtime initialization. During the Android transition on `main`, the legacy `android_push` alias with provider `fcm` remains present for existing clients.
+- When Android FCM bootstrap is enabled, `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID`, and `BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID` are all required. Missing values fail closed with `500 BOOTSTRAP_STATE_INVALID` and channel-aware `notification_channels.android_fcm.*` field paths.
 - `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION` must be incremented whenever any public Android push client metadata changes so authenticated registrations with stale bootstrap state can be rejected deterministically.
 - Only public Android runtime metadata belongs here. Never place server credentials, service-account JSON, or private push delivery secrets in bootstrap configuration.
 - Customer-owned Android push delivery credentials stay backend-only in `ANDROID_PUSH_FCM_*`; they are not read from or exposed through the bootstrap payload.
@@ -184,9 +184,9 @@ Authenticated Android clients register one stable installation identifier agains
 
 - `PUT /v1/me/push-devices/{installationId}` creates or updates the authenticated app installation's push token and runtime metadata.
 - `DELETE /v1/me/push-devices/{installationId}` revokes the selected installation on logout, uninstall, or explicit cleanup.
-- Clients must echo the current `android_push.metadata_revision` from `GET /v1/bootstrap` in `runtime.push_metadata_revision`.
-- When the deployment disables Android push registration, the upsert endpoint fails closed with `409 ANDROID_PUSH_UNSUPPORTED`.
-- When the client presents stale bootstrap metadata, the upsert endpoint fails closed with `409 PUSH_RUNTIME_STATE_INVALID` and the expected revision details.
+- Clients must echo the current `notification_channels.android_fcm.metadata_revision` from `GET /v1/bootstrap` in `runtime.push_metadata_revision`. The shared runtime revision is the same value still mirrored in the transitional `android_push.metadata_revision` alias.
+- When the deployment disables Android push registration, the upsert endpoint fails closed with `409 NOTIFICATION_CHANNEL_UNSUPPORTED` and channel `android_fcm`.
+- When the client presents stale bootstrap metadata, the upsert endpoint fails closed with `409 NOTIFICATION_RUNTIME_STATE_INVALID` and the expected `android_fcm` revision details.
 
 ### Customer-Owned Android Push Delivery
 

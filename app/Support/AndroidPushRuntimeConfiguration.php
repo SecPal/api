@@ -7,20 +7,20 @@ declare(strict_types=1);
 
 namespace App\Support;
 
-use App\Support\Concerns\InteractsWithConfigValues;
-
 final class AndroidPushRuntimeConfiguration
 {
-    use InteractsWithConfigValues;
+    public function __construct(
+        private readonly NotificationChannelRuntimeConfiguration $notificationChannelRuntimeConfiguration,
+    ) {}
 
     public function isEnabled(): bool
     {
-        return $this->booleanConfig('bootstrap.features.android_push', false);
+        return $this->notificationChannelRuntimeConfiguration->isEnabled(BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM);
     }
 
     public function metadataRevision(): ?int
     {
-        return $this->positiveIntegerConfig('bootstrap.android_push.metadata_revision');
+        return $this->notificationChannelRuntimeConfiguration->metadataRevision(BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM);
     }
 
     /**
@@ -28,27 +28,7 @@ final class AndroidPushRuntimeConfiguration
      */
     public function missingFields(): array
     {
-        if (! $this->isEnabled()) {
-            return [];
-        }
-
-        $missingFields = [];
-
-        $rawRevision = config('bootstrap.android_push.metadata_revision');
-
-        if ($rawRevision === null) {
-            $missingFields[] = 'android_push.metadata_revision';
-        } elseif ($this->metadataRevision() === null) {
-            $missingFields[] = 'android_push.metadata_revision (present but invalid; must be a positive integer)';
-        }
-
-        foreach (['api_key', 'project_id', 'application_id', 'sender_id'] as $field) {
-            if ($this->publicClientMetadataValue($field) === null) {
-                $missingFields[] = 'android_push.public_client_metadata.'.$field;
-            }
-        }
-
-        return $missingFields;
+        return $this->notificationChannelRuntimeConfiguration->missingFieldsFor(BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM);
     }
 
     /**
@@ -56,27 +36,28 @@ final class AndroidPushRuntimeConfiguration
      */
     public function publicMetadata(): ?array
     {
-        if (! $this->isEnabled() || $this->missingFields() !== []) {
+        $runtimeMetadata = $this->notificationChannelRuntimeConfiguration->runtimeMetadataFor(BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM);
+
+        if ($runtimeMetadata === null) {
             return null;
         }
 
-        $metadataRevision = $this->metadataRevision();
-        $apiKey = $this->publicClientMetadataValue('api_key');
-        $projectId = $this->publicClientMetadataValue('project_id');
-        $applicationId = $this->publicClientMetadataValue('application_id');
-        $senderId = $this->publicClientMetadataValue('sender_id');
+        $publicRuntimeMetadata = $runtimeMetadata['public_runtime_metadata'];
+        $apiKey = $publicRuntimeMetadata['api_key'] ?? null;
+        $projectId = $publicRuntimeMetadata['project_id'] ?? null;
+        $applicationId = $publicRuntimeMetadata['application_id'] ?? null;
+        $senderId = $publicRuntimeMetadata['sender_id'] ?? null;
 
-        if ($metadataRevision === null
-            || $apiKey === null
-            || $projectId === null
-            || $applicationId === null
-            || $senderId === null) {
+        if (! is_string($apiKey)
+            || ! is_string($projectId)
+            || ! is_string($applicationId)
+            || ! is_string($senderId)) {
             return null;
         }
 
         return [
             'provider' => BootstrapContract::ANDROID_PUSH_PROVIDER,
-            'metadata_revision' => $metadataRevision,
+            'metadata_revision' => $runtimeMetadata['metadata_revision'],
             'public_client_metadata' => [
                 'api_key' => $apiKey,
                 'project_id' => $projectId,
@@ -84,10 +65,5 @@ final class AndroidPushRuntimeConfiguration
                 'sender_id' => $senderId,
             ],
         ];
-    }
-
-    private function publicClientMetadataValue(string $field): ?string
-    {
-        return $this->trimmedStringConfig('bootstrap.android_push.public_client_metadata.'.$field);
     }
 }
