@@ -8,6 +8,7 @@
 
 namespace App\Models;
 
+use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Exceptions\TenantKeyDecryptionException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -513,7 +514,8 @@ class TenantKey extends Model
     /**
      * Unwrap the Data Encryption Key (DEK).
      *
-     * @throws \RuntimeException if unwrapping fails
+     * @throws CorruptedEncryptedAttributeException if the wrapped DEK fails authentication (corrupt envelope)
+     * @throws \RuntimeException if the KEK cannot be loaded (operational/transient)
      */
     public function unwrapDek(): string
     {
@@ -528,7 +530,7 @@ class TenantKey extends Model
         sodium_memzero($kek);
 
         if ($dek === false) {
-            throw new \RuntimeException('Failed to unwrap DEK');
+            throw new CorruptedEncryptedAttributeException('Failed to unwrap DEK');
         }
 
         return $dek;
@@ -582,7 +584,6 @@ class TenantKey extends Model
     /**
      * Decrypt ciphertext using the tenant's DEK.
      *
-     * @throws \RuntimeException if tenant key material cannot be loaded
      * @throws TenantKeyDecryptionException if ciphertext authentication fails
      * @throws \RuntimeException if tenant key material cannot be loaded
      */
