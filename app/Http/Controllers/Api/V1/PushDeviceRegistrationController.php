@@ -11,37 +11,39 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\UpsertPushDeviceRegistrationRequest;
 use App\Models\User;
 use App\Services\PushDeviceRegistrationService;
-use App\Support\AndroidPushRuntimeConfiguration;
 use App\Support\BootstrapContract;
+use App\Support\NotificationChannelRuntimeConfiguration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 class PushDeviceRegistrationController extends Controller
 {
+    private const CHANNEL = BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM;
+
     public function __construct(
-        private readonly AndroidPushRuntimeConfiguration $androidPushRuntimeConfiguration,
+        private readonly NotificationChannelRuntimeConfiguration $notificationChannelRuntimeConfiguration,
         private readonly PushDeviceRegistrationService $pushDeviceRegistrationService,
     ) {}
 
     public function upsert(UpsertPushDeviceRegistrationRequest $request, string $installationId): JsonResponse
     {
-        if (! $this->androidPushRuntimeConfiguration->isEnabled()) {
+        if (! $this->notificationChannelRuntimeConfiguration->isEnabled(self::CHANNEL)) {
             return $this->unsupportedConfigurationResponse();
         }
 
-        $missingFields = $this->androidPushRuntimeConfiguration->missingFields();
+        $missingFields = $this->notificationChannelRuntimeConfiguration->missingFieldsFor(self::CHANNEL);
 
         if ($missingFields !== []) {
             return $this->invalidConfigurationResponse($missingFields);
         }
 
         $providedRevision = $request->integer('runtime.push_metadata_revision');
-        $expectedRevision = $this->androidPushRuntimeConfiguration->metadataRevision();
+        $expectedRevision = $this->notificationChannelRuntimeConfiguration->metadataRevision(self::CHANNEL);
 
         if ($expectedRevision === null) {
             return $this->invalidConfigurationResponse([
-                'android_push.metadata_revision',
+                'notification_channels.android_fcm.metadata_revision',
             ]);
         }
 
@@ -62,7 +64,7 @@ class PushDeviceRegistrationController extends Controller
 
     public function destroy(Request $request, string $installationId): JsonResponse
     {
-        if (! $this->androidPushRuntimeConfiguration->isEnabled()) {
+        if (! $this->notificationChannelRuntimeConfiguration->isEnabled(self::CHANNEL)) {
             return $this->unsupportedConfigurationResponse();
         }
 
@@ -82,11 +84,10 @@ class PushDeviceRegistrationController extends Controller
     private function unsupportedConfigurationResponse(): JsonResponse
     {
         return response()->json([
-            'message' => 'This deployment does not accept authenticated Android push-device registrations.',
-            'code' => 'ANDROID_PUSH_UNSUPPORTED',
+            'message' => 'This deployment does not accept authenticated notification installations for the requested channel.',
+            'code' => 'NOTIFICATION_CHANNEL_UNSUPPORTED',
             'details' => [
-                'feature_flag' => 'android_push',
-                'provider' => BootstrapContract::ANDROID_PUSH_PROVIDER,
+                'channel' => self::CHANNEL,
                 'retryable' => false,
             ],
         ], Response::HTTP_CONFLICT);
@@ -95,14 +96,14 @@ class PushDeviceRegistrationController extends Controller
     private function runtimeStateConflictResponse(int $providedRevision, int $expectedRevision): JsonResponse
     {
         return response()->json([
-            'message' => 'Android push runtime metadata changed; refresh bootstrap before retrying this registration.',
-            'code' => 'PUSH_RUNTIME_STATE_INVALID',
+            'message' => 'Notification runtime metadata changed; refresh bootstrap before retrying this installation update.',
+            'code' => 'NOTIFICATION_RUNTIME_STATE_INVALID',
             'details' => [
                 'bootstrap_version' => BootstrapContract::VERSION,
                 'schema_version' => BootstrapContract::SCHEMA_VERSION,
-                'provider' => BootstrapContract::ANDROID_PUSH_PROVIDER,
-                'provided_push_metadata_revision' => $providedRevision,
-                'expected_push_metadata_revision' => $expectedRevision,
+                'channel' => self::CHANNEL,
+                'provided_metadata_revision' => $providedRevision,
+                'expected_metadata_revision' => $expectedRevision,
             ],
         ], Response::HTTP_CONFLICT);
     }

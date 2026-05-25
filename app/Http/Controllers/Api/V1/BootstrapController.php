@@ -12,6 +12,7 @@ use App\Http\Requests\GetBootstrapConfigurationRequest;
 use App\Support\AndroidPushRuntimeConfiguration;
 use App\Support\BootstrapContract;
 use App\Support\Concerns\InteractsWithConfigValues;
+use App\Support\NotificationChannelRuntimeConfiguration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use RuntimeException;
@@ -24,6 +25,7 @@ class BootstrapController extends Controller
 
     public function show(
         GetBootstrapConfigurationRequest $request,
+        NotificationChannelRuntimeConfiguration $notificationChannelRuntimeConfiguration,
         AndroidPushRuntimeConfiguration $androidPushRuntimeConfiguration,
     ): JsonResponse {
         if (! $this->bootstrapPublicEnabled()) {
@@ -46,10 +48,10 @@ class BootstrapController extends Controller
             ));
         }
 
-        $androidPushMissingFields = $androidPushRuntimeConfiguration->missingFields();
+        $notificationChannelMissingFields = $notificationChannelRuntimeConfiguration->missingFields();
 
-        if ($androidPushMissingFields !== []) {
-            return $this->invalidStateResponse($androidPushMissingFields);
+        if ($notificationChannelMissingFields !== []) {
+            return $this->invalidStateResponse($notificationChannelMissingFields);
         }
 
         if ($this->clientIsBelowMinimumSupportedVersion(
@@ -83,8 +85,15 @@ class BootstrapController extends Controller
                 'passkey_login' => $this->booleanConfig('bootstrap.features.passkey_login', true),
                 'managed_android_enrollment' => $this->booleanConfig('bootstrap.features.managed_android_enrollment', false),
                 'android_push' => $androidPushRuntimeConfiguration->isEnabled(),
+                'notification_channels' => $notificationChannelRuntimeConfiguration->featureFlags(),
             ],
         ];
+
+        $notificationChannelMetadata = $notificationChannelRuntimeConfiguration->publicRuntimeMetadata();
+
+        if ($notificationChannelMetadata !== []) {
+            $data['notification_channels'] = $notificationChannelMetadata;
+        }
 
         if ($androidPushRuntimeConfiguration->isEnabled()) {
             $androidPushMetadata = $androidPushRuntimeConfiguration->publicMetadata();

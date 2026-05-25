@@ -13,5 +13,14 @@ final class BootstrapContract
 
     public const SCHEMA_VERSION = 2;
 
+    public const NOTIFICATION_CHANNEL_ANDROID_FCM = 'android_fcm';
+
+    public const NOTIFICATION_CHANNEL_WEB_PUSH = 'web_push';
+
+    public const NOTIFICATION_CHANNELS = [
+        self::NOTIFICATION_CHANNEL_ANDROID_FCM,
+        self::NOTIFICATION_CHANNEL_WEB_PUSH,
+    ];
+
     public const ANDROID_PUSH_PROVIDER = 'fcm';
 }

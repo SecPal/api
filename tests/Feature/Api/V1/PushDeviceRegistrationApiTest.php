@@ -23,11 +23,18 @@ beforeEach(function (): void {
 
     config([
         'bootstrap.features.android_push' => true,
+        'bootstrap.features.notification_channels.android_fcm' => true,
+        'bootstrap.features.notification_channels.web_push' => false,
         'bootstrap.android_push.metadata_revision' => 3,
         'bootstrap.android_push.public_client_metadata.api_key' => 'public-client-api-key-demo-1234567890',
         'bootstrap.android_push.public_client_metadata.project_id' => 'secpal-demo-push',
         'bootstrap.android_push.public_client_metadata.application_id' => '1:1234567890:android:abcdef1234567890',
         'bootstrap.android_push.public_client_metadata.sender_id' => '1234567890',
+        'bootstrap.notification_channels.android_fcm.metadata_revision' => 3,
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.api_key' => 'public-client-api-key-demo-1234567890',
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.project_id' => 'secpal-demo-push',
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.application_id' => '1:1234567890:android:abcdef1234567890',
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.sender_id' => '1234567890',
     ]);
 });
 
@@ -321,7 +328,10 @@ test('revoking a missing android push device registration returns not found', fu
 test('android push device registration is rejected when the deployment disables the feature', function (): void {
     ['user' => $user] = createPushDeviceContext();
 
-    config(['bootstrap.features.android_push' => false]);
+    config([
+        'bootstrap.features.android_push' => false,
+        'bootstrap.features.notification_channels.android_fcm' => false,
+    ]);
 
     actingAs($user, 'sanctum');
 
@@ -330,11 +340,10 @@ test('android push device registration is rejected when the deployment disables 
     ))
         ->assertStatus(409)
         ->assertExactJson([
-            'message' => 'This deployment does not accept authenticated Android push-device registrations.',
-            'code' => 'ANDROID_PUSH_UNSUPPORTED',
+            'message' => 'This deployment does not accept authenticated notification installations for the requested channel.',
+            'code' => 'NOTIFICATION_CHANNEL_UNSUPPORTED',
             'details' => [
-                'feature_flag' => 'android_push',
-                'provider' => 'fcm',
+                'channel' => 'android_fcm',
                 'retryable' => false,
             ],
         ]);
@@ -343,18 +352,20 @@ test('android push device registration is rejected when the deployment disables 
 test('android push device revocation is rejected when the deployment disables the feature', function (): void {
     ['user' => $user] = createPushDeviceContext();
 
-    config(['bootstrap.features.android_push' => false]);
+    config([
+        'bootstrap.features.android_push' => false,
+        'bootstrap.features.notification_channels.android_fcm' => false,
+    ]);
 
     actingAs($user, 'sanctum');
 
     deleteJson('/v1/me/push-devices/a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b')
         ->assertStatus(409)
         ->assertExactJson([
-            'message' => 'This deployment does not accept authenticated Android push-device registrations.',
-            'code' => 'ANDROID_PUSH_UNSUPPORTED',
+            'message' => 'This deployment does not accept authenticated notification installations for the requested channel.',
+            'code' => 'NOTIFICATION_CHANNEL_UNSUPPORTED',
             'details' => [
-                'feature_flag' => 'android_push',
-                'provider' => 'fcm',
+                'channel' => 'android_fcm',
                 'retryable' => false,
             ],
         ]);
@@ -377,22 +388,25 @@ test('android push device registration rejects stale bootstrap metadata', functi
     ])
         ->assertStatus(409)
         ->assertExactJson([
-            'message' => 'Android push runtime metadata changed; refresh bootstrap before retrying this registration.',
-            'code' => 'PUSH_RUNTIME_STATE_INVALID',
+            'message' => 'Notification runtime metadata changed; refresh bootstrap before retrying this installation update.',
+            'code' => 'NOTIFICATION_RUNTIME_STATE_INVALID',
             'details' => [
                 'bootstrap_version' => 'v1',
                 'schema_version' => 2,
-                'provider' => 'fcm',
-                'provided_push_metadata_revision' => 2,
-                'expected_push_metadata_revision' => 3,
+                'channel' => 'android_fcm',
+                'provided_metadata_revision' => 2,
+                'expected_metadata_revision' => 3,
             ],
         ]);
 });
 
-test('android push device registration fails closed when android push metadata is invalid', function (): void {
+test('android push device registration fails closed when android fcm runtime metadata is invalid', function (): void {
     ['user' => $user] = createPushDeviceContext();
 
-    config(['bootstrap.android_push.metadata_revision' => '3.5']);
+    config([
+        'bootstrap.android_push.metadata_revision' => '3.5',
+        'bootstrap.notification_channels.android_fcm.metadata_revision' => '3.5',
+    ]);
 
     actingAs($user, 'sanctum');
 
@@ -405,7 +419,7 @@ test('android push device registration fails closed when android push metadata i
             'code' => 'BOOTSTRAP_STATE_INVALID',
             'details' => [
                 'missing_fields' => [
-                    'android_push.metadata_revision (present but invalid; must be a positive integer)',
+                    'notification_channels.android_fcm.metadata_revision (present but invalid; must be a positive integer)',
                 ],
             ],
         ]);
