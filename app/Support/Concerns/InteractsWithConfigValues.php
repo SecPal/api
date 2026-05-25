@@ -44,4 +44,19 @@ trait InteractsWithConfigValues
 
         return $value === '' ? null : $value;
     }
+
+    private function positiveIntegerConfig(string $key, ?int $default = null): ?int
+    {
+        $value = config($key);
+
+        if (is_int($value)) {
+            return $value > 0 ? $value : $default;
+        }
+
+        if (! is_string($value) || ! preg_match('/^[1-9][0-9]*$/', $value)) {
+            return $default;
+        }
+
+        return (int) $value;
+    }
 }

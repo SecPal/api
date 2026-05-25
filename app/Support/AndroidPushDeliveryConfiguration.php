@@ -77,31 +77,16 @@ final class AndroidPushDeliveryConfiguration
 
     public function connectTimeout(): int
     {
-        return $this->positiveIntegerConfig('services.fcm.connect_timeout', 5);
+        return $this->positiveIntegerConfig('services.fcm.connect_timeout', 5) ?? 5;
     }
 
     public function timeout(): int
     {
-        return $this->positiveIntegerConfig('services.fcm.timeout', 10);
+        return $this->positiveIntegerConfig('services.fcm.timeout', 10) ?? 10;
     }
 
     private function apiBaseUrl(): string
     {
         return rtrim($this->trimmedStringConfig('services.fcm.api_base_url') ?? 'https://fcm.googleapis.com', '/');
-    }
-
-    private function positiveIntegerConfig(string $key, int $default): int
-    {
-        $value = config($key);
-
-        if (is_int($value) && $value > 0) {
-            return $value;
-        }
-
-        if (is_string($value) && preg_match('/^[1-9][0-9]*$/', $value)) {
-            return (int) $value;
-        }
-
-        return $default;
     }
 }
