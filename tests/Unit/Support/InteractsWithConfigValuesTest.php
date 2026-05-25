@@ -31,11 +31,13 @@ test('positiveIntegerConfig returns null without a default for missing and inval
     $harness = interactsWithConfigValuesHarness();
 
     config()->set('test.positive_integer.zero', 0);
+    config()->set('test.positive_integer.negative_int', -3);
     config()->set('test.positive_integer.negative_string', '-1');
     config()->set('test.positive_integer.invalid_string', 'abc');
 
     expect($harness->readPositiveIntegerConfig('test.positive_integer.missing'))->toBeNull()
         ->and($harness->readPositiveIntegerConfig('test.positive_integer.zero'))->toBeNull()
+        ->and($harness->readPositiveIntegerConfig('test.positive_integer.negative_int'))->toBeNull()
         ->and($harness->readPositiveIntegerConfig('test.positive_integer.negative_string'))->toBeNull()
         ->and($harness->readPositiveIntegerConfig('test.positive_integer.invalid_string'))->toBeNull();
 });
@@ -44,9 +46,11 @@ test('positiveIntegerConfig returns the provided default for missing and invalid
     $harness = interactsWithConfigValuesHarness();
 
     config()->set('test.positive_integer.zero_with_default', 0);
+    config()->set('test.positive_integer.negative_int_with_default', -3);
     config()->set('test.positive_integer.invalid_with_default', 'abc');
 
     expect($harness->readPositiveIntegerConfig('test.positive_integer.missing_with_default', 5))->toBe(5)
         ->and($harness->readPositiveIntegerConfig('test.positive_integer.zero_with_default', 5))->toBe(5)
+        ->and($harness->readPositiveIntegerConfig('test.positive_integer.negative_int_with_default', 5))->toBe(5)
         ->and($harness->readPositiveIntegerConfig('test.positive_integer.invalid_with_default', 5))->toBe(5);
 });
