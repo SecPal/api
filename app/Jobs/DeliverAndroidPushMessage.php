@@ -9,6 +9,7 @@ namespace App\Jobs;
 
 use App\Models\PushDeviceRegistration;
 use App\Services\AndroidPushDeliveryService;
+use App\Support\AndroidPushDeliveryConfiguration;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -44,8 +45,14 @@ final class DeliverAndroidPushMessage implements ShouldQueue
         return [10, 60, 300];
     }
 
-    public function handle(AndroidPushDeliveryService $deliveryService): void
+    public function handle(AndroidPushDeliveryService $deliveryService, AndroidPushDeliveryConfiguration $configuration): void
     {
+        if ($configuration->missingFields() !== []) {
+            $this->fail('Android push delivery is not configured for this deployment.');
+
+            return;
+        }
+
         $registration = PushDeviceRegistration::query()->find($this->pushDeviceRegistrationId);
 
         if (! $registration instanceof PushDeviceRegistration) {

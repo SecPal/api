@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property-write string|null $push_token_plain
+ * @property-read string|null $push_token_dec
  */
 class PushDeviceRegistration extends Model
 {
@@ -104,15 +105,16 @@ class PushDeviceRegistration extends Model
         return $this->pushTokenPlain;
     }
 
-    public function deliveryToken(): ?string
+    public function getPushTokenDecAttribute(): ?string
     {
         $token = $this->getAttributeValue('push_token_enc');
 
-        if (! is_string($token) || trim($token) === '') {
-            return null;
-        }
+        return (is_string($token) && trim($token) !== '') ? $token : null;
+    }
 
-        return $token;
+    public function deliveryToken(): ?string
+    {
+        return $this->push_token_dec;
     }
 
     /**

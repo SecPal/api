@@ -10,6 +10,7 @@ use App\Models\PushDeviceRegistration;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\AndroidPushDeliveryService;
+use App\Support\AndroidPushDeliveryConfiguration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -105,7 +106,7 @@ test('job dispatches android push delivery for an existing registration', functi
         'Compliance alert',
         'Permit expires soon.',
         ['category' => 'compliance_alert'],
-    ))->handle(app(AndroidPushDeliveryService::class));
+    ))->handle(app(AndroidPushDeliveryService::class), app(AndroidPushDeliveryConfiguration::class));
 
     Http::assertSent(function (Request $request): bool {
         if ($request->url() !== 'https://fcm.googleapis.com/v1/projects/customer-owned-project/messages:send') {
@@ -126,7 +127,26 @@ test('job skips missing registrations', function (): void {
         'Compliance alert',
         'Permit expires soon.',
         ['category' => 'compliance_alert'],
-    ))->handle(app(AndroidPushDeliveryService::class));
+    ))->handle(app(AndroidPushDeliveryService::class), app(AndroidPushDeliveryConfiguration::class));
+
+    Http::assertNothingSent();
+});
+
+test('job makes no delivery attempts when fcm credentials are missing', function (): void {
+    config([
+        'services.fcm.project_id' => null,
+        'services.fcm.client_email' => null,
+        'services.fcm.private_key' => null,
+    ]);
+
+    Http::fake();
+
+    (new DeliverAndroidPushMessage(
+        (string) Str::uuid(),
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    ))->handle(app(AndroidPushDeliveryService::class), app(AndroidPushDeliveryConfiguration::class));
 
     Http::assertNothingSent();
 });

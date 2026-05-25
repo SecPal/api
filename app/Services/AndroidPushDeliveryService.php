@@ -161,7 +161,6 @@ final class AndroidPushDeliveryService
 
         $encodedPayload = $this->base64UrlEncode(json_encode([
             'iss' => $clientEmail,
-            'sub' => $clientEmail,
             'aud' => $this->configuration->tokenUri(),
             'scope' => self::FIREBASE_MESSAGING_SCOPE,
             'iat' => $issuedAt,
@@ -245,9 +244,7 @@ final class AndroidPushDeliveryService
             return false;
         }
 
-        $status = data_get($responseBody, 'error.status');
-
-        if ($providerErrorCode !== 'INVALID_ARGUMENT' && $status !== 'INVALID_ARGUMENT') {
+        if ($providerErrorCode !== 'INVALID_ARGUMENT') {
             return false;
         }
 
