@@ -47,15 +47,15 @@ final class DeliverAndroidPushMessage implements ShouldQueue
 
     public function handle(AndroidPushDeliveryService $deliveryService, AndroidPushDeliveryConfiguration $configuration): void
     {
-        if ($configuration->missingFields() !== []) {
-            $this->fail('Android push delivery is not configured for this deployment.');
-
-            return;
-        }
-
         $registration = PushDeviceRegistration::query()->find($this->pushDeviceRegistrationId);
 
         if (! $registration instanceof PushDeviceRegistration) {
+            return;
+        }
+
+        if ($configuration->missingFields() !== []) {
+            $this->fail('Android push delivery is not configured for this deployment.');
+
             return;
         }
 

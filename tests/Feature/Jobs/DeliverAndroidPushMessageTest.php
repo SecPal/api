@@ -122,17 +122,23 @@ test('job dispatches android push delivery for an existing registration', functi
 test('job skips missing registrations', function (): void {
     Http::fake();
 
-    (new DeliverAndroidPushMessage(
+    $job = (new DeliverAndroidPushMessage(
         (string) Str::uuid(),
         'Compliance alert',
         'Permit expires soon.',
         ['category' => 'compliance_alert'],
-    ))->handle(app(AndroidPushDeliveryService::class), app(AndroidPushDeliveryConfiguration::class));
+    ))->withFakeQueueInteractions();
+
+    $job->handle(app(AndroidPushDeliveryService::class), app(AndroidPushDeliveryConfiguration::class));
+
+    $job->assertNotFailed();
 
     Http::assertNothingSent();
 });
 
 test('job makes no delivery attempts when fcm credentials are missing', function (): void {
+    $registration = createQueuedAndroidPushRegistration($this->tenant, $this->user);
+
     config([
         'services.fcm.project_id' => null,
         'services.fcm.client_email' => null,
@@ -141,12 +147,16 @@ test('job makes no delivery attempts when fcm credentials are missing', function
 
     Http::fake();
 
-    (new DeliverAndroidPushMessage(
-        (string) Str::uuid(),
+    $job = (new DeliverAndroidPushMessage(
+        $registration->id,
         'Compliance alert',
         'Permit expires soon.',
         ['category' => 'compliance_alert'],
-    ))->handle(app(AndroidPushDeliveryService::class), app(AndroidPushDeliveryConfiguration::class));
+    ))->withFakeQueueInteractions();
+
+    $job->handle(app(AndroidPushDeliveryService::class), app(AndroidPushDeliveryConfiguration::class));
+
+    $job->assertFailedWith('Android push delivery is not configured for this deployment.');
 
     Http::assertNothingSent();
 });

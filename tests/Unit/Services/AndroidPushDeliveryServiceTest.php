@@ -239,6 +239,47 @@ test('service deletes registration and returns invalid token when device token d
     Http::assertNothingSent();
 });
 
+test('service deletes registration and returns invalid token when encrypted token payload is well formed but tampered', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    $storedPayload = json_decode((string) $registration->getRawOriginal('push_token_enc'), true, flags: JSON_THROW_ON_ERROR);
+    $originalCiphertext = base64_decode($storedPayload['ciphertext'], true);
+
+    expect($originalCiphertext)->toBeString();
+
+    $registration->getConnection()
+        ->table('push_device_registrations')
+        ->where('id', $registration->id)
+        ->update(['push_token_enc' => json_encode([
+            'ciphertext' => base64_encode(str_repeat("\x00", strlen($originalCiphertext))),
+            'nonce' => $storedPayload['nonce'],
+        ], JSON_THROW_ON_ERROR)]);
+
+    $freshRegistration = PushDeviceRegistration::query()->findOrFail($registration->id);
+
+    Http::fake();
+
+    $result = app(AndroidPushDeliveryService::class)->send(
+        $freshRegistration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    );
+
+    expect($result)->toBe([
+        'delivered' => false,
+        'provider_message_id' => null,
+        'invalid_token' => true,
+        'provider_error_code' => 'DECRYPTION_FAILURE',
+    ]);
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+
+    Http::assertNothingSent();
+});
+
 test('service surfaces tenant key runtime failures without deleting registration', function (): void {
     $registration = createAndroidPushRegistration($this->tenant, $this->user);
 

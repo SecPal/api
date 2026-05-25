@@ -63,7 +63,18 @@ class EncryptedWithDek implements CastsAttributes
         /** @var TenantKey $tenant */
         $tenant = TenantKey::findOrFail($attributes['tenant_id']);
 
-        return $tenant->decrypt($ciphertext, $nonce);
+        try {
+            return $tenant->decrypt($ciphertext, $nonce);
+        } catch (\RuntimeException $exception) {
+            if ($exception->getMessage() !== 'Failed to decrypt data') {
+                throw $exception;
+            }
+
+            throw new CorruptedEncryptedAttributeException(
+                "Failed to decrypt encrypted data for {$key}",
+                previous: $exception,
+            );
+        }
     }
 
     /**
