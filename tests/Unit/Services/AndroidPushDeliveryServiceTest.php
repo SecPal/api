@@ -163,6 +163,74 @@ test('service fails closed when customer owned firebase credentials are incomple
     Http::assertNothingSent();
 });
 
+test('service deletes registration and returns invalid token when device token decryption fails', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    // Corrupt the stored ciphertext so the EncryptedWithDek cast throws on get.
+    $registration->getConnection()
+        ->table('push_device_registrations')
+        ->where('id', $registration->id)
+        ->update(['push_token_enc' => 'not-valid-json']);
+
+    $freshRegistration = PushDeviceRegistration::query()->findOrFail($registration->id);
+
+    Http::fake();
+
+    $result = app(AndroidPushDeliveryService::class)->send(
+        $freshRegistration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    );
+
+    expect($result)->toBe([
+        'delivered' => false,
+        'provider_message_id' => null,
+        'invalid_token' => true,
+        'provider_error_code' => 'DECRYPTION_FAILURE',
+    ]);
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+
+    Http::assertNothingSent();
+});
+
+test('service deletes registration and returns invalid token when device token is absent', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    // Force the in-memory cast to return null by wiping the raw attribute value.
+    // The column is NOT NULL in the DB, so we simulate a partially-hydrated model
+    // where the attribute is unset after hydration (e.g. via setRawAttributes).
+    $registration->setRawAttributes(array_merge(
+        $registration->getRawOriginal(),
+        ['push_token_enc' => null],
+    ));
+
+    Http::fake();
+
+    $result = app(AndroidPushDeliveryService::class)->send(
+        $registration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    );
+
+    expect($result)->toBe([
+        'delivered' => false,
+        'provider_message_id' => null,
+        'invalid_token' => true,
+        'provider_error_code' => 'MISSING_TOKEN',
+    ]);
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+
+    Http::assertNothingSent();
+});
+
 test('service deletes stale registrations when firebase reports an unregistered token', function (): void {
     $registration = createAndroidPushRegistration($this->tenant, $this->user);
 

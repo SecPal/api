@@ -37,10 +37,28 @@ final class AndroidPushDeliveryService
             throw new RuntimeException('Android push delivery is not configured for this deployment.');
         }
 
-        $deviceToken = $registration->deliveryToken();
+        try {
+            $deviceToken = $registration->deliveryToken();
+        } catch (\Throwable) {
+            $registration->delete();
+
+            return [
+                'delivered' => false,
+                'provider_message_id' => null,
+                'invalid_token' => true,
+                'provider_error_code' => 'DECRYPTION_FAILURE',
+            ];
+        }
 
         if ($deviceToken === null) {
-            throw new RuntimeException('Android push delivery requires a decryptable device token.');
+            $registration->delete();
+
+            return [
+                'delivered' => false,
+                'provider_message_id' => null,
+                'invalid_token' => true,
+                'provider_error_code' => 'MISSING_TOKEN',
+            ];
         }
 
         $response = Http::acceptJson()
