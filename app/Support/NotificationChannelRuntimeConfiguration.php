@@ -15,6 +15,11 @@ final class NotificationChannelRuntimeConfiguration
     use InteractsWithConfigValues;
 
     /**
+     * @var array<string, mixed>|null
+     */
+    private ?array $bootstrapConfig = null;
+
+    /**
      * @var array<string, list<string>>
      */
     private const PUBLIC_RUNTIME_FIELDS = [
@@ -227,10 +232,32 @@ final class NotificationChannelRuntimeConfiguration
 
     private function hasConfig(string $key): bool
     {
-        /** @var array<string, mixed> $all */
-        $all = config()->all();
+        if (! str_starts_with($key, 'bootstrap.')) {
+            return config()->has($key);
+        }
 
-        return Arr::has($all, $key);
+        return Arr::has($this->bootstrapConfig(), substr($key, strlen('bootstrap.')));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function bootstrapConfig(): array
+    {
+        if (is_array($this->bootstrapConfig)) {
+            return $this->bootstrapConfig;
+        }
+
+        $bootstrapConfig = config('bootstrap', []);
+
+        if (! is_array($bootstrapConfig)) {
+            $bootstrapConfig = [];
+        }
+
+        /** @var array<string, mixed> $bootstrapConfig */
+        $this->bootstrapConfig = $bootstrapConfig;
+
+        return $this->bootstrapConfig;
     }
 
     private function trimmedStringValue(mixed $value): ?string

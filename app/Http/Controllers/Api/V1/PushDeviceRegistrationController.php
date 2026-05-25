@@ -84,7 +84,7 @@ class PushDeviceRegistrationController extends Controller
     private function unsupportedConfigurationResponse(): JsonResponse
     {
         return response()->json([
-            'message' => 'This deployment does not accept authenticated notification installations for the requested channel.',
+            'message' => __('This deployment does not accept authenticated notification installations for the requested channel.'),
             'code' => 'NOTIFICATION_CHANNEL_UNSUPPORTED',
             'details' => [
                 'channel' => self::CHANNEL,
@@ -96,7 +96,7 @@ class PushDeviceRegistrationController extends Controller
     private function runtimeStateConflictResponse(int $providedRevision, int $expectedRevision): JsonResponse
     {
         return response()->json([
-            'message' => 'Notification runtime metadata changed; refresh bootstrap before retrying this installation update.',
+            'message' => __('Notification runtime metadata changed; refresh bootstrap before retrying this installation update.'),
             'code' => 'NOTIFICATION_RUNTIME_STATE_INVALID',
             'details' => [
                 'bootstrap_version' => BootstrapContract::VERSION,
@@ -114,7 +114,7 @@ class PushDeviceRegistrationController extends Controller
     private function invalidConfigurationResponse(array $missingFields): JsonResponse
     {
         return response()->json([
-            'message' => 'Public bootstrap configuration is incomplete for this deployment.',
+            'message' => __('Public bootstrap configuration is incomplete for this deployment.'),
             'code' => 'BOOTSTRAP_STATE_INVALID',
             'details' => [
                 'missing_fields' => $missingFields,
