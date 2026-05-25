@@ -61,22 +61,29 @@ final class AndroidPushDeliveryService
             ];
         }
 
+        $message = [
+            'token' => $deviceToken,
+            'notification' => [
+                'title' => $title,
+                'body' => $body,
+            ],
+            'android' => [
+                'priority' => 'high',
+            ],
+        ];
+
+        $normalizedData = $this->normalizeMessageData($data);
+
+        if ($normalizedData !== []) {
+            $message['data'] = $normalizedData;
+        }
+
         $response = Http::acceptJson()
             ->withToken($this->fetchAccessToken())
             ->connectTimeout($this->configuration->connectTimeout())
             ->timeout($this->configuration->timeout())
             ->post($messageEndpoint, [
-                'message' => [
-                    'token' => $deviceToken,
-                    'notification' => [
-                        'title' => $title,
-                        'body' => $body,
-                    ],
-                    'data' => $this->normalizeMessageData($data),
-                    'android' => [
-                        'priority' => 'high',
-                    ],
-                ],
+                'message' => $message,
             ]);
 
         if ($response->successful()) {

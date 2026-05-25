@@ -146,6 +146,46 @@ test('service sends android push through customer owned firebase credentials', f
     ]);
 });
 
+test('service omits empty message data from firebase payload', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    Http::fake([
+        'https://oauth2.googleapis.com/token' => Http::response([
+            'access_token' => 'google-access-token',
+            'token_type' => 'Bearer',
+            'expires_in' => 3600,
+        ], 200),
+        'https://fcm.googleapis.com/v1/projects/customer-owned-project/messages:send' => Http::response([
+            'name' => 'projects/customer-owned-project/messages/0:1710000000000000%1234abcd1234abcd',
+        ], 200),
+    ]);
+
+    $result = app(AndroidPushDeliveryService::class)->send(
+        $registration,
+        'Compliance alert',
+        'Permit expires soon.',
+    );
+
+    expect($result)->toBe([
+        'delivered' => true,
+        'provider_message_id' => 'projects/customer-owned-project/messages/0:1710000000000000%1234abcd1234abcd',
+        'invalid_token' => false,
+        'provider_error_code' => null,
+    ]);
+
+    Http::assertSent(function (Request $request): bool {
+        if ($request->url() !== 'https://fcm.googleapis.com/v1/projects/customer-owned-project/messages:send') {
+            return false;
+        }
+
+        $payload = $request->data();
+        $message = $payload['message'] ?? null;
+
+        return is_array($message)
+            && ! array_key_exists('data', $message);
+    });
+});
+
 test('service fails closed when customer owned firebase credentials are incomplete', function (): void {
     $registration = createAndroidPushRegistration($this->tenant, $this->user);
 
