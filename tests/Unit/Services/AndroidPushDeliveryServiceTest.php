@@ -12,6 +12,7 @@ use App\Services\AndroidPushDeliveryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\TenantKeyReadabilityOverride;
 
 uses(RefreshDatabase::class);
 
@@ -38,6 +39,7 @@ beforeEach(function (): void {
 afterEach(function (): void {
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
+    TenantKeyReadabilityOverride::clear();
 });
 
 function createAndroidPushRegistration(TenantKey $tenant, User $user): PushDeviceRegistration
@@ -237,7 +239,28 @@ test('service deletes registration and returns invalid token when device token d
     Http::assertNothingSent();
 });
 
-test('service deletes registration and returns invalid token when device token is absent', function (): void {
+test('service surfaces tenant key runtime failures without deleting registration', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    TenantKeyReadabilityOverride::markUnreadable(getTestKekPath());
+
+    Http::fake();
+
+    expect(fn () => app(AndroidPushDeliveryService::class)->send(
+        $registration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    ))->toThrow(RuntimeException::class, 'KEK file is not readable by this process');
+
+    $this->assertDatabaseHas('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+
+    Http::assertNothingSent();
+});
+
+test('service fails closed when device token is absent on the loaded model without deleting registration', function (): void {
     $registration = createAndroidPushRegistration($this->tenant, $this->user);
 
     // Force the in-memory cast to return null by wiping the raw attribute value.
@@ -250,21 +273,14 @@ test('service deletes registration and returns invalid token when device token i
 
     Http::fake();
 
-    $result = app(AndroidPushDeliveryService::class)->send(
+    expect(fn () => app(AndroidPushDeliveryService::class)->send(
         $registration,
         'Compliance alert',
         'Permit expires soon.',
         ['category' => 'compliance_alert'],
-    );
+    ))->toThrow(RuntimeException::class, 'Android push delivery requires a decryptable device token.');
 
-    expect($result)->toBe([
-        'delivered' => false,
-        'provider_message_id' => null,
-        'invalid_token' => true,
-        'provider_error_code' => 'MISSING_TOKEN',
-    ]);
-
-    $this->assertDatabaseMissing('push_device_registrations', [
+    $this->assertDatabaseHas('push_device_registrations', [
         'id' => $registration->id,
     ]);
 

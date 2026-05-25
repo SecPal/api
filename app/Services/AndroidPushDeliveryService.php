@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Models\PushDeviceRegistration;
 use App\Support\AndroidPushDeliveryConfiguration;
 use Illuminate\Support\Facades\Http;
@@ -39,7 +40,7 @@ final class AndroidPushDeliveryService
 
         try {
             $deviceToken = $registration->deliveryToken();
-        } catch (\Throwable) {
+        } catch (CorruptedEncryptedAttributeException) {
             $registration->delete();
 
             return [
@@ -51,14 +52,7 @@ final class AndroidPushDeliveryService
         }
 
         if ($deviceToken === null) {
-            $registration->delete();
-
-            return [
-                'delivered' => false,
-                'provider_message_id' => null,
-                'invalid_token' => true,
-                'provider_error_code' => 'MISSING_TOKEN',
-            ];
+            throw new RuntimeException('Android push delivery requires a decryptable device token.');
         }
 
         $message = [
