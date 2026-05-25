@@ -22,7 +22,7 @@ final class DeliverAndroidPushMessage implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 4;
 
     public int $timeout = 30;
 

@@ -150,6 +150,6 @@ test('job can be queued for asynchronous android push delivery', function (): vo
 
     expect((new DeliverAndroidPushMessage('push-registration-id', 'title', 'body'))->backoff())
         ->toBe([10, 60, 300])
-        ->and((new DeliverAndroidPushMessage('push-registration-id', 'title', 'body'))->tries)->toBe(3)
+        ->and((new DeliverAndroidPushMessage('push-registration-id', 'title', 'body'))->tries)->toBe(4)
         ->and((new DeliverAndroidPushMessage('push-registration-id', 'title', 'body'))->timeout)->toBe(30);
 });
