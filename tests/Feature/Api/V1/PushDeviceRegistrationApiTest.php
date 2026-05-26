@@ -444,6 +444,51 @@ test('repeating put updates the existing android notification installation', fun
         ->count())->toBe(1);
 });
 
+test('repeating put clears stale web push credentials when switching an installation to android', function (): void {
+    ['tenant' => $tenant, 'user' => $user] = createPushDeviceContext();
+
+    enableWebPushNotificationChannel();
+    actingAs($user, 'sanctum');
+
+    $installationId = 'c2d3e4f5-a6b7-489a-8bcd-2e3f4a5b6c7d';
+
+    putJson('/v1/me/notification-installations/'.$installationId, webPushPayload(
+        'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890'
+    ))->assertCreated();
+
+    config([
+        'bootstrap.features.notification_channels.android_fcm' => true,
+        'bootstrap.features.notification_channels.web_push' => false,
+    ]);
+
+    putJson('/v1/me/notification-installations/'.$installationId, androidNotificationInstallationPayload(
+        'x9y8z7w6v5u4:APA91bHfedcba0987654321QwErTyUiOpAsDfGhJkLmNoPqRsTuVwXyZfedcba09',
+        'credential_rotated',
+    ))->assertOk()
+        ->assertJsonPath('data.channel', 'android_fcm')
+        ->assertJsonPath('data.credential_reference', 'fedcba09');
+
+    $this->assertDatabaseHas('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+        'platform' => 'android',
+        'provider' => 'fcm',
+        'token_last_eight' => 'fedcba09',
+    ]);
+
+    $storedRegistration = DB::table('push_device_registrations')
+        ->select(['subscription_p256dh_enc', 'subscription_auth_enc'])
+        ->where('tenant_id', $tenant->id)
+        ->where('user_id', $user->id)
+        ->where('installation_id', $installationId)
+        ->first();
+
+    expect($storedRegistration)->not->toBeNull()
+        ->and($storedRegistration->subscription_p256dh_enc)->toBeNull()
+        ->and($storedRegistration->subscription_auth_enc)->toBeNull();
+});
+
 test('same installation id can be registered independently in another tenant', function (): void {
     ['tenant' => $firstTenant, 'user' => $firstUser] = createPushDeviceContext();
     ['tenant' => $secondTenant, 'user' => $secondUser] = createPushDeviceContext();

@@ -143,16 +143,12 @@ class PushDeviceRegistration extends Model
 
     public function setSubscriptionP256dhPlainAttribute(?string $value): void
     {
-        if ($value !== null) {
-            $this->subscription_p256dh_enc = $value;
-        }
+        $this->subscription_p256dh_enc = $value;
     }
 
     public function setSubscriptionAuthPlainAttribute(?string $value): void
     {
-        if ($value !== null) {
-            $this->subscription_auth_enc = $value;
-        }
+        $this->subscription_auth_enc = $value;
     }
 
     public function notificationChannel(): string

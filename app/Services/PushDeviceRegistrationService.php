@@ -119,8 +119,8 @@ final class PushDeviceRegistrationService
             'service_worker_scope' => null,
             'subscription_endpoint_origin' => null,
             'subscription_expires_at' => null,
-            'subscription_p256dh_enc' => null,
-            'subscription_auth_enc' => null,
+            'subscription_p256dh_plain' => null,
+            'subscription_auth_plain' => null,
         ];
     }
 
