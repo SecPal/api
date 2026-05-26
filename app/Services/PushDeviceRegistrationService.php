@@ -68,7 +68,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @return array{installation_id: string, revoked_at: string}|null
+     * @return array{installation_id: string, channel: string|null, revoked_at: string}|null
      */
     public function revoke(User $user, string $installationId): ?array
     {
@@ -87,8 +87,13 @@ final class PushDeviceRegistrationService
         }
 
         $revokedAt = now();
-        $channel = $registration->notificationChannel();
         $registration->delete();
+
+        try {
+            $channel = $registration->notificationChannel();
+        } catch (RuntimeException) {
+            $channel = null;
+        }
 
         return [
             'installation_id' => $installationId,
@@ -150,8 +155,8 @@ final class PushDeviceRegistrationService
         $registration->service_worker_scope = $this->nullableString($browser, 'service_worker_scope');
         $registration->subscription_endpoint_origin = $this->subscriptionEndpointOrigin($endpoint);
         $registration->subscription_expires_at = $this->subscriptionExpirationTimestamp($subscription);
-        $registration->subscription_p256dh_enc = $this->requiredString($subscriptionKeys, 'p256dh');
-        $registration->subscription_auth_enc = $this->requiredString($subscriptionKeys, 'auth');
+        $registration->subscription_p256dh_plain = $this->requiredString($subscriptionKeys, 'p256dh');
+        $registration->subscription_auth_plain = $this->requiredString($subscriptionKeys, 'auth');
     }
 
     /**

@@ -38,6 +38,8 @@ use RuntimeException;
  * @property string|null $subscription_p256dh_enc
  * @property string|null $subscription_auth_enc
  * @property \Illuminate\Support\Carbon|\Carbon\CarbonImmutable|null $subscription_expires_at
+ * @property-write string|null $subscription_p256dh_plain
+ * @property-write string|null $subscription_auth_plain
  * @property string $bootstrap_version
  * @property int $schema_version
  * @property int $push_metadata_revision
@@ -73,8 +75,8 @@ class PushDeviceRegistration extends Model
         'browser_version',
         'service_worker_scope',
         'subscription_endpoint_origin',
-        'subscription_p256dh_enc',
-        'subscription_auth_enc',
+        'subscription_p256dh_plain',
+        'subscription_auth_plain',
         'subscription_expires_at',
         'bootstrap_version',
         'schema_version',
@@ -136,6 +138,20 @@ class PushDeviceRegistration extends Model
     public function deliveryToken(): ?string
     {
         return $this->push_token_dec;
+    }
+
+    public function setSubscriptionP256dhPlainAttribute(?string $value): void
+    {
+        if ($value !== null) {
+            $this->subscription_p256dh_enc = $value;
+        }
+    }
+
+    public function setSubscriptionAuthPlainAttribute(?string $value): void
+    {
+        if ($value !== null) {
+            $this->subscription_auth_enc = $value;
+        }
     }
 
     public function notificationChannel(): string
