@@ -272,6 +272,10 @@ final class PushDeviceRegistrationService
             throw new InvalidArgumentException('Expected a valid absolute URI for "endpoint".');
         }
 
+        if (strtolower($components['scheme']) !== 'https') {
+            throw new InvalidArgumentException('Expected an HTTPS absolute URI for "endpoint".');
+        }
+
         $origin = strtolower($components['scheme']).'://'.strtolower($components['host']);
 
         if (is_int($components['port'] ?? null)) {

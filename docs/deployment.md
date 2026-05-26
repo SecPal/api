@@ -93,7 +93,7 @@ Edit `.env` with production values:
 APP_NAME=SecPal
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://customer-api.example
+APP_URL=https://customer-api.secpal.dev
 
 # Public bootstrap (pre-login runtime discovery)
 BOOTSTRAP_PUBLIC_ENABLED=true
@@ -180,8 +180,8 @@ Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after t
 Verify the deployed response with the canonical public origin:
 
 ```bash
-curl --fail 'https://customer-api.example/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400'
-curl --fail 'https://customer-api.example/v1/bootstrap?client_platform=browser'
+curl --fail 'https://customer-api.secpal.dev/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400'
+curl --fail 'https://customer-api.secpal.dev/v1/bootstrap?client_platform=browser'
 ```
 
 ### Authenticated Notification Installations
@@ -208,7 +208,7 @@ Example registration request:
 
 ```bash
 curl --fail-with-body \
-  -X PUT 'https://customer-api.example/v1/me/notification-installations/a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b' \
+  -X PUT 'https://customer-api.secpal.dev/v1/me/notification-installations/a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b' \
   -H 'Authorization: Bearer YOUR_API_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{

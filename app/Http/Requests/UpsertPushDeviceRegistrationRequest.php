@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Support\BootstrapContract;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -64,12 +65,30 @@ class UpsertPushDeviceRegistrationRequest extends FormRequest
             'registration.browser.browser_version' => ['nullable', 'string', 'max:50'],
             'registration.browser.service_worker_scope' => ['nullable', 'string', 'max:255'],
             'registration.subscription' => [Rule::requiredIf($webPushChannelRequested), 'array'],
-            'registration.subscription.endpoint' => [Rule::requiredIf($webPushChannelRequested), 'url', 'max:2048'],
+            'registration.subscription.endpoint' => [Rule::requiredIf($webPushChannelRequested), 'url', 'max:2048', $this->httpsEndpointRule()],
             'registration.subscription.expiration_time' => ['nullable', 'integer', 'min:0'],
             'registration.subscription.keys' => [Rule::requiredIf($webPushChannelRequested), 'array'],
             'registration.subscription.keys.p256dh' => [Rule::requiredIf($webPushChannelRequested), 'string', 'min:16', 'max:255'],
             'registration.subscription.keys.auth' => [Rule::requiredIf($webPushChannelRequested), 'string', 'min:8', 'max:255'],
         ];
+    }
+
+    /**
+     * @return Closure(string, mixed, Closure(string): void): void
+     */
+    private function httpsEndpointRule(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            if ($value === null || ! is_string($value)) {
+                return;
+            }
+
+            $scheme = parse_url($value, PHP_URL_SCHEME);
+
+            if (! is_string($scheme) || strtolower($scheme) !== 'https') {
+                $fail('The '.$attribute.' field must be a valid HTTPS URL.');
+            }
+        };
     }
 
     /**

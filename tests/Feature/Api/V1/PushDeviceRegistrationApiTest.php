@@ -61,7 +61,7 @@ function createBrowserPushContext(): array
     $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
     $user = User::factory()->create([
         'tenant_id' => $tenant->id,
-        'email' => 'browser-web-push-'.Str::uuid().'@example.com',
+        'email' => 'browser-web-push-'.Str::uuid().'@testing.secpal.dev',
         'password' => Hash::make('password123'),
     ]);
 
@@ -786,5 +786,35 @@ test('web push notification installation validates malformed payloads', function
             'registration.subscription.endpoint',
             'registration.subscription.keys.p256dh',
             'registration.subscription.keys.auth',
+        ]);
+});
+
+test('web push notification installation rejects non-https subscription endpoints', function (): void {
+    ['user' => $user] = createPushDeviceContext();
+
+    enableWebPushNotificationChannel();
+    actingAs($user, 'sanctum');
+
+    putJson('/v1/me/notification-installations/b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c', [
+        ...webPushPayload('http://preview.secpal.dev/push/mock-subscription'),
+        'registration' => [
+            'browser' => [
+                'browser_name' => 'Chrome',
+                'browser_version' => '136.0.7103.114',
+                'service_worker_scope' => '/',
+            ],
+            'subscription' => [
+                'endpoint' => 'http://preview.secpal.dev/push/mock-subscription',
+                'expiration_time' => 1782475200000,
+                'keys' => [
+                    'p256dh' => 'BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv',
+                    'auth' => 'K7d9Lm2PqRs',
+                ],
+            ],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([
+            'registration.subscription.endpoint',
         ]);
 });
