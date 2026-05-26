@@ -14,19 +14,9 @@ return [
         'password_login' => filter_var(env('BOOTSTRAP_PASSWORD_LOGIN_ENABLED', true), FILTER_VALIDATE_BOOL),
         'passkey_login' => filter_var(env('BOOTSTRAP_PASSKEY_LOGIN_ENABLED', true), FILTER_VALIDATE_BOOL),
         'managed_android_enrollment' => filter_var(env('BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED', false), FILTER_VALIDATE_BOOL),
-        'android_push' => filter_var(env('BOOTSTRAP_ANDROID_PUSH_ENABLED', false), FILTER_VALIDATE_BOOL),
         'notification_channels' => [
             'android_fcm' => filter_var(env('BOOTSTRAP_ANDROID_PUSH_ENABLED', false), FILTER_VALIDATE_BOOL),
-            'web_push' => false,
-        ],
-    ],
-    'android_push' => [
-        'metadata_revision' => env('BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION'),
-        'public_client_metadata' => [
-            'api_key' => env('BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY'),
-            'project_id' => env('BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID'),
-            'application_id' => env('BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID'),
-            'sender_id' => env('BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID'),
+            'web_push' => filter_var(env('BOOTSTRAP_WEB_PUSH_ENABLED', false), FILTER_VALIDATE_BOOL),
         ],
     ],
     'notification_channels' => [
@@ -37,6 +27,12 @@ return [
                 'project_id' => env('BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID'),
                 'application_id' => env('BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID'),
                 'sender_id' => env('BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID'),
+            ],
+        ],
+        'web_push' => [
+            'metadata_revision' => env('BOOTSTRAP_WEB_PUSH_METADATA_REVISION'),
+            'public_runtime_metadata' => [
+                'vapid_public_key' => env('BOOTSTRAP_WEB_PUSH_PUBLIC_VAPID_KEY'),
             ],
         ],
     ],

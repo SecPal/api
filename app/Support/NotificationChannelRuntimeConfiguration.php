@@ -8,16 +8,10 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Support\Concerns\InteractsWithConfigValues;
-use Illuminate\Support\Arr;
 
 final class NotificationChannelRuntimeConfiguration
 {
     use InteractsWithConfigValues;
-
-    /**
-     * @var array<string, mixed>|null
-     */
-    private ?array $bootstrapConfig = null;
 
     /**
      * @var array<string, list<string>>
@@ -50,24 +44,12 @@ final class NotificationChannelRuntimeConfiguration
 
     public function isEnabled(string $channel): bool
     {
-        $featureFlagKey = $this->featureFlagKey($channel);
-
-        if ($this->hasConfig($featureFlagKey)) {
-            return $this->booleanConfig($featureFlagKey, false);
-        }
-
-        return match ($channel) {
-            BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM => $this->booleanConfig('bootstrap.features.android_push', false),
-            default => false,
-        };
+        return $this->booleanConfig($this->featureFlagKey($channel), false);
     }
 
     public function metadataRevision(string $channel): ?int
     {
-        return $this->positiveIntegerValue($this->configValue(
-            $this->metadataRevisionConfigKey($channel),
-            $this->legacyMetadataRevisionKey($channel),
-        ));
+        return $this->positiveIntegerValue(config($this->metadataRevisionConfigKey($channel)));
     }
 
     /**
@@ -95,7 +77,7 @@ final class NotificationChannelRuntimeConfiguration
 
         $missingFields = [];
         $metadataRevisionFieldPath = $this->metadataRevisionFieldPath($channel);
-        $rawRevision = $this->configValue($this->metadataRevisionConfigKey($channel), $this->legacyMetadataRevisionKey($channel));
+        $rawRevision = config($this->metadataRevisionConfigKey($channel));
 
         if ($rawRevision === null) {
             $missingFields[] = $metadataRevisionFieldPath;
@@ -189,22 +171,6 @@ final class NotificationChannelRuntimeConfiguration
         return 'notification_channels.'.$channel.'.public_runtime_metadata.'.$field;
     }
 
-    private function legacyMetadataRevisionKey(string $channel): ?string
-    {
-        return match ($channel) {
-            BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM => 'bootstrap.android_push.metadata_revision',
-            default => null,
-        };
-    }
-
-    private function legacyPublicRuntimeMetadataKey(string $channel, string $field): ?string
-    {
-        return match ($channel) {
-            BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM => 'bootstrap.android_push.public_client_metadata.'.$field,
-            default => null,
-        };
-    }
-
     /**
      * @return list<string>
      */
@@ -215,49 +181,7 @@ final class NotificationChannelRuntimeConfiguration
 
     private function publicRuntimeMetadataValue(string $channel, string $field): ?string
     {
-        return $this->trimmedStringValue($this->configValue(
-            $this->publicRuntimeMetadataConfigKey($channel, $field),
-            $this->legacyPublicRuntimeMetadataKey($channel, $field),
-        ));
-    }
-
-    private function configValue(string $canonicalKey, ?string $legacyKey = null): mixed
-    {
-        if ($this->hasConfig($canonicalKey)) {
-            return config($canonicalKey);
-        }
-
-        return $legacyKey === null ? config($canonicalKey) : config($legacyKey);
-    }
-
-    private function hasConfig(string $key): bool
-    {
-        if (! str_starts_with($key, 'bootstrap.')) {
-            return config()->has($key);
-        }
-
-        return Arr::has($this->bootstrapConfig(), substr($key, strlen('bootstrap.')));
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function bootstrapConfig(): array
-    {
-        if (is_array($this->bootstrapConfig)) {
-            return $this->bootstrapConfig;
-        }
-
-        $bootstrapConfig = config('bootstrap', []);
-
-        if (! is_array($bootstrapConfig)) {
-            $bootstrapConfig = [];
-        }
-
-        /** @var array<string, mixed> $bootstrapConfig */
-        $this->bootstrapConfig = $bootstrapConfig;
-
-        return $this->bootstrapConfig;
+        return $this->trimmedStringValue(config($this->publicRuntimeMetadataConfigKey($channel, $field)));
     }
 
     private function trimmedStringValue(mixed $value): ?string

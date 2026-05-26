@@ -59,49 +59,20 @@ test('missing fields use channel aware runtime metadata paths', function (): voi
     ]);
 });
 
-test('legacy android push aliases backfill shared channel state when canonical keys are absent', function (): void {
+test('disabled channels never expose runtime metadata even when unrelated values are present', function (): void {
     config([
-        'bootstrap.features.notification_channels' => [],
-        'bootstrap.notification_channels' => [],
-        'bootstrap.features.android_push' => true,
-        'bootstrap.android_push.metadata_revision' => 7,
-        'bootstrap.android_push.public_client_metadata.api_key' => 'legacy-public-client-api-key',
-        'bootstrap.android_push.public_client_metadata.project_id' => 'legacy-project-id',
-        'bootstrap.android_push.public_client_metadata.application_id' => '1:9876543210:android:legacyabcdef',
-        'bootstrap.android_push.public_client_metadata.sender_id' => '9876543210',
+        'bootstrap.features.notification_channels.android_fcm' => false,
+        'bootstrap.notification_channels.android_fcm.metadata_revision' => 7,
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.api_key' => 'public-client-api-key-demo-1234567890',
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.project_id' => 'secpal-demo-push',
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.application_id' => '1:1234567890:android:abcdef1234567890',
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.sender_id' => '1234567890',
     ]);
 
     $configuration = new NotificationChannelRuntimeConfiguration;
 
     expect($configuration->featureFlags())->toBe([
-        'android_fcm' => true,
+        'android_fcm' => false,
         'web_push' => false,
-    ])->and($configuration->publicRuntimeMetadata())->toBe([
-        'android_fcm' => [
-            'channel' => 'android_fcm',
-            'metadata_revision' => 7,
-            'public_runtime_metadata' => [
-                'api_key' => 'legacy-public-client-api-key',
-                'project_id' => 'legacy-project-id',
-                'application_id' => '1:9876543210:android:legacyabcdef',
-                'sender_id' => '9876543210',
-            ],
-        ],
-    ]);
-});
-
-test('canonical null notification channel values do not fall back to legacy android push aliases', function (): void {
-    config([
-        'bootstrap.notification_channels.android_fcm.metadata_revision' => null,
-        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.api_key' => null,
-        'bootstrap.android_push.metadata_revision' => 7,
-        'bootstrap.android_push.public_client_metadata.api_key' => 'legacy-public-client-api-key',
-    ]);
-
-    $configuration = new NotificationChannelRuntimeConfiguration;
-
-    expect($configuration->missingFields())->toContain(
-        'notification_channels.android_fcm.metadata_revision',
-        'notification_channels.android_fcm.public_runtime_metadata.api_key',
-    )->and($configuration->publicRuntimeMetadata())->toBe([]);
+    ])->and($configuration->publicRuntimeMetadata())->toBe([]);
 });

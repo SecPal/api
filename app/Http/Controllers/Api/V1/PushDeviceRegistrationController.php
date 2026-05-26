@@ -19,8 +19,6 @@ use Illuminate\Http\Response;
 
 class PushDeviceRegistrationController extends Controller
 {
-    private const CHANNEL = BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM;
-
     public function __construct(
         private readonly NotificationChannelRuntimeConfiguration $notificationChannelRuntimeConfiguration,
         private readonly PushDeviceRegistrationService $pushDeviceRegistrationService,
@@ -28,27 +26,29 @@ class PushDeviceRegistrationController extends Controller
 
     public function upsert(UpsertPushDeviceRegistrationRequest $request, string $installationId): JsonResponse
     {
-        if (! $this->notificationChannelRuntimeConfiguration->isEnabled(self::CHANNEL)) {
-            return $this->unsupportedConfigurationResponse();
+        $channel = $request->string('channel')->toString();
+
+        if (! $this->notificationChannelRuntimeConfiguration->isEnabled($channel)) {
+            return $this->unsupportedConfigurationResponse($channel);
         }
 
-        $missingFields = $this->notificationChannelRuntimeConfiguration->missingFieldsFor(self::CHANNEL);
+        $missingFields = $this->notificationChannelRuntimeConfiguration->missingFieldsFor($channel);
 
         if ($missingFields !== []) {
             return $this->invalidConfigurationResponse($missingFields);
         }
 
-        $providedRevision = $request->integer('runtime.push_metadata_revision');
-        $expectedRevision = $this->notificationChannelRuntimeConfiguration->metadataRevision(self::CHANNEL);
+        $providedRevision = $request->integer('runtime.metadata_revision');
+        $expectedRevision = $this->notificationChannelRuntimeConfiguration->metadataRevision($channel);
 
         if ($expectedRevision === null) {
             return $this->invalidConfigurationResponse([
-                'notification_channels.android_fcm.metadata_revision',
+                'notification_channels.'.$channel.'.metadata_revision',
             ]);
         }
 
         if ($providedRevision !== $expectedRevision) {
-            return $this->runtimeStateConflictResponse($providedRevision, $expectedRevision);
+            return $this->runtimeStateConflictResponse($channel, $providedRevision, $expectedRevision);
         }
 
         /** @var User $user */
@@ -64,10 +64,6 @@ class PushDeviceRegistrationController extends Controller
 
     public function destroy(Request $request, string $installationId): JsonResponse
     {
-        if (! $this->notificationChannelRuntimeConfiguration->isEnabled(self::CHANNEL)) {
-            return $this->unsupportedConfigurationResponse();
-        }
-
         /** @var User $user */
         $user = $request->user();
         $revocation = $this->pushDeviceRegistrationService->revoke($user, $installationId);
@@ -81,19 +77,19 @@ class PushDeviceRegistrationController extends Controller
         ]);
     }
 
-    private function unsupportedConfigurationResponse(): JsonResponse
+    private function unsupportedConfigurationResponse(string $channel): JsonResponse
     {
         return response()->json([
             'message' => __('This deployment does not accept authenticated notification installations for the requested channel.'),
             'code' => 'NOTIFICATION_CHANNEL_UNSUPPORTED',
             'details' => [
-                'channel' => self::CHANNEL,
+                'channel' => $channel,
                 'retryable' => false,
             ],
         ], Response::HTTP_CONFLICT);
     }
 
-    private function runtimeStateConflictResponse(int $providedRevision, int $expectedRevision): JsonResponse
+    private function runtimeStateConflictResponse(string $channel, int $providedRevision, int $expectedRevision): JsonResponse
     {
         return response()->json([
             'message' => __('Notification runtime metadata changed; refresh bootstrap before retrying this installation update.'),
@@ -101,7 +97,7 @@ class PushDeviceRegistrationController extends Controller
             'details' => [
                 'bootstrap_version' => BootstrapContract::VERSION,
                 'schema_version' => BootstrapContract::SCHEMA_VERSION,
-                'channel' => self::CHANNEL,
+                'channel' => $channel,
                 'provided_metadata_revision' => $providedRevision,
                 'expected_metadata_revision' => $expectedRevision,
             ],

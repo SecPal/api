@@ -11,7 +11,11 @@ final class BootstrapContract
 {
     public const VERSION = 'v1';
 
-    public const SCHEMA_VERSION = 2;
+    public const SCHEMA_VERSION = 3;
+
+    public const CLIENT_PLATFORM_ANDROID = 'android';
+
+    public const CLIENT_PLATFORM_BROWSER = 'browser';
 
     public const NOTIFICATION_CHANNEL_ANDROID_FCM = 'android_fcm';
 
@@ -23,4 +27,12 @@ final class BootstrapContract
     ];
 
     public const ANDROID_PUSH_PROVIDER = 'fcm';
+
+    public const WEB_PUSH_PROVIDER = self::NOTIFICATION_CHANNEL_WEB_PUSH;
+
+    public const NOTIFICATION_INSTALLATION_LIFECYCLE_EVENTS = [
+        'registered',
+        'credential_rotated',
+        'client_updated',
+    ];
 }

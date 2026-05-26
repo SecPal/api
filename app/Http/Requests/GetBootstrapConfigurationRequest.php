@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Support\BootstrapContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -23,9 +24,23 @@ class GetBootstrapConfigurationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'client_platform' => ['required', Rule::in(['android'])],
-            'app_version' => ['required', 'string', 'max:50', 'regex:/^\d+\.\d+\.\d+$/'],
-            'app_build' => ['required', 'integer', 'min:1'],
+            'client_platform' => ['required', Rule::in([
+                BootstrapContract::CLIENT_PLATFORM_ANDROID,
+                BootstrapContract::CLIENT_PLATFORM_BROWSER,
+            ])],
+            'app_version' => [
+                Rule::requiredIf(fn (): bool => $this->isAndroidClientRequest()),
+                'nullable',
+                'string',
+                'max:50',
+                'regex:/^\d+\.\d+\.\d+$/',
+            ],
+            'app_build' => [
+                Rule::requiredIf(fn (): bool => $this->isAndroidClientRequest()),
+                'nullable',
+                'integer',
+                'min:1',
+            ],
         ];
     }
 
@@ -34,13 +49,24 @@ class GetBootstrapConfigurationRequest extends FormRequest
         return $this->string('client_platform')->toString();
     }
 
-    public function appVersion(): string
+    public function appVersion(): ?string
     {
-        return $this->string('app_version')->toString();
+        $appVersion = trim($this->string('app_version')->toString());
+
+        return $appVersion === '' ? null : $appVersion;
     }
 
-    public function appBuild(): int
+    public function appBuild(): ?int
     {
+        if (! $this->has('app_build')) {
+            return null;
+        }
+
         return $this->integer('app_build');
+    }
+
+    private function isAndroidClientRequest(): bool
+    {
+        return $this->input('client_platform') === BootstrapContract::CLIENT_PLATFORM_ANDROID;
     }
 }
