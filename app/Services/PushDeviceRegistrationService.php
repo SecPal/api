@@ -30,21 +30,27 @@ final class PushDeviceRegistrationService
         $channel = $this->requiredString($attributes, 'channel');
         $registrationPayload = $this->requiredArray($attributes, 'registration');
 
-        $registration = PushDeviceRegistration::query()->updateOrCreate([
-            'tenant_id' => $user->tenant_id,
-            'user_id' => $user->id,
-            'installation_id' => $installationId,
-        ], array_merge([
+        $registrationValues = [
             'device_name' => $this->requiredString($attributes, 'installation_name'),
             'last_lifecycle_event' => $this->requiredString($attributes, 'lifecycle_event'),
             'bootstrap_version' => $this->requiredString($runtime, 'bootstrap_version'),
             'schema_version' => $this->requiredInt($runtime, 'schema_version'),
             'push_metadata_revision' => $this->requiredInt($runtime, 'metadata_revision'),
-        ], match ($channel) {
+        ];
+
+        foreach (match ($channel) {
             BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM => $this->androidFcmRegistrationValues($registrationPayload),
             BootstrapContract::NOTIFICATION_CHANNEL_WEB_PUSH => $this->webPushRegistrationValues($registrationPayload),
             default => throw new InvalidArgumentException(sprintf('Unsupported notification installation channel "%s".', $channel)),
-        }));
+        } as $key => $value) {
+            $registrationValues[$key] = $value;
+        }
+
+        $registration = PushDeviceRegistration::query()->updateOrCreate([
+            'tenant_id' => $user->tenant_id,
+            'user_id' => $user->id,
+            'installation_id' => $installationId,
+        ], $registrationValues);
 
         $created = $registration->wasRecentlyCreated;
 
@@ -97,6 +103,7 @@ final class PushDeviceRegistrationService
 
     /**
      * @param  array<array-key, mixed>  $registrationPayload
+     * @return array<string, mixed>
      */
     private function androidFcmRegistrationValues(array $registrationPayload): array
     {
@@ -126,6 +133,7 @@ final class PushDeviceRegistrationService
 
     /**
      * @param  array<array-key, mixed>  $registrationPayload
+     * @return array<string, mixed>
      */
     private function webPushRegistrationValues(array $registrationPayload): array
     {
