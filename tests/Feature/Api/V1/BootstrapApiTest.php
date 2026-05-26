@@ -23,14 +23,8 @@ beforeEach(function (): void {
         'bootstrap.features.password_login' => true,
         'bootstrap.features.passkey_login' => true,
         'bootstrap.features.managed_android_enrollment' => true,
-        'bootstrap.features.android_push' => true,
         'bootstrap.features.notification_channels.android_fcm' => true,
         'bootstrap.features.notification_channels.web_push' => false,
-        'bootstrap.android_push.metadata_revision' => 3,
-        'bootstrap.android_push.public_client_metadata.api_key' => 'public-client-api-key-demo-1234567890',
-        'bootstrap.android_push.public_client_metadata.project_id' => 'secpal-demo-push',
-        'bootstrap.android_push.public_client_metadata.application_id' => '1:1234567890:android:abcdef1234567890',
-        'bootstrap.android_push.public_client_metadata.sender_id' => '1234567890',
         'bootstrap.notification_channels.android_fcm.metadata_revision' => 3,
         'bootstrap.notification_channels.android_fcm.public_runtime_metadata.api_key' => 'public-client-api-key-demo-1234567890',
         'bootstrap.notification_channels.android_fcm.public_runtime_metadata.project_id' => 'secpal-demo-push',
@@ -51,7 +45,7 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                 ],
                 'compatibility' => [
                     'bootstrap_version' => 'v1',
-                    'schema_version' => 2,
+                    'schema_version' => 3,
                     'minimum_supported_app_version' => '1.4.0',
                     'minimum_supported_app_build' => 10400,
                 ],
@@ -59,20 +53,9 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                     'password_login' => true,
                     'passkey_login' => true,
                     'managed_android_enrollment' => true,
-                    'android_push' => true,
                     'notification_channels' => [
                         'android_fcm' => true,
                         'web_push' => false,
-                    ],
-                ],
-                'android_push' => [
-                    'provider' => 'fcm',
-                    'metadata_revision' => 3,
-                    'public_client_metadata' => [
-                        'api_key' => 'public-client-api-key-demo-1234567890',
-                        'project_id' => 'secpal-demo-push',
-                        'application_id' => '1:1234567890:android:abcdef1234567890',
-                        'sender_id' => '1234567890',
                     ],
                 ],
                 'notification_channels' => [
@@ -91,18 +74,37 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
         ]);
 });
 
-test('public bootstrap omits android push metadata when authenticated push registration is disabled', function (): void {
+test('public bootstrap returns web push runtime metadata for browser clients without requiring android app version fields', function (): void {
+    $vapidPublicKey = 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY';
+
     config([
-        'bootstrap.features.android_push' => false,
+        'bootstrap.features.notification_channels.android_fcm' => false,
+        'bootstrap.features.notification_channels.web_push' => true,
+        'bootstrap.notification_channels.web_push.metadata_revision' => 5,
+        'bootstrap.notification_channels.web_push.public_runtime_metadata.vapid_public_key' => $vapidPublicKey,
+    ]);
+
+    getJson('/v1/bootstrap?client_platform=browser')
+        ->assertOk()
+        ->assertJsonPath('data.client_platform', 'browser')
+        ->assertJsonPath('data.compatibility.bootstrap_version', 'v1')
+        ->assertJsonPath('data.compatibility.schema_version', 3)
+        ->assertJsonPath('data.features.notification_channels.android_fcm', false)
+        ->assertJsonPath('data.features.notification_channels.web_push', true)
+        ->assertJsonPath('data.notification_channels.web_push.channel', 'web_push')
+        ->assertJsonPath('data.notification_channels.web_push.metadata_revision', 5)
+        ->assertJsonPath('data.notification_channels.web_push.public_runtime_metadata.vapid_public_key', $vapidPublicKey);
+});
+
+test('public bootstrap omits notification channel metadata when authenticated installation registration is disabled', function (): void {
+    config([
         'bootstrap.features.notification_channels.android_fcm' => false,
     ]);
 
     getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
         ->assertOk()
-        ->assertJsonPath('data.features.android_push', false)
         ->assertJsonPath('data.features.notification_channels.android_fcm', false)
         ->assertJsonPath('data.features.notification_channels.web_push', false)
-        ->assertJsonMissingPath('data.android_push')
         ->assertJsonMissingPath('data.notification_channels');
 });
 
@@ -116,9 +118,8 @@ test('public bootstrap never exposes server side android push credentials', func
     $response = getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400');
 
     $response->assertOk()
-        ->assertJsonMissingPath('data.android_push.project_id')
-        ->assertJsonMissingPath('data.android_push.client_email')
-        ->assertJsonMissingPath('data.android_push.private_key');
+        ->assertJsonMissingPath('data.notification_channels.android_fcm.public_runtime_metadata.client_email')
+        ->assertJsonMissingPath('data.notification_channels.android_fcm.public_runtime_metadata.private_key');
 
     expect($response->getContent())
         ->not->toContain('customer-owned-server-project')
@@ -191,8 +192,6 @@ test('public bootstrap fails closed when required bootstrap metadata is missing'
 
 test('public bootstrap fails closed when android fcm runtime metadata is enabled but incomplete', function (): void {
     config([
-        'bootstrap.android_push.metadata_revision' => null,
-        'bootstrap.android_push.public_client_metadata.api_key' => null,
         'bootstrap.notification_channels.android_fcm.metadata_revision' => null,
         'bootstrap.notification_channels.android_fcm.public_runtime_metadata.api_key' => null,
     ]);
@@ -211,9 +210,28 @@ test('public bootstrap fails closed when android fcm runtime metadata is enabled
         ]);
 });
 
+test('public bootstrap fails closed when web push runtime metadata is enabled but incomplete', function (): void {
+    config([
+        'bootstrap.features.notification_channels.web_push' => true,
+        'bootstrap.notification_channels.web_push.metadata_revision' => 5,
+        'bootstrap.notification_channels.web_push.public_runtime_metadata.vapid_public_key' => null,
+    ]);
+
+    getJson('/v1/bootstrap?client_platform=browser')
+        ->assertInternalServerError()
+        ->assertExactJson([
+            'message' => 'Public bootstrap configuration is incomplete for this deployment.',
+            'code' => 'BOOTSTRAP_STATE_INVALID',
+            'details' => [
+                'missing_fields' => [
+                    'notification_channels.web_push.public_runtime_metadata.vapid_public_key',
+                ],
+            ],
+        ]);
+});
+
 test('public bootstrap fails closed when android fcm metadata revision is not a strict positive integer', function (): void {
     config([
-        'bootstrap.android_push.metadata_revision' => '3.5',
         'bootstrap.notification_channels.android_fcm.metadata_revision' => '3.5',
     ]);
 

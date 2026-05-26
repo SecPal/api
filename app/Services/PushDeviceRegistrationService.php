@@ -9,6 +9,8 @@ namespace App\Services;
 
 use App\Models\PushDeviceRegistration;
 use App\Models\User;
+use App\Support\BootstrapContract;
+use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -24,37 +26,31 @@ final class PushDeviceRegistrationService
             throw new RuntimeException('Authenticated user must belong to a tenant before registering a push device.');
         }
 
-        /** @var array<string, mixed> $app */
-        $app = is_array($attributes['app'] ?? null) ? $attributes['app'] : [];
-        /** @var array<string, mixed> $device */
-        $device = is_array($attributes['device'] ?? null) ? $attributes['device'] : [];
-        /** @var array<string, mixed> $runtime */
-        $runtime = is_array($attributes['runtime'] ?? null) ? $attributes['runtime'] : [];
+        $runtime = $this->requiredArray($attributes, 'runtime');
+        $channel = $this->requiredString($attributes, 'channel');
+        $registrationPayload = $this->requiredArray($attributes, 'registration');
 
-        $registration = PushDeviceRegistration::query()->updateOrCreate(
-            [
-                'tenant_id' => $user->tenant_id,
-                'user_id' => $user->id,
-                'installation_id' => $installationId,
-            ],
-            [
-                'platform' => $this->requiredString($attributes, 'platform'),
-                'provider' => $this->requiredString($attributes, 'provider'),
-                'device_name' => $this->requiredString($attributes, 'device_name'),
-                'push_token_plain' => $this->requiredString($attributes, 'push_token'),
-                'last_lifecycle_event' => $this->requiredString($attributes, 'lifecycle_event'),
-                'package_name' => $this->requiredString($app, 'package_name'),
-                'package_version_name' => $this->nullableString($app, 'package_version_name'),
-                'package_version_code' => $this->nullableInt($app, 'package_version_code'),
-                'manufacturer' => $this->nullableString($device, 'manufacturer'),
-                'model' => $this->nullableString($device, 'model'),
-                'android_version' => $this->nullableString($device, 'android_version'),
-                'sdk_int' => $this->nullableInt($device, 'sdk_int'),
-                'bootstrap_version' => $this->requiredString($runtime, 'bootstrap_version'),
-                'schema_version' => $this->requiredInt($runtime, 'schema_version'),
-                'push_metadata_revision' => $this->requiredInt($runtime, 'push_metadata_revision'),
-            ],
-        );
+        $registrationValues = [
+            'device_name' => $this->requiredString($attributes, 'installation_name'),
+            'last_lifecycle_event' => $this->requiredString($attributes, 'lifecycle_event'),
+            'bootstrap_version' => $this->requiredString($runtime, 'bootstrap_version'),
+            'schema_version' => $this->requiredInt($runtime, 'schema_version'),
+            'push_metadata_revision' => $this->requiredInt($runtime, 'metadata_revision'),
+        ];
+
+        foreach (match ($channel) {
+            BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM => $this->androidFcmRegistrationValues($registrationPayload),
+            BootstrapContract::NOTIFICATION_CHANNEL_WEB_PUSH => $this->webPushRegistrationValues($registrationPayload),
+            default => throw new InvalidArgumentException(sprintf('Unsupported notification installation channel "%s".', $channel)),
+        } as $key => $value) {
+            $registrationValues[$key] = $value;
+        }
+
+        $registration = PushDeviceRegistration::query()->updateOrCreate([
+            'tenant_id' => $user->tenant_id,
+            'user_id' => $user->id,
+            'installation_id' => $installationId,
+        ], $registrationValues);
 
         $created = $registration->wasRecentlyCreated;
 
@@ -71,7 +67,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @return array{installation_id: string, revoked_at: string}|null
+     * @return array{installation_id: string, channel: string|null, revoked_at: string}|null
      */
     public function revoke(User $user, string $installationId): ?array
     {
@@ -92,14 +88,99 @@ final class PushDeviceRegistrationService
         $revokedAt = now();
         $registration->delete();
 
+        try {
+            $channel = $registration->notificationChannel();
+        } catch (RuntimeException) {
+            $channel = null;
+        }
+
         return [
             'installation_id' => $installationId,
-            'revoked_at' => $revokedAt->toIso8601String(),
+            'channel' => $channel,
+            'revoked_at' => $revokedAt->utc()->format('Y-m-d\\TH:i:s\\Z'),
         ];
     }
 
     /**
-     * @param  array<string, mixed>  $values
+     * @param  array<array-key, mixed>  $registrationPayload
+     * @return array<string, mixed>
+     */
+    private function androidFcmRegistrationValues(array $registrationPayload): array
+    {
+        $app = $this->requiredArray($registrationPayload, 'app');
+        $device = is_array($registrationPayload['device'] ?? null) ? $registrationPayload['device'] : [];
+
+        return [
+            'platform' => BootstrapContract::CLIENT_PLATFORM_ANDROID,
+            'provider' => BootstrapContract::ANDROID_PUSH_PROVIDER,
+            'push_token_plain' => $this->requiredString($registrationPayload, 'push_token'),
+            'package_name' => $this->requiredString($app, 'package_name'),
+            'package_version_name' => $this->nullableString($app, 'package_version_name'),
+            'package_version_code' => $this->nullableInt($app, 'package_version_code'),
+            'manufacturer' => $this->nullableString($device, 'manufacturer'),
+            'model' => $this->nullableString($device, 'model'),
+            'android_version' => $this->nullableString($device, 'android_version'),
+            'sdk_int' => $this->nullableInt($device, 'sdk_int'),
+            'browser_name' => null,
+            'browser_version' => null,
+            'service_worker_scope' => null,
+            'subscription_endpoint_origin' => null,
+            'subscription_expires_at' => null,
+            'subscription_p256dh_plain' => null,
+            'subscription_auth_plain' => null,
+        ];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $registrationPayload
+     * @return array<string, mixed>
+     */
+    private function webPushRegistrationValues(array $registrationPayload): array
+    {
+        $browser = $this->requiredArray($registrationPayload, 'browser');
+        $subscription = $this->requiredArray($registrationPayload, 'subscription');
+        $subscriptionKeys = $this->requiredArray($subscription, 'keys');
+        $endpoint = $this->requiredString($subscription, 'endpoint');
+
+        return [
+            'platform' => BootstrapContract::CLIENT_PLATFORM_BROWSER,
+            'provider' => BootstrapContract::WEB_PUSH_PROVIDER,
+            'push_token_plain' => $endpoint,
+            'token_last_eight' => substr(hash('sha256', $endpoint), 0, 8),
+            'package_name' => null,
+            'package_version_name' => null,
+            'package_version_code' => null,
+            'manufacturer' => null,
+            'model' => null,
+            'android_version' => null,
+            'sdk_int' => null,
+            'browser_name' => $this->requiredString($browser, 'browser_name'),
+            'browser_version' => $this->nullableString($browser, 'browser_version'),
+            'service_worker_scope' => $this->nullableString($browser, 'service_worker_scope'),
+            'subscription_endpoint_origin' => $this->subscriptionEndpointOrigin($endpoint),
+            'subscription_expires_at' => $this->subscriptionExpirationTimestamp($subscription),
+            'subscription_p256dh_plain' => $this->requiredString($subscriptionKeys, 'p256dh'),
+            'subscription_auth_plain' => $this->requiredString($subscriptionKeys, 'auth'),
+        ];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $values
+     * @return array<array-key, mixed>
+     */
+    private function requiredArray(array $values, string $key): array
+    {
+        $value = $values[$key] ?? null;
+
+        if (! is_array($value)) {
+            throw new InvalidArgumentException(sprintf('Expected array value for "%s".', $key));
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $values
      */
     private function requiredString(array $values, string $key): string
     {
@@ -113,7 +194,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $values
+     * @param  array<array-key, mixed>  $values
      */
     private function nullableString(array $values, string $key): ?string
     {
@@ -131,7 +212,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $values
+     * @param  array<array-key, mixed>  $values
      */
     private function requiredInt(array $values, string $key): int
     {
@@ -145,7 +226,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $values
+     * @param  array<array-key, mixed>  $values
      */
     private function nullableInt(array $values, string $key): ?int
     {
@@ -160,5 +241,47 @@ final class PushDeviceRegistrationService
         }
 
         return $value;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $subscription
+     */
+    private function subscriptionExpirationTimestamp(array $subscription): ?Carbon
+    {
+        $expirationTime = $subscription['expiration_time'] ?? null;
+
+        if ($expirationTime === null) {
+            return null;
+        }
+
+        if (! is_int($expirationTime)) {
+            throw new InvalidArgumentException('Expected integer value for "expiration_time".');
+        }
+
+        return Carbon::createFromTimestampMsUTC($expirationTime);
+    }
+
+    private function subscriptionEndpointOrigin(string $endpoint): string
+    {
+        $components = parse_url($endpoint);
+
+        if (! is_array($components)
+            || ! is_string($components['scheme'] ?? null)
+            || ! is_string($components['host'] ?? null)
+        ) {
+            throw new InvalidArgumentException('Expected a valid absolute URI for "endpoint".');
+        }
+
+        if (strtolower($components['scheme']) !== 'https') {
+            throw new InvalidArgumentException('Expected an HTTPS absolute URI for "endpoint".');
+        }
+
+        $origin = strtolower($components['scheme']).'://'.strtolower($components['host']);
+
+        if (is_int($components['port'] ?? null)) {
+            $origin .= ':'.$components['port'];
+        }
+
+        return $origin;
     }
 }

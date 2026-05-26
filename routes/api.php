@@ -105,9 +105,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/email/verification-notification', [AuthController::class, 'sendVerificationNotification'])
             ->middleware('throttle:6,1');
         Route::get('/me', [AuthController::class, 'me']);
-        Route::put('/me/push-devices/{installationId}', [PushDeviceRegistrationController::class, 'upsert'])
+        Route::put('/me/notification-installations/{installationId}', [PushDeviceRegistrationController::class, 'upsert'])
             ->whereUuid('installationId');
-        Route::delete('/me/push-devices/{installationId}', [PushDeviceRegistrationController::class, 'destroy'])
+        Route::delete('/me/notification-installations/{installationId}', [PushDeviceRegistrationController::class, 'destroy'])
             ->whereUuid('installationId');
 
         Route::middleware('throttle:address-autocomplete')->group(function () {

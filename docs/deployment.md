@@ -93,9 +93,9 @@ Edit `.env` with production values:
 APP_NAME=SecPal
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://customer-api.example
+APP_URL=https://customer-api.secpal.dev
 
-# Public mobile bootstrap (pre-login Android runtime discovery)
+# Public bootstrap (pre-login runtime discovery)
 BOOTSTRAP_PUBLIC_ENABLED=true
 BOOTSTRAP_INSTANCE_DISPLAY_NAME=Customer SecPal
 BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION=1.4.0
@@ -109,6 +109,9 @@ BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY=public-client-api-key-demo-1234567890
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID=secpal-demo-push
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID=1:1234567890:android:abcdef1234567890
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID=1234567890
+BOOTSTRAP_WEB_PUSH_ENABLED=true
+BOOTSTRAP_WEB_PUSH_METADATA_REVISION=5
+BOOTSTRAP_WEB_PUSH_PUBLIC_VAPID_KEY=BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY
 # Customer-owned Android push delivery (backend-only)
 ANDROID_PUSH_FCM_PROJECT_ID=customer-owned-push
 ANDROID_PUSH_FCM_CLIENT_EMAIL=firebase-adminsdk-abc123@customer-owned-push.iam.gserviceaccount.com
@@ -157,7 +160,7 @@ LOG_LEVEL=warning
 - Configure `SESSION_DOMAIN` to match your domain
 - Use environment-specific SMTP credentials
 
-## Public Mobile Bootstrap
+## Public Bootstrap
 
 Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after the deployment-local bootstrap values are configured.
 
@@ -165,28 +168,31 @@ Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after t
 - `APP_NAME` is used as the public instance display name unless `BOOTSTRAP_INSTANCE_DISPLAY_NAME` overrides it.
 - `BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION` and `BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD` are required. If either is missing, the endpoint fails closed with `500 BOOTSTRAP_STATE_INVALID` instead of falling back to SecPal-hosted defaults.
 - Set `BOOTSTRAP_PUBLIC_ENABLED=false` when the deployment should return the documented `503 BOOTSTRAP_CONFIG_UNAVAILABLE` response instead of serving bootstrap metadata.
-- `BOOTSTRAP_PASSWORD_LOGIN_ENABLED`, `BOOTSTRAP_PASSKEY_LOGIN_ENABLED`, `BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED`, and `BOOTSTRAP_ANDROID_PUSH_ENABLED` feed the public pre-login bootstrap feature flags. The canonical shared notification capability surface is `features.notification_channels`, which is exhaustive for the active backend schema and currently returns `android_fcm` plus explicit `web_push=false`.
-- When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the public bootstrap response exposes canonical `notification_channels.android_fcm` runtime metadata with channel `android_fcm`, the deployment-defined `metadata_revision`, and the public Android client metadata fields required for runtime initialization. During the Android transition on `main`, the legacy `android_push` alias with provider `fcm` remains present for existing clients.
+- `BOOTSTRAP_PASSWORD_LOGIN_ENABLED`, `BOOTSTRAP_PASSKEY_LOGIN_ENABLED`, `BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED`, `BOOTSTRAP_ANDROID_PUSH_ENABLED`, and `BOOTSTRAP_WEB_PUSH_ENABLED` feed the public pre-login bootstrap feature flags. The canonical shared notification capability surface is `features.notification_channels`, which is exhaustive for the active backend schema.
+- When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the public bootstrap response exposes canonical `notification_channels.android_fcm` runtime metadata with channel `android_fcm`, the deployment-defined `metadata_revision`, and the public Android client metadata fields required for runtime initialization.
 - When Android FCM bootstrap is enabled, `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID`, `BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID`, and `BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID` are all required. Missing values fail closed with `500 BOOTSTRAP_STATE_INVALID` and channel-aware `notification_channels.android_fcm.*` field paths.
-- `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION` must be incremented whenever any public Android push client metadata changes so authenticated registrations with stale bootstrap state can be rejected deterministically.
-- Only public Android runtime metadata belongs here. Never place server credentials, service-account JSON, or private push delivery secrets in bootstrap configuration.
-- Customer-owned Android push delivery credentials stay backend-only in `ANDROID_PUSH_FCM_*`; they are not read from or exposed through the bootstrap payload.
+- When `BOOTSTRAP_WEB_PUSH_ENABLED=true`, the same bootstrap response exposes canonical `notification_channels.web_push` runtime metadata with channel `web_push`, the deployment-defined `metadata_revision`, and the browser-safe public VAPID key required for Push API subscription creation.
+- When Web Push bootstrap is enabled, `BOOTSTRAP_WEB_PUSH_METADATA_REVISION` and `BOOTSTRAP_WEB_PUSH_PUBLIC_VAPID_KEY` are required. Missing values fail closed with `500 BOOTSTRAP_STATE_INVALID` and channel-aware `notification_channels.web_push.*` field paths.
+- Increment `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION` or `BOOTSTRAP_WEB_PUSH_METADATA_REVISION` whenever the corresponding public client metadata changes so authenticated installation updates with stale bootstrap state can be rejected deterministically.
+- Only public runtime metadata belongs here. Never place server credentials, service-account JSON, private VAPID material, or delivery secrets in bootstrap configuration.
+- Customer-owned Android push delivery credentials stay backend-only in `ANDROID_PUSH_FCM_*`, and Web Push private VAPID material must stay server-side; neither surface is read from or exposed through the bootstrap payload.
 
 Verify the deployed response with the canonical public origin:
 
 ```bash
-curl --fail 'https://customer-api.example/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400'
+curl --fail 'https://customer-api.secpal.dev/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400'
+curl --fail 'https://customer-api.secpal.dev/v1/bootstrap?client_platform=browser'
 ```
 
-### Authenticated Android Push-Device Registration
+### Authenticated Notification Installations
 
-Authenticated Android clients register one stable installation identifier against the selected customer-hosted backend:
+Authenticated Android and browser clients register one stable installation identifier against the selected customer-hosted backend:
 
-- `PUT /v1/me/push-devices/{installationId}` creates or updates the authenticated app installation's push token and runtime metadata.
-- `DELETE /v1/me/push-devices/{installationId}` revokes the selected installation on logout, uninstall, or explicit cleanup.
-- Clients must echo the current `notification_channels.android_fcm.metadata_revision` from `GET /v1/bootstrap` in `runtime.push_metadata_revision`. The shared runtime revision is the same value still mirrored in the transitional `android_push.metadata_revision` alias.
-- When the deployment disables Android push registration, the upsert endpoint fails closed with `409 NOTIFICATION_CHANNEL_UNSUPPORTED` and channel `android_fcm`.
-- When the client presents stale bootstrap metadata, the upsert endpoint fails closed with `409 NOTIFICATION_RUNTIME_STATE_INVALID` and the expected `android_fcm` revision details.
+- `PUT /v1/me/notification-installations/{installationId}` is the canonical create/update surface for both Android FCM (`channel=android_fcm`) and browser Web Push (`channel=web_push`).
+- `DELETE /v1/me/notification-installations/{installationId}` is the canonical revocation surface for logout, uninstall, browser sign-out, or explicit cleanup.
+- Android clients must echo the current `notification_channels.android_fcm.metadata_revision` from `GET /v1/bootstrap` in `runtime.metadata_revision`.
+- Browser clients must echo the current `notification_channels.web_push.metadata_revision` from `GET /v1/bootstrap?client_platform=browser` in `runtime.metadata_revision`, use one stable `installationId` per notification-enabled browser profile/origin, and authenticate through either bearer tokens or the first-party browser session plus CSRF flow.
+- Disabled channels fail closed with `409 NOTIFICATION_CHANNEL_UNSUPPORTED` and the requested channel name. Stale runtime metadata fails closed with `409 NOTIFICATION_RUNTIME_STATE_INVALID` and the expected channel revision details.
 
 ### Customer-Owned Android Push Delivery
 
@@ -202,30 +208,31 @@ Example registration request:
 
 ```bash
 curl --fail-with-body \
-  -X PUT 'https://customer-api.example/v1/me/push-devices/a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b' \
+  -X PUT 'https://customer-api.secpal.dev/v1/me/notification-installations/a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b' \
   -H 'Authorization: Bearer YOUR_API_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{
-    "platform": "android",
-    "provider": "fcm",
-    "device_name": "SM-G556B reception tablet",
-    "push_token": "e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef",
+    "channel": "android_fcm",
+    "installation_name": "SM-G556B reception tablet",
     "lifecycle_event": "registered",
-    "app": {
-      "package_name": "app.secpal",
-      "package_version_name": "1.5.0",
-      "package_version_code": 10500
-    },
-    "device": {
-      "manufacturer": "Samsung",
-      "model": "SM-G556B",
-      "android_version": "16",
-      "sdk_int": 36
-    },
     "runtime": {
       "bootstrap_version": "v1",
-      "schema_version": 2,
-      "push_metadata_revision": 3
+      "schema_version": 3,
+      "metadata_revision": 3
+    },
+    "registration": {
+      "push_token": "e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef",
+      "app": {
+        "package_name": "app.secpal",
+        "package_version_name": "1.5.0",
+        "package_version_code": 10500
+      },
+      "device": {
+        "manufacturer": "Samsung",
+        "model": "SM-G556B",
+        "android_version": "16",
+        "sdk_int": 36
+      }
     }
   }'
 ```

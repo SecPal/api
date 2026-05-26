@@ -61,7 +61,7 @@ function createAndroidPushRegistration(TenantKey $tenant, User $user): PushDevic
         'android_version' => '16',
         'sdk_int' => 36,
         'bootstrap_version' => 'v1',
-        'schema_version' => 2,
+        'schema_version' => 3,
         'push_metadata_revision' => 3,
     ]);
 }

@@ -316,7 +316,7 @@ APP_FALLBACK_LOCALE=en
 APP_FAKER_LOCALE=en_US
 APP_MAINTENANCE_DRIVER=file
 
-# Public mobile bootstrap (pre-login Android runtime discovery)
+# Public bootstrap (pre-login runtime discovery)
 BOOTSTRAP_PUBLIC_ENABLED=true
 BOOTSTRAP_INSTANCE_DISPLAY_NAME=Customer SecPal
 BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION=1.4.0
@@ -330,6 +330,9 @@ BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY=public-client-api-key-demo-1234567890
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_PROJECT_ID=secpal-demo-push
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_APPLICATION_ID=1:1234567890:android:abcdef1234567890
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_SENDER_ID=1234567890
+BOOTSTRAP_WEB_PUSH_ENABLED=true
+BOOTSTRAP_WEB_PUSH_METADATA_REVISION=5
+BOOTSTRAP_WEB_PUSH_PUBLIC_VAPID_KEY=BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY
 ANDROID_PUSH_FCM_PROJECT_ID=customer-owned-push
 ANDROID_PUSH_FCM_CLIENT_EMAIL=firebase-adminsdk-abc123@customer-owned-push.iam.gserviceaccount.com
 ANDROID_PUSH_FCM_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nREPLACE_WITH_DEPLOYMENT_SECRET\n-----END PRIVATE KEY-----\n"
@@ -394,9 +397,9 @@ LOG_LEVEL=warning
 
 `GET /v1/bootstrap` derives the canonical `api_base_url` from `APP_URL` and appends `/v1`. Keep `APP_URL` pointed at the externally reachable API origin, and set the `BOOTSTRAP_MINIMUM_SUPPORTED_APP_*` values before exposing the public bootstrap endpoint on a customer-hosted deployment.
 
-When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the same bootstrap response advertises authenticated notification-channel support through exhaustive `features.notification_channels` flags and returns canonical `notification_channels.android_fcm` runtime metadata with the deployment-defined `metadata_revision` plus the public Android runtime metadata needed by the SDK. Missing `BOOTSTRAP_ANDROID_PUSH_*` public values fail closed with `500 BOOTSTRAP_STATE_INVALID` using `notification_channels.android_fcm.*` field paths; the legacy `android_push` alias remains available during the Android transition on `main`.
+When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the bootstrap response advertises authenticated `android_fcm` support through exhaustive `features.notification_channels` flags and returns canonical `notification_channels.android_fcm` runtime metadata with the deployment-defined `metadata_revision` plus the public Android runtime metadata needed by the SDK. When `BOOTSTRAP_WEB_PUSH_ENABLED=true`, the same response advertises authenticated `web_push` support and returns canonical `notification_channels.web_push` runtime metadata with the deployment-defined `metadata_revision` plus the public VAPID key required by browser Push API clients. Missing `BOOTSTRAP_ANDROID_PUSH_*` or `BOOTSTRAP_WEB_PUSH_*` public values fail closed with `500 BOOTSTRAP_STATE_INVALID` using channel-aware `notification_channels.*` field paths.
 
-Authenticated Android clients register against the selected customer-hosted backend via `PUT /v1/me/push-devices/{installationId}` and revoke via `DELETE /v1/me/push-devices/{installationId}`. Clients must echo the current `notification_channels.android_fcm.metadata_revision` in `runtime.push_metadata_revision`; stale registrations are rejected with `409 NOTIFICATION_RUNTIME_STATE_INVALID`, and deployments with Android push disabled reject registration with `409 NOTIFICATION_CHANNEL_UNSUPPORTED` for channel `android_fcm`.
+Authenticated Android and browser clients register against the selected customer-hosted backend via the canonical `PUT /v1/me/notification-installations/{installationId}` surface and revoke via `DELETE /v1/me/notification-installations/{installationId}`. Clients must echo the current per-channel `notification_channels.<channel>.metadata_revision` in `runtime.metadata_revision`; stale registrations are rejected with `409 NOTIFICATION_RUNTIME_STATE_INVALID`, and deployments with a disabled channel reject registration with `409 NOTIFICATION_CHANNEL_UNSUPPORTED` for that channel.
 
 Customer-owned Android push delivery uses the backend-only `ANDROID_PUSH_FCM_*` secrets above and sends directly to FCM HTTP v1 from the customer-hosted API. Those credentials never appear in `GET /v1/bootstrap`, and missing or invalid values fail closed during delivery instead of falling back to any SecPal-operated routing path.
 
