@@ -10,7 +10,7 @@ namespace App\Services;
 use App\Models\PushDeviceRegistration;
 use App\Models\User;
 use App\Support\BootstrapContract;
-use Carbon\CarbonImmutable;
+use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -98,7 +98,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $registrationPayload
+     * @param  array<array-key, mixed>  $registrationPayload
      */
     private function fillAndroidFcmRegistration(PushDeviceRegistration $registration, array $registrationPayload): void
     {
@@ -125,7 +125,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $registrationPayload
+     * @param  array<array-key, mixed>  $registrationPayload
      */
     private function fillWebPushRegistration(PushDeviceRegistration $registration, array $registrationPayload): void
     {
@@ -155,8 +155,8 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $values
-     * @return array<string, mixed>
+     * @param  array<array-key, mixed>  $values
+     * @return array<array-key, mixed>
      */
     private function requiredArray(array $values, string $key): array
     {
@@ -170,7 +170,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $values
+     * @param  array<array-key, mixed>  $values
      */
     private function requiredString(array $values, string $key): string
     {
@@ -184,7 +184,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $values
+     * @param  array<array-key, mixed>  $values
      */
     private function nullableString(array $values, string $key): ?string
     {
@@ -202,7 +202,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $values
+     * @param  array<array-key, mixed>  $values
      */
     private function requiredInt(array $values, string $key): int
     {
@@ -216,7 +216,7 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $values
+     * @param  array<array-key, mixed>  $values
      */
     private function nullableInt(array $values, string $key): ?int
     {
@@ -234,9 +234,9 @@ final class PushDeviceRegistrationService
     }
 
     /**
-     * @param  array<string, mixed>  $subscription
+     * @param  array<array-key, mixed>  $subscription
      */
-    private function subscriptionExpirationTimestamp(array $subscription): ?CarbonImmutable
+    private function subscriptionExpirationTimestamp(array $subscription): ?Carbon
     {
         $expirationTime = $subscription['expiration_time'] ?? null;
 
@@ -248,7 +248,7 @@ final class PushDeviceRegistrationService
             throw new InvalidArgumentException('Expected integer value for "expiration_time".');
         }
 
-        return CarbonImmutable::createFromTimestampMsUTC($expirationTime);
+        return Carbon::createFromTimestampMsUTC($expirationTime);
     }
 
     private function subscriptionEndpointOrigin(string $endpoint): string

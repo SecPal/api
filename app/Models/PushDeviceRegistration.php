@@ -24,7 +24,7 @@ use RuntimeException;
  * @property string $push_token_enc
  * @property string $token_last_eight
  * @property string $last_lifecycle_event
- * @property string $package_name
+ * @property string|null $package_name
  * @property string|null $package_version_name
  * @property int|null $package_version_code
  * @property string|null $manufacturer
@@ -37,7 +37,7 @@ use RuntimeException;
  * @property string|null $subscription_endpoint_origin
  * @property string|null $subscription_p256dh_enc
  * @property string|null $subscription_auth_enc
- * @property \Illuminate\Support\Carbon|null $subscription_expires_at
+ * @property \Illuminate\Support\Carbon|\Carbon\CarbonImmutable|null $subscription_expires_at
  * @property string $bootstrap_version
  * @property int $schema_version
  * @property int $push_metadata_revision
@@ -217,8 +217,8 @@ class PushDeviceRegistration extends Model
         ];
     }
 
-    private function isoUtc(\Illuminate\Support\Carbon $timestamp): string
+    private function isoUtc(\DateTimeInterface $timestamp): string
     {
-        return $timestamp->utc()->format('Y-m-d\\TH:i:s\\Z');
+        return \Illuminate\Support\Carbon::instance($timestamp)->utc()->format('Y-m-d\\TH:i:s\\Z');
     }
 }
