@@ -137,7 +137,7 @@ final class PushDeviceRegistrationService
         return [
             'platform' => BootstrapContract::CLIENT_PLATFORM_BROWSER,
             'provider' => BootstrapContract::WEB_PUSH_PROVIDER,
-            'push_token_enc' => $endpoint,
+            'push_token_plain' => $endpoint,
             'token_last_eight' => substr(hash('sha256', $endpoint), 0, 8),
             'package_name' => null,
             'package_version_name' => null,

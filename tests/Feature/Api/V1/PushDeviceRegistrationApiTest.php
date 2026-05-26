@@ -217,6 +217,7 @@ test('session-authenticated browser user can create a web push notification inst
 
     $installationId = 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c';
     $endpoint = 'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890';
+    $credentialReference = substr(hash('sha256', $endpoint), 0, 8);
 
     $response = $this->withHeaders(spaCsrfHeaders($this))
         ->putJson('/v1/me/notification-installations/'.$installationId, webPushPayload($endpoint));
@@ -225,6 +226,7 @@ test('session-authenticated browser user can create a web push notification inst
         ->assertJsonPath('data.installation_id', $installationId)
         ->assertJsonPath('data.channel', 'web_push')
         ->assertJsonPath('data.installation_name', 'Chrome workstation notifications')
+        ->assertJsonPath('data.credential_reference', $credentialReference)
         ->assertJsonPath('data.last_lifecycle_event', 'registered')
         ->assertJsonPath('data.registration.browser.browser_name', 'Chrome')
         ->assertJsonPath('data.registration.browser.browser_version', '136.0.7103.114')
@@ -244,6 +246,7 @@ test('session-authenticated browser user can create a web push notification inst
         'platform' => 'browser',
         'provider' => 'web_push',
         'device_name' => 'Chrome workstation notifications',
+        'token_last_eight' => $credentialReference,
         'browser_name' => 'Chrome',
         'browser_version' => '136.0.7103.114',
         'service_worker_scope' => '/',
@@ -286,19 +289,19 @@ test('session-authenticated browser user can rotate an existing web push notific
     loginBrowserSession($this, $user);
 
     $installationId = 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c';
+    $createdEndpoint = 'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890';
+    $updatedEndpoint = 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABoQnRhdGVkLWtleS0xMjM0NTY3ODkw';
+    $createdCredentialReference = substr(hash('sha256', $createdEndpoint), 0, 8);
+    $updatedCredentialReference = substr(hash('sha256', $updatedEndpoint), 0, 8);
 
     $createdResponse = $this->withHeaders(spaCsrfHeaders($this))
-        ->putJson('/v1/me/notification-installations/'.$installationId, webPushPayload(
-            'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890'
-        ));
+        ->putJson('/v1/me/notification-installations/'.$installationId, webPushPayload($createdEndpoint));
 
     $createdResponse->assertCreated();
 
     $updatedResponse = $this->withHeaders(spaCsrfHeaders($this))
         ->putJson('/v1/me/notification-installations/'.$installationId, [
-            ...webPushPayload(
-                'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABoQnRhdGVkLWtleS0xMjM0NTY3ODkw'
-            ),
+            ...webPushPayload($updatedEndpoint),
             'lifecycle_event' => 'credential_rotated',
             'registration' => [
                 'browser' => [
@@ -307,7 +310,7 @@ test('session-authenticated browser user can rotate an existing web push notific
                     'service_worker_scope' => '/',
                 ],
                 'subscription' => [
-                    'endpoint' => 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABoQnRhdGVkLWtleS0xMjM0NTY3ODkw',
+                    'endpoint' => $updatedEndpoint,
                     'expiration_time' => 1782561600000,
                     'keys' => [
                         'p256dh' => 'BMozillaRotatedP256dh0123456789abcdefghijklmnopqrstu',
@@ -321,6 +324,7 @@ test('session-authenticated browser user can rotate an existing web push notific
         ->assertJsonPath('data.installation_id', $installationId)
         ->assertJsonPath('data.channel', 'web_push')
         ->assertJsonPath('data.installation_name', 'Chrome workstation notifications')
+        ->assertJsonPath('data.credential_reference', $updatedCredentialReference)
         ->assertJsonPath('data.last_lifecycle_event', 'credential_rotated')
         ->assertJsonPath('data.registration.browser.browser_name', 'Firefox')
         ->assertJsonPath('data.registration.browser.browser_version', '138.0')
@@ -328,10 +332,8 @@ test('session-authenticated browser user can rotate an existing web push notific
         ->assertJsonPath('data.registration.subscription_expires_at', '2026-06-27T12:00:00Z')
         ->assertJsonPath('data.runtime.metadata_revision', 5);
 
-    expect($updatedResponse->json('data.credential_reference'))
-        ->toBeString()
-        ->toHaveLength(8)
-        ->not->toBe($createdResponse->json('data.credential_reference'));
+    expect($createdResponse->json('data.credential_reference'))->toBe($createdCredentialReference);
+    expect($updatedResponse->json('data.credential_reference'))->not->toBe($createdCredentialReference);
 
     expect(DB::table('push_device_registrations')
         ->where('tenant_id', $tenant->id)
