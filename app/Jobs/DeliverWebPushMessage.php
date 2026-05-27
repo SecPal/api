@@ -64,6 +64,8 @@ final class DeliverWebPushMessage implements ShouldQueue
             $deliveryService->send($registration, $this->title, $this->body, $this->data);
         } catch (RuntimeException $exception) {
             $this->fail($exception);
+
+            return;
         }
     }
 }

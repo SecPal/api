@@ -29,7 +29,6 @@ beforeEach(function (): void {
         'services.web_push.private_key' => '4AqAyV7R7cFAKE4tYEXAMPLEd91SOA45Qjmj1UzYQ0Wc',
         'services.web_push.ttl' => 900,
         'services.web_push.urgency' => 'high',
-        'services.web_push.batch_size' => 64,
         'services.web_push.connect_timeout' => 5,
         'services.web_push.timeout' => 20,
     ]);
