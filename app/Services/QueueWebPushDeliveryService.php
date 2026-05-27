@@ -26,15 +26,19 @@ final class QueueWebPushDeliveryService
             return [];
         }
 
-        $matchingIds = PushDeviceRegistration::query()
+        $matchingLookup = [];
+
+        foreach (PushDeviceRegistration::query()
             ->where('tenant_id', $tenantId)
             ->whereIn('id', $normalizedIds)
             ->where('platform', BootstrapContract::CLIENT_PLATFORM_BROWSER)
             ->where('provider', BootstrapContract::WEB_PUSH_PROVIDER)
-            ->pluck('id')
-            ->all();
+            ->pluck('id') as $matchingId) {
+            if (is_string($matchingId) && $matchingId !== '') {
+                $matchingLookup[$matchingId] = true;
+            }
+        }
 
-        $matchingLookup = array_fill_keys($matchingIds, true);
         $queuedIds = [];
 
         foreach ($normalizedIds as $registrationId) {
