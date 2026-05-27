@@ -157,7 +157,7 @@ test('job makes no delivery attempts when web push vapid credentials are missing
     $job->assertFailedWith('Web push delivery is not configured for this deployment.');
 });
 
-test('job fails cleanly when delivery service throws a RuntimeException', function (): void {
+test('job allows queue retries when delivery service throws a RuntimeException', function (): void {
     $registration = createQueuedWebPushRegistration($this->tenant, $this->user);
 
     $deliveryService = Mockery::mock(WebPushDeliveryServiceInterface::class);
@@ -165,16 +165,15 @@ test('job fails cleanly when delivery service throws a RuntimeException', functi
         ->once()
         ->andThrow(new RuntimeException('Web push endpoint origin does not match the stored subscription origin.'));
 
-    $job = (new DeliverWebPushMessage(
+    $job = new DeliverWebPushMessage(
         $registration->id,
         'Compliance alert',
         'Permit expires soon.',
         ['category' => 'compliance_alert'],
-    ))->withFakeQueueInteractions();
+    );
 
-    $job->handle($deliveryService, app(WebPushDeliveryConfiguration::class));
-
-    $job->assertFailed();
+    expect(fn () => $job->handle($deliveryService, app(WebPushDeliveryConfiguration::class)))
+        ->toThrow(RuntimeException::class, 'Web push endpoint origin does not match the stored subscription origin.');
 });
 
 test('queue dispatcher scopes queued web push delivery to the tenant and deduplicates the targeted subscription set', function (): void {
