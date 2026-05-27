@@ -231,6 +231,60 @@ test('service treats transient push-service failures as retryable and does not l
     ]);
 });
 
+test('service rejects delivery when the decrypted endpoint origin does not match the stored subscription origin', function (): void {
+    $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
+
+    $registration->getConnection()
+        ->table('push_device_registrations')
+        ->where('id', $registration->id)
+        ->update(['subscription_endpoint_origin' => 'https://attacker.internal']);
+
+    $freshRegistration = PushDeviceRegistration::query()->findOrFail($registration->id);
+
+    $transport = Mockery::mock(WebPushTransportInterface::class);
+    $transport->shouldNotReceive('send');
+
+    app()->instance(WebPushTransportInterface::class, $transport);
+
+    expect(fn () => app(WebPushDeliveryService::class)->send(
+        $freshRegistration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    ))->toThrow(RuntimeException::class, 'Web push endpoint origin does not match the stored subscription origin.');
+
+    $this->assertDatabaseHas('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+});
+
+test('service rejects delivery when the stored subscription origin is null', function (): void {
+    $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
+
+    $registration->getConnection()
+        ->table('push_device_registrations')
+        ->where('id', $registration->id)
+        ->update(['subscription_endpoint_origin' => null]);
+
+    $freshRegistration = PushDeviceRegistration::query()->findOrFail($registration->id);
+
+    $transport = Mockery::mock(WebPushTransportInterface::class);
+    $transport->shouldNotReceive('send');
+
+    app()->instance(WebPushTransportInterface::class, $transport);
+
+    expect(fn () => app(WebPushDeliveryService::class)->send(
+        $freshRegistration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    ))->toThrow(RuntimeException::class, 'Web push endpoint origin does not match the stored subscription origin.');
+
+    $this->assertDatabaseHas('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+});
+
 test('service deletes the registration when encrypted browser subscription material is corrupted', function (): void {
     $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
 

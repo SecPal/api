@@ -15,6 +15,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use RuntimeException;
 
 final class DeliverWebPushMessage implements ShouldQueue
 {
@@ -59,6 +60,10 @@ final class DeliverWebPushMessage implements ShouldQueue
             return;
         }
 
-        $deliveryService->send($registration, $this->title, $this->body, $this->data);
+        try {
+            $deliveryService->send($registration, $this->title, $this->body, $this->data);
+        } catch (RuntimeException $exception) {
+            $this->fail($exception);
+        }
     }
 }

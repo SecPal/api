@@ -98,6 +98,8 @@ final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
             throw new RuntimeException('Web push delivery requires a decryptable browser subscription.');
         }
 
+        $this->assertEndpointOriginMatches($endpoint, $registration->subscription_endpoint_origin);
+
         return [
             'endpoint' => $endpoint,
             'contentEncoding' => 'aes128gcm',
@@ -106,6 +108,29 @@ final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
                 'auth' => $auth,
             ],
         ];
+    }
+
+    private function assertEndpointOriginMatches(string $endpoint, ?string $storedOrigin): void
+    {
+        $components = parse_url($endpoint);
+
+        if (! is_array($components)
+            || ! is_string($components['scheme'] ?? null)
+            || ! is_string($components['host'] ?? null)
+            || strtolower($components['scheme']) !== 'https'
+        ) {
+            throw new RuntimeException('Web push endpoint must be a valid HTTPS URL.');
+        }
+
+        $endpointOrigin = strtolower($components['scheme']).'://'.strtolower($components['host']);
+
+        if (isset($components['port']) && is_int($components['port'])) {
+            $endpointOrigin .= ':'.$components['port'];
+        }
+
+        if ($storedOrigin === null || strtolower($storedOrigin) !== $endpointOrigin) {
+            throw new RuntimeException('Web push endpoint origin does not match the stored subscription origin.');
+        }
     }
 
     /**
