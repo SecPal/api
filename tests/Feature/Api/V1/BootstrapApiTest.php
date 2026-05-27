@@ -133,7 +133,7 @@ test('public bootstrap never exposes server side web push delivery credentials',
         'bootstrap.features.notification_channels.web_push' => true,
         'bootstrap.notification_channels.web_push.metadata_revision' => 5,
         'bootstrap.notification_channels.web_push.public_runtime_metadata.vapid_public_key' => 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY',
-        'services.web_push.subject' => 'mailto:notifications@customer.example',
+        'services.web_push.subject' => 'mailto:notifications@secpal.dev',
         'services.web_push.private_key' => 'server-only-web-push-secret',
     ]);
 
@@ -144,7 +144,7 @@ test('public bootstrap never exposes server side web push delivery credentials',
         ->assertJsonMissingPath('data.notification_channels.web_push.public_runtime_metadata.private_key');
 
     expect($response->getContent())
-        ->not->toContain('notifications@customer.example')
+        ->not->toContain('notifications@secpal.dev')
         ->not->toContain('server-only-web-push-secret');
 });
 

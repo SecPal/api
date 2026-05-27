@@ -28,13 +28,15 @@ final class WebPushTransport implements WebPushTransportInterface
      */
     public function send(array $subscription, string $payload, array $options = []): WebPushTransportResult
     {
+        $vapidConfig = [
+            'subject' => $this->requiredConfigValue($this->configuration->subject()),
+            'publicKey' => $this->requiredConfigValue($this->configuration->publicKey()),
+            'privateKey' => $this->requiredConfigValue($this->configuration->privateKey()),
+        ];
+
         try {
             $webPush = new WebPush([
-                'VAPID' => [
-                    'subject' => $this->requiredConfigValue($this->configuration->subject()),
-                    'publicKey' => $this->requiredConfigValue($this->configuration->publicKey()),
-                    'privateKey' => $this->requiredConfigValue($this->configuration->privateKey()),
-                ],
+                'VAPID' => $vapidConfig,
             ], [], null, [
                 RequestOptions::ALLOW_REDIRECTS => false,
                 RequestOptions::CONNECT_TIMEOUT => $this->configuration->connectTimeout(),

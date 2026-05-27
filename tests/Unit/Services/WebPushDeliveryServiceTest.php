@@ -25,7 +25,7 @@ beforeEach(function (): void {
 
     config([
         'services.web_push.public_key' => 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY',
-        'services.web_push.subject' => 'mailto:notifications@customer.example',
+        'services.web_push.subject' => 'mailto:notifications@secpal.dev',
         'services.web_push.private_key' => '4AqAyV7R7cFAKE4tYEXAMPLEd91SOA45Qjmj1UzYQ0Wc',
         'services.web_push.ttl' => 900,
         'services.web_push.urgency' => 'high',
