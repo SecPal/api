@@ -238,6 +238,10 @@ test('session-authenticated browser user can create a web push notification inst
         ->assertJsonPath('data.runtime.metadata_revision', 5);
 
     expect($response->json('data.credential_reference'))->toBeString()->toHaveLength(8);
+    expect($response->getContent())
+        ->not->toContain($endpoint)
+        ->not->toContain('BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv')
+        ->not->toContain('K7d9Lm2PqRs');
 
     $this->assertDatabaseHas('push_device_registrations', [
         'tenant_id' => $tenant->id,

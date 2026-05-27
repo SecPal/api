@@ -340,6 +340,12 @@ ANDROID_PUSH_FCM_TOKEN_URI=https://oauth2.googleapis.com/token
 ANDROID_PUSH_FCM_API_BASE_URL=https://fcm.googleapis.com
 ANDROID_PUSH_FCM_CONNECT_TIMEOUT=5
 ANDROID_PUSH_FCM_TIMEOUT=10
+WEB_PUSH_VAPID_SUBJECT=mailto:notifications@secpal.dev
+WEB_PUSH_VAPID_PRIVATE_KEY=REPLACE_WITH_BASE64URL_VAPID_PRIVATE_KEY
+WEB_PUSH_DELIVERY_TTL=300
+WEB_PUSH_DELIVERY_URGENCY=normal
+WEB_PUSH_DELIVERY_CONNECT_TIMEOUT=5
+WEB_PUSH_DELIVERY_TIMEOUT=20
 BOOTSTRAP_RETRYABLE=true
 BOOTSTRAP_RETRY_AFTER_SECONDS=60
 
@@ -404,6 +410,8 @@ Authenticated Android and browser clients register against the selected customer
 Customer-owned Android push delivery uses the backend-only `ANDROID_PUSH_FCM_*` secrets above and sends directly to FCM HTTP v1 from the customer-hosted API. Those credentials never appear in `GET /v1/bootstrap`, and missing or invalid values fail closed during delivery instead of falling back to any SecPal-operated routing path.
 
 The queueable delivery primitive is `App\Jobs\DeliverAndroidPushMessage` on the default queue. Keep the default queue worker running, and expect delivery outcomes such as `UNREGISTERED`, `SENDER_ID_MISMATCH`, or token-specific invalid-argument responses to delete the stored device registration so clients must re-register.
+
+Customer-owned browser Web Push delivery uses the backend-only `WEB_PUSH_VAPID_*` and `WEB_PUSH_DELIVERY_*` settings together with the existing public `BOOTSTRAP_WEB_PUSH_PUBLIC_VAPID_KEY`. The audited `minishlink/web-push` library signs and encrypts delivery directly from the customer-hosted API, `App\Services\QueueWebPushDeliveryService::dispatchToRegistrations()` deduplicates targeted browser registration ids per tenant before enqueueing `App\Jobs\DeliverWebPushMessage`, and stale browser subscriptions (`subscription_expires_at`, corrupted stored material, or push-service `404` / `410`) are deleted so the next authenticated browser session must re-register. Private VAPID credentials plus full subscription endpoints and keys never appear in `GET /v1/bootstrap` or API resources.
 
 ## Client Configuration
 
