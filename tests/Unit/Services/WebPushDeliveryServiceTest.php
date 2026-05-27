@@ -349,3 +349,35 @@ test('service deletes malformed browser subscriptions before attempting delivery
         'id' => $registration->id,
     ]);
 });
+
+test('service deletes browser subscriptions with short auth secrets before attempting delivery', function (): void {
+    $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
+
+    $registration->subscription_auth_plain = 'AgICAgICAgI';
+    $registration->save();
+
+    $freshRegistration = PushDeviceRegistration::query()->findOrFail($registration->id);
+
+    $transport = Mockery::mock(WebPushTransportInterface::class);
+    $transport->shouldNotReceive('send');
+
+    app()->instance(WebPushTransportInterface::class, $transport);
+
+    $result = app(WebPushDeliveryService::class)->send(
+        $freshRegistration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    );
+
+    expect($result)->toBe([
+        'delivered' => false,
+        'stale_subscription' => true,
+        'stale_reason' => 'invalid_subscription',
+        'provider_status_code' => null,
+    ]);
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+});

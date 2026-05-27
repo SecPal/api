@@ -130,7 +130,7 @@ final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
             throw new InvalidArgumentException('Web push subscription keys are invalid.');
         }
 
-        if ($decodedAuth === '') {
+        if (strlen($decodedAuth) !== 16) {
             throw new InvalidArgumentException('Web push subscription keys are invalid.');
         }
     }
