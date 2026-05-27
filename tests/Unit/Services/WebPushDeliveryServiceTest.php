@@ -381,3 +381,35 @@ test('service deletes browser subscriptions with short auth secrets before attem
         'id' => $registration->id,
     ]);
 });
+
+test('service deletes browser subscriptions when transport fails before provider response due to an invalid p256dh key', function (): void {
+    $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
+
+    $transport = Mockery::mock(WebPushTransportInterface::class);
+    $transport->shouldReceive('send')
+        ->once()
+        ->andThrow(new RuntimeException(
+            'Web push delivery request failed before the push service responded.',
+            previous: new RuntimeException('Unable to compute the agreement key.'),
+        ));
+
+    app()->instance(WebPushTransportInterface::class, $transport);
+
+    $result = app(WebPushDeliveryService::class)->send(
+        $registration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    );
+
+    expect($result)->toBe([
+        'delivered' => false,
+        'stale_subscription' => true,
+        'stale_reason' => 'invalid_subscription',
+        'provider_status_code' => null,
+    ]);
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+});

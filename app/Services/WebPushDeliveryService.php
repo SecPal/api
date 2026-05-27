@@ -20,6 +20,15 @@ use RuntimeException;
 
 final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
 {
+    /**
+     * @var list<string>
+     */
+    private const INVALID_SUBSCRIPTION_TRANSPORT_ERRORS = [
+        'Invalid client public key length.',
+        'Invalid data: only uncompressed keys are supported.',
+        'Unable to compute the agreement key.',
+    ];
+
     public function __construct(
         private readonly WebPushDeliveryConfiguration $configuration,
         private readonly WebPushTransportInterface $transport,
@@ -63,11 +72,21 @@ final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
             throw new RuntimeException('Unable to encode the Web push delivery payload.', previous: $exception);
         }
 
-        $result = $this->transport->send($subscription, $payload, [
-            'TTL' => $this->configuration->ttl(),
-            'urgency' => $this->configuration->urgency(),
-            'contentType' => 'application/json',
-        ]);
+        try {
+            $result = $this->transport->send($subscription, $payload, [
+                'TTL' => $this->configuration->ttl(),
+                'urgency' => $this->configuration->urgency(),
+                'contentType' => 'application/json',
+            ]);
+        } catch (RuntimeException $exception) {
+            if ($this->isInvalidSubscriptionTransportFailure($exception)) {
+                $registration->delete();
+
+                return $this->staleSubscriptionResult('invalid_subscription');
+            }
+
+            throw $exception;
+        }
 
         if ($result->successful) {
             return [
@@ -156,6 +175,21 @@ final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
         if ($storedOrigin === null || strtolower($storedOrigin) !== $endpointOrigin) {
             throw new RuntimeException('Web push endpoint origin does not match the stored subscription origin.');
         }
+    }
+
+    private function isInvalidSubscriptionTransportFailure(RuntimeException $exception): bool
+    {
+        if ($exception->getMessage() !== 'Web push delivery request failed before the push service responded.') {
+            return false;
+        }
+
+        for ($previous = $exception->getPrevious(); $previous !== null; $previous = $previous->getPrevious()) {
+            if (in_array($previous->getMessage(), self::INVALID_SUBSCRIPTION_TRANSPORT_ERRORS, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
