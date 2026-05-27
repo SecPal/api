@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Contracts\WebPushTransportInterface;
 use App\Support\WebPushDeliveryConfiguration;
 use App\Support\WebPushTransportResult;
 use GuzzleHttp\RequestOptions;
@@ -15,7 +16,7 @@ use Minishlink\WebPush\WebPush;
 use RuntimeException;
 use Throwable;
 
-class WebPushTransport
+final class WebPushTransport implements WebPushTransportInterface
 {
     public function __construct(
         private readonly WebPushDeliveryConfiguration $configuration,

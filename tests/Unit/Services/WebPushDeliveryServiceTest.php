@@ -5,11 +5,11 @@
 
 declare(strict_types=1);
 
+use App\Contracts\WebPushTransportInterface;
 use App\Models\PushDeviceRegistration;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\WebPushDeliveryService;
-use App\Services\WebPushTransport;
 use App\Support\WebPushTransportResult;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -68,7 +68,7 @@ function createWebPushDeliveryRegistration(TenantKey $tenant, User $user, ?strin
 test('service sends customer-owned web push notifications against the stored browser subscription', function (): void {
     $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
 
-    $transport = Mockery::mock(WebPushTransport::class);
+    $transport = Mockery::mock(WebPushTransportInterface::class);
     $transport->shouldReceive('send')
         ->once()
         ->withArgs(function (array $subscription, string $payload, array $options): bool {
@@ -100,7 +100,7 @@ test('service sends customer-owned web push notifications against the stored bro
             subscriptionExpired: false,
         ));
 
-    app()->instance(WebPushTransport::class, $transport);
+    app()->instance(WebPushTransportInterface::class, $transport);
 
     $result = app(WebPushDeliveryService::class)->send(
         $registration,
@@ -124,7 +124,7 @@ test('service sends customer-owned web push notifications against the stored bro
 test('service deletes stale browser subscriptions when the push service reports expiration', function (): void {
     $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
 
-    $transport = Mockery::mock(WebPushTransport::class);
+    $transport = Mockery::mock(WebPushTransportInterface::class);
     $transport->shouldReceive('send')
         ->once()
         ->andReturn(new WebPushTransportResult(
@@ -133,7 +133,7 @@ test('service deletes stale browser subscriptions when the push service reports 
             subscriptionExpired: true,
         ));
 
-    app()->instance(WebPushTransport::class, $transport);
+    app()->instance(WebPushTransportInterface::class, $transport);
 
     $result = app(WebPushDeliveryService::class)->send(
         $registration,
@@ -157,7 +157,7 @@ test('service deletes stale browser subscriptions when the push service reports 
 test('service treats transient push-service failures as retryable and does not leak subscription material', function (): void {
     $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
 
-    $transport = Mockery::mock(WebPushTransport::class);
+    $transport = Mockery::mock(WebPushTransportInterface::class);
     $transport->shouldReceive('send')
         ->once()
         ->andReturn(new WebPushTransportResult(
@@ -166,7 +166,7 @@ test('service treats transient push-service failures as retryable and does not l
             subscriptionExpired: false,
         ));
 
-    app()->instance(WebPushTransport::class, $transport);
+    app()->instance(WebPushTransportInterface::class, $transport);
 
     $exception = null;
 
@@ -202,10 +202,10 @@ test('service deletes the registration when encrypted browser subscription mater
 
     $freshRegistration = PushDeviceRegistration::query()->findOrFail($registration->id);
 
-    $transport = Mockery::mock(WebPushTransport::class);
+    $transport = Mockery::mock(WebPushTransportInterface::class);
     $transport->shouldNotReceive('send');
 
-    app()->instance(WebPushTransport::class, $transport);
+    app()->instance(WebPushTransportInterface::class, $transport);
 
     $result = app(WebPushDeliveryService::class)->send(
         $freshRegistration,

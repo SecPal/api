@@ -5,12 +5,12 @@
 
 declare(strict_types=1);
 
+use App\Contracts\WebPushDeliveryServiceInterface;
 use App\Jobs\DeliverWebPushMessage;
 use App\Models\PushDeviceRegistration;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\QueueWebPushDeliveryService;
-use App\Services\WebPushDeliveryService;
 use App\Support\BootstrapContract;
 use App\Support\WebPushDeliveryConfiguration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -94,7 +94,7 @@ function createQueuedAndroidRegistration(TenantKey $tenant, User $user, string $
 test('job dispatches web push delivery for an existing registration', function (): void {
     $registration = createQueuedWebPushRegistration($this->tenant, $this->user);
 
-    $deliveryService = Mockery::mock(WebPushDeliveryService::class);
+    $deliveryService = Mockery::mock(WebPushDeliveryServiceInterface::class);
     $deliveryService->shouldReceive('send')
         ->once()
         ->withArgs(function (PushDeviceRegistration $queuedRegistration, string $title, string $body, array $data) use ($registration): bool {
@@ -119,7 +119,7 @@ test('job dispatches web push delivery for an existing registration', function (
 });
 
 test('job skips missing registrations', function (): void {
-    $deliveryService = Mockery::mock(WebPushDeliveryService::class);
+    $deliveryService = Mockery::mock(WebPushDeliveryServiceInterface::class);
     $deliveryService->shouldNotReceive('send');
 
     $job = (new DeliverWebPushMessage(
@@ -142,7 +142,7 @@ test('job makes no delivery attempts when web push vapid credentials are missing
         'services.web_push.private_key' => null,
     ]);
 
-    $deliveryService = Mockery::mock(WebPushDeliveryService::class);
+    $deliveryService = Mockery::mock(WebPushDeliveryServiceInterface::class);
     $deliveryService->shouldNotReceive('send');
 
     $job = (new DeliverWebPushMessage(

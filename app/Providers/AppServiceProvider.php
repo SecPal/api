@@ -6,6 +6,8 @@
 namespace App\Providers;
 
 use App\Contracts\ProcessExecutor;
+use App\Contracts\WebPushDeliveryServiceInterface;
+use App\Contracts\WebPushTransportInterface;
 use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
@@ -36,6 +38,8 @@ use App\Policies\SiteAssignmentPolicy;
 use App\Policies\SitePolicy;
 use App\Services\RuntimeHeartbeatService;
 use App\Services\SystemProcessExecutor;
+use App\Services\WebPushDeliveryService;
+use App\Services\WebPushTransport;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\ScheduledTaskStarting;
 use Illuminate\Http\JsonResponse;
@@ -58,8 +62,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Bind ProcessExecutor interface to SystemProcessExecutor
         $this->app->bind(ProcessExecutor::class, SystemProcessExecutor::class);
+        $this->app->bind(WebPushTransportInterface::class, WebPushTransport::class);
+        $this->app->bind(WebPushDeliveryServiceInterface::class, WebPushDeliveryService::class);
     }
 
     /**

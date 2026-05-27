@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Contracts\WebPushDeliveryServiceInterface;
+use App\Contracts\WebPushTransportInterface;
 use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Models\PushDeviceRegistration;
 use App\Support\PushMessageDataNormalizer;
@@ -14,11 +16,11 @@ use App\Support\WebPushDeliveryConfiguration;
 use JsonException;
 use RuntimeException;
 
-class WebPushDeliveryService
+final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
 {
     public function __construct(
         private readonly WebPushDeliveryConfiguration $configuration,
-        private readonly WebPushTransport $transport,
+        private readonly WebPushTransportInterface $transport,
     ) {}
 
     /**

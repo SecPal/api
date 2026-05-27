@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Contracts\WebPushDeliveryServiceInterface;
 use App\Models\PushDeviceRegistration;
-use App\Services\WebPushDeliveryService;
 use App\Support\WebPushDeliveryConfiguration;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -45,7 +45,7 @@ final class DeliverWebPushMessage implements ShouldQueue
         return [10, 60, 300];
     }
 
-    public function handle(WebPushDeliveryService $deliveryService, WebPushDeliveryConfiguration $configuration): void
+    public function handle(WebPushDeliveryServiceInterface $deliveryService, WebPushDeliveryConfiguration $configuration): void
     {
         $registration = PushDeviceRegistration::query()->find($this->pushDeviceRegistrationId);
 
