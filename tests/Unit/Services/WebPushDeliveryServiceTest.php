@@ -76,6 +76,7 @@ test('service sends customer-owned web push notifications against the stored bro
 
             return $subscription === [
                 'endpoint' => 'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890',
+                'contentEncoding' => 'aes128gcm',
                 'keys' => [
                     'p256dh' => 'BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv',
                     'auth' => 'K7d9Lm2PqRs',
@@ -119,6 +120,44 @@ test('service sends customer-owned web push notifications against the stored bro
     $this->assertDatabaseHas('push_device_registrations', [
         'id' => $registration->id,
     ]);
+});
+
+test('service preserves a zero web push ttl for online-only delivery', function (): void {
+    $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
+
+    config([
+        'services.web_push.ttl' => 0,
+    ]);
+
+    $transport = Mockery::mock(WebPushTransportInterface::class);
+    $transport->shouldReceive('send')
+        ->once()
+        ->withArgs(function (array $subscription, string $payload, array $options): bool {
+            return ($subscription['contentEncoding'] ?? null) === 'aes128gcm'
+                && $payload === '{"title":"Compliance alert","body":"Permit expires soon.","data":{"category":"compliance_alert"}}'
+                && $options === [
+                    'TTL' => 0,
+                    'urgency' => 'high',
+                    'contentType' => 'application/json',
+                ];
+        })
+        ->andReturn(new WebPushTransportResult(
+            successful: true,
+            statusCode: 201,
+            subscriptionExpired: false,
+        ));
+
+    app()->instance(WebPushTransportInterface::class, $transport);
+
+    $result = app(WebPushDeliveryService::class)->send(
+        $registration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    );
+
+    expect($result['provider_status_code'])->toBe(201)
+        ->and($result['delivered'])->toBeTrue();
 });
 
 test('service deletes stale browser subscriptions when the push service reports expiration', function (): void {

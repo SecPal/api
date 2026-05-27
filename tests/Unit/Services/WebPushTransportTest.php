@@ -31,3 +31,15 @@ test('transport surfaces the direct missing web push configuration error', funct
     ], '{"title":"Compliance alert"}'))
         ->toThrow(RuntimeException::class, 'Web push delivery is not configured for this deployment.');
 });
+
+test('transport rejects subscription endpoints outside the allowed browser push services', function (): void {
+    expect(fn (): mixed => app(WebPushTransport::class)->send([
+        'endpoint' => 'https://internal.service/push/subscription',
+        'contentEncoding' => 'aes128gcm',
+        'keys' => [
+            'p256dh' => 'BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv',
+            'auth' => 'K7d9Lm2PqRs',
+        ],
+    ], '{"title":"Compliance alert"}'))
+        ->toThrow(RuntimeException::class, 'Web push delivery requires an allowed browser push service endpoint.');
+});

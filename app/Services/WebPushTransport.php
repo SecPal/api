@@ -18,6 +18,15 @@ use Throwable;
 
 final class WebPushTransport implements WebPushTransportInterface
 {
+    /**
+     * @var list<string>
+     */
+    private const ALLOWED_PUSH_SERVICE_HOST_SUFFIXES = [
+        'fcm.googleapis.com',
+        'push.services.mozilla.com',
+        'push.apple.com',
+    ];
+
     public function __construct(
         private readonly WebPushDeliveryConfiguration $configuration,
     ) {}
@@ -33,6 +42,8 @@ final class WebPushTransport implements WebPushTransportInterface
             'publicKey' => $this->requiredConfigValue($this->configuration->publicKey()),
             'privateKey' => $this->requiredConfigValue($this->configuration->privateKey()),
         ];
+
+        $this->assertAllowedPushServiceEndpoint($subscription['endpoint'] ?? null);
 
         try {
             $webPush = new WebPush([
@@ -67,5 +78,28 @@ final class WebPushTransport implements WebPushTransportInterface
         }
 
         return $value;
+    }
+
+    private function assertAllowedPushServiceEndpoint(mixed $endpoint): void
+    {
+        if (! is_string($endpoint) || trim($endpoint) === '') {
+            throw new RuntimeException('Web push delivery requires an allowed browser push service endpoint.');
+        }
+
+        $host = parse_url($endpoint, PHP_URL_HOST);
+
+        if (! is_string($host) || trim($host) === '') {
+            throw new RuntimeException('Web push delivery requires an allowed browser push service endpoint.');
+        }
+
+        $normalizedHost = strtolower(rtrim($host, '.'));
+
+        foreach (self::ALLOWED_PUSH_SERVICE_HOST_SUFFIXES as $allowedSuffix) {
+            if ($normalizedHost === $allowedSuffix || str_ends_with($normalizedHost, '.'.$allowedSuffix)) {
+                return;
+            }
+        }
+
+        throw new RuntimeException('Web push delivery requires an allowed browser push service endpoint.');
     }
 }

@@ -52,7 +52,17 @@ final class WebPushDeliveryConfiguration
 
     public function ttl(): int
     {
-        return $this->positiveIntegerConfig('services.web_push.ttl', 300) ?? 300;
+        $value = config('services.web_push.ttl');
+
+        if (is_int($value)) {
+            return $value >= 0 ? $value : 300;
+        }
+
+        if (is_string($value) && preg_match('/^(0|[1-9][0-9]*)$/', $value)) {
+            return (int) $value;
+        }
+
+        return 300;
     }
 
     public function urgency(): string

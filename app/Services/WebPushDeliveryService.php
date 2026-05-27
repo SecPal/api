@@ -100,6 +100,7 @@ final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
 
         return [
             'endpoint' => $endpoint,
+            'contentEncoding' => 'aes128gcm',
             'keys' => [
                 'p256dh' => $p256dh,
                 'auth' => $auth,
