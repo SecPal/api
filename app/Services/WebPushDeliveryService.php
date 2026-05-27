@@ -13,6 +13,8 @@ use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Models\PushDeviceRegistration;
 use App\Support\PushMessageDataNormalizer;
 use App\Support\WebPushDeliveryConfiguration;
+use Base64Url\Base64Url;
+use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 
@@ -45,6 +47,10 @@ final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
             $registration->delete();
 
             return $this->staleSubscriptionResult('decryption_failure');
+        } catch (InvalidArgumentException) {
+            $registration->delete();
+
+            return $this->staleSubscriptionResult('invalid_subscription');
         }
 
         try {
@@ -98,6 +104,7 @@ final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
             throw new RuntimeException('Web push delivery requires a decryptable browser subscription.');
         }
 
+        $this->assertValidSubscriptionKeys($p256dh, $auth);
         $this->assertEndpointOriginMatches($endpoint, $registration->subscription_endpoint_origin);
 
         return [
@@ -108,6 +115,24 @@ final class WebPushDeliveryService implements WebPushDeliveryServiceInterface
                 'auth' => $auth,
             ],
         ];
+    }
+
+    private function assertValidSubscriptionKeys(string $p256dh, string $auth): void
+    {
+        try {
+            $decodedP256dh = Base64Url::decode($p256dh);
+            $decodedAuth = Base64Url::decode($auth);
+        } catch (InvalidArgumentException $exception) {
+            throw new InvalidArgumentException('Web push subscription keys are invalid.', previous: $exception);
+        }
+
+        if (strlen($decodedP256dh) !== 65 || ! str_starts_with($decodedP256dh, "\x04")) {
+            throw new InvalidArgumentException('Web push subscription keys are invalid.');
+        }
+
+        if ($decodedAuth === '') {
+            throw new InvalidArgumentException('Web push subscription keys are invalid.');
+        }
     }
 
     private function assertEndpointOriginMatches(string $endpoint, ?string $storedOrigin): void

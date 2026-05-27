@@ -64,9 +64,13 @@ final class WebPushTransport implements WebPushTransportInterface
             throw new RuntimeException('Web push delivery request failed before the push service responded.', previous: $throwable);
         }
 
+        $statusCode = $report->getResponse()?->getStatusCode();
+
         return new WebPushTransportResult(
-            successful: $report->isSuccess(),
-            statusCode: $report->getResponse()?->getStatusCode(),
+            successful: $statusCode !== null
+                ? $statusCode >= 200 && $statusCode < 300
+                : $report->isSuccess(),
+            statusCode: $statusCode,
             subscriptionExpired: $report->isSubscriptionExpired(),
         );
     }

@@ -6,6 +6,10 @@
 declare(strict_types=1);
 
 use App\Services\WebPushTransport;
+use App\Support\WebPushTransportResult;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
+use Minishlink\WebPush\MessageSentReport;
 
 beforeEach(function (): void {
     config([
@@ -25,8 +29,8 @@ test('transport surfaces the direct missing web push configuration error', funct
     expect(fn (): mixed => app(WebPushTransport::class)->send([
         'endpoint' => 'https://fcm.googleapis.com/fcm/send/example-subscription',
         'keys' => [
-            'p256dh' => 'BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv',
-            'auth' => 'K7d9Lm2PqRs',
+            'p256dh' => 'BAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE',
+            'auth' => 'AgICAgICAgICAgICAgICAg',
         ],
     ], '{"title":"Compliance alert"}'))
         ->toThrow(RuntimeException::class, 'Web push delivery is not configured for this deployment.');
@@ -37,9 +41,35 @@ test('transport rejects subscription endpoints outside the allowed browser push 
         'endpoint' => 'https://internal.service/push/subscription',
         'contentEncoding' => 'aes128gcm',
         'keys' => [
-            'p256dh' => 'BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv',
-            'auth' => 'K7d9Lm2PqRs',
+            'p256dh' => 'BAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE',
+            'auth' => 'AgICAgICAgICAgICAgICAg',
         ],
     ], '{"title":"Compliance alert"}'))
         ->toThrow(RuntimeException::class, 'Web push delivery requires an allowed browser push service endpoint.');
+});
+
+test('transport preserves non-successful provider responses from the web push library', function (): void {
+    $report = new MessageSentReport(
+        new Request('POST', 'https://fcm.googleapis.com/fcm/send/example-subscription'),
+        new Response(503),
+    );
+
+    Mockery::mock('overload:Minishlink\\WebPush\\WebPush')
+        ->shouldReceive('sendOneNotification')
+        ->once()
+        ->andReturn($report);
+
+    $result = app(WebPushTransport::class)->send([
+        'endpoint' => 'https://fcm.googleapis.com/fcm/send/example-subscription',
+        'contentEncoding' => 'aes128gcm',
+        'keys' => [
+            'p256dh' => 'BAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE',
+            'auth' => 'AgICAgICAgICAgICAgICAg',
+        ],
+    ], '{"title":"Compliance alert"}');
+
+    expect($result)->toBeInstanceOf(WebPushTransportResult::class)
+        ->and($result->successful)->toBeFalse()
+        ->and($result->statusCode)->toBe(503)
+        ->and($result->subscriptionExpired)->toBeFalse();
 });

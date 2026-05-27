@@ -55,8 +55,8 @@ function createWebPushDeliveryRegistration(TenantKey $tenant, User $user, ?strin
         'browser_version' => '136.0.7103.114',
         'service_worker_scope' => '/',
         'subscription_endpoint_origin' => 'https://fcm.googleapis.com',
-        'subscription_p256dh_plain' => 'BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv',
-        'subscription_auth_plain' => 'K7d9Lm2PqRs',
+        'subscription_p256dh_plain' => 'BAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE',
+        'subscription_auth_plain' => 'AgICAgICAgICAgICAgICAg',
         'subscription_expires_at' => $expiresAt,
         'bootstrap_version' => 'v1',
         'schema_version' => 3,
@@ -77,8 +77,8 @@ test('service sends customer-owned web push notifications against the stored bro
                 'endpoint' => 'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890',
                 'contentEncoding' => 'aes128gcm',
                 'keys' => [
-                    'p256dh' => 'BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv',
-                    'auth' => 'K7d9Lm2PqRs',
+                    'p256dh' => 'BAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE',
+                    'auth' => 'AgICAgICAgICAgICAgICAg',
                 ],
             ]
                 && $decodedPayload === [
@@ -222,8 +222,8 @@ test('service treats transient push-service failures as retryable and does not l
     expect($exception)->toBeInstanceOf(RuntimeException::class)
         ->and($exception?->getMessage())->toBe('Web push delivery failed with HTTP 503.')
         ->and($exception?->getMessage())->not->toContain('cVJmVnB1c2g6MTIzNDU2Nzg5MA')
-        ->and($exception?->getMessage())->not->toContain('BElx7P1qA2rS9tUvWxYz0123456789abcdefghijklmnopqrstuv')
-        ->and($exception?->getMessage())->not->toContain('K7d9Lm2PqRs');
+        ->and($exception?->getMessage())->not->toContain('BAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE')
+        ->and($exception?->getMessage())->not->toContain('AgICAgICAgICAgICAgICAg');
 
     $this->assertDatabaseHas('push_device_registrations', [
         'id' => $registration->id,
@@ -310,6 +310,38 @@ test('service deletes the registration when encrypted browser subscription mater
         'delivered' => false,
         'stale_subscription' => true,
         'stale_reason' => 'decryption_failure',
+        'provider_status_code' => null,
+    ]);
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'id' => $registration->id,
+    ]);
+});
+
+test('service deletes malformed browser subscriptions before attempting delivery', function (): void {
+    $registration = createWebPushDeliveryRegistration($this->tenant, $this->user);
+
+    $registration->subscription_p256dh_plain = 'not_base64url***';
+    $registration->save();
+
+    $freshRegistration = PushDeviceRegistration::query()->findOrFail($registration->id);
+
+    $transport = Mockery::mock(WebPushTransportInterface::class);
+    $transport->shouldNotReceive('send');
+
+    app()->instance(WebPushTransportInterface::class, $transport);
+
+    $result = app(WebPushDeliveryService::class)->send(
+        $freshRegistration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    );
+
+    expect($result)->toBe([
+        'delivered' => false,
+        'stale_subscription' => true,
+        'stale_reason' => 'invalid_subscription',
         'provider_status_code' => null,
     ]);
 
