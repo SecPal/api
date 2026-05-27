@@ -10,8 +10,8 @@ namespace App\Services;
 use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Models\PushDeviceRegistration;
 use App\Support\AndroidPushDeliveryConfiguration;
+use App\Support\PushMessageDataNormalizer;
 use Illuminate\Support\Facades\Http;
-use InvalidArgumentException;
 use RuntimeException;
 
 final class AndroidPushDeliveryService
@@ -66,7 +66,7 @@ final class AndroidPushDeliveryService
             ],
         ];
 
-        $normalizedData = $this->normalizeMessageData($data);
+        $normalizedData = PushMessageDataNormalizer::normalize($data, 'Android push');
 
         if ($normalizedData !== []) {
             $message['data'] = $normalizedData;
@@ -182,29 +182,6 @@ final class AndroidPushDeliveryService
         }
 
         return $unsignedToken.'.'.$this->base64UrlEncode($signature);
-    }
-
-    /**
-     * @param  array<string, string>  $data
-     * @return array<string, string>
-     */
-    private function normalizeMessageData(array $data): array
-    {
-        $normalized = [];
-
-        foreach ($data as $key => $value) {
-            if (! is_string($key) || trim($key) === '') {
-                throw new InvalidArgumentException('Android push message data keys must be non-empty strings.');
-            }
-
-            if (! is_string($value)) {
-                throw new InvalidArgumentException(sprintf('Android push message data value for "%s" must be a string.', $key));
-            }
-
-            $normalized[$key] = $value;
-        }
-
-        return $normalized;
     }
 
     private function providerErrorCode(mixed $responseBody): ?string

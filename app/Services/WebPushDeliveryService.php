@@ -9,8 +9,8 @@ namespace App\Services;
 
 use App\Exceptions\CorruptedEncryptedAttributeException;
 use App\Models\PushDeviceRegistration;
+use App\Support\PushMessageDataNormalizer;
 use App\Support\WebPushDeliveryConfiguration;
-use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
 
@@ -49,7 +49,7 @@ class WebPushDeliveryService
             $payload = json_encode([
                 'title' => $title,
                 'body' => $body,
-                'data' => $this->normalizeMessageData($data),
+                'data' => PushMessageDataNormalizer::normalize($data, 'Web push'),
             ], JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
             throw new RuntimeException('Unable to encode the Web push delivery payload.', previous: $exception);
@@ -81,29 +81,6 @@ class WebPushDeliveryService
         }
 
         throw new RuntimeException(sprintf('Web push delivery failed with HTTP %d.', $result->statusCode));
-    }
-
-    /**
-     * @param  array<string, string>  $data
-     * @return array<string, string>
-     */
-    private function normalizeMessageData(array $data): array
-    {
-        $normalized = [];
-
-        foreach ($data as $key => $value) {
-            if (! is_string($key) || trim($key) === '') {
-                throw new InvalidArgumentException('Web push message data keys must be non-empty strings.');
-            }
-
-            if (! is_string($value)) {
-                throw new InvalidArgumentException(sprintf('Web push message data value for "%s" must be a string.', $key));
-            }
-
-            $normalized[$key] = $value;
-        }
-
-        return $normalized;
     }
 
     /**
