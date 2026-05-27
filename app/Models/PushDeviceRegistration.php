@@ -141,6 +141,25 @@ class PushDeviceRegistration extends Model
         return $this->push_token_dec;
     }
 
+    public function webPushEndpoint(): ?string
+    {
+        return $this->deliveryToken();
+    }
+
+    public function webPushP256dh(): ?string
+    {
+        $value = $this->getAttributeValue('subscription_p256dh_enc');
+
+        return (is_string($value) && trim($value) !== '') ? $value : null;
+    }
+
+    public function webPushAuth(): ?string
+    {
+        $value = $this->getAttributeValue('subscription_auth_enc');
+
+        return (is_string($value) && trim($value) !== '') ? $value : null;
+    }
+
     public function setSubscriptionP256dhPlainAttribute(?string $value): void
     {
         $this->subscription_p256dh_enc = $value;

@@ -120,6 +120,13 @@ ANDROID_PUSH_FCM_TOKEN_URI=https://oauth2.googleapis.com/token
 ANDROID_PUSH_FCM_API_BASE_URL=https://fcm.googleapis.com
 ANDROID_PUSH_FCM_CONNECT_TIMEOUT=5
 ANDROID_PUSH_FCM_TIMEOUT=10
+# Customer-owned Web Push delivery (backend-only)
+WEB_PUSH_VAPID_SUBJECT=mailto:notifications@customer.example
+WEB_PUSH_VAPID_PRIVATE_KEY=REPLACE_WITH_BASE64URL_VAPID_PRIVATE_KEY
+WEB_PUSH_DELIVERY_TTL=300
+WEB_PUSH_DELIVERY_URGENCY=normal
+WEB_PUSH_DELIVERY_CONNECT_TIMEOUT=5
+WEB_PUSH_DELIVERY_TIMEOUT=20
 BOOTSTRAP_RETRYABLE=true
 BOOTSTRAP_RETRY_AFTER_SECONDS=60
 
@@ -203,6 +210,18 @@ Customer-hosted deployments can send Android push directly from the backend with
 - Missing or invalid `ANDROID_PUSH_FCM_*` credentials fail closed during delivery. The backend does not fall back to SecPal-owned routing when customer-owned delivery is selected.
 - The queueable send primitive is `App\Jobs\DeliverAndroidPushMessage`; it runs on the default queue worker. Ensure the deployment's default queue worker is active before relying on asynchronous delivery.
 - Delivery outcomes that indicate a stale or invalid registration token (`UNREGISTERED`, `SENDER_ID_MISMATCH`, or token-specific invalid-argument responses) delete the stored registration so the next authenticated app session must re-register with fresh runtime metadata.
+
+### Customer-Owned Web Push Delivery
+
+Customer-hosted deployments can send browser Web Push directly from the backend without any SecPal-operated relay.
+
+- Configure backend-only `WEB_PUSH_VAPID_SUBJECT` and `WEB_PUSH_VAPID_PRIVATE_KEY` on the API deployment. The delivery path reuses `BOOTSTRAP_WEB_PUSH_PUBLIC_VAPID_KEY` as the matching public VAPID key advertised to browsers, so the public and private values must belong to the same key pair.
+- `WEB_PUSH_VAPID_PRIVATE_KEY` must be the base64url-encoded VAPID private key expected by the audited `minishlink/web-push` library, not a PEM block.
+- `WEB_PUSH_DELIVERY_TTL`, `WEB_PUSH_DELIVERY_URGENCY`, `WEB_PUSH_DELIVERY_CONNECT_TIMEOUT`, and `WEB_PUSH_DELIVERY_TIMEOUT` tune backend delivery runtime defaults without exposing anything new through `GET /v1/bootstrap`.
+- Missing or invalid `WEB_PUSH_*` delivery credentials fail closed during delivery. The backend does not fall back to SecPal-owned routing when customer-owned delivery is selected.
+- The tenant-scoped queue fan-out primitive is `App\Services\QueueWebPushDeliveryService::dispatchToRegistrations()`. It deduplicates the targeted registration id list per tenant and enqueues `App\Jobs\DeliverWebPushMessage` on the default queue worker.
+- Delivery outcomes that indicate a stale browser subscription (stored subscription corruption, local `subscription_expires_at`, or push-service `404` / `410` feedback) delete the stored registration so the next authenticated browser session must re-register with fresh runtime metadata.
+- Full subscription endpoints, `p256dh`, `auth`, and private VAPID material stay server-side. API resources expose only `subscription_endpoint_origin`, and bootstrap responses never include server-side delivery secrets.
 
 Example registration request:
 
