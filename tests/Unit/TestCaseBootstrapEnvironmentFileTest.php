@@ -7,11 +7,60 @@ declare(strict_types=1);
 
 use Illuminate\Support\Str;
 use Tests\Support\TestCaseBootstrapEnvironmentProbe;
+use Tests\TestCase;
+
+final class TestCaseBootstrapEnvironmentFileNameOverrideProbe extends TestCase
+{
+    private static ?string $probeEnvironmentFileName = null;
+
+    public static function useProbeEnvironmentFileName(string $fileName): void
+    {
+        self::$probeEnvironmentFileName = $fileName;
+    }
+
+    public static function clearProbeEnvironmentFileName(): void
+    {
+        self::$probeEnvironmentFileName = null;
+    }
+
+    public static function createBootstrapEnvironmentStub(): void
+    {
+        parent::prepareBootstrapEnvironment();
+    }
+
+    public static function removeBootstrapEnvironmentStub(): void
+    {
+        parent::cleanupBootstrapEnvironmentFile();
+    }
+
+    public static function resetBootstrapEnvironmentState(): void
+    {
+        parent::resetBootstrapEnvironmentState();
+    }
+
+    public static function bootstrapEnvironmentFilePath(): string
+    {
+        return parent::bootstrapEnvironmentFilePath();
+    }
+
+    public static function createBootstrapApplication(): Illuminate\Foundation\Application
+    {
+        return (new self('createApplication'))->createApplication();
+    }
+
+    protected static function bootstrapEnvironmentFileName(): string
+    {
+        return self::$probeEnvironmentFileName ?? parent::bootstrapEnvironmentFileName();
+    }
+}
 
 afterEach(function (): void {
     TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
     TestCaseBootstrapEnvironmentProbe::clearProbeEnvironmentPath();
     TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+    TestCaseBootstrapEnvironmentFileNameOverrideProbe::removeBootstrapEnvironmentStub();
+    TestCaseBootstrapEnvironmentFileNameOverrideProbe::clearProbeEnvironmentFileName();
+    TestCaseBootstrapEnvironmentFileNameOverrideProbe::resetBootstrapEnvironmentState();
 });
 
 test('creates a dedicated test env file when no local env files exist', function (): void {
@@ -244,4 +293,23 @@ test('isolates the generated test env file and runtime env state from inherited 
         unlink($probeDirectory.'/.env');
         rmdir($probeDirectory);
     }
+});
+
+test('respects overridden bootstrap env file names when composing and loading the bootstrap env file', function (): void {
+    $environmentFileName = '.env.testing.bootstrap.'.Str::uuid();
+    $environmentFilePath = dirname(__DIR__, 2).'/'.$environmentFileName;
+
+    TestCaseBootstrapEnvironmentFileNameOverrideProbe::useProbeEnvironmentFileName($environmentFileName);
+    TestCaseBootstrapEnvironmentFileNameOverrideProbe::resetBootstrapEnvironmentState();
+
+    expect(TestCaseBootstrapEnvironmentFileNameOverrideProbe::bootstrapEnvironmentFilePath())
+        ->toBe($environmentFilePath)
+        ->and(is_file($environmentFilePath))->toBeFalse();
+
+    TestCaseBootstrapEnvironmentFileNameOverrideProbe::createBootstrapEnvironmentStub();
+
+    $app = TestCaseBootstrapEnvironmentFileNameOverrideProbe::createBootstrapApplication();
+
+    expect(is_file($environmentFilePath))->toBeTrue()
+        ->and($app->environmentFile())->toBe($environmentFileName);
 });

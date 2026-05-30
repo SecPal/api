@@ -65,7 +65,7 @@ abstract class TestCase extends BaseTestCase
 
         /** @var Application $app */
         $app = require __DIR__.'/../bootstrap/app.php';
-        $app->loadEnvironmentFrom(self::bootstrapEnvironmentFileName());
+        $app->loadEnvironmentFrom(static::bootstrapEnvironmentFileName());
         $app->make(Kernel::class)->bootstrap();
         self::normalizeApplicationConfiguration($app);
 
@@ -378,7 +378,7 @@ abstract class TestCase extends BaseTestCase
 
     protected static function bootstrapEnvironmentFilePath(): string
     {
-        return rtrim(static::bootstrapEnvironmentPath(), '/').'/'.self::bootstrapEnvironmentFileName();
+        return rtrim(static::bootstrapEnvironmentPath(), '/').'/'.static::bootstrapEnvironmentFileName();
     }
 
     protected static function bootstrapEnvironmentLockFilePath(): string
