@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Tests\Support;
 
+use Illuminate\Foundation\Application;
 use Tests\TestCase;
 
 final class TestCaseBootstrapEnvironmentProbe extends TestCase
@@ -36,6 +37,21 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
         parent::applyPhpUnitEnvironmentOverrides();
     }
 
+    public static function prepareBootstrapEnvironment(): void
+    {
+        parent::prepareBootstrapEnvironment();
+    }
+
+    public static function bootstrapEnvironmentFileName(): string
+    {
+        return parent::bootstrapEnvironmentFileName();
+    }
+
+    public static function normalizeBootstrapApplication(Application $app): void
+    {
+        parent::normalizeApplicationConfiguration($app);
+    }
+
     public static function removeBootstrapEnvironmentStub(): void
     {
         parent::cleanupBootstrapEnvironmentFile();
@@ -44,6 +60,11 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
     public static function clearProbeEnvironmentPath(): void
     {
         self::$probeEnvironmentPath = null;
+    }
+
+    public static function resetBootstrapEnvironmentState(): void
+    {
+        parent::resetBootstrapEnvironmentState();
     }
 
     protected static function bootstrapEnvironmentPath(): string

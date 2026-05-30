@@ -76,10 +76,17 @@ When running tests in **parallel** (e.g., with `php artisan test --parallel`), P
 
 **Requirements:**
 
-- Local PostgreSQL server reachable via your `.env`
+- Local PostgreSQL server reachable via exported environment variables or the database connection keys in your `.env`
 - Use one of these PostgreSQL setups for the configured app user:
   - The user is allowed to create databases
   - Or an admin has already created the `testing` and any required parallel `testing_test_*` databases, and those databases are owned by the configured app user so Laravel can create tables in `public`
+
+**Minimal local test environment contract:**
+
+- `php artisan test` now boots Laravel against a generated isolated test env file instead of the deployment-oriented repository `.env`.
+- Deployment bootstrap keys such as `BOOTSTRAP_PUBLIC_ENABLED`, `BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION`, and `BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD` no longer affect bootstrap-default assertions in the test suite.
+- The test bootstrap generates its own deterministic `APP_KEY`, so local test runs do not require an application key in `.env`.
+- If your PostgreSQL setup does not use the default `127.0.0.1:5432` / `postgres` / empty-password connection, provide only `DB_HOST`, `DB_PORT`, `DB_USERNAME`, and `DB_PASSWORD` via exported shell env or `.env`.
 
 **Configuration:**
 

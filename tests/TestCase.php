@@ -7,6 +7,7 @@ namespace Tests;
 
 use App\Models\User;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +17,23 @@ use Spatie\Permission\PermissionRegistrar;
 
 abstract class TestCase extends BaseTestCase
 {
+    private const TEST_APP_KEY = 'base64:nRWNo2CgugcDYn5VJsEzigv2nowyJLSArqfRhlB+USo=';
+
+    private const TEST_BOOTSTRAP_ENVIRONMENT_FILE = '.env.testing.bootstrap';
+
+    /**
+     * @var list<string>
+     */
+    private const LOCAL_ENV_PASSTHROUGH_KEYS = [
+        'DB_HOST',
+        'DB_PORT',
+        'DB_USERNAME',
+        'DB_PASSWORD',
+    ];
+
     private static bool $postgresTestDatabasesEnsured = false;
+
+    private static bool $bootstrapEnvironmentCleanupRegistered = false;
 
     /**
      * @var array<string, string>|null
@@ -30,9 +47,11 @@ abstract class TestCase extends BaseTestCase
      */
     private static ?array $localEnvironmentValues = null;
 
+    private static ?string $localEnvironmentValuesPath = null;
+
     public static function setUpBeforeClass(): void
     {
-        self::applyPhpUnitEnvironmentOverrides();
+        self::prepareBootstrapEnvironment();
         self::ensurePostgresTestDatabasesExist();
 
         parent::setUpBeforeClass();
@@ -40,11 +59,12 @@ abstract class TestCase extends BaseTestCase
 
     public function createApplication(): Application
     {
-        self::applyPhpUnitEnvironmentOverrides();
-        self::ensureBootstrapEnvironmentFileExists();
+        self::prepareBootstrapEnvironment();
 
         /** @var Application $app */
-        $app = parent::createApplication();
+        $app = require __DIR__.'/../bootstrap/app.php';
+        $app->loadEnvironmentFrom(self::bootstrapEnvironmentFileName());
+        $app->make(Kernel::class)->bootstrap();
         self::normalizeApplicationConfiguration($app);
 
         return $app;
@@ -243,32 +263,56 @@ abstract class TestCase extends BaseTestCase
     {
         $value = getenv($key);
 
-        if (is_string($value) && $value !== '') {
+        if ($value !== false) {
             return $value;
         }
 
-        $localValue = self::localEnvironmentValues()[$key] ?? null;
+        $serverValue = $_ENV[$key] ?? $_SERVER[$key] ?? null;
 
-        if (is_string($localValue) && $localValue !== '') {
-            return $localValue;
+        if (is_string($serverValue)) {
+            return $serverValue;
         }
 
         return $default;
     }
 
+    protected static function prepareBootstrapEnvironment(): void
+    {
+        self::applyPhpUnitEnvironmentOverrides();
+        self::applyTestEnvironmentDefaults();
+        self::applyLocalEnvironmentPassthroughs();
+        self::ensureBootstrapEnvironmentFileExists();
+    }
+
     protected static function applyPhpUnitEnvironmentOverrides(): void
     {
         foreach (self::phpUnitEnvironmentOverrides() as $name => $value) {
-            putenv($name.'='.$value);
-            $_ENV[$name] = $value;
-            $_SERVER[$name] = $value;
+            self::setEnvironmentValue($name, $value);
 
             if ($name === 'DB_DATABASE') {
-                putenv('SECPAL_TEST_DATABASE='.$value);
-                $_ENV['SECPAL_TEST_DATABASE'] = $value;
-                $_SERVER['SECPAL_TEST_DATABASE'] = $value;
+                self::setEnvironmentValue('SECPAL_TEST_DATABASE', $value);
             }
         }
+    }
+
+    protected static function applyLocalEnvironmentPassthroughs(): void
+    {
+        foreach (self::localEnvironmentPassthroughValues() as $name => $value) {
+            if (! self::environmentVariableIsMissing($name)) {
+                continue;
+            }
+
+            self::setEnvironmentValue($name, $value);
+        }
+    }
+
+    protected static function applyTestEnvironmentDefaults(): void
+    {
+        if (! self::environmentVariableIsMissing('APP_KEY')) {
+            return;
+        }
+
+        self::setEnvironmentValue('APP_KEY', self::TEST_APP_KEY);
     }
 
     protected static function normalizeApplicationConfiguration(Application $app): void
@@ -298,34 +342,43 @@ abstract class TestCase extends BaseTestCase
         return dirname(__DIR__);
     }
 
+    protected static function bootstrapEnvironmentFileName(): string
+    {
+        return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE;
+    }
+
+    protected static function bootstrapEnvironmentFilePath(): string
+    {
+        return rtrim(static::bootstrapEnvironmentPath(), '/').'/'.self::bootstrapEnvironmentFileName();
+    }
+
     protected static function ensureBootstrapEnvironmentFileExists(): void
     {
-        $environmentPath = static::bootstrapEnvironmentPath();
-        $defaultEnvironmentFile = $environmentPath.'/.env';
+        self::applyPhpUnitEnvironmentOverrides();
+        self::applyTestEnvironmentDefaults();
+        self::applyLocalEnvironmentPassthroughs();
 
-        if (self::$temporaryBootstrapEnvironmentFile !== null) {
-            if (self::$temporaryBootstrapEnvironmentFile === $defaultEnvironmentFile && is_file($defaultEnvironmentFile)) {
-                return;
-            }
+        $bootstrapEnvironmentFile = static::bootstrapEnvironmentFilePath();
 
+        if (self::$temporaryBootstrapEnvironmentFile !== null && self::$temporaryBootstrapEnvironmentFile !== $bootstrapEnvironmentFile) {
             self::cleanupBootstrapEnvironmentFile();
         }
 
-        if (is_file($defaultEnvironmentFile)) {
-            return;
+        $stubContents = self::bootstrapEnvironmentFileContents();
+
+        if (file_put_contents($bootstrapEnvironmentFile, $stubContents) === false) {
+            throw new \RuntimeException('Unable to create temporary test environment file at: '.$bootstrapEnvironmentFile);
         }
 
-        $stubContents = "# Temporary test bootstrap stub to avoid phpdotenv missing-file warnings in isolated worktrees\n";
+        self::$temporaryBootstrapEnvironmentFile = $bootstrapEnvironmentFile;
 
-        if (file_put_contents($defaultEnvironmentFile, $stubContents) === false) {
-            throw new \RuntimeException('Unable to create temporary test environment file at: '.$defaultEnvironmentFile);
+        if (! self::$bootstrapEnvironmentCleanupRegistered) {
+            register_shutdown_function(static function (): void {
+                self::cleanupBootstrapEnvironmentFile();
+            });
+
+            self::$bootstrapEnvironmentCleanupRegistered = true;
         }
-
-        self::$temporaryBootstrapEnvironmentFile = $defaultEnvironmentFile;
-
-        register_shutdown_function(static function (): void {
-            self::cleanupBootstrapEnvironmentFile();
-        });
     }
 
     protected static function cleanupBootstrapEnvironmentFile(): void
@@ -341,16 +394,24 @@ abstract class TestCase extends BaseTestCase
         self::$temporaryBootstrapEnvironmentFile = null;
     }
 
+    protected static function resetBootstrapEnvironmentState(): void
+    {
+        self::$localEnvironmentValues = null;
+        self::$localEnvironmentValuesPath = null;
+    }
+
     /**
      * @return array<string, string>
      */
-    private static function localEnvironmentValues(): array
+    private static function localEnvironmentPassthroughValues(): array
     {
-        if (self::$localEnvironmentValues !== null) {
+        $environmentFile = rtrim(static::bootstrapEnvironmentPath(), '/').'/.env';
+
+        if (self::$localEnvironmentValues !== null && self::$localEnvironmentValuesPath === $environmentFile) {
             return self::$localEnvironmentValues;
         }
 
-        $environmentFile = dirname(__DIR__).'/.env';
+        self::$localEnvironmentValuesPath = $environmentFile;
 
         if (! is_file($environmentFile)) {
             self::$localEnvironmentValues = [];
@@ -358,6 +419,7 @@ abstract class TestCase extends BaseTestCase
             return self::$localEnvironmentValues;
         }
 
+        $allowedKeys = array_flip(self::LOCAL_ENV_PASSTHROUGH_KEYS);
         $values = [];
 
         foreach (file($environmentFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
@@ -368,12 +430,68 @@ abstract class TestCase extends BaseTestCase
             }
 
             [$name, $rawValue] = explode('=', $trimmedLine, 2);
-            $values[trim($name)] = trim($rawValue, " \t\n\r\0\x0B\"'");
+            $name = trim($name);
+
+            if (! isset($allowedKeys[$name])) {
+                continue;
+            }
+
+            $values[$name] = trim($rawValue, " \t\n\r\0\x0B\"'");
         }
 
         self::$localEnvironmentValues = $values;
 
         return self::$localEnvironmentValues;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function bootstrapEnvironmentVariables(): array
+    {
+        $variables = self::phpUnitEnvironmentOverrides();
+        $variables['SECPAL_TEST_DATABASE'] = self::environmentValue(
+            'SECPAL_TEST_DATABASE',
+            $variables['DB_DATABASE'] ?? 'testing',
+        );
+        $variables['APP_KEY'] = self::environmentValue('APP_KEY', self::TEST_APP_KEY);
+
+        foreach (self::LOCAL_ENV_PASSTHROUGH_KEYS as $name) {
+            if (self::environmentVariableIsMissing($name)) {
+                continue;
+            }
+
+            $variables[$name] = self::environmentValue($name, '');
+        }
+
+        return $variables;
+    }
+
+    private static function bootstrapEnvironmentFileContents(): string
+    {
+        $lines = ['# Temporary test bootstrap env file generated for isolated PHPUnit runs'];
+
+        foreach (self::bootstrapEnvironmentVariables() as $name => $value) {
+            $lines[] = sprintf('%s="%s"', $name, addcslashes($value, "\\\"\n\r$"));
+        }
+
+        return implode("\n", $lines)."\n";
+    }
+
+    private static function environmentVariableIsMissing(string $name): bool
+    {
+        if (getenv($name) !== false) {
+            return false;
+        }
+
+        return ! array_key_exists($name, $_ENV) && ! array_key_exists($name, $_SERVER);
+    }
+
+    private static function setEnvironmentValue(string $name, string $value): void
+    {
+        putenv($name.'='.$value);
+        $_ENV[$name] = $value;
+        $_SERVER[$name] = $value;
     }
 
     /**

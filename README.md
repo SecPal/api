@@ -333,6 +333,9 @@ The API will be available at <http://localhost:8000>.
 **Testing (PEST):**
 
 ```bash
+# Run all tests through Laravel's local entrypoint
+php artisan test
+
 # Run all tests
 ./vendor/bin/pest
 
@@ -345,6 +348,8 @@ The API will be available at <http://localhost:8000>.
 # Run with coverage (requires pcov or xdebug extension)
 ./vendor/bin/pest --coverage --min=80
 ```
+
+Local test runs now boot the API with a generated isolated test env file. The repository `.env` is only used as a fallback source for `DB_HOST`, `DB_PORT`, `DB_USERNAME`, and `DB_PASSWORD` when those keys are not already exported in the shell; deployment-only `BOOTSTRAP_*` values and `APP_KEY` no longer need to be toggled for `php artisan test`.
 
 **Note:** Coverage requires `pcov` (preferred) or `xdebug`. Install via:
 
@@ -403,7 +408,7 @@ Before each commit/PR, ensure:
 - ✅ Database connection is configured and migrations ran
 - ✅ `./vendor/bin/pint` passes (PSR-12) - **auto-checked**
 - ✅ `./vendor/bin/phpstan analyse` passes (level max) - **auto-checked**
-- ✅ Tests pass: `ddev exec php artisan test --parallel` - **runs in CI**
+- ✅ Tests pass: `php artisan test` - **runs in CI**
 - ✅ No hardcoded secrets in code
 - ✅ REUSE compliance (all files have license headers) - **auto-checked**
 
