@@ -43,6 +43,115 @@ test('creates a dedicated test env file when no local env files exist', function
     rmdir($probeDirectory);
 });
 
+test('publishes bootstrap env updates via atomic file replacement', function (): void {
+    $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
+
+    mkdir($probeDirectory, 0700, true);
+    TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
+
+    $environmentFile = $probeDirectory.'/.env.testing.bootstrap';
+
+    TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+    clearstatcache(true, $environmentFile);
+
+    $firstInode = fileinode($environmentFile);
+
+    TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+    TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+    clearstatcache(true, $environmentFile);
+
+    expect($firstInode)->toBeInt()
+        ->and(fileinode($environmentFile))->toBeInt()
+        ->and(fileinode($environmentFile))->not->toBe($firstInode)
+        ->and(file_get_contents($environmentFile))->toContain('APP_ENV="testing"');
+
+    TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
+
+    expect(is_file($environmentFile))->toBeFalse();
+
+    if (is_file(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentLockFilePath())) {
+        unlink(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentLockFilePath());
+    }
+
+    rmdir($probeDirectory);
+});
+
+test('serializes bootstrap env writers before publishing the shared file', function (): void {
+    if (! function_exists('proc_open')) {
+        $this->markTestSkipped('proc_open is required for bootstrap writer lock coverage.');
+    }
+
+    $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
+
+    mkdir($probeDirectory, 0700, true);
+    TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
+
+    $lockFile = TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentLockFilePath();
+    $lockHandle = fopen($lockFile, 'c+');
+
+    expect($lockHandle)->toBeResource()
+        ->and(flock($lockHandle, LOCK_EX | LOCK_NB))->toBeTrue();
+
+    $autoloadPath = dirname(__DIR__, 2).'/vendor/autoload.php';
+    $workerScript = sprintf(
+        <<<'PHP'
+require %s;
+\Tests\Support\TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath(%s);
+\Tests\Support\TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+\Tests\Support\TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+PHP,
+        var_export($autoloadPath, true),
+        var_export($probeDirectory, true),
+    );
+
+    $process = proc_open(
+        [PHP_BINARY, '-r', $workerScript],
+        [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ],
+        $pipes,
+        dirname(__DIR__, 2),
+    );
+
+    expect($process)->toBeResource();
+
+    try {
+        usleep(200000);
+
+        $status = proc_get_status($process);
+
+        expect($status)->toBeArray()
+            ->and($status['running'] ?? false)->toBeTrue();
+    } finally {
+        flock($lockHandle, LOCK_UN);
+        fclose($lockHandle);
+    }
+
+    fclose($pipes[0]);
+
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    $exitCode = proc_close($process);
+
+    expect($exitCode)->toBe(0)
+        ->and($stdout)->toBe('')
+        ->and($stderr)->toBe('');
+
+    if (is_file($lockFile)) {
+        unlink($lockFile);
+    }
+
+    rmdir($probeDirectory);
+});
+
 test('isolates the generated test env file and runtime env state from inherited deployment bootstrap flags', function (): void {
     $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
     $originalAppKey = getenv('APP_KEY');

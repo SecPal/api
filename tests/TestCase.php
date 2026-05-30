@@ -381,6 +381,15 @@ abstract class TestCase extends BaseTestCase
         return rtrim(static::bootstrapEnvironmentPath(), '/').'/'.self::bootstrapEnvironmentFileName();
     }
 
+    protected static function bootstrapEnvironmentLockFilePath(): string
+    {
+        return rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR
+            .'secpal-api-bootstrap-env-'
+            .sha1(static::bootstrapEnvironmentFilePath())
+            .'.lock';
+    }
+
     protected static function ensureBootstrapEnvironmentFileExists(): void
     {
         $bootstrapEnvironmentFile = static::bootstrapEnvironmentFilePath();
@@ -391,15 +400,7 @@ abstract class TestCase extends BaseTestCase
 
         $stubContents = self::bootstrapEnvironmentFileContents();
 
-        if (file_put_contents($bootstrapEnvironmentFile, $stubContents) === false) {
-            throw new \RuntimeException('Unable to create temporary test environment file at: '.$bootstrapEnvironmentFile);
-        }
-
-        if (! chmod($bootstrapEnvironmentFile, 0600)) {
-            unlink($bootstrapEnvironmentFile);
-
-            throw new \RuntimeException('Unable to restrict permissions on temporary test environment file at: '.$bootstrapEnvironmentFile);
-        }
+        self::synchronizeBootstrapEnvironmentWrite($bootstrapEnvironmentFile, $stubContents);
 
         self::$temporaryBootstrapEnvironmentFile = $bootstrapEnvironmentFile;
 
@@ -409,6 +410,58 @@ abstract class TestCase extends BaseTestCase
             });
 
             self::$bootstrapEnvironmentCleanupRegistered = true;
+        }
+    }
+
+    private static function synchronizeBootstrapEnvironmentWrite(string $bootstrapEnvironmentFile, string $stubContents): void
+    {
+        $lockHandle = fopen(static::bootstrapEnvironmentLockFilePath(), 'c+');
+
+        if ($lockHandle === false) {
+            throw new \RuntimeException('Unable to open bootstrap environment lock file for: '.$bootstrapEnvironmentFile);
+        }
+
+        try {
+            if (! flock($lockHandle, LOCK_EX)) {
+                throw new \RuntimeException('Unable to lock bootstrap environment file for: '.$bootstrapEnvironmentFile);
+            }
+
+            self::publishBootstrapEnvironmentFileAtomically($bootstrapEnvironmentFile, $stubContents);
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+        }
+    }
+
+    private static function publishBootstrapEnvironmentFileAtomically(string $bootstrapEnvironmentFile, string $stubContents): void
+    {
+        $temporaryBootstrapEnvironmentFile = tempnam(
+            dirname($bootstrapEnvironmentFile),
+            basename($bootstrapEnvironmentFile).'.',
+        );
+
+        if ($temporaryBootstrapEnvironmentFile === false) {
+            throw new \RuntimeException('Unable to allocate temporary test environment file for: '.$bootstrapEnvironmentFile);
+        }
+
+        try {
+            if (file_put_contents($temporaryBootstrapEnvironmentFile, $stubContents, LOCK_EX) === false) {
+                throw new \RuntimeException('Unable to create temporary test environment file at: '.$bootstrapEnvironmentFile);
+            }
+
+            if (! chmod($temporaryBootstrapEnvironmentFile, 0600)) {
+                throw new \RuntimeException('Unable to restrict permissions on temporary test environment file at: '.$bootstrapEnvironmentFile);
+            }
+
+            if (! rename($temporaryBootstrapEnvironmentFile, $bootstrapEnvironmentFile)) {
+                throw new \RuntimeException('Unable to publish temporary test environment file at: '.$bootstrapEnvironmentFile);
+            }
+        } catch (\Throwable $exception) {
+            if (is_file($temporaryBootstrapEnvironmentFile)) {
+                unlink($temporaryBootstrapEnvironmentFile);
+            }
+
+            throw $exception;
         }
     }
 

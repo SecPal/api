@@ -47,6 +47,11 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
         return parent::bootstrapEnvironmentFileName();
     }
 
+    public static function bootstrapEnvironmentLockFilePath(): string
+    {
+        return parent::bootstrapEnvironmentLockFilePath();
+    }
+
     public static function normalizeBootstrapApplication(Application $app): void
     {
         parent::normalizeApplicationConfiguration($app);
