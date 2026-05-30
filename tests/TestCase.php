@@ -59,7 +59,9 @@ abstract class TestCase extends BaseTestCase
 
     public function createApplication(): Application
     {
-        self::prepareBootstrapEnvironment();
+        if (! is_file(static::bootstrapEnvironmentFilePath())) {
+            self::prepareBootstrapEnvironment();
+        }
 
         /** @var Application $app */
         $app = require __DIR__.'/../bootstrap/app.php';
@@ -354,10 +356,6 @@ abstract class TestCase extends BaseTestCase
 
     protected static function ensureBootstrapEnvironmentFileExists(): void
     {
-        self::applyPhpUnitEnvironmentOverrides();
-        self::applyTestEnvironmentDefaults();
-        self::applyLocalEnvironmentPassthroughs();
-
         $bootstrapEnvironmentFile = static::bootstrapEnvironmentFilePath();
 
         if (self::$temporaryBootstrapEnvironmentFile !== null && self::$temporaryBootstrapEnvironmentFile !== $bootstrapEnvironmentFile) {
@@ -398,6 +396,8 @@ abstract class TestCase extends BaseTestCase
     {
         self::$localEnvironmentValues = null;
         self::$localEnvironmentValuesPath = null;
+        self::$temporaryBootstrapEnvironmentFile = null;
+        self::$bootstrapEnvironmentCleanupRegistered = false;
     }
 
     /**

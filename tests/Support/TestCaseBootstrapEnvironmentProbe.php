@@ -29,7 +29,7 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
 
     public static function createBootstrapEnvironmentStub(): void
     {
-        parent::ensureBootstrapEnvironmentFileExists();
+        parent::prepareBootstrapEnvironment();
     }
 
     public static function applyPhpUnitEnvironmentOverrides(): void
