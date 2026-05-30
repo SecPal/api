@@ -12,6 +12,7 @@ use App\Models\TenantKey;
 use App\Models\User;
 use App\Support\ApiTimestamp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -228,6 +229,33 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
             ->and($response->json('valid_until'))->toBe(ApiTimestamp::format($validUntil));
 
         expect($targetUser->hasRole('manager'))->toBeTrue();
+    });
+
+    test('returns existing assignment timestamps with full datetime precision', function (): void {
+        ['tenant' => $tenant, 'user' => $user, 'targetUser' => $targetUser, 'role' => $role] = createRoleApiContext();
+
+        $user->givePermissionTo('role.assign');
+        actingAs($user, 'sanctum');
+
+        $validFrom = Carbon::parse('2026-05-30 15:45:12 UTC');
+        $validUntil = Carbon::parse('2026-06-06 18:05:07 UTC');
+
+        assignTemporalRole($targetUser, $role, $tenant->id, [
+            'valid_from' => $validFrom,
+            'valid_until' => $validUntil,
+            'auto_revoke' => true,
+            'assigned_by' => $user->id,
+            'reason' => 'Already assigned',
+        ]);
+
+        postJson("/v1/users/{$targetUser->id}/roles", [
+            'role' => 'manager',
+            'valid_from' => $validFrom->toIso8601String(),
+            'valid_until' => $validUntil->toIso8601String(),
+        ])
+            ->assertOk()
+            ->assertJsonPath('valid_from', '2026-05-30T15:45:12Z')
+            ->assertJsonPath('valid_until', '2026-06-06T18:05:07Z');
     });
 
     test('returns 404 for cross-tenant target user', function (): void {
@@ -460,11 +488,12 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
         $user->givePermissionTo('role.assign');
         actingAs($user, 'sanctum');
 
-        $originalValidUntil = now()->addDays(7);
-        $newValidUntil = now()->addDays(14);
+        $validFrom = Carbon::parse('2026-05-30 11:22:33 UTC');
+        $originalValidUntil = Carbon::parse('2026-06-06 07:08:09 UTC');
+        $newValidUntil = Carbon::parse('2026-06-13 21:22:23 UTC');
 
         assignTemporalRole($targetUser, $role, $tenant->id, [
-            'valid_from' => now(),
+            'valid_from' => $validFrom,
             'valid_until' => $originalValidUntil,
             'auto_revoke' => true,
             'assigned_by' => $user->id,
@@ -487,7 +516,9 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
                 'user_id' => $targetUser->id,
                 'role' => 'manager',
                 'reason' => 'Extended vacation period',
-            ]);
+            ])
+            ->assertJsonPath('valid_from', '2026-05-30T11:22:33Z')
+            ->assertJsonPath('valid_until', '2026-06-13T21:22:23Z');
 
         $assignment = TemporalRoleUser::where('model_id', $targetUser->id)
             ->where('role_id', $role->id)
@@ -495,9 +526,8 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
 
         expect($response->json('valid_from'))->toBe(ApiTimestamp::format($assignment->valid_from))
             ->and($response->json('valid_until'))->toBe(ApiTimestamp::format($newValidUntil));
-
-        expect($assignment->valid_until->toDateString())
-            ->toBe($newValidUntil->toDateString());
+            ->and($assignment->valid_until->utc()->format('Y-m-d\\TH:i:s\\Z'))
+            ->toBe('2026-06-13T21:22:23Z');
     });
 
     test('returns 404 for cross-tenant target user', function (): void {
