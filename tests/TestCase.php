@@ -280,10 +280,36 @@ abstract class TestCase extends BaseTestCase
 
     protected static function prepareBootstrapEnvironment(): void
     {
+        self::clearInheritedEnvironmentValues();
         self::applyPhpUnitEnvironmentOverrides();
         self::applyTestEnvironmentDefaults();
         self::applyLocalEnvironmentPassthroughs();
         self::ensureBootstrapEnvironmentFileExists();
+    }
+
+    protected static function clearInheritedEnvironmentValues(): void
+    {
+        $keysToClear = ['APP_KEY' => true];
+
+        foreach (array_keys(self::localEnvironmentValues()) as $name) {
+            if (in_array($name, self::LOCAL_ENV_PASSTHROUGH_KEYS, true)) {
+                continue;
+            }
+
+            $keysToClear[$name] = true;
+        }
+
+        foreach (array_keys($_ENV + $_SERVER) as $name) {
+            if (! str_starts_with($name, 'BOOTSTRAP_')) {
+                continue;
+            }
+
+            $keysToClear[$name] = true;
+        }
+
+        foreach (array_keys($keysToClear) as $name) {
+            self::unsetEnvironmentValue($name);
+        }
     }
 
     protected static function applyPhpUnitEnvironmentOverrides(): void
@@ -310,11 +336,12 @@ abstract class TestCase extends BaseTestCase
 
     protected static function applyTestEnvironmentDefaults(): void
     {
-        if (! self::environmentVariableIsMissing('APP_KEY')) {
-            return;
-        }
-
         self::setEnvironmentValue('APP_KEY', self::TEST_APP_KEY);
+    }
+
+    protected static function expectedTestAppKey(): string
+    {
+        return self::TEST_APP_KEY;
     }
 
     protected static function normalizeApplicationConfiguration(Application $app): void
@@ -368,6 +395,12 @@ abstract class TestCase extends BaseTestCase
             throw new \RuntimeException('Unable to create temporary test environment file at: '.$bootstrapEnvironmentFile);
         }
 
+        if (! chmod($bootstrapEnvironmentFile, 0600)) {
+            unlink($bootstrapEnvironmentFile);
+
+            throw new \RuntimeException('Unable to restrict permissions on temporary test environment file at: '.$bootstrapEnvironmentFile);
+        }
+
         self::$temporaryBootstrapEnvironmentFile = $bootstrapEnvironmentFile;
 
         if (! self::$bootstrapEnvironmentCleanupRegistered) {
@@ -403,7 +436,7 @@ abstract class TestCase extends BaseTestCase
     /**
      * @return array<string, string>
      */
-    private static function localEnvironmentPassthroughValues(): array
+    private static function localEnvironmentValues(): array
     {
         $environmentFile = rtrim(static::bootstrapEnvironmentPath(), '/').'/.env';
 
@@ -419,7 +452,6 @@ abstract class TestCase extends BaseTestCase
             return self::$localEnvironmentValues;
         }
 
-        $allowedKeys = array_flip(self::LOCAL_ENV_PASSTHROUGH_KEYS);
         $values = [];
 
         foreach (file($environmentFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
@@ -432,16 +464,26 @@ abstract class TestCase extends BaseTestCase
             [$name, $rawValue] = explode('=', $trimmedLine, 2);
             $name = trim($name);
 
-            if (! isset($allowedKeys[$name])) {
-                continue;
-            }
-
             $values[$name] = trim($rawValue, " \t\n\r\0\x0B\"'");
         }
 
         self::$localEnvironmentValues = $values;
 
         return self::$localEnvironmentValues;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function localEnvironmentPassthroughValues(): array
+    {
+        $allowedKeys = array_flip(self::LOCAL_ENV_PASSTHROUGH_KEYS);
+
+        return array_filter(
+            self::localEnvironmentValues(),
+            static fn (string $name): bool => isset($allowedKeys[$name]),
+            ARRAY_FILTER_USE_KEY,
+        );
     }
 
     /**
@@ -492,6 +534,12 @@ abstract class TestCase extends BaseTestCase
         putenv($name.'='.$value);
         $_ENV[$name] = $value;
         $_SERVER[$name] = $value;
+    }
+
+    private static function unsetEnvironmentValue(string $name): void
+    {
+        putenv($name);
+        unset($_ENV[$name], $_SERVER[$name]);
     }
 
     /**

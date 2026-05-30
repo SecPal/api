@@ -52,6 +52,11 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
         parent::normalizeApplicationConfiguration($app);
     }
 
+    public static function expectedTestAppKey(): string
+    {
+        return parent::expectedTestAppKey();
+    }
+
     public static function removeBootstrapEnvironmentStub(): void
     {
         parent::cleanupBootstrapEnvironmentFile();
