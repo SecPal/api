@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Tests\Support;
 
+use Illuminate\Foundation\Application;
 use Tests\TestCase;
 
 final class TestCaseBootstrapEnvironmentProbe extends TestCase
@@ -28,12 +29,42 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
 
     public static function createBootstrapEnvironmentStub(): void
     {
-        parent::ensureBootstrapEnvironmentFileExists();
+        parent::prepareBootstrapEnvironment();
     }
 
     public static function applyPhpUnitEnvironmentOverrides(): void
     {
         parent::applyPhpUnitEnvironmentOverrides();
+    }
+
+    public static function prepareBootstrapEnvironment(): void
+    {
+        parent::prepareBootstrapEnvironment();
+    }
+
+    public static function createBootstrapApplication(): Application
+    {
+        return (new self('createApplication'))->createApplication();
+    }
+
+    public static function bootstrapEnvironmentFileName(): string
+    {
+        return parent::bootstrapEnvironmentFileName();
+    }
+
+    public static function bootstrapEnvironmentLockFilePath(): string
+    {
+        return parent::bootstrapEnvironmentLockFilePath();
+    }
+
+    public static function normalizeBootstrapApplication(Application $app): void
+    {
+        parent::normalizeApplicationConfiguration($app);
+    }
+
+    public static function expectedTestAppKey(): string
+    {
+        return parent::expectedTestAppKey();
     }
 
     public static function removeBootstrapEnvironmentStub(): void
@@ -44,6 +75,11 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
     public static function clearProbeEnvironmentPath(): void
     {
         self::$probeEnvironmentPath = null;
+    }
+
+    public static function resetBootstrapEnvironmentState(): void
+    {
+        parent::resetBootstrapEnvironmentState();
     }
 
     protected static function bootstrapEnvironmentPath(): string
