@@ -525,7 +525,7 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
             ->first();
 
         expect($response->json('valid_from'))->toBe(ApiTimestamp::format($assignment->valid_from))
-            ->and($response->json('valid_until'))->toBe(ApiTimestamp::format($newValidUntil));
+            ->and($response->json('valid_until'))->toBe(ApiTimestamp::format($newValidUntil))
             ->and($assignment->valid_until->utc()->format('Y-m-d\\TH:i:s\\Z'))
             ->toBe('2026-06-13T21:22:23Z');
     });
