@@ -212,16 +212,16 @@ class AndroidEnrollmentSessionController extends Controller
             'update_channel' => $session->update_channel,
             'release_metadata_url' => $session->release_metadata_url,
             'provisioning_profile' => $session->provisioning_profile,
-            'bootstrap_token_expires_at' => $session->bootstrap_token_expires_at->toIso8601String(),
+            'bootstrap_token_expires_at' => \App\Support\ApiTimestamp::format($session->bootstrap_token_expires_at),
             'bootstrap_token_last_eight' => $session->bootstrap_token_lookup_hash !== null
                 ? strtoupper(substr($session->bootstrap_token_lookup_hash, -8))
                 : null,
-            'exchanged_at' => $session->exchanged_at?->toIso8601String(),
-            'revoked_at' => $session->revoked_at?->toIso8601String(),
+            'exchanged_at' => \App\Support\ApiTimestamp::nullable($session->exchanged_at),
+            'revoked_at' => \App\Support\ApiTimestamp::nullable($session->revoked_at),
             'revocation_reason' => $session->revocation_reason,
             'notes' => $session->notes,
-            'created_at' => $session->created_at?->toIso8601String(),
-            'updated_at' => $session->updated_at?->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::nullable($session->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::nullable($session->updated_at),
         ];
     }
 }

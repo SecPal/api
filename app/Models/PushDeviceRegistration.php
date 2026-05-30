@@ -234,9 +234,7 @@ class PushDeviceRegistration extends Model
                         'service_worker_scope' => $this->service_worker_scope,
                     ],
                     'subscription_endpoint_origin' => $this->subscription_endpoint_origin,
-                    'subscription_expires_at' => $this->subscription_expires_at !== null
-                        ? $this->isoUtc($this->subscription_expires_at)
-                        : null,
+                    'subscription_expires_at' => \App\Support\ApiTimestamp::nullable($this->subscription_expires_at),
                 ]
                 : [
                     'app' => [
@@ -256,13 +254,8 @@ class PushDeviceRegistration extends Model
                 'schema_version' => $this->schema_version,
                 'metadata_revision' => $this->push_metadata_revision,
             ],
-            'created_at' => $this->isoUtc($this->created_at),
-            'updated_at' => $this->isoUtc($this->updated_at),
+            'created_at' => \App\Support\ApiTimestamp::format($this->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::format($this->updated_at),
         ];
-    }
-
-    private function isoUtc(\DateTimeInterface $timestamp): string
-    {
-        return \Illuminate\Support\Carbon::instance($timestamp)->utc()->format('Y-m-d\\TH:i:s\\Z');
     }
 }

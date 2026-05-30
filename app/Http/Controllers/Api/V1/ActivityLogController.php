@@ -138,7 +138,7 @@ class ActivityLogController extends Controller
                     'previous_hash' => $activity->previous_hash,
                     'merkle_root' => $activity->merkle_root,
                     'merkle_batch_id' => $activity->merkle_batch_id,
-                    'ots_confirmed_at' => $activity->ots_confirmed_at?->toIso8601String(),
+                    'ots_confirmed_at' => \App\Support\ApiTimestamp::nullable($activity->ots_confirmed_at),
                     'is_orphaned_genesis' => $activity->is_orphaned_genesis,
                     'orphaned_reason' => $activity->orphaned_reason,
                 ],

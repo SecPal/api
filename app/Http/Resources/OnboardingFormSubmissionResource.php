@@ -37,17 +37,17 @@ class OnboardingFormSubmissionResource extends JsonResource
             'form_template_id' => $this->form_template_id,
             'form_data' => $this->form_data,
             'status' => $this->status,
-            'submitted_at' => $this->submitted_at?->toIso8601String(),
+            'submitted_at' => \App\Support\ApiTimestamp::nullable($this->submitted_at),
             'reviewed_by' => $this->reviewed_by,
-            'reviewed_at' => $this->reviewed_at?->toIso8601String(),
+            'reviewed_at' => \App\Support\ApiTimestamp::nullable($this->reviewed_at),
             'review_notes' => $this->review_notes,
 
             // Relationships (optional)
             'form_template' => new OnboardingFormTemplateResource($this->whenLoaded('formTemplate')),
             'reviewer' => new UserResource($this->whenLoaded('reviewer')),
 
-            'created_at' => $this->created_at?->toIso8601String(),
-            'updated_at' => $this->updated_at?->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::nullable($this->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::nullable($this->updated_at),
         ];
     }
 }

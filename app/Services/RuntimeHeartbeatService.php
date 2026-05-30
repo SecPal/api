@@ -73,7 +73,7 @@ class RuntimeHeartbeatService
         return [
             'status' => $isFresh ? 'ok' : 'stale',
             'healthy' => $isFresh,
-            'last_heartbeat_at' => $lastHeartbeatAt->toIso8601String(),
+            'last_heartbeat_at' => \App\Support\ApiTimestamp::format($lastHeartbeatAt),
             'stale_after_seconds' => self::SCHEDULER_STALE_AFTER_SECONDS,
         ];
     }
@@ -91,7 +91,7 @@ class RuntimeHeartbeatService
 
     private function storeHeartbeat(string $cacheKey, CarbonInterface $timestamp): void
     {
-        Cache::forever($cacheKey, $timestamp->toIso8601String());
+        Cache::forever($cacheKey, \App\Support\ApiTimestamp::format($timestamp));
     }
 
     private function queueCacheKey(string $queueGroup): string
@@ -126,7 +126,7 @@ class RuntimeHeartbeatService
             return [
                 'status' => $this->isFreshHeartbeat($lastHeartbeatAt) ? 'ok' : 'idle',
                 'healthy' => true,
-                'last_heartbeat_at' => $lastHeartbeatAt?->toIso8601String(),
+                'last_heartbeat_at' => \App\Support\ApiTimestamp::nullable($lastHeartbeatAt),
                 'pending_jobs' => 0,
                 'stale_after_seconds' => self::QUEUE_WORKER_STALE_AFTER_SECONDS,
             ];
@@ -147,7 +147,7 @@ class RuntimeHeartbeatService
         return [
             'status' => $isFresh ? 'ok' : 'stale',
             'healthy' => $isFresh,
-            'last_heartbeat_at' => $lastHeartbeatAt->toIso8601String(),
+            'last_heartbeat_at' => \App\Support\ApiTimestamp::format($lastHeartbeatAt),
             'pending_jobs' => $pendingJobs,
             'stale_after_seconds' => self::QUEUE_WORKER_STALE_AFTER_SECONDS,
         ];

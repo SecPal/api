@@ -664,7 +664,7 @@ class AuthController extends Controller
                 'status' => $this->mfaService->buildStatusData($user),
                 'recovery_codes' => [
                     'codes' => $this->mfaService->revealRecoveryCodes($user),
-                    'generated_at' => $user->getTwoFactorRecoveryCodesGeneratedAt()?->format(DATE_ATOM),
+                    'generated_at' => \App\Support\ApiTimestamp::nullable($user->getTwoFactorRecoveryCodesGeneratedAt()),
                 ],
             ],
         ]);
@@ -715,7 +715,7 @@ class AuthController extends Controller
                 'status' => $this->mfaService->buildStatusData($user),
                 'recovery_codes' => [
                     'codes' => $recoveryCodes,
-                    'generated_at' => $user->getTwoFactorRecoveryCodesGeneratedAt()?->format(DATE_ATOM),
+                    'generated_at' => \App\Support\ApiTimestamp::nullable($user->getTwoFactorRecoveryCodesGeneratedAt()),
                 ],
             ],
         ]);

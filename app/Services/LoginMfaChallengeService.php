@@ -40,7 +40,7 @@ class LoginMfaChallengeService
             'login_context' => $loginContext,
             'primary_method' => 'totp',
             'available_methods' => $this->availableMethodsFor($user),
-            'expires_at' => $expiresAt->toIso8601String(),
+            'expires_at' => \App\Support\ApiTimestamp::format($expiresAt),
         ];
     }
 

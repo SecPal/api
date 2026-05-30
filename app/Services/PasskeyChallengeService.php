@@ -39,7 +39,7 @@ class PasskeyChallengeService
             'challenge_id' => $id,
             'public_key' => $publicKeyOptions,
             'mediation' => $mediation,
-            'expires_at' => $expiresAt->toIso8601String(),
+            'expires_at' => \App\Support\ApiTimestamp::format($expiresAt),
         ];
     }
 
@@ -97,7 +97,7 @@ class PasskeyChallengeService
         return [
             'challenge_id' => $id,
             'public_key' => $publicKeyOptions,
-            'expires_at' => $expiresAt->toIso8601String(),
+            'expires_at' => \App\Support\ApiTimestamp::format($expiresAt),
         ];
     }
 

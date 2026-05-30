@@ -97,7 +97,7 @@ final class PushDeviceRegistrationService
         return [
             'installation_id' => $installationId,
             'channel' => $channel,
-            'revoked_at' => $revokedAt->utc()->format('Y-m-d\\TH:i:s\\Z'),
+            'revoked_at' => \App\Support\ApiTimestamp::format($revokedAt),
         ];
     }
 

@@ -50,9 +50,9 @@ class CustomerResource extends JsonResource
             'assignments' => CustomerAssignmentResource::collection($this->whenLoaded('assignments')),
 
             // Timestamps
-            'created_at' => $this->created_at->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
-            'deleted_at' => $this->deleted_at?->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::format($this->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::format($this->updated_at),
+            'deleted_at' => \App\Support\ApiTimestamp::nullable($this->deleted_at),
         ];
     }
 }

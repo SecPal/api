@@ -89,18 +89,18 @@ class ActivityResource extends JsonResource
             'merkle_proof' => $this->merkle_proof,
 
             // OpenTimestamp data
-            'ots_submitted_at' => $this->ots_submitted_at?->toIso8601String(),
-            'ots_confirmed_at' => $this->ots_confirmed_at?->toIso8601String(),
+            'ots_submitted_at' => \App\Support\ApiTimestamp::nullable($this->ots_submitted_at),
+            'ots_confirmed_at' => \App\Support\ApiTimestamp::nullable($this->ots_confirmed_at),
             'has_ots_proof' => $this->ots_proof !== null,
 
             // Orphaned genesis handling
             'is_orphaned_genesis' => $this->is_orphaned_genesis,
             'orphaned_reason' => $this->orphaned_reason,
-            'orphaned_at' => $this->orphaned_at?->toIso8601String(),
+            'orphaned_at' => \App\Support\ApiTimestamp::nullable($this->orphaned_at),
 
             // Timestamps
-            'created_at' => $this->created_at->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::format($this->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::format($this->updated_at),
 
             // Relationships
             'organizational_unit' => new OrganizationalUnitResource($this->whenLoaded('organizationalUnit')),

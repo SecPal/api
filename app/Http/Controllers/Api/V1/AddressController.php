@@ -92,7 +92,7 @@ class AddressController extends Controller
             'data' => [
                 'country' => $country,
                 'row_count' => $active->row_count,
-                'imported_at' => $active->activated_at?->toIso8601String(),
+                'imported_at' => \App\Support\ApiTimestamp::nullable($active->activated_at),
             ],
             'meta' => $this->metaPayload($active),
         ]);
@@ -107,7 +107,7 @@ class AddressController extends Controller
             'source' => $active->source_name,
             'license' => $active->license,
             'attribution' => $active->attribution,
-            'imported_at' => $active->activated_at?->toIso8601String(),
+            'imported_at' => \App\Support\ApiTimestamp::nullable($active->activated_at),
             'version_hash' => $active->source_sha256,
         ];
     }

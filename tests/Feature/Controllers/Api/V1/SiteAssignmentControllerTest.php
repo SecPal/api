@@ -14,6 +14,7 @@ use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -77,6 +78,8 @@ describe('GET /v1/sites/{site}/assignments', function () {
     test('returns paginated assignments with valid permission', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
+        Carbon::setTestNow(Carbon::parse('2026-05-30 12:34:56 UTC'));
+
         $targetUser = User::factory()->create();
 
         SiteAssignment::factory()->create([
@@ -106,7 +109,13 @@ describe('GET /v1/sites/{site}/assignments', function () {
                 'data' => [
                     '*' => ['id', 'role', 'is_active', 'valid_from', 'valid_until', 'notes', 'user', 'site', 'created_at', 'updated_at'],
                 ],
-            ]);
+            ])
+            ->assertJsonPath('data.0.created_at', '2026-05-30T12:34:56Z')
+            ->assertJsonPath('data.0.updated_at', '2026-05-30T12:34:56Z')
+            ->assertJsonPath('data.0.user.created_at', '2026-05-30T12:34:56Z')
+            ->assertJsonPath('data.0.user.updated_at', '2026-05-30T12:34:56Z');
+
+        Carbon::setTestNow();
     });
 
     test('filters assignments by role', function (): void {

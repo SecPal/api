@@ -53,7 +53,7 @@ class EmployeeResource extends JsonResource
             // BewachV § 16 Abs. 2 Nr. 1: BWR Registration Tracking
             'bwr_id' => $this->bwr_id, // 7-digit Bewacher-ID
             'bwr_status' => $this->bwr_status,
-            'bwr_registered_at' => $this->bwr_registered_at?->toIso8601String(),
+            'bwr_registered_at' => \App\Support\ApiTimestamp::nullable($this->bwr_registered_at),
             'bwr_submission_date' => $this->bwr_submission_date?->toDateString(),
             'bwr_notes' => $this->bwr_notes,
 
@@ -90,7 +90,7 @@ class EmployeeResource extends JsonResource
             'id_document_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->id_document_number),
             'id_document_expiry' => $this->id_document_expiry?->toDateString(),
             'id_document_copy_path' => $this->id_document_copy_path,
-            'id_document_copy_deleted_at' => $this->id_document_copy_deleted_at?->toIso8601String(),
+            'id_document_copy_deleted_at' => \App\Support\ApiTimestamp::nullable($this->id_document_copy_deleted_at),
 
             // BewachV § 21: Retention Management
             'employment_end_date' => $this->employment_end_date,
@@ -132,7 +132,7 @@ class EmployeeResource extends JsonResource
             'work_permit_expiry' => $this->work_permit_expiry?->toDateString(),
             'work_permit_copy_path' => $this->work_permit_copy_path,
             'work_permit_issued_by' => $this->work_permit_issued_by,
-            'work_permit_copy_deleted_at' => $this->work_permit_copy_deleted_at?->toIso8601String(),
+            'work_permit_copy_deleted_at' => \App\Support\ApiTimestamp::nullable($this->work_permit_copy_deleted_at),
             'firearms_license_number' => $this->when($canReadSensitiveIdentifiers, fn () => $this->firearms_license_number),
             'firearms_license_expiry' => $this->firearms_license_expiry?->toDateString(),
             'firearms_license_issued_by' => $this->firearms_license_issued_by,
@@ -166,14 +166,14 @@ class EmployeeResource extends JsonResource
             // User Account
             'user_id' => $this->user_id,
             'user_account_active' => $this->user_account_active,
-            'user_account_activated_at' => $this->user_account_activated_at?->toIso8601String(),
-            'user_account_deactivated_at' => $this->user_account_deactivated_at?->toIso8601String(),
+            'user_account_activated_at' => \App\Support\ApiTimestamp::nullable($this->user_account_activated_at),
+            'user_account_deactivated_at' => \App\Support\ApiTimestamp::nullable($this->user_account_deactivated_at),
 
             // Onboarding
             'onboarding_completed' => $this->onboarding_completed,
             'onboarding_steps' => $this->onboarding_steps,
-            'onboarding_started_at' => $this->onboarding_started_at?->toIso8601String(),
-            'onboarding_completed_at' => $this->onboarding_completed_at?->toIso8601String(),
+            'onboarding_started_at' => \App\Support\ApiTimestamp::nullable($this->onboarding_started_at),
+            'onboarding_completed_at' => \App\Support\ApiTimestamp::nullable($this->onboarding_completed_at),
             'onboarding_workflow' => [
                 'status' => $this->resolveOnboardingWorkflowStatus(),
             ],
@@ -184,10 +184,10 @@ class EmployeeResource extends JsonResource
                 'rule_message' => $this->canReceiveOnboardingInvitation()
                     ? 'Onboarding invitations can be requested while the employee remains in pre_contract status.'
                     : 'Onboarding invitations are only available while the employee is in pre_contract status.',
-                'requested_at' => $this->onboarding_invitation_requested_at?->toIso8601String(),
-                'token_created_at' => $this->onboarding_invitation_token_created_at?->toIso8601String(),
-                'mail_sent_at' => $this->onboarding_invitation_mail_sent_at?->toIso8601String(),
-                'mail_failed_at' => $this->onboarding_invitation_mail_failed_at?->toIso8601String(),
+                'requested_at' => \App\Support\ApiTimestamp::nullable($this->onboarding_invitation_requested_at),
+                'token_created_at' => \App\Support\ApiTimestamp::nullable($this->onboarding_invitation_token_created_at),
+                'mail_sent_at' => \App\Support\ApiTimestamp::nullable($this->onboarding_invitation_mail_sent_at),
+                'mail_failed_at' => \App\Support\ApiTimestamp::nullable($this->onboarding_invitation_mail_failed_at),
                 'failure_reason' => $this->onboarding_invitation_failure_reason,
             ],
 
@@ -203,9 +203,9 @@ class EmployeeResource extends JsonResource
             'documents' => EmployeeDocumentResource::collection($this->whenLoaded('documents')),
 
             // Timestamps
-            'created_at' => $this->created_at->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
-            'deleted_at' => $this->deleted_at?->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::format($this->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::format($this->updated_at),
+            'deleted_at' => \App\Support\ApiTimestamp::nullable($this->deleted_at),
         ];
     }
 }

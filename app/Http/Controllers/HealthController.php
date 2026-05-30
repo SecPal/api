@@ -25,7 +25,7 @@ class HealthController extends Controller
         // Minimal check - app is running if we reach this point
         return response()->json([
             'status' => 'alive',
-            'timestamp' => now()->toIso8601String(),
+            'timestamp' => \App\Support\ApiTimestamp::format(now()),
         ], 200);
     }
 
@@ -91,7 +91,7 @@ class HealthController extends Controller
 
         return response()->json([
             'status' => $allPassed ? 'ready' : 'not_ready',
-            'timestamp' => now()->toIso8601String(),
+            'timestamp' => \App\Support\ApiTimestamp::format(now()),
         ], $allPassed ? 200 : 503);
     }
 }
