@@ -295,6 +295,37 @@ test('isolates the generated test env file and runtime env state from inherited 
     }
 });
 
+test('clears BOOTSTRAP_* vars present only in the process env (variables_order without E)', function (): void {
+    $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
+    $originalBootstrapProcessOnly = getenv('BOOTSTRAP_PROCESS_ONLY_FLAG');
+
+    mkdir($probeDirectory, 0700, true);
+
+    try {
+        putenv('BOOTSTRAP_PROCESS_ONLY_FLAG=process-only');
+        unset($_ENV['BOOTSTRAP_PROCESS_ONLY_FLAG'], $_SERVER['BOOTSTRAP_PROCESS_ONLY_FLAG']);
+
+        TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+        expect(getenv('BOOTSTRAP_PROCESS_ONLY_FLAG'))->toBeFalse();
+    } finally {
+        TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+
+        if ($originalBootstrapProcessOnly === false) {
+            putenv('BOOTSTRAP_PROCESS_ONLY_FLAG');
+        } else {
+            putenv('BOOTSTRAP_PROCESS_ONLY_FLAG='.$originalBootstrapProcessOnly);
+            $_ENV['BOOTSTRAP_PROCESS_ONLY_FLAG'] = $originalBootstrapProcessOnly;
+            $_SERVER['BOOTSTRAP_PROCESS_ONLY_FLAG'] = $originalBootstrapProcessOnly;
+        }
+
+        rmdir($probeDirectory);
+    }
+});
+
 test('respects overridden bootstrap env file names when composing and loading the bootstrap env file', function (): void {
     $environmentFileName = '.env.testing.bootstrap.'.Str::uuid();
     $environmentFilePath = dirname(__DIR__, 2).'/'.$environmentFileName;

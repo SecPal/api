@@ -299,8 +299,10 @@ abstract class TestCase extends BaseTestCase
             $keysToClear[$name] = true;
         }
 
-        foreach (array_keys($_ENV + $_SERVER) as $name) {
-            if (! str_starts_with($name, 'BOOTSTRAP_')) {
+        $processEnv = is_array(getenv()) ? getenv() : [];
+
+        foreach (array_keys($_ENV + $_SERVER + $processEnv) as $name) {
+            if (! str_starts_with((string) $name, 'BOOTSTRAP_')) {
                 continue;
             }
 
