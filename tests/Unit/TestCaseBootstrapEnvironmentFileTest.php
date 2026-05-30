@@ -127,6 +127,50 @@ test('publishes bootstrap env updates via atomic file replacement', function ():
     rmdir($probeDirectory);
 });
 
+test('parallel workers do not delete the shared bootstrap env file during cleanup', function (): void {
+    $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
+    $originalTestToken = getenv('TEST_TOKEN');
+    $environmentFile = dirname(__DIR__, 2).'/.env.testing.bootstrap';
+
+    try {
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+        putenv('LARAVEL_PARALLEL_TESTING=1');
+        putenv('TEST_TOKEN=7');
+        $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
+        $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
+        $_ENV['TEST_TOKEN'] = '7';
+        $_SERVER['TEST_TOKEN'] = '7';
+
+        TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
+
+        expect(is_file($environmentFile))->toBeTrue();
+    } finally {
+        foreach ([
+            'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'TEST_TOKEN' => $originalTestToken,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+
+        TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
+
+        if (is_file(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentLockFilePath())) {
+            unlink(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentLockFilePath());
+        }
+    }
+});
+
 test('reapplies the bootstrap env before each application boot when process vars leak', function (): void {
     $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
     $originalAppEnv = getenv('APP_ENV');
@@ -381,17 +425,27 @@ test('respects overridden bootstrap env file names when composing and loading th
     $environmentFileName = '.env.testing.bootstrap.'.Str::uuid();
     $environmentFilePath = dirname(__DIR__, 2).'/'.$environmentFileName;
 
-    TestCaseBootstrapEnvironmentFileNameOverrideProbe::useProbeEnvironmentFileName($environmentFileName);
-    TestCaseBootstrapEnvironmentFileNameOverrideProbe::resetBootstrapEnvironmentState();
+    try {
+        TestCaseBootstrapEnvironmentFileNameOverrideProbe::useProbeEnvironmentFileName($environmentFileName);
+        TestCaseBootstrapEnvironmentFileNameOverrideProbe::resetBootstrapEnvironmentState();
 
-    expect(TestCaseBootstrapEnvironmentFileNameOverrideProbe::bootstrapEnvironmentFilePath())
-        ->toBe($environmentFilePath)
-        ->and(is_file($environmentFilePath))->toBeFalse();
+        expect(TestCaseBootstrapEnvironmentFileNameOverrideProbe::bootstrapEnvironmentFilePath())
+            ->toBe($environmentFilePath)
+            ->and(is_file($environmentFilePath))->toBeFalse();
 
-    TestCaseBootstrapEnvironmentFileNameOverrideProbe::createBootstrapEnvironmentStub();
+        TestCaseBootstrapEnvironmentFileNameOverrideProbe::createBootstrapEnvironmentStub();
 
-    $app = TestCaseBootstrapEnvironmentFileNameOverrideProbe::createBootstrapApplication();
+        $app = TestCaseBootstrapEnvironmentFileNameOverrideProbe::createBootstrapApplication();
 
-    expect(is_file($environmentFilePath))->toBeTrue()
-        ->and($app->environmentFile())->toBe($environmentFileName);
+        expect(is_file($environmentFilePath))->toBeTrue()
+            ->and($app->environmentFile())->toBe($environmentFileName);
+    } finally {
+        TestCaseBootstrapEnvironmentFileNameOverrideProbe::removeBootstrapEnvironmentStub();
+        TestCaseBootstrapEnvironmentFileNameOverrideProbe::clearProbeEnvironmentFileName();
+        TestCaseBootstrapEnvironmentFileNameOverrideProbe::resetBootstrapEnvironmentState();
+
+        if (is_file($environmentFilePath)) {
+            unlink($environmentFilePath);
+        }
+    }
 });

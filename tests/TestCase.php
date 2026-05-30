@@ -471,11 +471,31 @@ abstract class TestCase extends BaseTestCase
             return;
         }
 
+        if (self::isRunningInParallelWorker() && self::usesSharedBootstrapEnvironmentFile()) {
+            return;
+        }
+
         if (is_file(self::$temporaryBootstrapEnvironmentFile)) {
             unlink(self::$temporaryBootstrapEnvironmentFile);
         }
 
         self::$temporaryBootstrapEnvironmentFile = null;
+    }
+
+    private static function isRunningInParallelWorker(): bool
+    {
+        $parallelTesting = $_SERVER['LARAVEL_PARALLEL_TESTING'] ?? getenv('LARAVEL_PARALLEL_TESTING');
+        $testToken = $_SERVER['TEST_TOKEN'] ?? getenv('TEST_TOKEN');
+
+        return ! empty($parallelTesting)
+            && $testToken !== false
+            && $testToken !== null
+            && (string) $testToken !== '';
+    }
+
+    private static function usesSharedBootstrapEnvironmentFile(): bool
+    {
+        return self::$temporaryBootstrapEnvironmentFile === dirname(__DIR__).'/'.self::TEST_BOOTSTRAP_ENVIRONMENT_FILE;
     }
 
     protected static function resetBootstrapEnvironmentState(): void
