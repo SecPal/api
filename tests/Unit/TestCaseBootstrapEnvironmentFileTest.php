@@ -127,6 +127,57 @@ test('publishes bootstrap env updates via atomic file replacement', function ():
     rmdir($probeDirectory);
 });
 
+test('reapplies the bootstrap env before each application boot when process vars leak', function (): void {
+    $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
+    $originalAppEnv = getenv('APP_ENV');
+    $originalAppKey = getenv('APP_KEY');
+    $leakedAppKey = 'base64:leaked-app-key-should-not-survive';
+
+    mkdir($probeDirectory, 0700, true);
+
+    try {
+        TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+        putenv('APP_ENV=local');
+        putenv('APP_KEY='.$leakedAppKey);
+        $_ENV['APP_ENV'] = 'local';
+        $_SERVER['APP_ENV'] = 'local';
+        $_ENV['APP_KEY'] = $leakedAppKey;
+        $_SERVER['APP_KEY'] = $leakedAppKey;
+
+        $application = TestCaseBootstrapEnvironmentProbe::createBootstrapApplication();
+
+        expect(getenv('APP_ENV'))->toBe('testing')
+            ->and(getenv('APP_KEY'))->toBe(TestCaseBootstrapEnvironmentProbe::expectedTestAppKey())
+            ->and($application->environment())->toBe('testing')
+            ->and($application['config']->get('app.key'))->toBe(TestCaseBootstrapEnvironmentProbe::expectedTestAppKey());
+    } finally {
+        TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+
+        foreach (['APP_ENV' => $originalAppEnv, 'APP_KEY' => $originalAppKey] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+
+        if (is_file(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentLockFilePath())) {
+            unlink(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentLockFilePath());
+        }
+
+        rmdir($probeDirectory);
+    }
+});
+
 test('serializes bootstrap env writers before publishing the shared file', function (): void {
     if (! function_exists('proc_open')) {
         $this->markTestSkipped('proc_open is required for bootstrap writer lock coverage.');

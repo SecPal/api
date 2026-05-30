@@ -42,6 +42,11 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
         parent::prepareBootstrapEnvironment();
     }
 
+    public static function createBootstrapApplication(): Application
+    {
+        return (new self('createApplication'))->createApplication();
+    }
+
     public static function bootstrapEnvironmentFileName(): string
     {
         return parent::bootstrapEnvironmentFileName();

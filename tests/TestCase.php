@@ -59,9 +59,7 @@ abstract class TestCase extends BaseTestCase
 
     public function createApplication(): Application
     {
-        if (! is_file(static::bootstrapEnvironmentFilePath())) {
-            self::prepareBootstrapEnvironment();
-        }
+        self::prepareBootstrapEnvironment();
 
         /** @var Application $app */
         $app = require __DIR__.'/../bootstrap/app.php';
