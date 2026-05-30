@@ -26,8 +26,8 @@ class MfaService
             'enabled' => $user->hasTwoFactorEnabled(),
             'method' => $user->hasTwoFactorEnabled() ? 'totp' : null,
             'recovery_codes_remaining' => $user->hasTwoFactorEnabled() ? $user->getRemainingTwoFactorRecoveryCodesCount() : 0,
-            'recovery_codes_generated_at' => $user->getTwoFactorRecoveryCodesGeneratedAt()?->format(DATE_ATOM),
-            'enrolled_at' => $user->twoFactorAuth->enabled_at?->format(DATE_ATOM),
+            'recovery_codes_generated_at' => \App\Support\ApiTimestamp::nullable($user->getTwoFactorRecoveryCodesGeneratedAt()),
+            'enrolled_at' => \App\Support\ApiTimestamp::nullable($user->twoFactorAuth->enabled_at),
         ];
     }
 
@@ -46,7 +46,8 @@ class MfaService
             'account_name' => $user->getTwoFactorUserIdentifier(),
             'manual_entry_key' => $secret->toString(),
             'otpauth_uri' => $secret->toUri(),
-            'expires_at' => $this->pendingEnrollmentExpiresAt($user)?->toIso8601String() ?? CarbonImmutable::now()->toIso8601String(),
+            'expires_at' => \App\Support\ApiTimestamp::nullable($this->pendingEnrollmentExpiresAt($user))
+                ?? \App\Support\ApiTimestamp::format(CarbonImmutable::now()),
         ];
     }
 

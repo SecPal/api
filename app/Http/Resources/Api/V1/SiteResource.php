@@ -50,9 +50,9 @@ class SiteResource extends JsonResource
             'valid_from' => $this->resource->valid_from?->toDateString(),
             'valid_until' => $this->resource->valid_until?->toDateString(),
             'customer' => $this->whenLoaded('customer', fn () => new CustomerResource($this->resource->customer)),
-            'created_at' => $this->resource->created_at->toIso8601String(),
-            'updated_at' => $this->resource->updated_at->toIso8601String(),
-            'deleted_at' => $this->resource->deleted_at?->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::format($this->resource->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::format($this->resource->updated_at),
+            'deleted_at' => \App\Support\ApiTimestamp::nullable($this->resource->deleted_at),
         ];
     }
 

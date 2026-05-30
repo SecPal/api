@@ -42,9 +42,9 @@ class CustomerResource extends JsonResource
             'metadata' => $this->resource->metadata,
             'is_active' => $this->resource->is_active,
             'sites_count' => $this->whenCounted('sites'),
-            'created_at' => $this->resource->created_at->toIso8601String(),
-            'updated_at' => $this->resource->updated_at->toIso8601String(),
-            'deleted_at' => $this->resource->deleted_at?->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::format($this->resource->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::format($this->resource->updated_at),
+            'deleted_at' => \App\Support\ApiTimestamp::nullable($this->resource->deleted_at),
         ];
     }
 

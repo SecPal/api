@@ -38,8 +38,8 @@ class PersonResource extends JsonResource
         return [
             'id' => $this->id,
             'tenant_id' => $this->tenant_id,
-            'created_at' => $this->created_at->toIso8601String(),
-            'updated_at' => $this->updated_at->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::format($this->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::format($this->updated_at),
         ];
     }
 }

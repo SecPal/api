@@ -52,8 +52,8 @@ class OrganizationalScopeController extends Controller
             'min_assignable_rank' => $scope->min_assignable_rank,
             'max_assignable_rank' => $scope->max_assignable_rank,
             'allow_self_access' => $scope->allow_self_access,
-            'created_at' => $scope->created_at->toIso8601String(),
-            'updated_at' => $scope->updated_at->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::format($scope->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::format($scope->updated_at),
         ];
 
         if ($includeUnit && $scope->relationLoaded('organizationalUnit')) {

@@ -469,9 +469,9 @@ class OnboardingController extends Controller
                 'employee_id' => $employee->id,
                 'status' => $employee->status,
                 'onboarding_steps' => $employee->onboarding_steps,
-                'onboarding_started_at' => $employee->onboarding_started_at?->toIso8601String(),
+                'onboarding_started_at' => \App\Support\ApiTimestamp::nullable($employee->onboarding_started_at),
                 'onboarding_completed' => $employee->onboarding_completed,
-                'onboarding_completed_at' => $employee->onboarding_completed_at?->toIso8601String(),
+                'onboarding_completed_at' => \App\Support\ApiTimestamp::nullable($employee->onboarding_completed_at),
             ],
         ]);
     }
@@ -1533,7 +1533,7 @@ class OnboardingController extends Controller
                     ->withProperties([
                         'action' => 'onboarding_contract_confirmed',
                         'notes' => $notes,
-                        'confirmed_at' => now()->toIso8601String(),
+                        'confirmed_at' => \App\Support\ApiTimestamp::format(now()),
                         'from_workflow_status' => $fromWorkflowStatus,
                         'to_workflow_status' => $toWorkflowStatus,
                         'contract_start_date' => $lockedEmployee->contract_start_date?->toDateString(),

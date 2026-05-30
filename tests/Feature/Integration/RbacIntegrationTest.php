@@ -3,8 +3,10 @@
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\TemporalRoleUser;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Support\ApiTimestamp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
@@ -337,7 +339,11 @@ describe('Error Handling & Edge Cases', function (): void {
 
         // Idempotency: Returns existing assignment, does NOT modify it
         // Note: valid_from is set to now() by default even for "permanent" roles
-        expect($response->json('valid_from'))->not->toBeNull()
+        $assignment = TemporalRoleUser::where('model_id', $user->id)
+            ->where('role_id', Role::findByName('Manager')->id)
+            ->firstOrFail();
+
+        expect($response->json('valid_from'))->toBe(ApiTimestamp::format($assignment->valid_from))
             ->and($response->json('valid_until'))->toBeNull(); // No expiration
 
         // User should still have exactly 1 role (not duplicate)

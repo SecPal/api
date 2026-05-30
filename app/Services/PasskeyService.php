@@ -340,8 +340,8 @@ class PasskeyService
         return [
             'id' => $credential->credential_id,
             'label' => $credential->label,
-            'created_at' => $credential->created_at->toIso8601String(),
-            'last_used_at' => $credential->last_used_at?->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::format($credential->created_at),
+            'last_used_at' => \App\Support\ApiTimestamp::nullable($credential->last_used_at),
             'transports' => is_array($credential->transports) ? array_values($credential->transports) : [],
             'authenticator_attachment' => $credential->authenticator_attachment,
             'aaguid' => $credential->aaguid,

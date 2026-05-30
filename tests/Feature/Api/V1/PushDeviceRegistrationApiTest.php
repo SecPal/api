@@ -8,6 +8,7 @@ declare(strict_types=1);
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -151,6 +152,8 @@ test('authenticated user can create android notification installation', function
 
     actingAs($user, 'sanctum');
 
+    Carbon::setTestNow(Carbon::parse('2026-05-30 12:34:56 UTC'));
+
     $installationId = 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b';
 
     $response = putJson('/v1/me/notification-installations/'.$installationId, androidNotificationInstallationPayload(
@@ -172,7 +175,9 @@ test('authenticated user can create android notification installation', function
         ->assertJsonPath('data.registration.device.sdk_int', 36)
         ->assertJsonPath('data.runtime.bootstrap_version', 'v1')
         ->assertJsonPath('data.runtime.schema_version', 3)
-        ->assertJsonPath('data.runtime.metadata_revision', 3);
+        ->assertJsonPath('data.runtime.metadata_revision', 3)
+        ->assertJsonPath('data.created_at', '2026-05-30T12:34:56Z')
+        ->assertJsonPath('data.updated_at', '2026-05-30T12:34:56Z');
 
     $this->assertDatabaseHas('push_device_registrations', [
         'tenant_id' => $tenant->id,
@@ -207,6 +212,8 @@ test('authenticated user can create android notification installation', function
         ->toHaveKeys(['ciphertext', 'nonce'])
         ->and($decodedToken['ciphertext'])->toBeString()->not->toBe('')
         ->and($decodedToken['nonce'])->toBeString()->not->toBe('');
+
+    Carbon::setTestNow();
 });
 
 test('session-authenticated browser user can create a web push notification installation on the canonical surface', function (): void {
@@ -551,6 +558,8 @@ test('session-authenticated browser user can revoke their web push notification 
     enableWebPushNotificationChannel();
     loginBrowserSession($this, $user);
 
+    Carbon::setTestNow(Carbon::parse('2026-05-30 12:34:56 UTC'));
+
     $installationId = 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c';
 
     $this->withHeaders(spaCsrfHeaders($this))
@@ -566,13 +575,15 @@ test('session-authenticated browser user can revoke their web push notification 
         ->assertJsonPath('data.installation_id', $installationId)
         ->assertJsonPath('data.channel', 'web_push');
 
-    expect($response->json('data.revoked_at'))->toBeString()->toEndWith('Z');
+    expect($response->json('data.revoked_at'))->toBe('2026-05-30T12:34:56Z');
 
     $this->assertDatabaseMissing('push_device_registrations', [
         'tenant_id' => $tenant->id,
         'user_id' => $user->id,
         'installation_id' => $installationId,
     ]);
+
+    Carbon::setTestNow();
 });
 
 test('revoking a missing notification installation returns not found', function (): void {

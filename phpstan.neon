@@ -58,9 +58,6 @@ parameters:
             message: '#Call to an undefined method App\\Http\\Resources\\ActivityResource::.*#'
             path: app/Http/Resources/ActivityResource.php
         -
-            message: '#Cannot call method .* on mixed#'
-            path: app/Http/Resources/ActivityResource.php
-        -
             message: '#Cannot access property .* on mixed#'
             path: app/Http/Resources/ActivityResource.php
         -

@@ -37,8 +37,8 @@ class RoleManagementController extends Controller
                 'name' => $role->name,
                 'permissions_count' => $role->permissions_count,
                 'users_count' => $role->users_count,
-                'created_at' => $role->created_at?->toIso8601String() ?? '',
-                'updated_at' => $role->updated_at?->toIso8601String() ?? '',
+                'created_at' => \App\Support\ApiTimestamp::nullable($role->created_at) ?? '',
+                'updated_at' => \App\Support\ApiTimestamp::nullable($role->updated_at) ?? '',
             ]),
         ]);
     }
@@ -69,8 +69,8 @@ class RoleManagementController extends Controller
                 'id' => $role->id,
                 'name' => $role->name,
                 'permissions' => $role->fresh()?->permissions->pluck('name') ?? [],
-                'created_at' => $role->created_at?->toIso8601String() ?? '',
-                'updated_at' => $role->updated_at?->toIso8601String() ?? '',
+                'created_at' => \App\Support\ApiTimestamp::nullable($role->created_at) ?? '',
+                'updated_at' => \App\Support\ApiTimestamp::nullable($role->updated_at) ?? '',
             ],
         ], 201);
     }
@@ -90,8 +90,8 @@ class RoleManagementController extends Controller
                 'name' => $role->name,
                 'permissions' => $role->permissions->pluck('name'),
                 'users_count' => $role->users()->count(),
-                'created_at' => $role->created_at?->toIso8601String() ?? '',
-                'updated_at' => $role->updated_at?->toIso8601String() ?? '',
+                'created_at' => \App\Support\ApiTimestamp::nullable($role->created_at) ?? '',
+                'updated_at' => \App\Support\ApiTimestamp::nullable($role->updated_at) ?? '',
             ],
         ]);
     }
@@ -127,8 +127,8 @@ class RoleManagementController extends Controller
                 'id' => $role->id,
                 'name' => $role->name,
                 'permissions' => $freshRole?->permissions->pluck('name') ?? [],
-                'created_at' => $role->created_at?->toIso8601String() ?? '',
-                'updated_at' => $role->updated_at?->toIso8601String() ?? '',
+                'created_at' => \App\Support\ApiTimestamp::nullable($role->created_at) ?? '',
+                'updated_at' => \App\Support\ApiTimestamp::nullable($role->updated_at) ?? '',
             ],
         ]);
     }

@@ -13,6 +13,7 @@ use App\Http\Requests\ExtendRoleRequest;
 use App\Models\RoleAssignmentLog;
 use App\Models\TemporalRoleUser;
 use App\Models\User;
+use App\Support\ApiTimestamp;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -67,12 +68,12 @@ class RoleController extends Controller
                 'message' => __('Role already assigned to user'),
                 'user_id' => $targetUser->id,
                 'role' => $role->name,
-                'valid_from' => $existingAssignment->valid_from
-                    ? Carbon::parse($existingAssignment->valid_from)->toIso8601String()
-                    : null,
-                'valid_until' => $existingAssignment->valid_until
-                    ? Carbon::parse($existingAssignment->valid_until)->toIso8601String()
-                    : null,
+                'valid_from' => ApiTimestamp::nullable($existingAssignment->valid_from
+                    ? Carbon::parse($existingAssignment->valid_from)
+                    : null),
+                'valid_until' => ApiTimestamp::nullable($existingAssignment->valid_until
+                    ? Carbon::parse($existingAssignment->valid_until)
+                    : null),
                 'auto_revoke' => $existingAssignment->auto_revoke,
                 'reason' => $existingAssignment->reason ?? '',
             ], Response::HTTP_OK); // 200 OK - Idempotent operation
@@ -116,8 +117,8 @@ class RoleController extends Controller
         return response()->json([
             'user_id' => $targetUser->id,
             'role' => $role->name,
-            'valid_from' => $validFrom->toIso8601String(),
-            'valid_until' => $validUntil?->toIso8601String(),
+            'valid_from' => ApiTimestamp::format($validFrom),
+            'valid_until' => ApiTimestamp::nullable($validUntil),
             'auto_revoke' => $request->boolean('auto_revoke', true),
             'reason' => $request->string('reason', '')->toString(),
         ], Response::HTTP_CREATED);
@@ -153,8 +154,8 @@ class RoleController extends Controller
 
             return [
                 'role' => $roleName,
-                'valid_from' => $assignment->valid_from?->toIso8601String(),
-                'valid_until' => $assignment->valid_until?->toIso8601String(),
+                'valid_from' => ApiTimestamp::nullable($assignment->valid_from),
+                'valid_until' => ApiTimestamp::nullable($assignment->valid_until),
                 'is_active' => $isActive,
                 'is_expired' => $assignment->valid_until && $assignment->valid_until->lt($now),
                 'auto_revoke' => $assignment->auto_revoke,
@@ -273,8 +274,8 @@ class RoleController extends Controller
         return response()->json([
             'user_id' => $targetUser->id,
             'role' => $role->name,
-            'valid_from' => $assignment->valid_from?->toIso8601String(),
-            'valid_until' => $newValidUntil->toIso8601String(),
+            'valid_from' => ApiTimestamp::nullable($assignment->valid_from),
+            'valid_until' => ApiTimestamp::format($newValidUntil),
             'reason' => $reason,
         ]);
     }

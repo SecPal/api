@@ -39,8 +39,8 @@ class SiteAssignmentResource extends JsonResource
             'notes' => $this->resource->notes,
             'user' => new UserResource($this->whenLoaded('user')),
             'site' => new SiteResource($this->whenLoaded('site')),
-            'created_at' => $this->resource->created_at->toIso8601String(),
-            'updated_at' => $this->resource->updated_at->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::format($this->resource->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::format($this->resource->updated_at),
         ];
     }
 }

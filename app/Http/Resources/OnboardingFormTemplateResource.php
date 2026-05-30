@@ -57,8 +57,8 @@ class OnboardingFormTemplateResource extends JsonResource
             'sort_order' => $this->sort_order,
             'can_be_deleted' => $this->can_be_deleted,
             'can_be_edited' => $this->can_be_edited,
-            'created_at' => $this->created_at?->toIso8601String(),
-            'updated_at' => $this->updated_at?->toIso8601String(),
+            'created_at' => \App\Support\ApiTimestamp::nullable($this->created_at),
+            'updated_at' => \App\Support\ApiTimestamp::nullable($this->updated_at),
         ];
     }
 }
