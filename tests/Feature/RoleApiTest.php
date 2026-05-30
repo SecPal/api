@@ -10,6 +10,7 @@ use App\Models\Permission;
 use App\Models\TemporalRoleUser;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Support\ApiTimestamp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
@@ -223,6 +224,9 @@ describe('POST /v1/users/{id}/roles - Assign Role', function () {
                 'reason' => 'Vacation coverage',
             ]);
 
+        expect($response->json('valid_from'))->toBe(ApiTimestamp::format($validFrom))
+            ->and($response->json('valid_until'))->toBe(ApiTimestamp::format($validUntil));
+
         expect($targetUser->hasRole('manager'))->toBeTrue();
     });
 
@@ -311,6 +315,9 @@ describe('GET /v1/users/{id}/roles - List Roles', function () {
                 'is_active' => true,
                 'is_expired' => false,
             ]);
+
+        expect($response->json('roles.0.valid_from'))->toBe(ApiTimestamp::format($validFrom))
+            ->and($response->json('roles.0.valid_until'))->toBe(ApiTimestamp::format($validUntil));
     });
 
     test('returns 404 for cross-tenant target user', function (): void {
@@ -485,6 +492,9 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
         $assignment = TemporalRoleUser::where('model_id', $targetUser->id)
             ->where('role_id', $role->id)
             ->first();
+
+        expect($response->json('valid_from'))->toBe(ApiTimestamp::format($assignment->valid_from))
+            ->and($response->json('valid_until'))->toBe(ApiTimestamp::format($newValidUntil));
 
         expect($assignment->valid_until->toDateString())
             ->toBe($newValidUntil->toDateString());
