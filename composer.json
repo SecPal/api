@@ -18,7 +18,7 @@
     "minishlink/web-push": "^10.1",
     "opis/json-schema": "^2.4",
     "spatie/laravel-activitylog": "^5.0",
-    "spatie/laravel-permission": "^7.4",
+    "spatie/laravel-permission": "^8.0",
     "web-auth/webauthn-lib": "^5.3"
   },
   "require-dev": {
