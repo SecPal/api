@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "646c0fbcc6fde93ccc6aeee9a0d078e8",
+    "content-hash": "89cf44aff3fbe6bcea7471ee73c2f34d",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -1072,16 +1072,16 @@
         },
         {
             "name": "guzzlehttp/psr7",
-            "version": "2.10.3",
+            "version": "2.10.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/guzzle/psr7.git",
-                "reference": "7c1472269227dc6f18930bd903d7a88fe6c52130"
+                "reference": "d2a1a094e396da8957e797489fddaf860c340cfc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/guzzle/psr7/zipball/7c1472269227dc6f18930bd903d7a88fe6c52130",
-                "reference": "7c1472269227dc6f18930bd903d7a88fe6c52130",
+                "url": "https://api.github.com/repos/guzzle/psr7/zipball/d2a1a094e396da8957e797489fddaf860c340cfc",
+                "reference": "d2a1a094e396da8957e797489fddaf860c340cfc",
                 "shasum": ""
             },
             "require": {
@@ -1169,7 +1169,7 @@
             ],
             "support": {
                 "issues": "https://github.com/guzzle/psr7/issues",
-                "source": "https://github.com/guzzle/psr7/tree/2.10.3"
+                "source": "https://github.com/guzzle/psr7/tree/2.10.4"
             },
             "funding": [
                 {
@@ -1185,7 +1185,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-05-27T11:48:20+00:00"
+            "time": "2026-05-29T12:59:07+00:00"
         },
         {
             "name": "guzzlehttp/uri-template",
@@ -4492,16 +4492,16 @@
         },
         {
             "name": "spatie/laravel-package-tools",
-            "version": "1.93.0",
+            "version": "1.93.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/spatie/laravel-package-tools.git",
-                "reference": "0d097bce95b2bf6802fb1d83e1e753b0f5a948e7"
+                "reference": "d5552849801f2642aea710557463234b59ef65eb"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/spatie/laravel-package-tools/zipball/0d097bce95b2bf6802fb1d83e1e753b0f5a948e7",
-                "reference": "0d097bce95b2bf6802fb1d83e1e753b0f5a948e7",
+                "url": "https://api.github.com/repos/spatie/laravel-package-tools/zipball/d5552849801f2642aea710557463234b59ef65eb",
+                "reference": "d5552849801f2642aea710557463234b59ef65eb",
                 "shasum": ""
             },
             "require": {
@@ -4541,7 +4541,7 @@
             ],
             "support": {
                 "issues": "https://github.com/spatie/laravel-package-tools/issues",
-                "source": "https://github.com/spatie/laravel-package-tools/tree/1.93.0"
+                "source": "https://github.com/spatie/laravel-package-tools/tree/1.93.1"
             },
             "funding": [
                 {
@@ -4549,20 +4549,20 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-02-21T12:49:54+00:00"
+            "time": "2026-05-19T14:06:37+00:00"
         },
         {
             "name": "spatie/laravel-permission",
-            "version": "7.4.1",
+            "version": "8.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/spatie/laravel-permission.git",
-                "reference": "ef42ecb781e5534d368a3853fa161e420ad51397"
+                "reference": "70a6ab04108616b438e0839598f473b513281644"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/spatie/laravel-permission/zipball/ef42ecb781e5534d368a3853fa161e420ad51397",
-                "reference": "ef42ecb781e5534d368a3853fa161e420ad51397",
+                "url": "https://api.github.com/repos/spatie/laravel-permission/zipball/70a6ab04108616b438e0839598f473b513281644",
+                "reference": "70a6ab04108616b438e0839598f473b513281644",
                 "shasum": ""
             },
             "require": {
@@ -4590,8 +4590,8 @@
                     ]
                 },
                 "branch-alias": {
-                    "dev-main": "7.x-dev",
-                    "dev-master": "7.x-dev"
+                    "dev-main": "8.x-dev",
+                    "dev-master": "8.x-dev"
                 }
             },
             "autoload": {
@@ -4628,7 +4628,7 @@
             ],
             "support": {
                 "issues": "https://github.com/spatie/laravel-permission/issues",
-                "source": "https://github.com/spatie/laravel-permission/tree/7.4.1"
+                "source": "https://github.com/spatie/laravel-permission/tree/8.0.0"
             },
             "funding": [
                 {
@@ -4636,7 +4636,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-04-29T07:59:45+00:00"
+            "time": "2026-05-30T19:30:22+00:00"
         },
         {
             "name": "spomky-labs/base64url",
