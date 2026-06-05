@@ -12,7 +12,7 @@
     "php": "^8.4",
     "codewiser/polyglot": "^2.1",
     "laragear/two-factor": "^4.0",
-    "laravel/framework": "^13.11",
+    "laravel/framework": "^13.14",
     "laravel/sanctum": "^4.3",
     "laravel/tinker": "^3.0",
     "minishlink/web-push": "^10.1",
