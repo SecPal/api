@@ -31,7 +31,7 @@ class ExtendRoleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'valid_until' => ['required', 'date', 'after:now'],
+            'valid_until' => ['required', 'date', 'after:'.Carbon::now()->toDateTimeString()],
             'reason' => ['nullable', 'string', 'max:500'],
         ];
     }
