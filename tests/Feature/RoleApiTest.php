@@ -483,51 +483,57 @@ describe('PATCH /v1/users/{id}/roles/{role}/extend - Extend Role', function () {
     });
 
     test('extends role expiration and returns 200', function (): void {
-        ['tenant' => $tenant, 'user' => $user, 'targetUser' => $targetUser, 'role' => $role] = createRoleApiContext();
+        Carbon::setTestNow(Carbon::parse('2026-05-29 00:00:00 UTC'));
 
-        $user->givePermissionTo('role.assign');
-        actingAs($user, 'sanctum');
+        try {
+            ['tenant' => $tenant, 'user' => $user, 'targetUser' => $targetUser, 'role' => $role] = createRoleApiContext();
 
-        $validFrom = Carbon::parse('2026-05-30 11:22:33 UTC');
-        $originalValidUntil = Carbon::parse('2026-06-06 07:08:09 UTC');
-        $newValidUntil = Carbon::parse('2026-06-13 21:22:23 UTC');
+            $user->givePermissionTo('role.assign');
+            actingAs($user, 'sanctum');
 
-        assignTemporalRole($targetUser, $role, $tenant->id, [
-            'valid_from' => $validFrom,
-            'valid_until' => $originalValidUntil,
-            'auto_revoke' => true,
-            'assigned_by' => $user->id,
-        ]);
+            $validFrom = Carbon::parse('2026-05-30 11:22:33 UTC');
+            $originalValidUntil = Carbon::parse('2026-06-06 07:08:09 UTC');
+            $newValidUntil = Carbon::parse('2026-06-13 21:22:23 UTC');
 
-        $response = patchJson("/v1/users/{$targetUser->id}/roles/manager/extend", [
-            'valid_until' => $newValidUntil->toIso8601String(),
-            'reason' => 'Extended vacation period',
-        ]);
+            assignTemporalRole($targetUser, $role, $tenant->id, [
+                'valid_from' => $validFrom,
+                'valid_until' => $originalValidUntil,
+                'auto_revoke' => true,
+                'assigned_by' => $user->id,
+            ]);
 
-        $response->assertOk()
-            ->assertJsonStructure([
-                'user_id',
-                'role',
-                'valid_from',
-                'valid_until',
-                'reason',
-            ])
-            ->assertJsonFragment([
-                'user_id' => $targetUser->id,
-                'role' => 'manager',
+            $response = patchJson("/v1/users/{$targetUser->id}/roles/manager/extend", [
+                'valid_until' => $newValidUntil->toIso8601String(),
                 'reason' => 'Extended vacation period',
-            ])
-            ->assertJsonPath('valid_from', '2026-05-30T11:22:33Z')
-            ->assertJsonPath('valid_until', '2026-06-13T21:22:23Z');
+            ]);
 
-        $assignment = TemporalRoleUser::where('model_id', $targetUser->id)
-            ->where('role_id', $role->id)
-            ->first();
+            $response->assertOk()
+                ->assertJsonStructure([
+                    'user_id',
+                    'role',
+                    'valid_from',
+                    'valid_until',
+                    'reason',
+                ])
+                ->assertJsonFragment([
+                    'user_id' => $targetUser->id,
+                    'role' => 'manager',
+                    'reason' => 'Extended vacation period',
+                ])
+                ->assertJsonPath('valid_from', '2026-05-30T11:22:33Z')
+                ->assertJsonPath('valid_until', '2026-06-13T21:22:23Z');
 
-        expect($response->json('valid_from'))->toBe(ApiTimestamp::format($assignment->valid_from))
-            ->and($response->json('valid_until'))->toBe(ApiTimestamp::format($newValidUntil))
-            ->and($assignment->valid_until->utc()->format('Y-m-d\\TH:i:s\\Z'))
-            ->toBe('2026-06-13T21:22:23Z');
+            $assignment = TemporalRoleUser::where('model_id', $targetUser->id)
+                ->where('role_id', $role->id)
+                ->first();
+
+            expect($response->json('valid_from'))->toBe(ApiTimestamp::format($assignment->valid_from))
+                ->and($response->json('valid_until'))->toBe(ApiTimestamp::format($newValidUntil))
+                ->and($assignment->valid_until->utc()->format('Y-m-d\\TH:i:s\\Z'))
+                ->toBe('2026-06-13T21:22:23Z');
+        } finally {
+            Carbon::setTestNow();
+        }
     });
 
     test('returns 404 for cross-tenant target user', function (): void {
