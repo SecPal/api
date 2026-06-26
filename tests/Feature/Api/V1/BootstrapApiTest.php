@@ -14,7 +14,7 @@ uses(RefreshDatabase::class);
 beforeEach(function (): void {
     config([
         'app.name' => 'SecPal Demo',
-        'app.url' => 'https://customer-api.example/',
+        'app.url' => 'https://api.secpal.dev/',
         'bootstrap.public_enabled' => true,
         'bootstrap.retryable' => true,
         'bootstrap.retry_after_seconds' => 60,
@@ -39,7 +39,7 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
         ->assertExactJson([
             'data' => [
                 'client_platform' => 'android',
-                'api_base_url' => 'https://customer-api.example/v1',
+                'api_base_url' => 'https://api.secpal.dev/v1',
                 'instance' => [
                     'display_name' => 'SecPal Demo',
                 ],
@@ -55,7 +55,7 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                         'name' => 'GNU Affero General Public License v3.0 or later',
                         'url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
                     ],
-                    'source_url' => 'https://customer-api.example/v1/source',
+                    'source_url' => 'https://api.secpal.dev/v1/source',
                 ],
                 'features' => [
                     'password_login' => true,
@@ -103,7 +103,7 @@ test('public bootstrap returns web push runtime metadata for browser clients wit
         ->assertJsonPath('data.client_platform', 'browser')
         ->assertJsonPath('data.compatibility.bootstrap_version', 'v1')
         ->assertJsonPath('data.compatibility.schema_version', 3)
-        ->assertJsonPath('data.legal.source_url', 'https://customer-api.example/v1/source')
+        ->assertJsonPath('data.legal.source_url', 'https://api.secpal.dev/v1/source')
         ->assertJsonPath('data.legal.license.spdx_id', 'AGPL-3.0-or-later')
         ->assertJsonPath('data.features.notification_channels.android_fcm', true)
         ->assertJsonPath('data.features.notification_channels.web_push', true)

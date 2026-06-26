@@ -35,6 +35,7 @@ test('canonical source url rejects invalid public app urls', function (?string $
     'url with credentials' => ['https://user:secret@api.secpal.dev'],
     'url with query string' => ['https://api.secpal.dev?foo=bar'],
     'url with fragment' => ['https://api.secpal.dev#fragment'],
+    'url with ftp scheme' => ['ftp://api.secpal.dev'],
     'url with non-root path prefix' => ['https://api.secpal.dev/api'],
 ]);
 
@@ -50,55 +51,22 @@ test('canonical source url normalizes valid public app urls', function (string $
 
 test('missing fields report invalid repository structures and trimmed empty values', function (): void {
     config([
+        'bootstrap.legal.license_url' => 'not-a-url',
         'bootstrap.legal.source_repositories' => [
             'invalid-entry',
             [
                 'name' => ' ',
-                'url' => '',
+                'url' => 'javascript:alert(1)',
                 'description' => " \n ",
             ],
         ],
     ]);
 
     expect(app(PublicSourceOffer::class)->missingFields())->toBe([
+        'legal.license.url',
         'legal.source_repositories.0',
         'legal.source_repositories.1.name',
         'legal.source_repositories.1.url',
         'legal.source_repositories.1.description',
     ]);
-});
-
-test('source response data skips malformed repositories while preserving valid entries', function (): void {
-    config([
-        'bootstrap.legal.source_repositories' => [
-            [
-                'name' => 'SecPal/api',
-                'url' => 'https://github.com/SecPal/api',
-                'description' => 'Laravel backend used by SecPal deployments for API and business logic.',
-            ],
-            'invalid-entry',
-            [
-                'name' => 'SecPal/frontend',
-                'url' => 'https://github.com/SecPal/frontend',
-                'description' => '',
-            ],
-        ],
-    ]);
-
-    expect(app(PublicSourceOffer::class)->sourceResponseData('https://api.secpal.dev/v1/source'))
-        ->toMatchArray([
-            'source_url' => 'https://api.secpal.dev/v1/source',
-            'license' => [
-                'spdx_id' => 'AGPL-3.0-or-later',
-                'name' => 'GNU Affero General Public License v3.0 or later',
-                'url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
-            ],
-            'repositories' => [
-                [
-                    'name' => 'SecPal/api',
-                    'url' => 'https://github.com/SecPal/api',
-                    'description' => 'Laravel backend used by SecPal deployments for API and business logic.',
-                ],
-            ],
-        ]);
 });

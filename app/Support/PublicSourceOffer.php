@@ -32,6 +32,12 @@ class PublicSourceOffer
             return null;
         }
 
+        $scheme = strtolower((string) $components['scheme']);
+
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
         $host = $components['host'];
 
         if (! is_string($host) || $host === '' || strtolower($host) === 'localhost') {
@@ -50,7 +56,7 @@ class PublicSourceOffer
             return null;
         }
 
-        return strtolower((string) $components['scheme']).'://'.$authority.'/v1/source';
+        return $scheme.'://'.$authority.'/v1/source';
     }
 
     /**
@@ -106,7 +112,7 @@ class PublicSourceOffer
             $missingFields[] = 'legal.license.name';
         }
 
-        if ($this->trimmedStringConfig('bootstrap.legal.license_url') === null) {
+        if ($this->httpUrlConfig('bootstrap.legal.license_url') === null) {
             $missingFields[] = 'legal.license.url';
         }
 
@@ -134,7 +140,7 @@ class PublicSourceOffer
             }
 
             $name = $this->trimmedRepositoryValue($repository['name'] ?? null);
-            $url = $this->trimmedRepositoryValue($repository['url'] ?? null);
+            $url = $this->httpUrlValue($repository['url'] ?? null);
             $description = $this->trimmedRepositoryValue($repository['description'] ?? null);
 
             if ($name === null) {
@@ -161,7 +167,7 @@ class PublicSourceOffer
         return [
             'spdx_id' => (string) $this->trimmedStringConfig('bootstrap.legal.license_spdx_id'),
             'name' => (string) $this->trimmedStringConfig('bootstrap.legal.license_name'),
-            'url' => (string) $this->trimmedStringConfig('bootstrap.legal.license_url'),
+            'url' => (string) $this->httpUrlConfig('bootstrap.legal.license_url'),
         ];
     }
 
@@ -184,7 +190,7 @@ class PublicSourceOffer
             }
 
             $name = $this->trimmedRepositoryValue($repository['name'] ?? null);
-            $url = $this->trimmedRepositoryValue($repository['url'] ?? null);
+            $url = $this->httpUrlValue($repository['url'] ?? null);
             $description = $this->trimmedRepositoryValue($repository['description'] ?? null);
 
             if ($name === null || $url === null || $description === null) {
@@ -220,5 +226,40 @@ class PublicSourceOffer
         $trimmed = trim($value);
 
         return $trimmed === '' ? null : $trimmed;
+    }
+
+    private function httpUrlConfig(string $key): ?string
+    {
+        return $this->httpUrlValue(config($key));
+    }
+
+    private function httpUrlValue(mixed $value): ?string
+    {
+        $trimmed = $this->trimmedRepositoryValue($value);
+
+        if ($trimmed === null) {
+            return null;
+        }
+
+        $components = parse_url($trimmed);
+
+        if ($components === false
+            || ! isset($components['scheme'], $components['host'])
+            || isset($components['user'])
+            || isset($components['pass'])) {
+            return null;
+        }
+
+        $scheme = strtolower((string) $components['scheme']);
+        $host = $components['host'];
+
+        if (! in_array($scheme, ['http', 'https'], true)
+            || ! is_string($host)
+            || $host === ''
+            || strtolower($host) === 'localhost') {
+            return null;
+        }
+
+        return $trimmed;
     }
 }

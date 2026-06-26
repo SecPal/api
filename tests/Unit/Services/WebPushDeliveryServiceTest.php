@@ -39,10 +39,8 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function createWebPushDeliveryRegistration(TenantKey $tenant, User $user, ?string $expiresAt = null): PushDeviceRegistration
+function createWebPushDeliveryRegistration(TenantKey $tenant, User $user, ?string $expiresAt = '2026-06-26T12:00:00Z'): PushDeviceRegistration
 {
-    $expiresAt ??= now()->addDay()->utc()->format('Y-m-d\TH:i:s\Z');
-
     return PushDeviceRegistration::query()->create([
         'tenant_id' => $tenant->id,
         'user_id' => $user->id,

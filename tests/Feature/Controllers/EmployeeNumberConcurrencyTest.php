@@ -10,7 +10,6 @@ use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
-use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\ParallelTesting;
@@ -53,6 +52,7 @@ function ensureParallelWorkerDatabase(): void
 function refreshEmployeeNumberConcurrencyDatabase(): void
 {
     ensureParallelWorkerDatabase();
+
     Artisan::call('migrate:fresh', ['--force' => true]);
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 }
@@ -83,7 +83,7 @@ beforeEach(function (): void {
     $registrar = app(PermissionRegistrar::class);
     $registrar->setPermissionsTeamId($this->tenant->id);
 
-    $this->seed(RolesAndPermissionsSeeder::class);
+    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
     $this->user = User::factory()->create();
     givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
@@ -99,7 +99,7 @@ beforeEach(function (): void {
 
 afterEach(function (): void {
     app(PermissionRegistrar::class)->setPermissionsTeamId(null);
-    DB::disconnect();
+    refreshEmployeeNumberConcurrencyDatabase();
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });

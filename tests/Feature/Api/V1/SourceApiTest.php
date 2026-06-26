@@ -18,7 +18,7 @@ beforeEach(function (): void {
 
     config([
         'app.name' => 'SecPal Demo',
-        'app.url' => 'https://customer-api.example/',
+        'app.url' => 'https://api.secpal.dev/',
         'bootstrap.public_enabled' => true,
         'bootstrap.minimum_supported_app_version' => '1.4.0',
         'bootstrap.minimum_supported_app_build' => 10400,
@@ -52,7 +52,7 @@ test('public source endpoint returns license and corresponding source metadata',
         ->assertOk()
         ->assertExactJson([
             'data' => [
-                'source_url' => 'https://customer-api.example/v1/source',
+                'source_url' => 'https://api.secpal.dev/v1/source',
                 'notice' => 'Source offer for users interacting with SecPal over a network.',
                 'source_offer' => 'Corresponding source for the SecPal components made available through this service.',
                 'license' => [
@@ -139,5 +139,5 @@ test('public source endpoint rate limiting does not consume the bootstrap thrott
 
     getJson('/v1/bootstrap?client_platform=browser')
         ->assertOk()
-        ->assertJsonPath('data.legal.source_url', 'https://customer-api.example/v1/source');
+        ->assertJsonPath('data.legal.source_url', 'https://api.secpal.dev/v1/source');
 });
