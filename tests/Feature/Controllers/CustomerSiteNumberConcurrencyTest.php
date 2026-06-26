@@ -11,6 +11,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\ParallelTesting;
@@ -96,6 +97,7 @@ beforeEach(function (): void {
 afterEach(function (): void {
     app(PermissionRegistrar::class)->setPermissionsTeamId(null);
     refreshCustomerSiteNumberConcurrencyDatabase();
+    RefreshDatabaseState::$migrated = false;
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });

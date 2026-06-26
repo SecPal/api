@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\QualificationController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\Api\V1\SiteAssignmentController;
 use App\Http\Controllers\Api\V1\SiteController;
+use App\Http\Controllers\Api\V1\SourceController;
 use App\Http\Controllers\Api\V1\UserAssignmentController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\AuthController;
@@ -59,6 +60,8 @@ Route::middleware('throttle:health')->group(function () {
 Route::prefix('v1')->group(function () {
     Route::get('/bootstrap', [BootstrapController::class, 'show'])
         ->middleware('throttle:bootstrap');
+    Route::get('/source', [SourceController::class, 'show'])
+        ->middleware('throttle:source-offer');
 
     // Authentication routes (public)
     // SPA Login (session-based, for web browsers)

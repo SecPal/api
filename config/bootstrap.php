@@ -10,6 +10,33 @@ return [
     'retry_after_seconds' => (int) env('BOOTSTRAP_RETRY_AFTER_SECONDS', 60),
     'minimum_supported_app_version' => env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION'),
     'minimum_supported_app_build' => env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD') !== null ? (int) env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD') : null,
+    'legal' => [
+        'license_spdx_id' => env('BOOTSTRAP_LICENSE_SPDX_ID', 'AGPL-3.0-or-later'),
+        'license_name' => env('BOOTSTRAP_LICENSE_NAME', 'GNU Affero General Public License v3.0 or later'),
+        'license_url' => env('BOOTSTRAP_LICENSE_URL', 'https://www.gnu.org/licenses/agpl-3.0.html'),
+        'copyright_notice' => env('BOOTSTRAP_COPYRIGHT_NOTICE', 'Copyright SecPal and contributors.'),
+        'warranty_notice' => env(
+            'BOOTSTRAP_WARRANTY_NOTICE',
+            'This program is distributed without any warranty; without even the implied warranty of merchantability or fitness for a particular purpose.'
+        ),
+        'source_repositories' => [
+            [
+                'name' => 'SecPal/frontend',
+                'url' => env('BOOTSTRAP_SOURCE_REPOSITORY_FRONTEND_URL', 'https://github.com/SecPal/frontend'),
+                'description' => 'React/TypeScript frontend for the running SecPal web application.',
+            ],
+            [
+                'name' => 'SecPal/api',
+                'url' => env('BOOTSTRAP_SOURCE_REPOSITORY_API_URL', 'https://github.com/SecPal/api'),
+                'description' => 'Laravel backend used by SecPal deployments for API and business logic.',
+            ],
+            [
+                'name' => 'SecPal/contracts',
+                'url' => env('BOOTSTRAP_SOURCE_REPOSITORY_CONTRACTS_URL', 'https://github.com/SecPal/contracts'),
+                'description' => 'Shared OpenAPI contracts and interface definitions used across SecPal components.',
+            ],
+        ],
+    ],
     'features' => [
         'password_login' => filter_var(env('BOOTSTRAP_PASSWORD_LOGIN_ENABLED', true), FILTER_VALIDATE_BOOL),
         'passkey_login' => filter_var(env('BOOTSTRAP_PASSKEY_LOGIN_ENABLED', true), FILTER_VALIDATE_BOOL),

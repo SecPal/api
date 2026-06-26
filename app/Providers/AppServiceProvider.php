@@ -124,6 +124,21 @@ class AppServiceProvider extends ServiceProvider
                 });
         });
 
+        RateLimiter::for('source-offer', function (Request $request) {
+            return Limit::perMinutes(5, 5)
+                ->by($this->sourceOfferThrottleKey($request))
+                ->response(function (Request $request, array $headers): JsonResponse {
+                    /** @var array<string, mixed> $headers */
+                    $headers = $headers;
+
+                    return $this->buildRateLimitedJsonResponse(
+                        $headers,
+                        'Too many source offer requests. Please try again in :seconds seconds.',
+                        ['seconds' => $this->retryAfterSeconds($headers)],
+                    );
+                });
+        });
+
         // Login rate limiter (5 attempts per 5 minutes for the account and the concrete IP+account pair).
         // This keeps the lockout independent from cookies / session churn while still partitioning per account.
         RateLimiter::for('login', function (Request $request) {
@@ -351,6 +366,11 @@ class AppServiceProvider extends ServiceProvider
     private function bootstrapThrottleKey(Request $request): string
     {
         return 'bootstrap|'.$request->ip();
+    }
+
+    private function sourceOfferThrottleKey(Request $request): string
+    {
+        return 'source-offer|'.$request->ip();
     }
 
     /**
