@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+use App\Support\BootstrapContract;
 use App\Support\NotificationChannelRuntimeConfiguration;
 
 beforeEach(function (): void {
@@ -75,4 +76,38 @@ test('disabled channels never expose runtime metadata even when unrelated values
         'android_fcm' => false,
         'web_push' => false,
     ])->and($configuration->publicRuntimeMetadata())->toBe([]);
+});
+
+test('browser clients only receive browser runtime metadata', function (): void {
+    config([
+        'bootstrap.features.notification_channels.web_push' => true,
+        'bootstrap.notification_channels.web_push.metadata_revision' => 5,
+        'bootstrap.notification_channels.web_push.public_runtime_metadata.vapid_public_key' => 'browser-public-vapid-key',
+    ]);
+
+    $configuration = new NotificationChannelRuntimeConfiguration;
+
+    expect($configuration->publicRuntimeMetadataForClientPlatform(BootstrapContract::CLIENT_PLATFORM_BROWSER))->toBe([
+        'web_push' => [
+            'channel' => 'web_push',
+            'metadata_revision' => 5,
+            'public_runtime_metadata' => [
+                'vapid_public_key' => 'browser-public-vapid-key',
+            ],
+        ],
+    ]);
+});
+
+test('browser clients only validate browser runtime metadata fields', function (): void {
+    config([
+        'bootstrap.features.notification_channels.web_push' => true,
+        'bootstrap.notification_channels.android_fcm.metadata_revision' => null,
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.api_key' => null,
+        'bootstrap.notification_channels.web_push.metadata_revision' => 5,
+        'bootstrap.notification_channels.web_push.public_runtime_metadata.vapid_public_key' => 'browser-public-vapid-key',
+    ]);
+
+    $configuration = new NotificationChannelRuntimeConfiguration;
+
+    expect($configuration->missingFieldsForClientPlatform(BootstrapContract::CLIENT_PLATFORM_BROWSER))->toBe([]);
 });

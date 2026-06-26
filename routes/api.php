@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\QualificationController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\Api\V1\SiteAssignmentController;
 use App\Http\Controllers\Api\V1\SiteController;
+use App\Http\Controllers\Api\V1\SourceController;
 use App\Http\Controllers\Api\V1\UserAssignmentController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\AuthController;
@@ -58,6 +59,8 @@ Route::middleware('throttle:health')->group(function () {
 // API v1 routes
 Route::prefix('v1')->group(function () {
     Route::get('/bootstrap', [BootstrapController::class, 'show'])
+        ->middleware('throttle:bootstrap');
+    Route::get('/source', [SourceController::class, 'show'])
         ->middleware('throttle:bootstrap');
 
     // Authentication routes (public)

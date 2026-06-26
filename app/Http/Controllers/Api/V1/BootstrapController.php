@@ -12,6 +12,7 @@ use App\Http\Requests\GetBootstrapConfigurationRequest;
 use App\Support\BootstrapContract;
 use App\Support\Concerns\InteractsWithConfigValues;
 use App\Support\NotificationChannelRuntimeConfiguration;
+use App\Support\PublicSourceOffer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
@@ -23,6 +24,7 @@ class BootstrapController extends Controller
 
     public function show(
         GetBootstrapConfigurationRequest $request,
+        PublicSourceOffer $publicSourceOffer,
         NotificationChannelRuntimeConfiguration $notificationChannelRuntimeConfiguration,
     ): JsonResponse {
         if (! $this->bootstrapPublicEnabled()) {
@@ -33,6 +35,7 @@ class BootstrapController extends Controller
         $displayName = $this->instanceDisplayName();
         $minimumSupportedAppVersion = $this->minimumSupportedAppVersion();
         $minimumSupportedAppBuild = $this->minimumSupportedAppBuild();
+        $clientPlatform = $request->clientPlatform();
         if ($apiBaseUrl === null
             || $displayName === null
             || $minimumSupportedAppVersion === null
@@ -45,16 +48,24 @@ class BootstrapController extends Controller
             ));
         }
 
-        $notificationChannelMissingFields = $notificationChannelRuntimeConfiguration->missingFields();
+        $notificationChannelMissingFields = $notificationChannelRuntimeConfiguration
+            ->missingFieldsForClientPlatform($clientPlatform);
 
         if ($notificationChannelMissingFields !== []) {
             return $this->invalidStateResponse($notificationChannelMissingFields);
         }
 
+        $sourceOfferMissingFields = $publicSourceOffer->missingFields();
+
+        if ($sourceOfferMissingFields !== []) {
+            return $this->invalidStateResponse($sourceOfferMissingFields);
+        }
+
         $appVersion = $request->appVersion();
         $appBuild = $request->appBuild();
+        $sourceUrl = $apiBaseUrl.'/source';
 
-        if ($request->clientPlatform() === BootstrapContract::CLIENT_PLATFORM_ANDROID
+        if ($clientPlatform === BootstrapContract::CLIENT_PLATFORM_ANDROID
             && $appVersion !== null
             && $appBuild !== null
             && $this->clientIsBelowMinimumSupportedVersion(
@@ -72,7 +83,7 @@ class BootstrapController extends Controller
         }
 
         $data = [
-            'client_platform' => $request->clientPlatform(),
+            'client_platform' => $clientPlatform,
             'api_base_url' => $apiBaseUrl,
             'instance' => [
                 'display_name' => $displayName,
@@ -83,6 +94,7 @@ class BootstrapController extends Controller
                 'minimum_supported_app_version' => $minimumSupportedAppVersion,
                 'minimum_supported_app_build' => $minimumSupportedAppBuild,
             ],
+            'legal' => $publicSourceOffer->bootstrapMetadata($sourceUrl),
             'features' => [
                 'password_login' => $this->booleanConfig('bootstrap.features.password_login', true),
                 'passkey_login' => $this->booleanConfig('bootstrap.features.passkey_login', true),
@@ -91,7 +103,8 @@ class BootstrapController extends Controller
             ],
         ];
 
-        $notificationChannelMetadata = $notificationChannelRuntimeConfiguration->publicRuntimeMetadata();
+        $notificationChannelMetadata = $notificationChannelRuntimeConfiguration
+            ->publicRuntimeMetadataForClientPlatform($clientPlatform);
 
         if ($notificationChannelMetadata !== []) {
             $data['notification_channels'] = $notificationChannelMetadata;

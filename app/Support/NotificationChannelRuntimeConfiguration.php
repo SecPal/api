@@ -16,6 +16,18 @@ final class NotificationChannelRuntimeConfiguration
     /**
      * @var array<string, list<string>>
      */
+    private const CLIENT_PLATFORM_CHANNELS = [
+        BootstrapContract::CLIENT_PLATFORM_ANDROID => [
+            BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM,
+        ],
+        BootstrapContract::CLIENT_PLATFORM_BROWSER => [
+            BootstrapContract::NOTIFICATION_CHANNEL_WEB_PUSH,
+        ],
+    ];
+
+    /**
+     * @var array<string, list<string>>
+     */
     private const PUBLIC_RUNTIME_FIELDS = [
         BootstrapContract::NOTIFICATION_CHANNEL_ANDROID_FCM => [
             'api_key',
@@ -69,6 +81,20 @@ final class NotificationChannelRuntimeConfiguration
     /**
      * @return array<int, string>
      */
+    public function missingFieldsForClientPlatform(string $clientPlatform): array
+    {
+        $missingFields = [];
+
+        foreach ($this->channelsForClientPlatform($clientPlatform) as $channel) {
+            array_push($missingFields, ...$this->missingFieldsFor($channel));
+        }
+
+        return $missingFields;
+    }
+
+    /**
+     * @return array<int, string>
+     */
     public function missingFieldsFor(string $channel): array
     {
         if (! $this->isEnabled($channel)) {
@@ -102,6 +128,24 @@ final class NotificationChannelRuntimeConfiguration
         $metadata = [];
 
         foreach (BootstrapContract::NOTIFICATION_CHANNELS as $channel) {
+            $channelMetadata = $this->runtimeMetadataFor($channel);
+
+            if ($channelMetadata !== null) {
+                $metadata[$channel] = $channelMetadata;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, array{channel: string, metadata_revision: int, public_runtime_metadata: array<string, string>}>
+     */
+    public function publicRuntimeMetadataForClientPlatform(string $clientPlatform): array
+    {
+        $metadata = [];
+
+        foreach ($this->channelsForClientPlatform($clientPlatform) as $channel) {
             $channelMetadata = $this->runtimeMetadataFor($channel);
 
             if ($channelMetadata !== null) {
@@ -182,6 +226,14 @@ final class NotificationChannelRuntimeConfiguration
     private function publicRuntimeMetadataValue(string $channel, string $field): ?string
     {
         return $this->trimmedStringValue(config($this->publicRuntimeMetadataConfigKey($channel, $field)));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function channelsForClientPlatform(string $clientPlatform): array
+    {
+        return self::CLIENT_PLATFORM_CHANNELS[$clientPlatform] ?? BootstrapContract::NOTIFICATION_CHANNELS;
     }
 
     private function trimmedStringValue(mixed $value): ?string

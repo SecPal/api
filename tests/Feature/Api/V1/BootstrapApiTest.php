@@ -49,6 +49,14 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                     'minimum_supported_app_version' => '1.4.0',
                     'minimum_supported_app_build' => 10400,
                 ],
+                'legal' => [
+                    'license' => [
+                        'spdx_id' => 'AGPL-3.0-or-later',
+                        'name' => 'GNU Affero General Public License v3.0 or later',
+                        'url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
+                    ],
+                    'source_url' => 'https://customer-api.example/v1/source',
+                ],
                 'features' => [
                     'password_login' => true,
                     'passkey_login' => true,
@@ -78,22 +86,33 @@ test('public bootstrap returns web push runtime metadata for browser clients wit
     $vapidPublicKey = 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY';
 
     config([
-        'bootstrap.features.notification_channels.android_fcm' => false,
+        'bootstrap.features.notification_channels.android_fcm' => true,
         'bootstrap.features.notification_channels.web_push' => true,
+        'bootstrap.notification_channels.android_fcm.metadata_revision' => 3,
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.api_key' => 'public-client-api-key-demo-1234567890',
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.project_id' => 'secpal-demo-push',
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.application_id' => '1:1234567890:android:abcdef1234567890',
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.sender_id' => '1234567890',
         'bootstrap.notification_channels.web_push.metadata_revision' => 5,
         'bootstrap.notification_channels.web_push.public_runtime_metadata.vapid_public_key' => $vapidPublicKey,
     ]);
 
-    getJson('/v1/bootstrap?client_platform=browser')
-        ->assertOk()
+    $response = getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertOk()
         ->assertJsonPath('data.client_platform', 'browser')
         ->assertJsonPath('data.compatibility.bootstrap_version', 'v1')
         ->assertJsonPath('data.compatibility.schema_version', 3)
-        ->assertJsonPath('data.features.notification_channels.android_fcm', false)
+        ->assertJsonPath('data.legal.source_url', 'https://customer-api.example/v1/source')
+        ->assertJsonPath('data.legal.license.spdx_id', 'AGPL-3.0-or-later')
+        ->assertJsonPath('data.features.notification_channels.android_fcm', true)
         ->assertJsonPath('data.features.notification_channels.web_push', true)
         ->assertJsonPath('data.notification_channels.web_push.channel', 'web_push')
         ->assertJsonPath('data.notification_channels.web_push.metadata_revision', 5)
-        ->assertJsonPath('data.notification_channels.web_push.public_runtime_metadata.vapid_public_key', $vapidPublicKey);
+        ->assertJsonPath('data.notification_channels.web_push.public_runtime_metadata.vapid_public_key', $vapidPublicKey)
+        ->assertJsonMissingPath('data.notification_channels.android_fcm');
+
+    expect($response->getContent())->not->toContain('public-client-api-key-demo-1234567890');
 });
 
 test('public bootstrap omits notification channel metadata when authenticated installation registration is disabled', function (): void {
@@ -249,6 +268,22 @@ test('public bootstrap fails closed when web push runtime metadata is enabled bu
                 ],
             ],
         ]);
+});
+
+test('public bootstrap for browser clients ignores incomplete android fcm metadata', function (): void {
+    config([
+        'bootstrap.features.notification_channels.android_fcm' => true,
+        'bootstrap.features.notification_channels.web_push' => true,
+        'bootstrap.notification_channels.android_fcm.metadata_revision' => null,
+        'bootstrap.notification_channels.android_fcm.public_runtime_metadata.api_key' => null,
+        'bootstrap.notification_channels.web_push.metadata_revision' => 5,
+        'bootstrap.notification_channels.web_push.public_runtime_metadata.vapid_public_key' => 'BE9tfo-aCxwtPk9QYXKDlAUGBwgJCgsMDQ4PEBESExQVobLD1OX2BxgpMEFSY3SFlgcYKTBLXG1-j5ABAgMEBQY',
+    ]);
+
+    getJson('/v1/bootstrap?client_platform=browser')
+        ->assertOk()
+        ->assertJsonPath('data.notification_channels.web_push.channel', 'web_push')
+        ->assertJsonMissingPath('data.notification_channels.android_fcm');
 });
 
 test('public bootstrap fails closed when android fcm metadata revision is not a strict positive integer', function (): void {

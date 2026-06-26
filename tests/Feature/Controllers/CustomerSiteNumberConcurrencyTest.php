@@ -11,49 +11,16 @@ use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\ParallelTesting;
 use Spatie\Permission\PermissionRegistrar;
 
 uses()->group('serial');
 
-/**
- * Align the default connection with Laravel's parallel worker database (e.g. testing_test_3).
- * This file does not use RefreshDatabase, so without this call every worker would run
- * migrate:fresh against the shared base name from phpunit.xml and deadlock under --parallel.
- */
-function ensureParallelWorkerDatabaseForSiteNumberConcurrency(): void
-{
-    $token = ParallelTesting::token();
-    if ($token === false || $token === '') {
-        return;
-    }
-
-    $connectionName = (string) config('database.default');
-    $currentDatabase = (string) config("database.connections.{$connectionName}.database");
-    $suffix = '_test_'.$token;
-
-    if (str_ends_with($currentDatabase, $suffix)) {
-        return;
-    }
-
-    $rootDatabase = preg_replace('/_test_\d+$/', '', $currentDatabase);
-    if ($rootDatabase === '') {
-        return;
-    }
-
-    config()->set("database.connections.{$connectionName}.database", $rootDatabase.$suffix);
-    config()->set("database.connections.{$connectionName}.url", null);
-
-    DB::purge();
-    DB::reconnect();
-}
-
 function refreshCustomerSiteNumberConcurrencyDatabase(): void
 {
-    ensureParallelWorkerDatabaseForSiteNumberConcurrency();
-
+    DB::purge();
     Artisan::call('migrate:fresh', ['--force' => true]);
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 }
@@ -77,7 +44,7 @@ beforeEach(function (): void {
     $registrar = app(PermissionRegistrar::class);
     $registrar->setPermissionsTeamId($this->tenant->id);
 
-    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+    $this->seed(RolesAndPermissionsSeeder::class);
 
     $this->user = User::factory()->create();
     givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
@@ -95,7 +62,7 @@ beforeEach(function (): void {
 
 afterEach(function (): void {
     app(PermissionRegistrar::class)->setPermissionsTeamId(null);
-    refreshCustomerSiteNumberConcurrencyDatabase();
+    DB::disconnect();
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
