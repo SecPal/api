@@ -270,6 +270,30 @@ test('public bootstrap fails closed when web push runtime metadata is enabled bu
         ]);
 });
 
+test('public bootstrap fails closed when source offer metadata is incomplete', function (): void {
+    config([
+        'bootstrap.legal.source_repositories' => [
+            [
+                'name' => 'SecPal/api',
+                'url' => '',
+                'description' => 'Laravel backend used by SecPal deployments for API and business logic.',
+            ],
+        ],
+    ]);
+
+    getJson('/v1/bootstrap?client_platform=browser')
+        ->assertInternalServerError()
+        ->assertExactJson([
+            'message' => 'Public bootstrap configuration is incomplete for this deployment.',
+            'code' => 'BOOTSTRAP_STATE_INVALID',
+            'details' => [
+                'missing_fields' => [
+                    'legal.source_repositories.0.url',
+                ],
+            ],
+        ]);
+});
+
 test('public bootstrap for browser clients ignores incomplete android fcm metadata', function (): void {
     config([
         'bootstrap.features.notification_channels.android_fcm' => true,
