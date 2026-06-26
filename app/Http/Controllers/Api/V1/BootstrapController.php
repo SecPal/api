@@ -289,6 +289,12 @@ class BootstrapController extends Controller
             return null;
         }
 
+        $scheme = strtolower((string) $components['scheme']);
+
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
         $host = $components['host'];
 
         if (! is_string($host) || $host === '' || strtolower($host) === 'localhost') {
@@ -307,6 +313,6 @@ class BootstrapController extends Controller
             return null;
         }
 
-        return strtolower((string) $components['scheme']).'://'.$authority.'/v1';
+        return $scheme.'://'.$authority.'/v1';
     }
 }

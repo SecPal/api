@@ -230,6 +230,24 @@ test('public bootstrap fails closed when required bootstrap metadata is missing'
         ]);
 });
 
+test('public bootstrap fails closed when app url uses a non-http scheme', function (): void {
+    config([
+        'app.url' => 'ftp://api.secpal.dev',
+    ]);
+
+    getJson('/v1/bootstrap?client_platform=browser')
+        ->assertInternalServerError()
+        ->assertExactJson([
+            'message' => 'Public bootstrap configuration is incomplete for this deployment.',
+            'code' => 'BOOTSTRAP_STATE_INVALID',
+            'details' => [
+                'missing_fields' => [
+                    'api_base_url',
+                ],
+            ],
+        ]);
+});
+
 test('public bootstrap fails closed when android fcm runtime metadata is enabled but incomplete', function (): void {
     config([
         'bootstrap.notification_channels.android_fcm.metadata_revision' => null,
