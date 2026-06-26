@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\RateLimiter;
 
 use function Pest\Laravel\getJson;
@@ -128,16 +129,22 @@ test('public source endpoint fails closed when source repository metadata is inc
 });
 
 test('public source endpoint rate limiting does not consume the bootstrap throttle bucket', function (): void {
-    foreach (range(1, 5) as $attempt) {
+    Carbon::setTestNow(Carbon::parse('2026-06-26 12:00:00 UTC'));
+
+    try {
+        foreach (range(1, 5) as $attempt) {
+            getJson('/v1/source')
+                ->assertOk();
+        }
+
         getJson('/v1/source')
-            ->assertOk();
+            ->assertTooManyRequests()
+            ->assertJsonPath('message', 'Too many source offer requests. Please try again in 300 seconds.');
+
+        getJson('/v1/bootstrap?client_platform=browser')
+            ->assertOk()
+            ->assertJsonPath('data.legal.source_url', 'https://api.secpal.dev/v1/source');
+    } finally {
+        Carbon::setTestNow();
     }
-
-    getJson('/v1/source')
-        ->assertTooManyRequests()
-        ->assertJsonPath('message', 'Too many source offer requests. Please try again in 300 seconds.');
-
-    getJson('/v1/bootstrap?client_platform=browser')
-        ->assertOk()
-        ->assertJsonPath('data.legal.source_url', 'https://api.secpal.dev/v1/source');
 });
