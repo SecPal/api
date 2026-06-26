@@ -61,7 +61,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/bootstrap', [BootstrapController::class, 'show'])
         ->middleware('throttle:bootstrap');
     Route::get('/source', [SourceController::class, 'show'])
-        ->middleware('throttle:bootstrap');
+        ->middleware('throttle:source-offer');
 
     // Authentication routes (public)
     // SPA Login (session-based, for web browsers)

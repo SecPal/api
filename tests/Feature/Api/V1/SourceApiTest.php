@@ -6,14 +6,22 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\RateLimiter;
 
 use function Pest\Laravel\getJson;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    RateLimiter::clear('bootstrap|127.0.0.1');
+    RateLimiter::clear('source-offer|127.0.0.1');
+
     config([
+        'app.name' => 'SecPal Demo',
         'app.url' => 'https://customer-api.example/',
+        'bootstrap.public_enabled' => true,
+        'bootstrap.minimum_supported_app_version' => '1.4.0',
+        'bootstrap.minimum_supported_app_build' => 10400,
         'bootstrap.legal.license_spdx_id' => 'AGPL-3.0-or-later',
         'bootstrap.legal.license_name' => 'GNU Affero General Public License v3.0 or later',
         'bootstrap.legal.license_url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
@@ -117,4 +125,19 @@ test('public source endpoint fails closed when source repository metadata is inc
                 ],
             ],
         ]);
+});
+
+test('public source endpoint rate limiting does not consume the bootstrap throttle bucket', function (): void {
+    foreach (range(1, 5) as $attempt) {
+        getJson('/v1/source')
+            ->assertOk();
+    }
+
+    getJson('/v1/source')
+        ->assertTooManyRequests()
+        ->assertJsonPath('message', 'Too many source offer requests. Please try again in 300 seconds.');
+
+    getJson('/v1/bootstrap?client_platform=browser')
+        ->assertOk()
+        ->assertJsonPath('data.legal.source_url', 'https://customer-api.example/v1/source');
 });
