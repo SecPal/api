@@ -30,10 +30,14 @@ jobs:
   markdown-lint:
     name: Markdown Lint
     uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@6f8e13a7a62cee356811a7f58d6b92119941652f
+    with:
+      governance-ref: "6f8e13a7a62cee356811a7f58d6b92119941652f"
 
   ai-instructions:
     name: AI Instructions
     uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@6f8e13a7a62cee356811a7f58d6b92119941652f
+    with:
+      governance-ref: "6f8e13a7a62cee356811a7f58d6b92119941652f"
 
   pint:
     name: Laravel Pint
