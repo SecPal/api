@@ -225,7 +225,7 @@ php artisan boost:update
 
 ```bash
 php artisan boost:update                                  # Generate guidelines
-npx markdownlint-cli2 --fix .github/copilot-instructions.md  # Fix linting issues
+npx --yes --package markdownlint-cli@0.49.0 markdownlint --config .markdownlint.json --fix .github/copilot-instructions.md  # Fix linting issues
 ```
 
 ### Boost Commands
