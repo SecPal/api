@@ -205,6 +205,44 @@ test('service fails closed when customer owned firebase credentials are incomple
     Http::assertNothingSent();
 });
 
+test('service fails closed when fcm token uri targets a non-google endpoint', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    config([
+        'services.fcm.token_uri' => 'https://169.254.169.254/latest/meta-data/iam/security-credentials',
+    ]);
+
+    Http::fake();
+
+    expect(fn () => app(AndroidPushDeliveryService::class)->send(
+        $registration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    ))->toThrow(RuntimeException::class, 'Android push delivery is not configured for this deployment.');
+
+    Http::assertNothingSent();
+});
+
+test('service fails closed when fcm api base url targets a non-google endpoint', function (): void {
+    $registration = createAndroidPushRegistration($this->tenant, $this->user);
+
+    config([
+        'services.fcm.api_base_url' => 'https://push-proxy.internal.example.test',
+    ]);
+
+    Http::fake();
+
+    expect(fn () => app(AndroidPushDeliveryService::class)->send(
+        $registration,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    ))->toThrow(RuntimeException::class, 'Android push delivery is not configured for this deployment.');
+
+    Http::assertNothingSent();
+});
+
 test('service deletes registration and returns invalid token when device token decryption fails', function (): void {
     $registration = createAndroidPushRegistration($this->tenant, $this->user);
 

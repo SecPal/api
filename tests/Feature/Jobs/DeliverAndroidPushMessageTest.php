@@ -161,6 +161,52 @@ test('job makes no delivery attempts when fcm credentials are missing', function
     Http::assertNothingSent();
 });
 
+test('job makes no delivery attempts when fcm token uri is not an allowed google endpoint', function (): void {
+    $registration = createQueuedAndroidPushRegistration($this->tenant, $this->user);
+
+    config([
+        'services.fcm.token_uri' => 'https://169.254.169.254/latest/meta-data/iam/security-credentials',
+    ]);
+
+    Http::fake();
+
+    $job = (new DeliverAndroidPushMessage(
+        $registration->id,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    ))->withFakeQueueInteractions();
+
+    $job->handle(app(AndroidPushDeliveryService::class), app(AndroidPushDeliveryConfiguration::class));
+
+    $job->assertFailedWith('Android push delivery is not configured for this deployment.');
+
+    Http::assertNothingSent();
+});
+
+test('job makes no delivery attempts when fcm api base url is not an allowed google endpoint', function (): void {
+    $registration = createQueuedAndroidPushRegistration($this->tenant, $this->user);
+
+    config([
+        'services.fcm.api_base_url' => 'https://push-proxy.internal.example.test',
+    ]);
+
+    Http::fake();
+
+    $job = (new DeliverAndroidPushMessage(
+        $registration->id,
+        'Compliance alert',
+        'Permit expires soon.',
+        ['category' => 'compliance_alert'],
+    ))->withFakeQueueInteractions();
+
+    $job->handle(app(AndroidPushDeliveryService::class), app(AndroidPushDeliveryConfiguration::class));
+
+    $job->assertFailedWith('Android push delivery is not configured for this deployment.');
+
+    Http::assertNothingSent();
+});
+
 test('job can be queued for asynchronous android push delivery', function (): void {
     Queue::fake();
 
