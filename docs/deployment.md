@@ -208,6 +208,7 @@ Customer-hosted deployments can send Android push directly from the backend with
 
 - Configure `ANDROID_PUSH_FCM_PROJECT_ID`, `ANDROID_PUSH_FCM_CLIENT_EMAIL`, and `ANDROID_PUSH_FCM_PRIVATE_KEY` on the API deployment. These values are required for server-side FCM HTTP v1 delivery and stay backend-only.
 - `ANDROID_PUSH_FCM_PRIVATE_KEY` may be provided either as a real multiline secret or as a single-line value containing literal `\n` escapes exactly like the example above.
+- `ANDROID_PUSH_FCM_TOKEN_URI` and `ANDROID_PUSH_FCM_API_BASE_URL` must continue to target the canonical Google endpoints shown above. SecPal treats non-Google overrides as invalid deployment state and fails closed instead of sending OAuth or delivery traffic to an alternate host.
 - Missing or invalid `ANDROID_PUSH_FCM_*` credentials fail closed during delivery. The backend does not fall back to SecPal-owned routing when customer-owned delivery is selected.
 - The queueable send primitive is `App\Jobs\DeliverAndroidPushMessage`; it runs on the default queue worker. Ensure the deployment's default queue worker is active before relying on asynchronous delivery.
 - Delivery outcomes that indicate a stale or invalid registration token (`UNREGISTERED`, `SENDER_ID_MISMATCH`, or token-specific invalid-argument responses) delete the stored registration so the next authenticated app session must re-register with fresh runtime metadata.
