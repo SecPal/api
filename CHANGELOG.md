@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- hardened the governance rollout in `quality.yml` by pinning shared reusable workflows to the current `.github` commit and keeping the provider-neutral AI-instructions validation path reproducible in CI
 - `GET /v1/bootstrap?client_platform=browser` now keeps the AGPL `legal.source_url` disclosure while limiting public notification runtime metadata to the browser-relevant `web_push` channel, so browser clients no longer receive Android FCM bootstrap metadata
 - public notification runtime discovery now uses the canonical shared channel contract end-to-end: `GET /v1/bootstrap` returns exhaustive `features.notification_channels` flags plus per-channel `notification_channels.android_fcm` / `notification_channels.web_push` runtime metadata, `schema_version` is now `3`, the legacy top-level Android `android_push` bootstrap alias is removed, and authenticated installation conflicts fail closed with generic `NOTIFICATION_CHANNEL_UNSUPPORTED` / `NOTIFICATION_RUNTIME_STATE_INVALID` payloads keyed by channel (refs `api#1132`)
 - `DELETE /v1/me/notification-installations/{installationId}` no longer checks whether the push channel is enabled before revoking; revocation succeeds regardless of the channel's current deployment state, so clients can always clean up stale registrations on logout or uninstall even if the operator later disables the channel
