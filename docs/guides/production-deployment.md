@@ -413,6 +413,8 @@ The queueable delivery primitive is `App\Jobs\DeliverAndroidPushMessage` on the 
 
 Customer-owned browser Web Push delivery uses the backend-only `WEB_PUSH_VAPID_*` and `WEB_PUSH_DELIVERY_*` settings together with the existing public `BOOTSTRAP_WEB_PUSH_PUBLIC_VAPID_KEY`. The audited `minishlink/web-push` library signs and encrypts delivery directly from the customer-hosted API, `App\Services\QueueWebPushDeliveryService::dispatchToRegistrations()` deduplicates targeted browser registration ids per tenant before enqueueing `App\Jobs\DeliverWebPushMessage`, and stale browser subscriptions (`subscription_expires_at`, corrupted stored material, or push-service `404` / `410`) are deleted so the next authenticated browser session must re-register. Private VAPID credentials plus full subscription endpoints and keys never appear in `GET /v1/bootstrap` or API resources.
 
+For every deployment that enables Android FCM bootstrap, also run the Google Cloud console audit in [`docs/guides/firebase-push-bootstrap-audit.md`](firebase-push-bootstrap-audit.md). The codebase can prove bootstrap minimization and server-side secret separation, but it cannot prove the live Firebase / Google Cloud key allowlist, unrelated API exposure, quota posture, billing alerts, or current App Check applicability.
+
 ## Client Configuration
 
 ### Web SPA / PWA (httpOnly Cookies)

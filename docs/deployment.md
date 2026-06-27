@@ -183,6 +183,7 @@ Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after t
 - Increment `BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION` or `BOOTSTRAP_WEB_PUSH_METADATA_REVISION` whenever the corresponding public client metadata changes so authenticated installation updates with stale bootstrap state can be rejected deterministically.
 - Only public runtime metadata belongs here. Never place server credentials, service-account JSON, private VAPID material, or delivery secrets in bootstrap configuration.
 - Customer-owned Android push delivery credentials stay backend-only in `ANDROID_PUSH_FCM_*`, and Web Push private VAPID material must stay server-side; neither surface is read from or exposed through the bootstrap payload.
+- For every deployment that enables Android FCM bootstrap, run the Google Cloud console audit in [`docs/guides/firebase-push-bootstrap-audit.md`](guides/firebase-push-bootstrap-audit.md). This repository cannot prove live API-key restrictions, enabled services, quotas, billing alerts, or App Check posture from source code alone.
 
 Verify the deployed response with the canonical public origin:
 
