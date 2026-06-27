@@ -70,7 +70,7 @@ Relevant files:
 
 - Current SecPal browser push does not use Firebase client SDKs. It uses Web Push plus VAPID, so Firebase App Check does not apply to that client path.
 - Current SecPal Android push bootstrap initializes Firebase Messaging at runtime from public metadata, but the shipped Android client does not currently integrate the Firebase App Check SDK or Play Integrity attestation flow.
-- Firebase's current App Check supported-service list does not include Cloud Messaging. SecPal's API also does not currently validate App Check tokens on notification-installation endpoints or bootstrap.
+- As of 2026-06, Firebase's App Check supported-service list does not include Cloud Messaging. SecPal's API also does not currently validate App Check tokens on notification-installation endpoints or bootstrap.
 - Result: App Check should be recorded as `not currently enforceable` for the public SecPal push bootstrap path today.
 - Revisit this only after a coordinated client-and-server change set adds Android App Check token issuance, backend validation, rollout telemetry, and an operator migration plan.
 
