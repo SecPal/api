@@ -24,7 +24,7 @@ test('missing fields include invalid fcm endpoint overrides', function (): void 
     ]);
 });
 
-test('canonical google fcm endpoint overrides remain accepted', function (): void {
+test('canonical google fcm endpoint overrides remain accepted with trailing slash', function (): void {
     config([
         'services.fcm.project_id' => 'customer-owned-project',
         'services.fcm.client_email' => 'firebase-adminsdk@customer-owned-project.iam.gserviceaccount.com',
@@ -38,4 +38,51 @@ test('canonical google fcm endpoint overrides remain accepted', function (): voi
     expect($configuration->missingFields())->toBe([])
         ->and($configuration->tokenUri())->toBe('https://oauth2.googleapis.com/token')
         ->and($configuration->messageEndpoint())->toBe('https://fcm.googleapis.com/v1/projects/customer-owned-project/messages:send');
+});
+
+test('canonical google fcm endpoint overrides remain accepted without trailing slash', function (): void {
+    config([
+        'services.fcm.project_id' => 'customer-owned-project',
+        'services.fcm.client_email' => 'firebase-adminsdk@customer-owned-project.iam.gserviceaccount.com',
+        'services.fcm.private_key' => "-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----\n",
+        'services.fcm.token_uri' => 'https://oauth2.googleapis.com/token',
+        'services.fcm.api_base_url' => 'https://fcm.googleapis.com',
+    ]);
+
+    $configuration = new AndroidPushDeliveryConfiguration;
+
+    expect($configuration->missingFields())->toBe([])
+        ->and($configuration->tokenUri())->toBe('https://oauth2.googleapis.com/token')
+        ->and($configuration->messageEndpoint())->toBe('https://fcm.googleapis.com/v1/projects/customer-owned-project/messages:send');
+});
+
+test('canonical google fcm endpoint overrides remain accepted with explicit port 443', function (): void {
+    config([
+        'services.fcm.project_id' => 'customer-owned-project',
+        'services.fcm.client_email' => 'firebase-adminsdk@customer-owned-project.iam.gserviceaccount.com',
+        'services.fcm.private_key' => "-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----\n",
+        'services.fcm.token_uri' => 'https://oauth2.googleapis.com:443/token',
+        'services.fcm.api_base_url' => 'https://fcm.googleapis.com:443',
+    ]);
+
+    $configuration = new AndroidPushDeliveryConfiguration;
+
+    expect($configuration->missingFields())->toBe([])
+        ->and($configuration->tokenUri())->toBe('https://oauth2.googleapis.com/token')
+        ->and($configuration->messageEndpoint())->toBe('https://fcm.googleapis.com/v1/projects/customer-owned-project/messages:send');
+});
+
+test('bare google host without path is rejected as token uri', function (): void {
+    config([
+        'services.fcm.project_id' => 'customer-owned-project',
+        'services.fcm.client_email' => 'firebase-adminsdk@customer-owned-project.iam.gserviceaccount.com',
+        'services.fcm.private_key' => "-----BEGIN PRIVATE KEY-----\nplaceholder\n-----END PRIVATE KEY-----\n",
+        'services.fcm.token_uri' => 'https://oauth2.googleapis.com',
+    ]);
+
+    $configuration = new AndroidPushDeliveryConfiguration;
+
+    expect($configuration->missingFields())->toBe([
+        'services.fcm.token_uri (present but invalid; must target https://oauth2.googleapis.com/token)',
+    ]);
 });
