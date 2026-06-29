@@ -1374,6 +1374,31 @@ describe('OrganizationalUnitController - Hierarchy', function () {
         expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
     });
 
+    test('deleting a parent preserves closure access to trashed descendants', function () {
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Deleted Child Unit',
+            'type' => 'department',
+        ]);
+        $child->setParent($this->rootUnit);
+
+        $child->delete();
+
+        $response = deleteJson("/v1/organizational-units/{$this->rootUnit->id}");
+
+        $response->assertNoContent();
+
+        $this->assertSoftDeleted('organizational_units', [
+            'id' => $this->rootUnit->id,
+        ]);
+
+        $this->assertDatabaseHas('organizational_unit_closures', [
+            'ancestor_id' => $this->rootUnit->id,
+            'descendant_id' => $child->id,
+            'depth' => 1,
+        ]);
+    });
+
     test('user retains access to unit after detaching if they have direct scope', function () {
         // Scenario: User has direct scope on the child unit.
         // After detaching from parent, user should still have access.

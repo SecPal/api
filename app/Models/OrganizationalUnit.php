@@ -109,12 +109,13 @@ class OrganizationalUnit extends Model
         });
 
         static::deleted(function (OrganizationalUnit $unit): void {
-            // Soft-deleted units are leaf nodes because destroy() blocks units with children.
-            // Preserve ancestor/self closures so inherited authorization can still resolve
-            // historical employees scoped to the deleted leaf.
-            OrganizationalUnitClosure::where('ancestor_id', $unit->id)
-                ->where('depth', '>', 0)
-                ->delete();
+            // Keep closure rows during soft deletes so inherited scope resolution
+            // remains stable for trashed descendants and stranded employees.
+            if (! $unit->trashed()) {
+                OrganizationalUnitClosure::where('ancestor_id', $unit->id)
+                    ->where('depth', '>', 0)
+                    ->delete();
+            }
         });
 
         static::restored(function (OrganizationalUnit $unit): void {

@@ -507,12 +507,15 @@ class EmployeeLifecycleService
             ->get(['id', 'valid_from'])
             ->each(function (object $assignment) use ($table, $deprovisionedUntil): void {
                 $validFrom = $assignment->valid_from;
+                $validUntil = $validFrom !== null && $validFrom > $deprovisionedUntil
+                    ? $validFrom
+                    : $deprovisionedUntil;
 
                 DB::table($table)
                     ->where('id', $assignment->id)
                     ->update([
                         'valid_from' => $validFrom,
-                        'valid_until' => $deprovisionedUntil,
+                        'valid_until' => $validUntil,
                         'updated_at' => now(),
                     ]);
             });
