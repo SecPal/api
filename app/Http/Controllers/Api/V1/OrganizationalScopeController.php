@@ -107,7 +107,10 @@ class OrganizationalScopeController extends Controller
         /** @var array{user_id: string, access_level: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();
 
-        if ($validated['user_id'] === $request->user()->id) {
+        /** @var User $actor */
+        $actor = $request->user();
+
+        if ($validated['user_id'] === $actor->id) {
             return response()->json([
                 'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
             ], Response::HTTP_FORBIDDEN);

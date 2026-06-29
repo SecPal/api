@@ -1373,7 +1373,7 @@ describe('PATCH /v1/employees/{employee}', function () {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,
-            'status' => Employee::STATUS_PRE_CONTRACT,
+            'status' => Employee::STATUS_ACTIVE,
         ]);
 
         $response = $this->withToken($this->token)

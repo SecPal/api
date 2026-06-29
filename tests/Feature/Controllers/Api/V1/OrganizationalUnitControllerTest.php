@@ -396,6 +396,8 @@ describe('OrganizationalUnitController - Create', function () {
     });
 
     test('creator receives direct manage scope on a newly created child unit', function () {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'organizational_scopes.manage');
+
         $this->user->organizationalScopes()->delete();
 
         UserInternalOrganizationalScope::create([
@@ -625,6 +627,8 @@ describe('OrganizationalUnitController - Show', function () {
     });
 
     test('show response exposes action permissions and accessible parent data', function () {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'organizational_scopes.manage');
+
         $child = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Showable Child',
