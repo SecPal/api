@@ -341,6 +341,44 @@ test('delete activate and terminate require the same scope and rank coverage as 
         ->and($this->policy->terminate($user, $employee))->toBeFalse();
 });
 
+test('self lifecycle actions still require assignable rank coverage', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.update');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.terminate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
+
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 5,
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 5,
+        'min_assignable_rank' => 1,
+        'max_assignable_rank' => 3,
+        'allow_self_access' => true,
+    ]);
+
+    expect($this->policy->view($user, $employee))->toBeTrue()
+        ->and($this->policy->update($user, $employee))->toBeTrue()
+        ->and($this->policy->delete($user, $employee))->toBeFalse()
+        ->and($this->policy->activate($user, $employee))->toBeFalse()
+        ->and($this->policy->placeOnLeave($user, $employee))->toBeFalse()
+        ->and($this->policy->returnFromLeave($user, $employee))->toBeFalse()
+        ->and($this->policy->terminate($user, $employee))->toBeFalse();
+});
+
 test('activate denies users whose permissions do not match the requested action', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);

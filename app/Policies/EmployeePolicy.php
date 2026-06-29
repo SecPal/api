@@ -61,6 +61,7 @@ class EmployeePolicy
             ['employee.read'],
             'read',
             requireAssignableRank: false,
+            allowSelfAccessShortcut: true,
         );
     }
 
@@ -89,6 +90,7 @@ class EmployeePolicy
             ['employee.write', 'employee.update'],
             'write',
             requireAssignableRank: true,
+            allowSelfAccessShortcut: true,
         );
     }
 
@@ -157,6 +159,7 @@ class EmployeePolicy
             ['employee.write', 'employee.delete'],
             'write',
             requireAssignableRank: true,
+            allowSelfAccessShortcut: false,
         );
     }
 
@@ -173,6 +176,7 @@ class EmployeePolicy
             ['employee.write', 'employee.activate'],
             'write',
             requireAssignableRank: true,
+            allowSelfAccessShortcut: false,
         );
     }
 
@@ -199,6 +203,7 @@ class EmployeePolicy
             ['employee.write'],
             'write',
             requireAssignableRank: true,
+            allowSelfAccessShortcut: false,
         );
     }
 
@@ -213,6 +218,7 @@ class EmployeePolicy
             ['employee.write'],
             'write',
             requireAssignableRank: true,
+            allowSelfAccessShortcut: false,
         );
     }
 
@@ -229,6 +235,7 @@ class EmployeePolicy
             ['employee.write', 'employee.terminate'],
             'write',
             requireAssignableRank: true,
+            allowSelfAccessShortcut: false,
         );
     }
 
@@ -241,6 +248,7 @@ class EmployeePolicy
         array $permissions,
         string $minimumAccessLevel,
         bool $requireAssignableRank,
+        bool $allowSelfAccessShortcut,
     ): bool {
         if ($user->tenant_id !== $employee->tenant_id || ! $this->userHasAnyPermission($user, $permissions)) {
             return false;
@@ -252,7 +260,7 @@ class EmployeePolicy
             return false;
         }
 
-        if ($user->id === $employee->user_id) {
+        if ($allowSelfAccessShortcut && $user->id === $employee->user_id) {
             return $scopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
         }
 
