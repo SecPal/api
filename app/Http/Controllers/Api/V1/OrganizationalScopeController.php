@@ -421,14 +421,21 @@ class OrganizationalScopeController extends Controller
         $organizationalUnit = $currentScope->organizationalUnit;
 
         if ($organizationalUnit === null) {
-            return collect();
+            /** @var Collection<int, OrganizationalUnit> $emptyUnits */
+            $emptyUnits = collect();
+
+            return $emptyUnits;
         }
 
+        /** @var Collection<int, OrganizationalUnit> $affectedUnits */
         $affectedUnits = collect([$organizationalUnit]);
 
         if ($currentScope->include_descendants || $simulatedScope->include_descendants) {
+            /** @var Collection<int, OrganizationalUnit> $descendants */
+            $descendants = $organizationalUnit->descendants()->get();
+
             $affectedUnits = $affectedUnits
-                ->merge($organizationalUnit->descendants()->get())
+                ->merge($descendants)
                 ->unique('id')
                 ->values();
         }
