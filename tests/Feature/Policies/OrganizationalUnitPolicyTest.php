@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OrganizationalUnit;
@@ -284,6 +284,26 @@ describe('OrganizationalUnitPolicy', function () {
             ]);
 
             expect($this->policy->manageScopes($this->user, $this->region))->toBeFalse();
+        });
+
+        it('denies managing scopes across tenants even with permission and manage access', function (): void {
+            givePermissionWithTenant($this->user, $this->tenant->id, 'organizational_scopes.manage');
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->user->id,
+                'organizational_unit_id' => $this->region->id,
+                'access_level' => 'manage',
+                'include_descendants' => true,
+            ]);
+
+            $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+            $foreignUnit = OrganizationalUnit::create([
+                'tenant_id' => $otherTenant->id,
+                'name' => 'Foreign Region',
+                'type' => 'region',
+            ]);
+
+            expect($this->policy->manageScopes($this->user, $foreignUnit))->toBeFalse();
         });
     });
 

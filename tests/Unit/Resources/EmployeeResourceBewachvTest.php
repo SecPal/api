@@ -180,7 +180,7 @@ test('EmployeeResource omits regulated identifiers without employees.read_sensit
     ]);
 });
 
-test('EmployeeResource omits salary fields without employees.read_salary', function () {
+test('EmployeeResource omits salary fields without employees.read_salary', function (): void {
     $employee = Employee::factory()->create([
         'hourly_rate' => '24.50',
     ]);

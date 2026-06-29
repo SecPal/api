@@ -8,6 +8,10 @@ declare(strict_types=1);
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
+use App\Models\OnboardingFormSubmission;
+use App\Models\OnboardingFormTemplate;
+use App\Models\OnboardingSubmissionFile;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\TenantKey;
@@ -39,7 +43,7 @@ function seedEmployeeLifecycleRbac(): void
  * @property OrganizationalUnit $orgUnit
  * @property EmployeeLifecycleService $service
  */
-beforeEach(function () {
+beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
@@ -59,7 +63,7 @@ beforeEach(function () {
     $this->service = app(EmployeeLifecycleService::class);
 });
 
-afterEach(function () {
+afterEach(function (): void {
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -328,6 +332,71 @@ test('employee lifecycle service clears on-leave access snapshots and direct per
     expect(DB::table('model_has_roles')->where('model_id', $user->id)->count())->toBe(0);
     expect(DB::table('model_has_permissions')->where('model_id', $user->id)->count())->toBe(0);
     expect($user->can('employee.delete'))->toBeFalse();
+});
+
+test('employee lifecycle service deletes an employee without a linked user account', function (): void {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => null,
+        'user_account_active' => false,
+    ]);
+
+    $deletedEmployee = $this->service->delete($employee);
+
+    expect($deletedEmployee->deleted_at)->not->toBeNull()
+        ->and(Employee::withTrashed()->find($employee->id))->not->toBeNull()
+        ->and(Employee::withTrashed()->find($employee->id)?->user_id)->toBeNull();
+});
+
+test('employee lifecycle service deletes a linked user while preserving employee audit records', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+    ]);
+
+    $document = EmployeeDocument::factory()->create([
+        'employee_id' => $employee->id,
+        'uploaded_by' => $linkedUser->id,
+    ]);
+
+    $template = OnboardingFormTemplate::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $submission = OnboardingFormSubmission::factory()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => $template->id,
+        'status' => 'approved',
+        'reviewed_by' => $linkedUser->id,
+        'reviewed_at' => now(),
+    ]);
+
+    $submissionFile = OnboardingSubmissionFile::create([
+        'onboarding_form_submission_id' => $submission->id,
+        'uploaded_by' => $linkedUser->id,
+        'document_type' => 'contract',
+        'file_path' => 'employees/'.$employee->id.'/onboarding/contract.pdf',
+        'file_name' => 'contract.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 1024,
+    ]);
+
+    $deletedEmployee = $this->service->delete($employee);
+
+    expect($deletedEmployee->deleted_at)->not->toBeNull()
+        ->and(User::query()->find($linkedUser->id))->toBeNull()
+        ->and(EmployeeDocument::query()->find($document->id)?->uploaded_by)->toBeNull()
+        ->and(OnboardingFormSubmission::query()->find($submission->id)?->reviewed_by)->toBeNull()
+        ->and(OnboardingSubmissionFile::query()->find($submissionFile->id)?->uploaded_by)->toBeNull();
 });
 
 test('employee lifecycle service rolls leave transition back when the read-only role is missing', function () {

@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
@@ -339,6 +339,21 @@ test('delete activate and terminate require the same scope and rank coverage as 
         ->and($this->policy->delete($user, $employee))->toBeFalse()
         ->and($this->policy->activate($user, $employee))->toBeFalse()
         ->and($this->policy->terminate($user, $employee))->toBeFalse();
+});
+
+test('activate denies users whose permissions do not match the requested action', function (): void {
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    giveOrganizationalScope($user, $orgUnit, 0, 0, 0, 0);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    expect($this->policy->activate($user, $employee))->toBeFalse();
 });
 
 test('only users with employee.write permission can place employees on leave', function (): void {

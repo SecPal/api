@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OrganizationalUnit;
@@ -243,6 +243,28 @@ describe('OrganizationalScopeController', function () {
 
             $response->assertUnprocessable()
                 ->assertJsonValidationErrors(['user_id']);
+        });
+
+        it('prevents a user from creating their own scope assignment', function (): void {
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => $this->scopeManagerUser->id,
+                'access_level' => 'manage',
+                'include_descendants' => true,
+                'allow_self_access' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'allow_self_access' => true,
+            ]);
         });
     });
 
