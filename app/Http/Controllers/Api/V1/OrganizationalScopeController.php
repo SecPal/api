@@ -427,14 +427,30 @@ class OrganizationalScopeController extends Controller
                 return true;
             }
 
-            if ($this->managementLevelAuthorizationExpands($currentViewScopes, $simulatedViewScopes, assignable: false)) {
+            if ($this->managementLevelAuthorizationExpands(
+                $currentViewScopes,
+                $simulatedViewScopes,
+                fn (UserInternalOrganizationalScope $scope, int $managementLevel): bool => $scope->canViewManagementLevel($managementLevel),
+            )) {
+                return true;
+            }
+
+            $currentWriteScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $currentScopes, 'write');
+            $simulatedWriteScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, 'write');
+
+            if ($this->managementLevelAuthorizationExpands(
+                $currentWriteScopes,
+                $simulatedWriteScopes,
+                fn (UserInternalOrganizationalScope $scope, int $managementLevel): bool => $scope->canAssignManagementLevel($managementLevel),
+            )) {
                 return true;
             }
 
             if ($this->managementLevelAuthorizationExpands(
-                $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $currentScopes, 'write'),
-                $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, 'write'),
-                assignable: true,
+                $currentWriteScopes,
+                $simulatedWriteScopes,
+                fn (UserInternalOrganizationalScope $scope, int $managementLevel): bool => $scope->canViewManagementLevel($managementLevel)
+                    && $scope->canAssignManagementLevel($managementLevel),
             )) {
                 return true;
             }
@@ -525,19 +541,16 @@ class OrganizationalScopeController extends Controller
     /**
      * @param  Collection<int, UserInternalOrganizationalScope>  $currentScopes
      * @param  Collection<int, UserInternalOrganizationalScope>  $simulatedScopes
+     * @param  callable(UserInternalOrganizationalScope, int): bool  $authorizesManagementLevel
      */
     private function managementLevelAuthorizationExpands(
         Collection $currentScopes,
         Collection $simulatedScopes,
-        bool $assignable,
+        callable $authorizesManagementLevel,
     ): bool {
         foreach (range(0, 255) as $managementLevel) {
             $isNewlyAuthorized = $simulatedScopes->contains(
-                fn (UserInternalOrganizationalScope $scope): bool => $this->scopeAuthorizesManagementLevel(
-                    $scope,
-                    $managementLevel,
-                    $assignable,
-                )
+                fn (UserInternalOrganizationalScope $scope): bool => $authorizesManagementLevel($scope, $managementLevel)
             );
 
             if (! $isNewlyAuthorized) {
@@ -545,11 +558,7 @@ class OrganizationalScopeController extends Controller
             }
 
             $wasPreviouslyAuthorized = $currentScopes->contains(
-                fn (UserInternalOrganizationalScope $scope): bool => $this->scopeAuthorizesManagementLevel(
-                    $scope,
-                    $managementLevel,
-                    $assignable,
-                )
+                fn (UserInternalOrganizationalScope $scope): bool => $authorizesManagementLevel($scope, $managementLevel)
             );
 
             if (! $wasPreviouslyAuthorized) {
@@ -558,16 +567,6 @@ class OrganizationalScopeController extends Controller
         }
 
         return false;
-    }
-
-    private function scopeAuthorizesManagementLevel(
-        UserInternalOrganizationalScope $scope,
-        int $managementLevel,
-        bool $assignable,
-    ): bool {
-        return $assignable
-            ? $scope->canAssignManagementLevel($managementLevel)
-            : $scope->canViewManagementLevel($managementLevel);
     }
 
     private function isActorScope(User $actor, UserInternalOrganizationalScope $scopeModel): bool
