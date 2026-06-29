@@ -110,7 +110,7 @@ class OrganizationalScopeController extends Controller
         /** @var User $actor */
         $actor = $request->user();
 
-        if ($validated['user_id'] === $actor->id) {
+        if ($this->isActorUserId($actor, $validated['user_id'])) {
             return response()->json([
                 'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
             ], Response::HTTP_FORBIDDEN);
@@ -251,6 +251,12 @@ class OrganizationalScopeController extends Controller
             return $lockoutResponse;
         }
 
+        $expansionResponse = $this->preventSelfScopeDeletionExpansion($actor, $scopeModel);
+
+        if ($expansionResponse !== null) {
+            return $expansionResponse;
+        }
+
         $scopeModel->delete();
 
         return response()->noContent();
@@ -277,7 +283,7 @@ class OrganizationalScopeController extends Controller
         array $pendingAttributes = [],
         bool $deleteScope = false,
     ): ?JsonResponse {
-        if ($scopeModel->user_id !== $actor->id) {
+        if (! $this->isActorScope($actor, $scopeModel)) {
             return null;
         }
 
@@ -331,7 +337,7 @@ class OrganizationalScopeController extends Controller
      */
     private function preventSelfScopeExpansion(User $actor, UserInternalOrganizationalScope $scopeModel, array $pendingAttributes): ?JsonResponse
     {
-        if ($scopeModel->user_id !== $actor->id) {
+        if (! $this->isActorScope($actor, $scopeModel)) {
             return null;
         }
 
@@ -357,6 +363,34 @@ class OrganizationalScopeController extends Controller
         $simulatedScopes->push($simulatedScope);
 
         if (! $this->effectiveAuthorizationExpands($actor, $scopeModel, $simulatedScope, $currentScopes, $simulatedScopes)) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
+        ], Response::HTTP_FORBIDDEN);
+    }
+
+    private function preventSelfScopeDeletionExpansion(User $actor, UserInternalOrganizationalScope $scopeModel): ?JsonResponse
+    {
+        if (! $this->isActorScope($actor, $scopeModel)) {
+            return null;
+        }
+
+        $organizationalUnit = $scopeModel->organizationalUnit;
+
+        if ($organizationalUnit === null) {
+            return null;
+        }
+
+        /** @var Collection<int, UserInternalOrganizationalScope> $currentScopes */
+        $currentScopes = $actor->organizationalScopes()->get()->values();
+
+        $simulatedScopes = $currentScopes
+            ->reject(fn (UserInternalOrganizationalScope $scope) => $scope->id === $scopeModel->id)
+            ->values();
+
+        if (! $this->effectiveAuthorizationExpands($actor, $scopeModel, $scopeModel, $currentScopes, $simulatedScopes)) {
             return null;
         }
 
@@ -490,5 +524,15 @@ class OrganizationalScopeController extends Controller
         }
 
         return false;
+    }
+
+    private function isActorScope(User $actor, UserInternalOrganizationalScope $scopeModel): bool
+    {
+        return $this->isActorUserId($actor, $scopeModel->user_id);
+    }
+
+    private function isActorUserId(User $actor, string $userId): bool
+    {
+        return strcasecmp($userId, $actor->id) === 0;
     }
 }

@@ -438,13 +438,8 @@ class EmployeeLifecycleService
             ->where('user_id', $user->id)
             ->delete();
 
-        DB::table('customer_assignments')
-            ->where('user_id', $user->id)
-            ->delete();
-
-        DB::table('site_assignments')
-            ->where('user_id', $user->id)
-            ->delete();
+        $this->deactivateTemporalAssignments('customer_assignments', $user->id);
+        $this->deactivateTemporalAssignments('site_assignments', $user->id);
 
         DB::table('sessions')
             ->where('user_id', $user->id)
@@ -479,6 +474,30 @@ class EmployeeLifecycleService
         $user->forceFill([
             'remember_token' => null,
         ])->save();
+    }
+
+    private function deactivateTemporalAssignments(string $table, string $userId): void
+    {
+        $deprovisionedUntil = now()->subDay()->toDateString();
+
+        DB::table($table)
+            ->where('user_id', $userId)
+            ->where(function ($query) use ($deprovisionedUntil): void {
+                $query->whereNull('valid_until')
+                    ->orWhere('valid_until', '>=', $deprovisionedUntil);
+            })
+            ->get(['id', 'valid_from'])
+            ->each(function (object $assignment) use ($table, $deprovisionedUntil): void {
+                $validFrom = $assignment->valid_from;
+
+                DB::table($table)
+                    ->where('id', $assignment->id)
+                    ->update([
+                        'valid_from' => is_string($validFrom) && $validFrom > $deprovisionedUntil ? $deprovisionedUntil : $validFrom,
+                        'valid_until' => $deprovisionedUntil,
+                        'updated_at' => now(),
+                    ]);
+            });
     }
 
     /**

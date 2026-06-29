@@ -32,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $id UUID primary key
  * @property int $tenant_id Foreign key to tenant_keys
  * @property string $customer_id Foreign key to customers
- * @property string $user_id Foreign key to users
+ * @property string|null $user_id Foreign key to users
  * @property string $role Flexible role name (tenant-specific)
  * @property \Illuminate\Support\Carbon|null $valid_from When assignment starts
  * @property \Illuminate\Support\Carbon|null $valid_until When assignment ends (null = indefinite)
@@ -42,7 +42,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read bool $is_active Whether assignment is currently active
  * @property-read TenantKey $tenant The tenant this assignment belongs to
  * @property-read Customer $customer The customer for this assignment
- * @property-read User $user The user assigned to the customer
+ * @property-read User|null $user The user assigned to the customer
  *
  * @see SecPal/.github#210 Customer & Site Management Epic
  * @see SecPal/api#311 Assignment models

@@ -60,6 +60,7 @@ beforeEach(function (): void {
 
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employees.read_salary');
 
     $this->organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -565,6 +566,35 @@ describe('POST /v1/employees', function () {
 
         expect($employee->management_level)->toBe(0)
             ->and($employee->onboarding_invitation_status)->toBe(Employee::INVITATION_STATUS_SENT);
+    });
+
+    test('rejects salary writes on employee creation without employees.read_salary permission', function (): void {
+        $user = User::factory()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+        givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
+        grantDualManagementScopes($user, $this->organizationalUnit->id);
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'Nina',
+                'last_name' => 'Newhire',
+                'email' => 'nina.no-salary@example.com',
+                'date_of_birth' => '1993-05-15',
+                'position' => 'Security Guard',
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->addWeek()->toDateString(),
+                'weekly_hours' => 40,
+                'hourly_rate' => 16.50,
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'management_level' => 0,
+                'sachkunde_type' => 'none',
+                'work_permit_type' => 'none',
+                'criminal_record_status' => 'valid',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['hourly_rate']);
     });
 
     test('creates employee with auto-generated employee_number', function (): void {
@@ -1134,7 +1164,10 @@ describe('GET /v1/employees/{employee}', function () {
     });
 
     test('omits salary fields without employees.read_salary', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+        $user = User::factory()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+        givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
+        grantDualManagementScopes($user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -1143,7 +1176,7 @@ describe('GET /v1/employees/{employee}', function () {
             'hourly_rate' => '29.75',
         ]);
 
-        $response = $this->withToken($this->token)
+        $response = $this->withToken($token)
             ->getJson("/v1/employees/{$employee->id}");
 
         $response->assertOk();
@@ -1228,6 +1261,29 @@ describe('PATCH /v1/employees/{employee}', function () {
 
         $response->assertStatus(200);
         expect($response->json('data.weekly_hours'))->toBe('35.00'); // decimal:2 cast returns string
+    });
+
+    test('rejects salary updates without employees.read_salary permission', function (): void {
+        $user = User::factory()->create();
+        $token = $user->createToken('test-device')->plainTextToken;
+        givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
+        grantDualManagementScopes($user, $this->organizationalUnit->id);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'hourly_rate' => 15.50,
+        ]);
+
+        $response = $this->withToken($token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'hourly_rate' => 19.75,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['hourly_rate']);
+
+        expect($employee->fresh()->hourly_rate)->toBe(15.5);
     });
 
     test('rejects blank address rows without deleting existing address history', function (): void {

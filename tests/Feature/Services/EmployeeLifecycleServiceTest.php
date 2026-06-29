@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
+use App\Models\Customer;
+use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\OnboardingFormSubmission;
@@ -15,6 +17,8 @@ use App\Models\OnboardingSubmissionFile;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
 use App\Models\RoleAssignmentLog;
+use App\Models\Site;
+use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\EmployeeLifecycleService;
@@ -400,6 +404,45 @@ test('employee lifecycle service deletes a linked user while preserving employee
         'reason' => 'Lifecycle test coverage',
     ]);
 
+    $customer = Customer::factory()->forTenant($this->tenant->id)->create();
+    $site = Site::factory()
+        ->forTenant($this->tenant->id)
+        ->forCustomer($customer)
+        ->forOrganizationalUnit($this->orgUnit)
+        ->create();
+
+    $expiredCustomerAssignment = CustomerAssignment::factory()
+        ->for($customer)
+        ->for($linkedUser)
+        ->expired()
+        ->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+    $activeCustomerAssignment = CustomerAssignment::factory()
+        ->for($customer)
+        ->for($linkedUser)
+        ->active()
+        ->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+    $expiredSiteAssignment = SiteAssignment::factory()
+        ->for($site)
+        ->for($linkedUser)
+        ->expired()
+        ->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+    $activeSiteAssignment = SiteAssignment::factory()
+        ->for($site)
+        ->for($linkedUser)
+        ->active()
+        ->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
     $deletedEmployee = $this->service->delete($employee);
 
     expect($deletedEmployee->deleted_at)->not->toBeNull()
@@ -408,7 +451,19 @@ test('employee lifecycle service deletes a linked user while preserving employee
         ->and(OnboardingFormSubmission::query()->find($submission->id)?->reviewed_by)->toBeNull()
         ->and(OnboardingSubmissionFile::query()->find($submissionFile->id)?->uploaded_by)->toBeNull()
         ->and(RoleAssignmentLog::query()->find($roleAssignmentLog->id))->not->toBeNull()
-        ->and(RoleAssignmentLog::query()->find($roleAssignmentLog->id)?->user_id)->toBeNull();
+        ->and(RoleAssignmentLog::query()->find($roleAssignmentLog->id)?->user_id)->toBeNull()
+        ->and(CustomerAssignment::query()->find($expiredCustomerAssignment->id))->not->toBeNull()
+        ->and(CustomerAssignment::query()->find($expiredCustomerAssignment->id)?->user_id)->toBeNull()
+        ->and(CustomerAssignment::query()->find($expiredCustomerAssignment->id)?->valid_until?->toDateString())->toBe($expiredCustomerAssignment->valid_until?->toDateString())
+        ->and(CustomerAssignment::query()->find($activeCustomerAssignment->id))->not->toBeNull()
+        ->and(CustomerAssignment::query()->find($activeCustomerAssignment->id)?->user_id)->toBeNull()
+        ->and(CustomerAssignment::query()->find($activeCustomerAssignment->id)?->valid_until?->isPast())->toBeTrue()
+        ->and(SiteAssignment::query()->find($expiredSiteAssignment->id))->not->toBeNull()
+        ->and(SiteAssignment::query()->find($expiredSiteAssignment->id)?->user_id)->toBeNull()
+        ->and(SiteAssignment::query()->find($expiredSiteAssignment->id)?->valid_until?->toDateString())->toBe($expiredSiteAssignment->valid_until?->toDateString())
+        ->and(SiteAssignment::query()->find($activeSiteAssignment->id))->not->toBeNull()
+        ->and(SiteAssignment::query()->find($activeSiteAssignment->id)?->user_id)->toBeNull()
+        ->and(SiteAssignment::query()->find($activeSiteAssignment->id)?->valid_until?->isPast())->toBeTrue();
 });
 
 test('employee lifecycle service rolls leave transition back when the read-only role is missing', function () {
