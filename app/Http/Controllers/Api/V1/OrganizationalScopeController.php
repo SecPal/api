@@ -422,10 +422,8 @@ class OrganizationalScopeController extends Controller
 
             $currentViewScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $currentScopes, 'read');
             $simulatedViewScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, 'read');
-            if (
-                $simulatedViewScopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access)
-                && ! $currentViewScopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access)
-            ) {
+
+            if ($this->selfAccessAuthorizationExpands($actor, $organizationalUnit, $currentScopes, $simulatedScopes)) {
                 return true;
             }
 
@@ -438,6 +436,31 @@ class OrganizationalScopeController extends Controller
                 $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, 'write'),
                 assignable: true,
             )) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $currentScopes
+     * @param  Collection<int, UserInternalOrganizationalScope>  $simulatedScopes
+     */
+    private function selfAccessAuthorizationExpands(
+        User $actor,
+        OrganizationalUnit $organizationalUnit,
+        Collection $currentScopes,
+        Collection $simulatedScopes,
+    ): bool {
+        foreach (['read', 'write'] as $minimumAccessLevel) {
+            $currentScopedSelfAccess = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $currentScopes, $minimumAccessLevel)
+                ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
+
+            $simulatedScopedSelfAccess = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, $minimumAccessLevel)
+                ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
+
+            if ($simulatedScopedSelfAccess && ! $currentScopedSelfAccess) {
                 return true;
             }
         }

@@ -37,7 +37,7 @@ class CustomerAssignmentResource extends JsonResource
             'valid_from' => $this->resource->valid_from?->toDateString(),
             'valid_until' => $this->resource->valid_until?->toDateString(),
             'notes' => $this->resource->notes,
-            'user' => new UserResource($this->whenLoaded('user')),
+            'user' => $this->whenLoaded('user', fn (): ?UserResource => $this->resource->user === null ? null : new UserResource($this->resource->user)),
             'customer' => new CustomerResource($this->whenLoaded('customer')),
             'created_at' => \App\Support\ApiTimestamp::format($this->resource->created_at),
             'updated_at' => \App\Support\ApiTimestamp::format($this->resource->updated_at),

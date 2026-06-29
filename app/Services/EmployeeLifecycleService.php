@@ -494,7 +494,7 @@ class EmployeeLifecycleService
                 DB::table($table)
                     ->where('id', $assignment->id)
                     ->update([
-                        'valid_from' => is_string($validFrom) && $validFrom > $deprovisionedUntil ? $deprovisionedUntil : $validFrom,
+                        'valid_from' => $validFrom,
                         'valid_until' => $deprovisionedUntil,
                         'updated_at' => now(),
                     ]);

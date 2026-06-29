@@ -171,6 +171,24 @@ describe('GET /v1/customers/{customer}/assignments', function () {
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['is_active'])->toBeTrue();
     });
+
+    test('returns preserved assignment history when the linked user was deleted', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        $assignment = CustomerAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'user_id' => null,
+            'role' => 'Former Account Manager',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/customers/{$this->customer->id}/assignments");
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $assignment->id)
+            ->assertJsonPath('data.0.user', null);
+    });
 });
 
 describe('POST /v1/customers/{customer}/assignments', function () {

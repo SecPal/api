@@ -470,6 +470,58 @@ test('employee lifecycle service deletes a linked user while preserving employee
         ->and(SiteAssignment::query()->find($activeSiteAssignment->id)?->valid_until?->isPast())->toBeTrue();
 });
 
+test('employee lifecycle service preserves future assignment start dates when deleting a linked user', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+    ]);
+
+    $customer = Customer::factory()->forTenant($this->tenant->id)->create();
+    $site = Site::factory()
+        ->forTenant($this->tenant->id)
+        ->forCustomer($customer)
+        ->forOrganizationalUnit($this->orgUnit)
+        ->create();
+
+    $futureStart = now()->addWeek()->toDateString();
+
+    $futureCustomerAssignment = CustomerAssignment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_id' => $customer->id,
+        'user_id' => $linkedUser->id,
+        'role' => 'Planned Account Lead',
+        'valid_from' => $futureStart,
+        'valid_until' => null,
+    ]);
+
+    $futureSiteAssignment = SiteAssignment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'site_id' => $site->id,
+        'user_id' => $linkedUser->id,
+        'role' => 'Planned Site Lead',
+        'valid_from' => $futureStart,
+        'valid_until' => null,
+    ]);
+
+    $deletedEmployee = $this->service->delete($employee);
+    $deprovisionedUntil = now()->subDay()->toDateString();
+
+    expect($deletedEmployee->deleted_at)->not->toBeNull()
+        ->and(CustomerAssignment::query()->find($futureCustomerAssignment->id)?->user_id)->toBeNull()
+        ->and(CustomerAssignment::query()->find($futureCustomerAssignment->id)?->valid_from?->toDateString())->toBe($futureStart)
+        ->and(CustomerAssignment::query()->find($futureCustomerAssignment->id)?->valid_until?->toDateString())->toBe($deprovisionedUntil)
+        ->and(SiteAssignment::query()->find($futureSiteAssignment->id)?->user_id)->toBeNull()
+        ->and(SiteAssignment::query()->find($futureSiteAssignment->id)?->valid_from?->toDateString())->toBe($futureStart)
+        ->and(SiteAssignment::query()->find($futureSiteAssignment->id)?->valid_until?->toDateString())->toBe($deprovisionedUntil);
+});
+
 test('employee lifecycle service rolls leave transition back when the read-only role is missing', function () {
     Mail::fake();
 

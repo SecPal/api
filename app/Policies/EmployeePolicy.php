@@ -254,7 +254,11 @@ class EmployeePolicy
             return false;
         }
 
-        $scopes = $this->applicableScopes($user, $employee->organizationalUnit, $minimumAccessLevel);
+        $scopes = $this->applicableScopes(
+            $user,
+            $this->resolveOrganizationalUnitForAuthorization($employee),
+            $minimumAccessLevel,
+        );
 
         if ($scopes->isEmpty()) {
             return false;
@@ -265,6 +269,19 @@ class EmployeePolicy
         }
 
         return $this->scopesAuthorizeManagementLevel($scopes, $employee->management_level, $requireAssignableRank);
+    }
+
+    private function resolveOrganizationalUnitForAuthorization(Employee $employee): ?OrganizationalUnit
+    {
+        if ($employee->organizationalUnit !== null) {
+            return $employee->organizationalUnit;
+        }
+
+        if ($employee->organizational_unit_id === null) {
+            return null;
+        }
+
+        return OrganizationalUnit::withTrashed()->find($employee->organizational_unit_id);
     }
 
     /**

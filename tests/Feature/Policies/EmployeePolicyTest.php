@@ -394,6 +394,30 @@ test('activate denies users whose permissions do not match the requested action'
     expect($this->policy->activate($user, $employee))->toBeFalse();
 });
 
+test('lifecycle actions remain authorized for employees in soft-deleted organizational units', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.terminate');
+
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    giveOrganizationalScope($user, $orgUnit, 0, 0, 0, 0);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $orgUnit->delete();
+    $employee->refresh();
+
+    expect($employee->organizationalUnit)->toBeNull()
+        ->and($this->policy->delete($user, $employee))->toBeTrue()
+        ->and($this->policy->activate($user, $employee))->toBeTrue()
+        ->and($this->policy->terminate($user, $employee))->toBeTrue();
+});
+
 test('only users with employee.write permission can place employees on leave', function (): void {
     $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');

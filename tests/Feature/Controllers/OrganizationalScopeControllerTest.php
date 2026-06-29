@@ -3,12 +3,14 @@
 // SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -503,6 +505,58 @@ describe('OrganizationalScopeController', function () {
 
             expect($selfScope->fresh()?->include_descendants)->toBeFalse()
                 ->and($selfManagingUser->fresh()->hasAccessToUnit($this->region))->toBeFalse();
+        });
+
+        it('prevents a self-managing user from enabling write self access through a split scope update', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'employee.read');
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'employee.update');
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'read',
+                'include_descendants' => false,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
+                'allow_self_access' => true,
+            ]);
+
+            $writeScope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
+                'allow_self_access' => false,
+            ]);
+
+            $employee = Employee::factory()->create([
+                'tenant_id' => $this->tenant->id,
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'management_level' => 0,
+            ]);
+
+            $this->actingAs($selfManagingUser);
+
+            expect(Gate::forUser($selfManagingUser)->allows('update', $employee))->toBeFalse();
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$writeScope->id}", [
+                'allow_self_access' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            expect($writeScope->fresh()?->allow_self_access)->toBeFalse()
+                ->and(Gate::forUser($selfManagingUser)->allows('update', $employee))->toBeFalse();
         });
 
     });
