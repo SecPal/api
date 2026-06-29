@@ -335,18 +335,122 @@ class OrganizationalScopeController extends Controller
             return null;
         }
 
+        $organizationalUnit = $scopeModel->organizationalUnit;
+
+        if ($organizationalUnit === null) {
+            return null;
+        }
+
+        /** @var Collection<int, UserInternalOrganizationalScope> $currentScopes */
+        $currentScopes = $actor->organizationalScopes()->get()->values();
+
+        $simulatedScopes = $currentScopes
+            ->reject(fn (UserInternalOrganizationalScope $scope) => $scope->id === $scopeModel->id)
+            ->values();
+
         $simulatedScope = clone $scopeModel;
 
         foreach ($pendingAttributes as $attribute => $value) {
             $simulatedScope->{$attribute} = $value;
         }
 
-        if ($simulatedScope->doesNotExpandAuthorizationComparedTo($scopeModel)) {
+        $simulatedScopes->push($simulatedScope);
+
+        if (! $this->effectiveAuthorizationExpands($actor, $organizationalUnit, $currentScopes, $simulatedScopes)) {
             return null;
         }
 
         return response()->json([
             'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
         ], Response::HTTP_FORBIDDEN);
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $currentScopes
+     * @param  Collection<int, UserInternalOrganizationalScope>  $simulatedScopes
+     */
+    private function effectiveAuthorizationExpands(
+        User $actor,
+        OrganizationalUnit $organizationalUnit,
+        Collection $currentScopes,
+        Collection $simulatedScopes,
+    ): bool {
+        foreach (['read', 'write', 'manage'] as $minimumAccessLevel) {
+            if (
+                $actor->hasAccessToUnit($organizationalUnit, $minimumAccessLevel, $simulatedScopes)
+                && ! $actor->hasAccessToUnit($organizationalUnit, $minimumAccessLevel, $currentScopes)
+            ) {
+                return true;
+            }
+        }
+
+        $currentViewScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $currentScopes, 'read');
+        $simulatedViewScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, 'read');
+
+        if (
+            $simulatedViewScopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access)
+            && ! $currentViewScopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access)
+        ) {
+            return true;
+        }
+
+        if ($this->managementLevelAuthorizationExpands($currentViewScopes, $simulatedViewScopes, assignable: false)) {
+            return true;
+        }
+
+        return $this->managementLevelAuthorizationExpands(
+            $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $currentScopes, 'write'),
+            $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, 'write'),
+            assignable: true,
+        );
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
+     * @return Collection<int, UserInternalOrganizationalScope>
+     */
+    private function applicableScopesWithMinimumAccessLevel(
+        User $actor,
+        OrganizationalUnit $organizationalUnit,
+        Collection $scopes,
+        string $minimumAccessLevel,
+    ): Collection {
+        return $actor->getApplicableOrganizationalScopesForUnitUsingScopes($organizationalUnit, $scopes)
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel($minimumAccessLevel))
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $currentScopes
+     * @param  Collection<int, UserInternalOrganizationalScope>  $simulatedScopes
+     */
+    private function managementLevelAuthorizationExpands(
+        Collection $currentScopes,
+        Collection $simulatedScopes,
+        bool $assignable,
+    ): bool {
+        foreach (range(0, 255) as $managementLevel) {
+            $isNewlyAuthorized = $simulatedScopes->contains(
+                fn (UserInternalOrganizationalScope $scope): bool => $assignable
+                    ? $scope->canAssignManagementLevel($managementLevel)
+                    : $scope->canViewManagementLevel($managementLevel)
+            );
+
+            if (! $isNewlyAuthorized) {
+                continue;
+            }
+
+            $wasPreviouslyAuthorized = $currentScopes->contains(
+                fn (UserInternalOrganizationalScope $scope): bool => $assignable
+                    ? $scope->canAssignManagementLevel($managementLevel)
+                    : $scope->canViewManagementLevel($managementLevel)
+            );
+
+            if (! $wasPreviouslyAuthorized) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

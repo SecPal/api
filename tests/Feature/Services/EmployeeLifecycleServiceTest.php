@@ -14,6 +14,7 @@ use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
+use App\Models\RoleAssignmentLog;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\EmployeeLifecycleService;
@@ -390,13 +391,24 @@ test('employee lifecycle service deletes a linked user while preserving employee
         'file_size' => 1024,
     ]);
 
+    $roleAssignmentLog = RoleAssignmentLog::create([
+        'user_id' => $linkedUser->id,
+        'role_id' => Role::findByName('Employee', 'sanctum')->id,
+        'action' => 'assigned',
+        'valid_from' => now()->subDay(),
+        'assigned_by' => $linkedUser->id,
+        'reason' => 'Lifecycle test coverage',
+    ]);
+
     $deletedEmployee = $this->service->delete($employee);
 
     expect($deletedEmployee->deleted_at)->not->toBeNull()
         ->and(User::query()->find($linkedUser->id))->toBeNull()
         ->and(EmployeeDocument::query()->find($document->id)?->uploaded_by)->toBeNull()
         ->and(OnboardingFormSubmission::query()->find($submission->id)?->reviewed_by)->toBeNull()
-        ->and(OnboardingSubmissionFile::query()->find($submissionFile->id)?->uploaded_by)->toBeNull();
+        ->and(OnboardingSubmissionFile::query()->find($submissionFile->id)?->uploaded_by)->toBeNull()
+        ->and(RoleAssignmentLog::query()->find($roleAssignmentLog->id))->not->toBeNull()
+        ->and(RoleAssignmentLog::query()->find($roleAssignmentLog->id)?->user_id)->toBeNull();
 });
 
 test('employee lifecycle service rolls leave transition back when the read-only role is missing', function () {

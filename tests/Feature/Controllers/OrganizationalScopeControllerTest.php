@@ -382,6 +382,50 @@ describe('OrganizationalScopeController', function () {
                 ->and($selfScope->allow_self_access)->toBeFalse();
         });
 
+        it('allows self-scope cleanup that does not expand effective authorization across split scopes', function (): void {
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => true,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => true,
+            ]);
+
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 2,
+                'max_viewable_rank' => 3,
+                'min_assignable_rank' => 2,
+                'max_assignable_rank' => 3,
+                'allow_self_access' => false,
+            ]);
+
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'include_descendants' => true,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => true,
+            ]);
+
+            $response->assertOk()
+                ->assertJsonPath('data.include_descendants', true)
+                ->assertJsonPath('data.max_viewable_rank', 5)
+                ->assertJsonPath('data.allow_self_access', true);
+        });
+
     });
 
     describe('destroy - DELETE /organizational-units/{unit}/scopes/{scope}', function () {
