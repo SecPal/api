@@ -375,6 +375,30 @@ class OrganizationalScopeController extends Controller
         Collection $currentScopes,
         Collection $simulatedScopes,
     ): bool {
+        $affectedUnits = $organizationalUnit->descendants()
+            ->get()
+            ->prepend($organizationalUnit)
+            ->values();
+
+        foreach ($affectedUnits as $affectedUnit) {
+            if ($this->unitAuthorizationExpands($actor, $affectedUnit, $currentScopes, $simulatedScopes)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $currentScopes
+     * @param  Collection<int, UserInternalOrganizationalScope>  $simulatedScopes
+     */
+    private function unitAuthorizationExpands(
+        User $actor,
+        OrganizationalUnit $organizationalUnit,
+        Collection $currentScopes,
+        Collection $simulatedScopes,
+    ): bool {
         foreach (['read', 'write', 'manage'] as $minimumAccessLevel) {
             if (
                 $actor->hasAccessToUnit($organizationalUnit, $minimumAccessLevel, $simulatedScopes)

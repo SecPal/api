@@ -382,6 +382,34 @@ describe('OrganizationalScopeController', function () {
                 ->and($selfScope->allow_self_access)->toBeFalse();
         });
 
+        it('prevents a user from expanding their own scope to descendants', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+            ]);
+
+            expect($selfManagingUser->hasAccessToUnit($this->company, 'manage'))->toBeTrue()
+                ->and($selfManagingUser->hasAccessToUnit($this->region, 'manage'))->toBeFalse();
+
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'include_descendants' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            $selfScope->refresh();
+
+            expect($selfScope->include_descendants)->toBeFalse()
+                ->and($selfManagingUser->fresh()->hasAccessToUnit($this->region, 'manage'))->toBeFalse();
+        });
+
         it('allows self-scope cleanup that does not expand effective authorization across split scopes', function (): void {
             givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
