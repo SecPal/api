@@ -237,6 +237,45 @@ class EmployeeLifecycleService
         return $terminatedEmployee;
     }
 
+    /**
+     * Soft-delete an employee and permanently remove the linked runtime user account.
+     */
+    public function delete(Employee $employee): Employee
+    {
+        /** @var User|null $deletedUser */
+        $deletedUser = null;
+
+        $deletedEmployee = DB::transaction(function () use ($employee, &$deletedUser): Employee {
+            $employee = $this->refreshEmployee($employee);
+
+            /** @var User|null $user */
+            $user = $employee->user;
+
+            $employee->forceFill([
+                'user_account_active' => false,
+                'user_account_deactivated_at' => now(),
+                'runtime_access_snapshot' => null,
+            ])->save();
+
+            if ($user instanceof User) {
+                $employee->user()->dissociate();
+                $employee->saveQuietly();
+                $this->deprovisionUserAccount($user, $employee->tenant_id, deleteUser: true);
+                $deletedUser = $user;
+            }
+
+            $employee->delete();
+
+            return $this->refreshEmployee($employee);
+        });
+
+        if ($deletedUser instanceof User) {
+            $this->refreshAuthorizationContext($deletedUser);
+        }
+
+        return $deletedEmployee;
+    }
+
     private function resolveRole(string $roleName): Role
     {
         $role = Role::where('name', $roleName)->where('guard_name', 'sanctum')->first();
@@ -389,6 +428,57 @@ class EmployeeLifecycleService
             ->where('model_id', $user->id)
             ->where('tenant_id', $tenantId)
             ->delete();
+    }
+
+    private function deprovisionUserAccount(User $user, int $tenantId, bool $deleteUser = false): void
+    {
+        $this->clearRuntimeAccess($user, $tenantId);
+
+        DB::table('user_internal_organizational_scopes')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('customer_assignments')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('site_assignments')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('sessions')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('two_factor_authentications')
+            ->where('authenticatable_type', User::class)
+            ->where('authenticatable_id', $user->id)
+            ->delete();
+
+        DB::table('password_reset_tokens')
+            ->where('email', $user->email)
+            ->delete();
+
+        DB::table('push_device_registrations')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('android_enrollment_sessions')
+            ->where('created_by', $user->id)
+            ->delete();
+
+        $user->tokens()->delete();
+        $user->passkeyCredentials()->delete();
+
+        if ($deleteUser) {
+            $user->delete();
+
+            return;
+        }
+
+        $user->forceFill([
+            'remember_token' => null,
+        ])->save();
     }
 
     /**

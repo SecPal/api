@@ -33,6 +33,8 @@ class OrganizationalScopeController extends Controller
 {
     private const SELF_SCOPE_LOCKOUT_MESSAGE = 'You cannot remove your own last scope-management access for this organizational unit.';
 
+    private const SELF_SCOPE_ESCALATION_MESSAGE = 'You cannot create or expand your own organizational scope permissions.';
+
     /**
      * Transform a scope to API response format.
      *
@@ -58,11 +60,13 @@ class OrganizationalScopeController extends Controller
 
         if ($includeUnit && $scope->relationLoaded('organizationalUnit')) {
             $unit = $scope->organizationalUnit;
-            $data['organizational_unit'] = [
-                'id' => $unit->id,
-                'name' => $unit->name,
-                'type' => $unit->type,
-            ];
+            if ($unit !== null) {
+                $data['organizational_unit'] = [
+                    'id' => $unit->id,
+                    'name' => $unit->name,
+                    'type' => $unit->type,
+                ];
+            }
         }
 
         if ($includeUser && $scope->relationLoaded('user')) {
@@ -102,6 +106,12 @@ class OrganizationalScopeController extends Controller
 
         /** @var array{user_id: string, access_level: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();
+
+        if ($validated['user_id'] === $request->user()->id) {
+            return response()->json([
+                'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
+            ], Response::HTTP_FORBIDDEN);
+        }
 
         $scope = UserInternalOrganizationalScope::create([
             'user_id' => $validated['user_id'],
@@ -157,6 +167,12 @@ class OrganizationalScopeController extends Controller
 
         if ($lockoutResponse !== null) {
             return $lockoutResponse;
+        }
+
+        $selfExpansionResponse = $this->preventSelfScopeExpansion($actor, $scopeModel, $validated);
+
+        if ($selfExpansionResponse !== null) {
+            return $selfExpansionResponse;
         }
 
         if (isset($validated['access_level'])) {
@@ -298,10 +314,36 @@ class OrganizationalScopeController extends Controller
 
         $scopes = $user->organizationalScopes()
             ->with('organizationalUnit:id,name,type')
-            ->get();
+            ->get()
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->organizationalUnit !== null)
+            ->values();
 
         return response()->json([
             'data' => $scopes->map(fn ($scope) => $this->transformScope($scope, true)),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $pendingAttributes
+     */
+    private function preventSelfScopeExpansion(User $actor, UserInternalOrganizationalScope $scopeModel, array $pendingAttributes): ?JsonResponse
+    {
+        if ($scopeModel->user_id !== $actor->id) {
+            return null;
+        }
+
+        $simulatedScope = clone $scopeModel;
+
+        foreach ($pendingAttributes as $attribute => $value) {
+            $simulatedScope->{$attribute} = $value;
+        }
+
+        if ($simulatedScope->doesNotExpandAuthorizationComparedTo($scopeModel)) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
+        ], Response::HTTP_FORBIDDEN);
     }
 }

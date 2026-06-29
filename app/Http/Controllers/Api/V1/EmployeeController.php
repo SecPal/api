@@ -579,7 +579,7 @@ class EmployeeController extends Controller
     {
         $this->authorize('delete', $employee);
 
-        $employee->delete();
+        app(EmployeeLifecycleService::class)->delete($employee);
 
         return response()->noContent();
     }

@@ -124,6 +124,11 @@ class OrganizationalUnitPolicy
      */
     public function manageScopes(User $user, OrganizationalUnit $unit): bool
     {
-        return $user->hasAccessToUnit($unit, 'manage');
+        if ($user->tenant_id !== $unit->tenant_id) {
+            return false;
+        }
+
+        return $user->can('organizational_scopes.manage')
+            && $user->hasAccessToUnit($unit, 'manage');
     }
 }

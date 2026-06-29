@@ -1133,6 +1133,23 @@ describe('GET /v1/employees/{employee}', function () {
             ->assertJsonPath('data.sachkunde_ihk_number', 'IHK-123456');
     });
 
+    test('omits salary fields without employees.read_salary', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'management_level' => 0,
+            'hourly_rate' => '29.75',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$employee->id}");
+
+        $response->assertOk();
+        expect($response->json('data'))->not->toHaveKey('hourly_rate');
+    });
+
     test('returns 404 when user tries to access employee from different tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
@@ -1356,7 +1373,7 @@ describe('PATCH /v1/employees/{employee}', function () {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,
-            'status' => Employee::STATUS_ACTIVE,
+            'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
         $response = $this->withToken($this->token)
@@ -2244,6 +2261,70 @@ describe('DELETE /v1/employees/{employee}', function () {
         $response->assertNoContent();
         expect(Employee::withTrashed()->find($employee->id)->deleted_at)->not->toBeNull();
     });
+
+    test('returns 403 when target employee is outside the actor management rank scope', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+        $this->user->organizationalScopes()->delete();
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'min_assignable_rank' => 0,
+            'max_assignable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'management_level' => 3,
+        ]);
+
+        $this->withToken($this->token)
+            ->deleteJson("/v1/employees/{$employee->id}")
+            ->assertForbidden();
+    });
+
+    test('deleting an employee securely deprovisions and removes the linked user account', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $linkedUser = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'user_id' => $linkedUser->id,
+            'user_account_active' => true,
+        ]);
+
+        expect($linkedUser)->toBeInstanceOf(User::class);
+
+        $linkedUser->createToken('employee-delete-test');
+
+        DB::table('sessions')->insert([
+            'id' => 'employee-delete-session',
+            'user_id' => $linkedUser->id,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'Pest',
+            'payload' => base64_encode('test'),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/v1/employees/{$employee->id}");
+
+        $response->assertNoContent();
+
+        expect(Employee::withTrashed()->find($employee->id)->deleted_at)->not->toBeNull()
+            ->and(User::query()->find($linkedUser->id))->toBeNull()
+            ->and(DB::table('personal_access_tokens')->where('tokenable_id', $linkedUser->id)->count())->toBe(0)
+            ->and(DB::table('sessions')->where('user_id', $linkedUser->id)->count())->toBe(0);
+    });
 });
 
 describe('POST /v1/employees/{employee}/activate', function () {
@@ -2289,6 +2370,35 @@ describe('POST /v1/employees/{employee}/activate', function () {
         $response->assertStatus(200);
         expect($response->json('data.status'))->toBe(Employee::STATUS_ACTIVE);
         expect($response->json('data.onboarding_workflow.status'))->toBe(Employee::WORKFLOW_STATUS_ACTIVE);
+    });
+
+    test('returns 403 when target employee is outside the actor management rank scope', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+        $this->user->organizationalScopes()->delete();
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'min_assignable_rank' => 0,
+            'max_assignable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'management_level' => 3,
+            'status' => Employee::STATUS_PRE_CONTRACT,
+            'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+            'contract_start_date' => now()->subDay()->toDateString(),
+        ]);
+
+        $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/activate")
+            ->assertForbidden();
     });
 
     test('returns 422 when onboarding not completed', function (): void {
@@ -2418,6 +2528,35 @@ describe('POST /v1/employees/{employee}/terminate', function () {
 
         $response->assertStatus(200);
         expect($response->json('data.status'))->toBe(Employee::STATUS_TERMINATED);
+    });
+
+    test('returns 403 when target employee is outside the actor management rank scope', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+        $this->user->organizationalScopes()->delete();
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+            'min_viewable_rank' => 0,
+            'max_viewable_rank' => 0,
+            'min_assignable_rank' => 0,
+            'max_assignable_rank' => 0,
+            'allow_self_access' => true,
+        ]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'management_level' => 3,
+            'status' => Employee::STATUS_ACTIVE,
+        ]);
+
+        $this->withToken($this->token)
+            ->postJson("/v1/employees/{$employee->id}/terminate", [
+                'termination_date' => now()->toDateString(),
+                'termination_reason' => 'resignation',
+            ])
+            ->assertForbidden();
     });
 
     test('returns 422 when terminating pre-contract employee', function (): void {

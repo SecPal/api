@@ -109,6 +109,29 @@ describe('OrganizationalUnit Model', function () {
             expect(OrganizationalUnit::withTrashed()->find($unitId))->not->toBeNull();
             expect(OrganizationalUnit::withTrashed()->find($unitId)->deleted_at)->not->toBeNull();
         });
+
+        it('restores the self-closure entry after a soft-deleted unit is restored', function (): void {
+            $unit = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Restorable Unit',
+                'type' => 'department',
+            ]);
+
+            $unit->delete();
+
+            expect(OrganizationalUnitClosure::query()
+                ->where('ancestor_id', $unit->id)
+                ->where('descendant_id', $unit->id)
+                ->exists())->toBeFalse();
+
+            $unit->restore();
+
+            expect(OrganizationalUnitClosure::query()
+                ->where('ancestor_id', $unit->id)
+                ->where('descendant_id', $unit->id)
+                ->where('depth', 0)
+                ->exists())->toBeTrue();
+        });
     });
 
     describe('Type Enum Values', function () {

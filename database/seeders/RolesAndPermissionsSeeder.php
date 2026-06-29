@@ -208,6 +208,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'users' => [
                 'reset_mfa',      // MFA safeguards: DELETE /users/{user}/mfa
             ],
+            'organizational_scopes' => [
+                'manage',
+            ],
             'works_council' => [
                 'access_employee_files',
                 'approve_shift_plans',
@@ -282,6 +285,7 @@ class RolesAndPermissionsSeeder extends Seeder
                     'onboarding.confirm',
                     'reports.view',
                     'reports.generate',
+                    'organizational_scopes.manage',
                 ],
             ],
             'Manager' => [

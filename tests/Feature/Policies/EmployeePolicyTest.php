@@ -256,24 +256,33 @@ test('employee cannot update other employees', function (): void {
 });
 
 test('only users with employee.write or employee.delete permission can delete employees', function (): void {
-    $userWithPermission = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
-    $userWithoutPermission = User::factory()->create();
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
+    ]);
 
     expect($this->policy->delete($userWithPermission, $employee))->toBeTrue();
     expect($this->policy->delete($userWithoutPermission, $employee))->toBeFalse();
 });
 
 test('only users with employee.write or employee.activate permission can activate employees', function (): void {
-    $userWithPermission = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
-    $userWithoutPermission = User::factory()->create();
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
         'status' => 'pre_contract',
     ]);
 
@@ -282,12 +291,16 @@ test('only users with employee.write or employee.activate permission can activat
 });
 
 test('only users with employee.write or employee.terminate permission can terminate employees', function (): void {
-    $userWithPermission = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
-    $userWithoutPermission = User::factory()->create();
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
         'status' => 'active',
     ]);
 
@@ -295,13 +308,50 @@ test('only users with employee.write or employee.terminate permission can termin
     expect($this->policy->terminate($userWithoutPermission, $employee))->toBeFalse();
 });
 
+test('delete activate and terminate require the same scope and rank coverage as update', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.terminate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.update');
+
+    $orgUnit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
+    ]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 4,
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    expect($this->policy->update($user, $employee))->toBeFalse()
+        ->and($this->policy->delete($user, $employee))->toBeFalse()
+        ->and($this->policy->activate($user, $employee))->toBeFalse()
+        ->and($this->policy->terminate($user, $employee))->toBeFalse();
+});
+
 test('only users with employee.write permission can place employees on leave', function (): void {
     $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
     $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
@@ -312,10 +362,14 @@ test('only users with employee.write permission can place employees on leave', f
 test('only users with employee.write permission can return employees from leave', function (): void {
     $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
     $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
         'status' => Employee::STATUS_ON_LEAVE,
     ]);
 

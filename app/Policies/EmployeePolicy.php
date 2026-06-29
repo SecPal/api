@@ -55,30 +55,13 @@ class EmployeePolicy
      */
     public function view(User $user, Employee $employee): bool
     {
-        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
-        if ($user->tenant_id !== $employee->tenant_id) {
-            return false;
-        }
-
-        // Self-access control (NEW - ADR-009)
-        // Check if viewing own employee record
-        if ($user->id === $employee->user_id) {
-            // Requires permission AND allow_self_access = true in scope
-            if (! $user->can('employee.read')) {
-                return false;
-            }
-
-            return $this->applicableScopes($user, $employee->organizationalUnit, 'read')
-                ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
-        }
-
-        // Users with employee.read permission can view
-        if (! $user->can('employee.read')) {
-            return false;
-        }
-
-        return $this->applicableScopes($user, $employee->organizationalUnit, 'read')
-            ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($employee->management_level));
+        return $this->authorizeEmployeeAccess(
+            $user,
+            $employee,
+            ['employee.read'],
+            'read',
+            requireAssignableRank: false,
+        );
     }
 
     /**
@@ -100,31 +83,13 @@ class EmployeePolicy
      */
     public function update(User $user, Employee $employee): bool
     {
-        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
-        if ($user->tenant_id !== $employee->tenant_id) {
-            return false;
-        }
-
-        // Self-access control (NEW - ADR-009)
-        // Employee can update own profile (limited fields)
-        // Note: Field-level restrictions handled in controller/request validation
-        if ($user->id === $employee->user_id) {
-            // Requires permission AND allow_self_access = true in scope
-            if (! $user->can('employee.update')) {
-                return false;
-            }
-
-            return $this->applicableScopes($user, $employee->organizationalUnit, 'write')
-                ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
-        }
-
-        // Users with employee.write or employee.update permission can update
-        if (! $user->can('employee.write') && ! $user->can('employee.update')) {
-            return false;
-        }
-
-        return $this->applicableScopes($user, $employee->organizationalUnit, 'write')
-            ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($employee->management_level));
+        return $this->authorizeEmployeeAccess(
+            $user,
+            $employee,
+            ['employee.write', 'employee.update'],
+            'write',
+            requireAssignableRank: true,
+        );
     }
 
     /**
@@ -136,14 +101,11 @@ class EmployeePolicy
             return false;
         }
 
-        $scopes = $this->applicableScopes($user, $organizationalUnit, 'write');
-
-        if ($scopes->isEmpty()) {
-            return false;
-        }
-
-        return $scopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($managementLevel)
-            && $scope->canAssignManagementLevel($managementLevel));
+        return $this->scopesAuthorizeManagementLevel(
+            $this->applicableScopes($user, $organizationalUnit, 'write'),
+            $managementLevel,
+            requireAssignableRank: true,
+        );
     }
 
     /**
@@ -155,14 +117,11 @@ class EmployeePolicy
             return false;
         }
 
-        $scopes = $this->applicableScopes($user, $organizationalUnit, 'write');
-
-        if ($scopes->isEmpty()) {
-            return false;
-        }
-
-        return $scopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($managementLevel)
-            && $scope->canAssignManagementLevel($managementLevel));
+        return $this->scopesAuthorizeManagementLevel(
+            $this->applicableScopes($user, $organizationalUnit, 'write'),
+            $managementLevel,
+            requireAssignableRank: true,
+        );
     }
 
     /**
@@ -192,12 +151,13 @@ class EmployeePolicy
      */
     public function delete(User $user, Employee $employee): bool
     {
-        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
-        if ($user->tenant_id !== $employee->tenant_id) {
-            return false;
-        }
-
-        return $user->can('employee.write') || $user->can('employee.delete');
+        return $this->authorizeEmployeeAccess(
+            $user,
+            $employee,
+            ['employee.write', 'employee.delete'],
+            'write',
+            requireAssignableRank: true,
+        );
     }
 
     /**
@@ -207,12 +167,13 @@ class EmployeePolicy
      */
     public function activate(User $user, Employee $employee): bool
     {
-        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
-        if ($user->tenant_id !== $employee->tenant_id) {
-            return false;
-        }
-
-        return $user->can('employee.write') || $user->can('employee.activate');
+        return $this->authorizeEmployeeAccess(
+            $user,
+            $employee,
+            ['employee.write', 'employee.activate'],
+            'write',
+            requireAssignableRank: true,
+        );
     }
 
     /**
@@ -232,11 +193,13 @@ class EmployeePolicy
      */
     public function placeOnLeave(User $user, Employee $employee): bool
     {
-        if ($user->tenant_id !== $employee->tenant_id) {
-            return false;
-        }
-
-        return $user->can('employee.write');
+        return $this->authorizeEmployeeAccess(
+            $user,
+            $employee,
+            ['employee.write'],
+            'write',
+            requireAssignableRank: true,
+        );
     }
 
     /**
@@ -244,11 +207,13 @@ class EmployeePolicy
      */
     public function returnFromLeave(User $user, Employee $employee): bool
     {
-        if ($user->tenant_id !== $employee->tenant_id) {
-            return false;
-        }
-
-        return $user->can('employee.write');
+        return $this->authorizeEmployeeAccess(
+            $user,
+            $employee,
+            ['employee.write'],
+            'write',
+            requireAssignableRank: true,
+        );
     }
 
     /**
@@ -258,11 +223,71 @@ class EmployeePolicy
      */
     public function terminate(User $user, Employee $employee): bool
     {
-        // CRITICAL: Tenant isolation check FIRST (defense-in-depth)
-        if ($user->tenant_id !== $employee->tenant_id) {
+        return $this->authorizeEmployeeAccess(
+            $user,
+            $employee,
+            ['employee.write', 'employee.terminate'],
+            'write',
+            requireAssignableRank: true,
+        );
+    }
+
+    /**
+     * @param  list<string>  $permissions
+     */
+    private function authorizeEmployeeAccess(
+        User $user,
+        Employee $employee,
+        array $permissions,
+        string $minimumAccessLevel,
+        bool $requireAssignableRank,
+    ): bool {
+        if ($user->tenant_id !== $employee->tenant_id || ! $this->userHasAnyPermission($user, $permissions)) {
             return false;
         }
 
-        return $user->can('employee.write') || $user->can('employee.terminate');
+        $scopes = $this->applicableScopes($user, $employee->organizationalUnit, $minimumAccessLevel);
+
+        if ($scopes->isEmpty()) {
+            return false;
+        }
+
+        if ($user->id === $employee->user_id) {
+            return $scopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
+        }
+
+        return $this->scopesAuthorizeManagementLevel($scopes, $employee->management_level, $requireAssignableRank);
+    }
+
+    /**
+     * @param  list<string>  $permissions
+     */
+    private function userHasAnyPermission(User $user, array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ($user->can($permission)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
+     */
+    private function scopesAuthorizeManagementLevel(Collection $scopes, int $managementLevel, bool $requireAssignableRank): bool
+    {
+        if ($scopes->isEmpty()) {
+            return false;
+        }
+
+        return $scopes->contains(function (UserInternalOrganizationalScope $scope) use ($managementLevel, $requireAssignableRank): bool {
+            if (! $scope->canViewManagementLevel($managementLevel)) {
+                return false;
+            }
+
+            return ! $requireAssignableRank || $scope->canAssignManagementLevel($managementLevel);
+        });
     }
 }

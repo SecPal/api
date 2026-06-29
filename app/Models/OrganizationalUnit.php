@@ -121,6 +121,10 @@ class OrganizationalUnit extends Model
             })->delete();
         });
 
+        static::restored(function (OrganizationalUnit $unit): void {
+            $unit->ensureSelfClosureExists();
+        });
+
         // Note: Closure table cleanup on force delete is handled by ON DELETE CASCADE
         // in the database migration, so no explicit forceDeleted handler is needed.
     }
