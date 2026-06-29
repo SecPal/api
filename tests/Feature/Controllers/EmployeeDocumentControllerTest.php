@@ -118,6 +118,23 @@ describe('GET /v1/employees/{employee}/documents', function () {
         expect($response->json('data'))->toHaveCount(2);
     });
 
+    test('returns preserved documents when the uploader user was deleted', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
+
+        $document = EmployeeDocument::factory()->create([
+            'employee_id' => $this->employee->id,
+            'uploaded_by' => null,
+            'visible_to_employee' => true,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$this->employee->id}/documents");
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $document->id)
+            ->assertJsonPath('data.0.uploader', null);
+    });
+
     test('filters documents by visible_to_employee for employee viewing own documents', function (): void {
         // Make this user the employee's user account
         $this->employee->update(['user_id' => $this->user->id]);

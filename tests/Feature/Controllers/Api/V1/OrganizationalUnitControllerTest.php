@@ -845,12 +845,6 @@ describe('OrganizationalUnitController - Delete', function () {
         $response->assertNoContent();
         $this->assertSoftDeleted('organizational_units', ['id' => $child->id]);
 
-        // Verify closure entries were cleaned up (Issue #295 root cause)
-        $this->assertDatabaseMissing('organizational_unit_closures', [
-            'ancestor_id' => $parentUnit->id,
-            'descendant_id' => $child->id,
-        ]);
-
         // Second attempt: Should succeed now because child was deleted
         $response = deleteJson("/v1/organizational-units/{$parentUnit->id}");
         $response->assertNoContent();

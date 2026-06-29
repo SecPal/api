@@ -418,6 +418,43 @@ test('lifecycle actions remain authorized for employees in soft-deleted organiza
         ->and($this->policy->terminate($user, $employee))->toBeTrue();
 });
 
+test('lifecycle actions remain authorized for employees in deleted descendant units reached through ancestor scopes', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.terminate');
+
+    $company = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $branch = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $branch->setParent($company);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $user->id,
+        'organizational_unit_id' => $company->id,
+        'access_level' => 'write',
+        'include_descendants' => true,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
+        'allow_self_access' => false,
+    ]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $branch->id,
+        'management_level' => 0,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $branch->delete();
+    $employee->refresh();
+
+    expect($employee->organizationalUnit)->toBeNull()
+        ->and($this->policy->delete($user, $employee))->toBeTrue()
+        ->and($this->policy->activate($user, $employee))->toBeTrue()
+        ->and($this->policy->terminate($user, $employee))->toBeTrue();
+});
+
 test('only users with employee.write permission can place employees on leave', function (): void {
     $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');

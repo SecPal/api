@@ -559,6 +559,48 @@ describe('OrganizationalScopeController', function () {
                 ->and(Gate::forUser($selfManagingUser)->allows('update', $employee))->toBeFalse();
         });
 
+        it('prevents widening write scope ranks when view and assign coverage only exists across split scopes', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'employee.update');
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'read',
+                'include_descendants' => false,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => false,
+            ]);
+
+            $writeScope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 3,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => false,
+            ]);
+
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$writeScope->id}", [
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            expect($writeScope->fresh()?->max_viewable_rank)->toBe(3);
+        });
+
     });
 
     describe('destroy - DELETE /organizational-units/{unit}/scopes/{scope}', function () {

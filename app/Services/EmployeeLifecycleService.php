@@ -461,7 +461,10 @@ class EmployeeLifecycleService
 
         DB::table('android_enrollment_sessions')
             ->where('created_by', $user->id)
-            ->delete();
+            ->update([
+                'created_by' => null,
+                'updated_at' => now(),
+            ]);
 
         $user->tokens()->delete();
         $user->passkeyCredentials()->delete();

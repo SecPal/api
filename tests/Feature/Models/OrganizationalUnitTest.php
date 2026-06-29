@@ -110,27 +110,32 @@ describe('OrganizationalUnit Model', function () {
             expect(OrganizationalUnit::withTrashed()->find($unitId)->deleted_at)->not->toBeNull();
         });
 
-        it('restores the self-closure entry after a soft-deleted unit is restored', function (): void {
+        it('preserves ancestor and self closures for a soft-deleted leaf unit', function (): void {
+            $parent = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Parent Unit',
+                'type' => 'company',
+            ]);
+
             $unit = OrganizationalUnit::create([
                 'tenant_id' => $this->tenant->id,
                 'name' => 'Restorable Unit',
                 'type' => 'department',
             ]);
+            $unit->setParent($parent);
 
             $unit->delete();
 
             expect(OrganizationalUnitClosure::query()
-                ->where('ancestor_id', $unit->id)
+                ->where('ancestor_id', $parent->id)
                 ->where('descendant_id', $unit->id)
-                ->exists())->toBeFalse();
-
-            $unit->restore();
-
-            expect(OrganizationalUnitClosure::query()
-                ->where('ancestor_id', $unit->id)
-                ->where('descendant_id', $unit->id)
-                ->where('depth', 0)
-                ->exists())->toBeTrue();
+                ->where('depth', 1)
+                ->exists())->toBeTrue()
+                ->and(OrganizationalUnitClosure::query()
+                    ->where('ancestor_id', $unit->id)
+                    ->where('descendant_id', $unit->id)
+                    ->where('depth', 0)
+                    ->exists())->toBeTrue();
         });
     });
 

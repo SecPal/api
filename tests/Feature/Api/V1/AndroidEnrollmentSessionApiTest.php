@@ -285,3 +285,37 @@ test('bootstrap exchange consumes valid token and rejects reused or revoked toke
         ->and($activity?->subject_id)->toBe($issued['model']->id)
         ->and($activity?->properties['event'])->toBe('android_bootstrap_exchanged');
 });
+
+test('deleted employee deprovisioning preserves exchanged and revoked android enrollment session history', function (): void {
+    ['tenant' => $tenant, 'admin' => $admin] = createAndroidEnrollmentApiContext();
+
+    $employee = App\Models\Employee::factory()->create([
+        'tenant_id' => $tenant->id,
+        'status' => App\Models\Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $admin->id,
+        'user_account_active' => true,
+    ]);
+
+    $exchanged = AndroidEnrollmentSession::generate($admin, [
+        'device_label' => 'Exchanged device',
+        'update_channel' => 'managed_device',
+        'provisioning_profile' => androidProvisioningProfile(),
+    ])['model'];
+    $exchanged->markAsExchanged('127.0.0.1', 'Pest');
+
+    $revoked = AndroidEnrollmentSession::generate($admin, [
+        'device_label' => 'Revoked device',
+        'update_channel' => 'managed_device',
+        'provisioning_profile' => androidProvisioningProfile(),
+    ])['model'];
+    $revoked->revoke('Canceled');
+
+    app(App\Services\EmployeeLifecycleService::class)->delete($employee);
+
+    expect(AndroidEnrollmentSession::query()->find($exchanged->id))->not->toBeNull()
+        ->and(AndroidEnrollmentSession::query()->find($exchanged->id)?->created_by)->toBeNull()
+        ->and(AndroidEnrollmentSession::query()->find($exchanged->id)?->exchanged_at)->not->toBeNull()
+        ->and(AndroidEnrollmentSession::query()->find($revoked->id))->not->toBeNull()
+        ->and(AndroidEnrollmentSession::query()->find($revoked->id)?->created_by)->toBeNull()
+        ->and(AndroidEnrollmentSession::query()->find($revoked->id)?->revoked_at)->not->toBeNull();
+});

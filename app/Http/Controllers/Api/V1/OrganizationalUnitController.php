@@ -344,6 +344,7 @@ class OrganizationalUnitController extends Controller
         // We count direct children only (depth=1), as moving them is sufficient
         $childCount = OrganizationalUnitClosure::where('ancestor_id', $organizational_unit->id)
             ->where('depth', 1)
+            ->whereIn('descendant_id', OrganizationalUnit::query()->select('id')->whereNull('deleted_at'))
             ->count();
 
         if ($childCount > 0) {

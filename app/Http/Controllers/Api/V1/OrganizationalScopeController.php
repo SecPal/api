@@ -526,9 +526,11 @@ class OrganizationalScopeController extends Controller
     ): bool {
         foreach (range(0, 255) as $managementLevel) {
             $isNewlyAuthorized = $simulatedScopes->contains(
-                fn (UserInternalOrganizationalScope $scope): bool => $assignable
-                    ? $scope->canAssignManagementLevel($managementLevel)
-                    : $scope->canViewManagementLevel($managementLevel)
+                fn (UserInternalOrganizationalScope $scope): bool => $this->scopeAuthorizesManagementLevel(
+                    $scope,
+                    $managementLevel,
+                    $assignable,
+                )
             );
 
             if (! $isNewlyAuthorized) {
@@ -536,9 +538,11 @@ class OrganizationalScopeController extends Controller
             }
 
             $wasPreviouslyAuthorized = $currentScopes->contains(
-                fn (UserInternalOrganizationalScope $scope): bool => $assignable
-                    ? $scope->canAssignManagementLevel($managementLevel)
-                    : $scope->canViewManagementLevel($managementLevel)
+                fn (UserInternalOrganizationalScope $scope): bool => $this->scopeAuthorizesManagementLevel(
+                    $scope,
+                    $managementLevel,
+                    $assignable,
+                )
             );
 
             if (! $wasPreviouslyAuthorized) {
@@ -547,6 +551,18 @@ class OrganizationalScopeController extends Controller
         }
 
         return false;
+    }
+
+    private function scopeAuthorizesManagementLevel(
+        UserInternalOrganizationalScope $scope,
+        int $managementLevel,
+        bool $assignable,
+    ): bool {
+        if (! $scope->canViewManagementLevel($managementLevel)) {
+            return false;
+        }
+
+        return ! $assignable || $scope->canAssignManagementLevel($managementLevel);
     }
 
     private function isActorScope(User $actor, UserInternalOrganizationalScope $scopeModel): bool
