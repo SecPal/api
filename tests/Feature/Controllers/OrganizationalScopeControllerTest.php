@@ -540,6 +540,42 @@ describe('OrganizationalScopeController', function () {
                 ->and($selfManagingUser->fresh()->hasAccessToUnit($this->region))->toBeFalse();
         });
 
+        it('prevents granting self descendant access when the newly reachable child unit is soft-deleted', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'employee.delete');
+
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
+                'allow_self_access' => false,
+            ]);
+
+            Employee::factory()->create([
+                'tenant_id' => $this->tenant->id,
+                'organizational_unit_id' => $this->region->id,
+                'management_level' => 0,
+            ]);
+
+            $this->region->delete();
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'include_descendants' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            expect($selfScope->fresh()?->include_descendants)->toBeFalse();
+        });
+
         it('prevents a self-managing user from enabling write self access through a split scope update', function (): void {
             $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
             givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');

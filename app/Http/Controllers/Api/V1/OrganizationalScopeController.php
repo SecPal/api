@@ -488,8 +488,15 @@ class OrganizationalScopeController extends Controller
         $affectedUnits = collect([$organizationalUnit]);
 
         if ($currentScope->include_descendants || $simulatedScope->include_descendants) {
+            $descendantIds = \App\Models\OrganizationalUnitClosure::query()
+                ->where('ancestor_id', $organizationalUnit->id)
+                ->where('depth', '>', 0)
+                ->pluck('descendant_id');
+
             /** @var Collection<int, OrganizationalUnit> $descendants */
-            $descendants = $organizationalUnit->descendants()->get();
+            $descendants = OrganizationalUnit::withTrashed()
+                ->whereIn('id', $descendantIds)
+                ->get();
 
             $affectedUnits = $affectedUnits
                 ->merge($descendants)

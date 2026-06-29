@@ -314,7 +314,15 @@ class UpdateEmployeeRequest extends FormRequest
             return $organizationalUnit instanceof OrganizationalUnit ? $organizationalUnit : null;
         }
 
-        return $employee->organizationalUnit;
+        if ($employee->organizationalUnit instanceof OrganizationalUnit) {
+            return $employee->organizationalUnit;
+        }
+
+        if ($employee->organizational_unit_id === null) {
+            return null;
+        }
+
+        return OrganizationalUnit::withTrashed()->find($employee->organizational_unit_id);
     }
 
     private function resolvedManagementLevel(Employee $employee): int

@@ -3156,6 +3156,40 @@ test('manager cannot update an employee to a management level outside writable a
         ->assertJsonValidationErrors(['management_level']);
 });
 
+test('manager cannot update an employee in a soft-deleted unit to a management level outside writable and viewable scope', function (): void {
+    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
+    $this->user->organizationalScopes()->create([
+        'organizational_unit_id' => $unit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
+        'allow_self_access' => true,
+    ]);
+
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $unit->id,
+        'management_level' => 0,
+    ]);
+
+    $unit->delete();
+
+    $response = $this->withToken($this->token)->patchJson("/v1/employees/{$employee->id}", [
+        'management_level' => 5,
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['management_level']);
+});
+
 test('manager with include_descendants=false cannot create employee in child unit', function (): void {
     $parent = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $child = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);

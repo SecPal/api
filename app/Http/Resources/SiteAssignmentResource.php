@@ -38,7 +38,7 @@ class SiteAssignmentResource extends JsonResource
             'is_active' => $this->is_active,
 
             // Relationships
-            'user' => new UserResource($this->whenLoaded('user')),
+            'user' => $this->whenLoaded('user', fn (): ?UserResource => $this->user === null ? null : new UserResource($this->user)),
             // site relationship omitted to prevent circular dependency with SiteResource
 
             // Timestamps

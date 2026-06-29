@@ -319,3 +319,34 @@ test('deleted employee deprovisioning preserves exchanged and revoked android en
         ->and(AndroidEnrollmentSession::query()->find($revoked->id)?->created_by)->toBeNull()
         ->and(AndroidEnrollmentSession::query()->find($revoked->id)?->revoked_at)->not->toBeNull();
 });
+
+test('deleted employee deprovisioning revokes pending android enrollment sessions', function (): void {
+    ['tenant' => $tenant, 'admin' => $admin] = createAndroidEnrollmentApiContext();
+
+    $employee = App\Models\Employee::factory()->create([
+        'tenant_id' => $tenant->id,
+        'status' => App\Models\Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $admin->id,
+        'user_account_active' => true,
+    ]);
+
+    $issued = AndroidEnrollmentSession::generate($admin, [
+        'device_label' => 'Pending device',
+        'update_channel' => 'managed_device',
+        'provisioning_profile' => androidProvisioningProfile(),
+    ]);
+
+    app(App\Services\EmployeeLifecycleService::class)->delete($employee);
+
+    $pending = AndroidEnrollmentSession::query()->find($issued['model']->id);
+
+    expect($pending)->not->toBeNull()
+        ->and($pending?->created_by)->toBeNull()
+        ->and($pending?->revoked_at)->not->toBeNull()
+        ->and($pending?->status)->toBe('revoked');
+
+    postJson('/v1/android/bootstrap/exchange', [
+        'bootstrap_token' => $issued['plain'],
+        'package_name' => 'app.secpal',
+    ])->assertConflict();
+});

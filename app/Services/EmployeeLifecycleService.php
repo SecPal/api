@@ -459,11 +459,25 @@ class EmployeeLifecycleService
             ->where('user_id', $user->id)
             ->delete();
 
+        $androidDeprovisionedAt = now();
+
+        DB::table('android_enrollment_sessions')
+            ->where('created_by', $user->id)
+            ->whereNull('revoked_at')
+            ->whereNull('exchanged_at')
+            ->where('bootstrap_token_expires_at', '>', $androidDeprovisionedAt)
+            ->update([
+                'created_by' => null,
+                'revoked_at' => $androidDeprovisionedAt,
+                'revocation_reason' => 'Enrollment session creator was deprovisioned.',
+                'updated_at' => $androidDeprovisionedAt,
+            ]);
+
         DB::table('android_enrollment_sessions')
             ->where('created_by', $user->id)
             ->update([
                 'created_by' => null,
-                'updated_at' => now(),
+                'updated_at' => $androidDeprovisionedAt,
             ]);
 
         $user->tokens()->delete();
