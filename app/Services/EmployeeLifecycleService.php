@@ -9,6 +9,7 @@ use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -482,7 +483,7 @@ class EmployeeLifecycleService
 
         DB::table($table)
             ->where('user_id', $userId)
-            ->where(function ($query) use ($deprovisionedUntil): void {
+            ->where(function (Builder $query) use ($deprovisionedUntil): void {
                 $query->whereNull('valid_until')
                     ->orWhere('valid_until', '>=', $deprovisionedUntil);
             })

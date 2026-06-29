@@ -417,6 +417,7 @@ test('employee lifecycle service deletes a linked user while preserving employee
         ->expired()
         ->create([
             'tenant_id' => $this->tenant->id,
+            'role' => 'Former Account Lead',
         ]);
 
     $activeCustomerAssignment = CustomerAssignment::factory()
@@ -425,6 +426,7 @@ test('employee lifecycle service deletes a linked user while preserving employee
         ->active()
         ->create([
             'tenant_id' => $this->tenant->id,
+            'role' => 'Current Account Lead',
         ]);
 
     $expiredSiteAssignment = SiteAssignment::factory()
@@ -433,6 +435,7 @@ test('employee lifecycle service deletes a linked user while preserving employee
         ->expired()
         ->create([
             'tenant_id' => $this->tenant->id,
+            'role' => 'Former Site Lead',
         ]);
 
     $activeSiteAssignment = SiteAssignment::factory()
@@ -441,6 +444,7 @@ test('employee lifecycle service deletes a linked user while preserving employee
         ->active()
         ->create([
             'tenant_id' => $this->tenant->id,
+            'role' => 'Current Site Lead',
         ]);
 
     $deletedEmployee = $this->service->delete($employee);

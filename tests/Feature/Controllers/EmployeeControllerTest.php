@@ -61,6 +61,7 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
     givePermissionWithTenant($this->user, $this->tenant->id, 'employees.read_salary');
+    $registrar->setPermissionsTeamId($this->tenant->id);
 
     $this->organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -208,7 +209,7 @@ describe('GET /v1/employees', function () {
         $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
         // Assign Manager role and organizational scope for unitA only
-        $this->user->assignRole('Manager');
+        giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
         $this->user->organizationalScopes()->create([
             'organizational_unit_id' => $unitA->id,
             'access_level' => 'read',
@@ -875,6 +876,7 @@ describe('POST /v1/employees', function () {
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
         $otherUser = User::factory()->create(['tenant_id' => $otherTenant->id]);
         givePermissionWithTenant($otherUser, $otherTenant->id, 'employee.write');
+        givePermissionWithTenant($otherUser, $otherTenant->id, 'employees.read_salary');
 
         $otherOrganizationalUnit = OrganizationalUnit::factory()->create([
             'tenant_id' => $otherTenant->id,
@@ -1086,7 +1088,7 @@ describe('GET /v1/employees/{employee}', function () {
     });
 
     test('omits sensitive identifiers for managers without employees.read_sensitive', function (): void {
-        $this->user->assignRole('Manager');
+        giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
 
         $this->user->organizationalScopes()->create([
             'organizational_unit_id' => $this->organizationalUnit->id,
@@ -1126,7 +1128,7 @@ describe('GET /v1/employees/{employee}', function () {
     });
 
     test('returns sensitive identifiers for HR users with employees.read_sensitive', function (): void {
-        $this->user->assignRole('HR');
+        giveRoleWithTenant($this->user, $this->tenant->id, 'HR');
 
         $this->user->organizationalScopes()->create([
             'organizational_unit_id' => $this->organizationalUnit->id,
@@ -2774,7 +2776,7 @@ test('manager cannot create employee in unit outside their scope', function (): 
     $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
     // Manager has scope only on unitA
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $unitA->id,
         'access_level' => 'write',
@@ -2810,7 +2812,7 @@ test('manager can create employee in unit within their scope', function (): void
     $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
     // Manager has scope on unitA
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $unitA->id,
         'access_level' => 'write',
@@ -2846,7 +2848,7 @@ test('manager without scope on target unit fails organizational-unit validation 
     $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
     // Manager has scope only on unitA
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $unitA->id,
         'access_level' => 'write',
@@ -2900,7 +2902,7 @@ test('manager with include_descendants=true can create employee in child unit', 
     $child->setParent($parent);
 
     // Manager has scope on parent with include_descendants=true
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $parent->id,
         'access_level' => 'write',
@@ -2936,7 +2938,7 @@ test('manager can view a newly created employee in a descendant unit immediately
     $child = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $child->setParent($parent);
 
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $parent->id,
         'access_level' => 'write',
@@ -2977,7 +2979,7 @@ test('manager can view a newly created employee in a descendant unit immediately
 test('manager cannot create an employee with a management level outside writable and viewable scope', function (): void {
     $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $unit->id,
         'access_level' => 'write',
@@ -3012,7 +3014,7 @@ test('manager cannot create an employee with a management level outside writable
 test('manager can create a non-management employee when scope uses null rank maxima', function (): void {
     $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $unit->id,
         'access_level' => 'write',
@@ -3046,7 +3048,7 @@ test('manager can create a non-management employee when scope uses null rank max
 test('manager create validation error is translated to german', function (): void {
     $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $unit->id,
         'access_level' => 'write',
@@ -3091,7 +3093,7 @@ test('manager create validation error is translated to german', function (): voi
 test('manager with leadership-only scope cannot create a non-management employee when min rank excludes guards', function (): void {
     $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $unit->id,
         'access_level' => 'write',
@@ -3125,7 +3127,7 @@ test('manager with leadership-only scope cannot create a non-management employee
 test('manager cannot update an employee to a management level outside writable and viewable scope', function (): void {
     $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $unit->id,
         'access_level' => 'write',
@@ -3160,7 +3162,7 @@ test('manager with include_descendants=false cannot create employee in child uni
     $child->setParent($parent);
 
     // Manager has scope on parent with include_descendants=false
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $parent->id,
         'access_level' => 'write',
@@ -3195,7 +3197,7 @@ test('manager with scope on parent can list employees from all descendant units'
     $child2->setParent($parent);
 
     // Manager has scope on parent with include_descendants=true
-    $this->user->assignRole('Manager');
+    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
     $this->user->organizationalScopes()->create([
         'organizational_unit_id' => $parent->id,
         'access_level' => 'read',
