@@ -558,11 +558,9 @@ class OrganizationalScopeController extends Controller
         int $managementLevel,
         bool $assignable,
     ): bool {
-        if (! $scope->canViewManagementLevel($managementLevel)) {
-            return false;
-        }
-
-        return ! $assignable || $scope->canAssignManagementLevel($managementLevel);
+        return $assignable
+            ? $scope->canAssignManagementLevel($managementLevel)
+            : $scope->canViewManagementLevel($managementLevel);
     }
 
     private function isActorScope(User $actor, UserInternalOrganizationalScope $scopeModel): bool

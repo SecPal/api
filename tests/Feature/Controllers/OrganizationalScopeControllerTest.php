@@ -406,6 +406,39 @@ describe('OrganizationalScopeController', function () {
                 ->and($selfScope->allow_self_access)->toBeFalse();
         });
 
+        it('prevents widening assignable ranks on a self scope when the view range stays capped', function (): void {
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 2,
+                'max_viewable_rank' => 3,
+                'min_assignable_rank' => 2,
+                'max_assignable_rank' => 3,
+                'allow_self_access' => false,
+            ]);
+
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            $selfScope->refresh();
+
+            expect($selfScope->min_viewable_rank)->toBe(2)
+                ->and($selfScope->max_viewable_rank)->toBe(3)
+                ->and($selfScope->min_assignable_rank)->toBe(2)
+                ->and($selfScope->max_assignable_rank)->toBe(3);
+        });
+
         it('prevents a user from expanding their own scope to descendants', function (): void {
             $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
             givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
