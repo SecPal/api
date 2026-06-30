@@ -20,12 +20,20 @@ class ActivityCauserContextService
             ->where('causer_id', $user->id)
             ->get()
             ->each(function (Activity $activity) use ($employee): void {
+                $properties = $this->propertiesAsArray($activity->properties);
+
+                if (
+                    array_key_exists('causer_employee_id', $properties)
+                    || ! array_key_exists('causer_employee_organizational_unit_id', $properties)
+                    || ! array_key_exists('causer_employee_management_level', $properties)
+                ) {
+                    return;
+                }
+
                 $activity->forceFill([
-                    'properties' => array_merge($this->propertiesAsArray($activity->properties), [
+                    'properties' => $properties + [
                         'causer_employee_id' => $employee->id,
-                        'causer_employee_organizational_unit_id' => $employee->organizational_unit_id,
-                        'causer_employee_management_level' => $employee->management_level,
-                    ]),
+                    ],
                 ])->saveQuietly();
             });
     }

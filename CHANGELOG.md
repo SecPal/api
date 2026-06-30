@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - closed the remaining review gaps around organizational-scope hardening and lifecycle history: self-scope widening now compares write-scope view-plus-assign coverage on the same scope, inherited lifecycle cleanup survives soft-deleted leaf units reached through ancestor scopes, Android enrollment sessions preserve exchanged/revoked tenant history by nulling deleted creators instead of dropping rows, and employee documents render `uploader: null` safely when historical uploaders were removed
 - blocked self-scope assignable-rank widening from bypassing the self-escalation guard when the updated write scope keeps its viewable-rank range capped
 - preserved employee causer rank context before employee deletion, retention deletion, or runtime-user unlinking so activity-log index and detail authorization keep enforcing organizational-scope rank limits for historical entries instead of treating deprovisioned employee users as system actors
+- fixed preserved employee causer snapshots so activity rows capture organizational-unit and management-level context when the event is written, and later deprovisioning no longer overwrites historical rank data with the employee's final mutable state
 
 ### Fixed
 

@@ -778,6 +778,52 @@ describe('GET /v1/activity-logs/{activity}', function () {
         expect($response->json('data.id'))->toBe($activity->id);
     });
 
+    test('returns deprovisioned employee activity using its original preserved rank context', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $orgUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        UserInternalOrganizationalScope::factory()->create([
+            'user_id' => $user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'access_level' => 'read',
+            'min_viewable_rank' => 2,
+            'max_viewable_rank' => 5,
+        ]);
+
+        $subordinate = User::factory()->create(['tenant_id' => $tenant->id]);
+        $subordinateEmployee = Employee::factory()->create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $subordinate->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'management_level' => 3,
+        ]);
+
+        $activity = Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'causer_type' => User::class,
+            'causer_id' => $subordinate->id,
+            'description' => 'Originally viewable deprovisioned subordinate activity',
+        ]);
+
+        $subordinateEmployee->forceFill([
+            'management_level' => 1,
+        ])->save();
+
+        app(EmployeeLifecycleService::class)->delete($subordinateEmployee);
+
+        $response = getJson("/v1/activity-logs/{$activity->id}");
+
+        $response->assertOk();
+        expect($response->json('data.id'))->toBe($activity->id);
+    });
+
     test('returns 403 for activity in inaccessible organizational unit', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
