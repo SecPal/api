@@ -245,10 +245,10 @@ class EmployeeLifecycleService
      */
     public function delete(Employee $employee): Employee
     {
-        /** @var User|null $deletedUser */
-        $deletedUser = null;
+        /** @var User|null $affectedUser */
+        $affectedUser = null;
 
-        $deletedEmployee = DB::transaction(function () use ($employee, &$deletedUser): Employee {
+        $deletedEmployee = DB::transaction(function () use ($employee, &$affectedUser): Employee {
             $employee = $this->refreshEmployee($employee);
 
             /** @var User|null $user */
@@ -264,8 +264,26 @@ class EmployeeLifecycleService
                 $this->activityCauserContextService->preserveForEmployee($employee, $user);
                 $employee->user()->dissociate();
                 $employee->saveQuietly();
-                $this->deprovisionUserAccount($user, $employee->tenant_id, deleteUser: true);
-                $deletedUser = $user;
+
+                $hasOtherActiveEmployeeLinks = Employee::query()
+                    ->where('user_id', $user->id)
+                    ->whereKeyNot($employee->id)
+                    ->exists();
+
+                $hasOtherEmployeeLinks = Employee::withTrashed()
+                    ->where('user_id', $user->id)
+                    ->whereKeyNot($employee->id)
+                    ->exists();
+
+                if (! $hasOtherActiveEmployeeLinks) {
+                    if ($hasOtherEmployeeLinks) {
+                        $this->deprovisionUserAccount($user, $employee->tenant_id);
+                    } else {
+                        $this->deprovisionUserAccount($user, $employee->tenant_id, deleteUser: true);
+                    }
+                }
+
+                $affectedUser = $user;
             }
 
             $employee->delete();
@@ -273,8 +291,8 @@ class EmployeeLifecycleService
             return $this->refreshEmployee($employee);
         });
 
-        if ($deletedUser instanceof User) {
-            $this->refreshAuthorizationContext($deletedUser);
+        if ($affectedUser instanceof User) {
+            $this->refreshAuthorizationContext($affectedUser);
         }
 
         return $deletedEmployee;

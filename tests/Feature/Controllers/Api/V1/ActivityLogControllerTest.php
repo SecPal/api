@@ -804,11 +804,12 @@ describe('GET /v1/activity-logs/{activity}', function () {
             'management_level' => 3,
         ]);
 
-        $activity = Activity::factory()->create([
+        $activity = Activity::create([
             'tenant_id' => $tenant->id,
             'organizational_unit_id' => $orgUnit->id,
             'causer_type' => User::class,
             'causer_id' => $subordinate->id,
+            'log_name' => 'scope_changes',
             'description' => 'Originally viewable deprovisioned subordinate activity',
         ]);
 
