@@ -12,10 +12,8 @@ use App\Http\Requests\UpdateOrganizationalScopeRequest;
 use App\Models\OrganizationalUnit;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
-use App\Services\SelfScopeAuthorizationExpansionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
-use Illuminate\Support\Collection;
 
 /**
  * OrganizationalScopeController handles CRUD operations for user organizational scope assignments.
@@ -32,15 +30,11 @@ use Illuminate\Support\Collection;
  */
 class OrganizationalScopeController extends Controller
 {
-    private const SELF_SCOPE_LOCKOUT_MESSAGE = 'You cannot remove your own last scope-management access for this organizational unit.';
-
     private const SELF_SCOPE_ESCALATION_MESSAGE = 'You cannot create or expand your own organizational scope permissions.';
 
-    private const SELF_SCOPE_DELETION_MESSAGE = 'You cannot delete your own organizational scope assignment for this organizational unit.';
+    private const SELF_SCOPE_UPDATE_MESSAGE = 'You cannot update your own organizational scope assignment for this organizational unit.';
 
-    public function __construct(
-        private readonly SelfScopeAuthorizationExpansionService $authorizationExpansionService,
-    ) {}
+    private const SELF_SCOPE_DELETION_MESSAGE = 'You cannot delete your own organizational scope assignment for this organizational unit.';
 
     /**
      * Transform a scope to API response format.
@@ -168,21 +162,10 @@ class OrganizationalScopeController extends Controller
         /** @var array{access_level?: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();
 
-        $lockoutResponse = $this->preventSelfScopeManagementLockout(
-            $actor,
-            $organizational_unit,
-            $scopeModel,
-            $validated,
-        );
+        $selfUpdateResponse = $this->preventSelfScopeUpdate($actor, $scopeModel);
 
-        if ($lockoutResponse !== null) {
-            return $lockoutResponse;
-        }
-
-        $selfExpansionResponse = $this->preventSelfScopeExpansion($actor, $scopeModel, $validated);
-
-        if ($selfExpansionResponse !== null) {
-            return $selfExpansionResponse;
+        if ($selfUpdateResponse !== null) {
+            return $selfUpdateResponse;
         }
 
         if (isset($validated['access_level'])) {
@@ -259,57 +242,6 @@ class OrganizationalScopeController extends Controller
     }
 
     /**
-     * Prevent a user from removing their own last scope-management path on the unit.
-     *
-     * The access check uses {@see User::hasAccessToUnit()} with a caller-supplied in-memory
-     * scope collection so the post-change state can be simulated without mutating data.
-     * This differs from the removed controller-local helper which used `value('ancestor_id')`
-     * to pick a single DB-ordered ancestor scope.  Evaluating all applicable scopes is the
-     * correct behaviour: if the user retains manage access through any applicable scope
-     * (direct or inherited), they are not locked out.  Resolves the non-determinism in the
-     * previous helper and aligns with the shared direct-scope-first semantics of
-     * {@see User::resolveApplicableOrganizationalScopesForUnit()} (refs api#982).
-     *
-     * @param  array<string, mixed>  $pendingAttributes
-     */
-    private function preventSelfScopeManagementLockout(
-        User $actor,
-        OrganizationalUnit $organizationalUnit,
-        UserInternalOrganizationalScope $scopeModel,
-        array $pendingAttributes = [],
-        bool $deleteScope = false,
-    ): ?JsonResponse {
-        if (! $this->isActorScope($actor, $scopeModel)) {
-            return null;
-        }
-
-        /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
-        $scopes = $actor->organizationalScopes()->get()->values();
-
-        $simulatedScopes = $scopes
-            ->reject(fn (UserInternalOrganizationalScope $scope) => $scope->id === $scopeModel->id)
-            ->values();
-
-        if (! $deleteScope) {
-            $simulatedScope = clone $scopeModel;
-
-            foreach ($pendingAttributes as $attribute => $value) {
-                $simulatedScope->{$attribute} = $value;
-            }
-
-            $simulatedScopes->push($simulatedScope);
-        }
-
-        if ($actor->hasAccessToUnit($organizationalUnit, 'manage', $simulatedScopes)) {
-            return null;
-        }
-
-        return response()->json([
-            'message' => __(self::SELF_SCOPE_LOCKOUT_MESSAGE),
-        ], Response::HTTP_FORBIDDEN);
-    }
-
-    /**
      * Get the authenticated user's organizational scope assignments.
      */
     public function myScopes(): JsonResponse
@@ -329,41 +261,17 @@ class OrganizationalScopeController extends Controller
     }
 
     /**
-     * @param  array<string, mixed>  $pendingAttributes
+     * Under the manage-only model, users may not mutate their own direct scope
+     * assignments on the unit they are currently managing.
      */
-    private function preventSelfScopeExpansion(User $actor, UserInternalOrganizationalScope $scopeModel, array $pendingAttributes): ?JsonResponse
+    private function preventSelfScopeUpdate(User $actor, UserInternalOrganizationalScope $scopeModel): ?JsonResponse
     {
         if (! $this->isActorScope($actor, $scopeModel)) {
             return null;
         }
 
-        $organizationalUnit = $scopeModel->organizationalUnit;
-
-        if ($organizationalUnit === null) {
-            return null;
-        }
-
-        /** @var Collection<int, UserInternalOrganizationalScope> $currentScopes */
-        $currentScopes = $actor->organizationalScopes()->get()->values();
-
-        $simulatedScopes = $currentScopes
-            ->reject(fn (UserInternalOrganizationalScope $scope) => $scope->id === $scopeModel->id)
-            ->values();
-
-        $simulatedScope = clone $scopeModel;
-
-        foreach ($pendingAttributes as $attribute => $value) {
-            $simulatedScope->{$attribute} = $value;
-        }
-
-        $simulatedScopes->push($simulatedScope);
-
-        if (! $this->authorizationExpansionService->effectiveAuthorizationExpands($actor, $scopeModel, $simulatedScope, $currentScopes, $simulatedScopes)) {
-            return null;
-        }
-
         return response()->json([
-            'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
+            'message' => __(self::SELF_SCOPE_UPDATE_MESSAGE),
         ], Response::HTTP_FORBIDDEN);
     }
 
