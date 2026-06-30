@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- blocked deleting any direct self scope assignment through `DELETE /v1/organizational-units/{organizational_unit}/scopes/{scope}`, so users can no longer silently narrow their own rank coverage on the same organizational unit by removing one of multiple `manage` scopes (fixes `api#1195`)
+- blocked deleting any direct self-scope assignment through `DELETE /v1/organizational-units/{organizational_unit}/scopes/{scope}`, so users can no longer silently narrow their own rank coverage on the same organizational unit by removing one of multiple `manage` scopes (fixes `api#1195`)
 - captured dedicated activity causer employee snapshot columns when activity rows are created, so historical activity-log scope authorization keeps the original organizational-unit and management-level context after later employee deprovisioning
 - stopped synthesizing missing activity causer rank snapshots during employee deletion, so legacy activity rows without a trustworthy per-event snapshot are no longer stamped with deletion-time employee state; employee deletion now preserves shared legacy user accounts only for genuinely live employee links while deprovisioning shared users retained by inactive or trashed references, including randomizing their primary credentials and anonymizing the retained login identifier so fresh session/token logins cannot be reissued
 - made preserved activity causer scope snapshots tamper-evident by including the captured causer employee context in the hash-chain payload used for both event creation and verification, so changes to preserved rank or organizational-unit authorization context now invalidate chain verification
