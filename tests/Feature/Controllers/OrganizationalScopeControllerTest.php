@@ -506,12 +506,15 @@ describe('OrganizationalScopeController', function () {
             $response->assertForbidden()
                 ->assertJsonPath('message', 'You cannot update your own organizational scope assignment for this organizational unit.');
 
-            expect($selfScope->fresh()?->include_descendants)->toBeFalse()
-                ->and($selfScope->fresh()?->min_viewable_rank)->toBe(2)
-                ->and($selfScope->fresh()?->max_viewable_rank)->toBe(3)
-                ->and($selfScope->fresh()?->min_assignable_rank)->toBe(2)
-                ->and($selfScope->fresh()?->max_assignable_rank)->toBe(3)
-                ->and($selfScope->fresh()?->allow_self_access)->toBeFalse();
+            $selfScope = $selfScope->fresh();
+
+            expect($selfScope)->not->toBeNull()
+                ->and($selfScope->include_descendants)->toBeFalse()
+                ->and($selfScope->min_viewable_rank)->toBe(2)
+                ->and($selfScope->max_viewable_rank)->toBe(3)
+                ->and($selfScope->min_assignable_rank)->toBe(2)
+                ->and($selfScope->max_assignable_rank)->toBe(3)
+                ->and($selfScope->allow_self_access)->toBeFalse();
         });
 
         it('prevents a user from granting themselves descendant access through a parent scope update', function (): void {
