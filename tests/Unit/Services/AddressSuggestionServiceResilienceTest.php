@@ -7,14 +7,16 @@ use App\Services\AddressData\AddressSuggestionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 
+uses()->group('unit', 'services', 'address-data');
+
 test('active import returns null instead of throwing when address_data_imports table is missing', function (): void {
     $service = new AddressSuggestionService(
         activeImportQueryResolver: function (string $countryCode): Builder {
             throw new QueryException(
-                connectionName: 'pgsql',
-                sql: 'select * from "address_data_imports" where "country_code" = ?',
-                bindings: [$countryCode],
-                previous: new Exception('SQLSTATE[42P01]: Undefined table: 7 ERROR: relation "address_data_imports" does not exist'),
+                'pgsql',
+                'select * from "address_data_imports" where "country_code" = ?',
+                [$countryCode],
+                new Exception('SQLSTATE[42P01]: Undefined table: 7 ERROR: relation "address_data_imports" does not exist'),
             );
         },
     );
