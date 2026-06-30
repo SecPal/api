@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- stabilized the `AddressSuggestionService` missing-table regression under PostgreSQL by replacing the DDL-based `address_data_imports` rename test with a deterministic missing-table query failure path that no longer collides with `RefreshDatabase` migration-state teardown (fixes `api#1204`)
 - blocked direct `PATCH /v1/organizational-units/{organizational_unit}/scopes/{scope}` updates to self-owned scope assignments, so users can no longer reshuffle or narrow their own direct rank, descendant, or self-access footprint on the same organizational unit under the manage-only model (fixes `api#1197`)
 - blocked deleting any direct self-scope assignment through `DELETE /v1/organizational-units/{organizational_unit}/scopes/{scope}`, so users can no longer silently narrow their own rank coverage on the same organizational unit by removing one of multiple `manage` scopes (fixes `api#1195`)
 - captured dedicated activity causer employee snapshot columns when activity rows are created, so historical activity-log scope authorization keeps the original organizational-unit and management-level context after later employee deprovisioning

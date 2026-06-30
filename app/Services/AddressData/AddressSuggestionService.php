@@ -9,6 +9,7 @@ use App\Models\AddressDataImport;
 use App\Models\AddressStreet;
 use App\Support\AddressSearchNormalizer;
 use App\Support\LikePattern;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
@@ -20,6 +21,13 @@ final class AddressSuggestionService
 
     /** Cache integer import ids only; bump suffix if stored shape changes. */
     private const CACHE_PREFIX_IMPORT_ID = 'address_data:active_import_id:v1:';
+
+    /**
+     * @param  (Closure(string): Builder<AddressDataImport>)|null  $activeImportQueryResolver
+     */
+    public function __construct(
+        private readonly ?Closure $activeImportQueryResolver = null,
+    ) {}
 
     public function forgetActiveImportCache(string $countryCode = 'DE'): void
     {
@@ -87,6 +95,11 @@ final class AddressSuggestionService
      */
     private function activeImportQuery(string $countryCode): Builder
     {
+        if ($this->activeImportQueryResolver !== null) {
+            /** @var Builder<AddressDataImport> */
+            return ($this->activeImportQueryResolver)($countryCode);
+        }
+
         return AddressDataImport::query()
             ->where('country_code', $countryCode)
             ->where('status', AddressDataImport::STATUS_SUCCEEDED)

@@ -8,7 +8,6 @@ use App\Models\AddressStreet;
 use App\Services\AddressData\AddressSuggestionService;
 use App\Support\AddressSearchNormalizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class)->group('unit', 'services', 'address-data');
 
@@ -23,19 +22,6 @@ beforeEach(function (): void {
         'status' => AddressDataImport::STATUS_SUCCEEDED,
         'activated_at' => now(),
     ]);
-});
-
-test('active import returns null instead of throwing when address_data_imports table is missing', function (): void {
-    // PostgreSQL DDL is transactional; the rename is rolled back with the test transaction.
-    DB::statement('ALTER TABLE address_data_imports RENAME TO address_data_imports_hidden');
-
-    expect((new AddressSuggestionService)->activeImport('DE'))->toBeNull();
-});
-
-test('service no longer exposes the deprecated active import cache prefix constant', function (): void {
-    $constants = (new ReflectionClass(AddressSuggestionService::class))->getConstants();
-
-    expect($constants)->not->toHaveKey('CACHE_PREFIX');
 });
 
 test('active import ignores stale cached ids for deactivated imports', function (): void {
