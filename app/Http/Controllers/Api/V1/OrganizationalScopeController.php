@@ -36,6 +36,8 @@ class OrganizationalScopeController extends Controller
 
     private const SELF_SCOPE_ESCALATION_MESSAGE = 'You cannot create or expand your own organizational scope permissions.';
 
+    private const SELF_SCOPE_DELETION_MESSAGE = 'You cannot delete your own organizational scope assignment for this organizational unit.';
+
     public function __construct(
         private readonly SelfScopeAuthorizationExpansionService $authorizationExpansionService,
     ) {}
@@ -245,21 +247,10 @@ class OrganizationalScopeController extends Controller
             ], 404);
         }
 
-        $lockoutResponse = $this->preventSelfScopeManagementLockout(
-            $actor,
-            $organizational_unit,
-            $scopeModel,
-            deleteScope: true,
-        );
+        $selfDeletionResponse = $this->preventSelfScopeDeletion($actor, $scopeModel);
 
-        if ($lockoutResponse !== null) {
-            return $lockoutResponse;
-        }
-
-        $expansionResponse = $this->preventSelfScopeDeletionExpansion($actor, $scopeModel);
-
-        if ($expansionResponse !== null) {
-            return $expansionResponse;
+        if ($selfDeletionResponse !== null) {
+            return $selfDeletionResponse;
         }
 
         $scopeModel->delete();
@@ -376,31 +367,18 @@ class OrganizationalScopeController extends Controller
         ], Response::HTTP_FORBIDDEN);
     }
 
-    private function preventSelfScopeDeletionExpansion(User $actor, UserInternalOrganizationalScope $scopeModel): ?JsonResponse
+    /**
+     * Under the manage-only model, users may not delete their own direct scope
+     * assignments on the unit they are currently managing.
+     */
+    private function preventSelfScopeDeletion(User $actor, UserInternalOrganizationalScope $scopeModel): ?JsonResponse
     {
         if (! $this->isActorScope($actor, $scopeModel)) {
             return null;
         }
 
-        $organizationalUnit = $scopeModel->organizationalUnit;
-
-        if ($organizationalUnit === null) {
-            return null;
-        }
-
-        /** @var Collection<int, UserInternalOrganizationalScope> $currentScopes */
-        $currentScopes = $actor->organizationalScopes()->get()->values();
-
-        $simulatedScopes = $currentScopes
-            ->reject(fn (UserInternalOrganizationalScope $scope) => $scope->id === $scopeModel->id)
-            ->values();
-
-        if (! $this->authorizationExpansionService->effectiveAuthorizationExpands($actor, $scopeModel, $scopeModel, $currentScopes, $simulatedScopes)) {
-            return null;
-        }
-
         return response()->json([
-            'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
+            'message' => __(self::SELF_SCOPE_DELETION_MESSAGE),
         ], Response::HTTP_FORBIDDEN);
     }
 

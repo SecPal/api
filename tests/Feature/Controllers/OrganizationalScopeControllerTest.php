@@ -715,7 +715,7 @@ describe('OrganizationalScopeController', function () {
             $response->assertNotFound();
         });
 
-        it('prevents a user from deleting their own last scope-management access for a unit', function (): void {
+        it('prevents a user from deleting their own scope assignment even when it is the only one on the unit', function (): void {
             $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
             givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
             $scope = UserInternalOrganizationalScope::create([
@@ -730,14 +730,14 @@ describe('OrganizationalScopeController', function () {
             $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}");
 
             $response->assertForbidden()
-                ->assertJsonPath('message', 'You cannot remove your own last scope-management access for this organizational unit.');
+                ->assertJsonPath('message', 'You cannot delete your own organizational scope assignment for this organizational unit.');
 
             $this->assertDatabaseHas('user_internal_organizational_scopes', [
                 'id' => $scope->id,
             ]);
         });
 
-        it('allows deleting a self scope when another scope-management path still exists', function (): void {
+        it('prevents deleting any self scope assignment on the same unit even when another scope-management path still exists', function (): void {
             givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
             $scope = UserInternalOrganizationalScope::create([
@@ -745,22 +745,36 @@ describe('OrganizationalScopeController', function () {
                 'organizational_unit_id' => $this->company->id,
                 'access_level' => 'manage',
                 'include_descendants' => false,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
+            ]);
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 255,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 255,
             ]);
 
             $this->actingAs($this->scopeManagerUser);
 
             $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}");
 
-            $response->assertNoContent();
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot delete your own organizational scope assignment for this organizational unit.');
 
-            $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+            $this->assertDatabaseHas('user_internal_organizational_scopes', [
                 'id' => $scope->id,
             ]);
-
-            expect($this->scopeManagerUser->fresh()->hasAccessToUnit($this->company, 'manage'))->toBeTrue();
         });
 
-        it('prevents deleting a self scope when doing so would widen inherited access', function (): void {
+        it('prevents deleting a self scope even when the remaining scopes would otherwise widen inherited access', function (): void {
             $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
             givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
 
@@ -793,7 +807,7 @@ describe('OrganizationalScopeController', function () {
             $response = $this->deleteJson("/v1/organizational-units/{$this->region->id}/scopes/{$scope->id}");
 
             $response->assertForbidden()
-                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+                ->assertJsonPath('message', 'You cannot delete your own organizational scope assignment for this organizational unit.');
 
             $this->assertDatabaseHas('user_internal_organizational_scopes', [
                 'id' => $scope->id,
