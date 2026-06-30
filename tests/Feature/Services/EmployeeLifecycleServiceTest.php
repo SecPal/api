@@ -507,7 +507,7 @@ test('employee lifecycle service preserves causer rank context without invalidat
         ->and($activity->verifyChain())->toBeTrue();
 });
 
-test('employee lifecycle service preserves future assignment start dates when deleting a linked user', function (): void {
+test('employee lifecycle service cancels future assignments when deleting a linked user', function (): void {
     $linkedUser = User::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
@@ -550,12 +550,8 @@ test('employee lifecycle service preserves future assignment start dates when de
     $deletedEmployee = $this->service->delete($employee);
 
     expect($deletedEmployee->deleted_at)->not->toBeNull()
-        ->and(CustomerAssignment::query()->find($futureCustomerAssignment->id)?->user_id)->toBeNull()
-        ->and(CustomerAssignment::query()->find($futureCustomerAssignment->id)?->valid_from?->toDateString())->toBe($futureStart)
-        ->and(CustomerAssignment::query()->find($futureCustomerAssignment->id)?->valid_until?->toDateString())->toBe($futureStart)
-        ->and(SiteAssignment::query()->find($futureSiteAssignment->id)?->user_id)->toBeNull()
-        ->and(SiteAssignment::query()->find($futureSiteAssignment->id)?->valid_from?->toDateString())->toBe($futureStart)
-        ->and(SiteAssignment::query()->find($futureSiteAssignment->id)?->valid_until?->toDateString())->toBe($futureStart);
+        ->and(CustomerAssignment::query()->find($futureCustomerAssignment->id))->toBeNull()
+        ->and(SiteAssignment::query()->find($futureSiteAssignment->id))->toBeNull();
 });
 
 test('employee lifecycle service rolls leave transition back when the read-only role is missing', function () {
