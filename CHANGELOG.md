@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- consolidated the self-escalation authorization-expansion invariant into `SelfScopeAuthorizationExpansionService`, so `OrganizationalScopeController` now delegates the scope-boundary checks to one shared implementation and the duplicate `UserInternalOrganizationalScope` helper was removed (refs `api#1190`)
+- consolidated the self-scope authorization-expansion invariant into shared update-guard handling, removing the duplicate `UserInternalOrganizationalScope` helper and keeping the direct self-scope boundary checks in one place (refs `api#1190`)
 - replaced the remaining local `markdownlint-cli2` hook and preflight invocation with a pinned `markdownlint-cli@0.49.0` path so markdown governance follows the same CLI baseline as `SecPal/.github`
 - hardened the governance rollout in `quality.yml` by pinning shared reusable workflows to the current `.github` commit and keeping the provider-neutral AI-instructions validation path reproducible in CI
 - `GET /v1/bootstrap?client_platform=browser` now keeps the AGPL `legal.source_url` disclosure while limiting public notification runtime metadata to the browser-relevant `web_push` channel, so browser clients no longer receive Android FCM bootstrap metadata
@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- blocked direct `PATCH /v1/organizational-units/{organizational_unit}/scopes/{scope}` updates to self-owned scope assignments, so users can no longer reshuffle or narrow their own direct rank, descendant, or self-access footprint on the same organizational unit under the manage-only model (fixes `api#1197`)
 - blocked deleting any direct self-scope assignment through `DELETE /v1/organizational-units/{organizational_unit}/scopes/{scope}`, so users can no longer silently narrow their own rank coverage on the same organizational unit by removing one of multiple `manage` scopes (fixes `api#1195`)
 - captured dedicated activity causer employee snapshot columns when activity rows are created, so historical activity-log scope authorization keeps the original organizational-unit and management-level context after later employee deprovisioning
 - stopped synthesizing missing activity causer rank snapshots during employee deletion, so legacy activity rows without a trustworthy per-event snapshot are no longer stamped with deletion-time employee state; employee deletion now preserves shared legacy user accounts only for genuinely live employee links while deprovisioning shared users retained by inactive or trashed references, including randomizing their primary credentials and anonymizing the retained login identifier so fresh session/token logins cannot be reissued

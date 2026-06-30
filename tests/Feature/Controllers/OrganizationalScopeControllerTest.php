@@ -341,7 +341,7 @@ describe('OrganizationalScopeController', function () {
             $response->assertNotFound();
         });
 
-        it('prevents a user from downgrading their own last scope-management access for a unit', function (): void {
+        it('prevents a user from updating their own direct scope assignment on a unit', function (): void {
             $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
             givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
             $scope = UserInternalOrganizationalScope::create([
@@ -358,7 +358,7 @@ describe('OrganizationalScopeController', function () {
             ]);
 
             $response->assertForbidden()
-                ->assertJsonPath('message', 'You cannot remove your own last scope-management access for this organizational unit.');
+                ->assertJsonPath('message', 'You cannot update your own organizational scope assignment for this organizational unit.');
 
             $this->assertDatabaseHas('user_internal_organizational_scopes', [
                 'id' => $scope->id,
@@ -427,7 +427,7 @@ describe('OrganizationalScopeController', function () {
             ]);
 
             $response->assertForbidden()
-                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+                ->assertJsonPath('message', 'You cannot update your own organizational scope assignment for this organizational unit.');
 
             $selfScope->refresh();
 
@@ -457,7 +457,7 @@ describe('OrganizationalScopeController', function () {
             ]);
 
             $response->assertForbidden()
-                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+                ->assertJsonPath('message', 'You cannot update your own organizational scope assignment for this organizational unit.');
 
             $selfScope->refresh();
 
@@ -465,7 +465,7 @@ describe('OrganizationalScopeController', function () {
                 ->and($selfManagingUser->fresh()->hasAccessToUnit($this->region, 'manage'))->toBeFalse();
         });
 
-        it('allows self-scope cleanup that does not expand effective authorization across split scopes', function (): void {
+        it('prevents self-scope updates that only reshuffle effective authorization across split scopes', function (): void {
             givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
             UserInternalOrganizationalScope::create([
@@ -503,10 +503,18 @@ describe('OrganizationalScopeController', function () {
                 'allow_self_access' => true,
             ]);
 
-            $response->assertOk()
-                ->assertJsonPath('data.include_descendants', true)
-                ->assertJsonPath('data.max_viewable_rank', 5)
-                ->assertJsonPath('data.allow_self_access', true);
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot update your own organizational scope assignment for this organizational unit.');
+
+            $selfScope = $selfScope->fresh();
+
+            expect($selfScope)->not->toBeNull()
+                ->and($selfScope->include_descendants)->toBeFalse()
+                ->and($selfScope->min_viewable_rank)->toBe(2)
+                ->and($selfScope->max_viewable_rank)->toBe(3)
+                ->and($selfScope->min_assignable_rank)->toBe(2)
+                ->and($selfScope->max_assignable_rank)->toBe(3)
+                ->and($selfScope->allow_self_access)->toBeFalse();
         });
 
         it('prevents a user from granting themselves descendant access through a parent scope update', function (): void {
@@ -532,7 +540,7 @@ describe('OrganizationalScopeController', function () {
             ]);
 
             $response->assertForbidden()
-                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+                ->assertJsonPath('message', 'You cannot update your own organizational scope assignment for this organizational unit.');
 
             expect($selfScope->fresh()?->include_descendants)->toBeFalse()
                 ->and($selfManagingUser->fresh()->hasAccessToUnit($this->region))->toBeFalse();
@@ -569,7 +577,7 @@ describe('OrganizationalScopeController', function () {
             ]);
 
             $response->assertForbidden()
-                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+                ->assertJsonPath('message', 'You cannot update your own organizational scope assignment for this organizational unit.');
 
             expect($selfScope->fresh()?->include_descendants)->toBeFalse();
         });
@@ -620,7 +628,7 @@ describe('OrganizationalScopeController', function () {
             ]);
 
             $response->assertForbidden()
-                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+                ->assertJsonPath('message', 'You cannot update your own organizational scope assignment for this organizational unit.');
 
             expect($writeScope->fresh()?->allow_self_access)->toBeFalse()
                 ->and(Gate::forUser($selfManagingUser)->allows('update', $employee))->toBeFalse();
@@ -663,7 +671,7 @@ describe('OrganizationalScopeController', function () {
             ]);
 
             $response->assertForbidden()
-                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+                ->assertJsonPath('message', 'You cannot update your own organizational scope assignment for this organizational unit.');
 
             expect($writeScope->fresh()?->max_viewable_rank)->toBe(3);
         });
