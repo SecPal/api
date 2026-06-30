@@ -9,11 +9,15 @@ declare(strict_types=1);
 
 use App\Models\Activity;
 use App\Models\AndroidEnrollmentSession;
+use App\Models\Customer;
+use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingSubmissionFile;
 use App\Models\OrganizationalUnit;
+use App\Models\Site;
+use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -320,6 +324,80 @@ test('it revokes already-expired unexchanged android enrollment sessions during 
     expect($expiredSession->revoked_at?->toIso8601String())->toBe('2026-06-30T12:00:00+00:00')
         ->and($expiredSession->revocation_reason)->toBe('User account anonymized during employee retention deletion.')
         ->and($exchangedSession->revoked_at)->toBeNull();
+});
+
+test('it erases customer and site assignment history during retention deletion', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $otherUser = User::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $customer = Customer::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $site = Site::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+
+    $employee = Employee::factory()
+        ->for($tenant, 'tenant')
+        ->terminated()
+        ->create([
+            'user_id' => $user->id,
+            'status' => Employee::STATUS_TERMINATED,
+            'user_account_active' => false,
+            'employment_end_date' => now()->subYears(4)->toDateString(),
+            'retention_period_end' => now()->subDay()->toDateString(),
+        ]);
+
+    $customerAssignment = CustomerAssignment::factory()
+        ->for($tenant, 'tenant')
+        ->create([
+            'customer_id' => $customer->id,
+            'user_id' => $user->id,
+            'valid_from' => now()->subMonths(6),
+            'valid_until' => now()->subMonth(),
+        ]);
+
+    $siteAssignment = SiteAssignment::factory()
+        ->for($tenant, 'tenant')
+        ->create([
+            'site_id' => $site->id,
+            'user_id' => $user->id,
+            'valid_from' => now()->subMonths(3),
+            'valid_until' => null,
+        ]);
+
+    $otherCustomerAssignment = CustomerAssignment::factory()
+        ->for($tenant, 'tenant')
+        ->create([
+            'customer_id' => $customer->id,
+            'user_id' => $otherUser->id,
+            'valid_from' => now()->subMonths(2),
+            'valid_until' => null,
+        ]);
+
+    $otherSiteAssignment = SiteAssignment::factory()
+        ->for($tenant, 'tenant')
+        ->create([
+            'site_id' => $site->id,
+            'user_id' => $otherUser->id,
+            'valid_from' => now()->subMonths(1),
+            'valid_until' => null,
+        ]);
+
+    $this->artisan('employees:delete-expired')
+        ->expectsOutputToContain('Deleted 1 expired employee record(s)')
+        ->assertSuccessful();
+
+    $this->assertDatabaseMissing('employees', ['id' => $employee->id]);
+    $this->assertDatabaseMissing('customer_assignments', ['id' => $customerAssignment->id]);
+    $this->assertDatabaseMissing('site_assignments', ['id' => $siteAssignment->id]);
+
+    $this->assertDatabaseHas('customer_assignments', ['id' => $otherCustomerAssignment->id]);
+    $this->assertDatabaseHas('site_assignments', ['id' => $otherSiteAssignment->id]);
 });
 
 test('it supports dry run without deleting employee records', function (): void {

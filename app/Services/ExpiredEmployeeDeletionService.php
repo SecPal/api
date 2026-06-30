@@ -267,13 +267,7 @@ class ExpiredEmployeeDeletionService
             ->where('user_id', $user->id)
             ->delete();
 
-        DB::table('customer_assignments')
-            ->where('user_id', $user->id)
-            ->delete();
-
-        DB::table('site_assignments')
-            ->where('user_id', $user->id)
-            ->delete();
+        $this->eraseAssignmentHistoryForAnonymizedUser($user);
 
         DB::table('sessions')
             ->where('user_id', $user->id)
@@ -301,5 +295,18 @@ class ExpiredEmployeeDeletionService
             'remember_token' => null,
             'preferred_locale' => null,
         ])->save();
+    }
+
+    private function eraseAssignmentHistoryForAnonymizedUser(User $user): void
+    {
+        // Retention/GDPR deletion is stricter than admin deprovisioning: assignment rows are
+        // erased outright instead of being retained with a nulled user reference.
+        DB::table('customer_assignments')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('site_assignments')
+            ->where('user_id', $user->id)
+            ->delete();
     }
 }
