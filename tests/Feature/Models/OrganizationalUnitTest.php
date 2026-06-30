@@ -137,6 +137,34 @@ describe('OrganizationalUnit Model', function () {
                     ->where('depth', 0)
                     ->exists())->toBeTrue();
         });
+
+        it('restores a child as a root when its parent remains soft deleted', function (): void {
+            $parent = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Deleted Parent Unit',
+                'type' => 'company',
+            ]);
+
+            $child = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Restored Child Unit',
+                'type' => 'department',
+            ]);
+            $child->setParent($parent);
+
+            $child->delete();
+            $parent->delete();
+            $child->restore();
+
+            $child->refresh();
+
+            expect($child->parent)->toBeNull()
+                ->and(OrganizationalUnit::roots()->pluck('id')->all())->toContain($child->id)
+                ->and(OrganizationalUnitClosure::query()
+                    ->where('ancestor_id', $parent->id)
+                    ->where('descendant_id', $child->id)
+                    ->exists())->toBeFalse();
+        });
     });
 
     describe('Type Enum Values', function () {

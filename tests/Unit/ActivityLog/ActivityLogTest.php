@@ -203,7 +203,8 @@ test('causer employee context columns are captured at creation', function () {
 
     expect($log->causer_employee_id)->toBe($employee->id)
         ->and($log->causer_employee_organizational_unit_id)->toBe($orgUnit->id)
-        ->and($log->causer_employee_management_level)->toBe(3);
+        ->and($log->causer_employee_management_level)->toBe(3)
+        ->and($log->properties->toArray())->toBe(['existing' => 'value']);
 });
 
 // ============================================================================

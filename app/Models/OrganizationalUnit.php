@@ -120,6 +120,22 @@ class OrganizationalUnit extends Model
 
         static::restored(function (OrganizationalUnit $unit): void {
             $unit->ensureSelfClosureExists();
+
+            $parentId = OrganizationalUnitClosure::where('descendant_id', $unit->id)
+                ->where('depth', 1)
+                ->value('ancestor_id');
+
+            if ($parentId === null) {
+                return;
+            }
+
+            $hasActiveParent = OrganizationalUnit::query()
+                ->whereKey($parentId)
+                ->exists();
+
+            if (! $hasActiveParent) {
+                $unit->removeParent();
+            }
         });
 
         // Note: Closure table cleanup on force delete is handled by ON DELETE CASCADE

@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\EnforcesTenantRouteBinding;
-use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -384,38 +383,6 @@ class Activity extends SpatieActivity
         $this->causer_employee_id ??= $causerEmployee->id;
         $this->causer_employee_organizational_unit_id ??= $causerEmployee->organizational_unit_id;
         $this->causer_employee_management_level ??= $causerEmployee->management_level;
-
-        $properties = $this->propertiesAsArray($this->properties);
-
-        $this->properties = $properties + [
-            'causer_employee_id' => $causerEmployee->id,
-            'causer_employee_organizational_unit_id' => $causerEmployee->organizational_unit_id,
-            'causer_employee_management_level' => $causerEmployee->management_level,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function propertiesAsArray(mixed $properties): array
-    {
-        if ($properties instanceof Arrayable) {
-            $properties = $properties->toArray();
-        }
-
-        if (! is_array($properties)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($properties as $key => $value) {
-            if (is_string($key)) {
-                $normalized[$key] = $value;
-            }
-        }
-
-        return $normalized;
     }
 
     /**

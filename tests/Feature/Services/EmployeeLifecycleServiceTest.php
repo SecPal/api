@@ -507,6 +507,74 @@ test('employee lifecycle service preserves causer rank context without invalidat
         ->and($activity->verifyChain())->toBeTrue();
 });
 
+test('employee lifecycle service only preserves causer context for the deleted employee org unit', function (): void {
+    $otherUnit = OrganizationalUnit::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Other Department',
+        'code' => 'OTHER',
+        'type' => 'department',
+        'is_active' => true,
+    ]);
+
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+        'management_level' => 3,
+    ]);
+
+    // Legacy activity in the employee's own unit without captured context.
+    $ownUnitActivity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $linkedUser->id,
+    ]);
+    DB::table('activity_log')->where('id', $ownUnitActivity->id)->update([
+        'causer_employee_id' => null,
+        'causer_employee_organizational_unit_id' => null,
+        'causer_employee_management_level' => null,
+    ]);
+
+    // Activity in a different unit where the user has no employee record.
+    $otherUnitActivity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $otherUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $linkedUser->id,
+    ]);
+
+    // Global activity without an organizational unit.
+    $globalActivity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => null,
+        'causer_type' => User::class,
+        'causer_id' => $linkedUser->id,
+    ]);
+
+    $this->service->delete($employee);
+
+    $ownUnit = Activity::query()->findOrFail($ownUnitActivity->id);
+    $other = Activity::query()->findOrFail($otherUnitActivity->id);
+    $global = Activity::query()->findOrFail($globalActivity->id);
+
+    expect($ownUnit->causer_employee_id)->toBe($employee->id)
+        ->and($ownUnit->causer_employee_organizational_unit_id)->toBe($this->orgUnit->id)
+        ->and($ownUnit->causer_employee_management_level)->toBe(3)
+        ->and($other->causer_employee_id)->toBeNull()
+        ->and($other->causer_employee_organizational_unit_id)->toBeNull()
+        ->and($other->causer_employee_management_level)->toBeNull()
+        ->and($global->causer_employee_id)->toBeNull()
+        ->and($global->causer_employee_organizational_unit_id)->toBeNull()
+        ->and($global->causer_employee_management_level)->toBeNull();
+});
+
 test('employee lifecycle service cancels future assignments when deleting a linked user', function (): void {
     $linkedUser = User::factory()->create([
         'tenant_id' => $this->tenant->id,
