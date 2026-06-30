@@ -1181,7 +1181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Newly Created Root Unit Not Visible** (#299, Part of Epic #283)
   - Root organizational units created without a parent were not visible to the creator
-  - Creator now automatically receives `admin` scope with `include_descendants=true` on new root units
+  - Creator now automatically receives `manage` scope with `include_descendants=true` on new root units
   - Child units continue to inherit access from parent's scope settings
   - Added 3 new tests covering auto-scope assignment and visibility
 

@@ -184,7 +184,7 @@ class OrganizationalUnitController extends Controller
             $this->authorize('create', $parent);
         } else {
             // Creating a root unit requires an existing manage-capable scope somewhere
-            $this->authorize('viewAny', OrganizationalUnit::class);
+            $this->authorize('createRoot', OrganizationalUnit::class);
         }
 
         /** @var array{name: string, type: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null, parent_id?: string|null} $validated */
@@ -451,7 +451,7 @@ class OrganizationalUnitController extends Controller
             // User's access is only via the parent's include_descendants flag.
             // After detaching, they would lose access to this unit.
             return response()->json([
-                'message' => __('Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact an administrator to get direct access to this unit first.'),
+                'message' => __('Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact someone with organizational scope management access to grant direct access to this unit first.'),
             ], Response::HTTP_FORBIDDEN);
         }
 

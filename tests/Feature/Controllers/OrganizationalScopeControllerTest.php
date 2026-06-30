@@ -16,7 +16,6 @@ use Spatie\Permission\PermissionRegistrar;
 /**
  * @property TenantKey $tenant
  * @property User $scopeManagerUser
- * @property User $adminUser
  * @property User $regularUser
  * @property User $targetUser
  * @property OrganizationalUnit $holding
@@ -34,7 +33,6 @@ beforeEach(function (): void {
     $this->tenant = TenantKey::create($keys);
 
     $this->scopeManagerUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
-    $this->adminUser = $this->scopeManagerUser;
     $this->regularUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
@@ -142,9 +140,9 @@ describe('OrganizationalScopeController', function () {
 
     describe('store - POST /organizational-units/{unit}/scopes', function () {
         it('creates a scope assignment when user has scope-management access', function (): void {
-            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -202,9 +200,9 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('validates required fields', function (): void {
-            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", []);
 
@@ -213,9 +211,9 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('validates access level is valid', function (): void {
-            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -227,7 +225,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('prevents duplicate scope assignments', function (): void {
-            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
             // Create existing scope
             UserInternalOrganizationalScope::create([
@@ -236,7 +234,7 @@ describe('OrganizationalScopeController', function () {
                 'access_level' => 'read',
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -294,7 +292,7 @@ describe('OrganizationalScopeController', function () {
 
     describe('update - PATCH /organizational-units/{unit}/scopes/{scope}', function () {
         it('updates a scope assignment when user has scope-management access', function (): void {
-            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
@@ -303,7 +301,7 @@ describe('OrganizationalScopeController', function () {
                 'include_descendants' => false,
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'access_level' => 'write',
@@ -332,9 +330,9 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('returns 404 for non-existent scope', function (): void {
-            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/00000000-0000-0000-0000-000000000000", [
                 'access_level' => 'write',
@@ -674,7 +672,7 @@ describe('OrganizationalScopeController', function () {
 
     describe('destroy - DELETE /organizational-units/{unit}/scopes/{scope}', function () {
         it('deletes a scope assignment when user has scope-management access', function (): void {
-            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
@@ -682,7 +680,7 @@ describe('OrganizationalScopeController', function () {
                 'access_level' => 'write',
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}");
 
@@ -708,9 +706,9 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('returns 404 for non-existent scope', function (): void {
-            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/00000000-0000-0000-0000-000000000000");
 
@@ -740,16 +738,16 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('allows deleting a self scope when another scope-management path still exists', function (): void {
-            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
             $scope = UserInternalOrganizationalScope::create([
-                'user_id' => $this->adminUser->id,
+                'user_id' => $this->scopeManagerUser->id,
                 'organizational_unit_id' => $this->company->id,
                 'access_level' => 'manage',
                 'include_descendants' => false,
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}");
 
@@ -759,7 +757,7 @@ describe('OrganizationalScopeController', function () {
                 'id' => $scope->id,
             ]);
 
-            expect($this->adminUser->fresh()->hasAccessToUnit($this->company, 'manage'))->toBeTrue();
+            expect($this->scopeManagerUser->fresh()->hasAccessToUnit($this->company, 'manage'))->toBeTrue();
         });
 
         it('prevents deleting a self scope when doing so would widen inherited access', function (): void {
@@ -805,7 +803,7 @@ describe('OrganizationalScopeController', function () {
 
     describe('user scopes - GET /me/organizational-scopes', function () {
         it('returns the authenticated users organizational scopes', function (): void {
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->getJson('/v1/me/organizational-scopes');
 
@@ -828,7 +826,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('ignores scopes that point to soft-deleted organizational units', function (): void {
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $deletedUnit = OrganizationalUnit::create([
                 'tenant_id' => $this->tenant->id,
@@ -837,7 +835,7 @@ describe('OrganizationalScopeController', function () {
             ]);
 
             UserInternalOrganizationalScope::create([
-                'user_id' => $this->adminUser->id,
+                'user_id' => $this->scopeManagerUser->id,
                 'organizational_unit_id' => $deletedUnit->id,
                 'access_level' => 'manage',
                 'include_descendants' => false,
@@ -856,7 +854,7 @@ describe('OrganizationalScopeController', function () {
 
     describe('rank range validation - Guards/Leadership separation', function () {
         it('rejects scope creation with max>0 and no minimum for viewing ranks', function (): void {
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -870,7 +868,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('rejects scope creation with min=0 and max>0 for viewing ranks', function (): void {
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -885,7 +883,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('rejects scope creation with min=0 and max>0 for assignable ranks', function (): void {
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -900,7 +898,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('rejects scope creation with max>0 and no minimum for assignable ranks', function (): void {
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -914,7 +912,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('accepts scope creation with min=0 and max=0 for Guards only', function (): void {
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -930,7 +928,7 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('accepts scope creation with min=1 and max=5 for Leadership only', function (): void {
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
                 'user_id' => $this->targetUser->id,
@@ -953,7 +951,7 @@ describe('OrganizationalScopeController', function () {
                 'include_descendants' => false,
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'min_viewable_rank' => 0,
@@ -974,7 +972,7 @@ describe('OrganizationalScopeController', function () {
                 'max_viewable_rank' => 0,
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'max_viewable_rank' => 10,
@@ -994,7 +992,7 @@ describe('OrganizationalScopeController', function () {
                 'max_viewable_rank' => 10,
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'min_viewable_rank' => 0,
@@ -1012,7 +1010,7 @@ describe('OrganizationalScopeController', function () {
                 'include_descendants' => false,
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'min_assignable_rank' => 0,
@@ -1033,7 +1031,7 @@ describe('OrganizationalScopeController', function () {
                 'max_assignable_rank' => 0,
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'max_assignable_rank' => 8,
@@ -1053,7 +1051,7 @@ describe('OrganizationalScopeController', function () {
                 'max_assignable_rank' => 8,
             ]);
 
-            $this->actingAs($this->adminUser);
+            $this->actingAs($this->scopeManagerUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'min_assignable_rank' => 0,

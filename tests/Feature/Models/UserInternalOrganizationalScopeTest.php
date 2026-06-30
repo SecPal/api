@@ -269,8 +269,8 @@ describe('UserInternalOrganizationalScope Model', function () {
             expect($scope->hasMinimumAccessLevel('read'))->toBeTrue();
             expect($scope->hasMinimumAccessLevel('write'))->toBeTrue();
             expect($scope->hasMinimumAccessLevel('manage'))->toBeTrue();
-            // Removed / unknown level must not be satisfied
-            expect($scope->hasMinimumAccessLevel('admin'))->toBeFalse();
+            // Unknown levels must not be satisfied
+            expect($scope->hasMinimumAccessLevel('legacy'))->toBeFalse();
         });
     });
 

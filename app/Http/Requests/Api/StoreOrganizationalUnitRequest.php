@@ -42,13 +42,13 @@ class StoreOrganizationalUnitRequest extends FormRequest
         $parentId = $this->input('parent_id');
 
         if (! is_string($parentId) || $parentId === '' || ! Str::isUuid($parentId)) {
-            return $this->user()?->can('viewAny', OrganizationalUnit::class) ?? false;
+            return $this->user()?->can('createRoot', OrganizationalUnit::class) ?? false;
         }
 
         $parent = OrganizationalUnit::query()->find($parentId);
 
         if ($parent === null) {
-            return $this->user()?->can('viewAny', OrganizationalUnit::class) ?? false;
+            return $this->user()?->can('createRoot', OrganizationalUnit::class) ?? false;
         }
 
         return $this->user()?->can('create', $parent) ?? false;
