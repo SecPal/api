@@ -340,6 +340,9 @@ class Activity extends SpatieActivity
                 'subject_id' => $activity->subject_id,
                 'causer_type' => $activity->causer_type,
                 'causer_id' => $activity->causer_id,
+                'causer_employee_id' => $activity->causer_employee_id,
+                'causer_employee_organizational_unit_id' => $activity->causer_employee_organizational_unit_id,
+                'causer_employee_management_level' => $activity->causer_employee_management_level,
                 'event' => $activity->event,
                 'attribute_changes' => $activity->attribute_changes,
                 'properties' => $activity->properties,
@@ -383,6 +386,31 @@ class Activity extends SpatieActivity
         $this->causer_employee_id ??= $causerEmployee->id;
         $this->causer_employee_organizational_unit_id ??= $causerEmployee->organizational_unit_id;
         $this->causer_employee_management_level ??= $causerEmployee->management_level;
+    }
+
+    /**
+     * Build the tamper-evident payload used by the activity hash chain.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function buildHashPayload(array $attributes): string
+    {
+        return json_encode([
+            'tenant_id' => $attributes['tenant_id'] ?? null,
+            'log_name' => $attributes['log_name'] ?? null,
+            'description' => $attributes['description'] ?? null,
+            'subject_type' => $attributes['subject_type'] ?? null,
+            'subject_id' => $attributes['subject_id'] ?? null,
+            'causer_type' => $attributes['causer_type'] ?? null,
+            'causer_id' => $attributes['causer_id'] ?? null,
+            'causer_employee_id' => $attributes['causer_employee_id'] ?? null,
+            'causer_employee_organizational_unit_id' => $attributes['causer_employee_organizational_unit_id'] ?? null,
+            'causer_employee_management_level' => $attributes['causer_employee_management_level'] ?? null,
+            'event' => $attributes['event'] ?? null,
+            'attribute_changes' => $attributes['attribute_changes'] ?? null,
+            'properties' => $attributes['properties'] ?? null,
+            'created_at' => $attributes['created_at'] ?? null,
+        ], JSON_THROW_ON_ERROR);
     }
 
     /**
@@ -597,7 +625,7 @@ class Activity extends SpatieActivity
         }
 
         // Recalculate event_hash and verify (for both genesis and chained logs)
-        $logData = json_encode([
+        $logData = self::buildHashPayload([
             'tenant_id' => $this->tenant_id,
             'log_name' => $this->log_name,
             'description' => $this->description,
@@ -605,11 +633,14 @@ class Activity extends SpatieActivity
             'subject_id' => $this->subject_id,
             'causer_type' => $this->causer_type,
             'causer_id' => $this->causer_id,
+            'causer_employee_id' => $this->causer_employee_id,
+            'causer_employee_organizational_unit_id' => $this->causer_employee_organizational_unit_id,
+            'causer_employee_management_level' => $this->causer_employee_management_level,
             'event' => $this->event,
             'attribute_changes' => $this->attribute_changes,
             'properties' => $this->properties,
-            'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
-        ], JSON_THROW_ON_ERROR);
+            'created_at' => $this->created_at->toIso8601String(),
+        ]);
 
         $calculatedHash = hash('sha256', ($this->previous_hash ?? '').$logData);
 

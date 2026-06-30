@@ -666,6 +666,56 @@ test('employee lifecycle service deprovisions a shared user when only trashed em
         ->and(Hash::check('SharedLegacyPassword123!', User::query()->findOrFail($linkedUser->id)->password))->toBeFalse();
 });
 
+test('employee lifecycle service deprovisions a shared user when remaining employee links are inactive', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'email' => 'inactive-shared-user@secpal.dev',
+        'password' => bcrypt('InactiveSharedPassword123!'),
+        'remember_token' => 'remember-me',
+    ]);
+
+    giveRoleWithTenant($linkedUser, $this->tenant->id, 'Employee');
+    givePermissionWithTenant($linkedUser, $this->tenant->id, 'employee.delete');
+    $linkedUser->createToken('inactive-shared-token');
+
+    DB::table('sessions')->insert([
+        'id' => 'inactive-shared-user-session',
+        'user_id' => $linkedUser->id,
+        'ip_address' => '127.0.0.1',
+        'user_agent' => 'Pest',
+        'payload' => base64_encode('test'),
+        'last_activity' => now()->timestamp,
+    ]);
+
+    $deletedEmployee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+    ]);
+
+    $inactiveEmployee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_TERMINATED,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => false,
+    ]);
+
+    $result = $this->service->delete($deletedEmployee);
+
+    expect($result->deleted_at)->not->toBeNull()
+        ->and(User::query()->find($linkedUser->id))->not->toBeNull()
+        ->and(Employee::query()->findOrFail($inactiveEmployee->id)->user_id)->toBe($linkedUser->id)
+        ->and(DB::table('personal_access_tokens')->where('tokenable_id', $linkedUser->id)->count())->toBe(0)
+        ->and(DB::table('sessions')->where('user_id', $linkedUser->id)->count())->toBe(0)
+        ->and(DB::table('model_has_roles')->where('model_id', $linkedUser->id)->count())->toBe(0)
+        ->and(DB::table('model_has_permissions')->where('model_id', $linkedUser->id)->count())->toBe(0)
+        ->and(User::query()->findOrFail($linkedUser->id)->email)->toBe('deleted-user+'.$linkedUser->id.'@secpal.dev')
+        ->and(Hash::check('InactiveSharedPassword123!', User::query()->findOrFail($linkedUser->id)->password))->toBeFalse();
+});
+
 test('employee lifecycle service cancels future assignments when deleting a linked user', function (): void {
     $linkedUser = User::factory()->create([
         'tenant_id' => $this->tenant->id,

@@ -149,7 +149,7 @@ class ProcessActivityHashChain implements ShouldQueue
 
             // Calculate event_hash: SHA256(previous_hash + log_data)
             try {
-                $logData = json_encode([
+                $logData = Activity::buildHashPayload([
                     'tenant_id' => $this->activityData['tenant_id'] ?? null,
                     'log_name' => $this->activityData['log_name'] ?? null,
                     'description' => $this->activityData['description'] ?? null,
@@ -157,11 +157,14 @@ class ProcessActivityHashChain implements ShouldQueue
                     'subject_id' => $this->activityData['subject_id'] ?? null,
                     'causer_type' => $this->activityData['causer_type'] ?? null,
                     'causer_id' => $this->activityData['causer_id'] ?? null,
+                    'causer_employee_id' => $this->activityData['causer_employee_id'] ?? null,
+                    'causer_employee_organizational_unit_id' => $this->activityData['causer_employee_organizational_unit_id'] ?? null,
+                    'causer_employee_management_level' => $this->activityData['causer_employee_management_level'] ?? null,
                     'event' => $this->activityData['event'] ?? null,
                     'attribute_changes' => $this->activityData['attribute_changes'] ?? null,
                     'properties' => $this->activityData['properties'] ?? null,
-                    'created_at' => $this->activityData['created_at'] ?? null, // Timestamp ensures hash uniqueness
-                ], JSON_THROW_ON_ERROR);
+                    'created_at' => $this->activityData['created_at'] ?? null,
+                ]);
 
                 $eventHash = hash('sha256', ($previousHash ?? '').$logData);
             } catch (\JsonException $exception) {

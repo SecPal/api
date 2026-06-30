@@ -267,9 +267,11 @@ class EmployeeLifecycleService
                 $employee->user()->dissociate();
                 $employee->saveQuietly();
 
-                $hasOtherActiveEmployeeLinks = Employee::query()
+                $hasOtherLiveEmployeeLinks = Employee::query()
                     ->where('user_id', $user->id)
                     ->whereKeyNot($employee->id)
+                    ->where('user_account_active', true)
+                    ->where('status', '!=', Employee::STATUS_TERMINATED)
                     ->exists();
 
                 $hasOtherEmployeeLinks = Employee::withTrashed()
@@ -277,7 +279,7 @@ class EmployeeLifecycleService
                     ->whereKeyNot($employee->id)
                     ->exists();
 
-                if (! $hasOtherActiveEmployeeLinks) {
+                if (! $hasOtherLiveEmployeeLinks) {
                     if ($hasOtherEmployeeLinks) {
                         $this->deprovisionUserAccount($user, $employee->tenant_id);
                     } else {
