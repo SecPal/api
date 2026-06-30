@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use App\Services\SelfScopeAuthorizationExpansionService;
 
@@ -120,5 +121,29 @@ describe('SelfScopeAuthorizationExpansionService::doesNotExpandAuthorizationComp
         ]);
 
         expect($this->service->doesNotExpandAuthorizationComparedTo($expandedScope, $currentScope))->toBeFalse();
+    });
+});
+
+describe('SelfScopeAuthorizationExpansionService::effectiveAuthorizationExpands', function () {
+    beforeEach(function (): void {
+        $this->service = app(SelfScopeAuthorizationExpansionService::class);
+    });
+
+    it('returns false when the current self scope has no organizational unit', function (): void {
+        $actor = new User;
+        $currentScope = new UserInternalOrganizationalScope([
+            'access_level' => 'manage',
+        ]);
+        $simulatedScope = new UserInternalOrganizationalScope([
+            'access_level' => 'manage',
+        ]);
+
+        expect($this->service->effectiveAuthorizationExpands(
+            $actor,
+            $currentScope,
+            $simulatedScope,
+            collect([$currentScope]),
+            collect([$simulatedScope]),
+        ))->toBeFalse();
     });
 });
