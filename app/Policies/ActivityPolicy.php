@@ -76,6 +76,14 @@ class ActivityPolicy
             return false;
         }
 
+        if (
+            $this->isPrivilegedUserActivity($activity)
+            && $activity->causer_id !== $user->id
+            && ! $user->can('activity_log.read_system')
+        ) {
+            return false;
+        }
+
         // Global activities (no organizational unit): Allow if permission granted
         if ($activity->organizational_unit_id === null) {
             return true;
@@ -168,6 +176,19 @@ class ActivityPolicy
         }
 
         return $activity->causer_employee_management_level;
+    }
+
+    private function isPrivilegedUserActivity(Activity $activity): bool
+    {
+        if ($activity->causer_type !== User::class || $activity->causer_id === null) {
+            return false;
+        }
+
+        if ($activity->causer_employee_id !== null) {
+            return false;
+        }
+
+        return ! Employee::where('user_id', $activity->causer_id)->exists();
     }
 
     /**

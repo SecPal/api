@@ -495,6 +495,20 @@ test('view allows activity when user views their OWN activity without employee r
     expect($this->policy->view($user, $activity))->toBeTrue();
 });
 
+test('view allows own global privileged activity without read_system permission', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
+
+    $activity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => null,
+        'causer_type' => User::class,
+        'causer_id' => $user->id,
+    ]);
+
+    expect($this->policy->view($user, $activity))->toBeTrue();
+});
+
 test('view allows activity when OTHER user without employee record caused it (system users)', function (): void {
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');

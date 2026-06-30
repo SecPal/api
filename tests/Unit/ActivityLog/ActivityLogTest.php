@@ -248,6 +248,43 @@ test('verifyChain fails when preserved causer scope context is tampered', functi
     expect($log->fresh()?->verifyChain())->toBeFalse();
 });
 
+test('verifyChain rejects legacy hashes without preserved causer snapshot fields', function () {
+    $this->actingAs($this->user);
+
+    $log = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'authentication',
+        'description' => 'Legacy hash payload activity',
+        'causer_type' => User::class,
+        'causer_id' => $this->user->id,
+    ]);
+
+    $log->refresh();
+
+    DB::table('activity_log')
+        ->where('id', $log->id)
+        ->update([
+            'causer_employee_id' => null,
+            'causer_employee_organizational_unit_id' => null,
+            'causer_employee_management_level' => null,
+            'event_hash' => hash('sha256', ($log->previous_hash ?? '').json_encode([
+                'tenant_id' => $log->tenant_id,
+                'log_name' => $log->log_name,
+                'description' => $log->description,
+                'subject_type' => $log->subject_type,
+                'subject_id' => $log->subject_id,
+                'causer_type' => $log->causer_type,
+                'causer_id' => $log->causer_id,
+                'event' => $log->event,
+                'attribute_changes' => $log->attribute_changes,
+                'properties' => $log->properties,
+                'created_at' => $log->created_at?->toIso8601String(),
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+    expect($log->fresh()?->verifyChain())->toBeFalse();
+});
+
 // ============================================================================
 // Retention Period Tests
 // ============================================================================

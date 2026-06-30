@@ -162,6 +162,32 @@ class ActivityLogController extends Controller
      */
     protected function applyScopedFiltering($query, $user)
     {
+        $canReadSystemActivities = $user->can('activity_log.read_system');
+
+        if (! $canReadSystemActivities) {
+            $query->where(function ($visibleActivityQuery) use ($user) {
+                $visibleActivityQuery->where(function ($nonUserQuery) {
+                    $nonUserQuery->where('causer_type', '!=', User::class)
+                        ->orWhereNull('causer_type');
+                })->orWhere(function ($employeeBackedUserQuery) {
+                    $employeeBackedUserQuery->where('causer_type', User::class)
+                        ->whereNotNull('causer_id')
+                        ->where(function ($employeeContextQuery) {
+                            $employeeContextQuery->whereNotNull('causer_employee_id')
+                                ->orWhereExists(function ($employeeCheckQuery): void {
+                                    /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
+                                    $employeeCheckQuery->select(DB::raw(1))
+                                        ->from('employees')
+                                        ->whereColumn('employees.user_id', 'activity_log.causer_id');
+                                });
+                        });
+                })->orWhere(function ($ownPrivilegedActivityQuery) use ($user) {
+                    $ownPrivilegedActivityQuery->where('causer_type', User::class)
+                        ->where('causer_id', $user->id);
+                });
+            });
+        }
+
         // Get user's organizational scopes
         $scopes = $user->organizationalScopes()->get();
 
@@ -186,8 +212,6 @@ class ActivityLogController extends Controller
                 'max' => $scope->max_viewable_rank,
             ];
         }
-
-        $canReadSystemActivities = $user->can('activity_log.read_system');
 
         // Apply filtering: activities in accessible organizational units only
         $query->whereIn('organizational_unit_id', $accessibleUnitIds);

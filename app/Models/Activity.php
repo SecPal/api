@@ -576,26 +576,24 @@ class Activity extends SpatieActivity
 
             $this->previous_hash = $previousLog?->event_hash;
 
-            // Calculate event hash: SHA256(previous_hash + log_data)
-            try {
-                $logData = json_encode([
-                    'tenant_id' => $this->tenant_id,
-                    'log_name' => $this->log_name,
-                    'description' => $this->description,
-                    'subject_type' => $this->subject_type,
-                    'subject_id' => $this->subject_id,
-                    'causer_type' => $this->causer_type,
-                    'causer_id' => $this->causer_id,
-                    'event' => $this->event,
-                    'attribute_changes' => $this->attribute_changes,
-                    'properties' => $this->properties,
-                    'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
-                ], JSON_THROW_ON_ERROR);
+            $logData = self::buildHashPayload([
+                'tenant_id' => $this->tenant_id,
+                'log_name' => $this->log_name,
+                'description' => $this->description,
+                'subject_type' => $this->subject_type,
+                'subject_id' => $this->subject_id,
+                'causer_type' => $this->causer_type,
+                'causer_id' => $this->causer_id,
+                'causer_employee_id' => $this->causer_employee_id,
+                'causer_employee_organizational_unit_id' => $this->causer_employee_organizational_unit_id,
+                'causer_employee_management_level' => $this->causer_employee_management_level,
+                'event' => $this->event,
+                'attribute_changes' => $this->attribute_changes,
+                'properties' => $this->properties,
+                'created_at' => $this->created_at->toIso8601String(),
+            ]);
 
-                $this->event_hash = hash('sha256', ($this->previous_hash ?? '').$logData);
-            } catch (\JsonException $exception) {
-                throw new \RuntimeException('Failed to encode activity log data for hashing.', 0, $exception);
-            }
+            $this->event_hash = hash('sha256', ($this->previous_hash ?? '').$logData);
         });
     }
 

@@ -110,6 +110,51 @@ describe('GET /v1/activity-logs', function () {
         expect($response->json('data')[0]['log_name'])->toBe('authentication');
     });
 
+    test('excludes global privileged-user activities without read_system permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $systemUser = User::factory()->create(['tenant_id' => $tenant->id]);
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'causer_type' => User::class,
+            'causer_id' => $systemUser->id,
+            'log_name' => 'authentication',
+            'description' => 'Privileged global activity',
+        ]);
+
+        $response = getJson('/v1/activity-logs');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(0);
+    });
+
+    test('keeps own global privileged-user activities visible without read_system permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'causer_type' => User::class,
+            'causer_id' => $user->id,
+            'log_name' => 'authentication',
+            'description' => 'Own privileged global activity',
+        ]);
+
+        $response = getJson('/v1/activity-logs');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(1)
+            ->and($response->json('data.0.description'))->toBe('Own privileged global activity');
+    });
+
     test('returns activities from accessible organizational units', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
@@ -705,6 +750,48 @@ describe('GET /v1/activity-logs/{activity}', function () {
 
         expect($response->json('data.id'))->toBe($activity->id);
         expect($response->json('data.log_name'))->toBe('authentication');
+    });
+
+    test('returns 403 for global privileged-user activity without read_system permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $systemUser = User::factory()->create(['tenant_id' => $tenant->id]);
+
+        $activity = Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'causer_type' => User::class,
+            'causer_id' => $systemUser->id,
+            'log_name' => 'authentication',
+            'description' => 'Privileged global detail activity',
+        ]);
+
+        getJson("/v1/activity-logs/{$activity->id}")
+            ->assertForbidden();
+    });
+
+    test('returns own global privileged-user activity without read_system permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $activity = Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'causer_type' => User::class,
+            'causer_id' => $user->id,
+            'log_name' => 'authentication',
+            'description' => 'Own privileged global detail activity',
+        ]);
+
+        getJson("/v1/activity-logs/{$activity->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $activity->id)
+            ->assertJsonPath('data.description', 'Own privileged global detail activity');
     });
 
     test('returns activity from accessible organizational unit', function (): void {
