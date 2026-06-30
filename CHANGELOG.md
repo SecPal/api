@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- captured dedicated activity causer employee snapshot columns when activity rows are created, so historical activity-log scope authorization keeps the original organizational-unit and management-level context after later employee deprovisioning
 - stabilized the serial customer/site/employee number concurrency regressions and the web-push delivery fixture clock handling so full preflight and the complete Pest suite no longer deadlock or fail from stale hard-coded delivery expiry timestamps
 - moved the bootstrap environment file-name override test probe out of `tests/Unit/TestCaseBootstrapEnvironmentFileTest.php` file scope into a PSR-4 compliant `Tests\Support\...` helper so `composer install` / optimized autoload generation no longer emits a `Class TestCaseBootstrapEnvironmentFileNameOverrideProbe ... does not comply with psr-4 autoloading standard` warning during development and CI bootstrap
 - isolated local API test bootstrap from deployment-oriented `.env` drift by generating a dedicated test-only env file for `php artisan test`, ignoring repository `BOOTSTRAP_*` deployment flags during suite bootstrap-default assertions, and restricting intentional local env passthrough to PostgreSQL connection keys (`DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`) while providing a deterministic test `APP_KEY` plus updated local test-environment documentation (refs `api#1148`)

@@ -381,6 +381,10 @@ class Activity extends SpatieActivity
             return;
         }
 
+        $this->causer_employee_id ??= $causerEmployee->id;
+        $this->causer_employee_organizational_unit_id ??= $causerEmployee->organizational_unit_id;
+        $this->causer_employee_management_level ??= $causerEmployee->management_level;
+
         $properties = $this->propertiesAsArray($this->properties);
 
         $this->properties = $properties + [
