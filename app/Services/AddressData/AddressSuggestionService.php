@@ -18,15 +18,11 @@ final class AddressSuggestionService
 {
     private const CACHE_TTL_SECONDS = 3600;
 
-    /** @deprecated Old keys cached full models and break after deploy (see activeImport). */
-    private const CACHE_PREFIX = 'address_data:active_import:';
-
     /** Cache integer import ids only; bump suffix if stored shape changes. */
     private const CACHE_PREFIX_IMPORT_ID = 'address_data:active_import_id:v1:';
 
     public function forgetActiveImportCache(string $countryCode = 'DE'): void
     {
-        Cache::forget(self::CACHE_PREFIX.$countryCode);
         Cache::forget(self::CACHE_PREFIX_IMPORT_ID.$countryCode);
     }
 

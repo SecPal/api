@@ -361,7 +361,7 @@ describe('SPA Session Login', function () {
             ]);
     });
 
-    test('legacy session logout alias remains available for existing spa clients', function () {
+    test('legacy session logout alias is no longer available', function () {
         $email = 'spa-legacy-logout-'.Str::uuid().'@secpal.dev';
 
         $user = User::factory()->create([
@@ -382,10 +382,10 @@ describe('SPA Session Login', function () {
 
         $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
-        ]))->postJson('/v1/auth/session/logout')->assertOk();
+        ]))->postJson('/v1/auth/session/logout')->assertNotFound();
 
         $user->refresh();
-        expect($user->remember_token)->toBeNull();
+        expect($user->remember_token)->not->toBeNull();
     });
 });
 
@@ -802,7 +802,7 @@ describe('Token Revocation', function () {
         $response->assertUnauthorized();
     });
 
-    test('legacy session logout alias rejects bearer-token clients', function () {
+    test('legacy session logout alias is no longer routed for bearer-token clients', function () {
         $user = User::factory()->create([
             'password' => bcrypt('password123'),
         ]);
@@ -811,7 +811,7 @@ describe('Token Revocation', function () {
 
         $this->withHeaders(['Authorization' => "Bearer {$token}"])
             ->postJson('/v1/auth/session/logout')
-            ->assertUnauthorized();
+            ->assertNotFound();
 
         // Token must still be intact — legacy alias must not revoke it
         expect($user->fresh()->tokens()->count())->toBe(1);

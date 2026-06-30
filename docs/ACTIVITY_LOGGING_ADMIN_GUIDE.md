@@ -137,7 +137,7 @@ It does not retain descriptions, change properties, subject identifiers, causer 
 
 - A `null` verification field does not automatically mean tampering. It can mean the relevant forensic step has not completed or no proof is available yet.
 - Orphaned genesis is an expected post-retention state, not necessarily corruption.
-- Documentation and operational examples should use `getRetentionYearsForLogType()` or `getAllRetentionYears()` terminology; the older `getRetentionYears()` helper is deprecated.
+- Documentation and operational examples should use `getRetentionYearsForLogType()` or `getAllRetentionYears()` terminology.
 - The source of truth for log-category retention is the `Activity` model, not outdated draft notes or old queue/command comments.
 
 ## Recommended Admin Checks

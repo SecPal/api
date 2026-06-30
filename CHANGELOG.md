@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** removed deprecated compatibility paths that the repo no longer actively uses: `POST /v1/auth/session/logout` is gone and `/v1/auth/logout` is now the only supported logout endpoint, onboarding token lookup no longer scans/backfills rows with `token_lookup_hash = null`, `Activity::getRetentionYears()` has been deleted in favor of `getRetentionYearsForLogType()` / `getAllRetentionYears()`, the obsolete address-data active-import cache prefix has been removed, and the repo docs/governance now consistently describe the project as operating under `0.x` with no guaranteed deprecation support window for obsolete API surfaces (refs `api#1199`, `api#1200`, `api#1201`, `api#1202`)
 - consolidated the self-scope authorization-expansion invariant into shared update-guard handling, removing the duplicate `UserInternalOrganizationalScope` helper and keeping the direct self-scope boundary checks in one place (refs `api#1190`)
 - replaced the remaining local `markdownlint-cli2` hook and preflight invocation with a pinned `markdownlint-cli@0.49.0` path so markdown governance follows the same CLI baseline as `SecPal/.github`
 - hardened the governance rollout in `quality.yml` by pinning shared reusable workflows to the current `.github` commit and keeping the provider-neutral AI-instructions validation path reproducible in CI

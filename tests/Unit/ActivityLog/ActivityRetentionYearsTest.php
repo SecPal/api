@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// SPDX-FileCopyrightText: 2025 SecPal <https://github.com/SecPal>
+// SPDX-FileCopyrightText: 2025-2026 SecPal <https://github.com/SecPal>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Activity;
@@ -72,6 +72,7 @@ test('retention years property has legal references', function (): void {
 test('get retention years methods exist and are static', function (): void {
     expect(method_exists(Activity::class, 'getRetentionYearsForLogType'))->toBeTrue();
     expect(method_exists(Activity::class, 'getAllRetentionYears'))->toBeTrue();
+    expect(method_exists(Activity::class, 'getRetentionYears'))->toBeFalse();
 
     $reflection = new ReflectionMethod(Activity::class, 'getRetentionYearsForLogType');
     expect($reflection->isStatic())->toBeTrue();

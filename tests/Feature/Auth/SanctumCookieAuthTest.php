@@ -447,7 +447,7 @@ describe('SPA Session-Based Logout', function () {
             ]);
     });
 
-    test('legacy session logout alias still works', function () {
+    test('legacy session logout alias is not available for spa logout', function () {
         User::factory()->create([
             'email' => 'logout@example.com',
             'password' => Hash::make('password123'),
@@ -465,10 +465,7 @@ describe('SPA Session-Based Logout', function () {
         $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => $logoutCsrfToken,
         ]))->postJson('/v1/auth/session/logout')
-            ->assertOk()
-            ->assertJson([
-                'message' => 'Logged out successfully',
-            ]);
+            ->assertNotFound();
     });
 
     test('session logout requires authentication', function () {
@@ -503,7 +500,8 @@ describe('SPA Session-Based Logout', function () {
         $logoutCsrfToken = issueSpaCsrfToken($this);
         $this->withHeaders(spaHeaders([
             'X-XSRF-TOKEN' => $logoutCsrfToken,
-        ]))->postJson('/v1/auth/session/logout');
+        ]))->postJson('/v1/auth/session/logout')
+            ->assertNotFound();
 
         // Token should still be valid
         expect($user->fresh()->tokens()->count())->toBe(1);

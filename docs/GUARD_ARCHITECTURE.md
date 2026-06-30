@@ -1,11 +1,11 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
 # Guard Architecture in SecPal
 
-This document explains Laravel's Guard concept, SecPal's architectural decision to use the `sanctum` guard exclusively, and best practices for developers.
+This document explains Laravel's Guard concept, SecPal's `web` + Sanctum authentication architecture, and best practices for developers.
 
 ## Table of Contents
 
@@ -33,9 +33,8 @@ In Laravel, a **Guard** is an authentication mechanism that defines **HOW** user
 
 **Example Use Cases:**
 
-- `web` guard: Traditional web apps with server-rendered views (session-based)
-- `sanctum` guard: SPAs and mobile apps (token-based)
-- `api` guard: Legacy token authentication (token in database)
+- `web` guard: Session-based browser authentication
+- `sanctum` guard: SPAs, mobile apps, and authenticated API calls
 
 ---
 
@@ -68,14 +67,14 @@ if (Auth::guard('web')->check()) {
 }
 ```
 
-### `sanctum` Guard (Token-Based)
+### `sanctum` Guard
 
 **Characteristics:**
 
-- Token-based authentication
-- Stateless (no server sessions)
-- Bearer token in `Authorization` header
-- Token stored client-side (localStorage, sessionStorage)
+- Supports Bearer-token authentication for API clients
+- Cooperates with Sanctum's stateful SPA mode for first-party browser requests
+- Bearer tokens use the `Authorization` header
+- Personal access tokens are hashed in storage
 
 **Typical Use Case:**
 
@@ -99,21 +98,13 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 ```
 
-### `api` Guard (Legacy Token)
-
-**Characteristics:**
-
-- Token-based (similar to Sanctum)
-- Tokens stored in database (not hashed)
-- Legacy approach (predates Sanctum)
-
-**Note:** SecPal does NOT use this guard. Sanctum is the modern replacement.
-
----
-
 ## SecPal's Architecture Decision
 
-**Decision:** SecPal uses the **`sanctum` guard exclusively** for all authentication and permissions.
+**Decision:** SecPal uses **Laravel Sanctum plus the `web` guard** for authentication:
+
+- first-party browser SPA requests authenticate through Sanctum's stateful mode on top of the `web` guard
+- API clients authenticate through Sanctum Bearer tokens
+- authorization and API route protection are standardized on `auth:sanctum`
 
 ### Architecture Overview
 
@@ -123,15 +114,15 @@ Route::middleware('auth:sanctum')->group(function () {
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                   │
 │  Frontend (React PWA)                                            │
-│  ├─ Token stored in localStorage                                │
-│  ├─ All API requests include: Authorization: Bearer {token}     │
-│  └─ Stateless (no cookies)                                      │
+│  ├─ Browser SPA requests use Sanctum CSRF + session cookies     │
+│  ├─ Native/API clients use Authorization: Bearer {token}        │
+│  └─ Auth mode depends on the caller context                     │
 │                                                                   │
 │  Backend (Laravel API)                                           │
-│  ├─ Pure API (no server-rendered views)                         │
-│  ├─ All routes protected with auth:sanctum middleware           │
-│  ├─ Stateless authentication via Bearer tokens                  │
-│  └─ No session storage                                          │
+│  ├─ API routes protected with auth:sanctum middleware           │
+│  ├─ `web` guard backs first-party browser sessions              │
+│  ├─ `sanctum` guard backs Bearer-token clients                  │
+│  └─ Both modes share the same authenticated API surface         │
 │                                                                   │
 │  Database                                                        │
 │  ├─ Permissions: guard_name='sanctum'                           │
@@ -143,20 +134,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
 ### Why Sanctum?
 
-1. **API-Only Architecture**: SecPal is a pure API with a separate React frontend
-2. **Stateless**: No server-side sessions needed (scales horizontally)
-3. **Mobile-Ready**: Same authentication mechanism works for future mobile apps
-4. **Modern Best Practice**: Sanctum is Laravel's recommended approach for SPAs
-5. **Security**: Tokens are hashed in database, secure token generation
+1. **Unified API surface**: `auth:sanctum` protects both browser and token clients
+2. **First-party SPA support**: Sanctum provides CSRF-protected session auth for the browser app
+3. **Mobile-ready**: The same backend also supports native and CLI Bearer-token clients
+4. **Modern Laravel path**: Sanctum is the intended auth layer for this mixed SPA/API setup
+5. **Security**: Personal access tokens are hashed in storage and session auth remains cookie-scoped
 
-### Why NOT `web` Guard?
+### Why the `web` Guard Still Exists
 
-- SecPal has **no server-rendered views** (no Blade templates)
-- **No cookies** used for authentication (only Bearer tokens)
-- **No sessions** stored on server (stateless architecture)
-- `web` guard would be semantically incorrect and misleading
-
-**Exception:** The `web` guard is configured but **only** used for Laravel's password reset email verification flow (which is stateless and token-based).
+- SecPal does not use the `web` guard for server-rendered app pages, but it does use it for first-party SPA session authentication.
+- Sanctum's stateful browser mode depends on the `web` guard and Laravel sessions.
+- Password reset and related browser-account flows also rely on the same foundation.
 
 ---
 

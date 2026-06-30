@@ -193,11 +193,12 @@ function runConcurrentJsonPosts(
                     xdebug_stop_code_coverage(false);
                 }
 
-                DB::disconnect();
+                DB::purge();
+                DB::reconnect();
                 app(PermissionRegistrar::class)->forgetCachedPermissions();
 
                 while (trim((string) file_get_contents($startSignalPath)) !== 'go') {
-                    usleep(10_000);
+                    usleep(100_000);
                 }
 
                 $response = $testCase->withToken($testCase->token)

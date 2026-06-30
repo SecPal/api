@@ -18,8 +18,7 @@ SecPal API uses **Laravel Sanctum** for authentication, supporting two modes:
 - `POST /v1/auth/token` is the stateless Bearer-token login endpoint for Android, native, CLI, and other API clients, and issued tokens are scoped to the `api-access` Sanctum ability.
 - `POST /v1/auth/logout` is the canonical logout endpoint for both authenticated modes.
 - `GET /v1/me` is the canonical self-service endpoint for the authenticated caller.
-- `POST /v1/auth/session/logout` remains available only as a deprecated compatibility alias for older SPA clients.
-- `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile` are intentionally unsupported and return `404 Not Found`.
+- `POST /v1/auth/session/logout`, `GET /v1/auth/me`, `GET /v1/user`, `GET /v1/user/profile`, and `GET /v1/profile` are intentionally unsupported and return `404 Not Found`.
 
 All `auth:sanctum` protected API routes also require the `api-access` ability for Bearer tokens. First-party SPA session requests continue to work because Sanctum treats them as transient first-party requests rather than personal access token calls.
 
@@ -42,7 +41,6 @@ The `400` vs `422` distinction is intentional and should remain stable:
 
 - If Sanctum authenticated the request via a personal access token, logout revokes only the current token.
 - If Sanctum authenticated the request via the SPA session, logout invalidates the browser session and clears remember-me state.
-- `POST /v1/auth/session/logout` delegates to the same session logout logic and exists only for backward compatibility.
 
 ### Mixed Requests
 
@@ -168,7 +166,7 @@ Content-Type: application/json
 }
 ```
 
-> **Note:** `/v1/auth/logout` is the canonical logout endpoint for both SPA session auth and Bearer-token auth. `/v1/auth/session/logout` remains available only as a legacy compatibility alias for older SPA clients and should not be used by new clients.
+> **Note:** `/v1/auth/logout` is the sole supported logout endpoint for both SPA session auth and Bearer-token auth.
 
 For future maintenance, keep the canonical logout semantics aligned with the resolved auth context. A browser request that merely carries an extra `Authorization` header must not be treated as a token logout.
 
