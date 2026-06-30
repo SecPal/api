@@ -9,7 +9,9 @@ use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
+use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\EmployeeLifecycleService;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -163,9 +165,69 @@ describe('SPA Session Login', function () {
             ->assertJsonValidationErrors(['email']);
     });
 
+    test('primary authentication fails after employee deletion deprovisions a retained shared user account', function (): void {
+        incrementTestKekCounter();
+        TenantKey::setKekPath(getTestKekPath());
+        TenantKey::generateKek();
+
+        try {
+            $keys = TenantKey::generateEnvelopeKeys();
+            $tenant = TenantKey::create($keys);
+
+            $user = User::factory()->create([
+                'email' => 'retained-shared-user@secpal.dev',
+                'password' => bcrypt('SharedLegacyPassword123!'),
+                'tenant_id' => $tenant->id,
+            ]);
+
+            $orgUnit = OrganizationalUnit::factory()->create([
+                'tenant_id' => $tenant->id,
+            ]);
+
+            $deletedEmployee = Employee::factory()->create([
+                'tenant_id' => $tenant->id,
+                'organizational_unit_id' => $orgUnit->id,
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'user_id' => $user->id,
+                'user_account_active' => true,
+            ]);
+
+            $trashedEmployee = Employee::factory()->create([
+                'tenant_id' => $tenant->id,
+                'organizational_unit_id' => $orgUnit->id,
+                'status' => Employee::STATUS_TERMINATED,
+                'user_id' => $user->id,
+                'user_account_active' => false,
+            ]);
+            $trashedEmployee->delete();
+
+            app(EmployeeLifecycleService::class)->delete($deletedEmployee);
+
+            clearLoginRateLimiter('retained-shared-user@secpal.dev');
+
+            $this->withHeaders(spaHeaders([
+                'X-XSRF-TOKEN' => issueSpaCsrfToken($this),
+            ]))->postJson('/v1/auth/login', [
+                'email' => 'retained-shared-user@secpal.dev',
+                'password' => 'SharedLegacyPassword123!',
+            ])->assertUnprocessable()
+                ->assertJsonValidationErrors(['email']);
+
+            $this->postJson('/v1/auth/token', [
+                'email' => 'retained-shared-user@secpal.dev',
+                'password' => 'SharedLegacyPassword123!',
+                'device_name' => 'integration-test-device',
+            ])->assertUnprocessable()
+                ->assertJsonValidationErrors(['email']);
+        } finally {
+            cleanupTestKekFile();
+            TenantKey::setKekPath(null);
+        }
+    });
+
     test('spa failed login logs real user tenant instead of client supplied tenant', function () {
-        $actualTenant = App\Models\TenantKey::factory()->create();
-        $spoofedTenant = App\Models\TenantKey::factory()->create();
+        $actualTenant = TenantKey::factory()->create();
+        $spoofedTenant = TenantKey::factory()->create();
         $email = 'spa-tenant-log-'.Str::uuid().'@secpal.dev';
 
         User::factory()->create([
@@ -393,8 +455,8 @@ describe('Auth Token Generation', function () {
         // falls back to TenantKey::orderBy('id')->first() for unknown emails, so this
         // tenant must be the one attributed in the audit log regardless of which tenant
         // the client supplied.
-        $lowestIdTenant = App\Models\TenantKey::factory()->create();
-        $spoofedTenant = App\Models\TenantKey::factory()->create();
+        $lowestIdTenant = TenantKey::factory()->create();
+        $spoofedTenant = TenantKey::factory()->create();
         $email = 'unknown-token-tenant-log-'.Str::uuid().'@secpal.dev';
 
         $response = $this->postJson('/v1/auth/token?tenant_id='.$spoofedTenant->id, [
@@ -1867,7 +1929,7 @@ describe('Organizational Scopes Authorization', function () {
     });
 
     test('hasOrganizationalScopes is true when user has scopes', function () {
-        $tenant = App\Models\TenantKey::factory()->create();
+        $tenant = TenantKey::factory()->create();
         $orgUnit = OrganizationalUnit::factory()->create([
             'tenant_id' => $tenant->id,
         ]);
@@ -1904,7 +1966,7 @@ describe('Organizational Scopes Authorization', function () {
     });
 
     test('hasCustomerAccess and hasSiteAccess are true when user has scoped customer-site access', function () {
-        $tenant = App\Models\TenantKey::factory()->create();
+        $tenant = TenantKey::factory()->create();
         $orgUnit = OrganizationalUnit::factory()->create([
             'tenant_id' => $tenant->id,
         ]);
@@ -1955,19 +2017,19 @@ describe('Organizational Scopes Authorization', function () {
 describe('Tenant-Scoped Roles And Permissions In Authorization Data', function () {
     beforeEach(function (): void {
         incrementTestKekCounter();
-        App\Models\TenantKey::setKekPath(getTestKekPath());
-        App\Models\TenantKey::generateKek();
+        TenantKey::setKekPath(getTestKekPath());
+        TenantKey::generateKek();
     });
 
     afterEach(function (): void {
         cleanupTestKekFile();
-        App\Models\TenantKey::setKekPath(null);
+        TenantKey::setKekPath(null);
     });
 
     test('me endpoint returns tenant-scoped roles and permissions', function () {
         // Create tenant
-        $keys = App\Models\TenantKey::generateEnvelopeKeys();
-        $tenant = App\Models\TenantKey::create($keys);
+        $keys = TenantKey::generateEnvelopeKeys();
+        $tenant = TenantKey::create($keys);
 
         // Set tenant context and seed roles/permissions
         $registrar = app(Spatie\Permission\PermissionRegistrar::class);
@@ -1999,8 +2061,8 @@ describe('Tenant-Scoped Roles And Permissions In Authorization Data', function (
 
     test('login response returns tenant-scoped roles and permissions', function () {
         // Create tenant
-        $keys = App\Models\TenantKey::generateEnvelopeKeys();
-        $tenant = App\Models\TenantKey::create($keys);
+        $keys = TenantKey::generateEnvelopeKeys();
+        $tenant = TenantKey::create($keys);
 
         // Set tenant context and seed roles/permissions
         $registrar = app(Spatie\Permission\PermissionRegistrar::class);

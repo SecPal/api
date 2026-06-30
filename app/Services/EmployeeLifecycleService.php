@@ -11,8 +11,10 @@ use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
@@ -511,7 +513,12 @@ class EmployeeLifecycleService
         }
 
         $user->forceFill([
+            'name' => 'Deleted User',
+            'email' => 'deleted-user+'.$user->id.'@secpal.dev',
+            'email_verified_at' => null,
+            'password' => Hash::make(Str::random(64)),
             'remember_token' => null,
+            'preferred_locale' => null,
         ])->save();
     }
 

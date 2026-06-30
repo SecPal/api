@@ -615,6 +615,8 @@ test('employee lifecycle service keeps a user account when another employee stil
 test('employee lifecycle service deprovisions a shared user when only trashed employees still reference it', function (): void {
     $linkedUser = User::factory()->create([
         'tenant_id' => $this->tenant->id,
+        'email' => 'legacy-shared-user@secpal.dev',
+        'password' => bcrypt('SharedLegacyPassword123!'),
         'remember_token' => 'remember-me',
     ]);
 
@@ -658,7 +660,10 @@ test('employee lifecycle service deprovisions a shared user when only trashed em
         ->and(DB::table('sessions')->where('user_id', $linkedUser->id)->count())->toBe(0)
         ->and(DB::table('model_has_roles')->where('model_id', $linkedUser->id)->count())->toBe(0)
         ->and(DB::table('model_has_permissions')->where('model_id', $linkedUser->id)->count())->toBe(0)
-        ->and(User::query()->findOrFail($linkedUser->id)->remember_token)->toBeNull();
+        ->and(User::query()->findOrFail($linkedUser->id)->remember_token)->toBeNull()
+        ->and(User::query()->findOrFail($linkedUser->id)->email)->toBe('deleted-user+'.$linkedUser->id.'@secpal.dev')
+        ->and(User::query()->findOrFail($linkedUser->id)->email_verified_at)->toBeNull()
+        ->and(Hash::check('SharedLegacyPassword123!', User::query()->findOrFail($linkedUser->id)->password))->toBeFalse();
 });
 
 test('employee lifecycle service cancels future assignments when deleting a linked user', function (): void {
