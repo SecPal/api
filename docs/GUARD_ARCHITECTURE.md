@@ -5,7 +5,7 @@ SPDX-License-Identifier: CC0-1.0
 
 # Guard Architecture in SecPal
 
-This document explains Laravel's Guard concept, SecPal's architectural decision to use the `sanctum` guard exclusively, and best practices for developers.
+This document explains Laravel's Guard concept, SecPal's `web` + Sanctum authentication architecture, and best practices for developers.
 
 ## Table of Contents
 
