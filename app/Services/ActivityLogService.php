@@ -63,7 +63,7 @@ class ActivityLogService
      * Logs to organizational unit based on email:
      * - If email belongs to an employee: use employee's organizational_unit_id
      * - If email belongs to a user: use user's primary organizational_unit_id
-     * - If email unknown: organizational_unit_id = NULL (global, only visible to admins without scopes)
+     * - If email unknown: organizational_unit_id = NULL (global, only visible to users without organizational scopes who can review tenant-wide activity)
      *
      * Properties logged:
      * - user_exists: true if a User account exists for this email
@@ -122,7 +122,7 @@ class ActivityLogService
                 $organizationalUnitId = $employee->organizational_unit_id;
                 $targetTenantId = $employee->tenant_id;
             }
-            // else: unknown email (no user, no employee) - remains NULL (global, only visible to admins without scopes)
+            // else: unknown email (no user, no employee) - remains NULL (global, only visible to users without organizational scopes who can review tenant-wide activity)
         }
 
         // Create Activity manually to set tenant_id and organizational_unit_id BEFORE saving

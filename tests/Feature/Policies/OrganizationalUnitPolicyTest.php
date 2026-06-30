@@ -83,6 +83,28 @@ describe('OrganizationalUnitPolicy', function () {
         });
     });
 
+    describe('createRoot', function () {
+        it('allows users with a manage scope to create root units', function (): void {
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->user->id,
+                'organizational_unit_id' => $this->branch->id,
+                'access_level' => 'manage',
+            ]);
+
+            expect($this->policy->createRoot($this->user))->toBeTrue();
+        });
+
+        it('denies users whose highest scope is below manage', function (): void {
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->user->id,
+                'organizational_unit_id' => $this->branch->id,
+                'access_level' => 'write',
+            ]);
+
+            expect($this->policy->createRoot($this->user))->toBeFalse();
+        });
+    });
+
     describe('view', function () {
         it('allows viewing directly scoped unit with read access', function (): void {
             UserInternalOrganizationalScope::create([

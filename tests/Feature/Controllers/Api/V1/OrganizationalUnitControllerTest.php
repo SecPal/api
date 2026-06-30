@@ -313,15 +313,72 @@ describe('OrganizationalUnitController - Create', function () {
             ->assertJsonValidationErrors(['type']);
     });
 
-    test('creator automatically receives manage scope on new root unit', function () {
-        // Arrange: Remove existing scopes so user has no access
+    test('create root organizational unit requires manage access on an existing unit', function () {
         $this->user->organizationalScopes()->delete();
 
-        // Give user a minimal scope on existing unit (to satisfy viewAny policy)
         UserInternalOrganizationalScope::create([
             'user_id' => $this->user->id,
             'organizational_unit_id' => $this->rootUnit->id,
             'access_level' => 'read',
+            'include_descendants' => false,
+        ]);
+
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Unauthorized Root Holding',
+            'type' => 'holding',
+        ]);
+
+        $response->assertForbidden();
+    });
+
+    test('create with non-existent parent UUID and sub-manage scope returns 403', function () {
+        $this->user->organizationalScopes()->delete();
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $this->rootUnit->id,
+            'access_level' => 'write',
+            'include_descendants' => false,
+        ]);
+
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Should Be Denied',
+            'type' => 'holding',
+            'parent_id' => '00000000-0000-0000-0000-000000000000',
+        ]);
+
+        $response->assertForbidden();
+    });
+
+    test('create with non-existent parent UUID and manage scope returns 422', function () {
+        $this->user->organizationalScopes()->delete();
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $this->rootUnit->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+        ]);
+
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Should Fail Validation',
+            'type' => 'holding',
+            'parent_id' => '00000000-0000-0000-0000-000000000000',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['parent_id']);
+    });
+
+    test('creator automatically receives manage scope on new root unit', function () {
+        // Arrange: Remove existing scopes so user has no access
+        $this->user->organizationalScopes()->delete();
+
+        // Give user a manage scope on an existing unit so root creation is authorized
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $this->rootUnit->id,
+            'access_level' => 'manage',
             'include_descendants' => false,
         ]);
 
@@ -350,11 +407,11 @@ describe('OrganizationalUnitController - Create', function () {
         // Arrange: Remove existing scopes so user has no access
         $this->user->organizationalScopes()->delete();
 
-        // Give user a minimal scope on existing unit (to satisfy viewAny policy)
+        // Give user a manage scope on an existing unit so root creation is authorized
         UserInternalOrganizationalScope::create([
             'user_id' => $this->user->id,
             'organizational_unit_id' => $this->rootUnit->id,
-            'access_level' => 'read',
+            'access_level' => 'manage',
             'include_descendants' => false,
         ]);
 
@@ -1359,7 +1416,7 @@ describe('OrganizationalUnitController - Hierarchy', function () {
 
         // Assert: Operation should be forbidden
         $response->assertForbidden();
-        $response->assertJsonPath('message', 'Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact an administrator to get direct access to this unit first.');
+        $response->assertJsonPath('message', 'Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact someone with organizational scope management access to grant direct access to this unit first.');
 
         // Verify the closure table entry is still there (parent not detached)
         $this->assertDatabaseHas('organizational_unit_closures', [
@@ -1372,6 +1429,18 @@ describe('OrganizationalUnitController - Hierarchy', function () {
         $this->user->refresh();
         $child->refresh();
         expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+    });
+
+    test('german gettext catalog replaces legacy root-unit administrator wording', function () {
+        $catalog = file_get_contents(lang_path('de/LC_MESSAGES/messages.po'));
+
+        expect($catalog)->toContain(
+            'msgid "Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact someone with organizational scope management access to grant direct access to this unit first."'
+        )->toContain(
+            'msgstr "Diese Einheit kann nicht zu einer Stammeinheit gemacht werden. Ihr Zugriff auf diese Einheit wird von der übergeordneten Hierarchie geerbt. Wenn Sie diese Einheit zur Stammeinheit machen, wird Ihr Zugriff aufgehoben. Bitte wenden Sie sich zunächst an eine Person mit Berechtigung zur Verwaltung organisatorischer Geltungsbereiche, um direkten Zugriff auf diese Einheit zu erhalten."'
+        )->not->toContain(
+            'Bitte wenden Sie sich zunächst an einen Administrator'
+        );
     });
 
     test('deleting a parent preserves closure access to trashed descendants', function () {

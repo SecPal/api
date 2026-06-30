@@ -35,6 +35,18 @@ class OrganizationalUnitPolicy
     }
 
     /**
+     * Determine whether the user can create a new root organizational unit.
+     *
+     * Requires at least one organizational scope with 'manage' access.
+     */
+    public function createRoot(User $user): bool
+    {
+        return $user->organizationalScopes()
+            ->where('access_level', 'manage')
+            ->exists();
+    }
+
+    /**
      * Determine whether the user can view the organizational unit.
      *
      * Requires at least 'read' access level on the unit or an ancestor.

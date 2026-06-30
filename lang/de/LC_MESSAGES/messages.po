@@ -259,8 +259,8 @@ msgid "Delete or move child units first"
 msgstr "Löschen oder verschieben Sie zuerst die untergeordneten Einheiten"
 
 #: /app/Http/Controllers/Api/V1/OrganizationalUnitController.php:334
-msgid "Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact an administrator to get direct access to this unit first."
-msgstr "Diese Einheit kann nicht zu einer Stammeinheit gemacht werden. Ihr Zugriff auf diese Einheit wird von der übergeordneten Hierarchie geerbt. Wenn Sie diese Einheit zur Stammeinheit machen, wird Ihr Zugriff aufgehoben. Bitte wenden Sie sich zunächst an einen Administrator, um direkten Zugriff auf diese Einheit zu erhalten."
+msgid "Cannot make this unit a root unit. Your access to this unit is inherited from the parent hierarchy. Making it a root unit would remove your access. Please contact someone with organizational scope management access to grant direct access to this unit first."
+msgstr "Diese Einheit kann nicht zu einer Stammeinheit gemacht werden. Ihr Zugriff auf diese Einheit wird von der übergeordneten Hierarchie geerbt. Wenn Sie diese Einheit zur Stammeinheit machen, wird Ihr Zugriff aufgehoben. Bitte wenden Sie sich zunächst an eine Person mit Berechtigung zur Verwaltung organisatorischer Geltungsbereiche, um direkten Zugriff auf diese Einheit zu erhalten."
 
 #: /app/Http/Controllers/Api/V1/PermissionManagementController.php:144
 msgid "Cannot delete permission while assigned to roles"
