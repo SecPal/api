@@ -122,6 +122,7 @@ test('it revokes pending android enrollment sessions and deletes push registrati
     Carbon::setTestNow(Carbon::parse('2026-06-30 12:00:00 UTC'));
 
     $tenant = TenantKey::factory()->create();
+    $otherTenant = TenantKey::factory()->create();
     $user = User::factory()->create([
         'tenant_id' => $tenant->id,
         'email' => 'android.cleanup@secpal.dev',
@@ -142,6 +143,15 @@ test('it revokes pending android enrollment sessions and deletes push registrati
         'tenant_id' => $tenant->id,
         'created_by' => $user->id,
         'bootstrap_token_expires_at' => now()->addMinutes(30),
+        'exchanged_at' => null,
+        'revoked_at' => null,
+        'revocation_reason' => null,
+    ]);
+
+    $otherTenantSession = AndroidEnrollmentSession::factory()->create([
+        'tenant_id' => $otherTenant->id,
+        'created_by' => $user->id,
+        'bootstrap_token_expires_at' => now()->addMinutes(45),
         'exchanged_at' => null,
         'revoked_at' => null,
         'revocation_reason' => null,
@@ -172,13 +182,48 @@ test('it revokes pending android enrollment sessions and deletes push registrati
         'updated_at' => now(),
     ]);
 
+    DB::table('push_device_registrations')->insert([
+        'id' => (string) Str::uuid(),
+        'tenant_id' => $otherTenant->id,
+        'user_id' => $user->id,
+        'installation_id' => (string) Str::uuid(),
+        'platform' => 'android',
+        'provider' => 'fcm',
+        'device_name' => 'Other tenant handheld',
+        'push_token_enc' => '{"ciphertext":"demo-other","nonce":"demo-other"}',
+        'token_last_eight' => '76543210',
+        'last_lifecycle_event' => 'registered',
+        'package_name' => 'app.secpal',
+        'package_version_name' => '1.5.0',
+        'package_version_code' => 10500,
+        'manufacturer' => 'Samsung',
+        'model' => 'SM-X200',
+        'android_version' => '16',
+        'sdk_int' => 36,
+        'bootstrap_version' => 'v1',
+        'schema_version' => 3,
+        'push_metadata_revision' => 3,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
     $this->artisan('employees:delete-expired')->assertSuccessful();
 
     $session->refresh();
+    $otherTenantSession->refresh();
 
-    expect(DB::table('push_device_registrations')->where('user_id', $user->id)->exists())->toBeFalse()
+    expect(DB::table('push_device_registrations')
+        ->where('tenant_id', $tenant->id)
+        ->where('user_id', $user->id)
+        ->exists())->toBeFalse()
+        ->and(DB::table('push_device_registrations')
+            ->where('tenant_id', $otherTenant->id)
+            ->where('user_id', $user->id)
+            ->exists())->toBeTrue()
         ->and($session->revoked_at?->toIso8601String())->toBe('2026-06-30T12:00:00+00:00')
-        ->and($session->revocation_reason)->toBe('User account anonymized during employee retention deletion.');
+        ->and($session->revocation_reason)->toBe('User account anonymized during employee retention deletion.')
+        ->and($otherTenantSession->revoked_at)->toBeNull()
+        ->and($otherTenantSession->revocation_reason)->toBeNull();
 });
 
 test('it revokes already-expired unexchanged android enrollment sessions during anonymization', function (): void {

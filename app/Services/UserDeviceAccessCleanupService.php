@@ -15,12 +15,14 @@ class UserDeviceAccessCleanupService
     public function revokePendingAndroidEnrollmentSessionsAndDeletePushRegistrations(User $user, string $revocationReason): void
     {
         DB::table('push_device_registrations')
+            ->where('tenant_id', $user->tenant_id)
             ->where('user_id', $user->id)
             ->delete();
 
         $revokedAt = now();
 
         DB::table('android_enrollment_sessions')
+            ->where('tenant_id', $user->tenant_id)
             ->where('created_by', $user->id)
             ->whereNull('revoked_at')
             ->whereNull('exchanged_at')
