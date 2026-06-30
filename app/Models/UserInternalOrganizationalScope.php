@@ -186,38 +186,6 @@ class UserInternalOrganizationalScope extends Model
         );
     }
 
-    public function doesNotExpandAuthorizationComparedTo(self $currentScope): bool
-    {
-        return $this->getAccessLevelValue() <= $currentScope->getAccessLevelValue()
-            && (! $this->include_descendants || $currentScope->include_descendants)
-            && (! $this->allow_self_access || $currentScope->allow_self_access)
-            && $this->managementLevelRangeIsSubsetOf($currentScope, assignable: false)
-            && $this->managementLevelRangeIsSubsetOf($currentScope, assignable: true);
-    }
-
-    private function managementLevelRangeIsSubsetOf(self $currentScope, bool $assignable): bool
-    {
-        foreach (range(0, 255) as $managementLevel) {
-            $newScopeAllowsLevel = $assignable
-                ? $this->canAssignManagementLevel($managementLevel)
-                : $this->canViewManagementLevel($managementLevel);
-
-            if (! $newScopeAllowsLevel) {
-                continue;
-            }
-
-            $currentScopeAllowsLevel = $assignable
-                ? $currentScope->canAssignManagementLevel($managementLevel)
-                : $currentScope->canViewManagementLevel($managementLevel);
-
-            if (! $currentScopeAllowsLevel) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private function isWithinViewableManagementLevelRange(int $managementLevel, ?int $minimumLevel, ?int $maximumLevel): bool
     {
         if ($managementLevel === 0) {
