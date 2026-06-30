@@ -24,6 +24,8 @@ class EmployeeLifecycleService
 
     private const ON_LEAVE_ROLE_NAME = 'Employee Read Only';
 
+    public function __construct(private readonly ActivityCauserContextService $activityCauserContextService) {}
+
     /**
      * Activate a pre-contract employee and provision their runtime access atomically.
      */
@@ -259,6 +261,7 @@ class EmployeeLifecycleService
             ])->save();
 
             if ($user instanceof User) {
+                $this->activityCauserContextService->preserveForEmployee($employee, $user);
                 $employee->user()->dissociate();
                 $employee->saveQuietly();
                 $this->deprovisionUserAccount($user, $employee->tenant_id, deleteUser: true);

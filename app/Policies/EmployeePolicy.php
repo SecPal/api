@@ -160,6 +160,7 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
+            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -177,6 +178,7 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
+            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -204,6 +206,7 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
+            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -219,6 +222,7 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
+            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -236,6 +240,7 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
+            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -249,14 +254,21 @@ class EmployeePolicy
         string $minimumAccessLevel,
         bool $requireAssignableRank,
         bool $allowSelfAccessShortcut,
+        bool $allowUnassignedLifecycleCleanup = false,
     ): bool {
         if ($user->tenant_id !== $employee->tenant_id || ! $this->userHasAnyPermission($user, $permissions)) {
             return false;
         }
 
+        $organizationalUnit = $this->resolveOrganizationalUnitForAuthorization($employee);
+
+        if ($organizationalUnit === null) {
+            return $allowUnassignedLifecycleCleanup && $employee->organizational_unit_id === null;
+        }
+
         $scopes = $this->applicableScopes(
             $user,
-            $this->resolveOrganizationalUnitForAuthorization($employee),
+            $organizationalUnit,
             $minimumAccessLevel,
         );
 

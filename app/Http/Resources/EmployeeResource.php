@@ -198,8 +198,8 @@ class EmployeeResource extends JsonResource
             'management_level' => $this->management_level,
 
             // Relationships (optional, load when needed)
-            'user' => new UserResource($this->whenLoaded('user')),
-            'organizational_unit' => new OrganizationalUnitResource($this->whenLoaded('organizationalUnit')),
+            'user' => $this->whenLoaded('user', fn (): ?UserResource => $this->user === null ? null : new UserResource($this->user)),
+            'organizational_unit' => $this->whenLoaded('organizationalUnit', fn (): ?OrganizationalUnitResource => $this->organizationalUnit === null ? null : new OrganizationalUnitResource($this->organizationalUnit)),
             'qualifications' => EmployeeQualificationResource::collection($this->whenLoaded('employeeQualifications')),
             'documents' => EmployeeDocumentResource::collection($this->whenLoaded('documents')),
 

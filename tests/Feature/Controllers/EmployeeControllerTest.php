@@ -1087,6 +1087,28 @@ describe('GET /v1/employees/{employee}', function () {
             ]);
     });
 
+    test('renders an employee stranded in a soft-deleted organizational unit without crashing', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        grantDualManagementScopes($this->user, $unit->id);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $unit->id,
+            'management_level' => 3,
+        ]);
+
+        $unit->delete();
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$employee->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.organizational_unit_id', $unit->id)
+            ->assertJsonPath('data.organizational_unit', null);
+    });
+
     test('omits sensitive identifiers for managers without employees.read_sensitive', function (): void {
         giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
 
@@ -2311,6 +2333,22 @@ describe('DELETE /v1/employees/{employee}', function () {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->deleteJson("/v1/employees/{$employee->id}");
+
+        $response->assertNoContent();
+        expect(Employee::withTrashed()->find($employee->id)->deleted_at)->not->toBeNull();
+    });
+
+    test('deletes an employee without an organizational unit when tenant permission allows lifecycle cleanup', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => null,
+            'management_level' => 0,
         ]);
 
         $response = $this->withToken($this->token)

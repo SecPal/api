@@ -10,6 +10,7 @@ namespace App\Policies;
 use App\Models\Activity;
 use App\Models\Employee;
 use App\Models\User;
+use Illuminate\Contracts\Support\Arrayable;
 
 /**
  * Activity Policy
@@ -109,6 +110,18 @@ class ActivityPolicy
 
             // If employee not found in THIS org unit, check if they have an employee record ANYWHERE
             if ($causerEmployee === null) {
+                $preservedCauserRank = $this->preservedCauserRankForActivity($activity);
+
+                if ($preservedCauserRank !== null) {
+                    foreach ($scopes as $scope) {
+                        if ($this->isWithinViewableRankRange($preservedCauserRank, $scope->min_viewable_rank, $scope->max_viewable_rank)) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+
                 // Check if causer has employee record in ANY organizational unit
                 $hasEmployeeRecordAnywhere = Employee::where('user_id', $activity->causer_id)->exists();
 
@@ -143,6 +156,49 @@ class ActivityPolicy
         // Activity without User causer (system-generated or non-User causer)
         // Allow if user has scope for the organizational unit
         return true;
+    }
+
+    private function preservedCauserRankForActivity(Activity $activity): ?int
+    {
+        $properties = $this->activityPropertiesAsArray($activity->properties);
+
+        if (($properties['causer_employee_organizational_unit_id'] ?? null) !== $activity->organizational_unit_id) {
+            return null;
+        }
+
+        $rank = $properties['causer_employee_management_level'] ?? null;
+
+        if (! is_int($rank) && ! is_string($rank)) {
+            return null;
+        }
+
+        $validatedRank = filter_var($rank, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+
+        return $validatedRank === false ? null : $validatedRank;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function activityPropertiesAsArray(mixed $properties): array
+    {
+        if ($properties instanceof Arrayable) {
+            $properties = $properties->toArray();
+        }
+
+        if (! is_array($properties)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($properties as $key => $value) {
+            if (is_string($key)) {
+                $normalized[$key] = $value;
+            }
+        }
+
+        return $normalized;
     }
 
     /**
