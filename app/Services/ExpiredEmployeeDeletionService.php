@@ -20,6 +20,8 @@ use Illuminate\Support\Str;
 
 class ExpiredEmployeeDeletionService
 {
+    public function __construct(private readonly UserDeviceAccessCleanupService $userDeviceAccessCleanupService) {}
+
     /**
      * @return array{matched: int, deleted: int, users_anonymized: int, files_deleted: int}
      */
@@ -233,6 +235,11 @@ class ExpiredEmployeeDeletionService
 
     private function anonymizeLinkedUser(User $user): void
     {
+        $this->userDeviceAccessCleanupService->revokePendingAndroidEnrollmentSessionsAndDeletePushRegistrations(
+            $user,
+            'User account anonymized during employee retention deletion.',
+        );
+
         $raw = config('permission.table_names.model_has_roles', 'model_has_roles');
         $modelHasRolesTable = is_string($raw) ? $raw : 'model_has_roles';
         $raw = config('permission.table_names.model_has_permissions', 'model_has_permissions');
