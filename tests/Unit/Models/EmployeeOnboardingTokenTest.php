@@ -86,7 +86,7 @@ test('returns null for invalid plain token', function () {
     expect($found)->toBeNull();
 });
 
-test('finds legacy token without lookup hash and backfills it', function () {
+test('does not find legacy token rows without lookup hash', function () {
     $employee = Employee::factory()->preContract()->create();
     $plainToken = str_repeat('legacy-token-', 6);
 
@@ -99,12 +99,11 @@ test('finds legacy token without lookup hash and backfills it', function () {
 
     $found = EmployeeOnboardingToken::findByPlainToken($plainToken);
 
-    expect($found)->not->toBeNull()
-        ->and($found->id)->toBe($token->id);
+    expect($found)->toBeNull();
 
     $token->refresh();
 
-    expect($token->token_lookup_hash)->toBe(hash('sha256', $plainToken));
+    expect($token->token_lookup_hash)->toBeNull();
 });
 
 test('marks token as completed with audit trail', function () {

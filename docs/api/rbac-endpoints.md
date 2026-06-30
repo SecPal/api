@@ -950,9 +950,9 @@ API version is specified in the URL: `/v1/`
 
 **Current Version:** v1
 
-Breaking changes will be introduced in new versions (v2, v3, etc.). Non-breaking changes (new fields, new endpoints) may be added to existing versions.
+During `0.x`, breaking changes may be introduced directly in `v1` when they remove insecure, obsolete, or otherwise unsupported behavior. Non-breaking changes (new fields, new endpoints) may also be added to the existing version.
 
-**Deprecation Policy:** Deprecated endpoints will be supported for at least 6 months after deprecation notice.
+**Deprecation Policy:** Deprecated endpoints and compatibility shims are not guaranteed a support window during `0.x`; remove them once the canonical replacement is established and the repository no longer actively relies on them.
 
 ---
 

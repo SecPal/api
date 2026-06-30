@@ -32,6 +32,12 @@ test('active import returns null instead of throwing when address_data_imports t
     expect((new AddressSuggestionService)->activeImport('DE'))->toBeNull();
 });
 
+test('service no longer exposes the deprecated active import cache prefix constant', function (): void {
+    $constants = (new ReflectionClass(AddressSuggestionService::class))->getConstants();
+
+    expect($constants)->not->toHaveKey('CACHE_PREFIX');
+});
+
 test('active import ignores stale cached ids for deactivated imports', function (): void {
     expect($this->service->activeImport('DE')?->is($this->import))->toBeTrue();
 

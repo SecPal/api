@@ -81,8 +81,7 @@ class AuthController extends Controller
      * from the remember_token cookie.
      *
      * Security note: Users can explicitly log out via the canonical
-     * /v1/auth/logout endpoint. The legacy /v1/auth/session/logout alias
-     * also remains available for backward compatibility.
+     * /v1/auth/logout endpoint.
      *
      * @throws ValidationException
      */
@@ -100,27 +99,6 @@ class AuthController extends Controller
         }
 
         return $this->completeSessionLogin($request, $user);
-    }
-
-    /**
-     * Legacy SPA logout alias.
-     *
-     * This preserves backward compatibility for existing SPA clients while
-     * delegating to the same session logout logic as /v1/auth/logout.
-     *
-     * Explicitly resolves the user via the web guard so Bearer-token clients
-     * receive a 401 instead of inadvertently clearing the remember-me state.
-     */
-    public function logoutSession(Request $request): JsonResponse
-    {
-        /** @var User|null $user */
-        $user = Auth::guard('web')->user();
-
-        if ($user === null) {
-            return response()->json(['message' => __('Unauthenticated.')], 401);
-        }
-
-        return $this->logoutCurrentSession($request, $user);
     }
 
     /**

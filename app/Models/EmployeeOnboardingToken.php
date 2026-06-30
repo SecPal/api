@@ -149,23 +149,7 @@ class EmployeeOnboardingToken extends Model
             return $token;
         }
 
-        /** @var EmployeeOnboardingToken<TFactory>|null $legacyToken */
-        $legacyToken = self::whereNull('completed_at')
-            ->whereNull('invalidated_at')
-            ->where('expires_at', '>', now())
-            ->whereNull('token_lookup_hash')
-            ->cursor()
-            ->first(fn (self $token): bool => Hash::check($plainToken, $token->token));
-
-        if (! $legacyToken instanceof self) {
-            return null;
-        }
-
-        $legacyToken->forceFill([
-            'token_lookup_hash' => $lookupHash,
-        ])->save();
-
-        return $legacyToken;
+        return null;
     }
 
     private static function buildTokenLookupHash(string $plainToken): string

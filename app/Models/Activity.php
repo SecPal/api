@@ -450,27 +450,6 @@ class Activity extends SpatieActivity
     }
 
     /**
-     * Get retention period in years for a log type.
-     *
-     * @deprecated Use getRetentionYearsForLogType() or getAllRetentionYears() instead
-     *
-     * @param  string|null  $logName  The log type name. If null, returns all retention periods.
-     * @return int|array<string, int> Retention period in years, or array of all periods
-     *
-     * @see BewachV §21 Abs. 4 - 3 years for Bewachungsgewerbe
-     * @see HGB §257 Abs. 4 - 8/10 years for commercial records
-     * @see AO §147 Abs. 3 - 8 years for tax-relevant documents
-     */
-    public static function getRetentionYears(?string $logName = null): int|array
-    {
-        if ($logName === null) {
-            return self::getAllRetentionYears();
-        }
-
-        return self::getRetentionYearsForLogType($logName);
-    }
-
-    /**
      * Validate that organizational unit belongs to same tenant.
      *
      * Extracted to dedicated method for better separation of concerns

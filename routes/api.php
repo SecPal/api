@@ -102,8 +102,6 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', 'ability:'.User::API_ACCESS_ABILITY])->group(function () {
         // Token logout (for Bearer token auth - mobile/native apps)
         Route::post('/auth/logout', [AuthController::class, 'logout']);
-        // Session logout (for SPA cookie auth)
-        Route::post('/auth/session/logout', [AuthController::class, 'logoutSession']);
         Route::post('/auth/logout-all', [AuthController::class, 'logoutAll']);
         Route::post('/auth/email/verification-notification', [AuthController::class, 'sendVerificationNotification'])
             ->middleware('throttle:6,1');
