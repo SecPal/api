@@ -7,6 +7,7 @@
 
 declare(strict_types=1);
 
+use App\Models\AndroidEnrollmentSession;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\OnboardingFormSubmission;
@@ -14,14 +15,20 @@ use App\Models\OnboardingSubmissionFile;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     Storage::fake('local');
+});
+
+afterEach(function (): void {
+    Carbon::setTestNow();
 });
 
 test('it deletes expired terminated employees, removes local files, and anonymizes linked users', function (): void {
@@ -109,6 +116,117 @@ test('it deletes expired terminated employees, removes local files, and anonymiz
         ->first();
 
     expect($activity)->not->toBeNull();
+});
+
+test('it revokes pending android enrollment sessions and deletes push registrations when anonymizing a linked user', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-06-30 12:00:00 UTC'));
+
+    $tenant = TenantKey::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'email' => 'android.cleanup@secpal.dev',
+    ]);
+
+    $employee = Employee::factory()
+        ->for($tenant, 'tenant')
+        ->terminated()
+        ->create([
+            'user_id' => $user->id,
+            'status' => Employee::STATUS_TERMINATED,
+            'user_account_active' => false,
+            'employment_end_date' => now()->subYears(2)->toDateString(),
+            'retention_period_end' => now()->subDay()->toDateString(),
+        ]);
+
+    $session = AndroidEnrollmentSession::factory()->create([
+        'tenant_id' => $tenant->id,
+        'created_by' => $user->id,
+        'bootstrap_token_expires_at' => now()->addMinutes(30),
+        'exchanged_at' => null,
+        'revoked_at' => null,
+        'revocation_reason' => null,
+    ]);
+
+    DB::table('push_device_registrations')->insert([
+        'id' => (string) Str::uuid(),
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => (string) Str::uuid(),
+        'platform' => 'android',
+        'provider' => 'fcm',
+        'device_name' => 'Warehouse handheld',
+        'push_token_enc' => '{"ciphertext":"demo","nonce":"demo"}',
+        'token_last_eight' => '89abcdef',
+        'last_lifecycle_event' => 'registered',
+        'package_name' => 'app.secpal',
+        'package_version_name' => '1.5.0',
+        'package_version_code' => 10500,
+        'manufacturer' => 'Samsung',
+        'model' => 'SM-G556B',
+        'android_version' => '16',
+        'sdk_int' => 36,
+        'bootstrap_version' => 'v1',
+        'schema_version' => 3,
+        'push_metadata_revision' => 3,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $this->artisan('employees:delete-expired')->assertSuccessful();
+
+    $session->refresh();
+
+    expect(DB::table('push_device_registrations')->where('user_id', $user->id)->exists())->toBeFalse()
+        ->and($session->revoked_at?->toIso8601String())->toBe('2026-06-30T12:00:00+00:00')
+        ->and($session->revocation_reason)->toBe('User account anonymized during employee retention deletion.');
+});
+
+test('it revokes already-expired unexchanged android enrollment sessions during anonymization', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-06-30 12:00:00 UTC'));
+
+    $tenant = TenantKey::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'email' => 'android.expired@secpal.dev',
+    ]);
+
+    Employee::factory()
+        ->for($tenant, 'tenant')
+        ->terminated()
+        ->create([
+            'user_id' => $user->id,
+            'status' => Employee::STATUS_TERMINATED,
+            'user_account_active' => false,
+            'employment_end_date' => now()->subYears(2)->toDateString(),
+            'retention_period_end' => now()->subDay()->toDateString(),
+        ]);
+
+    $expiredSession = AndroidEnrollmentSession::factory()->create([
+        'tenant_id' => $tenant->id,
+        'created_by' => $user->id,
+        'bootstrap_token_expires_at' => now()->subHours(2),
+        'exchanged_at' => null,
+        'revoked_at' => null,
+        'revocation_reason' => null,
+    ]);
+
+    $exchangedSession = AndroidEnrollmentSession::factory()->create([
+        'tenant_id' => $tenant->id,
+        'created_by' => $user->id,
+        'bootstrap_token_expires_at' => now()->subHours(3),
+        'exchanged_at' => now()->subHours(3),
+        'revoked_at' => null,
+        'revocation_reason' => null,
+    ]);
+
+    $this->artisan('employees:delete-expired')->assertSuccessful();
+
+    $expiredSession->refresh();
+    $exchangedSession->refresh();
+
+    expect($expiredSession->revoked_at?->toIso8601String())->toBe('2026-06-30T12:00:00+00:00')
+        ->and($expiredSession->revocation_reason)->toBe('User account anonymized during employee retention deletion.')
+        ->and($exchangedSession->revoked_at)->toBeNull();
 });
 
 test('it supports dry run without deleting employee records', function (): void {
