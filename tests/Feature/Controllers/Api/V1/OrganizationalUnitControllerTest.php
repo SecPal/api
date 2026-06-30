@@ -396,6 +396,8 @@ describe('OrganizationalUnitController - Create', function () {
     });
 
     test('creator receives direct manage scope on a newly created child unit', function () {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'organizational_scopes.manage');
+
         $this->user->organizationalScopes()->delete();
 
         UserInternalOrganizationalScope::create([
@@ -625,6 +627,8 @@ describe('OrganizationalUnitController - Show', function () {
     });
 
     test('show response exposes action permissions and accessible parent data', function () {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'organizational_scopes.manage');
+
         $child = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Showable Child',
@@ -840,12 +844,6 @@ describe('OrganizationalUnitController - Delete', function () {
         $response = deleteJson("/v1/organizational-units/{$child->id}");
         $response->assertNoContent();
         $this->assertSoftDeleted('organizational_units', ['id' => $child->id]);
-
-        // Verify closure entries were cleaned up (Issue #295 root cause)
-        $this->assertDatabaseMissing('organizational_unit_closures', [
-            'ancestor_id' => $parentUnit->id,
-            'descendant_id' => $child->id,
-        ]);
 
         // Second attempt: Should succeed now because child was deleted
         $response = deleteJson("/v1/organizational-units/{$parentUnit->id}");
@@ -1374,6 +1372,31 @@ describe('OrganizationalUnitController - Hierarchy', function () {
         $this->user->refresh();
         $child->refresh();
         expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+    });
+
+    test('deleting a parent preserves closure access to trashed descendants', function () {
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Deleted Child Unit',
+            'type' => 'department',
+        ]);
+        $child->setParent($this->rootUnit);
+
+        $child->delete();
+
+        $response = deleteJson("/v1/organizational-units/{$this->rootUnit->id}");
+
+        $response->assertNoContent();
+
+        $this->assertSoftDeleted('organizational_units', [
+            'id' => $this->rootUnit->id,
+        ]);
+
+        $this->assertDatabaseHas('organizational_unit_closures', [
+            'ancestor_id' => $this->rootUnit->id,
+            'descendant_id' => $child->id,
+            'depth' => 1,
+        ]);
     });
 
     test('user retains access to unit after detaching if they have direct scope', function () {

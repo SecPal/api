@@ -14,6 +14,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use App\Services\EmployeeLifecycleService;
 use App\Support\LikePattern;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -107,6 +108,51 @@ describe('GET /v1/activity-logs', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['log_name'])->toBe('authentication');
+    });
+
+    test('excludes global privileged-user activities without read_system permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $systemUser = User::factory()->create(['tenant_id' => $tenant->id]);
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'causer_type' => User::class,
+            'causer_id' => $systemUser->id,
+            'log_name' => 'authentication',
+            'description' => 'Privileged global activity',
+        ]);
+
+        $response = getJson('/v1/activity-logs');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(0);
+    });
+
+    test('keeps own global privileged-user activities visible without read_system permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'causer_type' => User::class,
+            'causer_id' => $user->id,
+            'log_name' => 'authentication',
+            'description' => 'Own privileged global activity',
+        ]);
+
+        $response = getJson('/v1/activity-logs');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(1)
+            ->and($response->json('data.0.description'))->toBe('Own privileged global activity');
     });
 
     test('returns activities from accessible organizational units', function (): void {
@@ -308,6 +354,145 @@ describe('GET /v1/activity-logs', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['description'])->toBe('System activity');
+    });
+
+    test('hides user-caused system activities without system activity permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $orgUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        UserInternalOrganizationalScope::factory()->create([
+            'user_id' => $user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'access_level' => 'read',
+            'min_viewable_rank' => 2,
+            'max_viewable_rank' => 5,
+        ]);
+
+        $systemUser = User::factory()->create(['tenant_id' => $tenant->id]);
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'causer_type' => User::class,
+            'causer_id' => $systemUser->id,
+            'description' => 'Privileged user activity',
+        ]);
+
+        $response = getJson('/v1/activity-logs');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(0);
+    });
+
+    test('preserves rank filtering for activities caused by deprovisioned employees', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $orgUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        UserInternalOrganizationalScope::factory()->create([
+            'user_id' => $user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'access_level' => 'read',
+            'min_viewable_rank' => 2,
+            'max_viewable_rank' => 5,
+        ]);
+
+        $seniorManager = User::factory()->create(['tenant_id' => $tenant->id]);
+        $seniorEmployee = Employee::factory()->create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $seniorManager->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'management_level' => 1,
+        ]);
+
+        $subordinate = User::factory()->create(['tenant_id' => $tenant->id]);
+        $subordinateEmployee = Employee::factory()->create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $subordinate->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'management_level' => 3,
+        ]);
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'causer_type' => User::class,
+            'causer_id' => $seniorManager->id,
+            'description' => 'Deprovisioned senior activity',
+        ]);
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'causer_type' => User::class,
+            'causer_id' => $subordinate->id,
+            'description' => 'Deprovisioned subordinate activity',
+        ]);
+
+        app(EmployeeLifecycleService::class)->delete($seniorEmployee);
+        app(EmployeeLifecycleService::class)->delete($subordinateEmployee);
+
+        $response = getJson('/v1/activity-logs');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data')[0]['description'])->toBe('Deprovisioned subordinate activity');
+    });
+
+    test('ignores preserved rank context while a current employee causer still exists', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $orgUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        UserInternalOrganizationalScope::factory()->create([
+            'user_id' => $user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'access_level' => 'read',
+            'min_viewable_rank' => 2,
+            'max_viewable_rank' => 5,
+        ]);
+
+        $seniorManager = User::factory()->create(['tenant_id' => $tenant->id]);
+        $seniorEmployee = Employee::factory()->create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $seniorManager->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'management_level' => 1,
+        ]);
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'causer_type' => User::class,
+            'causer_id' => $seniorManager->id,
+            'description' => 'Current senior activity with stale preserved context',
+            'properties' => [
+                'causer_employee_id' => $seniorEmployee->id,
+                'causer_employee_organizational_unit_id' => $orgUnit->id,
+                'causer_employee_management_level' => 3,
+            ],
+        ]);
+
+        $response = getJson('/v1/activity-logs');
+
+        $response->assertOk();
+        expect($response->json('data'))->toHaveCount(0);
     });
 
     test('filters by date range', function (): void {
@@ -567,6 +752,48 @@ describe('GET /v1/activity-logs/{activity}', function () {
         expect($response->json('data.log_name'))->toBe('authentication');
     });
 
+    test('returns 403 for global privileged-user activity without read_system permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $systemUser = User::factory()->create(['tenant_id' => $tenant->id]);
+
+        $activity = Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'causer_type' => User::class,
+            'causer_id' => $systemUser->id,
+            'log_name' => 'authentication',
+            'description' => 'Privileged global detail activity',
+        ]);
+
+        getJson("/v1/activity-logs/{$activity->id}")
+            ->assertForbidden();
+    });
+
+    test('returns own global privileged-user activity without read_system permission', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $activity = Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'causer_type' => User::class,
+            'causer_id' => $user->id,
+            'log_name' => 'authentication',
+            'description' => 'Own privileged global detail activity',
+        ]);
+
+        getJson("/v1/activity-logs/{$activity->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $activity->id)
+            ->assertJsonPath('data.description', 'Own privileged global detail activity');
+    });
+
     test('returns activity from accessible organizational unit', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
@@ -589,6 +816,95 @@ describe('GET /v1/activity-logs/{activity}', function () {
             'tenant_id' => $tenant->id,
             'organizational_unit_id' => $orgUnit->id,
         ]);
+
+        $response = getJson("/v1/activity-logs/{$activity->id}");
+
+        $response->assertOk();
+        expect($response->json('data.id'))->toBe($activity->id);
+    });
+
+    test('returns deprovisioned employee activity when preserved rank context is still viewable', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $orgUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        UserInternalOrganizationalScope::factory()->create([
+            'user_id' => $user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'access_level' => 'read',
+            'min_viewable_rank' => 2,
+            'max_viewable_rank' => 5,
+        ]);
+
+        $subordinate = User::factory()->create(['tenant_id' => $tenant->id]);
+        $subordinateEmployee = Employee::factory()->create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $subordinate->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'management_level' => 3,
+        ]);
+
+        $activity = Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'causer_type' => User::class,
+            'causer_id' => $subordinate->id,
+            'description' => 'Viewable deprovisioned subordinate activity',
+        ]);
+
+        app(EmployeeLifecycleService::class)->delete($subordinateEmployee);
+
+        $response = getJson("/v1/activity-logs/{$activity->id}");
+
+        $response->assertOk();
+        expect($response->json('data.id'))->toBe($activity->id);
+    });
+
+    test('returns deprovisioned employee activity using its original preserved rank context', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $orgUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $tenant->id,
+        ]);
+
+        UserInternalOrganizationalScope::factory()->create([
+            'user_id' => $user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'access_level' => 'read',
+            'min_viewable_rank' => 2,
+            'max_viewable_rank' => 5,
+        ]);
+
+        $subordinate = User::factory()->create(['tenant_id' => $tenant->id]);
+        $subordinateEmployee = Employee::factory()->create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $subordinate->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'management_level' => 3,
+        ]);
+
+        $activity = Activity::create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'causer_type' => User::class,
+            'causer_id' => $subordinate->id,
+            'log_name' => 'scope_changes',
+            'description' => 'Originally viewable deprovisioned subordinate activity',
+        ]);
+
+        $subordinateEmployee->forceFill([
+            'management_level' => 1,
+        ])->save();
+
+        app(EmployeeLifecycleService::class)->delete($subordinateEmployee);
 
         $response = getJson("/v1/activity-logs/{$activity->id}");
 

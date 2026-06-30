@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal
+// SPDX-FileCopyrightText: 2025-2026 SecPal
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Models;
@@ -17,7 +17,7 @@ use Spatie\Permission\Models\Role;
  * This model is READ-ONLY - records cannot be updated or deleted after creation.
  *
  * @property string $id
- * @property string $user_id
+ * @property string|null $user_id
  * @property string $role_id
  * @property string $action
  * @property \Illuminate\Support\Carbon|null $valid_from
@@ -25,7 +25,7 @@ use Spatie\Permission\Models\Role;
  * @property string|null $assigned_by
  * @property string|null $reason
  * @property \Illuminate\Support\Carbon $created_at
- * @property-read User $user
+ * @property-read User|null $user
  * @property-read Role $role
  * @property-read User|null $assignedBy
  */

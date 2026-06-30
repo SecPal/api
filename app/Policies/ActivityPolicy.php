@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -76,6 +76,14 @@ class ActivityPolicy
             return false;
         }
 
+        if (
+            $this->isPrivilegedUserActivity($activity)
+            && $activity->causer_id !== $user->id
+            && ! $user->can('activity_log.read_system')
+        ) {
+            return false;
+        }
+
         // Global activities (no organizational unit): Allow if permission granted
         if ($activity->organizational_unit_id === null) {
             return true;
@@ -109,6 +117,18 @@ class ActivityPolicy
 
             // If employee not found in THIS org unit, check if they have an employee record ANYWHERE
             if ($causerEmployee === null) {
+                $preservedCauserRank = $this->preservedCauserRankForActivity($activity);
+
+                if ($preservedCauserRank !== null) {
+                    foreach ($scopes as $scope) {
+                        if ($this->isWithinViewableRankRange($preservedCauserRank, $scope->min_viewable_rank, $scope->max_viewable_rank)) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+
                 // Check if causer has employee record in ANY organizational unit
                 $hasEmployeeRecordAnywhere = Employee::where('user_id', $activity->causer_id)->exists();
 
@@ -143,6 +163,32 @@ class ActivityPolicy
         // Activity without User causer (system-generated or non-User causer)
         // Allow if user has scope for the organizational unit
         return true;
+    }
+
+    private function preservedCauserRankForActivity(Activity $activity): ?int
+    {
+        if ($activity->causer_employee_organizational_unit_id !== $activity->organizational_unit_id) {
+            return null;
+        }
+
+        if ($activity->causer_employee_management_level === null || $activity->causer_employee_management_level < 0) {
+            return null;
+        }
+
+        return $activity->causer_employee_management_level;
+    }
+
+    private function isPrivilegedUserActivity(Activity $activity): bool
+    {
+        if ($activity->causer_type !== User::class || $activity->causer_id === null) {
+            return false;
+        }
+
+        if ($activity->causer_employee_id !== null) {
+            return false;
+        }
+
+        return ! Employee::where('user_id', $activity->causer_id)->exists();
     }
 
     /**

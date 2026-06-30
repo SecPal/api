@@ -80,6 +80,27 @@ describe('GET /v1/customers', function () {
             ]);
     });
 
+    test('returns preserved assignment history with null nested users in customer resources', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        $customer = Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        CustomerAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'user_id' => null,
+            'role' => 'Former Account Manager',
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/customers');
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $customer->id)
+            ->assertJsonPath('data.0.assignments.0.user', null);
+    });
+
     test('filters customers by is_active status', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
 

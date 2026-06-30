@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -33,6 +33,8 @@ class OrganizationalScopeController extends Controller
 {
     private const SELF_SCOPE_LOCKOUT_MESSAGE = 'You cannot remove your own last scope-management access for this organizational unit.';
 
+    private const SELF_SCOPE_ESCALATION_MESSAGE = 'You cannot create or expand your own organizational scope permissions.';
+
     /**
      * Transform a scope to API response format.
      *
@@ -58,11 +60,13 @@ class OrganizationalScopeController extends Controller
 
         if ($includeUnit && $scope->relationLoaded('organizationalUnit')) {
             $unit = $scope->organizationalUnit;
-            $data['organizational_unit'] = [
-                'id' => $unit->id,
-                'name' => $unit->name,
-                'type' => $unit->type,
-            ];
+            if ($unit !== null) {
+                $data['organizational_unit'] = [
+                    'id' => $unit->id,
+                    'name' => $unit->name,
+                    'type' => $unit->type,
+                ];
+            }
         }
 
         if ($includeUser && $scope->relationLoaded('user')) {
@@ -102,6 +106,15 @@ class OrganizationalScopeController extends Controller
 
         /** @var array{user_id: string, access_level: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();
+
+        /** @var User $actor */
+        $actor = $request->user();
+
+        if ($this->isActorUserId($actor, $validated['user_id'])) {
+            return response()->json([
+                'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
+            ], Response::HTTP_FORBIDDEN);
+        }
 
         $scope = UserInternalOrganizationalScope::create([
             'user_id' => $validated['user_id'],
@@ -157,6 +170,12 @@ class OrganizationalScopeController extends Controller
 
         if ($lockoutResponse !== null) {
             return $lockoutResponse;
+        }
+
+        $selfExpansionResponse = $this->preventSelfScopeExpansion($actor, $scopeModel, $validated);
+
+        if ($selfExpansionResponse !== null) {
+            return $selfExpansionResponse;
         }
 
         if (isset($validated['access_level'])) {
@@ -232,6 +251,12 @@ class OrganizationalScopeController extends Controller
             return $lockoutResponse;
         }
 
+        $expansionResponse = $this->preventSelfScopeDeletionExpansion($actor, $scopeModel);
+
+        if ($expansionResponse !== null) {
+            return $expansionResponse;
+        }
+
         $scopeModel->delete();
 
         return response()->noContent();
@@ -258,7 +283,7 @@ class OrganizationalScopeController extends Controller
         array $pendingAttributes = [],
         bool $deleteScope = false,
     ): ?JsonResponse {
-        if ($scopeModel->user_id !== $actor->id) {
+        if (! $this->isActorScope($actor, $scopeModel)) {
             return null;
         }
 
@@ -298,10 +323,259 @@ class OrganizationalScopeController extends Controller
 
         $scopes = $user->organizationalScopes()
             ->with('organizationalUnit:id,name,type')
-            ->get();
+            ->get()
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->organizationalUnit !== null)
+            ->values();
 
         return response()->json([
             'data' => $scopes->map(fn ($scope) => $this->transformScope($scope, true)),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $pendingAttributes
+     */
+    private function preventSelfScopeExpansion(User $actor, UserInternalOrganizationalScope $scopeModel, array $pendingAttributes): ?JsonResponse
+    {
+        if (! $this->isActorScope($actor, $scopeModel)) {
+            return null;
+        }
+
+        $organizationalUnit = $scopeModel->organizationalUnit;
+
+        if ($organizationalUnit === null) {
+            return null;
+        }
+
+        /** @var Collection<int, UserInternalOrganizationalScope> $currentScopes */
+        $currentScopes = $actor->organizationalScopes()->get()->values();
+
+        $simulatedScopes = $currentScopes
+            ->reject(fn (UserInternalOrganizationalScope $scope) => $scope->id === $scopeModel->id)
+            ->values();
+
+        $simulatedScope = clone $scopeModel;
+
+        foreach ($pendingAttributes as $attribute => $value) {
+            $simulatedScope->{$attribute} = $value;
+        }
+
+        $simulatedScopes->push($simulatedScope);
+
+        if (! $this->effectiveAuthorizationExpands($actor, $scopeModel, $simulatedScope, $currentScopes, $simulatedScopes)) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
+        ], Response::HTTP_FORBIDDEN);
+    }
+
+    private function preventSelfScopeDeletionExpansion(User $actor, UserInternalOrganizationalScope $scopeModel): ?JsonResponse
+    {
+        if (! $this->isActorScope($actor, $scopeModel)) {
+            return null;
+        }
+
+        $organizationalUnit = $scopeModel->organizationalUnit;
+
+        if ($organizationalUnit === null) {
+            return null;
+        }
+
+        /** @var Collection<int, UserInternalOrganizationalScope> $currentScopes */
+        $currentScopes = $actor->organizationalScopes()->get()->values();
+
+        $simulatedScopes = $currentScopes
+            ->reject(fn (UserInternalOrganizationalScope $scope) => $scope->id === $scopeModel->id)
+            ->values();
+
+        if (! $this->effectiveAuthorizationExpands($actor, $scopeModel, $scopeModel, $currentScopes, $simulatedScopes)) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
+        ], Response::HTTP_FORBIDDEN);
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $currentScopes
+     * @param  Collection<int, UserInternalOrganizationalScope>  $simulatedScopes
+     */
+    private function effectiveAuthorizationExpands(
+        User $actor,
+        UserInternalOrganizationalScope $currentScope,
+        UserInternalOrganizationalScope $simulatedScope,
+        Collection $currentScopes,
+        Collection $simulatedScopes,
+    ): bool {
+        foreach ($this->affectedUnitsForSelfScopeChange($currentScope, $simulatedScope) as $organizationalUnit) {
+            foreach (['read', 'write', 'manage'] as $minimumAccessLevel) {
+                if (
+                    $actor->hasAccessToUnit($organizationalUnit, $minimumAccessLevel, $simulatedScopes)
+                    && ! $actor->hasAccessToUnit($organizationalUnit, $minimumAccessLevel, $currentScopes)
+                ) {
+                    return true;
+                }
+            }
+
+            $currentViewScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $currentScopes, 'read');
+            $simulatedViewScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, 'read');
+
+            if ($this->selfAccessAuthorizationExpands($actor, $organizationalUnit, $currentScopes, $simulatedScopes)) {
+                return true;
+            }
+
+            if ($this->managementLevelAuthorizationExpands(
+                $currentViewScopes,
+                $simulatedViewScopes,
+                fn (UserInternalOrganizationalScope $scope, int $managementLevel): bool => $scope->canViewManagementLevel($managementLevel),
+            )) {
+                return true;
+            }
+
+            $currentWriteScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $currentScopes, 'write');
+            $simulatedWriteScopes = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, 'write');
+
+            if ($this->managementLevelAuthorizationExpands(
+                $currentWriteScopes,
+                $simulatedWriteScopes,
+                fn (UserInternalOrganizationalScope $scope, int $managementLevel): bool => $scope->canAssignManagementLevel($managementLevel),
+            )) {
+                return true;
+            }
+
+            if ($this->managementLevelAuthorizationExpands(
+                $currentWriteScopes,
+                $simulatedWriteScopes,
+                fn (UserInternalOrganizationalScope $scope, int $managementLevel): bool => $scope->canViewManagementLevel($managementLevel)
+                    && $scope->canAssignManagementLevel($managementLevel),
+            )) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $currentScopes
+     * @param  Collection<int, UserInternalOrganizationalScope>  $simulatedScopes
+     */
+    private function selfAccessAuthorizationExpands(
+        User $actor,
+        OrganizationalUnit $organizationalUnit,
+        Collection $currentScopes,
+        Collection $simulatedScopes,
+    ): bool {
+        foreach (['read', 'write'] as $minimumAccessLevel) {
+            $currentScopedSelfAccess = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $currentScopes, $minimumAccessLevel)
+                ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
+
+            $simulatedScopedSelfAccess = $this->applicableScopesWithMinimumAccessLevel($actor, $organizationalUnit, $simulatedScopes, $minimumAccessLevel)
+                ->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
+
+            if ($simulatedScopedSelfAccess && ! $currentScopedSelfAccess) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return Collection<int, OrganizationalUnit>
+     */
+    private function affectedUnitsForSelfScopeChange(
+        UserInternalOrganizationalScope $currentScope,
+        UserInternalOrganizationalScope $simulatedScope,
+    ): Collection {
+        $organizationalUnit = $currentScope->organizationalUnit;
+
+        if ($organizationalUnit === null) {
+            /** @var Collection<int, OrganizationalUnit> $emptyUnits */
+            $emptyUnits = collect();
+
+            return $emptyUnits;
+        }
+
+        /** @var Collection<int, OrganizationalUnit> $affectedUnits */
+        $affectedUnits = collect([$organizationalUnit]);
+
+        if ($currentScope->include_descendants || $simulatedScope->include_descendants) {
+            $descendantIds = \App\Models\OrganizationalUnitClosure::query()
+                ->where('ancestor_id', $organizationalUnit->id)
+                ->where('depth', '>', 0)
+                ->pluck('descendant_id');
+
+            /** @var Collection<int, OrganizationalUnit> $descendants */
+            $descendants = OrganizationalUnit::withTrashed()
+                ->whereIn('id', $descendantIds)
+                ->get();
+
+            $affectedUnits = $affectedUnits
+                ->merge($descendants)
+                ->unique('id')
+                ->values();
+        }
+
+        return $affectedUnits;
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
+     * @return Collection<int, UserInternalOrganizationalScope>
+     */
+    private function applicableScopesWithMinimumAccessLevel(
+        User $actor,
+        OrganizationalUnit $organizationalUnit,
+        Collection $scopes,
+        string $minimumAccessLevel,
+    ): Collection {
+        return $actor->getApplicableOrganizationalScopesForUnitUsingScopes($organizationalUnit, $scopes)
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel($minimumAccessLevel))
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $currentScopes
+     * @param  Collection<int, UserInternalOrganizationalScope>  $simulatedScopes
+     * @param  callable(UserInternalOrganizationalScope, int): bool  $authorizesManagementLevel
+     */
+    private function managementLevelAuthorizationExpands(
+        Collection $currentScopes,
+        Collection $simulatedScopes,
+        callable $authorizesManagementLevel,
+    ): bool {
+        foreach (range(0, 255) as $managementLevel) {
+            $isNewlyAuthorized = $simulatedScopes->contains(
+                fn (UserInternalOrganizationalScope $scope): bool => $authorizesManagementLevel($scope, $managementLevel)
+            );
+
+            if (! $isNewlyAuthorized) {
+                continue;
+            }
+
+            $wasPreviouslyAuthorized = $currentScopes->contains(
+                fn (UserInternalOrganizationalScope $scope): bool => $authorizesManagementLevel($scope, $managementLevel)
+            );
+
+            if (! $wasPreviouslyAuthorized) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isActorScope(User $actor, UserInternalOrganizationalScope $scopeModel): bool
+    {
+        return $this->isActorUserId($actor, $scopeModel->user_id);
+    }
+
+    private function isActorUserId(User $actor, string $userId): bool
+    {
+        return strcasecmp($userId, $actor->id) === 0;
     }
 }

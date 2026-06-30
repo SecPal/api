@@ -8,6 +8,8 @@
 declare(strict_types=1);
 
 use App\Models\Activity;
+use App\Models\Employee;
+use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -85,7 +87,7 @@ test('hash chain is deterministic', function () {
     $log->refresh();
 
     // Recalculate hash manually
-    $logData = json_encode([
+    $logData = Activity::buildHashPayload([
         'tenant_id' => $log->tenant_id,
         'log_name' => $log->log_name,
         'description' => $log->description,
@@ -93,11 +95,14 @@ test('hash chain is deterministic', function () {
         'subject_id' => $log->subject_id,
         'causer_type' => $log->causer_type,
         'causer_id' => $log->causer_id,
+        'causer_employee_id' => $log->causer_employee_id,
+        'causer_employee_organizational_unit_id' => $log->causer_employee_organizational_unit_id,
+        'causer_employee_management_level' => $log->causer_employee_management_level,
         'event' => $log->event,
         'attribute_changes' => $log->attribute_changes,
         'properties' => $log->properties,
-        'created_at' => $log->created_at?->toIso8601String(), // Timestamp ensures hash uniqueness
-    ], JSON_THROW_ON_ERROR);
+        'created_at' => $log->created_at?->toIso8601String(),
+    ]);
 
     $expectedHash = hash('sha256', ($log->previous_hash ?? '').$logData);
 
@@ -170,6 +175,114 @@ test('user agent auto-captured from request', function () {
     ]);
 
     expect($log->user_agent)->not->toBeNull();
+});
+
+test('causer employee context columns are captured at creation', function () {
+    $orgUnit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()
+        ->for($this->tenant, 'tenant')
+        ->create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'management_level' => 3,
+        ]);
+
+    $this->actingAs($this->user);
+
+    $log = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'log_name' => 'scope_changes',
+        'description' => 'Scoped activity',
+        'causer_type' => User::class,
+        'causer_id' => $this->user->id,
+        'properties' => ['existing' => 'value'],
+    ]);
+
+    $log->refresh();
+
+    expect($log->causer_employee_id)->toBe($employee->id)
+        ->and($log->causer_employee_organizational_unit_id)->toBe($orgUnit->id)
+        ->and($log->causer_employee_management_level)->toBe(3)
+        ->and($log->properties->toArray())->toBe(['existing' => 'value']);
+});
+
+test('verifyChain fails when preserved causer scope context is tampered', function () {
+    $orgUnit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()
+        ->for($this->tenant, 'tenant')
+        ->create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'management_level' => 3,
+        ]);
+
+    $this->actingAs($this->user);
+
+    $log = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'log_name' => 'scope_changes',
+        'description' => 'Scoped activity',
+        'causer_type' => User::class,
+        'causer_id' => $this->user->id,
+    ]);
+
+    $log->refresh();
+
+    expect($log->causer_employee_id)->toBe($employee->id)
+        ->and($log->verifyChain())->toBeTrue();
+
+    DB::table('activity_log')
+        ->where('id', $log->id)
+        ->update([
+            'causer_employee_management_level' => 99,
+        ]);
+
+    expect($log->fresh()?->verifyChain())->toBeFalse();
+});
+
+test('verifyChain rejects legacy hashes without preserved causer snapshot fields', function () {
+    $this->actingAs($this->user);
+
+    $log = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'authentication',
+        'description' => 'Legacy hash payload activity',
+        'causer_type' => User::class,
+        'causer_id' => $this->user->id,
+    ]);
+
+    $log->refresh();
+
+    DB::table('activity_log')
+        ->where('id', $log->id)
+        ->update([
+            'causer_employee_id' => null,
+            'causer_employee_organizational_unit_id' => null,
+            'causer_employee_management_level' => null,
+            'event_hash' => hash('sha256', ($log->previous_hash ?? '').json_encode([
+                'tenant_id' => $log->tenant_id,
+                'log_name' => $log->log_name,
+                'description' => $log->description,
+                'subject_type' => $log->subject_type,
+                'subject_id' => $log->subject_id,
+                'causer_type' => $log->causer_type,
+                'causer_id' => $log->causer_id,
+                'event' => $log->event,
+                'attribute_changes' => $log->attribute_changes,
+                'properties' => $log->properties,
+                'created_at' => $log->created_at?->toIso8601String(),
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+    expect($log->fresh()?->verifyChain())->toBeFalse();
 });
 
 // ============================================================================
@@ -536,7 +649,7 @@ test('opentimestamp verification works with valid proof', function () {
 // ============================================================================
 
 test('accepts valid organizational_unit_id from same tenant', function () {
-    $orgUnit = App\Models\OrganizationalUnit::factory()->create([
+    $orgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
 
@@ -554,7 +667,7 @@ test('accepts valid organizational_unit_id from same tenant', function () {
 
 test('throws exception when organizational_unit_id belongs to different tenant', function () {
     $otherTenant = TenantKey::factory()->create();
-    $otherOrgUnit = App\Models\OrganizationalUnit::factory()->create([
+    $otherOrgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $otherTenant->id,
     ]);
 

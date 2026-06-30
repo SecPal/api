@@ -1,11 +1,12 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal
+// SPDX-FileCopyrightText: 2025-2026 SecPal
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\RoleAssignmentLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -117,4 +118,43 @@ test('role assignment log has relationship to assigner', function () {
 
     expect($log->assignedBy)->toBeInstanceOf(User::class)
         ->and($log->assignedBy->id)->toBe($admin->id);
+});
+
+test('role assignment log user reference is nullable and uses set null on delete', function (): void {
+    $columns = DB::selectOne(
+        'SELECT is_nullable FROM information_schema.columns WHERE table_name = ? AND column_name = ?',
+        ['role_assignments_log', 'user_id'],
+    );
+
+    $constraint = DB::selectOne('
+        SELECT rc.delete_rule
+        FROM information_schema.referential_constraints rc
+        INNER JOIN information_schema.key_column_usage kcu
+            ON rc.constraint_name = kcu.constraint_name
+            AND rc.constraint_schema = kcu.constraint_schema
+        WHERE kcu.table_name = ?
+          AND kcu.column_name = ?
+    ', ['role_assignments_log', 'user_id']);
+
+    expect($columns?->is_nullable)->toBe('YES')
+        ->and($constraint?->delete_rule)->toBe('SET NULL');
+});
+
+test('role assignment log survives deletion of the affected user', function (): void {
+    $user = User::factory()->create();
+    $role = Role::create(['name' => 'audited-manager']);
+
+    $log = RoleAssignmentLog::create([
+        'user_id' => $user->id,
+        'role_id' => $role->id,
+        'action' => 'assigned',
+        'valid_from' => now(),
+        'valid_until' => now()->addDays(7),
+    ]);
+
+    $user->delete();
+
+    expect(RoleAssignmentLog::find($log->id))->not->toBeNull()
+        ->and(RoleAssignmentLog::find($log->id)?->user_id)->toBeNull()
+        ->and(RoleAssignmentLog::find($log->id)?->user)->toBeNull();
 });

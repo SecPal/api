@@ -13,17 +13,24 @@ use Illuminate\Http\Request;
 
 uses(RefreshDatabase::class)->group('bewachv', 'resource', 'unit');
 
-function employeeResourceRequest(bool $canReadSensitive = false): Request
+function employeeResourceRequest(bool $canReadSensitive = false, bool $canReadSalary = false): Request
 {
     $request = Request::create('/v1/employees/test', 'GET');
 
-    $request->setUserResolver(static fn (): object => new class($canReadSensitive)
+    $request->setUserResolver(static fn (): object => new class($canReadSensitive, $canReadSalary)
     {
-        public function __construct(private readonly bool $canReadSensitive) {}
+        public function __construct(
+            private readonly bool $canReadSensitive,
+            private readonly bool $canReadSalary,
+        ) {}
 
         public function can(string $permission): bool
         {
-            return $permission === 'employees.read_sensitive' && $this->canReadSensitive;
+            return match ($permission) {
+                'employees.read_sensitive' => $this->canReadSensitive,
+                'employees.read_salary' => $this->canReadSalary,
+                default => false,
+            };
         }
     });
 
@@ -171,6 +178,17 @@ test('EmployeeResource omits regulated identifiers without employees.read_sensit
         'residence_permit_number',
         'sachkunde_ihk_number',
     ]);
+});
+
+test('EmployeeResource omits salary fields without employees.read_salary', function (): void {
+    $employee = Employee::factory()->create([
+        'hourly_rate' => '24.50',
+    ]);
+
+    $resource = new EmployeeResource($employee);
+    $array = $resource->resolve(employeeResourceRequest(true, false));
+
+    expect($array)->not->toHaveKey('hourly_rate');
 });
 
 test('EmployeeResource includes work authorization compliance context', function () {

@@ -673,6 +673,17 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
     }
 
     /**
+     * Resolve the scopes that apply to a specific organizational unit from an in-memory scope collection.
+     *
+     * @param  SupportCollection<int, UserInternalOrganizationalScope>  $scopes
+     * @return SupportCollection<int, UserInternalOrganizationalScope>
+     */
+    public function getApplicableOrganizationalScopesForUnitUsingScopes(OrganizationalUnit $unit, SupportCollection $scopes): SupportCollection
+    {
+        return $this->resolveApplicableOrganizationalScopesForUnit($unit, $scopes);
+    }
+
+    /**
      * Resolve the scopes that apply to a specific organizational unit.
      *
      * Direct scopes take precedence over inherited descendant scopes for the

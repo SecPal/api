@@ -7,9 +7,19 @@ declare(strict_types=1);
 
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
+use App\Models\Activity;
+use App\Models\Customer;
+use App\Models\CustomerAssignment;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
+use App\Models\OnboardingFormSubmission;
+use App\Models\OnboardingFormTemplate;
+use App\Models\OnboardingSubmissionFile;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
+use App\Models\RoleAssignmentLog;
+use App\Models\Site;
+use App\Models\SiteAssignment;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\EmployeeLifecycleService;
@@ -39,7 +49,7 @@ function seedEmployeeLifecycleRbac(): void
  * @property OrganizationalUnit $orgUnit
  * @property EmployeeLifecycleService $service
  */
-beforeEach(function () {
+beforeEach(function (): void {
     incrementTestKekCounter();
     TenantKey::setKekPath(getTestKekPath());
     TenantKey::generateKek();
@@ -59,7 +69,7 @@ beforeEach(function () {
     $this->service = app(EmployeeLifecycleService::class);
 });
 
-afterEach(function () {
+afterEach(function (): void {
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -328,6 +338,429 @@ test('employee lifecycle service clears on-leave access snapshots and direct per
     expect(DB::table('model_has_roles')->where('model_id', $user->id)->count())->toBe(0);
     expect(DB::table('model_has_permissions')->where('model_id', $user->id)->count())->toBe(0);
     expect($user->can('employee.delete'))->toBeFalse();
+});
+
+test('employee lifecycle service deletes an employee without a linked user account', function (): void {
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => null,
+        'user_account_active' => false,
+    ]);
+
+    $deletedEmployee = $this->service->delete($employee);
+
+    expect($deletedEmployee->deleted_at)->not->toBeNull()
+        ->and(Employee::withTrashed()->find($employee->id))->not->toBeNull()
+        ->and(Employee::withTrashed()->find($employee->id)?->user_id)->toBeNull();
+});
+
+test('employee lifecycle service deletes a linked user while preserving employee audit records', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+    ]);
+
+    $document = EmployeeDocument::factory()->create([
+        'employee_id' => $employee->id,
+        'uploaded_by' => $linkedUser->id,
+    ]);
+
+    $template = OnboardingFormTemplate::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $submission = OnboardingFormSubmission::factory()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => $template->id,
+        'status' => 'approved',
+        'reviewed_by' => $linkedUser->id,
+        'reviewed_at' => now(),
+    ]);
+
+    $submissionFile = OnboardingSubmissionFile::create([
+        'onboarding_form_submission_id' => $submission->id,
+        'uploaded_by' => $linkedUser->id,
+        'document_type' => 'contract',
+        'file_path' => 'employees/'.$employee->id.'/onboarding/contract.pdf',
+        'file_name' => 'contract.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 1024,
+    ]);
+
+    $roleAssignmentLog = RoleAssignmentLog::create([
+        'user_id' => $linkedUser->id,
+        'role_id' => Role::findByName('Employee', 'sanctum')->id,
+        'action' => 'assigned',
+        'valid_from' => now()->subDay(),
+        'assigned_by' => $linkedUser->id,
+        'reason' => 'Lifecycle test coverage',
+    ]);
+
+    $customer = Customer::factory()->forTenant($this->tenant->id)->create();
+    $site = Site::factory()
+        ->forTenant($this->tenant->id)
+        ->forCustomer($customer)
+        ->forOrganizationalUnit($this->orgUnit)
+        ->create();
+
+    $expiredCustomerAssignment = CustomerAssignment::factory()
+        ->for($customer)
+        ->for($linkedUser)
+        ->expired()
+        ->create([
+            'tenant_id' => $this->tenant->id,
+            'role' => 'Former Account Lead',
+        ]);
+
+    $activeCustomerAssignment = CustomerAssignment::factory()
+        ->for($customer)
+        ->for($linkedUser)
+        ->active()
+        ->create([
+            'tenant_id' => $this->tenant->id,
+            'role' => 'Current Account Lead',
+        ]);
+
+    $expiredSiteAssignment = SiteAssignment::factory()
+        ->for($site)
+        ->for($linkedUser)
+        ->expired()
+        ->create([
+            'tenant_id' => $this->tenant->id,
+            'role' => 'Former Site Lead',
+        ]);
+
+    $activeSiteAssignment = SiteAssignment::factory()
+        ->for($site)
+        ->for($linkedUser)
+        ->active()
+        ->create([
+            'tenant_id' => $this->tenant->id,
+            'role' => 'Current Site Lead',
+        ]);
+
+    $deletedEmployee = $this->service->delete($employee);
+
+    expect($deletedEmployee->deleted_at)->not->toBeNull()
+        ->and(User::query()->find($linkedUser->id))->toBeNull()
+        ->and(EmployeeDocument::query()->find($document->id)?->uploaded_by)->toBeNull()
+        ->and(OnboardingFormSubmission::query()->find($submission->id)?->reviewed_by)->toBeNull()
+        ->and(OnboardingSubmissionFile::query()->find($submissionFile->id)?->uploaded_by)->toBeNull()
+        ->and(RoleAssignmentLog::query()->find($roleAssignmentLog->id))->not->toBeNull()
+        ->and(RoleAssignmentLog::query()->find($roleAssignmentLog->id)?->user_id)->toBeNull()
+        ->and(CustomerAssignment::query()->find($expiredCustomerAssignment->id))->not->toBeNull()
+        ->and(CustomerAssignment::query()->find($expiredCustomerAssignment->id)?->user_id)->toBeNull()
+        ->and(CustomerAssignment::query()->find($expiredCustomerAssignment->id)?->valid_until?->toDateString())->toBe($expiredCustomerAssignment->valid_until?->toDateString())
+        ->and(CustomerAssignment::query()->find($activeCustomerAssignment->id))->not->toBeNull()
+        ->and(CustomerAssignment::query()->find($activeCustomerAssignment->id)?->user_id)->toBeNull()
+        ->and(CustomerAssignment::query()->find($activeCustomerAssignment->id)?->valid_until?->isPast())->toBeTrue()
+        ->and(SiteAssignment::query()->find($expiredSiteAssignment->id))->not->toBeNull()
+        ->and(SiteAssignment::query()->find($expiredSiteAssignment->id)?->user_id)->toBeNull()
+        ->and(SiteAssignment::query()->find($expiredSiteAssignment->id)?->valid_until?->toDateString())->toBe($expiredSiteAssignment->valid_until?->toDateString())
+        ->and(SiteAssignment::query()->find($activeSiteAssignment->id))->not->toBeNull()
+        ->and(SiteAssignment::query()->find($activeSiteAssignment->id)?->user_id)->toBeNull()
+        ->and(SiteAssignment::query()->find($activeSiteAssignment->id)?->valid_until?->isPast())->toBeTrue();
+});
+
+test('employee lifecycle service preserves causer rank context without invalidating activity hashes', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+        'management_level' => 3,
+    ]);
+
+    $activity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $linkedUser->id,
+        'properties' => [
+            'original_context' => 'unchanged',
+        ],
+    ]);
+
+    expect($activity->refresh()->verifyChain())->toBeTrue();
+
+    $this->service->delete($employee);
+
+    $activity->refresh();
+
+    expect($activity->properties)->toMatchArray([
+        'original_context' => 'unchanged',
+    ])
+        ->and($activity->verifyChain())->toBeTrue();
+});
+
+test('employee lifecycle service does not synthesize missing causer rank snapshots at deletion time', function (): void {
+    $otherUnit = OrganizationalUnit::create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Other Department',
+        'code' => 'OTHER',
+        'type' => 'department',
+        'is_active' => true,
+    ]);
+
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+        'management_level' => 3,
+    ]);
+
+    // Legacy activity rows have no trustworthy per-event rank snapshot.
+    $ownUnitActivity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $linkedUser->id,
+    ]);
+    DB::table('activity_log')->where('id', $ownUnitActivity->id)->update([
+        'causer_employee_id' => null,
+        'causer_employee_organizational_unit_id' => null,
+        'causer_employee_management_level' => null,
+    ]);
+
+    $otherUnitActivity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $otherUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $linkedUser->id,
+    ]);
+    DB::table('activity_log')->where('id', $otherUnitActivity->id)->update([
+        'causer_employee_id' => null,
+        'causer_employee_organizational_unit_id' => null,
+        'causer_employee_management_level' => null,
+    ]);
+
+    $globalActivity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => null,
+        'causer_type' => User::class,
+        'causer_id' => $linkedUser->id,
+    ]);
+    DB::table('activity_log')->where('id', $globalActivity->id)->update([
+        'causer_employee_id' => null,
+        'causer_employee_organizational_unit_id' => null,
+        'causer_employee_management_level' => null,
+    ]);
+
+    $this->service->delete($employee);
+
+    $ownUnit = Activity::query()->findOrFail($ownUnitActivity->id);
+    $other = Activity::query()->findOrFail($otherUnitActivity->id);
+    $global = Activity::query()->findOrFail($globalActivity->id);
+
+    expect($ownUnit->causer_employee_id)->toBeNull()
+        ->and($ownUnit->causer_employee_organizational_unit_id)->toBeNull()
+        ->and($ownUnit->causer_employee_management_level)->toBeNull()
+        ->and($other->causer_employee_id)->toBeNull()
+        ->and($other->causer_employee_organizational_unit_id)->toBeNull()
+        ->and($other->causer_employee_management_level)->toBeNull()
+        ->and($global->causer_employee_id)->toBeNull()
+        ->and($global->causer_employee_organizational_unit_id)->toBeNull()
+        ->and($global->causer_employee_management_level)->toBeNull();
+});
+
+test('employee lifecycle service keeps a user account when another employee still references it', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $deletedEmployee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+    ]);
+
+    $remainingEmployee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_ACTIVE,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+    ]);
+
+    $result = $this->service->delete($deletedEmployee);
+
+    expect($result->deleted_at)->not->toBeNull()
+        ->and(User::query()->find($linkedUser->id))->not->toBeNull()
+        ->and(Employee::withTrashed()->find($deletedEmployee->id)?->user_id)->toBeNull()
+        ->and(Employee::query()->findOrFail($remainingEmployee->id)->user_id)->toBe($linkedUser->id);
+});
+
+test('employee lifecycle service deprovisions a shared user when only trashed employees still reference it', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'email' => 'legacy-shared-user@secpal.dev',
+        'password' => bcrypt('SharedLegacyPassword123!'),
+        'remember_token' => 'remember-me',
+    ]);
+
+    giveRoleWithTenant($linkedUser, $this->tenant->id, 'Employee');
+    givePermissionWithTenant($linkedUser, $this->tenant->id, 'employee.delete');
+    $linkedUser->createToken('legacy-token');
+
+    DB::table('sessions')->insert([
+        'id' => 'legacy-shared-user-session',
+        'user_id' => $linkedUser->id,
+        'ip_address' => '127.0.0.1',
+        'user_agent' => 'Pest',
+        'payload' => base64_encode('test'),
+        'last_activity' => now()->timestamp,
+    ]);
+
+    $deletedEmployee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+    ]);
+
+    $trashedEmployee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_TERMINATED,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => false,
+    ]);
+    $trashedEmployee->delete();
+
+    $result = $this->service->delete($deletedEmployee);
+
+    expect($result->deleted_at)->not->toBeNull()
+        ->and(User::query()->find($linkedUser->id))->not->toBeNull()
+        ->and(Employee::withTrashed()->find($deletedEmployee->id)?->user_id)->toBeNull()
+        ->and(Employee::withTrashed()->findOrFail($trashedEmployee->id)->user_id)->toBe($linkedUser->id)
+        ->and(DB::table('personal_access_tokens')->where('tokenable_id', $linkedUser->id)->count())->toBe(0)
+        ->and(DB::table('sessions')->where('user_id', $linkedUser->id)->count())->toBe(0)
+        ->and(DB::table('model_has_roles')->where('model_id', $linkedUser->id)->count())->toBe(0)
+        ->and(DB::table('model_has_permissions')->where('model_id', $linkedUser->id)->count())->toBe(0)
+        ->and(User::query()->findOrFail($linkedUser->id)->remember_token)->toBeNull()
+        ->and(User::query()->findOrFail($linkedUser->id)->email)->toBe('deleted-user+'.$linkedUser->id.'@secpal.dev')
+        ->and(User::query()->findOrFail($linkedUser->id)->email_verified_at)->toBeNull()
+        ->and(Hash::check('SharedLegacyPassword123!', User::query()->findOrFail($linkedUser->id)->password))->toBeFalse();
+});
+
+test('employee lifecycle service deprovisions a shared user when remaining employee links are inactive', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'email' => 'inactive-shared-user@secpal.dev',
+        'password' => bcrypt('InactiveSharedPassword123!'),
+        'remember_token' => 'remember-me',
+    ]);
+
+    giveRoleWithTenant($linkedUser, $this->tenant->id, 'Employee');
+    givePermissionWithTenant($linkedUser, $this->tenant->id, 'employee.delete');
+    $linkedUser->createToken('inactive-shared-token');
+
+    DB::table('sessions')->insert([
+        'id' => 'inactive-shared-user-session',
+        'user_id' => $linkedUser->id,
+        'ip_address' => '127.0.0.1',
+        'user_agent' => 'Pest',
+        'payload' => base64_encode('test'),
+        'last_activity' => now()->timestamp,
+    ]);
+
+    $deletedEmployee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+    ]);
+
+    $inactiveEmployee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_TERMINATED,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => false,
+    ]);
+
+    $result = $this->service->delete($deletedEmployee);
+
+    expect($result->deleted_at)->not->toBeNull()
+        ->and(User::query()->find($linkedUser->id))->not->toBeNull()
+        ->and(Employee::query()->findOrFail($inactiveEmployee->id)->user_id)->toBe($linkedUser->id)
+        ->and(DB::table('personal_access_tokens')->where('tokenable_id', $linkedUser->id)->count())->toBe(0)
+        ->and(DB::table('sessions')->where('user_id', $linkedUser->id)->count())->toBe(0)
+        ->and(DB::table('model_has_roles')->where('model_id', $linkedUser->id)->count())->toBe(0)
+        ->and(DB::table('model_has_permissions')->where('model_id', $linkedUser->id)->count())->toBe(0)
+        ->and(User::query()->findOrFail($linkedUser->id)->email)->toBe('deleted-user+'.$linkedUser->id.'@secpal.dev')
+        ->and(Hash::check('InactiveSharedPassword123!', User::query()->findOrFail($linkedUser->id)->password))->toBeFalse();
+});
+
+test('employee lifecycle service cancels future assignments when deleting a linked user', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+    ]);
+
+    $customer = Customer::factory()->forTenant($this->tenant->id)->create();
+    $site = Site::factory()
+        ->forTenant($this->tenant->id)
+        ->forCustomer($customer)
+        ->forOrganizationalUnit($this->orgUnit)
+        ->create();
+
+    $futureStart = now()->addWeek()->toDateString();
+
+    $futureCustomerAssignment = CustomerAssignment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_id' => $customer->id,
+        'user_id' => $linkedUser->id,
+        'role' => 'Planned Account Lead',
+        'valid_from' => $futureStart,
+        'valid_until' => null,
+    ]);
+
+    $futureSiteAssignment = SiteAssignment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'site_id' => $site->id,
+        'user_id' => $linkedUser->id,
+        'role' => 'Planned Site Lead',
+        'valid_from' => $futureStart,
+        'valid_until' => null,
+    ]);
+
+    $deletedEmployee = $this->service->delete($employee);
+
+    expect($deletedEmployee->deleted_at)->not->toBeNull()
+        ->and(CustomerAssignment::query()->find($futureCustomerAssignment->id))->toBeNull()
+        ->and(SiteAssignment::query()->find($futureSiteAssignment->id))->toBeNull();
 });
 
 test('employee lifecycle service rolls leave transition back when the read-only role is missing', function () {

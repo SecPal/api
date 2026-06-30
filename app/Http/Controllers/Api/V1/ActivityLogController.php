@@ -9,9 +9,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\IndexActivityLogRequest;
 use App\Http\Resources\ActivityResource;
 use App\Models\Activity;
+use App\Models\User;
 use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * ActivityLogController handles activity log retrieval and verification.
@@ -60,7 +62,7 @@ class ActivityLogController extends Controller
     {
         $this->authorize('viewAny', Activity::class);
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
@@ -155,11 +157,37 @@ class ActivityLogController extends Controller
      * 3. Apply leadership level filtering on the scoped result (only subordinates' activities).
      *
      * @param  \Illuminate\Database\Eloquent\Builder<Activity>  $query
-     * @param  \App\Models\User  $user
+     * @param  User  $user
      * @return \Illuminate\Database\Eloquent\Builder<Activity>
      */
     protected function applyScopedFiltering($query, $user)
     {
+        $canReadSystemActivities = $user->can('activity_log.read_system');
+
+        if (! $canReadSystemActivities) {
+            $query->where(function ($visibleActivityQuery) use ($user) {
+                $visibleActivityQuery->where(function ($nonUserQuery) {
+                    $nonUserQuery->where('causer_type', '!=', User::class)
+                        ->orWhereNull('causer_type');
+                })->orWhere(function ($employeeBackedUserQuery) {
+                    $employeeBackedUserQuery->where('causer_type', User::class)
+                        ->whereNotNull('causer_id')
+                        ->where(function ($employeeContextQuery) {
+                            $employeeContextQuery->whereNotNull('causer_employee_id')
+                                ->orWhereExists(function ($employeeCheckQuery): void {
+                                    /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
+                                    $employeeCheckQuery->select(DB::raw(1))
+                                        ->from('employees')
+                                        ->whereColumn('employees.user_id', 'activity_log.causer_id');
+                                });
+                        });
+                })->orWhere(function ($ownPrivilegedActivityQuery) use ($user) {
+                    $ownPrivilegedActivityQuery->where('causer_type', User::class)
+                        ->where('causer_id', $user->id);
+                });
+            });
+        }
+
         // Get user's organizational scopes
         $scopes = $user->organizationalScopes()->get();
 
@@ -189,28 +217,31 @@ class ActivityLogController extends Controller
         $query->whereIn('organizational_unit_id', $accessibleUnitIds);
 
         // Leadership level filtering (only for User causers with Employee records)
-        $query->where(function ($leadershipQuery) use ($rankRangesByUnit) {
+        $query->where(function ($leadershipQuery) use ($rankRangesByUnit, $canReadSystemActivities) {
             // Activities without User causer (system-generated) - always visible
             $leadershipQuery->where(function ($nonUserQuery) {
-                $nonUserQuery->where('causer_type', '!=', \App\Models\User::class)
+                $nonUserQuery->where('causer_type', '!=', User::class)
                     ->orWhereNull('causer_type');
             });
 
-            // OR activities with User causer but no Employee record (system users/admins) - always visible
-            $leadershipQuery->orWhere(function ($systemUserQuery) {
-                $systemUserQuery->where('causer_type', \App\Models\User::class)
-                    ->whereNotNull('causer_id')
-                    ->whereNotExists(function ($employeeCheckQuery): void {
-                        /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
-                        $employeeCheckQuery->select(\Illuminate\Support\Facades\DB::raw(1))
-                            ->from('employees')
-                            ->whereColumn('employees.user_id', 'activity_log.causer_id');
-                    });
-            });
+            if ($canReadSystemActivities) {
+                // OR activities with User causer but no Employee record (system users/admins)
+                $leadershipQuery->orWhere(function ($systemUserQuery) {
+                    $systemUserQuery->where('causer_type', User::class)
+                        ->whereNotNull('causer_id')
+                        ->whereNull('causer_employee_id')
+                        ->whereNotExists(function ($employeeCheckQuery): void {
+                            /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
+                            $employeeCheckQuery->select(DB::raw(1))
+                                ->from('employees')
+                                ->whereColumn('employees.user_id', 'activity_log.causer_id');
+                        });
+                });
+            }
 
             // OR activities with User causer WITH Employee record - apply rank filtering
             $leadershipQuery->orWhere(function ($userCauserQuery) use ($rankRangesByUnit) {
-                $userCauserQuery->where('causer_type', \App\Models\User::class)
+                $userCauserQuery->where('causer_type', User::class)
                     ->whereNotNull('causer_id');
 
                 // For each organizational unit, check if activity is in that unit AND causer matches rank range
@@ -223,7 +254,7 @@ class ActivityLogController extends Controller
                             // AND causer must match rank range for THIS unit
                             $unitQuery->whereExists(function ($employeeQuery) use ($rankRanges): void {
                                 /** @var \Illuminate\Database\Query\Builder $employeeQuery */
-                                $employeeQuery->select(\Illuminate\Support\Facades\DB::raw(1))
+                                $employeeQuery->select(DB::raw(1))
                                     ->from('employees')
                                     ->whereColumn('employees.user_id', 'activity_log.causer_id')
                                     ->whereColumn('employees.organizational_unit_id', 'activity_log.organizational_unit_id')
@@ -254,6 +285,50 @@ class ActivityLogController extends Controller
                         });
                     }
                 });
+            });
+
+            // OR deprovisioned employee causers whose immutable rank context was preserved before unlinking
+            $leadershipQuery->orWhere(function ($deprovisionedCauserQuery) use ($rankRangesByUnit) {
+                $deprovisionedCauserQuery->where('causer_type', User::class)
+                    ->whereNotNull('causer_id')
+                    ->whereNotNull('causer_employee_id')
+                    ->whereNotNull('causer_employee_management_level')
+                    ->whereNotExists(function ($employeeCheckQuery): void {
+                        /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
+                        $employeeCheckQuery->select(DB::raw(1))
+                            ->from('employees')
+                            ->whereColumn('employees.user_id', 'activity_log.causer_id')
+                            ->whereColumn('employees.organizational_unit_id', 'activity_log.organizational_unit_id');
+                    })
+                    ->where(function ($unitsQuery) use ($rankRangesByUnit) {
+                        foreach ($rankRangesByUnit as $unitId => $rankRanges) {
+                            $unitsQuery->orWhere(function ($unitQuery) use ($unitId, $rankRanges) {
+                                $unitQuery->where('organizational_unit_id', $unitId)
+                                    ->where('causer_employee_organizational_unit_id', $unitId)
+                                    ->where(function ($rankQueryBuilder) use ($rankRanges): void {
+                                        /** @var \Illuminate\Database\Query\Builder $rankQueryBuilder */
+                                        foreach ($rankRanges as $range) {
+                                            $rankQueryBuilder->orWhere(function ($rangeQuery) use ($range): void {
+                                                /** @var \Illuminate\Database\Query\Builder $rangeQuery */
+                                                if ($range['max'] === 0) {
+                                                    $rangeQuery->where('causer_employee_management_level', 0);
+                                                } else {
+                                                    $rangeQuery->where('causer_employee_management_level', '>', 0);
+
+                                                    if ($range['min'] !== null) {
+                                                        $rangeQuery->where('causer_employee_management_level', '>=', $range['min']);
+                                                    }
+
+                                                    if ($range['max'] !== null) {
+                                                        $rangeQuery->where('causer_employee_management_level', '<=', $range['max']);
+                                                    }
+                                                }
+                                            });
+                                        }
+                                    });
+                            });
+                        }
+                    });
             });
         });
 

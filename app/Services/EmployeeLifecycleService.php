@@ -9,9 +9,12 @@ use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
@@ -22,6 +25,8 @@ class EmployeeLifecycleService
     private const EMPLOYEE_ROLE_NAME = 'Employee';
 
     private const ON_LEAVE_ROLE_NAME = 'Employee Read Only';
+
+    public function __construct(private readonly ActivityCauserContextService $activityCauserContextService) {}
 
     /**
      * Activate a pre-contract employee and provision their runtime access atomically.
@@ -237,6 +242,66 @@ class EmployeeLifecycleService
         return $terminatedEmployee;
     }
 
+    /**
+     * Soft-delete an employee and permanently remove the linked runtime user account.
+     */
+    public function delete(Employee $employee): Employee
+    {
+        /** @var User|null $affectedUser */
+        $affectedUser = null;
+
+        $deletedEmployee = DB::transaction(function () use ($employee, &$affectedUser): Employee {
+            $employee = $this->refreshEmployee($employee);
+
+            /** @var User|null $user */
+            $user = $employee->user;
+
+            $employee->forceFill([
+                'user_account_active' => false,
+                'user_account_deactivated_at' => now(),
+                'runtime_access_snapshot' => null,
+            ])->save();
+
+            if ($user instanceof User) {
+                $this->activityCauserContextService->preserveForEmployee($employee, $user);
+                $employee->user()->dissociate();
+                $employee->saveQuietly();
+
+                $hasOtherLiveEmployeeLinks = Employee::query()
+                    ->where('user_id', $user->id)
+                    ->whereKeyNot($employee->id)
+                    ->where('user_account_active', true)
+                    ->where('status', '!=', Employee::STATUS_TERMINATED)
+                    ->exists();
+
+                $hasOtherEmployeeLinks = Employee::withTrashed()
+                    ->where('user_id', $user->id)
+                    ->whereKeyNot($employee->id)
+                    ->exists();
+
+                if (! $hasOtherLiveEmployeeLinks) {
+                    if ($hasOtherEmployeeLinks) {
+                        $this->deprovisionUserAccount($user, $employee->tenant_id);
+                    } else {
+                        $this->deprovisionUserAccount($user, $employee->tenant_id, deleteUser: true);
+                    }
+                }
+
+                $affectedUser = $user;
+            }
+
+            $employee->delete();
+
+            return $this->refreshEmployee($employee);
+        });
+
+        if ($affectedUser instanceof User) {
+            $this->refreshAuthorizationContext($affectedUser);
+        }
+
+        return $deletedEmployee;
+    }
+
     private function resolveRole(string $roleName): Role
     {
         $role = Role::where('name', $roleName)->where('guard_name', 'sanctum')->first();
@@ -389,6 +454,106 @@ class EmployeeLifecycleService
             ->where('model_id', $user->id)
             ->where('tenant_id', $tenantId)
             ->delete();
+    }
+
+    private function deprovisionUserAccount(User $user, int $tenantId, bool $deleteUser = false): void
+    {
+        $this->clearRuntimeAccess($user, $tenantId);
+
+        DB::table('user_internal_organizational_scopes')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        $this->deactivateTemporalAssignments('customer_assignments', $user->id);
+        $this->deactivateTemporalAssignments('site_assignments', $user->id);
+
+        DB::table('sessions')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        DB::table('two_factor_authentications')
+            ->where('authenticatable_type', User::class)
+            ->where('authenticatable_id', $user->id)
+            ->delete();
+
+        DB::table('password_reset_tokens')
+            ->where('email', $user->email)
+            ->delete();
+
+        DB::table('push_device_registrations')
+            ->where('user_id', $user->id)
+            ->delete();
+
+        $androidDeprovisionedAt = now();
+
+        DB::table('android_enrollment_sessions')
+            ->where('created_by', $user->id)
+            ->whereNull('revoked_at')
+            ->whereNull('exchanged_at')
+            ->where('bootstrap_token_expires_at', '>', $androidDeprovisionedAt)
+            ->update([
+                'created_by' => null,
+                'revoked_at' => $androidDeprovisionedAt,
+                'revocation_reason' => 'Enrollment session creator was deprovisioned.',
+                'updated_at' => $androidDeprovisionedAt,
+            ]);
+
+        DB::table('android_enrollment_sessions')
+            ->where('created_by', $user->id)
+            ->update([
+                'created_by' => null,
+                'updated_at' => $androidDeprovisionedAt,
+            ]);
+
+        $user->tokens()->delete();
+        $user->passkeyCredentials()->delete();
+
+        if ($deleteUser) {
+            $user->delete();
+
+            return;
+        }
+
+        $user->forceFill([
+            'name' => 'Deleted User',
+            'email' => 'deleted-user+'.$user->id.'@secpal.dev',
+            'email_verified_at' => null,
+            'password' => Hash::make(Str::random(64)),
+            'remember_token' => null,
+            'preferred_locale' => null,
+        ])->save();
+    }
+
+    private function deactivateTemporalAssignments(string $table, string $userId): void
+    {
+        $deprovisionedUntil = now()->subDay()->toDateString();
+
+        DB::table($table)
+            ->where('user_id', $userId)
+            ->where(function (Builder $query) use ($deprovisionedUntil): void {
+                $query->whereNull('valid_until')
+                    ->orWhere('valid_until', '>=', $deprovisionedUntil);
+            })
+            ->get(['id', 'valid_from'])
+            ->each(function (object $assignment) use ($table, $deprovisionedUntil): void {
+                $validFrom = $assignment->valid_from;
+
+                if ($validFrom !== null && $validFrom > $deprovisionedUntil) {
+                    DB::table($table)
+                        ->where('id', $assignment->id)
+                        ->delete();
+
+                    return;
+                }
+
+                DB::table($table)
+                    ->where('id', $assignment->id)
+                    ->update([
+                        'valid_from' => $validFrom,
+                        'valid_until' => $deprovisionedUntil,
+                        'updated_at' => now(),
+                    ]);
+            });
     }
 
     /**

@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Resources;
@@ -49,7 +49,7 @@ class EmployeeDocumentResource extends JsonResource
             'visible_to_employee' => $this->visible_to_employee,
 
             // Relationships (optional)
-            'uploader' => new UserResource($this->whenLoaded('uploader')),
+            'uploader' => $this->whenLoaded('uploader', fn (): ?UserResource => $this->uploader === null ? null : new UserResource($this->uploader)),
 
             'created_at' => \App\Support\ApiTimestamp::nullable($this->created_at),
             'updated_at' => \App\Support\ApiTimestamp::nullable($this->updated_at),

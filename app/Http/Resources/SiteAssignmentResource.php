@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Http\Resources;
@@ -38,7 +38,7 @@ class SiteAssignmentResource extends JsonResource
             'is_active' => $this->is_active,
 
             // Relationships
-            'user' => new UserResource($this->whenLoaded('user')),
+            'user' => $this->whenLoaded('user', fn (): ?UserResource => $this->user === null ? null : new UserResource($this->user)),
             // site relationship omitted to prevent circular dependency with SiteResource
 
             // Timestamps

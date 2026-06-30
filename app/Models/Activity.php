@@ -43,6 +43,9 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  * @property string|null $subject_id
  * @property string|null $causer_type
  * @property string|null $causer_id
+ * @property string|null $causer_employee_id
+ * @property string|null $causer_employee_organizational_unit_id
+ * @property int|null $causer_employee_management_level
  * @property string|null $event
  * @property \Illuminate\Support\Collection<string, mixed>|null $attribute_changes
  * @property array<string, mixed>|null $properties
@@ -93,6 +96,9 @@ class Activity extends SpatieActivity
         'subject_id',
         'causer_type',
         'causer_id',
+        'causer_employee_id',
+        'causer_employee_organizational_unit_id',
+        'causer_employee_management_level',
         'event',
         'attribute_changes',
         'properties',
@@ -130,6 +136,7 @@ class Activity extends SpatieActivity
             'updated_at' => 'datetime',
             'causer_id' => 'string',
             'subject_id' => 'string',
+            'causer_employee_management_level' => 'integer',
         ]);
     }
 
@@ -290,6 +297,8 @@ class Activity extends SpatieActivity
                 }
             }
 
+            $activity->captureCauserEmployeeContext();
+
             // Validate organizational_unit_id belongs to same tenant (Issue #402)
             if ($activity->organizational_unit_id !== null) {
                 $activity->validateOrganizationalUnit();
@@ -331,6 +340,9 @@ class Activity extends SpatieActivity
                 'subject_id' => $activity->subject_id,
                 'causer_type' => $activity->causer_type,
                 'causer_id' => $activity->causer_id,
+                'causer_employee_id' => $activity->causer_employee_id,
+                'causer_employee_organizational_unit_id' => $activity->causer_employee_organizational_unit_id,
+                'causer_employee_management_level' => $activity->causer_employee_management_level,
                 'event' => $activity->event,
                 'attribute_changes' => $activity->attribute_changes,
                 'properties' => $activity->properties,
@@ -353,6 +365,52 @@ class Activity extends SpatieActivity
             // multiple jobs for the same tenant wait for each other.
             \App\Jobs\ProcessActivityHashChain::dispatchSync($activity->tenant_id, $activityData);
         });
+    }
+
+    private function captureCauserEmployeeContext(): void
+    {
+        if ($this->causer_type !== User::class || $this->causer_id === null || $this->organizational_unit_id === null) {
+            return;
+        }
+
+        $causerEmployee = Employee::query()
+            ->select(['id', 'organizational_unit_id', 'management_level'])
+            ->where('user_id', $this->causer_id)
+            ->where('organizational_unit_id', $this->organizational_unit_id)
+            ->first();
+
+        if (! $causerEmployee instanceof Employee) {
+            return;
+        }
+
+        $this->causer_employee_id ??= $causerEmployee->id;
+        $this->causer_employee_organizational_unit_id ??= $causerEmployee->organizational_unit_id;
+        $this->causer_employee_management_level ??= $causerEmployee->management_level;
+    }
+
+    /**
+     * Build the tamper-evident payload used by the activity hash chain.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function buildHashPayload(array $attributes): string
+    {
+        return json_encode([
+            'tenant_id' => $attributes['tenant_id'] ?? null,
+            'log_name' => $attributes['log_name'] ?? null,
+            'description' => $attributes['description'] ?? null,
+            'subject_type' => $attributes['subject_type'] ?? null,
+            'subject_id' => $attributes['subject_id'] ?? null,
+            'causer_type' => $attributes['causer_type'] ?? null,
+            'causer_id' => $attributes['causer_id'] ?? null,
+            'causer_employee_id' => $attributes['causer_employee_id'] ?? null,
+            'causer_employee_organizational_unit_id' => $attributes['causer_employee_organizational_unit_id'] ?? null,
+            'causer_employee_management_level' => $attributes['causer_employee_management_level'] ?? null,
+            'event' => $attributes['event'] ?? null,
+            'attribute_changes' => $attributes['attribute_changes'] ?? null,
+            'properties' => $attributes['properties'] ?? null,
+            'created_at' => $attributes['created_at'] ?? null,
+        ], JSON_THROW_ON_ERROR);
     }
 
     /**
@@ -518,26 +576,24 @@ class Activity extends SpatieActivity
 
             $this->previous_hash = $previousLog?->event_hash;
 
-            // Calculate event hash: SHA256(previous_hash + log_data)
-            try {
-                $logData = json_encode([
-                    'tenant_id' => $this->tenant_id,
-                    'log_name' => $this->log_name,
-                    'description' => $this->description,
-                    'subject_type' => $this->subject_type,
-                    'subject_id' => $this->subject_id,
-                    'causer_type' => $this->causer_type,
-                    'causer_id' => $this->causer_id,
-                    'event' => $this->event,
-                    'attribute_changes' => $this->attribute_changes,
-                    'properties' => $this->properties,
-                    'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
-                ], JSON_THROW_ON_ERROR);
+            $logData = self::buildHashPayload([
+                'tenant_id' => $this->tenant_id,
+                'log_name' => $this->log_name,
+                'description' => $this->description,
+                'subject_type' => $this->subject_type,
+                'subject_id' => $this->subject_id,
+                'causer_type' => $this->causer_type,
+                'causer_id' => $this->causer_id,
+                'causer_employee_id' => $this->causer_employee_id,
+                'causer_employee_organizational_unit_id' => $this->causer_employee_organizational_unit_id,
+                'causer_employee_management_level' => $this->causer_employee_management_level,
+                'event' => $this->event,
+                'attribute_changes' => $this->attribute_changes,
+                'properties' => $this->properties,
+                'created_at' => $this->created_at->toIso8601String(),
+            ]);
 
-                $this->event_hash = hash('sha256', ($this->previous_hash ?? '').$logData);
-            } catch (\JsonException $exception) {
-                throw new \RuntimeException('Failed to encode activity log data for hashing.', 0, $exception);
-            }
+            $this->event_hash = hash('sha256', ($this->previous_hash ?? '').$logData);
         });
     }
 
@@ -567,7 +623,7 @@ class Activity extends SpatieActivity
         }
 
         // Recalculate event_hash and verify (for both genesis and chained logs)
-        $logData = json_encode([
+        $logData = self::buildHashPayload([
             'tenant_id' => $this->tenant_id,
             'log_name' => $this->log_name,
             'description' => $this->description,
@@ -575,11 +631,14 @@ class Activity extends SpatieActivity
             'subject_id' => $this->subject_id,
             'causer_type' => $this->causer_type,
             'causer_id' => $this->causer_id,
+            'causer_employee_id' => $this->causer_employee_id,
+            'causer_employee_organizational_unit_id' => $this->causer_employee_organizational_unit_id,
+            'causer_employee_management_level' => $this->causer_employee_management_level,
             'event' => $this->event,
             'attribute_changes' => $this->attribute_changes,
             'properties' => $this->properties,
-            'created_at' => $this->created_at->toIso8601String(), // Timestamp ensures hash uniqueness
-        ], JSON_THROW_ON_ERROR);
+            'created_at' => $this->created_at->toIso8601String(),
+        ]);
 
         $calculatedHash = hash('sha256', ($this->previous_hash ?? '').$logData);
 

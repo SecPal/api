@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -124,6 +124,11 @@ class OrganizationalUnitPolicy
      */
     public function manageScopes(User $user, OrganizationalUnit $unit): bool
     {
-        return $user->hasAccessToUnit($unit, 'manage');
+        if ($user->tenant_id !== $unit->tenant_id) {
+            return false;
+        }
+
+        return $user->can('organizational_scopes.manage')
+            && $user->hasAccessToUnit($unit, 'manage');
     }
 }

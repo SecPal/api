@@ -186,6 +186,24 @@ describe('GET /v1/sites/{site}/assignments', function () {
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['is_active'])->toBeTrue();
     });
+
+    test('returns preserved site assignment history when the linked user was deleted', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $assignment = SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $this->site->id,
+            'user_id' => null,
+            'role' => 'Former Site Manager',
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/sites/{$this->site->id}/assignments");
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $assignment->id)
+            ->assertJsonPath('data.0.user', null);
+    });
 });
 
 describe('POST /v1/sites/{site}/assignments', function () {

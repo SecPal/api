@@ -194,7 +194,7 @@ Route::prefix('v1')->group(function () {
             // Defense-in-depth: Middleware pre-checks scope-management access, controller uses policy for authorization
             Route::get('/me/organizational-scopes', [OrganizationalScopeController::class, 'myScopes']);
             Route::prefix('organizational-units/{organizational_unit}')
-                ->middleware('check.organizational.scope:manage')
+                ->middleware(['permission:organizational_scopes.manage', 'check.organizational.scope:manage'])
                 ->group(function () {
                     Route::get('/scopes', [OrganizationalScopeController::class, 'index']);
                     Route::post('/scopes', [OrganizationalScopeController::class, 'store']);

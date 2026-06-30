@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OrganizationalUnit;
@@ -108,6 +108,62 @@ describe('OrganizationalUnit Model', function () {
             // Found with trashed
             expect(OrganizationalUnit::withTrashed()->find($unitId))->not->toBeNull();
             expect(OrganizationalUnit::withTrashed()->find($unitId)->deleted_at)->not->toBeNull();
+        });
+
+        it('preserves ancestor and self closures for a soft-deleted leaf unit', function (): void {
+            $parent = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Parent Unit',
+                'type' => 'company',
+            ]);
+
+            $unit = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Restorable Unit',
+                'type' => 'department',
+            ]);
+            $unit->setParent($parent);
+
+            $unit->delete();
+
+            expect(OrganizationalUnitClosure::query()
+                ->where('ancestor_id', $parent->id)
+                ->where('descendant_id', $unit->id)
+                ->where('depth', 1)
+                ->exists())->toBeTrue()
+                ->and(OrganizationalUnitClosure::query()
+                    ->where('ancestor_id', $unit->id)
+                    ->where('descendant_id', $unit->id)
+                    ->where('depth', 0)
+                    ->exists())->toBeTrue();
+        });
+
+        it('restores a child as a root when its parent remains soft deleted', function (): void {
+            $parent = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Deleted Parent Unit',
+                'type' => 'company',
+            ]);
+
+            $child = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Restored Child Unit',
+                'type' => 'department',
+            ]);
+            $child->setParent($parent);
+
+            $child->delete();
+            $parent->delete();
+            $child->restore();
+
+            $child->refresh();
+
+            expect($child->parent)->toBeNull()
+                ->and(OrganizationalUnit::roots()->pluck('id')->all())->toContain($child->id)
+                ->and(OrganizationalUnitClosure::query()
+                    ->where('ancestor_id', $parent->id)
+                    ->where('descendant_id', $child->id)
+                    ->exists())->toBeFalse();
         });
     });
 

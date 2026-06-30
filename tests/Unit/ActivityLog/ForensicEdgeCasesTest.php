@@ -175,8 +175,8 @@ test('edge case 3: illegitimate genesis detected', function () {
     ]);
     $log2->saveQuietly();
 
-    // Calculate correct hash for genesis (including created_at for hash uniqueness)
-    $logData = json_encode([
+    // Calculate correct hash for genesis (including the full hash payload)
+    $logData = Activity::buildHashPayload([
         'tenant_id' => $log2->tenant_id,
         'log_name' => $log2->log_name,
         'description' => $log2->description,
@@ -184,11 +184,14 @@ test('edge case 3: illegitimate genesis detected', function () {
         'subject_id' => $log2->subject_id,
         'causer_type' => $log2->causer_type,
         'causer_id' => $log2->causer_id,
+        'causer_employee_id' => $log2->causer_employee_id,
+        'causer_employee_organizational_unit_id' => $log2->causer_employee_organizational_unit_id,
+        'causer_employee_management_level' => $log2->causer_employee_management_level,
         'event' => $log2->event,
         'attribute_changes' => $log2->attribute_changes,
         'properties' => $log2->properties,
         'created_at' => $log2->created_at?->toIso8601String(),
-    ], JSON_THROW_ON_ERROR);
+    ]);
 
     // Set as fake genesis with correct hash
     DB::table('activity_log')
@@ -231,8 +234,8 @@ test('edge case 4: illegitimate genesis with deleted batch activities', function
     $logs = $logs->map(fn ($log) => $log->refresh());
 
     // Break chain on log2 (make it fake genesis with correct hash)
-    // Calculate correct hash for log2 (as fake genesis) - include created_at
-    $log2Data = json_encode([
+    // Calculate correct hash for log2 (as fake genesis) using the full hash payload
+    $log2Data = Activity::buildHashPayload([
         'tenant_id' => $logs[2]->tenant_id,
         'log_name' => $logs[2]->log_name,
         'description' => $logs[2]->description,
@@ -240,11 +243,14 @@ test('edge case 4: illegitimate genesis with deleted batch activities', function
         'subject_id' => $logs[2]->subject_id,
         'causer_type' => $logs[2]->causer_type,
         'causer_id' => $logs[2]->causer_id,
+        'causer_employee_id' => $logs[2]->causer_employee_id,
+        'causer_employee_organizational_unit_id' => $logs[2]->causer_employee_organizational_unit_id,
+        'causer_employee_management_level' => $logs[2]->causer_employee_management_level,
         'event' => $logs[2]->event,
         'attribute_changes' => $logs[2]->attribute_changes,
         'properties' => $logs[2]->properties,
         'created_at' => $logs[2]->created_at?->toIso8601String(),
-    ], JSON_THROW_ON_ERROR);
+    ]);
 
     DB::table('activity_log')
         ->where('id', $logs[2]->id)

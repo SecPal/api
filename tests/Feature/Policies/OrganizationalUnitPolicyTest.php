@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\OrganizationalUnit;
@@ -9,6 +9,8 @@ use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use App\Policies\OrganizationalUnitPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Spatie\Permission\PermissionRegistrar;
 
 /**
  * @property TenantKey $tenant
@@ -31,6 +33,10 @@ beforeEach(function (): void {
         'tenant_id' => $this->tenant->id,
     ]);
     $this->policy = new OrganizationalUnitPolicy;
+
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($this->tenant->id);
+    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
     // Create organizational hierarchy: Company -> Region -> Branch
     $this->company = OrganizationalUnit::create([
@@ -55,6 +61,7 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
+    app(PermissionRegistrar::class)->setPermissionsTeamId(null);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -235,6 +242,8 @@ describe('OrganizationalUnitPolicy', function () {
 
     describe('manageScopes', function () {
         it('allows managing scopes with manage access', function (): void {
+            givePermissionWithTenant($this->user, $this->tenant->id, 'organizational_scopes.manage');
+
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
@@ -255,6 +264,8 @@ describe('OrganizationalUnitPolicy', function () {
         });
 
         it('allows managing scopes for descendant with hierarchical manage access', function (): void {
+            givePermissionWithTenant($this->user, $this->tenant->id, 'organizational_scopes.manage');
+
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,
                 'organizational_unit_id' => $this->region->id,
@@ -264,10 +275,42 @@ describe('OrganizationalUnitPolicy', function () {
 
             expect($this->policy->manageScopes($this->user, $this->branch))->toBeTrue();
         });
+
+        it('denies managing scopes with manage access but without scope-management permission', function (): void {
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->user->id,
+                'organizational_unit_id' => $this->region->id,
+                'access_level' => 'manage',
+            ]);
+
+            expect($this->policy->manageScopes($this->user, $this->region))->toBeFalse();
+        });
+
+        it('denies managing scopes across tenants even with permission and manage access', function (): void {
+            givePermissionWithTenant($this->user, $this->tenant->id, 'organizational_scopes.manage');
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->user->id,
+                'organizational_unit_id' => $this->region->id,
+                'access_level' => 'manage',
+                'include_descendants' => true,
+            ]);
+
+            $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+            $foreignUnit = OrganizationalUnit::create([
+                'tenant_id' => $otherTenant->id,
+                'name' => 'Foreign Region',
+                'type' => 'region',
+            ]);
+
+            expect($this->policy->manageScopes($this->user, $foreignUnit))->toBeFalse();
+        });
     });
 
     describe('Access Level Hierarchy', function () {
         it('respects access level hierarchy for operations', function (): void {
+            givePermissionWithTenant($this->user, $this->tenant->id, 'organizational_scopes.manage');
+
             // User with 'manage' access level on region
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->user->id,

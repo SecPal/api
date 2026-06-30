@@ -38,6 +38,8 @@ class StoreEmployeeRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            $this->validateSalaryWriteAccess($validator);
+
             if ($validator->errors()->has('organizational_unit_id') || $validator->errors()->has('management_level')) {
                 return;
             }
@@ -331,5 +333,18 @@ class StoreEmployeeRequest extends FormRequest
         $managementLevel = $this->input('management_level');
 
         return is_numeric($managementLevel) ? (int) $managementLevel : 0;
+    }
+
+    private function validateSalaryWriteAccess(Validator $validator): void
+    {
+        if (! $this->exists('hourly_rate')) {
+            return;
+        }
+
+        if ($this->user()?->can('employees.read_salary') ?? false) {
+            return;
+        }
+
+        $validator->errors()->add('hourly_rate', __('You are not authorized to manage salary data.'));
     }
 }

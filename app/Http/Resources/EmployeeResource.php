@@ -35,6 +35,7 @@ class EmployeeResource extends JsonResource
     public function toArray(Request $request): array
     {
         $canReadSensitiveIdentifiers = $request->user()?->can('employees.read_sensitive') ?? false;
+        $canReadSalary = $request->user()?->can('employees.read_salary') ?? false;
 
         return [
             'id' => $this->id,
@@ -111,7 +112,7 @@ class EmployeeResource extends JsonResource
             'contract_type' => $this->contract_type,
             'weekly_hours' => $this->weekly_hours,
             'monthly_hours' => $this->monthly_hours,
-            'hourly_rate' => $this->hourly_rate,
+            'hourly_rate' => $this->when($canReadSalary, fn () => $this->hourly_rate),
 
             // Health Insurance
             'health_insurance_type' => $this->health_insurance_type,
@@ -197,8 +198,8 @@ class EmployeeResource extends JsonResource
             'management_level' => $this->management_level,
 
             // Relationships (optional, load when needed)
-            'user' => new UserResource($this->whenLoaded('user')),
-            'organizational_unit' => new OrganizationalUnitResource($this->whenLoaded('organizationalUnit')),
+            'user' => $this->whenLoaded('user', fn (): ?UserResource => $this->user === null ? null : new UserResource($this->user)),
+            'organizational_unit' => $this->whenLoaded('organizationalUnit', fn (): ?OrganizationalUnitResource => $this->organizationalUnit === null ? null : new OrganizationalUnitResource($this->organizationalUnit)),
             'qualifications' => EmployeeQualificationResource::collection($this->whenLoaded('employeeQualifications')),
             'documents' => EmployeeDocumentResource::collection($this->whenLoaded('documents')),
 

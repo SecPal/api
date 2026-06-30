@@ -112,6 +112,29 @@ describe('GET /v1/sites', function () {
             ]);
     });
 
+    test('returns preserved assignment history with null nested users in site resources', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+        ]);
+
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $site->id,
+            'user_id' => null,
+            'role' => 'Former Site Manager',
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/sites');
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $site->id)
+            ->assertJsonPath('data.0.assignments.0.user', null);
+    });
+
     test('filters sites by is_active status', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 

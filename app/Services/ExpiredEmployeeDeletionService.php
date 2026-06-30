@@ -20,7 +20,10 @@ use Illuminate\Support\Str;
 
 class ExpiredEmployeeDeletionService
 {
-    public function __construct(private readonly UserDeviceAccessCleanupService $userDeviceAccessCleanupService) {}
+    public function __construct(
+        private readonly ActivityCauserContextService $activityCauserContextService,
+        private readonly UserDeviceAccessCleanupService $userDeviceAccessCleanupService,
+    ) {}
 
     /**
      * @return array{matched: int, deleted: int, users_anonymized: int, files_deleted: int}
@@ -94,8 +97,11 @@ class ExpiredEmployeeDeletionService
             $filePaths = $this->collectStoredPaths($employee);
             $usersAnonymized = 0;
 
-            if ($employee->user instanceof User) {
-                $this->anonymizeLinkedUser($employee->user);
+            $user = $employee->user;
+
+            if ($user instanceof User) {
+                $this->activityCauserContextService->preserveForEmployee($employee, $user);
+                $this->anonymizeLinkedUser($user);
                 $employee->user()->dissociate();
                 $employee->saveQuietly();
                 $usersAnonymized = 1;

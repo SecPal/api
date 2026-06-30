@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 namespace App\Models;
@@ -184,6 +184,38 @@ class UserInternalOrganizationalScope extends Model
             $this->min_assignable_rank,
             $this->max_assignable_rank,
         );
+    }
+
+    public function doesNotExpandAuthorizationComparedTo(self $currentScope): bool
+    {
+        return $this->getAccessLevelValue() <= $currentScope->getAccessLevelValue()
+            && (! $this->include_descendants || $currentScope->include_descendants)
+            && (! $this->allow_self_access || $currentScope->allow_self_access)
+            && $this->managementLevelRangeIsSubsetOf($currentScope, assignable: false)
+            && $this->managementLevelRangeIsSubsetOf($currentScope, assignable: true);
+    }
+
+    private function managementLevelRangeIsSubsetOf(self $currentScope, bool $assignable): bool
+    {
+        foreach (range(0, 255) as $managementLevel) {
+            $newScopeAllowsLevel = $assignable
+                ? $this->canAssignManagementLevel($managementLevel)
+                : $this->canViewManagementLevel($managementLevel);
+
+            if (! $newScopeAllowsLevel) {
+                continue;
+            }
+
+            $currentScopeAllowsLevel = $assignable
+                ? $currentScope->canAssignManagementLevel($managementLevel)
+                : $currentScope->canViewManagementLevel($managementLevel);
+
+            if (! $currentScopeAllowsLevel) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function isWithinViewableManagementLevelRange(int $managementLevel, ?int $minimumLevel, ?int $maximumLevel): bool

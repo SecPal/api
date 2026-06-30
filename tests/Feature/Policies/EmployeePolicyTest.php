@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\Employee;
@@ -256,24 +256,33 @@ test('employee cannot update other employees', function (): void {
 });
 
 test('only users with employee.write or employee.delete permission can delete employees', function (): void {
-    $userWithPermission = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
-    $userWithoutPermission = User::factory()->create();
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
-    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
+    ]);
 
     expect($this->policy->delete($userWithPermission, $employee))->toBeTrue();
     expect($this->policy->delete($userWithoutPermission, $employee))->toBeFalse();
 });
 
 test('only users with employee.write or employee.activate permission can activate employees', function (): void {
-    $userWithPermission = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
-    $userWithoutPermission = User::factory()->create();
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
         'status' => 'pre_contract',
     ]);
 
@@ -282,12 +291,16 @@ test('only users with employee.write or employee.activate permission can activat
 });
 
 test('only users with employee.write or employee.terminate permission can terminate employees', function (): void {
-    $userWithPermission = User::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
-    $userWithoutPermission = User::factory()->create();
+    $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
         'status' => 'active',
     ]);
 
@@ -295,13 +308,164 @@ test('only users with employee.write or employee.terminate permission can termin
     expect($this->policy->terminate($userWithoutPermission, $employee))->toBeFalse();
 });
 
+test('delete activate and terminate require the same scope and rank coverage as update', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.terminate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.update');
+
+    $orgUnit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
+    ]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 4,
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    expect($this->policy->update($user, $employee))->toBeFalse()
+        ->and($this->policy->delete($user, $employee))->toBeFalse()
+        ->and($this->policy->activate($user, $employee))->toBeFalse()
+        ->and($this->policy->terminate($user, $employee))->toBeFalse();
+});
+
+test('self lifecycle actions still require assignable rank coverage', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.update');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.terminate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
+
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'user_id' => $user->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 5,
+        'status' => Employee::STATUS_ACTIVE,
+    ]);
+
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 5,
+        'min_assignable_rank' => 1,
+        'max_assignable_rank' => 3,
+        'allow_self_access' => true,
+    ]);
+
+    expect($this->policy->view($user, $employee))->toBeTrue()
+        ->and($this->policy->update($user, $employee))->toBeTrue()
+        ->and($this->policy->delete($user, $employee))->toBeFalse()
+        ->and($this->policy->activate($user, $employee))->toBeFalse()
+        ->and($this->policy->placeOnLeave($user, $employee))->toBeFalse()
+        ->and($this->policy->returnFromLeave($user, $employee))->toBeFalse()
+        ->and($this->policy->terminate($user, $employee))->toBeFalse();
+});
+
+test('activate denies users whose permissions do not match the requested action', function (): void {
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    giveOrganizationalScope($user, $orgUnit, 0, 0, 0, 0);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    expect($this->policy->activate($user, $employee))->toBeFalse();
+});
+
+test('lifecycle actions remain authorized for employees in soft-deleted organizational units', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.terminate');
+
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    giveOrganizationalScope($user, $orgUnit, 0, 0, 0, 0);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $orgUnit->delete();
+    $employee->refresh();
+
+    expect($employee->organizationalUnit)->toBeNull()
+        ->and($this->policy->delete($user, $employee))->toBeTrue()
+        ->and($this->policy->activate($user, $employee))->toBeTrue()
+        ->and($this->policy->terminate($user, $employee))->toBeTrue();
+});
+
+test('lifecycle actions remain authorized for employees in deleted descendant units reached through ancestor scopes', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.terminate');
+
+    $company = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $branch = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $branch->setParent($company);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $user->id,
+        'organizational_unit_id' => $company->id,
+        'access_level' => 'write',
+        'include_descendants' => true,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => 0,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => 0,
+        'allow_self_access' => false,
+    ]);
+
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $branch->id,
+        'management_level' => 0,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    $branch->delete();
+    $employee->refresh();
+
+    expect($employee->organizationalUnit)->toBeNull()
+        ->and($this->policy->delete($user, $employee))->toBeTrue()
+        ->and($this->policy->activate($user, $employee))->toBeTrue()
+        ->and($this->policy->terminate($user, $employee))->toBeTrue();
+});
+
 test('only users with employee.write permission can place employees on leave', function (): void {
     $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
     $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
@@ -312,10 +476,14 @@ test('only users with employee.write permission can place employees on leave', f
 test('only users with employee.write permission can return employees from leave', function (): void {
     $userWithPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee.write');
+    $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    giveOrganizationalScope($userWithPermission, $orgUnit, 0, 0, 0, 0);
 
     $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
+        'organizational_unit_id' => $orgUnit->id,
+        'management_level' => 0,
         'status' => Employee::STATUS_ON_LEAVE,
     ]);
 

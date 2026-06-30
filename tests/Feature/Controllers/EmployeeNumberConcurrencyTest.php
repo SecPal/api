@@ -88,6 +88,7 @@ beforeEach(function (): void {
 
     $this->user = User::factory()->create();
     givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employees.read_salary');
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
     $this->organizationalUnit = OrganizationalUnit::factory()->create([

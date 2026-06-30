@@ -1,13 +1,17 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Gate;
+use Spatie\Permission\PermissionRegistrar;
 
 /**
  * @property TenantKey $tenant
@@ -29,10 +33,10 @@ beforeEach(function (): void {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
-    $this->scopeManagerUser = User::factory()->create();
+    $this->scopeManagerUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
     $this->adminUser = $this->scopeManagerUser;
-    $this->regularUser = User::factory()->create();
-    $this->targetUser = User::factory()->create();
+    $this->regularUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     // Create organizational hierarchy: Holding -> Company -> Region -> Branch
     $this->holding = OrganizationalUnit::create([
@@ -77,9 +81,15 @@ beforeEach(function (): void {
         'access_level' => 'read',
         'include_descendants' => true,
     ]);
+
+    $registrar = app(PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($this->tenant->id);
+    Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
+    givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 });
 
 afterEach(function (): void {
+    app(PermissionRegistrar::class)->setPermissionsTeamId(null);
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
 });
@@ -87,6 +97,8 @@ afterEach(function (): void {
 describe('OrganizationalScopeController', function () {
     describe('index - GET /organizational-units/{unit}/scopes', function () {
         it('lists scope assignments for a unit when user has scope-management access', function (): void {
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
+
             // Create a scope for target user
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
@@ -130,6 +142,8 @@ describe('OrganizationalScopeController', function () {
 
     describe('store - POST /organizational-units/{unit}/scopes', function () {
         it('creates a scope assignment when user has scope-management access', function (): void {
+            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+
             $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
@@ -167,7 +181,29 @@ describe('OrganizationalScopeController', function () {
             $response->assertForbidden();
         });
 
+        it('denies creating scope when user has manage access but lacks scope-management permission', function (): void {
+            $manageOnlyUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $manageOnlyUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+            ]);
+
+            $this->actingAs($manageOnlyUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => $this->targetUser->id,
+                'access_level' => 'read',
+            ]);
+
+            $response->assertForbidden();
+        });
+
         it('validates required fields', function (): void {
+            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+
             $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", []);
@@ -177,6 +213,8 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('validates access level is valid', function (): void {
+            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+
             $this->actingAs($this->adminUser);
 
             $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
@@ -189,6 +227,8 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('prevents duplicate scope assignments', function (): void {
+            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+
             // Create existing scope
             UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
@@ -206,10 +246,56 @@ describe('OrganizationalScopeController', function () {
             $response->assertUnprocessable()
                 ->assertJsonValidationErrors(['user_id']);
         });
+
+        it('prevents a user from creating their own scope assignment', function (): void {
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => $this->scopeManagerUser->id,
+                'access_level' => 'manage',
+                'include_descendants' => true,
+                'allow_self_access' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'allow_self_access' => true,
+            ]);
+        });
+
+        it('prevents a user from creating their own scope assignment when the user id casing differs', function (): void {
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => strtoupper($this->scopeManagerUser->id),
+                'access_level' => 'manage',
+                'include_descendants' => true,
+                'allow_self_access' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'allow_self_access' => true,
+            ]);
+        });
     });
 
     describe('update - PATCH /organizational-units/{unit}/scopes/{scope}', function () {
         it('updates a scope assignment when user has scope-management access', function (): void {
+            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
                 'organizational_unit_id' => $this->company->id,
@@ -246,6 +332,8 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('returns 404 for non-existent scope', function (): void {
+            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+
             $this->actingAs($this->adminUser);
 
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/00000000-0000-0000-0000-000000000000", [
@@ -256,7 +344,8 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('prevents a user from downgrading their own last scope-management access for a unit', function (): void {
-            $selfManagingUser = User::factory()->create();
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $selfManagingUser->id,
                 'organizational_unit_id' => $this->company->id,
@@ -279,10 +368,314 @@ describe('OrganizationalScopeController', function () {
             ]);
         });
 
+        it('prevents a user from expanding their own scope boundaries', function (): void {
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 2,
+                'max_viewable_rank' => 3,
+                'min_assignable_rank' => 2,
+                'max_assignable_rank' => 3,
+                'allow_self_access' => false,
+            ]);
+
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'include_descendants' => true,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => true,
+            ]);
+
+            $response->assertForbidden();
+
+            $selfScope->refresh();
+
+            expect($selfScope->include_descendants)->toBeFalse()
+                ->and($selfScope->min_viewable_rank)->toBe(2)
+                ->and($selfScope->max_viewable_rank)->toBe(3)
+                ->and($selfScope->min_assignable_rank)->toBe(2)
+                ->and($selfScope->max_assignable_rank)->toBe(3)
+                ->and($selfScope->allow_self_access)->toBeFalse();
+        });
+
+        it('prevents widening assignable ranks on a self scope when the view range stays capped', function (): void {
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 2,
+                'max_viewable_rank' => 3,
+                'min_assignable_rank' => 2,
+                'max_assignable_rank' => 3,
+                'allow_self_access' => false,
+            ]);
+
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            $selfScope->refresh();
+
+            expect($selfScope->min_viewable_rank)->toBe(2)
+                ->and($selfScope->max_viewable_rank)->toBe(3)
+                ->and($selfScope->min_assignable_rank)->toBe(2)
+                ->and($selfScope->max_assignable_rank)->toBe(3);
+        });
+
+        it('prevents a user from expanding their own scope to descendants', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+            ]);
+
+            expect($selfManagingUser->hasAccessToUnit($this->company, 'manage'))->toBeTrue()
+                ->and($selfManagingUser->hasAccessToUnit($this->region, 'manage'))->toBeFalse();
+
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'include_descendants' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            $selfScope->refresh();
+
+            expect($selfScope->include_descendants)->toBeFalse()
+                ->and($selfManagingUser->fresh()->hasAccessToUnit($this->region, 'manage'))->toBeFalse();
+        });
+
+        it('allows self-scope cleanup that does not expand effective authorization across split scopes', function (): void {
+            givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => true,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => true,
+            ]);
+
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->scopeManagerUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 2,
+                'max_viewable_rank' => 3,
+                'min_assignable_rank' => 2,
+                'max_assignable_rank' => 3,
+                'allow_self_access' => false,
+            ]);
+
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'include_descendants' => true,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => true,
+            ]);
+
+            $response->assertOk()
+                ->assertJsonPath('data.include_descendants', true)
+                ->assertJsonPath('data.max_viewable_rank', 5)
+                ->assertJsonPath('data.allow_self_access', true);
+        });
+
+        it('prevents a user from granting themselves descendant access through a parent scope update', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
+                'allow_self_access' => false,
+            ]);
+
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'include_descendants' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            expect($selfScope->fresh()?->include_descendants)->toBeFalse()
+                ->and($selfManagingUser->fresh()->hasAccessToUnit($this->region))->toBeFalse();
+        });
+
+        it('prevents granting self descendant access when the newly reachable child unit is soft-deleted', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'employee.delete');
+
+            $selfScope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
+                'allow_self_access' => false,
+            ]);
+
+            Employee::factory()->create([
+                'tenant_id' => $this->tenant->id,
+                'organizational_unit_id' => $this->region->id,
+                'management_level' => 0,
+            ]);
+
+            $this->region->delete();
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$selfScope->id}", [
+                'include_descendants' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            expect($selfScope->fresh()?->include_descendants)->toBeFalse();
+        });
+
+        it('prevents a self-managing user from enabling write self access through a split scope update', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'employee.read');
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'employee.update');
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'read',
+                'include_descendants' => false,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
+                'allow_self_access' => true,
+            ]);
+
+            $writeScope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 0,
+                'max_viewable_rank' => 0,
+                'min_assignable_rank' => 0,
+                'max_assignable_rank' => 0,
+                'allow_self_access' => false,
+            ]);
+
+            $employee = Employee::factory()->create([
+                'tenant_id' => $this->tenant->id,
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'management_level' => 0,
+            ]);
+
+            $this->actingAs($selfManagingUser);
+
+            expect(Gate::forUser($selfManagingUser)->allows('update', $employee))->toBeFalse();
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$writeScope->id}", [
+                'allow_self_access' => true,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            expect($writeScope->fresh()?->allow_self_access)->toBeFalse()
+                ->and(Gate::forUser($selfManagingUser)->allows('update', $employee))->toBeFalse();
+        });
+
+        it('prevents widening write scope ranks when view and assign coverage only exists across split scopes', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'employee.update');
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'read',
+                'include_descendants' => false,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => false,
+            ]);
+
+            $writeScope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 3,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => false,
+            ]);
+
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$writeScope->id}", [
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+            ]);
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            expect($writeScope->fresh()?->max_viewable_rank)->toBe(3);
+        });
+
     });
 
     describe('destroy - DELETE /organizational-units/{unit}/scopes/{scope}', function () {
         it('deletes a scope assignment when user has scope-management access', function (): void {
+            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->targetUser->id,
                 'organizational_unit_id' => $this->company->id,
@@ -315,6 +708,8 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('returns 404 for non-existent scope', function (): void {
+            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+
             $this->actingAs($this->adminUser);
 
             $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/00000000-0000-0000-0000-000000000000");
@@ -323,7 +718,8 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('prevents a user from deleting their own last scope-management access for a unit', function (): void {
-            $selfManagingUser = User::factory()->create();
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $selfManagingUser->id,
                 'organizational_unit_id' => $this->company->id,
@@ -344,6 +740,8 @@ describe('OrganizationalScopeController', function () {
         });
 
         it('allows deleting a self scope when another scope-management path still exists', function (): void {
+            givePermissionWithTenant($this->adminUser, $this->tenant->id, 'organizational_scopes.manage');
+
             $scope = UserInternalOrganizationalScope::create([
                 'user_id' => $this->adminUser->id,
                 'organizational_unit_id' => $this->company->id,
@@ -362,6 +760,46 @@ describe('OrganizationalScopeController', function () {
             ]);
 
             expect($this->adminUser->fresh()->hasAccessToUnit($this->company, 'manage'))->toBeTrue();
+        });
+
+        it('prevents deleting a self scope when doing so would widen inherited access', function (): void {
+            $selfManagingUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+            givePermissionWithTenant($selfManagingUser, $this->tenant->id, 'organizational_scopes.manage');
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'manage',
+                'include_descendants' => true,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+                'min_assignable_rank' => 1,
+                'max_assignable_rank' => 5,
+                'allow_self_access' => true,
+            ]);
+
+            $scope = UserInternalOrganizationalScope::create([
+                'user_id' => $selfManagingUser->id,
+                'organizational_unit_id' => $this->region->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+                'min_viewable_rank' => 2,
+                'max_viewable_rank' => 3,
+                'min_assignable_rank' => 2,
+                'max_assignable_rank' => 3,
+                'allow_self_access' => false,
+            ]);
+
+            $this->actingAs($selfManagingUser);
+
+            $response = $this->deleteJson("/v1/organizational-units/{$this->region->id}/scopes/{$scope->id}");
+
+            $response->assertForbidden()
+                ->assertJsonPath('message', 'You cannot create or expand your own organizational scope permissions.');
+
+            $this->assertDatabaseHas('user_internal_organizational_scopes', [
+                'id' => $scope->id,
+            ]);
         });
     });
 
@@ -387,6 +825,32 @@ describe('OrganizationalScopeController', function () {
                         ],
                     ],
                 ]);
+        });
+
+        it('ignores scopes that point to soft-deleted organizational units', function (): void {
+            $this->actingAs($this->adminUser);
+
+            $deletedUnit = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Deleted Unit',
+                'type' => 'department',
+            ]);
+
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->adminUser->id,
+                'organizational_unit_id' => $deletedUnit->id,
+                'access_level' => 'manage',
+                'include_descendants' => false,
+            ]);
+
+            $deletedUnit->delete();
+
+            $response = $this->getJson('/v1/me/organizational-scopes');
+
+            $response->assertOk();
+
+            expect(collect($response->json('data'))->pluck('organizational_unit_id')->all())
+                ->not->toContain($deletedUnit->id);
         });
     });
 

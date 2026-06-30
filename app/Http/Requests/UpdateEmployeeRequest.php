@@ -42,6 +42,8 @@ class UpdateEmployeeRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            $this->validateSalaryWriteAccess($validator);
+
             if ($validator->errors()->has('organizational_unit_id') || $validator->errors()->has('management_level')) {
                 return;
             }
@@ -312,7 +314,15 @@ class UpdateEmployeeRequest extends FormRequest
             return $organizationalUnit instanceof OrganizationalUnit ? $organizationalUnit : null;
         }
 
-        return $employee->organizationalUnit;
+        if ($employee->organizationalUnit instanceof OrganizationalUnit) {
+            return $employee->organizationalUnit;
+        }
+
+        if ($employee->organizational_unit_id === null) {
+            return null;
+        }
+
+        return OrganizationalUnit::withTrashed()->find($employee->organizational_unit_id);
     }
 
     private function resolvedManagementLevel(Employee $employee): int
@@ -324,5 +334,18 @@ class UpdateEmployeeRequest extends FormRequest
         }
 
         return $employee->management_level;
+    }
+
+    private function validateSalaryWriteAccess(Validator $validator): void
+    {
+        if (! $this->exists('hourly_rate')) {
+            return;
+        }
+
+        if ($this->user()?->can('employees.read_salary') ?? false) {
+            return;
+        }
+
+        $validator->errors()->add('hourly_rate', __('You are not authorized to manage salary data.'));
     }
 }

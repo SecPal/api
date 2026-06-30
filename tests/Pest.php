@@ -171,6 +171,19 @@ function givePermissionWithTenant(App\Models\User $user, int $tenantId, string $
 }
 
 /**
+ * Assign a role to a user with proper tenant context.
+ */
+function giveRoleWithTenant(App\Models\User $user, int $tenantId, string $role): void
+{
+    $registrar = app(Spatie\Permission\PermissionRegistrar::class);
+    $registrar->setPermissionsTeamId($tenantId);
+    $user->assignRole($role);
+    $registrar->setPermissionsTeamId(null);
+
+    $registrar->forgetCachedPermissions();
+}
+
+/**
  * Give user an organizational scope for testing.
  * Creates a scope with manage access (min=0, max=255) by default.
  */

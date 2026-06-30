@@ -7,17 +7,20 @@
 
 declare(strict_types=1);
 
+use App\Models\Activity;
 use App\Models\AndroidEnrollmentSession;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingSubmissionFile;
+use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -118,6 +121,51 @@ test('it deletes expired terminated employees, removes local files, and anonymiz
     expect($activity)->not->toBeNull();
 });
 
+test('it preserves activity causer rank context before deleting expired employees', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $orgUnit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+    ]);
+
+    $employee = Employee::factory()
+        ->for($tenant, 'tenant')
+        ->terminated()
+        ->create([
+            'user_id' => $user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'management_level' => 3,
+            'status' => Employee::STATUS_TERMINATED,
+            'employment_end_date' => now()->subYears(4)->toDateString(),
+            'retention_period_end' => now()->subDay()->toDateString(),
+        ]);
+
+    $activity = Activity::factory()->create([
+        'tenant_id' => $tenant->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $user->id,
+        'properties' => ['existing' => 'value'],
+    ]);
+
+    $this->artisan('employees:delete-expired')
+        ->expectsOutputToContain('Deleted 1 expired employee record(s)')
+        ->assertSuccessful();
+
+    $activity->refresh();
+
+    expect($activity->properties)
+        ->toMatchArray([
+            'existing' => 'value',
+        ])
+        ->and($activity->causer_employee_id)->toBe($employee->id)
+        ->and($activity->causer_employee_organizational_unit_id)->toBe($orgUnit->id)
+        ->and($activity->causer_employee_management_level)->toBe(3)
+        ->and($activity->verifyChain())->toBeTrue();
+});
+
 test('it revokes pending android enrollment sessions and deletes push registrations when anonymizing a linked user', function (): void {
     Carbon::setTestNow(Carbon::parse('2026-06-30 12:00:00 UTC'));
 
@@ -128,7 +176,7 @@ test('it revokes pending android enrollment sessions and deletes push registrati
         'email' => 'android.cleanup@secpal.dev',
     ]);
 
-    $employee = Employee::factory()
+    Employee::factory()
         ->for($tenant, 'tenant')
         ->terminated()
         ->create([

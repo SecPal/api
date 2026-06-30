@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -193,7 +193,7 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
         expect(DB::table('customer_assignments')->where('id', $assignmentId)->exists())->toBeFalse();
     });
 
-    test('cascade delete removes assignments when user is deleted', function (): void {
+    test('user delete preserves assignment history and clears the user reference', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
         $userId = createCustomerAssignmentTestUser('user@example.com');
@@ -204,7 +204,8 @@ describe('CreateCustomerAssignmentsTable Migration', function () {
 
         DB::table('users')->where('id', $userId)->delete();
 
-        expect(DB::table('customer_assignments')->where('id', $assignmentId)->exists())->toBeFalse();
+        expect(DB::table('customer_assignments')->where('id', $assignmentId)->exists())->toBeTrue()
+            ->and(DB::table('customer_assignments')->where('id', $assignmentId)->value('user_id'))->toBeNull();
     });
 
     test('role column accepts flexible tenant-specific terminology', function (): void {
