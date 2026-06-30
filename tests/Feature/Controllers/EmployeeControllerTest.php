@@ -579,7 +579,7 @@ describe('POST /v1/employees', function () {
             ->postJson('/v1/employees', [
                 'first_name' => 'Nina',
                 'last_name' => 'Newhire',
-                'email' => 'nina.no-salary@example.com',
+                'email' => 'nina.no-salary@secpal.dev',
                 'date_of_birth' => '1993-05-15',
                 'position' => 'Security Guard',
                 'status' => Employee::STATUS_PRE_CONTRACT,

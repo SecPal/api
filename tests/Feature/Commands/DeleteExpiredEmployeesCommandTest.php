@@ -151,10 +151,11 @@ test('it preserves activity causer rank context before deleting expired employee
     expect($activity->properties)
         ->toMatchArray([
             'existing' => 'value',
-            'causer_employee_id' => $employee->id,
-            'causer_employee_organizational_unit_id' => $orgUnit->id,
-            'causer_employee_management_level' => 3,
-        ]);
+        ])
+        ->and($activity->causer_employee_id)->toBe($employee->id)
+        ->and($activity->causer_employee_organizational_unit_id)->toBe($orgUnit->id)
+        ->and($activity->causer_employee_management_level)->toBe(3)
+        ->and($activity->verifyChain())->toBeTrue();
 });
 
 test('it supports dry run without deleting employee records', function (): void {

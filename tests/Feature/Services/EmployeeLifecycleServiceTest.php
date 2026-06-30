@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
+use App\Models\Activity;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\Employee;
@@ -468,6 +469,42 @@ test('employee lifecycle service deletes a linked user while preserving employee
         ->and(SiteAssignment::query()->find($activeSiteAssignment->id))->not->toBeNull()
         ->and(SiteAssignment::query()->find($activeSiteAssignment->id)?->user_id)->toBeNull()
         ->and(SiteAssignment::query()->find($activeSiteAssignment->id)?->valid_until?->isPast())->toBeTrue();
+});
+
+test('employee lifecycle service preserves causer rank context without invalidating activity hashes', function (): void {
+    $linkedUser = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'user_id' => $linkedUser->id,
+        'user_account_active' => true,
+        'management_level' => 3,
+    ]);
+
+    $activity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'causer_type' => User::class,
+        'causer_id' => $linkedUser->id,
+        'properties' => [
+            'original_context' => 'unchanged',
+        ],
+    ]);
+
+    expect($activity->refresh()->verifyChain())->toBeTrue();
+
+    $this->service->delete($employee);
+
+    $activity->refresh();
+
+    expect($activity->properties)->toMatchArray([
+        'original_context' => 'unchanged',
+    ])
+        ->and($activity->verifyChain())->toBeTrue();
 });
 
 test('employee lifecycle service preserves future assignment start dates when deleting a linked user', function (): void {

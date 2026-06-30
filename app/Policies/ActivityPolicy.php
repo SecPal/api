@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
@@ -10,7 +10,6 @@ namespace App\Policies;
 use App\Models\Activity;
 use App\Models\Employee;
 use App\Models\User;
-use Illuminate\Contracts\Support\Arrayable;
 
 /**
  * Activity Policy
@@ -160,45 +159,15 @@ class ActivityPolicy
 
     private function preservedCauserRankForActivity(Activity $activity): ?int
     {
-        $properties = $this->activityPropertiesAsArray($activity->properties);
-
-        if (($properties['causer_employee_organizational_unit_id'] ?? null) !== $activity->organizational_unit_id) {
+        if ($activity->causer_employee_organizational_unit_id !== $activity->organizational_unit_id) {
             return null;
         }
 
-        $rank = $properties['causer_employee_management_level'] ?? null;
-
-        if (! is_int($rank) && ! is_string($rank)) {
+        if ($activity->causer_employee_management_level === null || $activity->causer_employee_management_level < 0) {
             return null;
         }
 
-        $validatedRank = filter_var($rank, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
-
-        return $validatedRank === false ? null : $validatedRank;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function activityPropertiesAsArray(mixed $properties): array
-    {
-        if ($properties instanceof Arrayable) {
-            $properties = $properties->toArray();
-        }
-
-        if (! is_array($properties)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($properties as $key => $value) {
-            if (is_string($key)) {
-                $normalized[$key] = $value;
-            }
-        }
-
-        return $normalized;
+        return $activity->causer_employee_management_level;
     }
 
     /**

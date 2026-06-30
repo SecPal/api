@@ -205,7 +205,7 @@ class ActivityLogController extends Controller
                 $leadershipQuery->orWhere(function ($systemUserQuery) {
                     $systemUserQuery->where('causer_type', User::class)
                         ->whereNotNull('causer_id')
-                        ->whereRaw("activity_log.properties->>'causer_employee_id' is null")
+                        ->whereNull('causer_employee_id')
                         ->whereNotExists(function ($employeeCheckQuery): void {
                             /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
                             $employeeCheckQuery->select(DB::raw(1))
@@ -267,8 +267,8 @@ class ActivityLogController extends Controller
             $leadershipQuery->orWhere(function ($deprovisionedCauserQuery) use ($rankRangesByUnit) {
                 $deprovisionedCauserQuery->where('causer_type', User::class)
                     ->whereNotNull('causer_id')
-                    ->whereRaw("activity_log.properties->>'causer_employee_id' is not null")
-                    ->whereRaw("(activity_log.properties->>'causer_employee_management_level') ~ '^[0-9]+$'")
+                    ->whereNotNull('causer_employee_id')
+                    ->whereNotNull('causer_employee_management_level')
                     ->whereNotExists(function ($employeeCheckQuery): void {
                         /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
                         $employeeCheckQuery->select(DB::raw(1))
@@ -280,23 +280,23 @@ class ActivityLogController extends Controller
                         foreach ($rankRangesByUnit as $unitId => $rankRanges) {
                             $unitsQuery->orWhere(function ($unitQuery) use ($unitId, $rankRanges) {
                                 $unitQuery->where('organizational_unit_id', $unitId)
-                                    ->whereRaw("activity_log.properties->>'causer_employee_organizational_unit_id' = ?", [(string) $unitId])
+                                    ->where('causer_employee_organizational_unit_id', $unitId)
                                     ->where(function ($rankQueryBuilder) use ($rankRanges): void {
                                         /** @var \Illuminate\Database\Query\Builder $rankQueryBuilder */
                                         foreach ($rankRanges as $range) {
                                             $rankQueryBuilder->orWhere(function ($rangeQuery) use ($range): void {
                                                 /** @var \Illuminate\Database\Query\Builder $rangeQuery */
                                                 if ($range['max'] === 0) {
-                                                    $rangeQuery->whereRaw("(activity_log.properties->>'causer_employee_management_level')::integer = 0");
+                                                    $rangeQuery->where('causer_employee_management_level', 0);
                                                 } else {
-                                                    $rangeQuery->whereRaw("(activity_log.properties->>'causer_employee_management_level')::integer > 0");
+                                                    $rangeQuery->where('causer_employee_management_level', '>', 0);
 
                                                     if ($range['min'] !== null) {
-                                                        $rangeQuery->whereRaw("(activity_log.properties->>'causer_employee_management_level')::integer >= ?", [$range['min']]);
+                                                        $rangeQuery->where('causer_employee_management_level', '>=', $range['min']);
                                                     }
 
                                                     if ($range['max'] !== null) {
-                                                        $rangeQuery->whereRaw("(activity_log.properties->>'causer_employee_management_level')::integer <= ?", [$range['max']]);
+                                                        $rangeQuery->where('causer_employee_management_level', '<=', $range['max']);
                                                     }
                                                 }
                                             });

@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal
+// SPDX-FileCopyrightText: 2025-2026 SecPal
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\RoleAssignmentLog;
@@ -120,7 +120,7 @@ test('role assignment log has relationship to assigner', function () {
         ->and($log->assignedBy->id)->toBe($admin->id);
 });
 
-test('role assignment log user reference is nullable and uses set null on delete', function () {
+test('role assignment log user reference is nullable and uses set null on delete', function (): void {
     $columns = DB::selectOne(
         'SELECT is_nullable FROM information_schema.columns WHERE table_name = ? AND column_name = ?',
         ['role_assignments_log', 'user_id'],
@@ -140,7 +140,7 @@ test('role assignment log user reference is nullable and uses set null on delete
         ->and($constraint?->delete_rule)->toBe('SET NULL');
 });
 
-test('role assignment log survives deletion of the affected user', function () {
+test('role assignment log survives deletion of the affected user', function (): void {
     $user = User::factory()->create();
     $role = Role::create(['name' => 'audited-manager']);
 

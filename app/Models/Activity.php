@@ -44,6 +44,9 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
  * @property string|null $subject_id
  * @property string|null $causer_type
  * @property string|null $causer_id
+ * @property string|null $causer_employee_id
+ * @property string|null $causer_employee_organizational_unit_id
+ * @property int|null $causer_employee_management_level
  * @property string|null $event
  * @property \Illuminate\Support\Collection<string, mixed>|null $attribute_changes
  * @property array<string, mixed>|null $properties
@@ -94,6 +97,9 @@ class Activity extends SpatieActivity
         'subject_id',
         'causer_type',
         'causer_id',
+        'causer_employee_id',
+        'causer_employee_organizational_unit_id',
+        'causer_employee_management_level',
         'event',
         'attribute_changes',
         'properties',
@@ -131,6 +137,7 @@ class Activity extends SpatieActivity
             'updated_at' => 'datetime',
             'causer_id' => 'string',
             'subject_id' => 'string',
+            'causer_employee_management_level' => 'integer',
         ]);
     }
 
