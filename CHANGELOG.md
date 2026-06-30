@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- consolidated the self-escalation authorization-expansion invariant into `SelfScopeAuthorizationExpansionService`, so `OrganizationalScopeController` now delegates the scope-boundary checks to one shared implementation and the duplicate `UserInternalOrganizationalScope` helper was removed (refs `api#1190`)
 - replaced the remaining local `markdownlint-cli2` hook and preflight invocation with a pinned `markdownlint-cli@0.49.0` path so markdown governance follows the same CLI baseline as `SecPal/.github`
 - hardened the governance rollout in `quality.yml` by pinning shared reusable workflows to the current `.github` commit and keeping the provider-neutral AI-instructions validation path reproducible in CI
 - `GET /v1/bootstrap?client_platform=browser` now keeps the AGPL `legal.source_url` disclosure while limiting public notification runtime metadata to the browser-relevant `web_push` channel, so browser clients no longer receive Android FCM bootstrap metadata
