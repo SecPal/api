@@ -14,7 +14,9 @@ use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
 use App\Models\TenantKey;
+use App\Models\User;
 use App\Support\LikePattern;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -52,7 +54,7 @@ class CustomerController extends Controller
     {
         $this->authorize('viewAny', Customer::class);
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
@@ -60,6 +62,8 @@ class CustomerController extends Controller
         $query = Customer::query()
             ->where('tenant_id', $tenantId)
             ->with(['assignments.user']);
+
+        $query = $this->withVisibleSitesCount($query, $user);
 
         // Need-to-Know filtering: users reaching this branch already have scoped collection access
         if (! $user->can('customers.read')) {
@@ -170,8 +174,11 @@ class CustomerController extends Controller
     public function show(Customer $customer): JsonResponse
     {
         $this->authorize('view', $customer);
+        /** @var User $user */
+        $user = request()->user();
 
-        $customer->load(['assignments.user', 'sites']);
+        $customer->load(['assignments.user', 'sites'])
+            ->loadCount($this->visibleSitesCountDefinition($user));
 
         return response()->json([
             'data' => new CustomerResource($customer),
@@ -241,7 +248,7 @@ class CustomerController extends Controller
     {
         $this->authorize('view', $customer);
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
         $perPage = $request->integer('per_page', 15);
         $sites = $user->can('customers.read')
@@ -259,5 +266,34 @@ class CustomerController extends Controller
         }
 
         return SiteResource::collection($sites->paginate($perPage));
+    }
+
+    /**
+     * Attach a sites_count that matches the current caller's effective site visibility.
+     *
+     * @param  Builder<Customer>  $query
+     * @return Builder<Customer>
+     */
+    private function withVisibleSitesCount(Builder $query, User $user): Builder
+    {
+        return $query->withCount($this->visibleSitesCountDefinition($user));
+    }
+
+    /**
+     * Build the loadCount/withCount definition for customer sites_count.
+     *
+     * @return array<int|string, string|\Closure(Builder): void>
+     */
+    private function visibleSitesCountDefinition(User $user): array
+    {
+        if ($user->can('customers.read')) {
+            return ['sites'];
+        }
+
+        return [
+            'sites as sites_count' => function (Builder $query) use ($user): void {
+                $query->whereIn('sites.id', $user->visibleSitesQuery()->select('sites.id'));
+            },
+        ];
     }
 }
