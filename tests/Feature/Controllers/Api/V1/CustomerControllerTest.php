@@ -80,6 +80,25 @@ describe('GET /v1/customers', function () {
             ]);
     });
 
+    test('returns linked sites_count in customer list responses', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+        $customer = Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+
+        Site::factory()->count(2)->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/customers');
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $customer->id)
+            ->assertJsonPath('data.0.sites_count', 2);
+    });
+
     test('returns preserved assignment history with null nested users in customer resources', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
 
@@ -245,6 +264,64 @@ describe('GET /v1/customers', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['id'])->toBe($customer->id);
+    });
+
+    test('user without permission only receives visible sites_count in customer list', function (): void {
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $visibleSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $visibleSite->id,
+            'user_id' => $this->user->id,
+            'role' => 'Site Manager',
+            'valid_from' => now()->subDays(10),
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/customers');
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $customer->id)
+            ->assertJsonPath('data.0.sites_count', 1);
+    });
+
+    test('user with sites read permission receives full customer sites_count in customer list', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $visibleSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $visibleSite->id,
+            'user_id' => $this->user->id,
+            'role' => 'Site Manager',
+            'valid_from' => now()->subDays(10),
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson('/v1/customers');
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $customer->id)
+            ->assertJsonPath('data.0.sites_count', 2);
     });
 
     test('supports pagination with custom per_page', function (): void {
@@ -495,6 +572,86 @@ describe('GET /v1/customers/{customer}', function () {
             ]);
 
         expect($response->json('data.id'))->toBe($customer->id);
+    });
+
+    test('returns linked sites_count in customer detail responses', function (): void {
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        CustomerAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'user_id' => $this->user->id,
+            'role' => 'Account Manager',
+        ]);
+
+        Site::factory()->count(3)->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.sites_count', 3);
+    });
+
+    test('returns only independently visible sites in customer detail for scoped users', function (): void {
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $visibleSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+        $hiddenSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $visibleSite->id,
+            'user_id' => $this->user->id,
+            'role' => 'Site Manager',
+            'valid_from' => now()->subDays(10),
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.sites_count', 1)
+            ->assertJsonCount(1, 'data.sites')
+            ->assertJsonPath('data.sites.0.id', $visibleSite->id);
+
+        expect(collect($response->json('data.sites'))->pluck('id'))->not->toContain($hiddenSite->id);
+    });
+
+    test('user with sites read permission receives full customer sites_count in customer detail', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
+
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $visibleSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $visibleSite->id,
+            'user_id' => $this->user->id,
+            'role' => 'Site Manager',
+            'valid_from' => now()->subDays(10),
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.sites_count', 2);
     });
 
     test('includes notes when user can update customer', function (): void {
