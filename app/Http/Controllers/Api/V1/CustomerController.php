@@ -18,6 +18,7 @@ use App\Models\TenantKey;
 use App\Models\User;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -180,7 +181,7 @@ class CustomerController extends Controller
 
         $customer->load([
             'assignments.user',
-            'sites' => function ($query) use ($user): void {
+            'sites' => function (HasMany $query) use ($user): void {
                 if ($user->can('customers.read')) {
                     return;
                 }
