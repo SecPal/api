@@ -7,14 +7,11 @@ use App\Models\AddressDataImport;
 use App\Models\AddressStreet;
 use App\Services\AddressData\AddressSuggestionService;
 use App\Support\AddressSearchNormalizer;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\RefreshDatabaseState;
+use Tests\Support\ResetsRefreshDatabaseStateForAddressData;
 
-uses(RefreshDatabase::class)->group('unit', 'services', 'address-data');
+uses(ResetsRefreshDatabaseStateForAddressData::class)->group('unit', 'services', 'address-data');
 
 beforeEach(function (): void {
-    RefreshDatabaseState::$migrated = false;
-
     $this->service = new AddressSuggestionService;
     $this->service->forgetActiveImportCache('DE');
 
@@ -25,10 +22,6 @@ beforeEach(function (): void {
         'status' => AddressDataImport::STATUS_SUCCEEDED,
         'activated_at' => now(),
     ]);
-});
-
-afterEach(function (): void {
-    RefreshDatabaseState::$migrated = false;
 });
 
 test('active import ignores stale cached ids for deactivated imports', function (): void {
