@@ -177,7 +177,16 @@ class CustomerController extends Controller
         /** @var User $user */
         $user = request()->user();
 
-        $customer->load(['assignments.user', 'sites'])
+        $customer->load([
+            'assignments.user',
+            'sites' => function ($query) use ($user): void {
+                if ($user->can('customers.read')) {
+                    return;
+                }
+
+                $query->whereIn('sites.id', $user->visibleSitesQuery()->select('sites.id'));
+            },
+        ])
             ->loadCount($this->visibleSitesCountDefinition($user));
 
         return response()->json([

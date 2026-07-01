@@ -595,6 +595,36 @@ describe('GET /v1/customers/{customer}', function () {
             ->assertJsonPath('data.sites_count', 3);
     });
 
+    test('returns only independently visible sites in customer detail for scoped users', function (): void {
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $visibleSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+        $hiddenSite = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $visibleSite->id,
+            'user_id' => $this->user->id,
+            'role' => 'Site Manager',
+            'valid_from' => now()->subDays(10),
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.sites_count', 1)
+            ->assertJsonCount(1, 'data.sites')
+            ->assertJsonPath('data.sites.0.id', $visibleSite->id);
+
+        expect(collect($response->json('data.sites'))->pluck('id'))->not->toContain($hiddenSite->id);
+    });
+
     test('user with sites read permission receives full customer sites_count in customer detail', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
