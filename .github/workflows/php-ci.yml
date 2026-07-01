@@ -100,7 +100,7 @@ jobs:
           php -r "file_put_contents('storage/app/keys/kek.key', sodium_crypto_secretbox_keygen());"
           chmod 600 storage/app/keys/kek.key
 
-      - name: Run tests with coverage
+      - name: Run parallel tests with coverage
         env:
           # Test-only APP_KEY - not used in production
           APP_KEY: base64:ZXUevbvUHFMlVnuwTiO0s7pQ1i584bpMKALKwTMNYh4=
@@ -111,7 +111,19 @@ jobs:
           DB_USERNAME: testing
           DB_PASSWORD: testing
           XDEBUG_MODE: coverage
-        run: php artisan test --parallel --coverage-clover coverage.xml
+        run: php artisan test --parallel --exclude-group=serial --coverage-clover coverage.xml
+
+      - name: Run serial tests
+        env:
+          APP_KEY: base64:ZXUevbvUHFMlVnuwTiO0s7pQ1i584bpMKALKwTMNYh4=
+          DB_CONNECTION: pgsql
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_DATABASE: testing
+          DB_USERNAME: testing
+          DB_PASSWORD: testing
+          XDEBUG_MODE: coverage
+        run: php artisan test --group=serial --coverage-clover coverage-serial.xml
 
       - name: Validate setup command works
         env:
@@ -134,7 +146,7 @@ jobs:
           # Token is optional for public repos (tokenless uploads supported)
           # Dependabot PRs cannot access secrets, so token may be empty
           token: ${{ secrets.CODECOV_TOKEN || '' }}
-          files: ./coverage.xml
+          files: ./coverage.xml,./coverage-serial.xml
           flags: backend
           name: backend-coverage
           fail_ci_if_error: ${{ !contains(fromJSON('["dependabot[bot]", "renovate[bot]"]'), github.actor) }}
