@@ -13,6 +13,7 @@ use App\Http\Requests\Api\V1\UpdateCustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
+use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Support\LikePattern;
@@ -186,8 +187,8 @@ class CustomerController extends Controller
 
                 $query->whereIn('sites.id', $user->visibleSitesQuery()->select('sites.id'));
             },
-        ])
-            ->loadCount($this->visibleSitesCountDefinition($user));
+        ]);
+        $customer->loadCount($this->visibleSitesCountDefinition($user));
 
         return response()->json([
             'data' => new CustomerResource($customer),
@@ -291,7 +292,7 @@ class CustomerController extends Controller
     /**
      * Build the loadCount/withCount definition for customer sites_count.
      *
-     * @return array<int|string, string|\Closure(Builder): void>
+     * @return array<int|string, string|\Closure(Builder<Site>): void>
      */
     private function visibleSitesCountDefinition(User $user): array
     {
