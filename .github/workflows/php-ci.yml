@@ -122,7 +122,8 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: testing
           DB_PASSWORD: testing
-        run: php artisan test --group=serial
+          XDEBUG_MODE: coverage
+        run: php artisan test --group=serial --coverage-clover coverage-serial.xml
 
       - name: Validate setup command works
         env:
@@ -145,7 +146,7 @@ jobs:
           # Token is optional for public repos (tokenless uploads supported)
           # Dependabot PRs cannot access secrets, so token may be empty
           token: ${{ secrets.CODECOV_TOKEN || '' }}
-          files: ./coverage.xml
+          files: ./coverage.xml,./coverage-serial.xml
           flags: backend
           name: backend-coverage
           fail_ci_if_error: ${{ !contains(fromJSON('["dependabot[bot]", "renovate[bot]"]'), github.actor) }}

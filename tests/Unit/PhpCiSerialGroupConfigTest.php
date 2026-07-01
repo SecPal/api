@@ -19,5 +19,6 @@ test('php ci excludes serial tests from the parallel pest run and executes them 
 
     expect($contents)
         ->toContain('php artisan test --parallel --exclude-group=serial --coverage-clover coverage.xml')
-        ->toContain('php artisan test --group=serial');
+        ->toContain('php artisan test --group=serial --coverage-clover coverage-serial.xml')
+        ->toContain('files: ./coverage.xml,./coverage-serial.xml');
 });
