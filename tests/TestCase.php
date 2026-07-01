@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -66,6 +67,7 @@ abstract class TestCase extends BaseTestCase
         $app->loadEnvironmentFrom(static::bootstrapEnvironmentFileName());
         $app->make(Kernel::class)->bootstrap();
         self::normalizeApplicationConfiguration($app);
+        self::synchronizeRefreshDatabaseMigrationState($app);
 
         return $app;
     }
@@ -363,6 +365,35 @@ abstract class TestCase extends BaseTestCase
 
         if (isset($app['db'])) {
             $app['db']->purge();
+        }
+    }
+
+    protected static function synchronizeRefreshDatabaseMigrationState(Application $app): void
+    {
+        if (! RefreshDatabaseState::$migrated) {
+            return;
+        }
+
+        $databaseConnection = $app['config']->get('database.default');
+
+        if (! is_string($databaseConnection) || $databaseConnection !== 'pgsql' || ! isset($app['db'])) {
+            return;
+        }
+
+        $migrationTable = $app['config']->get('database.migrations.table', 'migrations');
+
+        if (! is_string($migrationTable) || $migrationTable === '') {
+            return;
+        }
+
+        try {
+            $schema = $app['db']->connection($databaseConnection)->getSchemaBuilder();
+
+            if (! $schema->hasTable($migrationTable)) {
+                RefreshDatabaseState::$migrated = false;
+            }
+        } catch (\Throwable) {
+            RefreshDatabaseState::$migrated = false;
         }
     }
 

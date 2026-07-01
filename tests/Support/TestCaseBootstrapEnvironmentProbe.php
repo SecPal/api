@@ -62,6 +62,11 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
         parent::normalizeApplicationConfiguration($app);
     }
 
+    public static function synchronizeRefreshDatabaseMigrationState(Application $app): void
+    {
+        parent::synchronizeRefreshDatabaseMigrationState($app);
+    }
+
     public static function expectedTestAppKey(): string
     {
         return parent::expectedTestAppKey();
