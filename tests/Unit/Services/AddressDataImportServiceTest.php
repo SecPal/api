@@ -10,8 +10,17 @@ use App\Services\AddressData\AddressDataImportService;
 use App\Services\AddressData\AddressStreetCsvImporter;
 use App\Services\AddressData\AddressSuggestionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\RefreshDatabaseState;
 
 uses(RefreshDatabase::class)->group('unit', 'services', 'address-data');
+
+beforeEach(function (): void {
+    RefreshDatabaseState::$migrated = false;
+});
+
+afterEach(function (): void {
+    RefreshDatabaseState::$migrated = false;
+});
 
 test('dry run validates fixture csv without persisting import or street rows', function (): void {
     $fixture = base_path('tests/fixtures/address_data/sample_streets.csv');
