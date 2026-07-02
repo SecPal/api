@@ -14,7 +14,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * Supports filtering by:
  * - Date range (from_date, to_date)
  * - Log name (log_name)
- * - Search (description)
+ * - Search (description + persisted subject metadata)
  * - Organizational unit (organizational_unit_id)
  * - Causer type and ID
  * - Subject type and ID
@@ -49,7 +49,7 @@ class IndexActivityLogRequest extends FormRequest
             // Log name filtering (exact match)
             'log_name' => ['nullable', 'string', 'max:255'],
 
-            // Search in description (case-insensitive)
+            // Search in description and persisted subject metadata (case-insensitive)
             'search' => ['nullable', 'string', 'max:255'],
 
             // Organizational unit filtering (tenant-scoped)

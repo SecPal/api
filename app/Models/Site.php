@@ -150,6 +150,16 @@ class Site extends Model
             ->useLogName('site_management');
     }
 
+    public function beforeActivityLogged(Activity $activity, string $event): void
+    {
+        $properties = $activity->properties ?? [];
+        $properties['subject_name'] = $this->name;
+        $properties['subject_identifier'] = $this->site_number;
+        $properties['subject_label'] = 'site';
+
+        $activity->properties = $properties;
+    }
+
     /**
      * Get the tenant that owns this site.
      *

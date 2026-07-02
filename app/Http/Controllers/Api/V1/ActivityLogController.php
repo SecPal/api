@@ -50,7 +50,7 @@ class ActivityLogController extends Controller
      * Supports filtering by:
      * - Date range (from_date, to_date)
      * - Log name (log_name)
-     * - Search in description
+     * - Search in description and persisted subject metadata
      * - Organizational unit
      * - Causer (type + ID)
      * - Subject (type + ID)
@@ -359,10 +359,22 @@ class ActivityLogController extends Controller
             $query->where('log_name', $request->string('log_name')->toString());
         }
 
-        // Search in description (case-insensitive)
-        if ($request->has('search')) {
+        // Search in description and persisted subject metadata (case-insensitive)
+        if ($request->filled('search')) {
             $search = LikePattern::escape($request->string('search')->toString());
-            $query->where('description', 'ilike', "%{$search}%");
+            $query->where(function ($searchQuery) use ($search): void {
+                $like = "%{$search}%";
+
+                $searchQuery->where('description', 'ilike', $like)
+                    ->orWhereRaw("coalesce(properties ->> 'subject_name', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(properties ->> 'subject_identifier', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'attributes' ->> 'name', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'attributes' ->> 'customer_number', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'attributes' ->> 'site_number', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'old' ->> 'name', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'old' ->> 'customer_number', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'old' ->> 'site_number', '') ilike ?", [$like]);
+            });
         }
 
         // Organizational unit filter

@@ -9,8 +9,10 @@
 use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Requests\Api\V1\IndexActivityLogRequest;
 use App\Models\Activity;
+use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
+use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -574,6 +576,89 @@ describe('GET /v1/activity-logs', function () {
         expect($response->json('data')[0]['description'])->toContain('contract');
     });
 
+    test('finds customer and site create delete history by searchable subject metadata', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $customer = Customer::factory()->create([
+            'tenant_id' => $tenant->id,
+            'customer_number' => 'KD-2026-1213',
+            'name' => 'Observability Customer',
+        ]);
+        $site = Site::factory()->create([
+            'tenant_id' => $tenant->id,
+            'customer_id' => $customer->id,
+            'site_number' => 'OBJ-2026-1213',
+            'name' => 'Observability Site',
+        ]);
+
+        $site->delete();
+        $customer->delete();
+
+        $customerResponse = getJson('/v1/activity-logs?search=Observability%20Customer');
+        $customerResponse->assertOk();
+        expect($customerResponse->json('data'))->toHaveCount(2);
+        expect(collect($customerResponse->json('data'))->pluck('description')->sort()->values()->all())
+            ->toBe(['created', 'deleted']);
+        expect(collect($customerResponse->json('data'))->pluck('properties.subject_name')->unique()->all())
+            ->toBe(['Observability Customer']);
+
+        $siteResponse = getJson('/v1/activity-logs?search=OBJ-2026-1213');
+        $siteResponse->assertOk();
+        expect($siteResponse->json('data'))->toHaveCount(2);
+        expect(collect($siteResponse->json('data'))->pluck('description')->sort()->values()->all())
+            ->toBe(['created', 'deleted']);
+        expect(collect($siteResponse->json('data'))->pluck('properties.subject_identifier')->unique()->all())
+            ->toBe(['OBJ-2026-1213']);
+    });
+
+    test('finds legacy customer and site history through attribute changes when subject metadata is absent', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'log_name' => 'customer_changes',
+            'description' => 'created',
+            'attribute_changes' => [
+                'attributes' => [
+                    'name' => 'Legacy Customer',
+                    'customer_number' => 'KD-2025-0042',
+                ],
+            ],
+            'properties' => null,
+        ]);
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'log_name' => 'site_management',
+            'description' => 'deleted',
+            'attribute_changes' => [
+                'old' => [
+                    'name' => 'Legacy Site',
+                    'site_number' => 'OBJ-2025-0042',
+                ],
+            ],
+            'properties' => null,
+        ]);
+
+        $customerResponse = getJson('/v1/activity-logs?search=Legacy%20Customer');
+        $customerResponse->assertOk();
+        expect($customerResponse->json('data'))->toHaveCount(1)
+            ->and($customerResponse->json('data.0.log_name'))->toBe('customer_changes');
+
+        $siteResponse = getJson('/v1/activity-logs?search=OBJ-2025-0042');
+        $siteResponse->assertOk();
+        expect($siteResponse->json('data'))->toHaveCount(1)
+            ->and($siteResponse->json('data.0.log_name'))->toBe('site_management');
+    });
+
     test('treats backslash wildcard sequences in activity search input as literal text', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
@@ -616,6 +701,49 @@ describe('GET /v1/activity-logs', function () {
         $controller->applyFiltersForTest($query, $request);
 
         expect($query->getBindings())->toContain('%'.LikePattern::escape('foo\%_bar').'%');
+    });
+
+    test('skips search predicates when the search input is empty', function (): void {
+        $controller = new class extends ActivityLogController
+        {
+            public function applyFiltersForTest($query, IndexActivityLogRequest $request): void
+            {
+                $this->applyFilters($query, $request);
+            }
+        };
+
+        $request = IndexActivityLogRequest::create('/v1/activity-logs', 'GET', [
+            'search' => '',
+        ]);
+
+        $query = Activity::query();
+        $controller->applyFiltersForTest($query, $request);
+
+        expect($query->toSql())->not->toContain('description ilike')
+            ->and($query->getBindings())->toBe([]);
+    });
+
+    test('searches persisted subject metadata without jsonb casting', function (): void {
+        $controller = new class extends ActivityLogController
+        {
+            public function applyFiltersForTest($query, IndexActivityLogRequest $request): void
+            {
+                $this->applyFilters($query, $request);
+            }
+        };
+
+        $request = IndexActivityLogRequest::create('/v1/activity-logs', 'GET', [
+            'search' => 'metadata',
+        ]);
+
+        $query = Activity::query();
+        $controller->applyFiltersForTest($query, $request);
+
+        expect($query->toSql())->toContain("properties ->> 'subject_name'")
+            ->and($query->toSql())->toContain("properties ->> 'subject_identifier'")
+            ->and($query->toSql())->toContain("attribute_changes -> 'attributes' ->> 'name'")
+            ->and($query->toSql())->toContain("attribute_changes -> 'old' ->> 'site_number'")
+            ->and($query->toSql())->not->toContain('properties::jsonb');
     });
 
     test('respects pagination parameters', function (): void {

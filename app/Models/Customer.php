@@ -123,6 +123,16 @@ class Customer extends Model
             ->useLogName('customer_changes');
     }
 
+    public function beforeActivityLogged(Activity $activity, string $event): void
+    {
+        $properties = $activity->properties ?? [];
+        $properties['subject_name'] = $this->name;
+        $properties['subject_identifier'] = $this->customer_number;
+        $properties['subject_label'] = 'customer';
+
+        $activity->properties = $properties;
+    }
+
     /**
      * Get the tenant that owns this customer.
      *
