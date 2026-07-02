@@ -600,18 +600,63 @@ describe('GET /v1/activity-logs', function () {
         $customerResponse = getJson('/v1/activity-logs?search=Observability%20Customer');
         $customerResponse->assertOk();
         expect($customerResponse->json('data'))->toHaveCount(2);
-        expect(collect($customerResponse->json('data'))->pluck('description')->all())
-            ->toBe(['deleted', 'created']);
+        expect(collect($customerResponse->json('data'))->pluck('description')->sort()->values()->all())
+            ->toBe(['created', 'deleted']);
         expect(collect($customerResponse->json('data'))->pluck('properties.subject_name')->unique()->all())
             ->toBe(['Observability Customer']);
 
         $siteResponse = getJson('/v1/activity-logs?search=OBJ-2026-1213');
         $siteResponse->assertOk();
         expect($siteResponse->json('data'))->toHaveCount(2);
-        expect(collect($siteResponse->json('data'))->pluck('description')->all())
-            ->toBe(['deleted', 'created']);
+        expect(collect($siteResponse->json('data'))->pluck('description')->sort()->values()->all())
+            ->toBe(['created', 'deleted']);
         expect(collect($siteResponse->json('data'))->pluck('properties.subject_identifier')->unique()->all())
             ->toBe(['OBJ-2026-1213']);
+    });
+
+    test('finds legacy customer and site history through attribute changes when subject metadata is absent', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'log_name' => 'customer_changes',
+            'description' => 'created',
+            'attribute_changes' => [
+                'attributes' => [
+                    'name' => 'Legacy Customer',
+                    'customer_number' => 'KD-2025-0042',
+                ],
+            ],
+            'properties' => null,
+        ]);
+
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => null,
+            'log_name' => 'site_management',
+            'description' => 'deleted',
+            'attribute_changes' => [
+                'old' => [
+                    'name' => 'Legacy Site',
+                    'site_number' => 'OBJ-2025-0042',
+                ],
+            ],
+            'properties' => null,
+        ]);
+
+        $customerResponse = getJson('/v1/activity-logs?search=Legacy%20Customer');
+        $customerResponse->assertOk();
+        expect($customerResponse->json('data'))->toHaveCount(1)
+            ->and($customerResponse->json('data.0.log_name'))->toBe('customer_changes');
+
+        $siteResponse = getJson('/v1/activity-logs?search=OBJ-2025-0042');
+        $siteResponse->assertOk();
+        expect($siteResponse->json('data'))->toHaveCount(1)
+            ->and($siteResponse->json('data.0.log_name'))->toBe('site_management');
     });
 
     test('treats backslash wildcard sequences in activity search input as literal text', function (): void {
@@ -696,6 +741,8 @@ describe('GET /v1/activity-logs', function () {
 
         expect($query->toSql())->toContain("properties ->> 'subject_name'")
             ->and($query->toSql())->toContain("properties ->> 'subject_identifier'")
+            ->and($query->toSql())->toContain("attribute_changes -> 'attributes' ->> 'name'")
+            ->and($query->toSql())->toContain("attribute_changes -> 'old' ->> 'site_number'")
             ->and($query->toSql())->not->toContain('properties::jsonb');
     });
 

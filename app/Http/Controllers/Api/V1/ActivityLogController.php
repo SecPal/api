@@ -367,7 +367,13 @@ class ActivityLogController extends Controller
 
                 $searchQuery->where('description', 'ilike', $like)
                     ->orWhereRaw("coalesce(properties ->> 'subject_name', '') ilike ?", [$like])
-                    ->orWhereRaw("coalesce(properties ->> 'subject_identifier', '') ilike ?", [$like]);
+                    ->orWhereRaw("coalesce(properties ->> 'subject_identifier', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'attributes' ->> 'name', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'attributes' ->> 'customer_number', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'attributes' ->> 'site_number', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'old' ->> 'name', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'old' ->> 'customer_number', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(attribute_changes -> 'old' ->> 'site_number', '') ilike ?", [$like]);
             });
         }
 
