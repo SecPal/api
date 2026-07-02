@@ -273,7 +273,7 @@ class Activity extends SpatieActivity
             if (
                 $subjectModel instanceof \Illuminate\Database\Eloquent\Model
                 && is_string($activity->event)
-                && is_callable([$subjectModel, 'beforeActivityLogged'])
+                && method_exists($subjectModel, 'beforeActivityLogged')
             ) {
                 $subjectModel->beforeActivityLogged($activity, $activity->event);
             }
