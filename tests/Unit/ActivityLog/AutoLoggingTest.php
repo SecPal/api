@@ -90,18 +90,24 @@ test('employee deletion triggers soft delete activity log', function (): void {
 });
 
 test('customer creation triggers activity log with 8-year retention', function (): void {
-    $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_number' => 'KD-2026-1213',
+        'name' => 'Observability Customer',
+    ]);
 
     $activity = Activity::where('log_name', 'customer_changes')
-        ->where('description', 'created')
         ->where('subject_type', Customer::class)
         ->where('subject_id', $customer->id)
         ->first();
 
     expect($activity)->not->toBeNull()
+        ->and($activity->description)->toBe('customer created: Observability Customer (KD-2026-1213)')
         ->and($activity->subject_type)->toBe(Customer::class)
         ->and($activity->subject_id)->toBe($customer->id)
         ->and($activity->tenant_id)->toBe($this->tenant->id)
+        ->and($activity->properties['subject_name'])->toBe('Observability Customer')
+        ->and($activity->properties['subject_identifier'])->toBe('KD-2026-1213')
         ->and(Activity::getRetentionYearsForLogType($activity->log_name))->toBeGreaterThanOrEqual(3);
 });
 
@@ -127,21 +133,71 @@ test('customer update logs changed fields', function (): void {
 });
 
 test('site creation triggers activity log with 8-year retention', function (): void {
-    $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_number' => 'KD-2026-1200',
+        'name' => 'Parent Customer',
+    ]);
     $site = Site::factory()->create([
         'tenant_id' => $this->tenant->id,
         'customer_id' => $customer->id,
+        'site_number' => 'OBJ-2026-1213',
+        'name' => 'Observability Site',
     ]);
 
     $activity = Activity::where('log_name', 'site_management')
-        ->where('description', 'created')
+        ->where('subject_type', Site::class)
+        ->where('subject_id', $site->id)
         ->first();
 
     expect($activity)->not->toBeNull()
+        ->and($activity->description)->toBe('site created: Observability Site (OBJ-2026-1213)')
         ->and($activity->subject_type)->toBe(Site::class)
         ->and($activity->subject_id)->toBe($site->id)
         ->and($activity->tenant_id)->toBe($this->tenant->id)
+        ->and($activity->properties['subject_name'])->toBe('Observability Site')
+        ->and($activity->properties['subject_identifier'])->toBe('OBJ-2026-1213')
         ->and(Activity::getRetentionYearsForLogType($activity->log_name))->toBeGreaterThanOrEqual(3);
+});
+
+test('customer and site deletion logs keep searchable identifiers', function (): void {
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_number' => 'KD-2026-1300',
+        'name' => 'Deleted Customer',
+    ]);
+    $site = Site::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_id' => $customer->id,
+        'site_number' => 'OBJ-2026-1300',
+        'name' => 'Deleted Site',
+    ]);
+
+    Activity::whereIn('log_name', ['customer_changes', 'site_management'])->delete();
+
+    $site->delete();
+    $customer->delete();
+
+    $siteActivity = Activity::where('log_name', 'site_management')
+        ->where('subject_type', Site::class)
+        ->where('subject_id', $site->id)
+        ->first();
+    $customerActivity = Activity::where('log_name', 'customer_changes')
+        ->where('subject_type', Customer::class)
+        ->where('subject_id', $customer->id)
+        ->first();
+
+    expect($siteActivity)->not->toBeNull()
+        ->and($siteActivity->description)->toBe('site deleted: Deleted Site (OBJ-2026-1300)')
+        ->and($siteActivity->properties['subject_name'])->toBe('Deleted Site')
+        ->and($siteActivity->properties['subject_identifier'])->toBe('OBJ-2026-1300')
+        ->and($siteActivity->attribute_changes['old']['name'])->toBe('Deleted Site');
+
+    expect($customerActivity)->not->toBeNull()
+        ->and($customerActivity->description)->toBe('customer deleted: Deleted Customer (KD-2026-1300)')
+        ->and($customerActivity->properties['subject_name'])->toBe('Deleted Customer')
+        ->and($customerActivity->properties['subject_identifier'])->toBe('KD-2026-1300')
+        ->and($customerActivity->attribute_changes['old']['name'])->toBe('Deleted Customer');
 });
 
 test('site update logs location and status changes', function (): void {

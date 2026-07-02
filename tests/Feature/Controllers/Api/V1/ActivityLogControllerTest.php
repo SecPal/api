@@ -9,8 +9,10 @@
 use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Requests\Api\V1\IndexActivityLogRequest;
 use App\Models\Activity;
+use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\OrganizationalUnit;
+use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
@@ -572,6 +574,42 @@ describe('GET /v1/activity-logs', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['description'])->toContain('contract');
+    });
+
+    test('finds customer and site create delete history by searchable description details', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $customer = Customer::factory()->create([
+            'tenant_id' => $tenant->id,
+            'customer_number' => 'KD-2026-1213',
+            'name' => 'Observability Customer',
+        ]);
+        $site = Site::factory()->create([
+            'tenant_id' => $tenant->id,
+            'customer_id' => $customer->id,
+            'site_number' => 'OBJ-2026-1213',
+            'name' => 'Observability Site',
+        ]);
+
+        $site->delete();
+        $customer->delete();
+
+        $customerResponse = getJson('/v1/activity-logs?search=Observability%20Customer');
+        $customerResponse->assertOk();
+        expect(collect($customerResponse->json('data'))->pluck('description'))->toContain(
+            'customer created: Observability Customer (KD-2026-1213)',
+            'customer deleted: Observability Customer (KD-2026-1213)',
+        );
+
+        $siteResponse = getJson('/v1/activity-logs?search=OBJ-2026-1213');
+        $siteResponse->assertOk();
+        expect(collect($siteResponse->json('data'))->pluck('description'))->toContain(
+            'site created: Observability Site (OBJ-2026-1213)',
+            'site deleted: Observability Site (OBJ-2026-1213)',
+        );
     });
 
     test('treats backslash wildcard sequences in activity search input as literal text', function (): void {
