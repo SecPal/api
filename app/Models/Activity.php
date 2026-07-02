@@ -270,6 +270,14 @@ class Activity extends SpatieActivity
                 }
             }
 
+            if (
+                $subjectModel instanceof \Illuminate\Database\Eloquent\Model
+                && is_string($activity->event)
+                && is_callable([$subjectModel, 'beforeActivityLogged'])
+            ) {
+                $subjectModel->beforeActivityLogged($activity, $activity->event);
+            }
+
             // Now extract tenant_id from the subject model
             if ($subjectModel instanceof \Illuminate\Database\Eloquent\Model) {
                 /** @var mixed $subjectTenantId */
