@@ -360,14 +360,14 @@ class ActivityLogController extends Controller
         }
 
         // Search in description and persisted subject metadata (case-insensitive)
-        if ($request->has('search')) {
+        if ($request->filled('search')) {
             $search = LikePattern::escape($request->string('search')->toString());
             $query->where(function ($searchQuery) use ($search): void {
                 $like = "%{$search}%";
 
                 $searchQuery->where('description', 'ilike', $like)
-                    ->orWhereRaw("coalesce(properties::jsonb ->> 'subject_name', '') ilike ?", [$like])
-                    ->orWhereRaw("coalesce(properties::jsonb ->> 'subject_identifier', '') ilike ?", [$like]);
+                    ->orWhereRaw("coalesce(properties ->> 'subject_name', '') ilike ?", [$like])
+                    ->orWhereRaw("coalesce(properties ->> 'subject_identifier', '') ilike ?", [$like]);
             });
         }
 

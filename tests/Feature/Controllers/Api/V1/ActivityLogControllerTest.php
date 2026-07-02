@@ -658,6 +658,47 @@ describe('GET /v1/activity-logs', function () {
         expect($query->getBindings())->toContain('%'.LikePattern::escape('foo\%_bar').'%');
     });
 
+    test('skips search predicates when the search input is empty', function (): void {
+        $controller = new class extends ActivityLogController
+        {
+            public function applyFiltersForTest($query, IndexActivityLogRequest $request): void
+            {
+                $this->applyFilters($query, $request);
+            }
+        };
+
+        $request = IndexActivityLogRequest::create('/v1/activity-logs', 'GET', [
+            'search' => '',
+        ]);
+
+        $query = Activity::query();
+        $controller->applyFiltersForTest($query, $request);
+
+        expect($query->toSql())->not->toContain('description ilike')
+            ->and($query->getBindings())->toBe([]);
+    });
+
+    test('searches persisted subject metadata without jsonb casting', function (): void {
+        $controller = new class extends ActivityLogController
+        {
+            public function applyFiltersForTest($query, IndexActivityLogRequest $request): void
+            {
+                $this->applyFilters($query, $request);
+            }
+        };
+
+        $request = IndexActivityLogRequest::create('/v1/activity-logs', 'GET', [
+            'search' => 'metadata',
+        ]);
+
+        $query = Activity::query();
+        $controller->applyFiltersForTest($query, $request);
+
+        expect($query->toSql())->toContain("properties ->> 'subject_name'")
+            ->and($query->toSql())->toContain("properties ->> 'subject_identifier'")
+            ->and($query->toSql())->not->toContain('properties::jsonb');
+    });
+
     test('respects pagination parameters', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
