@@ -147,7 +147,6 @@ class Site extends Model
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
-            ->setDescriptionForEvent(fn (string $event): string => $this->resolveActivityDescription($event))
             ->useLogName('site_management');
     }
 
@@ -159,16 +158,6 @@ class Site extends Model
         $properties['subject_label'] = 'site';
 
         $activity->properties = $properties;
-        $activity->description = $this->resolveActivityDescription($event);
-    }
-
-    protected function resolveActivityDescription(string $event): string
-    {
-        if (! in_array($event, ['created', 'deleted'], true)) {
-            return $event;
-        }
-
-        return sprintf('site %s: %s (%s)', $event, $this->name, $this->site_number);
     }
 
     /**

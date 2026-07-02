@@ -97,12 +97,13 @@ test('customer creation triggers activity log with 8-year retention', function (
     ]);
 
     $activity = Activity::where('log_name', 'customer_changes')
+        ->where('description', 'created')
         ->where('subject_type', Customer::class)
         ->where('subject_id', $customer->id)
         ->first();
 
     expect($activity)->not->toBeNull()
-        ->and($activity->description)->toBe('customer created: Observability Customer (KD-2026-1213)')
+        ->and($activity->description)->toBe('created')
         ->and($activity->subject_type)->toBe(Customer::class)
         ->and($activity->subject_id)->toBe($customer->id)
         ->and($activity->tenant_id)->toBe($this->tenant->id)
@@ -146,12 +147,13 @@ test('site creation triggers activity log with 8-year retention', function (): v
     ]);
 
     $activity = Activity::where('log_name', 'site_management')
+        ->where('description', 'created')
         ->where('subject_type', Site::class)
         ->where('subject_id', $site->id)
         ->first();
 
     expect($activity)->not->toBeNull()
-        ->and($activity->description)->toBe('site created: Observability Site (OBJ-2026-1213)')
+        ->and($activity->description)->toBe('created')
         ->and($activity->subject_type)->toBe(Site::class)
         ->and($activity->subject_id)->toBe($site->id)
         ->and($activity->tenant_id)->toBe($this->tenant->id)
@@ -188,13 +190,13 @@ test('customer and site deletion logs keep searchable identifiers', function ():
         ->first();
 
     expect($siteActivity)->not->toBeNull()
-        ->and($siteActivity->description)->toBe('site deleted: Deleted Site (OBJ-2026-1300)')
+        ->and($siteActivity->description)->toBe('deleted')
         ->and($siteActivity->properties['subject_name'])->toBe('Deleted Site')
         ->and($siteActivity->properties['subject_identifier'])->toBe('OBJ-2026-1300')
         ->and($siteActivity->attribute_changes['old']['name'])->toBe('Deleted Site');
 
     expect($customerActivity)->not->toBeNull()
-        ->and($customerActivity->description)->toBe('customer deleted: Deleted Customer (KD-2026-1300)')
+        ->and($customerActivity->description)->toBe('deleted')
         ->and($customerActivity->properties['subject_name'])->toBe('Deleted Customer')
         ->and($customerActivity->properties['subject_identifier'])->toBe('KD-2026-1300')
         ->and($customerActivity->attribute_changes['old']['name'])->toBe('Deleted Customer');

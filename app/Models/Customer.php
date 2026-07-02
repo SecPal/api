@@ -120,7 +120,6 @@ class Customer extends Model
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
-            ->setDescriptionForEvent(fn (string $event): string => $this->resolveActivityDescription($event))
             ->useLogName('customer_changes');
     }
 
@@ -132,16 +131,6 @@ class Customer extends Model
         $properties['subject_label'] = 'customer';
 
         $activity->properties = $properties;
-        $activity->description = $this->resolveActivityDescription($event);
-    }
-
-    protected function resolveActivityDescription(string $event): string
-    {
-        if (! in_array($event, ['created', 'deleted'], true)) {
-            return $event;
-        }
-
-        return sprintf('customer %s: %s (%s)', $event, $this->name, $this->customer_number);
     }
 
     /**

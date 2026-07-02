@@ -576,7 +576,7 @@ describe('GET /v1/activity-logs', function () {
         expect($response->json('data')[0]['description'])->toContain('contract');
     });
 
-    test('finds customer and site create delete history by searchable description details', function (): void {
+    test('finds customer and site create delete history by searchable subject metadata', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
         givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
@@ -599,17 +599,19 @@ describe('GET /v1/activity-logs', function () {
 
         $customerResponse = getJson('/v1/activity-logs?search=Observability%20Customer');
         $customerResponse->assertOk();
-        expect(collect($customerResponse->json('data'))->pluck('description'))->toContain(
-            'customer created: Observability Customer (KD-2026-1213)',
-            'customer deleted: Observability Customer (KD-2026-1213)',
-        );
+        expect($customerResponse->json('data'))->toHaveCount(2);
+        expect(collect($customerResponse->json('data'))->pluck('description')->all())
+            ->toBe(['deleted', 'created']);
+        expect(collect($customerResponse->json('data'))->pluck('properties.subject_name')->unique()->all())
+            ->toBe(['Observability Customer']);
 
         $siteResponse = getJson('/v1/activity-logs?search=OBJ-2026-1213');
         $siteResponse->assertOk();
-        expect(collect($siteResponse->json('data'))->pluck('description'))->toContain(
-            'site created: Observability Site (OBJ-2026-1213)',
-            'site deleted: Observability Site (OBJ-2026-1213)',
-        );
+        expect($siteResponse->json('data'))->toHaveCount(2);
+        expect(collect($siteResponse->json('data'))->pluck('description')->all())
+            ->toBe(['deleted', 'created']);
+        expect(collect($siteResponse->json('data'))->pluck('properties.subject_identifier')->unique()->all())
+            ->toBe(['OBJ-2026-1213']);
     });
 
     test('treats backslash wildcard sequences in activity search input as literal text', function (): void {
