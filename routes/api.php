@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\OrganizationalScopeController;
 use App\Http\Controllers\Api\V1\OrganizationalUnitController;
 use App\Http\Controllers\Api\V1\PushDeviceRegistrationController;
 use App\Http\Controllers\Api\V1\QualificationController;
+use App\Http\Controllers\Api\V1\ReleaseController;
 use App\Http\Controllers\Api\V1\RoleManagementController;
 use App\Http\Controllers\Api\V1\SiteAssignmentController;
 use App\Http\Controllers\Api\V1\SiteController;
@@ -60,6 +61,8 @@ Route::middleware('throttle:health')->group(function () {
 Route::prefix('v1')->group(function () {
     Route::get('/bootstrap', [BootstrapController::class, 'show'])
         ->middleware('throttle:bootstrap');
+    Route::get('/release', [ReleaseController::class, 'show'])
+        ->middleware('throttle:release');
     Route::get('/source', [SourceController::class, 'show'])
         ->middleware('throttle:source-offer');
 

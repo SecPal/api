@@ -70,3 +70,21 @@ test('missing fields report invalid repository structures and trimmed empty valu
         'legal.source_repositories.1.description',
     ]);
 });
+
+test('missing fields reject source offer urls with embedded whitespace', function (): void {
+    config([
+        'bootstrap.legal.license_url' => 'https:// www.gnu.org/licenses/agpl-3.0.html',
+        'bootstrap.legal.source_repositories' => [
+            [
+                'name' => 'SecPal/api',
+                'url' => 'https:// github.com/SecPal/api',
+                'description' => 'Laravel backend used by SecPal deployments for API and business logic.',
+            ],
+        ],
+    ]);
+
+    expect(app(PublicSourceOffer::class)->missingFields())->toBe([
+        'legal.license.url',
+        'legal.source_repositories.0.url',
+    ]);
+});
