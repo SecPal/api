@@ -100,6 +100,8 @@ BOOTSTRAP_PUBLIC_ENABLED=true
 BOOTSTRAP_INSTANCE_DISPLAY_NAME=Customer SecPal
 BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION=1.4.0
 BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD=10400
+BOOTSTRAP_API_RELEASE_VERSION=api-2026-07-03
+BOOTSTRAP_API_RELEASE_SOURCE_URL=https://github.com/SecPal/api/releases/download/api-2026-07-03/source.tar.gz
 BOOTSTRAP_PASSWORD_LOGIN_ENABLED=true
 BOOTSTRAP_PASSKEY_LOGIN_ENABLED=true
 BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED=false
@@ -174,6 +176,7 @@ Expose the public runtime-discovery endpoint at `GET /v1/bootstrap` only after t
 - `APP_URL` must be the externally reachable API origin for this deployment. The endpoint derives the canonical `api_base_url` from `APP_URL` and appends `/v1`.
 - `APP_NAME` is used as the public instance display name unless `BOOTSTRAP_INSTANCE_DISPLAY_NAME` overrides it.
 - `BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION` and `BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD` are required. If either is missing, the endpoint fails closed with `500 BOOTSTRAP_STATE_INVALID` instead of falling back to SecPal-hosted defaults.
+- `GET /v1/release` publishes only deployment-defined public API release metadata. Set both `BOOTSTRAP_API_RELEASE_VERSION` and `BOOTSTRAP_API_RELEASE_SOURCE_URL` before exposing that endpoint; if either is missing or malformed, the endpoint fails closed with `500 RELEASE_STATE_INVALID`.
 - Set `BOOTSTRAP_PUBLIC_ENABLED=false` when the deployment should return the documented `503 BOOTSTRAP_CONFIG_UNAVAILABLE` response instead of serving bootstrap metadata.
 - `BOOTSTRAP_PASSWORD_LOGIN_ENABLED`, `BOOTSTRAP_PASSKEY_LOGIN_ENABLED`, `BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED`, `BOOTSTRAP_ANDROID_PUSH_ENABLED`, and `BOOTSTRAP_WEB_PUSH_ENABLED` feed the public pre-login bootstrap feature flags. The canonical shared notification capability surface is `features.notification_channels`, which is exhaustive for the active backend schema.
 - When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the public bootstrap response exposes canonical `notification_channels.android_fcm` runtime metadata with channel `android_fcm`, the deployment-defined `metadata_revision`, and the public Android client metadata fields required for runtime initialization.
