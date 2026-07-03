@@ -18,14 +18,18 @@ test('phpunit environment overrides are applied before bootstrap-sensitive test 
         putenv('APP_ENV=staging');
         putenv('DB_CONNECTION=mysql');
         putenv('DB_DATABASE=secpal');
+        putenv('SECPAL_TEST_DATABASE');
+        putenv('SECPAL_TEST_SCHEMA');
 
         $_ENV['APP_ENV'] = 'staging';
         $_ENV['DB_CONNECTION'] = 'mysql';
         $_ENV['DB_DATABASE'] = 'secpal';
+        unset($_ENV['SECPAL_TEST_DATABASE'], $_ENV['SECPAL_TEST_SCHEMA']);
 
         $_SERVER['APP_ENV'] = 'staging';
         $_SERVER['DB_CONNECTION'] = 'mysql';
         $_SERVER['DB_DATABASE'] = 'secpal';
+        unset($_SERVER['SECPAL_TEST_DATABASE'], $_SERVER['SECPAL_TEST_SCHEMA']);
 
         TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
 
@@ -68,7 +72,9 @@ test('parallel test token wins over process-based isolated database naming', fun
     try {
         putenv('TEST_TOKEN=7');
         putenv('SECPAL_TEST_DATABASE');
+        putenv('SECPAL_TEST_SCHEMA');
         unset($_ENV['SECPAL_TEST_DATABASE'], $_SERVER['SECPAL_TEST_DATABASE']);
+        unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
         $_ENV['TEST_TOKEN'] = '7';
         $_SERVER['TEST_TOKEN'] = '7';
 
@@ -103,7 +109,9 @@ test('phpunit environment overrides preserve a caller-provided isolated schema o
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
 
     try {
+        putenv('SECPAL_TEST_DATABASE');
         putenv('SECPAL_TEST_SCHEMA=ci_precreated_schema');
+        unset($_ENV['SECPAL_TEST_DATABASE'], $_SERVER['SECPAL_TEST_DATABASE']);
         $_ENV['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
         $_SERVER['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
 
@@ -137,8 +145,10 @@ test('phpunit environment overrides preserve a caller-provided isolated database
 
     try {
         putenv('SECPAL_TEST_DATABASE=ci_precreated_testing');
+        putenv('SECPAL_TEST_SCHEMA');
         $_ENV['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
         $_SERVER['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
+        unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
 
         TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
 
@@ -167,11 +177,15 @@ test('phpunit environment overrides preserve a caller-provided isolated database
 
 test('bootstrap application normalization keeps the isolated database and schema configuration', function (): void {
     $originalTestToken = getenv('TEST_TOKEN');
+    $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
 
     try {
         putenv('TEST_TOKEN=7');
+        putenv('SECPAL_TEST_SCHEMA');
         $_ENV['TEST_TOKEN'] = '7';
         $_SERVER['TEST_TOKEN'] = '7';
+        unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
 
         TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
         TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
@@ -187,13 +201,21 @@ test('bootstrap application normalization keeps the isolated database and schema
         TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
         TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
 
-        if ($originalTestToken === false) {
-            putenv('TEST_TOKEN');
-            unset($_ENV['TEST_TOKEN'], $_SERVER['TEST_TOKEN']);
-        } else {
-            putenv('TEST_TOKEN='.$originalTestToken);
-            $_ENV['TEST_TOKEN'] = $originalTestToken;
-            $_SERVER['TEST_TOKEN'] = $originalTestToken;
+        foreach ([
+            'TEST_TOKEN' => $originalTestToken,
+            'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
         }
     }
 });
