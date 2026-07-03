@@ -339,7 +339,7 @@ class OrganizationalUnitController extends Controller
 
         $organizationalUnitAccessService->reparentUnitForActor($user, $organizational_unit, $parent);
 
-        // Invalidate cached scopes — ensureActorCanAccessChildUnit may have created a new scope.
+        // Invalidate cached scopes in case the reparent flow persisted a direct replacement scope.
         $user->unsetRelation('organizationalScopes');
 
         return $this->respondWithUnit($request, $organizational_unit);
