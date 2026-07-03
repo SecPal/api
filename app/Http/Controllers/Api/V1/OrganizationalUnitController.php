@@ -32,7 +32,7 @@ class OrganizationalUnitController extends Controller
     private function respondWithUnit(Request $request, OrganizationalUnit $unit, int $status = Response::HTTP_OK): JsonResponse
     {
         if (! $request->attributes->has('accessible_unit_ids')) {
-            /** @var \App\Models\User $user */
+            /** @var User $user */
             $user = $request->user();
 
             $request->attributes->set(
@@ -62,7 +62,7 @@ class OrganizationalUnitController extends Controller
         /** @var array{parent_id?: string, type?: string} $validated */
         $validated = $request->validated();
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         // Get accessible units based on user's organizational scopes (Need-to-Know principle)
@@ -175,7 +175,7 @@ class OrganizationalUnitController extends Controller
         /** @var int $tenantId */
         $tenantId = $request->input('tenant_id');
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         // Check authorization for creating under parent (if specified) or root
@@ -232,7 +232,7 @@ class OrganizationalUnitController extends Controller
      */
     private function grantCreatorManageScopeOnNewChildUnit(Request $request, OrganizationalUnit $unit): void
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         UserInternalOrganizationalScope::updateOrCreate(
@@ -257,7 +257,7 @@ class OrganizationalUnitController extends Controller
      */
     private function ensureActorCanAccessChildUnit(Request $request, OrganizationalUnit $unit, string $priorAccessLevel): void
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         if ($user->hasAccessToUnit($unit, 'read')) {
@@ -286,7 +286,11 @@ class OrganizationalUnitController extends Controller
             ->sortByDesc(fn (UserInternalOrganizationalScope $scope): int => $scope->getAccessLevelValue())
             ->first();
 
-        return $scope?->access_level ?? 'read';
+        if ($scope === null) {
+            return 'read';
+        }
+
+        return $scope->access_level;
     }
 
     /**
@@ -381,7 +385,7 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('update', $organizational_unit);
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         /** @var array{parent_id: string} $validated */
@@ -426,7 +430,7 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('update', $organizational_unit);
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         // Check if user will still have access after detaching parent.
