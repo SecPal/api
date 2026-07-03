@@ -36,15 +36,23 @@ class OrganizationalUnitAccessService
      */
     public function reparentUnitForActor(User $user, OrganizationalUnit $unit, OrganizationalUnit $parent): void
     {
-        $priorScopes = $this->currentAccessScopes($user, $unit);
+        $subtreeUnits = $this->subtreeUnits($unit);
+        $priorScopesByUnit = $this->snapshotCurrentAccessScopes($user, $subtreeUnits);
 
         $unit->setParent($parent);
 
-        $this->ensureActorCanAccessChildUnit($user, $unit, $priorScopes);
+        $subtreeUnits->each(function (OrganizationalUnit $subtreeUnit) use ($user, $priorScopesByUnit): void {
+            /** @var Collection<int, UserInternalOrganizationalScope> $priorScopes */
+            $priorScopes = $priorScopesByUnit->get($subtreeUnit->id, collect());
+
+            $this->ensureActorCanAccessChildUnit($user, $subtreeUnit, $priorScopes);
+        });
     }
 
     /**
      * Ensure the acting user keeps their pre-move access to a child unit after hierarchy changes.
+     *
+     * @param  Collection<int, UserInternalOrganizationalScope>  $priorScopes
      */
     private function ensureActorCanAccessChildUnit(User $user, OrganizationalUnit $unit, Collection $priorScopes): void
     {
@@ -52,7 +60,7 @@ class OrganizationalUnitAccessService
             return;
         }
 
-        $currentScopes = $this->currentAccessScopes($user, $unit);
+        $currentScopes = $this->applicableAccessScopes($user, $unit);
 
         if ($this->scopesMatchPinnedAccess($currentScopes, $priorScopes)) {
             return;
@@ -64,6 +72,7 @@ class OrganizationalUnitAccessService
                     'user_id' => $user->id,
                     'organizational_unit_id' => $unit->id,
                     'access_level' => $priorScope->access_level,
+                    'include_descendants' => false,
                     'min_viewable_rank' => $priorScope->min_viewable_rank,
                     'max_viewable_rank' => $priorScope->max_viewable_rank,
                     'min_assignable_rank' => $priorScope->min_assignable_rank,
@@ -86,27 +95,38 @@ class OrganizationalUnitAccessService
     }
 
     /**
-     * Resolve the actor's currently applicable scopes for the unit, preserving all rank bands at the highest access level.
+     * @return Collection<int, OrganizationalUnit>
+     */
+    private function subtreeUnits(OrganizationalUnit $unit): Collection
+    {
+        /** @var Collection<int, OrganizationalUnit> $subtreeUnits */
+        $subtreeUnits = $unit->descendants()->get()->prepend($unit)->values();
+
+        return $subtreeUnits;
+    }
+
+    /**
+     * @param  Collection<int, OrganizationalUnit>  $subtreeUnits
+     * @return Collection<string, Collection<int, UserInternalOrganizationalScope>>
+     */
+    private function snapshotCurrentAccessScopes(User $user, Collection $subtreeUnits): Collection
+    {
+        return $subtreeUnits->mapWithKeys(function (OrganizationalUnit $subtreeUnit) use ($user): array {
+            return [$subtreeUnit->id => $this->applicableAccessScopes($user, $subtreeUnit)];
+        });
+    }
+
+    /**
+     * Resolve all currently applicable scopes for the unit.
      *
      * @return Collection<int, UserInternalOrganizationalScope>
      */
-    private function currentAccessScopes(User $user, OrganizationalUnit $unit): Collection
+    private function applicableAccessScopes(User $user, OrganizationalUnit $unit): Collection
     {
         /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
         $scopes = $user->getApplicableOrganizationalScopesForUnit($unit)->values();
 
-        if ($scopes->isEmpty()) {
-            return $scopes;
-        }
-
-        $highestAccessLevel = $scopes
-            ->map(fn (UserInternalOrganizationalScope $scope): int => $scope->getAccessLevelValue())
-            ->max();
-
-        /** @var Collection<int, UserInternalOrganizationalScope> */
-        return $scopes
-            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->getAccessLevelValue() === $highestAccessLevel)
-            ->values();
+        return $scopes;
     }
 
     /**

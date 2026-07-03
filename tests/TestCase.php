@@ -512,9 +512,6 @@ abstract class TestCase extends BaseTestCase
     {
         $databaseConnection = self::phpUnitEnvironmentOverrides()['DB_CONNECTION'] ?? null;
         $databaseName = self::phpUnitEnvironmentOverrides()['DB_DATABASE'] ?? null;
-        $isolatedDatabaseName = is_string($databaseName) && $databaseName !== ''
-            ? self::environmentValue('SECPAL_TEST_DATABASE', self::isolatedTestDatabaseName($databaseName))
-            : null;
         $isolatedSchemaName = self::environmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
 
         if (is_string($databaseConnection) && $databaseConnection !== '') {
@@ -523,9 +520,9 @@ abstract class TestCase extends BaseTestCase
 
         if (
             is_string($databaseConnection) && $databaseConnection !== ''
-            && is_string($isolatedDatabaseName) && $isolatedDatabaseName !== ''
+            && is_string($databaseName) && $databaseName !== ''
         ) {
-            $app['config']->set("database.connections.{$databaseConnection}.database", $isolatedDatabaseName);
+            $app['config']->set("database.connections.{$databaseConnection}.database", $databaseName);
             $app['config']->set("database.connections.{$databaseConnection}.url", null);
 
             if ($databaseConnection === 'pgsql') {

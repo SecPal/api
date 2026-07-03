@@ -143,7 +143,7 @@ test('bootstrap application normalization keeps the isolated database and schema
         $application = TestCaseBootstrapEnvironmentProbe::createBootstrapApplication();
 
         expect($application['config']->get('database.default'))->toBe('pgsql')
-            ->and($application['config']->get('database.connections.pgsql.database'))->toBe('testing_test_7')
+            ->and($application['config']->get('database.connections.pgsql.database'))->toBe('testing')
             ->and($application['config']->get('database.connections.pgsql.search_path'))->toBe(
                 TestCaseBootstrapEnvironmentProbe::isolatedTestSchemaName().',public'
             );
