@@ -479,7 +479,10 @@ abstract class TestCase extends BaseTestCase
 
             if ($name === 'DB_DATABASE') {
                 self::setEnvironmentValue('SECPAL_TEST_DATABASE', self::isolatedTestDatabaseName($value));
-                self::setEnvironmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
+
+                if (self::environmentVariableIsMissing('SECPAL_TEST_SCHEMA')) {
+                    self::setEnvironmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
+                }
             }
         }
     }

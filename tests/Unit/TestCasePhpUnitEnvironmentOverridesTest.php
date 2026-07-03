@@ -96,6 +96,39 @@ test('parallel test token wins over process-based isolated database naming', fun
     }
 });
 
+test('phpunit environment overrides preserve a caller-provided isolated schema override', function (): void {
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
+    $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+
+    try {
+        putenv('SECPAL_TEST_SCHEMA=ci_precreated_schema');
+        $_ENV['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
+        $_SERVER['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
+
+        TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
+
+        expect(getenv('SECPAL_TEST_DATABASE'))->toBe(
+            TestCaseBootstrapEnvironmentProbe::isolatedTestDatabaseName('testing')
+        )->and(getenv('SECPAL_TEST_SCHEMA'))->toBe('ci_precreated_schema');
+    } finally {
+        foreach ([
+            'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+});
+
 test('bootstrap application normalization keeps the isolated database and schema configuration', function (): void {
     $originalTestToken = getenv('TEST_TOKEN');
 

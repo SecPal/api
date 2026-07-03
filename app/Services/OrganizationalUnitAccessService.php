@@ -10,6 +10,7 @@ namespace App\Services;
 use App\Models\OrganizationalUnit;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use Illuminate\Support\Collection;
 
 class OrganizationalUnitAccessService
 {
@@ -35,63 +36,111 @@ class OrganizationalUnitAccessService
      */
     public function reparentUnitForActor(User $user, OrganizationalUnit $unit, OrganizationalUnit $parent): void
     {
-        $priorScope = $this->highestCurrentAccessScope($user, $unit);
+        $priorScopes = $this->currentAccessScopes($user, $unit);
 
         $unit->setParent($parent);
 
-        $this->ensureActorCanAccessChildUnit($user, $unit, $priorScope);
+        $this->ensureActorCanAccessChildUnit($user, $unit, $priorScopes);
     }
 
     /**
      * Ensure the acting user keeps their pre-move access to a child unit after hierarchy changes.
      */
-    private function ensureActorCanAccessChildUnit(User $user, OrganizationalUnit $unit, ?UserInternalOrganizationalScope $priorScope): void
+    private function ensureActorCanAccessChildUnit(User $user, OrganizationalUnit $unit, Collection $priorScopes): void
     {
-        if ($priorScope === null) {
+        if ($priorScopes->isEmpty()) {
             return;
         }
 
-        $currentScope = $this->highestCurrentAccessScope($user, $unit);
+        $currentScopes = $this->currentAccessScopes($user, $unit);
 
-        if ($currentScope !== null && $this->scopeMatchesPinnedAccess($currentScope, $priorScope)) {
+        if ($this->scopesMatchPinnedAccess($currentScopes, $priorScopes)) {
             return;
         }
 
-        UserInternalOrganizationalScope::updateOrCreate(
-            [
-                'user_id' => $user->id,
-                'organizational_unit_id' => $unit->id,
-            ],
-            [
-                'access_level' => $priorScope->access_level,
-                'include_descendants' => false,
-                'min_viewable_rank' => $priorScope->min_viewable_rank,
-                'max_viewable_rank' => $priorScope->max_viewable_rank,
-                'min_assignable_rank' => $priorScope->min_assignable_rank,
-                'max_assignable_rank' => $priorScope->max_assignable_rank,
-                'allow_self_access' => $priorScope->allow_self_access,
-            ]
-        );
+        $priorScopes->each(function (UserInternalOrganizationalScope $priorScope) use ($user, $unit): void {
+            UserInternalOrganizationalScope::firstOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'organizational_unit_id' => $unit->id,
+                    'access_level' => $priorScope->access_level,
+                    'min_viewable_rank' => $priorScope->min_viewable_rank,
+                    'max_viewable_rank' => $priorScope->max_viewable_rank,
+                    'min_assignable_rank' => $priorScope->min_assignable_rank,
+                    'max_assignable_rank' => $priorScope->max_assignable_rank,
+                    'allow_self_access' => $priorScope->allow_self_access,
+                ],
+                [
+                    'user_id' => $user->id,
+                    'organizational_unit_id' => $unit->id,
+                    'access_level' => $priorScope->access_level,
+                    'include_descendants' => false,
+                    'min_viewable_rank' => $priorScope->min_viewable_rank,
+                    'max_viewable_rank' => $priorScope->max_viewable_rank,
+                    'min_assignable_rank' => $priorScope->min_assignable_rank,
+                    'max_assignable_rank' => $priorScope->max_assignable_rank,
+                    'allow_self_access' => $priorScope->allow_self_access,
+                ]
+            );
+        });
     }
 
     /**
-     * Resolve the actor's highest currently applicable access level for the unit.
+     * Resolve the actor's currently applicable scopes for the unit, preserving all rank bands at the highest access level.
+     *
+     * @return Collection<int, UserInternalOrganizationalScope>
      */
-    private function highestCurrentAccessScope(User $user, OrganizationalUnit $unit): ?UserInternalOrganizationalScope
+    private function currentAccessScopes(User $user, OrganizationalUnit $unit): Collection
     {
-        /** @var UserInternalOrganizationalScope|null */
-        return $user->getApplicableOrganizationalScopesForUnit($unit)
-            ->sortByDesc(fn (UserInternalOrganizationalScope $scope): int => $scope->getAccessLevelValue())
-            ->first();
+        /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
+        $scopes = $user->getApplicableOrganizationalScopesForUnit($unit)->values();
+
+        if ($scopes->isEmpty()) {
+            return $scopes;
+        }
+
+        $highestAccessLevel = $scopes
+            ->map(fn (UserInternalOrganizationalScope $scope): int => $scope->getAccessLevelValue())
+            ->max();
+
+        /** @var Collection<int, UserInternalOrganizationalScope> */
+        return $scopes
+            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->getAccessLevelValue() === $highestAccessLevel)
+            ->values();
     }
 
-    private function scopeMatchesPinnedAccess(UserInternalOrganizationalScope $currentScope, UserInternalOrganizationalScope $priorScope): bool
+    /**
+     * @param  Collection<int, UserInternalOrganizationalScope>  $currentScopes
+     * @param  Collection<int, UserInternalOrganizationalScope>  $priorScopes
+     */
+    private function scopesMatchPinnedAccess(Collection $currentScopes, Collection $priorScopes): bool
     {
-        return $currentScope->access_level === $priorScope->access_level
-            && $currentScope->min_viewable_rank === $priorScope->min_viewable_rank
-            && $currentScope->max_viewable_rank === $priorScope->max_viewable_rank
-            && $currentScope->min_assignable_rank === $priorScope->min_assignable_rank
-            && $currentScope->max_assignable_rank === $priorScope->max_assignable_rank
-            && $currentScope->allow_self_access === $priorScope->allow_self_access;
+        if ($currentScopes->count() !== $priorScopes->count()) {
+            return false;
+        }
+
+        $normalizedCurrentScopes = $currentScopes
+            ->map(fn (UserInternalOrganizationalScope $scope): string => $this->scopeFingerprint($scope))
+            ->sort()
+            ->values();
+
+        $normalizedPriorScopes = $priorScopes
+            ->map(fn (UserInternalOrganizationalScope $scope): string => $this->scopeFingerprint($scope))
+            ->sort()
+            ->values();
+
+        return $normalizedCurrentScopes->all() === $normalizedPriorScopes->all();
+    }
+
+    private function scopeFingerprint(UserInternalOrganizationalScope $scope): string
+    {
+        return implode('|', [
+            $scope->access_level,
+            $scope->min_viewable_rank === null ? 'null' : (string) $scope->min_viewable_rank,
+            $scope->max_viewable_rank === null ? 'null' : (string) $scope->max_viewable_rank,
+            $scope->min_assignable_rank === null ? 'null' : (string) $scope->min_assignable_rank,
+            $scope->max_assignable_rank === null ? 'null' : (string) $scope->max_assignable_rank,
+            $scope->allow_self_access ? '1' : '0',
+        ]);
     }
 }
