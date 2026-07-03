@@ -47,7 +47,7 @@ class OrganizationalUnitAccessService
      */
     private function ensureActorCanAccessChildUnit(User $user, OrganizationalUnit $unit, string $priorAccessLevel): void
     {
-        if ($user->hasAccessToUnit($unit, 'read')) {
+        if ($this->highestCurrentAccessLevel($user, $unit) === $priorAccessLevel) {
             return;
         }
 
