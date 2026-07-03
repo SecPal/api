@@ -8,9 +8,11 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\OrganizationalUnit;
+use App\Models\OrganizationalUnitClosure;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class OrganizationalUnitAccessService
 {
@@ -36,16 +38,18 @@ class OrganizationalUnitAccessService
      */
     public function reparentUnitForActor(User $user, OrganizationalUnit $unit, OrganizationalUnit $parent): void
     {
-        $subtreeUnits = $this->subtreeUnits($unit);
-        $priorScopesByUnit = $this->snapshotCurrentAccessScopes($user, $subtreeUnits);
+        DB::transaction(function () use ($user, $unit, $parent): void {
+            $subtreeUnits = $this->subtreeUnits($unit);
+            $priorScopesByUnit = $this->snapshotCurrentAccessScopes($user, $subtreeUnits);
 
-        $unit->setParent($parent);
+            $unit->setParent($parent);
 
-        $subtreeUnits->each(function (OrganizationalUnit $subtreeUnit) use ($user, $priorScopesByUnit): void {
-            /** @var Collection<int, UserInternalOrganizationalScope> $priorScopes */
-            $priorScopes = $priorScopesByUnit->get($subtreeUnit->id, collect());
+            $subtreeUnits->each(function (OrganizationalUnit $subtreeUnit) use ($user, $priorScopesByUnit): void {
+                /** @var Collection<int, UserInternalOrganizationalScope> $priorScopes */
+                $priorScopes = $priorScopesByUnit->get($subtreeUnit->id, collect());
 
-            $this->ensureActorCanAccessChildUnit($user, $subtreeUnit, $priorScopes);
+                $this->ensureActorCanAccessChildUnit($user, $subtreeUnit, $priorScopes);
+            });
         });
     }
 
@@ -66,32 +70,7 @@ class OrganizationalUnitAccessService
             return;
         }
 
-        $priorScopes->each(function (UserInternalOrganizationalScope $priorScope) use ($user, $unit): void {
-            UserInternalOrganizationalScope::firstOrCreate(
-                [
-                    'user_id' => $user->id,
-                    'organizational_unit_id' => $unit->id,
-                    'access_level' => $priorScope->access_level,
-                    'include_descendants' => false,
-                    'min_viewable_rank' => $priorScope->min_viewable_rank,
-                    'max_viewable_rank' => $priorScope->max_viewable_rank,
-                    'min_assignable_rank' => $priorScope->min_assignable_rank,
-                    'max_assignable_rank' => $priorScope->max_assignable_rank,
-                    'allow_self_access' => $priorScope->allow_self_access,
-                ],
-                [
-                    'user_id' => $user->id,
-                    'organizational_unit_id' => $unit->id,
-                    'access_level' => $priorScope->access_level,
-                    'include_descendants' => false,
-                    'min_viewable_rank' => $priorScope->min_viewable_rank,
-                    'max_viewable_rank' => $priorScope->max_viewable_rank,
-                    'min_assignable_rank' => $priorScope->min_assignable_rank,
-                    'max_assignable_rank' => $priorScope->max_assignable_rank,
-                    'allow_self_access' => $priorScope->allow_self_access,
-                ]
-            );
-        });
+        $priorScopes->each(fn (UserInternalOrganizationalScope $priorScope): bool => $this->persistPinnedScopesForUnit($user, $unit, $priorScope));
     }
 
     /**
@@ -99,8 +78,17 @@ class OrganizationalUnitAccessService
      */
     private function subtreeUnits(OrganizationalUnit $unit): Collection
     {
+        /** @var Collection<int, string> $descendantIds */
+        $descendantIds = OrganizationalUnitClosure::query()
+            ->where('ancestor_id', $unit->id)
+            ->pluck('descendant_id');
+
         /** @var Collection<int, OrganizationalUnit> $subtreeUnits */
-        $subtreeUnits = $unit->descendants()->get()->prepend($unit)->values();
+        $subtreeUnits = OrganizationalUnit::withTrashed()
+            ->whereIn('id', $descendantIds)
+            ->get()
+            ->sortBy(fn (OrganizationalUnit $subtreeUnit): int => $subtreeUnit->id === $unit->id ? -1 : 0)
+            ->values();
 
         return $subtreeUnits;
     }
@@ -127,6 +115,34 @@ class OrganizationalUnitAccessService
         $scopes = $user->getApplicableOrganizationalScopesForUnit($unit)->values();
 
         return $scopes;
+    }
+
+    protected function persistPinnedScopesForUnit(User $user, OrganizationalUnit $unit, UserInternalOrganizationalScope $priorScope): bool
+    {
+        return UserInternalOrganizationalScope::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'organizational_unit_id' => $unit->id,
+                'access_level' => $priorScope->access_level,
+                'include_descendants' => false,
+                'min_viewable_rank' => $priorScope->min_viewable_rank,
+                'max_viewable_rank' => $priorScope->max_viewable_rank,
+                'min_assignable_rank' => $priorScope->min_assignable_rank,
+                'max_assignable_rank' => $priorScope->max_assignable_rank,
+                'allow_self_access' => $priorScope->allow_self_access,
+            ],
+            [
+                'user_id' => $user->id,
+                'organizational_unit_id' => $unit->id,
+                'access_level' => $priorScope->access_level,
+                'include_descendants' => false,
+                'min_viewable_rank' => $priorScope->min_viewable_rank,
+                'max_viewable_rank' => $priorScope->max_viewable_rank,
+                'min_assignable_rank' => $priorScope->min_assignable_rank,
+                'max_assignable_rank' => $priorScope->max_assignable_rank,
+                'allow_self_access' => $priorScope->allow_self_access,
+            ]
+        )->exists;
     }
 
     /**

@@ -67,6 +67,8 @@ test('parallel test token wins over process-based isolated database naming', fun
 
     try {
         putenv('TEST_TOKEN=7');
+        putenv('SECPAL_TEST_DATABASE');
+        unset($_ENV['SECPAL_TEST_DATABASE'], $_SERVER['SECPAL_TEST_DATABASE']);
         $_ENV['TEST_TOKEN'] = '7';
         $_SERVER['TEST_TOKEN'] = '7';
 
@@ -110,6 +112,40 @@ test('phpunit environment overrides preserve a caller-provided isolated schema o
         expect(getenv('SECPAL_TEST_DATABASE'))->toBe(
             TestCaseBootstrapEnvironmentProbe::isolatedTestDatabaseName('testing')
         )->and(getenv('SECPAL_TEST_SCHEMA'))->toBe('ci_precreated_schema');
+    } finally {
+        foreach ([
+            'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+});
+
+test('phpunit environment overrides preserve a caller-provided isolated database override', function (): void {
+    $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
+
+    try {
+        putenv('SECPAL_TEST_DATABASE=ci_precreated_testing');
+        $_ENV['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
+        $_SERVER['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
+
+        TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
+
+        expect(getenv('SECPAL_TEST_DATABASE'))->toBe('ci_precreated_testing')
+            ->and(getenv('SECPAL_TEST_SCHEMA'))->toBe(
+                TestCaseBootstrapEnvironmentProbe::isolatedTestSchemaName()
+            );
     } finally {
         foreach ([
             'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,

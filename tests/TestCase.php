@@ -126,7 +126,7 @@ abstract class TestCase extends BaseTestCase
             return;
         }
 
-        $databaseName = getenv('DB_DATABASE') ?: 'testing';
+        $databaseName = self::effectiveIsolatedTestDatabaseName();
 
         foreach (self::requiredTestDatabaseNames($databaseName) as $candidate) {
             self::assertValidDatabaseName($candidate);
@@ -248,7 +248,7 @@ abstract class TestCase extends BaseTestCase
      */
     protected static function requiredTestDatabaseNames(string $databaseName): array
     {
-        return [self::isolatedTestDatabaseName($databaseName)];
+        return [$databaseName];
     }
 
     protected static function isolatedTestDatabaseName(string $databaseName): string
@@ -478,7 +478,9 @@ abstract class TestCase extends BaseTestCase
             self::setEnvironmentValue($name, $value);
 
             if ($name === 'DB_DATABASE') {
-                self::setEnvironmentValue('SECPAL_TEST_DATABASE', self::isolatedTestDatabaseName($value));
+                if (self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')) {
+                    self::setEnvironmentValue('SECPAL_TEST_DATABASE', self::isolatedTestDatabaseName($value));
+                }
 
                 if (self::environmentVariableIsMissing('SECPAL_TEST_SCHEMA')) {
                     self::setEnvironmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
@@ -533,6 +535,14 @@ abstract class TestCase extends BaseTestCase
         if (isset($app['db'])) {
             $app['db']->purge();
         }
+    }
+
+    protected static function effectiveIsolatedTestDatabaseName(): string
+    {
+        return self::environmentValue(
+            'SECPAL_TEST_DATABASE',
+            self::isolatedTestDatabaseName(self::environmentValue('DB_DATABASE', 'testing'))
+        );
     }
 
     protected static function bootstrapEnvironmentPath(): string

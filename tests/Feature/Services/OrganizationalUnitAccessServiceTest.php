@@ -495,3 +495,141 @@ test('organizational unit access service preserves prior subtree access for move
     expect($this->user->hasAccessToUnit($grandchild, 'write'))->toBeTrue()
         ->and($this->user->hasAccessToUnit($grandchild, 'manage'))->toBeFalse();
 });
+
+test('organizational unit access service preserves prior access for soft-deleted descendants in the moved subtree', function (): void {
+    $sourceRoot = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Source Root',
+        'type' => 'company',
+    ]);
+
+    $destinationRoot = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Destination Root',
+        'type' => 'company',
+    ]);
+
+    $child = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Transfer Unit',
+        'type' => 'department',
+    ]);
+    $child->setParent($sourceRoot);
+
+    $trashedGrandchild = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Trashed Descendant',
+        'type' => 'division',
+    ]);
+    $trashedGrandchild->setParent($child);
+    $trashedGrandchild->delete();
+    $trashedGrandchild = OrganizationalUnit::withTrashed()->findOrFail($trashedGrandchild->id);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $sourceRoot->id,
+        'access_level' => 'write',
+        'include_descendants' => true,
+    ]);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $destinationRoot->id,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+    ]);
+
+    $this->user->unsetRelation('organizationalScopes');
+
+    expect($this->user->hasAccessToUnit($trashedGrandchild, 'write'))->toBeTrue()
+        ->and($this->user->hasAccessToUnit($trashedGrandchild, 'manage'))->toBeFalse();
+
+    $this->service->reparentUnitForActor($this->user, $child, $destinationRoot);
+
+    $this->assertDatabaseHas('user_internal_organizational_scopes', [
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $trashedGrandchild->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+    ]);
+
+    $this->user->refresh();
+    $trashedGrandchild = OrganizationalUnit::withTrashed()->findOrFail($trashedGrandchild->id);
+
+    expect($this->user->hasAccessToUnit($trashedGrandchild, 'write'))->toBeTrue()
+        ->and($this->user->hasAccessToUnit($trashedGrandchild, 'manage'))->toBeFalse();
+});
+
+test('organizational unit access service rolls back the reparent when pinning replacement scopes fails', function (): void {
+    $sourceRoot = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Source Root',
+        'type' => 'company',
+    ]);
+
+    $destinationRoot = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Destination Root',
+        'type' => 'company',
+    ]);
+
+    $child = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Transfer Unit',
+        'type' => 'department',
+    ]);
+    $child->setParent($sourceRoot);
+
+    $grandchild = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Transfer Descendant',
+        'type' => 'division',
+    ]);
+    $grandchild->setParent($child);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $sourceRoot->id,
+        'access_level' => 'write',
+        'include_descendants' => true,
+    ]);
+
+    $service = new class extends OrganizationalUnitAccessService
+    {
+        private int $persistedUnits = 0;
+
+        protected function persistPinnedScopesForUnit(User $user, OrganizationalUnit $unit, UserInternalOrganizationalScope $priorScope): bool
+        {
+            $this->persistedUnits++;
+
+            if ($this->persistedUnits > 1) {
+                throw new RuntimeException('Simulated pinning failure.');
+            }
+
+            return parent::persistPinnedScopesForUnit($user, $unit, $priorScope);
+        }
+    };
+
+    expect(fn () => $service->reparentUnitForActor($this->user, $child, $destinationRoot))
+        ->toThrow(RuntimeException::class, 'Simulated pinning failure.');
+
+    $child->refresh();
+    $grandchild->refresh();
+
+    expect($child->parent?->id)->toBe($sourceRoot->id)
+        ->and($grandchild->parent?->id)->toBe($child->id);
+
+    $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $child->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+    ]);
+
+    $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $grandchild->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+    ]);
+});
