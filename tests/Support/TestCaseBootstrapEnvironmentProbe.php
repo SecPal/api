@@ -15,11 +15,20 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
     private static ?string $probeEnvironmentPath = null;
 
     /**
-     * @param  array{current_user: string, database_owner: string, schema_owner: string, can_create: bool}  $access
+     * @param  array{
+     *     current_user: string,
+     *     database_owner: string,
+     *     public_schema_owner: string,
+     *     target_schema_owner: string|null,
+     *     can_create_public_schema: bool,
+     *     can_create_target_schema: bool,
+     *     can_create_schema: bool,
+     *     target_schema_exists: bool
+     * }  $access
      */
-    public static function assertWritableParallelTestDatabase(string $databaseName, array $access): void
+    public static function assertWritableParallelTestDatabase(string $databaseName, string $schemaName, array $access): void
     {
-        parent::assertWritableParallelTestDatabase($databaseName, $access);
+        parent::assertWritableParallelTestDatabase($databaseName, $schemaName, $access);
     }
 
     public static function useProbeEnvironmentPath(string $path): void
@@ -60,6 +69,16 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
     public static function normalizeBootstrapApplication(Application $app): void
     {
         parent::normalizeApplicationConfiguration($app);
+    }
+
+    public static function isolatedTestSchemaName(): string
+    {
+        return parent::isolatedTestSchemaName();
+    }
+
+    public static function isolatedTestDatabaseName(string $databaseName): string
+    {
+        return parent::isolatedTestDatabaseName($databaseName);
     }
 
     public static function expectedTestAppKey(): string

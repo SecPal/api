@@ -1282,7 +1282,16 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             ->assertJsonValidationErrors(['parent_id']);
     });
 
-    test('user keeps access to a moved unit when the new parent scope does not include descendants', function () {
+    test('user keeps prior moved-unit access without inheriting stronger new-parent privileges', function () {
+        $this->user->organizationalScopes()->delete();
+        $this->user->unsetRelation('organizationalScopes');
+
+        $sourceRoot = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Source Root',
+            'type' => 'company',
+        ]);
+
         $alternateRoot = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Alternate Root',
@@ -1294,7 +1303,14 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'name' => 'Transfer Unit',
             'type' => 'department',
         ]);
-        $child->setParent($this->rootUnit);
+        $child->setParent($sourceRoot);
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $sourceRoot->id,
+            'access_level' => 'write',
+            'include_descendants' => true,
+        ]);
 
         UserInternalOrganizationalScope::create([
             'user_id' => $this->user->id,
@@ -1303,7 +1319,10 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'include_descendants' => false,
         ]);
 
-        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+        $this->user->unsetRelation('organizationalScopes');
+
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue()
+            ->and($this->user->hasAccessToUnit($child, 'manage'))->toBeFalse();
 
         $response = postJson("/v1/organizational-units/{$child->id}/parent", [
             'parent_id' => $alternateRoot->id,
@@ -1314,14 +1333,21 @@ describe('OrganizationalUnitController - Hierarchy', function () {
         $this->assertDatabaseHas('user_internal_organizational_scopes', [
             'user_id' => $this->user->id,
             'organizational_unit_id' => $child->id,
-            'access_level' => 'manage',
+            'access_level' => 'write',
             'include_descendants' => false,
+        ]);
+
+        $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $child->id,
+            'access_level' => 'manage',
         ]);
 
         $this->user->refresh();
         $child->refresh();
 
-        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue()
+            ->and($this->user->hasAccessToUnit($child, 'manage'))->toBeFalse();
 
         getJson('/v1/organizational-units')
             ->assertOk()
@@ -1334,6 +1360,9 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'description' => 'Updated after move',
         ])->assertOk()
             ->assertJsonPath('data.description', 'Updated after move');
+
+        deleteJson("/v1/organizational-units/{$child->id}")
+            ->assertForbidden();
     });
 
     test('attach parent response includes the new accessible parent data for cache consistency', function () {

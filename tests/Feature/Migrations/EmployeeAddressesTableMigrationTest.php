@@ -79,7 +79,7 @@ test('employee_addresses table exists with expected columns and partial unique i
 
     $indexNames = array_map(
         static fn (object $row): string => (string) $row->indexname,
-        DB::select("select indexname from pg_indexes where schemaname = 'public' and tablename = 'employee_addresses'")
+        DB::select("select indexname from pg_indexes where schemaname = current_schema() and tablename = 'employee_addresses'")
     );
     expect($indexNames)->toContain('employee_addresses_one_current_per_employee');
 });

@@ -12,7 +12,9 @@ use App\Http\Requests\Api\UpdateOrganizationalUnitRequest;
 use App\Http\Resources\OrganizationalUnitResource;
 use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
+use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use App\Services\OrganizationalUnitAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -31,7 +33,7 @@ class OrganizationalUnitController extends Controller
     private function respondWithUnit(Request $request, OrganizationalUnit $unit, int $status = Response::HTTP_OK): JsonResponse
     {
         if (! $request->attributes->has('accessible_unit_ids')) {
-            /** @var \App\Models\User $user */
+            /** @var User $user */
             $user = $request->user();
 
             $request->attributes->set(
@@ -61,7 +63,7 @@ class OrganizationalUnitController extends Controller
         /** @var array{parent_id?: string, type?: string} $validated */
         $validated = $request->validated();
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         // Get accessible units based on user's organizational scopes (Need-to-Know principle)
@@ -169,12 +171,12 @@ class OrganizationalUnitController extends Controller
     /**
      * Store a newly created organizational unit.
      */
-    public function store(StoreOrganizationalUnitRequest $request): JsonResponse
+    public function store(StoreOrganizationalUnitRequest $request, OrganizationalUnitAccessService $organizationalUnitAccessService): JsonResponse
     {
         /** @var int $tenantId */
         $tenantId = $request->input('tenant_id');
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         // Check authorization for creating under parent (if specified) or root
@@ -204,7 +206,7 @@ class OrganizationalUnitController extends Controller
             /** @var OrganizationalUnit $parent */
             $parent = OrganizationalUnit::findOrFail($parentId);
             $unit->setParent($parent);
-            $this->grantCreatorManageScopeOnNewChildUnit($request, $unit);
+            $organizationalUnitAccessService->grantCreatorManageScopeOnNewChildUnit($user, $unit);
         } else {
             // Root unit created: Auto-assign manage scope to creator
             // This ensures the creator can see and manage their new unit
@@ -220,87 +222,6 @@ class OrganizationalUnitController extends Controller
         $user->unsetRelation('organizationalScopes');
 
         return $this->respondWithUnit($request, $unit, Response::HTTP_CREATED);
-    }
-
-    /**
-     * Ensure creators retain full control over newly created child units.
-     *
-     * Child-unit creation requires manage access on the parent, but the newly
-     * created unit should remain directly manageable by its creator even when
-     * the parent scope would otherwise grant only inherited manage access.
-     */
-    private function grantCreatorManageScopeOnNewChildUnit(Request $request, OrganizationalUnit $unit): void
-    {
-        /** @var \App\Models\User $user */
-        $user = $request->user();
-
-        UserInternalOrganizationalScope::updateOrCreate(
-            [
-                'user_id' => $user->id,
-                'organizational_unit_id' => $unit->id,
-            ],
-            [
-                'access_level' => 'manage',
-                'include_descendants' => false,
-            ]
-        );
-    }
-
-    /**
-     * Ensure the acting user retains at least read visibility to a child unit after hierarchy changes.
-     *
-     * Users may be allowed to create under a parent via a direct scope that does
-     * not include descendants. The same pattern can happen when moving an
-     * existing child under a new parent. In both cases the affected unit would
-     * otherwise disappear from list/detail operations immediately after
-     * the successful response.
-     *
-     * If the actor already has any access to the unit (even read-only), their existing
-     * scope is preserved as-is. A new scope is only granted when the actor would
-     * otherwise lose all visibility, in which case access is inherited from their
-     * highest-level manage-or-above scope on the parent. Explicitly granted
-     * lower-level scopes are intentionally not escalated.
-     */
-    private function ensureActorCanAccessChildUnit(Request $request, OrganizationalUnit $parent, OrganizationalUnit $unit): void
-    {
-        /** @var \App\Models\User $user */
-        $user = $request->user();
-
-        if ($user->hasAccessToUnit($unit, 'read')) {
-            return;
-        }
-
-        $relevantAncestorIds = OrganizationalUnitClosure::where('descendant_id', $parent->id)
-            ->pluck('ancestor_id');
-
-        $creatorScope = $user->organizationalScopes()
-            ->where(function ($query) use ($parent, $relevantAncestorIds): void {
-                $query->where('organizational_unit_id', $parent->id)
-                    ->orWhere(function ($descendantQuery) use ($relevantAncestorIds): void {
-                        $descendantQuery
-                            ->whereIn('organizational_unit_id', $relevantAncestorIds)
-                            ->where('include_descendants', true);
-                    });
-            })
-            ->get()
-            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('manage'))
-            ->sortByDesc(fn (UserInternalOrganizationalScope $scope): int => $scope->getAccessLevelValue())
-            ->first();
-
-        if ($creatorScope === null) {
-            return;
-        }
-
-        UserInternalOrganizationalScope::firstOrCreate(
-            [
-                'user_id' => $user->id,
-                'organizational_unit_id' => $unit->id,
-            ],
-            [
-                'access_level' => $creatorScope->access_level,
-                'include_descendants' => false,
-            ]
-        );
     }
 
     /**
@@ -391,11 +312,11 @@ class OrganizationalUnitController extends Controller
     /**
      * Attach a parent to the organizational unit.
      */
-    public function attachParent(Request $request, OrganizationalUnit $organizational_unit): JsonResponse
+    public function attachParent(Request $request, OrganizationalUnit $organizational_unit, OrganizationalUnitAccessService $organizationalUnitAccessService): JsonResponse
     {
         $this->authorize('update', $organizational_unit);
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         /** @var array{parent_id: string} $validated */
@@ -416,8 +337,7 @@ class OrganizationalUnitController extends Controller
         // Also need permission on the parent to add children
         $this->authorize('create', $parent);
 
-        $organizational_unit->setParent($parent);
-        $this->ensureActorCanAccessChildUnit($request, $parent, $organizational_unit);
+        $organizationalUnitAccessService->reparentUnitForActor($user, $organizational_unit, $parent);
 
         // Invalidate cached scopes — ensureActorCanAccessChildUnit may have created a new scope.
         $user->unsetRelation('organizationalScopes');
@@ -438,7 +358,7 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('update', $organizational_unit);
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         // Check if user will still have access after detaching parent.
