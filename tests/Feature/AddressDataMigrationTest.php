@@ -32,7 +32,7 @@ test('address data tables and indexes exist', function (): void {
 
     $indexNames = array_map(
         static fn (object $row): string => (string) $row->indexname,
-        DB::select("select indexname from pg_indexes where schemaname = 'public' and tablename = 'address_data_imports'")
+        DB::select("select indexname from pg_indexes where schemaname = current_schema() and tablename = 'address_data_imports'")
     );
 
     expect($indexNames)->toContain('address_data_imports_one_active_per_country');
