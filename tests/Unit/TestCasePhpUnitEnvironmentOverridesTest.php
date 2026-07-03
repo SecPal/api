@@ -95,3 +95,36 @@ test('parallel test token wins over process-based isolated database naming', fun
         }
     }
 });
+
+test('bootstrap application normalization keeps the isolated database and schema configuration', function (): void {
+    $originalTestToken = getenv('TEST_TOKEN');
+
+    try {
+        putenv('TEST_TOKEN=7');
+        $_ENV['TEST_TOKEN'] = '7';
+        $_SERVER['TEST_TOKEN'] = '7';
+
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+        $application = TestCaseBootstrapEnvironmentProbe::createBootstrapApplication();
+
+        expect($application['config']->get('database.default'))->toBe('pgsql')
+            ->and($application['config']->get('database.connections.pgsql.database'))->toBe('testing_test_7')
+            ->and($application['config']->get('database.connections.pgsql.search_path'))->toBe(
+                TestCaseBootstrapEnvironmentProbe::isolatedTestSchemaName().',public'
+            );
+    } finally {
+        TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+
+        if ($originalTestToken === false) {
+            putenv('TEST_TOKEN');
+            unset($_ENV['TEST_TOKEN'], $_SERVER['TEST_TOKEN']);
+        } else {
+            putenv('TEST_TOKEN='.$originalTestToken);
+            $_ENV['TEST_TOKEN'] = $originalTestToken;
+            $_SERVER['TEST_TOKEN'] = $originalTestToken;
+        }
+    }
+});

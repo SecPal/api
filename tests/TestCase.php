@@ -156,7 +156,8 @@ abstract class TestCase extends BaseTestCase
 
             self::assertWritableParallelTestDatabase(
                 $candidate,
-                self::parallelTestDatabaseAccess(self::connectToDatabase($candidate)),
+                self::isolatedTestSchemaName(),
+                self::parallelTestDatabaseAccess(self::connectToDatabase($candidate), self::isolatedTestSchemaName()),
             );
 
             self::ensureIsolatedTestSchemaExists($candidate, self::isolatedTestSchemaName());
@@ -166,12 +167,50 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * @param  array{current_user: string, database_owner: string, schema_owner: string, can_create: bool}  $access
+     * @param  array{
+     *     current_user: string,
+     *     database_owner: string,
+     *     public_schema_owner: string,
+     *     target_schema_owner: string|null,
+     *     can_create_public_schema: bool,
+     *     can_create_target_schema: bool,
+     *     can_create_schema: bool,
+     *     target_schema_exists: bool
+     * }  $access
      */
-    protected static function assertWritableParallelTestDatabase(string $databaseName, array $access): void
+    protected static function assertWritableParallelTestDatabase(string $databaseName, string $schemaName, array $access): void
     {
-        if ($access['can_create']) {
+        if ($schemaName === 'public' && $access['can_create_public_schema']) {
             return;
+        }
+
+        if ($schemaName !== 'public') {
+            if ($access['target_schema_exists'] && $access['can_create_target_schema']) {
+                return;
+            }
+
+            if (! $access['target_schema_exists'] && $access['can_create_schema']) {
+                return;
+            }
+
+            if ($access['target_schema_exists']) {
+                throw new \RuntimeException(sprintf(
+                    'PostgreSQL test database "%s" exists but the configured user "%s" cannot create tables in the isolated test schema "%s". Current database owner: "%s". Current schema owner: "%s". Grant CREATE on that schema or recreate it with the app user as owner before running the test suite.',
+                    $databaseName,
+                    $access['current_user'],
+                    $schemaName,
+                    $access['database_owner'],
+                    $access['target_schema_owner'] ?? 'unknown',
+                ));
+            }
+
+            throw new \RuntimeException(sprintf(
+                'PostgreSQL test database "%s" exists but the configured user "%s" cannot create the isolated test schema "%s". Current database owner: "%s". Grant CREATE on the database or pre-create the schema with CREATE privilege for the app user before running the test suite.',
+                $databaseName,
+                $access['current_user'],
+                $schemaName,
+                $access['database_owner'],
+            ));
         }
 
         throw new \RuntimeException(sprintf(
@@ -179,7 +218,7 @@ abstract class TestCase extends BaseTestCase
             $databaseName,
             $access['current_user'],
             $access['database_owner'],
-            $access['schema_owner'],
+            $access['public_schema_owner'],
         ));
     }
 
@@ -270,19 +309,66 @@ abstract class TestCase extends BaseTestCase
 
         $pdo = self::connectToDatabase($databaseName);
         $statement = $pdo->prepare(sprintf('CREATE SCHEMA IF NOT EXISTS "%s"', $schemaName));
-        $statement->execute();
+
+        try {
+            $statement->execute();
+        } catch (\PDOException $exception) {
+            throw new \RuntimeException(
+                sprintf(
+                    'Unable to create isolated PostgreSQL test schema "%s" in database "%s". Grant CREATE on the database or pre-create the schema with CREATE privilege for the app user before running the test suite.',
+                    $schemaName,
+                    $databaseName,
+                ),
+                previous: $exception,
+            );
+        }
     }
 
     /**
-     * @return array{current_user: string, database_owner: string, schema_owner: string, can_create: bool}
+     * @return array{
+     *     current_user: string,
+     *     database_owner: string,
+     *     public_schema_owner: string,
+     *     target_schema_owner: string|null,
+     *     can_create_public_schema: bool,
+     *     can_create_target_schema: bool,
+     *     can_create_schema: bool,
+     *     target_schema_exists: bool
+     * }
      */
-    private static function parallelTestDatabaseAccess(\PDO $pdo): array
+    private static function parallelTestDatabaseAccess(\PDO $pdo, string $schemaName): array
     {
-        $statement = $pdo->query(
-            "SELECT current_user AS current_user, pg_catalog.pg_get_userbyid(database_row.datdba) AS database_owner, pg_catalog.pg_get_userbyid(namespace_row.nspowner) AS schema_owner, has_schema_privilege(current_user, namespace_row.nspname, 'CREATE') AS can_create FROM pg_database AS database_row JOIN pg_namespace AS namespace_row ON namespace_row.nspname = 'public' WHERE database_row.datname = current_database()"
+        $statement = $pdo->prepare(
+            <<<'SQL'
+            SELECT
+                current_user AS current_user,
+                pg_catalog.pg_get_userbyid(database_row.datdba) AS database_owner,
+                pg_catalog.pg_get_userbyid(public_namespace.nspowner) AS public_schema_owner,
+                pg_catalog.pg_get_userbyid(target_namespace.nspowner) AS target_schema_owner,
+                has_schema_privilege(current_user, public_namespace.nspname, 'CREATE') AS can_create_public_schema,
+                COALESCE(has_schema_privilege(current_user, target_namespace.nspname, 'CREATE'), false) AS can_create_target_schema,
+                has_database_privilege(current_user, current_database(), 'CREATE') AS can_create_schema,
+                target_namespace.oid IS NOT NULL AS target_schema_exists
+            FROM pg_database AS database_row
+            JOIN pg_namespace AS public_namespace
+                ON public_namespace.nspname = 'public'
+            LEFT JOIN pg_namespace AS target_namespace
+                ON target_namespace.nspname = :schema_name
+            WHERE database_row.datname = current_database()
+            SQL
         );
+        $statement->execute(['schema_name' => $schemaName]);
 
-        /** @var array{current_user?: mixed, database_owner?: mixed, schema_owner?: mixed, can_create?: mixed}|false $access */
+        /** @var array{
+         *     current_user?: mixed,
+         *     database_owner?: mixed,
+         *     public_schema_owner?: mixed,
+         *     target_schema_owner?: mixed,
+         *     can_create_public_schema?: mixed,
+         *     can_create_target_schema?: mixed,
+         *     can_create_schema?: mixed,
+         *     target_schema_exists?: mixed
+         * }|false $access */
         $access = $statement->fetch(\PDO::FETCH_ASSOC);
 
         if (! is_array($access)) {
@@ -292,8 +378,12 @@ abstract class TestCase extends BaseTestCase
         return [
             'current_user' => (string) ($access['current_user'] ?? ''),
             'database_owner' => (string) ($access['database_owner'] ?? ''),
-            'schema_owner' => (string) ($access['schema_owner'] ?? ''),
-            'can_create' => in_array($access['can_create'] ?? false, [true, 1, '1', 't', 'true'], true),
+            'public_schema_owner' => (string) ($access['public_schema_owner'] ?? ''),
+            'target_schema_owner' => isset($access['target_schema_owner']) ? (string) $access['target_schema_owner'] : null,
+            'can_create_public_schema' => in_array($access['can_create_public_schema'] ?? false, [true, 1, '1', 't', 'true'], true),
+            'can_create_target_schema' => in_array($access['can_create_target_schema'] ?? false, [true, 1, '1', 't', 'true'], true),
+            'can_create_schema' => in_array($access['can_create_schema'] ?? false, [true, 1, '1', 't', 'true'], true),
+            'target_schema_exists' => in_array($access['target_schema_exists'] ?? false, [true, 1, '1', 't', 'true'], true),
         ];
     }
 
@@ -387,6 +477,10 @@ abstract class TestCase extends BaseTestCase
     {
         $databaseConnection = self::phpUnitEnvironmentOverrides()['DB_CONNECTION'] ?? null;
         $databaseName = self::phpUnitEnvironmentOverrides()['DB_DATABASE'] ?? null;
+        $isolatedDatabaseName = is_string($databaseName) && $databaseName !== ''
+            ? self::environmentValue('SECPAL_TEST_DATABASE', self::isolatedTestDatabaseName($databaseName))
+            : null;
+        $isolatedSchemaName = self::environmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
 
         if (is_string($databaseConnection) && $databaseConnection !== '') {
             $app['config']->set('database.default', $databaseConnection);
@@ -394,10 +488,14 @@ abstract class TestCase extends BaseTestCase
 
         if (
             is_string($databaseConnection) && $databaseConnection !== ''
-            && is_string($databaseName) && $databaseName !== ''
+            && is_string($isolatedDatabaseName) && $isolatedDatabaseName !== ''
         ) {
-            $app['config']->set("database.connections.{$databaseConnection}.database", $databaseName);
+            $app['config']->set("database.connections.{$databaseConnection}.database", $isolatedDatabaseName);
             $app['config']->set("database.connections.{$databaseConnection}.url", null);
+
+            if ($databaseConnection === 'pgsql') {
+                $app['config']->set("database.connections.{$databaseConnection}.search_path", $isolatedSchemaName.',public');
+            }
         }
 
         if (isset($app['db'])) {
