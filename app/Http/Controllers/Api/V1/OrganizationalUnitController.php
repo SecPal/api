@@ -12,6 +12,7 @@ use App\Http\Requests\Api\UpdateOrganizationalUnitRequest;
 use App\Http\Resources\OrganizationalUnitResource;
 use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
+use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -247,47 +248,19 @@ class OrganizationalUnitController extends Controller
     }
 
     /**
-     * Ensure the acting user retains at least read visibility to a child unit after hierarchy changes.
+     * Ensure the acting user keeps their pre-move access to a child unit after hierarchy changes.
      *
-     * Users may be allowed to create under a parent via a direct scope that does
-     * not include descendants. The same pattern can happen when moving an
-     * existing child under a new parent. In both cases the affected unit would
-     * otherwise disappear from list/detail operations immediately after
-     * the successful response.
-     *
-     * If the actor already has any access to the unit (even read-only), their existing
-     * scope is preserved as-is. A new scope is only granted when the actor would
-     * otherwise lose all visibility, in which case access is inherited from their
-     * highest-level manage-or-above scope on the parent. Explicitly granted
-     * lower-level scopes are intentionally not escalated.
+     * Reparenting an existing unit can remove inherited access from the old
+     * hierarchy before the response is serialized. When that happens, grant a
+     * direct scope that preserves the actor's already-authorized access level
+     * instead of copying stronger privileges from the destination parent.
      */
-    private function ensureActorCanAccessChildUnit(Request $request, OrganizationalUnit $parent, OrganizationalUnit $unit): void
+    private function ensureActorCanAccessChildUnit(Request $request, OrganizationalUnit $unit, string $priorAccessLevel): void
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
 
         if ($user->hasAccessToUnit($unit, 'read')) {
-            return;
-        }
-
-        $relevantAncestorIds = OrganizationalUnitClosure::where('descendant_id', $parent->id)
-            ->pluck('ancestor_id');
-
-        $creatorScope = $user->organizationalScopes()
-            ->where(function ($query) use ($parent, $relevantAncestorIds): void {
-                $query->where('organizational_unit_id', $parent->id)
-                    ->orWhere(function ($descendantQuery) use ($relevantAncestorIds): void {
-                        $descendantQuery
-                            ->whereIn('organizational_unit_id', $relevantAncestorIds)
-                            ->where('include_descendants', true);
-                    });
-            })
-            ->get()
-            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('manage'))
-            ->sortByDesc(fn (UserInternalOrganizationalScope $scope): int => $scope->getAccessLevelValue())
-            ->first();
-
-        if ($creatorScope === null) {
             return;
         }
 
@@ -297,10 +270,23 @@ class OrganizationalUnitController extends Controller
                 'organizational_unit_id' => $unit->id,
             ],
             [
-                'access_level' => $creatorScope->access_level,
+                'access_level' => $priorAccessLevel,
                 'include_descendants' => false,
             ]
         );
+    }
+
+    /**
+     * Resolve the actor's highest currently applicable access level for the unit.
+     */
+    private function highestCurrentAccessLevel(User $user, OrganizationalUnit $unit): string
+    {
+        /** @var UserInternalOrganizationalScope|null $scope */
+        $scope = $user->getApplicableOrganizationalScopesForUnit($unit)
+            ->sortByDesc(fn (UserInternalOrganizationalScope $scope): int => $scope->getAccessLevelValue())
+            ->first();
+
+        return $scope?->access_level ?? 'read';
     }
 
     /**
@@ -416,8 +402,10 @@ class OrganizationalUnitController extends Controller
         // Also need permission on the parent to add children
         $this->authorize('create', $parent);
 
+        $priorAccessLevel = $this->highestCurrentAccessLevel($user, $organizational_unit);
+
         $organizational_unit->setParent($parent);
-        $this->ensureActorCanAccessChildUnit($request, $parent, $organizational_unit);
+        $this->ensureActorCanAccessChildUnit($request, $organizational_unit, $priorAccessLevel);
 
         // Invalidate cached scopes — ensureActorCanAccessChildUnit may have created a new scope.
         $user->unsetRelation('organizationalScopes');
