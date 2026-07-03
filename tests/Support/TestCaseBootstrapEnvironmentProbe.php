@@ -22,6 +22,7 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
      *     target_schema_owner: string|null,
      *     can_create_public_schema: bool,
      *     can_create_target_schema: bool,
+     *     can_use_target_schema: bool,
      *     can_create_schema: bool,
      *     target_schema_exists: bool
      * }  $access
@@ -29,6 +30,14 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
     public static function assertWritableParallelTestDatabase(string $databaseName, string $schemaName, array $access): void
     {
         parent::assertWritableParallelTestDatabase($databaseName, $schemaName, $access);
+    }
+
+    /**
+     * @param  array{target_schema_exists: bool}  $access
+     */
+    public static function shouldCreateIsolatedTestSchema(array $access): bool
+    {
+        return parent::shouldCreateIsolatedTestSchema($access);
     }
 
     public static function useProbeEnvironmentPath(string $path): void

@@ -235,3 +235,57 @@ test('organizational unit access service pins prior moved-unit access when desti
 
     expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
 });
+
+test('organizational unit access service preserves prior moved-unit rank limits when pinning a direct replacement scope', function (): void {
+    $sourceRoot = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Source Root',
+        'type' => 'company',
+    ]);
+
+    $destinationRoot = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Destination Root',
+        'type' => 'company',
+    ]);
+
+    $child = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Transfer Unit',
+        'type' => 'department',
+    ]);
+    $child->setParent($sourceRoot);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $sourceRoot->id,
+        'access_level' => 'write',
+        'include_descendants' => true,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 3,
+        'min_assignable_rank' => 1,
+        'max_assignable_rank' => 2,
+        'allow_self_access' => true,
+    ]);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $destinationRoot->id,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+    ]);
+
+    $this->service->reparentUnitForActor($this->user, $child, $destinationRoot);
+
+    $this->assertDatabaseHas('user_internal_organizational_scopes', [
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $child->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 1,
+        'max_viewable_rank' => 3,
+        'min_assignable_rank' => 1,
+        'max_assignable_rank' => 2,
+        'allow_self_access' => true,
+    ]);
+});

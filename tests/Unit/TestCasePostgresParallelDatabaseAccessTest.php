@@ -15,6 +15,7 @@ test('accepts writable postgres parallel test database access details', function
         'target_schema_owner' => 'pg_database_owner',
         'can_create_public_schema' => true,
         'can_create_target_schema' => true,
+        'can_use_target_schema' => true,
         'can_create_schema' => true,
         'target_schema_exists' => true,
     ]);
@@ -31,6 +32,7 @@ test('fails fast when an existing postgres parallel test database is not writabl
             'target_schema_owner' => 'pg_database_owner',
             'can_create_public_schema' => false,
             'can_create_target_schema' => false,
+            'can_use_target_schema' => true,
             'can_create_schema' => false,
             'target_schema_exists' => true,
         ]);
@@ -49,6 +51,7 @@ test('accepts writable isolated postgres schema access details when the schema a
         'target_schema_owner' => 'secpal_app',
         'can_create_public_schema' => false,
         'can_create_target_schema' => true,
+        'can_use_target_schema' => true,
         'can_create_schema' => false,
         'target_schema_exists' => true,
     ]);
@@ -65,6 +68,7 @@ test('fails fast when an isolated postgres schema is missing and the user cannot
             'target_schema_owner' => null,
             'can_create_public_schema' => true,
             'can_create_target_schema' => false,
+            'can_use_target_schema' => false,
             'can_create_schema' => false,
             'target_schema_exists' => false,
         ]);
@@ -73,4 +77,38 @@ test('fails fast when an isolated postgres schema is missing and the user cannot
             RuntimeException::class,
             'PostgreSQL test database "testing_test_9" exists but the configured user "secpal_app" cannot create the isolated test schema "test_proc_77". Current database owner: "postgres". Grant CREATE on the database or pre-create the schema with CREATE privilege for the app user before running the test suite.'
         );
+});
+
+test('fails fast when an existing isolated postgres schema lacks usage for the configured user', function (): void {
+    expect(function (): void {
+        TestCaseBootstrapEnvironmentProbe::assertWritableParallelTestDatabase('testing_test_10', 'test_proc_99', [
+            'current_user' => 'secpal_app',
+            'database_owner' => 'postgres',
+            'public_schema_owner' => 'pg_database_owner',
+            'target_schema_owner' => 'schema_owner',
+            'can_create_public_schema' => false,
+            'can_create_target_schema' => true,
+            'can_use_target_schema' => false,
+            'can_create_schema' => false,
+            'target_schema_exists' => true,
+        ]);
+    })
+        ->toThrow(
+            RuntimeException::class,
+            'PostgreSQL test database "testing_test_10" exists but the configured user "secpal_app" cannot use the isolated test schema "test_proc_99". Current database owner: "postgres". Current schema owner: "schema_owner". Grant USAGE and CREATE on that schema or recreate it with the app user as owner before running the test suite.'
+        );
+});
+
+test('does not try to create an isolated postgres schema when it already exists', function (): void {
+    expect(TestCaseBootstrapEnvironmentProbe::shouldCreateIsolatedTestSchema([
+        'current_user' => 'secpal_app',
+        'database_owner' => 'postgres',
+        'public_schema_owner' => 'pg_database_owner',
+        'target_schema_owner' => 'schema_owner',
+        'can_create_public_schema' => false,
+        'can_create_target_schema' => true,
+        'can_use_target_schema' => true,
+        'can_create_schema' => false,
+        'target_schema_exists' => true,
+    ]))->toBeFalse();
 });

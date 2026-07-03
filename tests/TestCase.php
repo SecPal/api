@@ -154,13 +154,14 @@ abstract class TestCase extends BaseTestCase
                 }
             }
 
-            self::assertWritableParallelTestDatabase(
-                $candidate,
-                self::isolatedTestSchemaName(),
-                self::parallelTestDatabaseAccess(self::connectToDatabase($candidate), self::isolatedTestSchemaName()),
-            );
+            $schemaName = self::isolatedTestSchemaName();
+            $access = self::parallelTestDatabaseAccess(self::connectToDatabase($candidate), $schemaName);
 
-            self::ensureIsolatedTestSchemaExists($candidate, self::isolatedTestSchemaName());
+            self::assertWritableParallelTestDatabase($candidate, $schemaName, $access);
+
+            if (self::shouldCreateIsolatedTestSchema($access)) {
+                self::ensureIsolatedTestSchemaExists($candidate, $schemaName);
+            }
         }
 
         self::$postgresTestDatabasesEnsured = true;
@@ -174,6 +175,7 @@ abstract class TestCase extends BaseTestCase
      *     target_schema_owner: string|null,
      *     can_create_public_schema: bool,
      *     can_create_target_schema: bool,
+     *     can_use_target_schema: bool,
      *     can_create_schema: bool,
      *     target_schema_exists: bool
      * }  $access
@@ -185,6 +187,17 @@ abstract class TestCase extends BaseTestCase
         }
 
         if ($schemaName !== 'public') {
+            if ($access['target_schema_exists'] && ! $access['can_use_target_schema']) {
+                throw new \RuntimeException(sprintf(
+                    'PostgreSQL test database "%s" exists but the configured user "%s" cannot use the isolated test schema "%s". Current database owner: "%s". Current schema owner: "%s". Grant USAGE and CREATE on that schema or recreate it with the app user as owner before running the test suite.',
+                    $databaseName,
+                    $access['current_user'],
+                    $schemaName,
+                    $access['database_owner'],
+                    $access['target_schema_owner'] ?? 'unknown',
+                ));
+            }
+
             if ($access['target_schema_exists'] && $access['can_create_target_schema']) {
                 return;
             }
@@ -220,6 +233,14 @@ abstract class TestCase extends BaseTestCase
             $access['database_owner'],
             $access['public_schema_owner'],
         ));
+    }
+
+    /**
+     * @param  array{target_schema_exists: bool}  $access
+     */
+    protected static function shouldCreateIsolatedTestSchema(array $access): bool
+    {
+        return ! $access['target_schema_exists'];
     }
 
     /**
@@ -308,6 +329,13 @@ abstract class TestCase extends BaseTestCase
         }
 
         $pdo = self::connectToDatabase($databaseName);
+        $existsStatement = $pdo->prepare('SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname = :schema_name)');
+        $existsStatement->execute(['schema_name' => $schemaName]);
+
+        if (in_array($existsStatement->fetchColumn(), [true, 1, '1', 't', 'true'], true)) {
+            return;
+        }
+
         $statement = $pdo->prepare(sprintf('CREATE SCHEMA IF NOT EXISTS "%s"', $schemaName));
 
         try {
@@ -332,6 +360,7 @@ abstract class TestCase extends BaseTestCase
      *     target_schema_owner: string|null,
      *     can_create_public_schema: bool,
      *     can_create_target_schema: bool,
+     *     can_use_target_schema: bool,
      *     can_create_schema: bool,
      *     target_schema_exists: bool
      * }
@@ -347,6 +376,7 @@ abstract class TestCase extends BaseTestCase
                 pg_catalog.pg_get_userbyid(target_namespace.nspowner) AS target_schema_owner,
                 has_schema_privilege(current_user, public_namespace.nspname, 'CREATE') AS can_create_public_schema,
                 COALESCE(has_schema_privilege(current_user, target_namespace.nspname, 'CREATE'), false) AS can_create_target_schema,
+                COALESCE(has_schema_privilege(current_user, target_namespace.nspname, 'USAGE'), false) AS can_use_target_schema,
                 has_database_privilege(current_user, current_database(), 'CREATE') AS can_create_schema,
                 target_namespace.oid IS NOT NULL AS target_schema_exists
             FROM pg_database AS database_row
@@ -366,6 +396,7 @@ abstract class TestCase extends BaseTestCase
          *     target_schema_owner?: mixed,
          *     can_create_public_schema?: mixed,
          *     can_create_target_schema?: mixed,
+         *     can_use_target_schema?: mixed,
          *     can_create_schema?: mixed,
          *     target_schema_exists?: mixed
          * }|false $access */
@@ -382,6 +413,7 @@ abstract class TestCase extends BaseTestCase
             'target_schema_owner' => isset($access['target_schema_owner']) ? (string) $access['target_schema_owner'] : null,
             'can_create_public_schema' => in_array($access['can_create_public_schema'] ?? false, [true, 1, '1', 't', 'true'], true),
             'can_create_target_schema' => in_array($access['can_create_target_schema'] ?? false, [true, 1, '1', 't', 'true'], true),
+            'can_use_target_schema' => in_array($access['can_use_target_schema'] ?? false, [true, 1, '1', 't', 'true'], true),
             'can_create_schema' => in_array($access['can_create_schema'] ?? false, [true, 1, '1', 't', 'true'], true),
             'target_schema_exists' => in_array($access['target_schema_exists'] ?? false, [true, 1, '1', 't', 'true'], true),
         ];
