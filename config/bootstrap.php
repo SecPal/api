@@ -10,6 +10,10 @@ return [
     'retry_after_seconds' => (int) env('BOOTSTRAP_RETRY_AFTER_SECONDS', 60),
     'minimum_supported_app_version' => env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION'),
     'minimum_supported_app_build' => env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD') !== null ? (int) env('BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD') : null,
+    'api_release' => [
+        'version' => env('BOOTSTRAP_API_RELEASE_VERSION'),
+        'source_url' => env('BOOTSTRAP_API_RELEASE_SOURCE_URL'),
+    ],
     'legal' => [
         'license_spdx_id' => env('BOOTSTRAP_LICENSE_SPDX_ID', 'AGPL-3.0-or-later'),
         'license_name' => env('BOOTSTRAP_LICENSE_NAME', 'GNU Affero General Public License v3.0 or later'),

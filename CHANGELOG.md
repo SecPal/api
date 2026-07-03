@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added a public unauthenticated `GET /v1/release` endpoint that returns only the currently deployed API release version plus immutable corresponding-source URL, so the frontend can identify the active backend release without widening the existing AGPL/source-offer metadata surface
 - added a public unauthenticated `GET /v1/source` AGPL source-offer endpoint that keeps the canonical license, repository, copyright, and warranty payload while also returning explicit network-use source-offer notices for SecPal users
 - added the public `GET /v1/bootstrap` runtime-discovery endpoint for Android pre-login instance validation, deriving the canonical `api_base_url` from `APP_URL`, failing closed with documented `500`/`503`/`426` bootstrap responses when deployment metadata is incomplete or incompatible, and covering the success/failure slices with focused Pest tests plus operator bootstrap configuration docs (refs `api#1115`)
 - added authenticated Android notification-installation registration on the customer-hosted backend via the canonical `PUT/DELETE /v1/me/notification-installations/{installationId}` surface, including tenant-safe encrypted FCM token storage, bootstrap-advertised public Android runtime metadata on `GET /v1/bootstrap`, deterministic `409` fail-closed handling for disabled or stale runtime state, and focused Pest coverage plus deployment/operator documentation for the `BOOTSTRAP_ANDROID_PUSH_*` settings (refs `api#1123`)
