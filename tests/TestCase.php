@@ -132,6 +132,8 @@ abstract class TestCase extends BaseTestCase
             self::assertValidDatabaseName($candidate);
         }
 
+        self::assertValidSchemaName(self::isolatedTestSchemaName());
+
         $pdo = self::connectToMaintenanceDatabase();
 
         foreach (self::requiredTestDatabaseNames($databaseName) as $candidate) {
@@ -156,6 +158,8 @@ abstract class TestCase extends BaseTestCase
                 $candidate,
                 self::parallelTestDatabaseAccess(self::connectToDatabase($candidate)),
             );
+
+            self::ensureIsolatedTestSchemaExists($candidate, self::isolatedTestSchemaName());
         }
 
         self::$postgresTestDatabasesEnsured = true;
@@ -182,21 +186,44 @@ abstract class TestCase extends BaseTestCase
     /**
      * @return list<string>
      */
-    private static function requiredTestDatabaseNames(string $databaseName): array
+    protected static function requiredTestDatabaseNames(string $databaseName): array
+    {
+        return [self::isolatedTestDatabaseName($databaseName)];
+    }
+
+    protected static function isolatedTestDatabaseName(string $databaseName): string
     {
         $testToken = getenv('TEST_TOKEN');
 
         if (is_string($testToken) && preg_match('/\A\d+\z/', $testToken) === 1) {
-            return [$databaseName.'_test_'.$testToken];
+            return $databaseName.'_test_'.$testToken;
         }
 
-        return [$databaseName];
+        return $databaseName;
+    }
+
+    protected static function isolatedTestSchemaName(): string
+    {
+        $processId = getmypid();
+
+        if (! is_int($processId) || $processId <= 0) {
+            return 'public';
+        }
+
+        return 'test_proc_'.$processId;
     }
 
     private static function assertValidDatabaseName(string $databaseName): void
     {
         if (! preg_match('/\A[a-zA-Z0-9_]+\z/', $databaseName)) {
             throw new \RuntimeException('Invalid PostgreSQL test database name: '.$databaseName);
+        }
+    }
+
+    private static function assertValidSchemaName(string $schemaName): void
+    {
+        if (! preg_match('/\A[a-zA-Z0-9_]+\z/', $schemaName)) {
+            throw new \RuntimeException('Invalid PostgreSQL test schema name: '.$schemaName);
         }
     }
 
@@ -233,6 +260,17 @@ abstract class TestCase extends BaseTestCase
             $password,
             [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION],
         );
+    }
+
+    private static function ensureIsolatedTestSchemaExists(string $databaseName, string $schemaName): void
+    {
+        if ($schemaName === 'public') {
+            return;
+        }
+
+        $pdo = self::connectToDatabase($databaseName);
+        $statement = $pdo->prepare(sprintf('CREATE SCHEMA IF NOT EXISTS "%s"', $schemaName));
+        $statement->execute();
     }
 
     /**
@@ -318,7 +356,8 @@ abstract class TestCase extends BaseTestCase
             self::setEnvironmentValue($name, $value);
 
             if ($name === 'DB_DATABASE') {
-                self::setEnvironmentValue('SECPAL_TEST_DATABASE', $value);
+                self::setEnvironmentValue('SECPAL_TEST_DATABASE', self::isolatedTestDatabaseName($value));
+                self::setEnvironmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
             }
         }
     }
@@ -568,6 +607,10 @@ abstract class TestCase extends BaseTestCase
         $variables['SECPAL_TEST_DATABASE'] = self::environmentValue(
             'SECPAL_TEST_DATABASE',
             $variables['DB_DATABASE'] ?? 'testing',
+        );
+        $variables['SECPAL_TEST_SCHEMA'] = self::environmentValue(
+            'SECPAL_TEST_SCHEMA',
+            self::isolatedTestSchemaName(),
         );
         $variables['APP_KEY'] = self::environmentValue('APP_KEY', self::TEST_APP_KEY);
 

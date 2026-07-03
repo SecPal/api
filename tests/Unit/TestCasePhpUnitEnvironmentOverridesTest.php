@@ -12,6 +12,7 @@ test('phpunit environment overrides are applied before bootstrap-sensitive test 
     $originalDbConnection = getenv('DB_CONNECTION');
     $originalDbDatabase = getenv('DB_DATABASE');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
 
     try {
         putenv('APP_ENV=staging');
@@ -31,13 +32,55 @@ test('phpunit environment overrides are applied before bootstrap-sensitive test 
         expect(getenv('APP_ENV'))->toBe('testing')
             ->and(getenv('DB_CONNECTION'))->toBe('pgsql')
             ->and(getenv('DB_DATABASE'))->toBe('testing')
-            ->and(getenv('SECPAL_TEST_DATABASE'))->toBe('testing');
+            ->and(getenv('SECPAL_TEST_DATABASE'))->toBe(
+                TestCaseBootstrapEnvironmentProbe::isolatedTestDatabaseName('testing')
+            )
+            ->and(getenv('SECPAL_TEST_SCHEMA'))->toBe(
+                TestCaseBootstrapEnvironmentProbe::isolatedTestSchemaName()
+            );
     } finally {
         foreach ([
             'APP_ENV' => $originalAppEnv,
             'DB_CONNECTION' => $originalDbConnection,
             'DB_DATABASE' => $originalDbDatabase,
             'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+});
+
+test('parallel test token wins over process-based isolated database naming', function (): void {
+    $originalTestToken = getenv('TEST_TOKEN');
+    $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
+
+    try {
+        putenv('TEST_TOKEN=7');
+        $_ENV['TEST_TOKEN'] = '7';
+        $_SERVER['TEST_TOKEN'] = '7';
+
+        TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
+
+        expect(getenv('SECPAL_TEST_DATABASE'))->toBe('testing_test_7')
+            ->and(getenv('SECPAL_TEST_SCHEMA'))->toBe(
+                TestCaseBootstrapEnvironmentProbe::isolatedTestSchemaName()
+            );
+    } finally {
+        foreach ([
+            'TEST_TOKEN' => $originalTestToken,
+            'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
         ] as $key => $value) {
             if ($value === false) {
                 putenv($key);

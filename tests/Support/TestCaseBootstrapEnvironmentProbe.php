@@ -62,6 +62,16 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
         parent::normalizeApplicationConfiguration($app);
     }
 
+    public static function isolatedTestSchemaName(): string
+    {
+        return parent::isolatedTestSchemaName();
+    }
+
+    public static function isolatedTestDatabaseName(string $databaseName): string
+    {
+        return parent::isolatedTestDatabaseName($databaseName);
+    }
+
     public static function expectedTestAppKey(): string
     {
         return parent::expectedTestAppKey();
