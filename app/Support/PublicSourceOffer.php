@@ -232,34 +232,4 @@ class PublicSourceOffer
     {
         return $this->httpUrlValue(config($key));
     }
-
-    private function httpUrlValue(mixed $value): ?string
-    {
-        $trimmed = $this->trimmedRepositoryValue($value);
-
-        if ($trimmed === null) {
-            return null;
-        }
-
-        $components = parse_url($trimmed);
-
-        if ($components === false
-            || ! isset($components['scheme'], $components['host'])
-            || isset($components['user'])
-            || isset($components['pass'])) {
-            return null;
-        }
-
-        $scheme = strtolower((string) $components['scheme']);
-        $host = $components['host'];
-
-        if (! in_array($scheme, ['http', 'https'], true)
-            || ! is_string($host)
-            || $host === ''
-            || strtolower($host) === 'localhost') {
-            return null;
-        }
-
-        return $trimmed;
-    }
 }

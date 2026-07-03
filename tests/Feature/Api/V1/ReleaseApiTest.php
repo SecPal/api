@@ -15,6 +15,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     RateLimiter::clear('bootstrap|127.0.0.1');
+    RateLimiter::clear('release|127.0.0.1');
     RateLimiter::clear('source-offer|127.0.0.1');
 
     config([
@@ -86,9 +87,29 @@ test('public release endpoint rate limiting does not consume the bootstrap throt
 
         getJson('/v1/release')
             ->assertTooManyRequests()
-            ->assertJsonPath('message', 'Too many source offer requests. Please try again in 300 seconds.');
+            ->assertJsonPath('message', 'Too many release metadata requests. Please try again in 300 seconds.');
 
         getJson('/v1/bootstrap?client_platform=browser')
+            ->assertOk();
+    } finally {
+        Carbon::setTestNow();
+    }
+});
+
+test('public release endpoint rate limiting does not consume the source offer throttle bucket', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-07-03 12:05:00 UTC'));
+
+    try {
+        foreach (range(1, 5) as $attempt) {
+            getJson('/v1/release')
+                ->assertOk();
+        }
+
+        getJson('/v1/release')
+            ->assertTooManyRequests()
+            ->assertJsonPath('message', 'Too many release metadata requests. Please try again in 300 seconds.');
+
+        getJson('/v1/source')
             ->assertOk();
     } finally {
         Carbon::setTestNow();

@@ -321,6 +321,8 @@ BOOTSTRAP_PUBLIC_ENABLED=true
 BOOTSTRAP_INSTANCE_DISPLAY_NAME=Customer SecPal
 BOOTSTRAP_MINIMUM_SUPPORTED_APP_VERSION=1.4.0
 BOOTSTRAP_MINIMUM_SUPPORTED_APP_BUILD=10400
+BOOTSTRAP_API_RELEASE_VERSION=api-2026-07-03
+BOOTSTRAP_API_RELEASE_SOURCE_URL=https://github.com/SecPal/api/releases/download/api-2026-07-03/source.tar.gz
 BOOTSTRAP_PASSWORD_LOGIN_ENABLED=true
 BOOTSTRAP_PASSKEY_LOGIN_ENABLED=true
 BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED=false
@@ -402,6 +404,8 @@ LOG_LEVEL=warning
 ```
 
 `GET /v1/bootstrap` derives the canonical `api_base_url` from `APP_URL` and appends `/v1`. Keep `APP_URL` pointed at the externally reachable API origin, and set the `BOOTSTRAP_MINIMUM_SUPPORTED_APP_*` values before exposing the public bootstrap endpoint on a customer-hosted deployment.
+
+`GET /v1/release` publishes only the deployment-defined public API release identifier plus immutable corresponding-source URL. Set both `BOOTSTRAP_API_RELEASE_VERSION` and `BOOTSTRAP_API_RELEASE_SOURCE_URL`; missing or malformed values fail closed with `500 RELEASE_STATE_INVALID`.
 
 When `BOOTSTRAP_ANDROID_PUSH_ENABLED=true`, the bootstrap response advertises authenticated `android_fcm` support through exhaustive `features.notification_channels` flags and returns canonical `notification_channels.android_fcm` runtime metadata with the deployment-defined `metadata_revision` plus the public Android runtime metadata needed by the SDK. When `BOOTSTRAP_WEB_PUSH_ENABLED=true`, the same response advertises authenticated `web_push` support and returns canonical `notification_channels.web_push` runtime metadata with the deployment-defined `metadata_revision` plus the public VAPID key required by browser Push API clients. Missing `BOOTSTRAP_ANDROID_PUSH_*` or `BOOTSTRAP_WEB_PUSH_*` public values fail closed with `500 BOOTSTRAP_STATE_INVALID` using channel-aware `notification_channels.*` field paths.
 

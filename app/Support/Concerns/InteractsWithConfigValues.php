@@ -59,4 +59,42 @@ trait InteractsWithConfigValues
 
         return (int) $value;
     }
+
+    private function httpUrlValue(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+
+        if ($trimmed === '' || preg_match('/\s/', $trimmed) === 1) {
+            return null;
+        }
+
+        if (filter_var($trimmed, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        $components = parse_url($trimmed);
+
+        if ($components === false
+            || ! isset($components['scheme'], $components['host'])
+            || isset($components['user'])
+            || isset($components['pass'])) {
+            return null;
+        }
+
+        $scheme = strtolower((string) $components['scheme']);
+        $host = $components['host'];
+
+        if (! in_array($scheme, ['http', 'https'], true)
+            || ! is_string($host)
+            || $host === ''
+            || strtolower($host) === 'localhost') {
+            return null;
+        }
+
+        return $trimmed;
+    }
 }

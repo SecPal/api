@@ -36,3 +36,23 @@ test('missing fields report invalid release metadata', function (): void {
         'api_release.source_url',
     ]);
 });
+
+test('missing fields reject localhost release metadata urls', function (): void {
+    config([
+        'bootstrap.api_release.source_url' => 'https://localhost/source.tar.gz',
+    ]);
+
+    expect(app(PublicApiRelease::class)->missingFields())->toBe([
+        'api_release.source_url',
+    ]);
+});
+
+test('missing fields reject release metadata urls with embedded whitespace', function (): void {
+    config([
+        'bootstrap.api_release.source_url' => 'https:// github.com/SecPal/api/releases/download/api-2026-07-03/source.tar.gz',
+    ]);
+
+    expect(app(PublicApiRelease::class)->missingFields())->toBe([
+        'api_release.source_url',
+    ]);
+});

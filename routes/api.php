@@ -62,7 +62,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/bootstrap', [BootstrapController::class, 'show'])
         ->middleware('throttle:bootstrap');
     Route::get('/release', [ReleaseController::class, 'show'])
-        ->middleware('throttle:source-offer');
+        ->middleware('throttle:release');
     Route::get('/source', [SourceController::class, 'show'])
         ->middleware('throttle:source-offer');
 
