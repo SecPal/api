@@ -57,6 +57,8 @@ test('non-eu work permit core migration rewrites existing sqlite legacy permit v
             ->and($result)->toBe([
                 'accepts_invalid_type' => false,
                 'accepts_invalid_status' => false,
+                'employee_documents_foreign_table' => 'employees',
+                'employee_documents_insert_succeeds' => true,
                 'work_permit_types' => [
                     '11111111-1111-1111-1111-111111111111' => 'permanent',
                     '22222222-2222-2222-2222-222222222222' => 'temporary',
@@ -181,6 +183,12 @@ Schema::create('employees', function (Illuminate\Database\Schema\Blueprint $tabl
     $table->date('work_permit_expiry')->nullable();
 });
 
+Schema::create('employee_documents', function (Illuminate\Database\Schema\Blueprint $table): void {
+    $table->uuid('id')->primary();
+    $table->uuid('employee_id');
+    $table->foreign('employee_id')->references('id')->on('employees')->cascadeOnDelete();
+});
+
 DB::table('tenant_keys')->insert(['id' => 1]);
 DB::table('employees')->insert([
     [
@@ -240,9 +248,23 @@ try {
     $acceptsInvalidStatus = false;
 }
 
+$employeeDocumentsForeignKey = DB::selectOne('pragma foreign_key_list("employee_documents")');
+$employeeDocumentsInsertSucceeds = true;
+
+try {
+    DB::table('employee_documents')->insert([
+        'id' => 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        'employee_id' => '11111111-1111-1111-1111-111111111111',
+    ]);
+} catch (Throwable) {
+    $employeeDocumentsInsertSucceeds = false;
+}
+
 echo json_encode([
     'accepts_invalid_type' => $acceptsInvalidType,
     'accepts_invalid_status' => $acceptsInvalidStatus,
+    'employee_documents_foreign_table' => is_object($employeeDocumentsForeignKey) ? $employeeDocumentsForeignKey->table : null,
+    'employee_documents_insert_succeeds' => $employeeDocumentsInsertSucceeds,
     'work_permit_types' => DB::table('employees')->pluck('work_permit_type', 'id')->all(),
 ], JSON_THROW_ON_ERROR);
 PHP;

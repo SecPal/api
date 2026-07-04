@@ -271,6 +271,17 @@ return new class extends Migration
         }
 
         $rewrittenTableSql = $this->replaceSqliteWorkPermitTypeCheck($tableDefinition->sql, $allowedValues);
+        $temporaryTableSql = preg_replace(
+            '/^CREATE TABLE "employees"/',
+            sprintf('CREATE TABLE "%s"', $temporaryTable),
+            $rewrittenTableSql,
+            1,
+            $renamedTableCount,
+        );
+
+        if (! is_string($temporaryTableSql) || $renamedTableCount !== 1) {
+            throw new RuntimeException('Unable to build temporary SQLite employees table definition for work permit rewrite.');
+        }
 
         /** @var list<object{sql: string}> $schemaObjects */
         $schemaObjects = DB::select(
@@ -292,15 +303,15 @@ return new class extends Migration
         }
 
         try {
-            DB::statement(sprintf('alter table "employees" rename to "%s"', $temporaryTable));
-            DB::statement($rewrittenTableSql);
+            DB::statement($temporaryTableSql);
             DB::statement(sprintf(
-                'insert into "employees" (%s) select %s from "%s"',
-                $columnList,
-                $columnList,
+                'insert into "%s" (%s) select %s from "employees"',
                 $temporaryTable,
+                $columnList,
+                $columnList,
             ));
-            DB::statement(sprintf('drop table "%s"', $temporaryTable));
+            DB::statement('drop table "employees"');
+            DB::statement(sprintf('alter table "%s" rename to "employees"', $temporaryTable));
 
             foreach ($schemaObjects as $schemaObject) {
                 DB::statement($schemaObject->sql);
