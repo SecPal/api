@@ -14,6 +14,20 @@ return new class extends Migration
     private const WORK_PERMIT_CHECK_CONSTRAINT = 'employees_work_permit_type_check';
 
     /**
+     * @var list<string>
+     */
+    private const SQLITE_TRANSITIONAL_WORK_PERMIT_TYPES = [
+        'none',
+        'unlimited',
+        'limited',
+        'temporary',
+        'permanent',
+        'blue_card',
+        'seasonal',
+        'student',
+    ];
+
+    /**
      * Run the migrations.
      */
     public function up(): void
@@ -199,10 +213,19 @@ return new class extends Migration
 
     private function prepareWorkPermitTypeRewrite(): void
     {
-        if (Schema::getConnection()->getDriverName() === 'sqlite') {
-            $this->changeSqliteWorkPermitTypeColumnToString();
+        $driverName = Schema::getConnection()->getDriverName();
+
+        if ($driverName === 'sqlite') {
+            $this->rebuildSqliteWorkPermitTypeConstraint(self::SQLITE_TRANSITIONAL_WORK_PERMIT_TYPES);
 
             return;
+        }
+
+        if ($driverName !== 'pgsql') {
+            throw new RuntimeException(sprintf(
+                'Unsupported database driver "%s" for work permit type rewrite migration.',
+                $driverName,
+            ));
         }
 
         $this->dropWorkPermitTypeConstraint();
@@ -213,29 +236,106 @@ return new class extends Migration
      */
     private function finishWorkPermitTypeRewrite(array $allowedValues): void
     {
-        if (Schema::getConnection()->getDriverName() === 'sqlite') {
-            $this->changeSqliteWorkPermitTypeColumnToEnum($allowedValues);
+        $driverName = Schema::getConnection()->getDriverName();
+
+        if ($driverName === 'sqlite') {
+            $this->rebuildSqliteWorkPermitTypeConstraint($allowedValues);
 
             return;
+        }
+
+        if ($driverName !== 'pgsql') {
+            throw new RuntimeException(sprintf(
+                'Unsupported database driver "%s" for work permit type rewrite migration.',
+                $driverName,
+            ));
         }
 
         $this->addWorkPermitTypeConstraint($allowedValues);
     }
 
-    private function changeSqliteWorkPermitTypeColumnToString(): void
+    /**
+     * @param  list<string>  $allowedValues
+     */
+    private function rebuildSqliteWorkPermitTypeConstraint(array $allowedValues): void
     {
-        Schema::table('employees', function (Blueprint $table): void {
-            $table->string('work_permit_type')->default('none')->change();
-        });
+        $temporaryTable = '__employees_work_permit_rewrite';
+
+        /** @var object{sql: string}|null $tableDefinition */
+        $tableDefinition = DB::selectOne(
+            "select sql from sqlite_master where type = 'table' and name = 'employees'"
+        );
+
+        if (! is_object($tableDefinition) || ! isset($tableDefinition->sql) || ! is_string($tableDefinition->sql)) {
+            throw new RuntimeException('Unable to load SQLite employees table definition for work permit rewrite.');
+        }
+
+        $rewrittenTableSql = $this->replaceSqliteWorkPermitTypeCheck($tableDefinition->sql, $allowedValues);
+
+        /** @var list<object{sql: string}> $schemaObjects */
+        $schemaObjects = DB::select(
+            "select sql from sqlite_master where tbl_name = 'employees' and type in ('index', 'trigger') and sql is not null order by type, name"
+        );
+
+        /** @var list<object{name: string}> $columns */
+        $columns = DB::select('pragma table_info("employees")');
+        $columnList = implode(', ', array_map(
+            static fn (object $column): string => '"'.$column->name.'"',
+            $columns,
+        ));
+
+        $foreignKeysEnabled = (int) DB::scalar('pragma foreign_keys') === 1;
+
+        if ($foreignKeysEnabled) {
+            DB::statement('pragma foreign_keys = off');
+        }
+
+        try {
+            DB::statement(sprintf('alter table "employees" rename to "%s"', $temporaryTable));
+            DB::statement($rewrittenTableSql);
+            DB::statement(sprintf(
+                'insert into "employees" (%s) select %s from "%s"',
+                $columnList,
+                $columnList,
+                $temporaryTable,
+            ));
+            DB::statement(sprintf('drop table "%s"', $temporaryTable));
+
+            foreach ($schemaObjects as $schemaObject) {
+                DB::statement($schemaObject->sql);
+            }
+        } finally {
+            if ($foreignKeysEnabled) {
+                DB::statement('pragma foreign_keys = on');
+            }
+        }
     }
 
     /**
      * @param  list<string>  $allowedValues
      */
-    private function changeSqliteWorkPermitTypeColumnToEnum(array $allowedValues): void
+    private function replaceSqliteWorkPermitTypeCheck(string $tableSql, array $allowedValues): string
     {
-        Schema::table('employees', function (Blueprint $table) use ($allowedValues): void {
-            $table->enum('work_permit_type', $allowedValues)->default('none')->change();
-        });
+        $quotedValues = implode(', ', array_map(
+            static fn (string $value): string => "'".str_replace("'", "''", $value)."'",
+            $allowedValues,
+        ));
+
+        $rewrittenSql = preg_replace(
+            '/"work_permit_type" varchar check \("work_permit_type" in \([^)]+\)\)/',
+            sprintf(
+                '"work_permit_type" varchar check ("work_permit_type" in (%s))',
+                $quotedValues,
+            ),
+            $tableSql,
+            1,
+            $replacementCount,
+        );
+
+        if (! is_string($rewrittenSql) || $replacementCount !== 1) {
+            throw new RuntimeException('Unable to rewrite SQLite work permit type check constraint.');
+        }
+
+        return $rewrittenSql;
     }
 };
