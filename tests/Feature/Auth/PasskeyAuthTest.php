@@ -1047,7 +1047,7 @@ describe('Passkey Management', function () {
             'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
             'timeout' => 60000,
             'exclude_credentials' => [],
-            'authenticator_selection' => ['resident_key' => 'required', 'require_resident_key' => true, 'user_verification' => 'preferred'],
+            'authenticator_selection' => ['resident_key' => 'required', 'require_resident_key' => true, 'user_verification' => 'required'],
             'attestation' => 'none',
         ]);
 
@@ -1209,11 +1209,13 @@ describe('Passkey Management', function () {
             'counter' => 0,
         ]);
 
+        $payload = [
+            'current_password' => 'wrong-password',
+        ];
+
         for ($i = 0; $i < 5; $i++) {
             $response = $this->withToken($token)
-                ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', [
-                    'current_password' => 'wrong-password',
-                ]);
+                ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', $payload);
 
             $response->assertUnprocessable()
                 ->assertJsonValidationErrors(['current_password'])
@@ -1222,15 +1224,14 @@ describe('Passkey Management', function () {
         }
 
         $response = $this->withToken($token)
-            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', [
-                'current_password' => 'wrong-password',
-            ]);
+            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', $payload);
 
         $response->assertTooManyRequests()
             ->assertHeader('X-RateLimit-Limit', '5')
             ->assertHeader('X-RateLimit-Remaining', '0');
 
         expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
-            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull()
+            ->and($user->passkeyCredentials()->count())->toBe(1);
     });
 });

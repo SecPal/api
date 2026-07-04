@@ -9,7 +9,7 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
 use App\Http\Requests\PasskeyAuthenticationChallengeRequest;
 use App\Http\Requests\PasskeyAuthenticationVerificationRequest;
-use App\Http\Requests\PasskeyRegistrationChallengeRequest;
+use App\Http\Requests\PasskeyCurrentPasswordStepUpRequest;
 use App\Http\Requests\PasskeyRegistrationVerificationRequest;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\PasswordResetRequestRequest;
@@ -414,7 +414,7 @@ class AuthController extends Controller
     /**
      * Start a passkey registration challenge for the authenticated user.
      */
-    public function startPasskeyRegistrationChallenge(PasskeyRegistrationChallengeRequest $request): JsonResponse
+    public function startPasskeyRegistrationChallenge(PasskeyCurrentPasswordStepUpRequest $request): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -514,7 +514,7 @@ class AuthController extends Controller
     /**
      * Delete one enrolled passkey from the authenticated user.
      */
-    public function deletePasskey(PasskeyRegistrationChallengeRequest $request, string $credentialId): JsonResponse
+    public function deletePasskey(PasskeyCurrentPasswordStepUpRequest $request, string $credentialId): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
