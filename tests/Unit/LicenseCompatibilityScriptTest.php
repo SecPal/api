@@ -90,3 +90,42 @@ SPDX
     expect($result['exit_code'])->toBe(1)
         ->and($result['stderr'])->toContain('incompatible license expression');
 });
+
+test('license compatibility script rejects strict-path files that omit the secpal attribution pair', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: app/Foo.php
+SPDXID: SPDXRef-File
+LicenseInfoInFile: MIT
+LicenseConcluded: MIT
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('strict-path files must use exactly AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution');
+});
+
+test('license compatibility script rejects strict-path or-licensing when license concluded is noassertion', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: app/Foo.php
+SPDXID: SPDXRef-File
+LicenseInfoInFile: AGPL-3.0-or-later
+LicenseInfoInFile: MIT
+LicenseConcluded: NOASSERTION
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('strict-path files must use exactly AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution');
+});

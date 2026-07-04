@@ -19,5 +19,6 @@ test('quality workflow allows the secpal attribution license reference', functio
 
     expect($contents)
         ->toContain('scripts/check-license-compatibility.sh')
+        ->toContain('reuse spdx --add-license-concluded')
         ->not->toContain('grep "LicenseInfoInFile"');
 });

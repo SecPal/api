@@ -38,7 +38,7 @@ jobs:
       - name: Generate REUSE SPDX document
         run: |
           echo "Checking for AGPL-3.0-or-later compatibility..."
-          reuse spdx -o reuse.spdx
+          reuse spdx --add-license-concluded --creator-person "SecPal Contributors" -o reuse.spdx
 
       - name: Check license compatibility
         run: bash scripts/check-license-compatibility.sh reuse.spdx

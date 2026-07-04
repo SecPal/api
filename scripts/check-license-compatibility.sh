@@ -82,12 +82,18 @@ validate_current_file() {
     return 1
   fi
 
-  if printf '%s\n' "${licenses[@]}" | grep -Fxq 'LicenseRef-SecPal-Attribution'; then
-    if [[ "${#licenses[@]}" -ne 2 ]] \
-      || ! printf '%s\n' "${licenses[@]}" | grep -Fxq 'AGPL-3.0-or-later'; then
-      echo "ERROR: strict-path attribution licensing must be exactly AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution in $path" >&2
-      return 1
-    fi
+  if [[ "${#licenses[@]}" -ne 2 ]] \
+    || ! printf '%s\n' "${licenses[@]}" | grep -Fxq 'AGPL-3.0-or-later' \
+    || ! printf '%s\n' "${licenses[@]}" | grep -Fxq 'LicenseRef-SecPal-Attribution'; then
+    echo "ERROR: strict-path files must use exactly AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution in $path" >&2
+    return 1
+  fi
+
+  if [[ "$concluded" != "NOASSERTION" ]] \
+    && [[ "$concluded" != 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution' ]] \
+    && [[ "$concluded" != 'LicenseRef-SecPal-Attribution AND AGPL-3.0-or-later' ]]; then
+    echo "ERROR: incompatible license expression in $path: $concluded" >&2
+    return 1
   fi
 
   return 0
