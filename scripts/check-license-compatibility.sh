@@ -44,6 +44,10 @@ is_strict_path() {
 
   path="${path#./}"
 
+  if is_strict_exception "$path"; then
+    return 1
+  fi
+
   [[ "$path" == app/* ]] \
     || [[ "$path" == bootstrap/* ]] \
     || [[ "$path" == config/* ]] \
@@ -52,6 +56,18 @@ is_strict_path() {
     || [[ "$path" == routes/* ]] \
     || [[ "$path" == tests/* ]] \
     || [[ "$path" == artisan ]]
+}
+
+is_strict_exception() {
+  local path="$1"
+
+  case "$path" in
+    bootstrap/cache/.gitignore|config/permission.php|database/.gitignore|public/.htaccess|public/robots.txt|tests/fixtures/address_data/sample_streets.csv)
+      return 0
+      ;;
+  esac
+
+  return 1
 }
 
 validate_current_file() {
