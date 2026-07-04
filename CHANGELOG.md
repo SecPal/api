@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - kept reparented organizational units pinned to the actor's pre-move access level even when the destination hierarchy still grants inherited read access, so inherited destination scopes can no longer silently escalate or downgrade the moved unit's effective access
+- blocked reparenting a directly scoped organizational subtree under a destination `include_descendants` scope when that move would newly expose future descendants the actor did not previously inherit
 - fixed `GET /v1/customers` and `GET /v1/customers/{id}` to return a consistent `sites_count` and detail `sites` payload that now match the caller's effective site visibility, keeping customer list/detail responses aligned with `/v1/customers/{id}/sites` for both full-access and scoped users (fixes `api#1212`)
 - stopped `PHP CI` from sending the dedicated `serial` Pest group through the parallel GitHub Actions run, and now executes those PostgreSQL concurrency/lifecycle regressions in a separate step so the CI test job no longer burns its full 30-minute budget on conflicting database workflows
 - stabilized the PostgreSQL-backed `address-data` Pest slice by forcing the two DB-backed address-data unit suites to start from a fresh Laravel migration state before and after each test, so grouped runs no longer inherit stale `RefreshDatabase` state from neighboring PostgreSQL tests while keeping the fix scoped away from the full suite runtime (fixes `api#1207`)

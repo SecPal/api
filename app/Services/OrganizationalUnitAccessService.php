@@ -43,11 +43,10 @@ class OrganizationalUnitAccessService
             $subtreeUnits = $this->subtreeUnits($unit);
             $priorScopesByUnit = $this->snapshotCurrentAccessScopes($user, $subtreeUnits);
             $priorDescendantInheritance = $this->descendantInheritanceScopes($user, $unit);
-            $movedUnitWasLeaf = $subtreeUnits->count() === 1;
 
             $unit->setParent($parent);
 
-            if ($movedUnitWasLeaf && $this->wouldGainDescendantInheritance($user, $unit, $priorDescendantInheritance)) {
+            if ($this->wouldGainDescendantInheritance($user, $unit, $priorDescendantInheritance)) {
                 throw new AuthorizationException('Reparenting this organizational unit would change descendant access the actor did not have before the move.');
             }
 
