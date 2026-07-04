@@ -1194,4 +1194,43 @@ describe('Passkey Management', function () {
 
         expect($user->passkeyCredentials()->count())->toBe(1);
     });
+
+    test('invalid current password attempts on passkey deletion are rate limited with retry headers', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $user->passkeyCredentials()->create([
+            'credential_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+            'label' => 'Touch ID',
+            'transports' => ['internal'],
+            'attestation_type' => 'none',
+            'credential_public_key' => 'dGVzdA',
+            'user_handle' => 'dGVzdA',
+            'counter' => 0,
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $response = $this->withToken($token)
+                ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', [
+                    'current_password' => 'wrong-password',
+                ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['current_password'])
+                ->assertHeader('X-RateLimit-Limit', '5')
+                ->assertHeader('X-RateLimit-Remaining', (string) (4 - $i));
+        }
+
+        $response = $this->withToken($token)
+            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', [
+                'current_password' => 'wrong-password',
+            ]);
+
+        $response->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
 });
