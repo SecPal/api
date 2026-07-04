@@ -18,6 +18,9 @@ SPDX-License-Identifier: CC0-1.0
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="Regression">
+            <directory>tests/Regression</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

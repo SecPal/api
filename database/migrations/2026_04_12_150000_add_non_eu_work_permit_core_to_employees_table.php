@@ -66,7 +66,7 @@ return new class extends Migration
                 }
             });
 
-        $this->dropWorkPermitTypeConstraint();
+        $this->prepareWorkPermitTypeRewrite();
 
         DB::table('employees')
             ->where('work_permit_type', 'unlimited')
@@ -76,7 +76,7 @@ return new class extends Migration
             ->where('work_permit_type', 'limited')
             ->update(['work_permit_type' => 'temporary']);
 
-        $this->addWorkPermitTypeConstraint([
+        $this->finishWorkPermitTypeRewrite([
             'none',
             'temporary',
             'permanent',
@@ -137,7 +137,7 @@ return new class extends Migration
                 }
             });
 
-        $this->dropWorkPermitTypeConstraint();
+        $this->prepareWorkPermitTypeRewrite();
 
         DB::table('employees')
             ->where('work_permit_type', 'permanent')
@@ -147,7 +147,7 @@ return new class extends Migration
             ->whereIn('work_permit_type', ['temporary', 'blue_card', 'seasonal', 'student'])
             ->update(['work_permit_type' => 'limited']);
 
-        $this->addWorkPermitTypeConstraint([
+        $this->finishWorkPermitTypeRewrite([
             'none',
             'limited',
             'unlimited',
@@ -195,5 +195,47 @@ return new class extends Migration
             'ALTER TABLE employees DROP CONSTRAINT IF EXISTS %s',
             self::WORK_PERMIT_CHECK_CONSTRAINT,
         ));
+    }
+
+    private function prepareWorkPermitTypeRewrite(): void
+    {
+        if (Schema::getConnection()->getDriverName() === 'sqlite') {
+            $this->changeSqliteWorkPermitTypeColumnToString();
+
+            return;
+        }
+
+        $this->dropWorkPermitTypeConstraint();
+    }
+
+    /**
+     * @param  list<string>  $allowedValues
+     */
+    private function finishWorkPermitTypeRewrite(array $allowedValues): void
+    {
+        if (Schema::getConnection()->getDriverName() === 'sqlite') {
+            $this->changeSqliteWorkPermitTypeColumnToEnum($allowedValues);
+
+            return;
+        }
+
+        $this->addWorkPermitTypeConstraint($allowedValues);
+    }
+
+    private function changeSqliteWorkPermitTypeColumnToString(): void
+    {
+        Schema::table('employees', function (Blueprint $table): void {
+            $table->string('work_permit_type')->default('none')->change();
+        });
+    }
+
+    /**
+     * @param  list<string>  $allowedValues
+     */
+    private function changeSqliteWorkPermitTypeColumnToEnum(array $allowedValues): void
+    {
+        Schema::table('employees', function (Blueprint $table) use ($allowedValues): void {
+            $table->enum('work_permit_type', $allowedValues)->default('none')->change();
+        });
     }
 };
