@@ -1,5 +1,5 @@
 ---
-# SPDX-FileCopyrightText: 2025-2026 SecPal
+# SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
 name: Quality Checks
@@ -21,7 +21,67 @@ jobs:
 
   license-compatibility:
     name: Check License Compatibility
-    uses: SecPal/.github/.github/workflows/reusable-license-compatibility.yml@084b2ab764a6e6b0a865f66853e7421ff4c02434
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install REUSE tooling
+        run: pip install reuse
+
+      - name: Generate REUSE SPDX document
+        run: |
+          echo "Checking for AGPL-3.0-or-later compatibility..."
+          reuse spdx -o reuse.spdx
+
+      - name: Check license compatibility
+        run: |
+          licenses=$(grep "LicenseInfoInFile" reuse.spdx | cut -d':' -f2 | sort -u | tr -d ' ')
+
+          echo "Found licenses: $licenses"
+
+          compatible_licenses=(
+            "AGPL-3.0-or-later"
+            "GPL-3.0-or-later"
+            "LGPL-3.0-or-later"
+            "MIT"
+            "BSD-2-Clause"
+            "BSD-3-Clause"
+            "Apache-2.0"
+            "CC0-1.0"
+            "ISC"
+            "OFL-1.1"
+            "ODbL-1.0"
+            "LicenseRef-SecPal-Attribution"
+          )
+
+          incompatible_found=0
+          for license in $licenses; do
+            found=0
+            for compatible in "${compatible_licenses[@]}"; do
+              if [[ "$license" == "$compatible" ]]; then
+                found=1
+                break
+              fi
+            done
+            if [ $found -eq 0 ]; then
+              echo "ERROR: Incompatible license found: $license"
+              incompatible_found=1
+            fi
+          done
+
+          if [ $incompatible_found -eq 1 ]; then
+            echo "ERROR: Found licenses incompatible with AGPL-3.0-or-later"
+            exit 1
+          fi
+
+          echo "All licenses are compatible with AGPL-3.0-or-later"
 
   prettier:
     name: Formatting Check

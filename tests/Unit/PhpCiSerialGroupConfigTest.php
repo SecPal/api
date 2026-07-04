@@ -22,3 +22,11 @@ test('php ci excludes serial tests from the parallel pest run and executes them 
         ->toContain('php artisan test --group=serial --coverage-clover coverage-serial.xml')
         ->toContain('files: ./coverage.xml,./coverage-serial.xml');
 });
+
+test('php ci uses the precreated worker database public schema for parallel pest', function (): void {
+    $contents = phpCiWorkflowContents();
+
+    expect($contents)
+        ->toContain('SECPAL_TEST_SCHEMA: public')
+        ->toContain('php artisan test --parallel --exclude-group=serial --coverage-clover coverage.xml');
+});
