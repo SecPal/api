@@ -11,6 +11,22 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    private const WORK_PERMIT_CHECK_CONSTRAINT = 'employees_work_permit_type_check';
+
+    /**
+     * @var list<string>
+     */
+    private const SQLITE_TRANSITIONAL_WORK_PERMIT_TYPES = [
+        'none',
+        'unlimited',
+        'limited',
+        'temporary',
+        'permanent',
+        'blue_card',
+        'seasonal',
+        'student',
+    ];
+
     /**
      * Run the migrations.
      */
@@ -64,7 +80,7 @@ return new class extends Migration
                 }
             });
 
-        DB::statement('ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_work_permit_type_check');
+        $this->prepareWorkPermitTypeRewrite();
 
         DB::table('employees')
             ->where('work_permit_type', 'unlimited')
@@ -74,11 +90,14 @@ return new class extends Migration
             ->where('work_permit_type', 'limited')
             ->update(['work_permit_type' => 'temporary']);
 
-        DB::statement(<<<'SQL'
-            ALTER TABLE employees
-            ADD CONSTRAINT employees_work_permit_type_check
-            CHECK (work_permit_type IN ('none', 'temporary', 'permanent', 'blue_card', 'seasonal', 'student'))
-        SQL);
+        $this->finishWorkPermitTypeRewrite([
+            'none',
+            'temporary',
+            'permanent',
+            'blue_card',
+            'seasonal',
+            'student',
+        ]);
 
         Schema::table('employees', function (Blueprint $table) {
             $table->dropColumn('work_permit_number');
@@ -132,7 +151,7 @@ return new class extends Migration
                 }
             });
 
-        DB::statement('ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_work_permit_type_check');
+        $this->prepareWorkPermitTypeRewrite();
 
         DB::table('employees')
             ->where('work_permit_type', 'permanent')
@@ -142,11 +161,11 @@ return new class extends Migration
             ->whereIn('work_permit_type', ['temporary', 'blue_card', 'seasonal', 'student'])
             ->update(['work_permit_type' => 'limited']);
 
-        DB::statement(<<<'SQL'
-            ALTER TABLE employees
-            ADD CONSTRAINT employees_work_permit_type_check
-            CHECK (work_permit_type IN ('none', 'limited', 'unlimited'))
-        SQL);
+        $this->finishWorkPermitTypeRewrite([
+            'none',
+            'limited',
+            'unlimited',
+        ]);
 
         Schema::table('employees', function (Blueprint $table) {
             $table->dropIndex('idx_employees_work_permit_expiry');
@@ -157,5 +176,178 @@ return new class extends Migration
                 'work_permit_copy_deleted_at',
             ]);
         });
+    }
+
+    /**
+     * @param  list<string>  $allowedValues
+     */
+    private function addWorkPermitTypeConstraint(array $allowedValues): void
+    {
+        if (Schema::getConnection()->getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        $quotedValues = implode(', ', array_map(
+            static fn (string $value): string => "'".str_replace("'", "''", $value)."'",
+            $allowedValues,
+        ));
+
+        DB::statement(sprintf(
+            'ALTER TABLE employees ADD CONSTRAINT %s CHECK (work_permit_type IN (%s))',
+            self::WORK_PERMIT_CHECK_CONSTRAINT,
+            $quotedValues,
+        ));
+    }
+
+    private function dropWorkPermitTypeConstraint(): void
+    {
+        if (Schema::getConnection()->getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        DB::statement(sprintf(
+            'ALTER TABLE employees DROP CONSTRAINT IF EXISTS %s',
+            self::WORK_PERMIT_CHECK_CONSTRAINT,
+        ));
+    }
+
+    private function prepareWorkPermitTypeRewrite(): void
+    {
+        $driverName = Schema::getConnection()->getDriverName();
+
+        if ($driverName === 'sqlite') {
+            $this->rebuildSqliteWorkPermitTypeConstraint(self::SQLITE_TRANSITIONAL_WORK_PERMIT_TYPES);
+
+            return;
+        }
+
+        if ($driverName !== 'pgsql') {
+            throw new RuntimeException(sprintf(
+                'Unsupported database driver "%s" for work permit type rewrite migration.',
+                $driverName,
+            ));
+        }
+
+        $this->dropWorkPermitTypeConstraint();
+    }
+
+    /**
+     * @param  list<string>  $allowedValues
+     */
+    private function finishWorkPermitTypeRewrite(array $allowedValues): void
+    {
+        $driverName = Schema::getConnection()->getDriverName();
+
+        if ($driverName === 'sqlite') {
+            $this->rebuildSqliteWorkPermitTypeConstraint($allowedValues);
+
+            return;
+        }
+
+        if ($driverName !== 'pgsql') {
+            throw new RuntimeException(sprintf(
+                'Unsupported database driver "%s" for work permit type rewrite migration.',
+                $driverName,
+            ));
+        }
+
+        $this->addWorkPermitTypeConstraint($allowedValues);
+    }
+
+    /**
+     * @param  list<string>  $allowedValues
+     */
+    private function rebuildSqliteWorkPermitTypeConstraint(array $allowedValues): void
+    {
+        $temporaryTable = '__employees_work_permit_rewrite';
+
+        /** @var object{sql: string}|null $tableDefinition */
+        $tableDefinition = DB::selectOne(
+            "select sql from sqlite_master where type = 'table' and name = 'employees'"
+        );
+
+        if (! is_object($tableDefinition) || ! isset($tableDefinition->sql) || ! is_string($tableDefinition->sql)) {
+            throw new RuntimeException('Unable to load SQLite employees table definition for work permit rewrite.');
+        }
+
+        $rewrittenTableSql = $this->replaceSqliteWorkPermitTypeCheck($tableDefinition->sql, $allowedValues);
+        $temporaryTableSql = preg_replace(
+            '/^CREATE TABLE "employees"/',
+            sprintf('CREATE TABLE "%s"', $temporaryTable),
+            $rewrittenTableSql,
+            1,
+            $renamedTableCount,
+        );
+
+        if (! is_string($temporaryTableSql) || $renamedTableCount !== 1) {
+            throw new RuntimeException('Unable to build temporary SQLite employees table definition for work permit rewrite.');
+        }
+
+        /** @var list<object{sql: string}> $schemaObjects */
+        $schemaObjects = DB::select(
+            "select sql from sqlite_master where tbl_name = 'employees' and type in ('index', 'trigger') and sql is not null order by type, name"
+        );
+
+        /** @var list<object{name: string}> $columns */
+        $columns = DB::select('pragma table_info("employees")');
+        $columnList = implode(', ', array_map(
+            static fn (object $column): string => '"'.$column->name.'"',
+            $columns,
+        ));
+
+        $foreignKeysEnabledValue = DB::scalar('pragma foreign_keys');
+        $foreignKeysEnabled = in_array($foreignKeysEnabledValue, [1, '1'], true);
+
+        if ($foreignKeysEnabled) {
+            DB::statement('pragma foreign_keys = off');
+        }
+
+        try {
+            DB::statement($temporaryTableSql);
+            DB::statement(sprintf(
+                'insert into "%s" (%s) select %s from "employees"',
+                $temporaryTable,
+                $columnList,
+                $columnList,
+            ));
+            DB::statement('drop table "employees"');
+            DB::statement(sprintf('alter table "%s" rename to "employees"', $temporaryTable));
+
+            foreach ($schemaObjects as $schemaObject) {
+                DB::statement($schemaObject->sql);
+            }
+        } finally {
+            if ($foreignKeysEnabled) {
+                DB::statement('pragma foreign_keys = on');
+            }
+        }
+    }
+
+    /**
+     * @param  list<string>  $allowedValues
+     */
+    private function replaceSqliteWorkPermitTypeCheck(string $tableSql, array $allowedValues): string
+    {
+        $quotedValues = implode(', ', array_map(
+            static fn (string $value): string => "'".str_replace("'", "''", $value)."'",
+            $allowedValues,
+        ));
+
+        $rewrittenSql = preg_replace(
+            '/"work_permit_type" varchar check \("work_permit_type" in \([^)]+\)\)/',
+            sprintf(
+                '"work_permit_type" varchar check ("work_permit_type" in (%s))',
+                $quotedValues,
+            ),
+            $tableSql,
+            1,
+            $replacementCount,
+        );
+
+        if (! is_string($rewrittenSql) || $replacementCount !== 1) {
+            throw new RuntimeException('Unable to rewrite SQLite work permit type check constraint.');
+        }
+
+        return $rewrittenSql;
     }
 };
