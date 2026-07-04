@@ -9,6 +9,7 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
 use App\Http\Requests\PasskeyAuthenticationChallengeRequest;
 use App\Http\Requests\PasskeyAuthenticationVerificationRequest;
+use App\Http\Requests\PasskeyRegistrationChallengeRequest;
 use App\Http\Requests\PasskeyRegistrationVerificationRequest;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\PasswordResetRequestRequest;
@@ -413,10 +414,13 @@ class AuthController extends Controller
     /**
      * Start a passkey registration challenge for the authenticated user.
      */
-    public function startPasskeyRegistrationChallenge(Request $request): JsonResponse
+    public function startPasskeyRegistrationChallenge(PasskeyRegistrationChallengeRequest $request): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
+        /** @var array{current_password: string} $validated */
+        $validated = $request->validated();
+        $this->verifyCurrentPasswordStepUp($user, $validated['current_password']);
         $user->loadMissing('passkeyCredentials');
 
         $challenge = $this->passkeyChallengeService->createRegistrationChallenge(
@@ -453,8 +457,9 @@ class AuthController extends Controller
             return $this->resourceNotFoundResponse();
         }
 
-        /** @var array{credential: array<string, mixed>, label?: string|null} $validated */
+        /** @var array{current_password: string, credential: array<string, mixed>, label?: string|null} $validated */
         $validated = $request->validated();
+        $this->verifyCurrentPasswordStepUp($user, $validated['current_password']);
 
         try {
             $credential = $this->passkeyService->verifyRegistration(
@@ -509,10 +514,12 @@ class AuthController extends Controller
     /**
      * Delete one enrolled passkey from the authenticated user.
      */
-    public function deletePasskey(Request $request, string $credentialId): JsonResponse
+    public function deletePasskey(PasskeyRegistrationChallengeRequest $request, string $credentialId): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
+        /** @var array{current_password: string} $validated */
+        $validated = $request->validated();
 
         $credential = $user->passkeyCredentials()
             ->where('credential_id', $credentialId)
@@ -521,6 +528,8 @@ class AuthController extends Controller
         if (! $credential instanceof PasskeyCredential) {
             return $this->resourceNotFoundResponse();
         }
+
+        $this->verifyCurrentPasswordStepUp($user, $validated['current_password']);
 
         $result = $this->passkeyService->deleteCredential($user, $credential);
 
@@ -538,6 +547,20 @@ class AuthController extends Controller
             'message' => __('Passkey deleted successfully.'),
             'data' => $result,
         ]);
+    }
+
+    /**
+     * Require a fresh primary-password proof before mutating durable passkey credentials.
+     *
+     * @throws ValidationException
+     */
+    private function verifyCurrentPasswordStepUp(User $user, string $currentPassword): void
+    {
+        if (! Hash::check($currentPassword, $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['The current password is invalid.'],
+            ]);
+        }
     }
 
     /**

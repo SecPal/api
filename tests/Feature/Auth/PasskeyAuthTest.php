@@ -35,7 +35,7 @@ describe('Passkey Authentication', function () {
             ]);
 
         expect($response->json('data.public_key.rp_id'))->toBe('app.secpal.dev')
-            ->and($response->json('data.public_key.user_verification'))->toBe('preferred')
+            ->and($response->json('data.public_key.user_verification'))->toBe('required')
             ->and($response->json('data.mediation'))->toBe('optional')
             ->and($response->json('data.public_key'))->not->toHaveKey('allow_credentials');
     });
@@ -537,12 +537,25 @@ describe('Passkey Management', function () {
             ]);
     });
 
-    test('authenticated users can start a passkey registration challenge', function () {
+    test('passkey registration challenge requires current password step-up', function () {
         $user = User::factory()->create();
         $token = $user->issueApiToken('test-suite')->plainTextToken;
 
         $response = $this->withToken($token)
             ->postJson('/v1/me/passkeys/challenges/registration');
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['current_password']);
+    });
+
+    test('authenticated users can start a passkey registration challenge', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration', [
+                'current_password' => 'password',
+            ]);
 
         $response->assertCreated()
             ->assertJsonStructure([
@@ -565,7 +578,7 @@ describe('Passkey Management', function () {
             ->and($response->json('data.public_key.attestation'))->toBe('none')
             ->and($response->json('data.public_key.authenticator_selection.resident_key'))->toBe('required', 'discoverable-only login requires resident_key=required for enrollment')
             ->and($response->json('data.public_key.authenticator_selection.require_resident_key'))->toBeTrue('legacy WebAuthn level-1 require_resident_key must accompany resident_key=required')
-            ->and($response->json('data.public_key.authenticator_selection.user_verification'))->toBe('preferred')
+            ->and($response->json('data.public_key.authenticator_selection.user_verification'))->toBe('required')
             ->and($response->json('data.public_key'))->not->toHaveKey('exclude_credentials', 'empty exclude_credentials must be omitted')
             ->and($response->json('data.public_key.authenticator_selection'))->not->toHaveKey('authenticator_attachment', 'null authenticator_attachment must be omitted')
             ->and($response->json('data.public_key.rp'))->not->toHaveKey('icon', 'null rp.icon must be omitted');
@@ -579,7 +592,9 @@ describe('Passkey Management', function () {
         $token = $user->issueApiToken('test-suite')->plainTextToken;
 
         $response = $this->withToken($token)
-            ->postJson('/v1/me/passkeys/challenges/registration');
+            ->postJson('/v1/me/passkeys/challenges/registration', [
+                'current_password' => 'password',
+            ]);
 
         $response->assertCreated();
 
@@ -595,7 +610,9 @@ describe('Passkey Management', function () {
         $token = $user->issueApiToken('test-suite')->plainTextToken;
 
         $response = $this->withToken($token)
-            ->postJson('/v1/me/passkeys/challenges/registration');
+            ->postJson('/v1/me/passkeys/challenges/registration', [
+                'current_password' => 'password',
+            ]);
 
         $response->assertCreated();
 
@@ -610,7 +627,9 @@ describe('Passkey Management', function () {
         $token = $user->issueApiToken('test-suite')->plainTextToken;
 
         $response = $this->withToken($token)
-            ->postJson('/v1/me/passkeys/challenges/registration');
+            ->postJson('/v1/me/passkeys/challenges/registration', [
+                'current_password' => 'password',
+            ]);
 
         $response->assertCreated();
 
@@ -626,7 +645,9 @@ describe('Passkey Management', function () {
         $token = $user->issueApiToken('test-suite')->plainTextToken;
 
         $response = $this->withToken($token)
-            ->postJson('/v1/me/passkeys/challenges/registration');
+            ->postJson('/v1/me/passkeys/challenges/registration', [
+                'current_password' => 'password',
+            ]);
 
         $response->assertCreated();
 
@@ -640,7 +661,9 @@ describe('Passkey Management', function () {
 
         for ($i = 0; $i < 5; $i++) {
             $response = $this->withToken($token)
-                ->postJson('/v1/me/passkeys/challenges/registration');
+                ->postJson('/v1/me/passkeys/challenges/registration', [
+                    'current_password' => 'password',
+                ]);
 
             $response->assertCreated()
                 ->assertHeader('X-RateLimit-Limit', '5')
@@ -648,7 +671,9 @@ describe('Passkey Management', function () {
         }
 
         $response = $this->withToken($token)
-            ->postJson('/v1/me/passkeys/challenges/registration');
+            ->postJson('/v1/me/passkeys/challenges/registration', [
+                'current_password' => 'password',
+            ]);
 
         $response->assertTooManyRequests()
             ->assertHeader('X-RateLimit-Limit', '5')
@@ -675,9 +700,36 @@ describe('Passkey Management', function () {
                     ],
                 ],
                 'label' => 'Work MacBook Touch ID',
+                'current_password' => 'password',
             ]);
 
         $response->assertNotFound();
+    });
+
+    test('unknown passkey registration challenge returns not found before current password step-up', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration/550e8400-e29b-41d4-a716-446655440099/verify', [
+                'credential' => [
+                    'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                    'type' => 'public-key',
+                    'response' => [
+                        'client_data_json' => 'Zm9v',
+                        'attestation_object' => 'YmFy',
+                        'transports' => ['internal'],
+                    ],
+                ],
+                'label' => 'Work MacBook Touch ID',
+                'current_password' => 'wrong-password',
+            ]);
+
+        $response->assertNotFound()
+            ->assertJson([
+                'message' => 'Resource not found.',
+            ]);
     });
 
     test('invalid passkey registration verification returns validation errors', function () {
@@ -727,6 +779,7 @@ describe('Passkey Management', function () {
                     ],
                 ],
                 'label' => 'Work MacBook Touch ID',
+                'current_password' => 'password',
             ]);
 
         $response->assertUnprocessable()
@@ -769,6 +822,7 @@ describe('Passkey Management', function () {
                     ],
                 ],
                 'label' => 'Touch ID',
+                'current_password' => 'password',
             ]);
 
         $response->assertUnprocessable()
@@ -835,6 +889,7 @@ describe('Passkey Management', function () {
                     ],
                 ],
                 'label' => 'Touch ID',
+                'current_password' => 'password',
             ]);
 
         $response->assertCreated()
@@ -907,6 +962,7 @@ describe('Passkey Management', function () {
                     ],
                 ],
                 'label' => 'Touch ID',
+                'current_password' => 'password',
             ]);
 
         $response->assertCreated()
@@ -955,6 +1011,7 @@ describe('Passkey Management', function () {
                 ],
             ],
             'label' => 'Touch ID',
+            'current_password' => 'password',
         ];
 
         // Each failed attempt invalidates the challenge (forgetRegistrationChallenge),
@@ -979,14 +1036,82 @@ describe('Passkey Management', function () {
             ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
     });
 
+    test('invalid current password attempts on passkey registration verification are rate limited with retry headers', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $challenge = app(PasskeyChallengeService::class)->createRegistrationChallenge($user, [
+            'challenge' => 'test-registration-challenge',
+            'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
+            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
+            'timeout' => 60000,
+            'exclude_credentials' => [],
+            'authenticator_selection' => ['resident_key' => 'required', 'require_resident_key' => true, 'user_verification' => 'preferred'],
+            'attestation' => 'none',
+        ]);
+
+        $payload = [
+            'credential' => [
+                'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'type' => 'public-key',
+                'response' => [
+                    'client_data_json' => 'Zm9v',
+                    'attestation_object' => 'YmFy',
+                    'transports' => ['internal'],
+                ],
+            ],
+            'label' => 'Touch ID',
+            'current_password' => 'wrong-password',
+        ];
+
+        for ($i = 0; $i < 5; $i++) {
+            $response = $this->withToken($token)
+                ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', $payload);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['current_password'])
+                ->assertHeader('X-RateLimit-Limit', '5')
+                ->assertHeader('X-RateLimit-Remaining', (string) (4 - $i));
+        }
+
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', $payload);
+
+        $response->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
+
     test('authenticated users cannot delete an unknown passkey credential', function () {
         $user = User::factory()->create();
         $token = $user->issueApiToken('test-suite')->plainTextToken;
 
         $response = $this->withToken($token)
-            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE');
+            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', [
+                'current_password' => 'password',
+            ]);
 
         $response->assertNotFound();
+    });
+
+    test('unknown passkey deletion returns not found before current password step-up', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', [
+                'current_password' => 'wrong-password',
+            ]);
+
+        $response->assertNotFound()
+            ->assertJson([
+                'message' => 'Resource not found.',
+            ]);
     });
 
     test('authenticated users can list their enrolled passkeys', function () {
@@ -1032,7 +1157,9 @@ describe('Passkey Management', function () {
         ]);
 
         $response = $this->withToken($token)
-            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE');
+            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', [
+                'current_password' => 'password',
+            ]);
 
         $response->assertOk()
             ->assertJson([
@@ -1041,5 +1168,30 @@ describe('Passkey Management', function () {
             ]);
 
         expect($user->passkeyCredentials()->count())->toBe(0);
+    });
+
+    test('passkey deletion requires current password step-up for an existing credential', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $user->passkeyCredentials()->create([
+            'credential_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+            'label' => 'Touch ID',
+            'transports' => ['internal'],
+            'attestation_type' => 'none',
+            'credential_public_key' => 'dGVzdA',
+            'user_handle' => 'dGVzdA',
+            'counter' => 0,
+        ]);
+
+        $response = $this->withToken($token)
+            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', [
+                'current_password' => 'wrong-password',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['current_password']);
+
+        expect($user->passkeyCredentials()->count())->toBe(1);
     });
 });

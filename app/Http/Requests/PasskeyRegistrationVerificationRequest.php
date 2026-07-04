@@ -20,6 +20,7 @@ class PasskeyRegistrationVerificationRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'current_password' => ['required', 'string'],
             'label' => ['nullable', 'string', 'max:100'],
             'credential' => ['required', 'array'],
             'credential.id' => ['required', 'string'],

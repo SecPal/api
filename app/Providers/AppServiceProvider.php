@@ -209,7 +209,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('passkey-verify', function (Request $request) {
             return Limit::perMinutes(10, 5)
                 ->by($this->passkeyVerifyThrottleKey($request))
-                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountMfaChallengeAttempt($response))
+                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountPasskeyVerifyAttempt($response))
                 ->response(function (Request $request, array $headers): JsonResponse {
                     /** @var array<string, mixed> $headers */
                     $headers = $headers;
@@ -500,6 +500,12 @@ class AppServiceProvider extends ServiceProvider
         // successful verifications return 200.
         return $this->responseHasValidationErrorForField($response, 'code')
             || $this->responseHasValidationErrorForField($response, 'credential');
+    }
+
+    private function shouldCountPasskeyVerifyAttempt(SymfonyResponse $response): bool
+    {
+        return $this->shouldCountMfaChallengeAttempt($response)
+            || $this->responseHasValidationErrorForField($response, 'current_password');
     }
 
     private function responseHasValidationErrorForField(SymfonyResponse $response, string $field): bool
