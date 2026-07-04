@@ -11,14 +11,14 @@ use Symfony\Component\Process\Process;
 uses(TestCase::class);
 
 test('employee audit history rollback on sqlite deletes null uploader rows before restoring not-null references', function (): void {
-    $databasePath = createTemporarySqliteDatabase('employee-audit-history-rollback');
+    $databasePath = createEmployeeAuditRollbackTemporarySqliteDatabase('employee-audit-history-rollback');
 
     try {
         $process = new Process(
             ['php'],
             dirname(__DIR__, 2),
             ['SQLITE_DATABASE' => $databasePath],
-            seededSqliteRollbackScript(),
+            seededEmployeeAuditRollbackSqliteScript(),
         );
         $process->run();
 
@@ -44,7 +44,7 @@ test('employee audit history rollback on sqlite deletes null uploader rows befor
     }
 });
 
-function createTemporarySqliteDatabase(string $name): string
+function createEmployeeAuditRollbackTemporarySqliteDatabase(string $name): string
 {
     $temporaryPath = tempnam(sys_get_temp_dir(), $name.'-');
 
@@ -61,7 +61,7 @@ function createTemporarySqliteDatabase(string $name): string
     return $temporaryPath;
 }
 
-function seededSqliteRollbackScript(): string
+function seededEmployeeAuditRollbackSqliteScript(): string
 {
     return <<<'PHP'
 <?php

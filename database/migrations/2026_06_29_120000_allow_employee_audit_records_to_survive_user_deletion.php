@@ -121,7 +121,7 @@ return new class extends Migration
         bool $nullable,
         ?string $onDeleteAction,
     ): void {
-        $this->rebuildSqliteTable($table, function (string $tableSql) use ($column, $nullable, $onDeleteAction): string {
+        $this->rebuildSqliteTable($table, function (string $tableSql) use ($table, $column, $nullable, $onDeleteAction): string {
             $rewrittenSql = preg_replace(
                 sprintf('/"%s" varchar(?: not null)?/', preg_quote($column, '/')),
                 $nullable ? sprintf('"%s" varchar', $column) : sprintf('"%s" varchar not null', $column),

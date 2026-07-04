@@ -11,14 +11,14 @@ use Symfony\Component\Process\Process;
 uses(TestCase::class);
 
 test('remove-admin access level migration applies on sqlite-backed setups', function (): void {
-    $databasePath = createTemporarySqliteDatabase('remove-admin-access-level-migration');
+    $databasePath = createRemoveAdminAccessLevelTemporarySqliteDatabase('remove-admin-access-level-migration');
 
     try {
         $process = new Process(
             ['php'],
             dirname(__DIR__, 2),
             ['SQLITE_DATABASE' => $databasePath],
-            seededSqliteMigrationScript(),
+            seededRemoveAdminAccessLevelSqliteMigrationScript(),
         );
         $process->run();
 
@@ -38,14 +38,14 @@ test('remove-admin access level migration applies on sqlite-backed setups', func
 });
 
 test('create employee addresses migration applies on sqlite-backed setups', function (): void {
-    $databasePath = createTemporarySqliteDatabase('create-employee-addresses-migration');
+    $databasePath = createRemoveAdminAccessLevelTemporarySqliteDatabase('create-employee-addresses-migration');
 
     try {
         $process = new Process(
             ['php'],
             dirname(__DIR__, 2),
             ['SQLITE_DATABASE' => $databasePath],
-            seededEmployeeAddressesMigrationScript(),
+            seededRemoveAdminAccessLevelEmployeeAddressesMigrationScript(),
         );
         $process->run();
 
@@ -66,13 +66,13 @@ test('create employee addresses migration applies on sqlite-backed setups', func
 });
 
 test('sqlite-backed migrate:fresh completes through the latest migrations', function (): void {
-    $databasePath = createTemporarySqliteDatabase('sqlite-migrate-fresh');
+    $databasePath = createRemoveAdminAccessLevelTemporarySqliteDatabase('sqlite-migrate-fresh');
 
     try {
         $process = new Process(
             ['php', 'artisan', 'migrate:fresh', '--force'],
             dirname(__DIR__, 2),
-            fullSqliteMigrationEnvironment($databasePath),
+            removeAdminAccessLevelFullSqliteMigrationEnvironment($databasePath),
         );
         $process->run();
 
@@ -88,7 +88,7 @@ test('sqlite-backed migrate:fresh completes through the latest migrations', func
     }
 });
 
-function createTemporarySqliteDatabase(string $name): string
+function createRemoveAdminAccessLevelTemporarySqliteDatabase(string $name): string
 {
     $temporaryPath = tempnam(sys_get_temp_dir(), $name.'-');
 
@@ -105,7 +105,7 @@ function createTemporarySqliteDatabase(string $name): string
     return $temporaryPath;
 }
 
-function seededSqliteMigrationScript(): string
+function seededRemoveAdminAccessLevelSqliteMigrationScript(): string
 {
     return <<<'PHP'
 <?php
@@ -173,7 +173,7 @@ echo json_encode([
 PHP;
 }
 
-function seededEmployeeAddressesMigrationScript(): string
+function seededRemoveAdminAccessLevelEmployeeAddressesMigrationScript(): string
 {
     return <<<'PHP'
 <?php
@@ -263,7 +263,7 @@ PHP;
 /**
  * @return array<string, string>
  */
-function fullSqliteMigrationEnvironment(string $databasePath): array
+function removeAdminAccessLevelFullSqliteMigrationEnvironment(string $databasePath): array
 {
     return [
         'APP_NAME' => 'SecPal',
