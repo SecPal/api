@@ -207,18 +207,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('passkey-verify', function (Request $request) {
-            return Limit::perMinutes(10, 5)
-                ->by($this->passkeyVerifyThrottleKey($request))
-                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountMfaChallengeAttempt($response))
-                ->response(function (Request $request, array $headers): JsonResponse {
-                    /** @var array<string, mixed> $headers */
-                    $headers = $headers;
-
-                    return $this->buildRateLimitedJsonResponse(
-                        $headers,
-                        'Too many passkey attempts. Please try again later.',
-                    );
-                });
+            return $this->buildPasskeyVerifyThrottleLimit($this->passkeyVerifyThrottleKey($request));
         });
 
         RateLimiter::for('mfa-user-reset', function (Request $request) {
@@ -457,6 +446,22 @@ class AppServiceProvider extends ServiceProvider
         return $request->ip().'|'.$scope;
     }
 
+    private function buildPasskeyVerifyThrottleLimit(string $key): Limit
+    {
+        return Limit::perMinutes(10, 5)
+            ->by($key)
+            ->after(fn (SymfonyResponse $response): bool => $this->shouldCountPasskeyVerifyAttempt($response))
+            ->response(function (Request $request, array $headers): JsonResponse {
+                /** @var array<string, mixed> $headers */
+                $headers = $headers;
+
+                return $this->buildRateLimitedJsonResponse(
+                    $headers,
+                    'Too many passkey attempts. Please try again later.',
+                );
+            });
+    }
+
     /**
      * @param  array<string, mixed>  $headers
      * @param  array<string, bool|float|int|string|null>  $replace
@@ -500,6 +505,12 @@ class AppServiceProvider extends ServiceProvider
         // successful verifications return 200.
         return $this->responseHasValidationErrorForField($response, 'code')
             || $this->responseHasValidationErrorForField($response, 'credential');
+    }
+
+    private function shouldCountPasskeyVerifyAttempt(SymfonyResponse $response): bool
+    {
+        return $this->shouldCountMfaChallengeAttempt($response)
+            || $this->responseHasValidationErrorForField($response, 'current_password');
     }
 
     private function responseHasValidationErrorForField(SymfonyResponse $response, string $field): bool

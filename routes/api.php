@@ -137,7 +137,8 @@ Route::prefix('v1')->group(function () {
                 ->middleware('throttle:passkey-challenge');
             Route::post('/me/passkeys/challenges/registration/{challengeId}/verify', [AuthController::class, 'verifyPasskeyRegistrationChallenge'])
                 ->middleware('throttle:passkey-verify');
-            Route::delete('/me/passkeys/{credentialId}', [AuthController::class, 'deletePasskey']);
+            Route::delete('/me/passkeys/{credentialId}', [AuthController::class, 'deletePasskey'])
+                ->middleware('throttle:passkey-verify');
             Route::delete('/me/mfa', [AuthController::class, 'disableMfa'])
                 ->middleware('throttle:mfa');
             Route::post('/me/mfa/totp/enrollment', [AuthController::class, 'startTotpEnrollment'])

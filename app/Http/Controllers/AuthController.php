@@ -9,6 +9,7 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\MfaVerificationCodeRequest;
 use App\Http\Requests\PasskeyAuthenticationChallengeRequest;
 use App\Http\Requests\PasskeyAuthenticationVerificationRequest;
+use App\Http\Requests\PasskeyCurrentPasswordStepUpRequest;
 use App\Http\Requests\PasskeyRegistrationVerificationRequest;
 use App\Http\Requests\PasswordResetRequest;
 use App\Http\Requests\PasswordResetRequestRequest;
@@ -27,6 +28,7 @@ use App\Services\MfaService;
 use App\Services\PasskeyChallengeService;
 use App\Services\PasskeyService;
 use Illuminate\Auth\Events\Verified;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,6 +38,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -44,6 +47,10 @@ use Webauthn\Exception\WebauthnException;
 
 class AuthController extends Controller
 {
+    private const PASSKEY_STEP_UP_MAX_ATTEMPTS = 5;
+
+    private const PASSKEY_STEP_UP_DECAY_SECONDS = 600;
+
     /**
      * Password reset token expiry time in minutes.
      */
@@ -413,10 +420,13 @@ class AuthController extends Controller
     /**
      * Start a passkey registration challenge for the authenticated user.
      */
-    public function startPasskeyRegistrationChallenge(Request $request): JsonResponse
+    public function startPasskeyRegistrationChallenge(PasskeyCurrentPasswordStepUpRequest $request): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
+        /** @var array{current_password: string} $validated */
+        $validated = $request->validated();
+        $this->verifyCurrentPasswordStepUp($user, $validated['current_password'], 'registration');
         $user->loadMissing('passkeyCredentials');
 
         $challenge = $this->passkeyChallengeService->createRegistrationChallenge(
@@ -453,8 +463,15 @@ class AuthController extends Controller
             return $this->resourceNotFoundResponse();
         }
 
-        /** @var array{credential: array<string, mixed>, label?: string|null} $validated */
+        /** @var array{current_password: string, credential: array<string, mixed>, label?: string|null} $validated */
         $validated = $request->validated();
+        try {
+            $this->verifyCurrentPasswordStepUp($user, $validated['current_password'], 'registration');
+        } catch (ValidationException $exception) {
+            $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
+
+            throw $exception;
+        }
 
         try {
             $credential = $this->passkeyService->verifyRegistration(
@@ -509,10 +526,12 @@ class AuthController extends Controller
     /**
      * Delete one enrolled passkey from the authenticated user.
      */
-    public function deletePasskey(Request $request, string $credentialId): JsonResponse
+    public function deletePasskey(PasskeyCurrentPasswordStepUpRequest $request, string $credentialId): JsonResponse
     {
         /** @var User $user */
         $user = $request->user();
+        /** @var array{current_password: string} $validated */
+        $validated = $request->validated();
 
         $credential = $user->passkeyCredentials()
             ->where('credential_id', $credentialId)
@@ -521,6 +540,8 @@ class AuthController extends Controller
         if (! $credential instanceof PasskeyCredential) {
             return $this->resourceNotFoundResponse();
         }
+
+        $this->verifyCurrentPasswordStepUp($user, $validated['current_password'], 'deletion');
 
         $result = $this->passkeyService->deleteCredential($user, $credential);
 
@@ -538,6 +559,46 @@ class AuthController extends Controller
             'message' => __('Passkey deleted successfully.'),
             'data' => $result,
         ]);
+    }
+
+    /**
+     * Require a fresh primary-password proof before mutating durable passkey credentials.
+     *
+     * @throws ValidationException
+     */
+    private function verifyCurrentPasswordStepUp(User $user, string $currentPassword, ?string $scope = null): void
+    {
+        if (is_string($scope)) {
+            $rateLimitKey = $this->passkeyStepUpRateLimitKey($user, $scope);
+
+            if (RateLimiter::tooManyAttempts($rateLimitKey, self::PASSKEY_STEP_UP_MAX_ATTEMPTS)) {
+                $retryAfter = RateLimiter::availableIn($rateLimitKey);
+
+                throw new HttpResponseException(response()->json([
+                    'message' => __('Too many passkey attempts. Please try again later.'),
+                ], 429, [
+                    'Retry-After' => (string) $retryAfter,
+                    'X-RateLimit-Limit' => (string) self::PASSKEY_STEP_UP_MAX_ATTEMPTS,
+                    'X-RateLimit-Remaining' => '0',
+                    'X-RateLimit-Reset' => (string) (now()->getTimestamp() + $retryAfter),
+                ]));
+            }
+        }
+
+        if (! Hash::check($currentPassword, $user->password)) {
+            if (isset($rateLimitKey)) {
+                RateLimiter::hit($rateLimitKey, self::PASSKEY_STEP_UP_DECAY_SECONDS);
+            }
+
+            throw ValidationException::withMessages([
+                'current_password' => ['The current password is invalid.'],
+            ]);
+        }
+    }
+
+    private function passkeyStepUpRateLimitKey(User $user, string $scope): string
+    {
+        return 'passkey-step-up|'.$scope.'|'.$user->id;
     }
 
     /**
