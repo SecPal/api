@@ -32,7 +32,7 @@ test('address data tables and indexes exist', function (): void {
 
     $indexNames = array_map(
         static fn (object $row): string => (string) $row->indexname,
-        DB::select("select indexname from pg_indexes where schemaname = 'public' and tablename = 'address_data_imports'")
+        DB::select("select indexname from pg_indexes where schemaname = current_schema() and tablename = 'address_data_imports'")
     );
 
     expect($indexNames)->toContain('address_data_imports_one_active_per_country');
@@ -46,6 +46,10 @@ test('address data tables survive even when gin_trgm_ops operator class is not o
     // created address_data_imports / address_streets tables, even though the
     // migrator records the migration as "ran".
     $isolatedSchema = 'address_migration_savepoint_test';
+    $originalSearchPathRow = DB::selectOne('SHOW search_path');
+    $originalSearchPath = is_object($originalSearchPathRow) && isset($originalSearchPathRow->search_path)
+        ? (string) $originalSearchPathRow->search_path
+        : throw new RuntimeException('Unable to determine the original PostgreSQL search_path.');
 
     DB::statement("DROP SCHEMA IF EXISTS \"{$isolatedSchema}\" CASCADE");
     DB::statement("CREATE SCHEMA \"{$isolatedSchema}\"");
@@ -73,7 +77,14 @@ test('address data tables survive even when gin_trgm_ops operator class is not o
             expect($tables)->toContain('address_streets');
         });
     } finally {
-        DB::statement('RESET search_path');
+        DB::select('SELECT set_config(\'search_path\', ?, false)', [$originalSearchPath]);
         DB::statement("DROP SCHEMA IF EXISTS \"{$isolatedSchema}\" CASCADE");
     }
+
+    $restoredSearchPathRow = DB::selectOne('SHOW search_path');
+    $restoredSearchPath = is_object($restoredSearchPathRow) && isset($restoredSearchPathRow->search_path)
+        ? (string) $restoredSearchPathRow->search_path
+        : throw new RuntimeException('Unable to determine the restored PostgreSQL search_path.');
+
+    expect($restoredSearchPath)->toBe($originalSearchPath);
 });

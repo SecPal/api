@@ -1282,7 +1282,16 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             ->assertJsonValidationErrors(['parent_id']);
     });
 
-    test('user keeps access to a moved unit when the new parent scope does not include descendants', function () {
+    test('user keeps prior moved-unit access without inheriting stronger new-parent privileges', function () {
+        $this->user->organizationalScopes()->delete();
+        $this->user->unsetRelation('organizationalScopes');
+
+        $sourceRoot = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Source Root',
+            'type' => 'company',
+        ]);
+
         $alternateRoot = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Alternate Root',
@@ -1294,7 +1303,14 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'name' => 'Transfer Unit',
             'type' => 'department',
         ]);
-        $child->setParent($this->rootUnit);
+        $child->setParent($sourceRoot);
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $sourceRoot->id,
+            'access_level' => 'write',
+            'include_descendants' => true,
+        ]);
 
         UserInternalOrganizationalScope::create([
             'user_id' => $this->user->id,
@@ -1303,7 +1319,10 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'include_descendants' => false,
         ]);
 
-        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+        $this->user->unsetRelation('organizationalScopes');
+
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue()
+            ->and($this->user->hasAccessToUnit($child, 'manage'))->toBeFalse();
 
         $response = postJson("/v1/organizational-units/{$child->id}/parent", [
             'parent_id' => $alternateRoot->id,
@@ -1314,14 +1333,21 @@ describe('OrganizationalUnitController - Hierarchy', function () {
         $this->assertDatabaseHas('user_internal_organizational_scopes', [
             'user_id' => $this->user->id,
             'organizational_unit_id' => $child->id,
-            'access_level' => 'manage',
+            'access_level' => 'write',
             'include_descendants' => false,
+        ]);
+
+        $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $child->id,
+            'access_level' => 'manage',
         ]);
 
         $this->user->refresh();
         $child->refresh();
 
-        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue();
+        expect($this->user->hasAccessToUnit($child, 'write'))->toBeTrue()
+            ->and($this->user->hasAccessToUnit($child, 'manage'))->toBeFalse();
 
         getJson('/v1/organizational-units')
             ->assertOk()
@@ -1334,6 +1360,9 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'description' => 'Updated after move',
         ])->assertOk()
             ->assertJsonPath('data.description', 'Updated after move');
+
+        deleteJson("/v1/organizational-units/{$child->id}")
+            ->assertForbidden();
     });
 
     test('attach parent response includes the new accessible parent data for cache consistency', function () {
@@ -1343,12 +1372,19 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'type' => 'department',
         ]);
 
+        $existingChild = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Existing Child',
+            'type' => 'division',
+        ]);
+        $existingChild->setParent($orphan);
+
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
             'user_id' => $this->user->id,
             'organizational_unit_id' => $orphan->id,
             'access_level' => 'manage',
-            'include_descendants' => false,
+            'include_descendants' => true,
         ]);
 
         $response = postJson("/v1/organizational-units/{$orphan->id}/parent", [
@@ -1358,6 +1394,122 @@ describe('OrganizationalUnitController - Hierarchy', function () {
         $response->assertOk()
             ->assertJsonPath('data.parent.id', $this->rootUnit->id)
             ->assertJsonPath('data.parent.name', $this->rootUnit->name);
+    });
+
+    test('attach parent is forbidden when a previously inaccessible descendant would inherit destination access', function () {
+        $this->user->organizationalScopes()->delete();
+        $this->user->unsetRelation('organizationalScopes');
+
+        $sourceRoot = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Source Root',
+            'type' => 'company',
+        ]);
+
+        $alternateRoot = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Alternate Root',
+            'type' => 'company',
+        ]);
+
+        $child = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Transfer Unit',
+            'type' => 'department',
+        ]);
+        $child->setParent($sourceRoot);
+
+        $grandchild = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Hidden Descendant',
+            'type' => 'division',
+        ]);
+        $grandchild->setParent($child);
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $child->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+        ]);
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $alternateRoot->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+        ]);
+
+        $this->user->unsetRelation('organizationalScopes');
+
+        expect($this->user->hasAccessToUnit($child, 'manage'))->toBeTrue()
+            ->and($this->user->hasAccessToUnit($grandchild))->toBeFalse();
+
+        $response = postJson("/v1/organizational-units/{$child->id}/parent", [
+            'parent_id' => $alternateRoot->id,
+        ]);
+
+        $response->assertForbidden();
+
+        $child->refresh();
+        $grandchild->refresh();
+        $this->user->refresh();
+
+        expect($child->parent?->id)->toBe($sourceRoot->id)
+            ->and($grandchild->parent?->id)->toBe($child->id)
+            ->and($this->user->hasAccessToUnit($grandchild))->toBeFalse();
+    });
+
+    test('attach parent is forbidden when moving a leaf would expose future descendants through destination inheritance', function () {
+        $this->user->organizationalScopes()->delete();
+        $this->user->unsetRelation('organizationalScopes');
+
+        $sourceRoot = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Source Root',
+            'type' => 'company',
+        ]);
+
+        $alternateRoot = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Alternate Root',
+            'type' => 'company',
+        ]);
+
+        $leaf = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Transfer Leaf',
+            'type' => 'department',
+        ]);
+        $leaf->setParent($sourceRoot);
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $leaf->id,
+            'access_level' => 'manage',
+            'include_descendants' => false,
+        ]);
+
+        UserInternalOrganizationalScope::create([
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $alternateRoot->id,
+            'access_level' => 'manage',
+            'include_descendants' => true,
+        ]);
+
+        $this->user->unsetRelation('organizationalScopes');
+
+        expect($this->user->hasAccessToUnit($leaf, 'manage'))->toBeTrue();
+
+        $response = postJson("/v1/organizational-units/{$leaf->id}/parent", [
+            'parent_id' => $alternateRoot->id,
+        ]);
+
+        $response->assertForbidden();
+
+        $leaf->refresh();
+
+        expect($leaf->parent?->id)->toBe($sourceRoot->id);
     });
 
     test('user can detach parent from unit when they have direct scope', function () {

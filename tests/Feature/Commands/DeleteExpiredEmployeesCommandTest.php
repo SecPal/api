@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-uses(RefreshDatabase::class);
+uses(RefreshDatabase::class)->group('serial');
 
 beforeEach(function (): void {
     Storage::fake('local');

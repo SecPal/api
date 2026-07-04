@@ -6,9 +6,14 @@
 use Illuminate\Support\Str;
 
 $forcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+$forcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
 
 if (! is_string($forcedTestDatabase) || $forcedTestDatabase === '') {
     $forcedTestDatabase = $_ENV['SECPAL_TEST_DATABASE'] ?? $_SERVER['SECPAL_TEST_DATABASE'] ?? null;
+}
+
+if (! is_string($forcedTestSchema) || $forcedTestSchema === '') {
+    $forcedTestSchema = $_ENV['SECPAL_TEST_SCHEMA'] ?? $_SERVER['SECPAL_TEST_SCHEMA'] ?? null;
 }
 
 return [
@@ -105,7 +110,9 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
+            'search_path' => is_string($forcedTestSchema) && $forcedTestSchema !== ''
+                ? $forcedTestSchema.',public'
+                : env('DB_SCHEMA', 'public'),
             'sslmode' => 'prefer',
         ],
 
