@@ -32,6 +32,11 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
         parent::assertWritableParallelTestDatabase($databaseName, $schemaName, $access);
     }
 
+    public static function assertValidSchemaName(string $schemaName): void
+    {
+        parent::assertValidSchemaName($schemaName);
+    }
+
     /**
      * @param  array{target_schema_exists: bool}  $access
      */

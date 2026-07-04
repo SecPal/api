@@ -685,6 +685,52 @@ test('organizational unit access service rejects reparenting when a previously i
         ->and($this->user->hasAccessToUnit($grandchild))->toBeFalse();
 });
 
+test('organizational unit access service rejects reparenting a leaf when destination inheritance would expose future descendants', function (): void {
+    $sourceRoot = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Source Root',
+        'type' => 'company',
+    ]);
+
+    $destinationRoot = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Destination Root',
+        'type' => 'company',
+    ]);
+
+    $leaf = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'name' => 'Transfer Leaf',
+        'type' => 'department',
+    ]);
+    $leaf->setParent($sourceRoot);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $leaf->id,
+        'access_level' => 'manage',
+        'include_descendants' => false,
+    ]);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $destinationRoot->id,
+        'access_level' => 'manage',
+        'include_descendants' => true,
+    ]);
+
+    $this->user->unsetRelation('organizationalScopes');
+
+    expect($this->user->hasAccessToUnit($leaf, 'manage'))->toBeTrue();
+
+    expect(fn () => $this->service->reparentUnitForActor($this->user, $leaf, $destinationRoot))
+        ->toThrow(Illuminate\Auth\Access\AuthorizationException::class);
+
+    $leaf->refresh();
+
+    expect($leaf->parent?->id)->toBe($sourceRoot->id);
+});
+
 test('organizational unit access service rolls back the reparent when pinning replacement scopes fails', function (): void {
     $sourceRoot = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,

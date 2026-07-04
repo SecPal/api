@@ -281,9 +281,9 @@ abstract class TestCase extends BaseTestCase
         }
     }
 
-    private static function assertValidSchemaName(string $schemaName): void
+    protected static function assertValidSchemaName(string $schemaName): void
     {
-        if (! preg_match('/\A[a-zA-Z0-9_]+\z/', $schemaName)) {
+        if (! preg_match('/\A[a-z_][a-z0-9_]*\z/', $schemaName)) {
             throw new \RuntimeException('Invalid PostgreSQL test schema name: '.$schemaName);
         }
     }
@@ -515,7 +515,8 @@ abstract class TestCase extends BaseTestCase
     {
         $databaseConnection = self::phpUnitEnvironmentOverrides()['DB_CONNECTION'] ?? null;
         $databaseName = self::phpUnitEnvironmentOverrides()['DB_DATABASE'] ?? null;
-        $isolatedSchemaName = self::environmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
+        $isolatedSchemaName = self::effectiveIsolatedTestSchemaName();
+        $configuredTestDatabaseName = self::configuredIsolatedTestDatabaseName();
 
         if (is_string($databaseConnection) && $databaseConnection !== '') {
             $app['config']->set('database.default', $databaseConnection);
@@ -525,6 +526,10 @@ abstract class TestCase extends BaseTestCase
             is_string($databaseConnection) && $databaseConnection !== ''
             && is_string($databaseName) && $databaseName !== ''
         ) {
+            if ($databaseConnection === 'pgsql' && $configuredTestDatabaseName !== null) {
+                $databaseName = $configuredTestDatabaseName;
+            }
+
             $app['config']->set("database.connections.{$databaseConnection}.database", $databaseName);
             $app['config']->set("database.connections.{$databaseConnection}.url", null);
 
@@ -544,6 +549,15 @@ abstract class TestCase extends BaseTestCase
             'SECPAL_TEST_DATABASE',
             self::isolatedTestDatabaseName(self::environmentValue('DB_DATABASE', 'testing'))
         );
+    }
+
+    protected static function configuredIsolatedTestDatabaseName(): ?string
+    {
+        if (self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')) {
+            return null;
+        }
+
+        return self::environmentValue('SECPAL_TEST_DATABASE', '');
     }
 
     protected static function effectiveIsolatedTestSchemaName(): string

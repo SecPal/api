@@ -163,6 +163,56 @@ test('effective isolated schema name preserves a caller-provided schema override
     }
 });
 
+test('bootstrap application normalization preserves a caller-provided isolated database override', function (): void {
+    $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
+
+    try {
+        putenv('SECPAL_TEST_DATABASE=ci_precreated_testing');
+        putenv('SECPAL_TEST_SCHEMA=ci_precreated_schema');
+        $_ENV['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
+        $_ENV['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
+        $_SERVER['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
+        $_SERVER['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
+
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+        $application = TestCaseBootstrapEnvironmentProbe::createBootstrapApplication();
+
+        expect($application['config']->get('database.default'))->toBe('pgsql')
+            ->and($application['config']->get('database.connections.pgsql.database'))->toBe('ci_precreated_testing')
+            ->and($application['config']->get('database.connections.pgsql.search_path'))->toBe('ci_precreated_schema,public');
+    } finally {
+        TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+
+        foreach ([
+            'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+});
+
+test('bootstrap schema validation rejects isolated schema names that require quoting', function (): void {
+    expect(fn (): mixed => TestCaseBootstrapEnvironmentProbe::assertValidSchemaName('1_schema'))
+        ->toThrow(RuntimeException::class, 'Invalid PostgreSQL test schema name: 1_schema');
+
+    expect(fn (): mixed => TestCaseBootstrapEnvironmentProbe::assertValidSchemaName('CiSchema'))
+        ->toThrow(RuntimeException::class, 'Invalid PostgreSQL test schema name: CiSchema');
+});
+
 test('phpunit environment overrides preserve a caller-provided isolated database override', function (): void {
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
     $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
