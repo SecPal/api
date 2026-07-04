@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2026 SecPal
+SPDX-FileCopyrightText: 2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the SecPal AGPL attribution additional terms in `LICENSES/LicenseRef-SecPal-Attribution.txt`, updated project-owned AGPL SPDX metadata to `AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`, standardized touched AGPL copyright headers to `SecPal Contributors`, and documented the section 7(b)/(c) attribution requirements in the licensing/contributor guides (refs `api#1219`)
 - added a public unauthenticated `GET /v1/release` endpoint that returns only the currently deployed API release version plus immutable corresponding-source URL, so the frontend can identify the active backend release without widening the existing AGPL/source-offer metadata surface
 - added a public unauthenticated `GET /v1/source` AGPL source-offer endpoint that keeps the canonical license, repository, copyright, and warranty payload while also returning explicit network-use source-offer notices for SecPal users
 - added the public `GET /v1/bootstrap` runtime-discovery endpoint for Android pre-login instance validation, deriving the canonical `api_base_url` from `APP_URL`, failing closed with documented `500`/`503`/`426` bootstrap responses when deployment metadata is incomplete or incompatible, and covering the success/failure slices with focused Pest tests plus operator bootstrap configuration docs (refs `api#1115`)

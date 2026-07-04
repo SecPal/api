@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025-2026 SecPal
+# SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
 version = 1
@@ -6,31 +6,31 @@ SPDX-FileCopyrightText = "SecPal Contributors"
 
 [[annotations]]
 path = "app/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
+SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
 
 [[annotations]]
 path = "config/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
+SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
 
 [[annotations]]
 path = "database/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
+SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
 
 [[annotations]]
 path = "routes/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
+SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
 
 [[annotations]]
 path = "tests/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
+SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
 
 [[annotations]]
 path = "public/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
+SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
 
 [[annotations]]
 path = "bootstrap/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
+SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
 
 [[annotations]]
 path = "composer.json"
@@ -129,4 +129,4 @@ SPDX-License-Identifier = "MIT"
 
 [[annotations]]
 path = "artisan"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
+SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"

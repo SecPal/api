@@ -1,7 +1,7 @@
 <!--
 SPDX-FileCopyrightText: 2024-2026 SecPal Contributors
 
-SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 -->
 
 # BewachV Compliance Documentation
@@ -813,4 +813,4 @@ For production deployment, verify:
 **Document Version:** 1.0
 **Last Updated:** 2026-01-04
 **Author:** SecPal Contributors
-**License:** AGPL-3.0-or-later
+**License:** AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution

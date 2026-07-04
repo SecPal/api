@@ -1,7 +1,7 @@
 <?php
 
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 declare(strict_types=1);
 
@@ -9,7 +9,7 @@ use App\Support\PublicSourceOffer;
 
 beforeEach(function (): void {
     config([
-        'bootstrap.legal.license_spdx_id' => 'AGPL-3.0-or-later',
+        'bootstrap.legal.license_spdx_id' => 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution',
         'bootstrap.legal.license_name' => 'GNU Affero General Public License v3.0 or later',
         'bootstrap.legal.license_url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
         'bootstrap.legal.copyright_notice' => 'Copyright SecPal and contributors.',

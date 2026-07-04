@@ -1,5 +1,5 @@
-<!-- SPDX-FileCopyrightText: 2025 SecPal Authors -->
-<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- SPDX-FileCopyrightText: 2025 SecPal Contributors -->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution -->
 
 # Developer Guide: Direct Permissions
 
