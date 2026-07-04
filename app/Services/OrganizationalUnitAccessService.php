@@ -11,6 +11,7 @@ use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -60,11 +61,15 @@ class OrganizationalUnitAccessService
      */
     private function ensureActorCanAccessChildUnit(User $user, OrganizationalUnit $unit, Collection $priorScopes): void
     {
+        $currentScopes = $this->applicableAccessScopes($user, $unit);
+
         if ($priorScopes->isEmpty()) {
+            if ($currentScopes->isNotEmpty()) {
+                throw new AuthorizationException('Reparenting this organizational unit would grant access to descendants the actor could not access before the move.');
+            }
+
             return;
         }
-
-        $currentScopes = $this->applicableAccessScopes($user, $unit);
 
         if ($this->scopesMatchPinnedAccess($currentScopes, $priorScopes)) {
             return;
@@ -82,6 +87,10 @@ class OrganizationalUnitAccessService
         $descendantIds = OrganizationalUnitClosure::query()
             ->where('ancestor_id', $unit->id)
             ->pluck('descendant_id');
+
+        if (! $descendantIds->contains($unit->id)) {
+            $descendantIds->prepend($unit->id);
+        }
 
         /** @var Collection<int, OrganizationalUnit> $subtreeUnits */
         $subtreeUnits = OrganizationalUnit::withTrashed()
