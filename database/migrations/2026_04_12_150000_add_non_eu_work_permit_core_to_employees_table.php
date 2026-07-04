@@ -284,7 +284,8 @@ return new class extends Migration
             $columns,
         ));
 
-        $foreignKeysEnabled = (int) DB::scalar('pragma foreign_keys') === 1;
+        $foreignKeysEnabledValue = DB::scalar('pragma foreign_keys');
+        $foreignKeysEnabled = in_array($foreignKeysEnabledValue, [1, '1'], true);
 
         if ($foreignKeysEnabled) {
             DB::statement('pragma foreign_keys = off');
