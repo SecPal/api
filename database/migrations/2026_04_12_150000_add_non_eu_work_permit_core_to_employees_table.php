@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    private const WORK_PERMIT_CHECK_CONSTRAINT = 'employees_work_permit_type_check';
+
     /**
      * Run the migrations.
      */
@@ -64,7 +66,7 @@ return new class extends Migration
                 }
             });
 
-        DB::statement('ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_work_permit_type_check');
+        $this->dropWorkPermitTypeConstraint();
 
         DB::table('employees')
             ->where('work_permit_type', 'unlimited')
@@ -74,11 +76,14 @@ return new class extends Migration
             ->where('work_permit_type', 'limited')
             ->update(['work_permit_type' => 'temporary']);
 
-        DB::statement(<<<'SQL'
-            ALTER TABLE employees
-            ADD CONSTRAINT employees_work_permit_type_check
-            CHECK (work_permit_type IN ('none', 'temporary', 'permanent', 'blue_card', 'seasonal', 'student'))
-        SQL);
+        $this->addWorkPermitTypeConstraint([
+            'none',
+            'temporary',
+            'permanent',
+            'blue_card',
+            'seasonal',
+            'student',
+        ]);
 
         Schema::table('employees', function (Blueprint $table) {
             $table->dropColumn('work_permit_number');
@@ -132,7 +137,7 @@ return new class extends Migration
                 }
             });
 
-        DB::statement('ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_work_permit_type_check');
+        $this->dropWorkPermitTypeConstraint();
 
         DB::table('employees')
             ->where('work_permit_type', 'permanent')
@@ -142,11 +147,11 @@ return new class extends Migration
             ->whereIn('work_permit_type', ['temporary', 'blue_card', 'seasonal', 'student'])
             ->update(['work_permit_type' => 'limited']);
 
-        DB::statement(<<<'SQL'
-            ALTER TABLE employees
-            ADD CONSTRAINT employees_work_permit_type_check
-            CHECK (work_permit_type IN ('none', 'limited', 'unlimited'))
-        SQL);
+        $this->addWorkPermitTypeConstraint([
+            'none',
+            'limited',
+            'unlimited',
+        ]);
 
         Schema::table('employees', function (Blueprint $table) {
             $table->dropIndex('idx_employees_work_permit_expiry');
@@ -157,5 +162,38 @@ return new class extends Migration
                 'work_permit_copy_deleted_at',
             ]);
         });
+    }
+
+    /**
+     * @param  list<string>  $allowedValues
+     */
+    private function addWorkPermitTypeConstraint(array $allowedValues): void
+    {
+        if (Schema::getConnection()->getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        $quotedValues = implode(', ', array_map(
+            static fn (string $value): string => "'".str_replace("'", "''", $value)."'",
+            $allowedValues,
+        ));
+
+        DB::statement(sprintf(
+            'ALTER TABLE employees ADD CONSTRAINT %s CHECK (work_permit_type IN (%s))',
+            self::WORK_PERMIT_CHECK_CONSTRAINT,
+            $quotedValues,
+        ));
+    }
+
+    private function dropWorkPermitTypeConstraint(): void
+    {
+        if (Schema::getConnection()->getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        DB::statement(sprintf(
+            'ALTER TABLE employees DROP CONSTRAINT IF EXISTS %s',
+            self::WORK_PERMIT_CHECK_CONSTRAINT,
+        ));
     }
 };
