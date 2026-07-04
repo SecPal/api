@@ -90,6 +90,11 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
         return parent::isolatedTestDatabaseName($databaseName);
     }
 
+    public static function effectiveIsolatedTestSchemaName(): string
+    {
+        return parent::effectiveIsolatedTestSchemaName();
+    }
+
     public static function expectedTestAppKey(): string
     {
         return parent::expectedTestAppKey();

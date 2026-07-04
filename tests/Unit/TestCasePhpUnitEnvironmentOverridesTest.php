@@ -139,6 +139,30 @@ test('phpunit environment overrides preserve a caller-provided isolated schema o
     }
 });
 
+test('effective isolated schema name preserves a caller-provided schema override for bootstrap probes', function (): void {
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
+
+    try {
+        putenv('SECPAL_TEST_SCHEMA=ci_precreated_schema');
+        $_ENV['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
+        $_SERVER['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
+
+        expect(TestCaseBootstrapEnvironmentProbe::effectiveIsolatedTestSchemaName())
+            ->toBe('ci_precreated_schema');
+    } finally {
+        if ($originalForcedTestSchema === false) {
+            putenv('SECPAL_TEST_SCHEMA');
+            unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
+
+            return;
+        }
+
+        putenv('SECPAL_TEST_SCHEMA='.$originalForcedTestSchema);
+        $_ENV['SECPAL_TEST_SCHEMA'] = $originalForcedTestSchema;
+        $_SERVER['SECPAL_TEST_SCHEMA'] = $originalForcedTestSchema;
+    }
+});
+
 test('phpunit environment overrides preserve a caller-provided isolated database override', function (): void {
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
     $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');

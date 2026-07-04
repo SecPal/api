@@ -132,7 +132,9 @@ abstract class TestCase extends BaseTestCase
             self::assertValidDatabaseName($candidate);
         }
 
-        self::assertValidSchemaName(self::isolatedTestSchemaName());
+        $schemaName = self::effectiveIsolatedTestSchemaName();
+
+        self::assertValidSchemaName($schemaName);
 
         $pdo = self::connectToMaintenanceDatabase();
 
@@ -154,7 +156,6 @@ abstract class TestCase extends BaseTestCase
                 }
             }
 
-            $schemaName = self::isolatedTestSchemaName();
             $access = self::parallelTestDatabaseAccess(self::connectToDatabase($candidate), $schemaName);
 
             self::assertWritableParallelTestDatabase($candidate, $schemaName, $access);
@@ -543,6 +544,11 @@ abstract class TestCase extends BaseTestCase
             'SECPAL_TEST_DATABASE',
             self::isolatedTestDatabaseName(self::environmentValue('DB_DATABASE', 'testing'))
         );
+    }
+
+    protected static function effectiveIsolatedTestSchemaName(): string
+    {
+        return self::environmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
     }
 
     protected static function bootstrapEnvironmentPath(): string
