@@ -505,9 +505,9 @@ class PasskeyService
 
     private function userVerification(): string
     {
-        $userVerification = config('passkeys.user_verification', 'preferred');
+        $userVerification = config('passkeys.user_verification', 'required');
 
-        return is_string($userVerification) && $userVerification !== '' ? $userVerification : 'preferred';
+        return is_string($userVerification) && $userVerification !== '' ? $userVerification : 'required';
     }
 
     private function residentKey(): string

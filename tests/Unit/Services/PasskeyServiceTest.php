@@ -84,6 +84,16 @@ describe('PasskeyService::buildAuthenticationOptions', function () {
             ->and($formatted)->toHaveKey('user_verification')
             ->and($formatted)->not->toHaveKey('allow_credentials');
     });
+
+    test('blank user_verification config falls back to required for authentication options', function () {
+        config()->set('passkeys.user_verification', '');
+
+        $service = app(PasskeyService::class);
+
+        $formatted = $service->formatApiPayload($service->buildAuthenticationOptions());
+
+        expect($formatted['user_verification'])->toBe('required');
+    });
 });
 
 describe('PasskeyService::buildRegistrationOptions', function () {
@@ -95,7 +105,19 @@ describe('PasskeyService::buildRegistrationOptions', function () {
 
         expect($formatted)->toHaveKey('authenticator_selection')
             ->and($formatted['authenticator_selection']['resident_key'])->toBe('required', 'discoverable-only login requires resident_key=required for enrollment')
-            ->and($formatted['authenticator_selection']['require_resident_key'])->toBeTrue('legacy require_resident_key must be true for resident_key=required');
+            ->and($formatted['authenticator_selection']['require_resident_key'])->toBeTrue('legacy require_resident_key must be true for resident_key=required')
+            ->and($formatted['authenticator_selection']['user_verification'])->toBe('required');
+    });
+
+    test('blank user_verification config falls back to required for registration options', function () {
+        config()->set('passkeys.user_verification', '');
+
+        $service = app(PasskeyService::class);
+        $user = User::factory()->create();
+
+        $formatted = $service->formatApiPayload($service->buildRegistrationOptions($user));
+
+        expect($formatted['authenticator_selection']['user_verification'])->toBe('required');
     });
 
     test('an invalid resident_key configuration falls back to the discoverable-only default', function () {
