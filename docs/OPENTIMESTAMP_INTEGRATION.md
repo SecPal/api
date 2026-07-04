@@ -440,4 +440,4 @@ This documentation is licensed under CC-BY-4.0.
 
 The OpenTimestamp client is licensed under LGPL-3.0.
 
-SecPal integration code is licensed under AGPL-3.0-or-later.
+SecPal integration code is licensed under AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution.

@@ -1,7 +1,7 @@
 <?php
 
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 it('runs markdownlint in a pre-commit managed node environment', function (): void {
     $config = file_get_contents(base_path('.pre-commit-config.yaml'));

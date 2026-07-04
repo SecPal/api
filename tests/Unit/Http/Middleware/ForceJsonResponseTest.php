@@ -1,7 +1,7 @@
 <?php
 
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// SPDX-FileCopyrightText: 2024-2025 SecPal <https://github.com/SecPal>
+// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+// SPDX-FileCopyrightText: 2024-2025 SecPal Contributors
 
 declare(strict_types=1);
 

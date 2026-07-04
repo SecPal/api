@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: 2025 SecPal
+# SPDX-FileCopyrightText: 2025 SecPal Contributors
 # SPDX-License-Identifier: MIT
 
 set -euo pipefail

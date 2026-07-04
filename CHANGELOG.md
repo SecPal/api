@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2026 SecPal
+SPDX-FileCopyrightText: 2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the SecPal AGPL attribution additional terms in `LICENSES/LicenseRef-SecPal-Attribution.txt`, updated project-owned AGPL SPDX metadata to `AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`, standardized touched AGPL copyright headers to `SecPal Contributors`, and documented the section 7(b)/(c) attribution requirements in the licensing/contributor guides (refs `api#1219`)
 - added a public unauthenticated `GET /v1/release` endpoint that returns only the currently deployed API release version plus immutable corresponding-source URL, so the frontend can identify the active backend release without widening the existing AGPL/source-offer metadata surface
 - added a public unauthenticated `GET /v1/source` AGPL source-offer endpoint that keeps the canonical license, repository, copyright, and warranty payload while also returning explicit network-use source-offer notices for SecPal users
 - added the public `GET /v1/bootstrap` runtime-discovery endpoint for Android pre-login instance validation, deriving the canonical `api_base_url` from `APP_URL`, failing closed with documented `500`/`503`/`426` bootstrap responses when deployment metadata is incomplete or incompatible, and covering the success/failure slices with focused Pest tests plus operator bootstrap configuration docs (refs `api#1115`)
@@ -54,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- fixed PR CI for the SecPal attribution licensing rollout by allowing `LicenseRef-SecPal-Attribution` in the repository license compatibility check, by validating strict-path SPDX combinations through `scripts/check-license-compatibility.sh` instead of a raw atom grep, and by pinning GitHub Actions PostgreSQL Pest runs to the precreated worker database `public` schema instead of creating PID-based schemas in the base `testing` database (refs `api#1219`)
+- fixed the public bootstrap/source legal metadata to expose the SecPal attribution terms as the effective license document while retaining the AGPL base-license URL separately, keeping the new SPDX expression aligned with the URLs returned to clients (refs `api#1219`)
 - kept reparented organizational units pinned to the actor's pre-move access level even when the destination hierarchy still grants inherited read access, so inherited destination scopes can no longer silently escalate or downgrade the moved unit's effective access
 - blocked reparenting a directly scoped organizational subtree under a destination `include_descendants` scope when that move would newly expose future descendants the actor did not previously inherit
 - fixed `GET /v1/customers` and `GET /v1/customers/{id}` to return a consistent `sites_count` and detail `sites` payload that now match the caller's effective site visibility, keeping customer list/detail responses aligned with `/v1/customers/{id}/sites` for both full-access and scoped users (fixes `api#1212`)

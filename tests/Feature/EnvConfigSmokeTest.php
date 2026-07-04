@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal
- * SPDX-License-Identifier: AGPL-3.0-or-later
+ * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
  */
 
 use Illuminate\Database\QueryException;

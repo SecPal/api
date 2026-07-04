@@ -1,7 +1,7 @@
 <?php
 
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 declare(strict_types=1);
 
@@ -23,9 +23,10 @@ beforeEach(function (): void {
         'bootstrap.public_enabled' => true,
         'bootstrap.minimum_supported_app_version' => '1.4.0',
         'bootstrap.minimum_supported_app_build' => 10400,
-        'bootstrap.legal.license_spdx_id' => 'AGPL-3.0-or-later',
-        'bootstrap.legal.license_name' => 'GNU Affero General Public License v3.0 or later',
-        'bootstrap.legal.license_url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
+        'bootstrap.legal.license_spdx_id' => 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution',
+        'bootstrap.legal.license_name' => 'GNU Affero General Public License v3.0 or later with SecPal attribution additional terms',
+        'bootstrap.legal.license_url' => 'https://github.com/SecPal/api/blob/main/LICENSES/LicenseRef-SecPal-Attribution.txt',
+        'bootstrap.legal.license_base_url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
         'bootstrap.legal.copyright_notice' => 'Copyright SecPal and contributors.',
         'bootstrap.legal.warranty_notice' => 'This program is distributed without any warranty; without even the implied warranty of merchantability or fitness for a particular purpose.',
         'bootstrap.legal.source_repositories' => [
@@ -57,9 +58,10 @@ test('public source endpoint returns license and corresponding source metadata',
                 'notice' => 'Source offer for users interacting with SecPal over a network.',
                 'source_offer' => 'Corresponding source for the SecPal components made available through this service.',
                 'license' => [
-                    'spdx_id' => 'AGPL-3.0-or-later',
-                    'name' => 'GNU Affero General Public License v3.0 or later',
-                    'url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
+                    'spdx_id' => 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution',
+                    'name' => 'GNU Affero General Public License v3.0 or later with SecPal attribution additional terms',
+                    'url' => 'https://github.com/SecPal/api/blob/main/LICENSES/LicenseRef-SecPal-Attribution.txt',
+                    'base_license_url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
                 ],
                 'repositories' => [
                     [
@@ -87,8 +89,9 @@ test('public source endpoint returns license and corresponding source metadata',
 test('public source endpoint is reachable without authentication and contains the expected source offer references', function (): void {
     getJson('/v1/source')
         ->assertOk()
-        ->assertJsonPath('data.license.spdx_id', 'AGPL-3.0-or-later')
-        ->assertJsonPath('data.license.url', 'https://www.gnu.org/licenses/agpl-3.0.html')
+        ->assertJsonPath('data.license.spdx_id', 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution')
+        ->assertJsonPath('data.license.url', 'https://github.com/SecPal/api/blob/main/LICENSES/LicenseRef-SecPal-Attribution.txt')
+        ->assertJsonPath('data.license.base_license_url', 'https://www.gnu.org/licenses/agpl-3.0.html')
         ->assertJsonPath('data.repositories.0.url', 'https://github.com/SecPal/frontend')
         ->assertJsonPath('data.repositories.1.url', 'https://github.com/SecPal/api')
         ->assertJsonPath('data.repositories.2.url', 'https://github.com/SecPal/contracts')

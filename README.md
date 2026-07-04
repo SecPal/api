@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2025-2026 SecPal
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 
@@ -543,7 +543,10 @@ This project uses a dual-licensing model:
 
 ### Open Source License
 
-Licensed under [AGPL-3.0-or-later](LICENSES/AGPL-3.0-or-later.txt) for:
+Licensed under `AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`, which combines the
+[AGPL-3.0-or-later](LICENSES/AGPL-3.0-or-later.txt) license with the
+[SecPal attribution additional terms](LICENSES/LicenseRef-SecPal-Attribution.txt)
+under AGPLv3 section 7(b) and 7(c), for:
 
 - Open source projects compliant with AGPL
 - Personal use and experimentation

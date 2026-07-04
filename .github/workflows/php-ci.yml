@@ -1,5 +1,5 @@
 ---
-# SPDX-FileCopyrightText: 2025-2026 SecPal
+# SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
 name: PHP CI
@@ -110,6 +110,7 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: testing
           DB_PASSWORD: testing
+          SECPAL_TEST_SCHEMA: public
           XDEBUG_MODE: coverage
         run: php artisan test --parallel --exclude-group=serial --coverage-clover coverage.xml
 
@@ -122,6 +123,7 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: testing
           DB_PASSWORD: testing
+          SECPAL_TEST_SCHEMA: public
           XDEBUG_MODE: coverage
         run: php artisan test --group=serial --coverage-clover coverage-serial.xml
 
@@ -134,6 +136,7 @@ jobs:
           DB_DATABASE: testing
           DB_USERNAME: testing
           DB_PASSWORD: testing
+          SECPAL_TEST_SCHEMA: public
         run: |
           # Verify the validate-setup command exists and runs
           # Expected to fail (no KEK/tenant keys) but command must be callable

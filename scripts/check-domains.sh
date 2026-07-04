@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: 2025-2026 SecPal
+# SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 # SPDX-License-Identifier: MIT
 
 # Domain Policy Enforcement Script

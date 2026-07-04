@@ -1,5 +1,5 @@
 ---
-# SPDX-FileCopyrightText: 2025-2026 SecPal
+# SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
 name: Quality Checks
@@ -21,7 +21,27 @@ jobs:
 
   license-compatibility:
     name: Check License Compatibility
-    uses: SecPal/.github/.github/workflows/reusable-license-compatibility.yml@084b2ab764a6e6b0a865f66853e7421ff4c02434
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install REUSE tooling
+        run: pip install reuse
+
+      - name: Generate REUSE SPDX document
+        run: |
+          echo "Checking for AGPL-3.0-or-later compatibility..."
+          reuse spdx --add-license-concluded --creator-person "SecPal Contributors" -o reuse.spdx
+
+      - name: Check license compatibility
+        run: bash scripts/check-license-compatibility.sh reuse.spdx
 
   prettier:
     name: Formatting Check

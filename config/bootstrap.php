@@ -1,7 +1,7 @@
 <?php
 
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 return [
     'public_enabled' => filter_var(env('BOOTSTRAP_PUBLIC_ENABLED', false), FILTER_VALIDATE_BOOL),
@@ -15,9 +15,10 @@ return [
         'source_url' => env('BOOTSTRAP_API_RELEASE_SOURCE_URL'),
     ],
     'legal' => [
-        'license_spdx_id' => env('BOOTSTRAP_LICENSE_SPDX_ID', 'AGPL-3.0-or-later'),
-        'license_name' => env('BOOTSTRAP_LICENSE_NAME', 'GNU Affero General Public License v3.0 or later'),
-        'license_url' => env('BOOTSTRAP_LICENSE_URL', 'https://www.gnu.org/licenses/agpl-3.0.html'),
+        'license_spdx_id' => env('BOOTSTRAP_LICENSE_SPDX_ID', 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution'),
+        'license_name' => env('BOOTSTRAP_LICENSE_NAME', 'GNU Affero General Public License v3.0 or later with SecPal attribution additional terms'),
+        'license_url' => env('BOOTSTRAP_LICENSE_URL', 'https://github.com/SecPal/api/blob/main/LICENSES/LicenseRef-SecPal-Attribution.txt'),
+        'license_base_url' => env('BOOTSTRAP_LICENSE_BASE_URL', 'https://www.gnu.org/licenses/agpl-3.0.html'),
         'copyright_notice' => env('BOOTSTRAP_COPYRIGHT_NOTICE', 'Copyright SecPal and contributors.'),
         'warranty_notice' => env(
             'BOOTSTRAP_WARRANTY_NOTICE',
