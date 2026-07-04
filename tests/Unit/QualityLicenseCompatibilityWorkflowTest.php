@@ -18,6 +18,6 @@ test('quality workflow allows the secpal attribution license reference', functio
     $contents = qualityWorkflowContents();
 
     expect($contents)
-        ->toContain('LicenseRef-SecPal-Attribution')
-        ->not->toContain('reusable-license-compatibility.yml');
+        ->toContain('scripts/check-license-compatibility.sh')
+        ->not->toContain('grep "LicenseInfoInFile"');
 });

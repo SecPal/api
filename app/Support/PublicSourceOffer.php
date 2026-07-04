@@ -61,7 +61,7 @@ class PublicSourceOffer
 
     /**
      * @return array{
-     *     license: array{spdx_id: string, name: string, url: string},
+     *     license: array{spdx_id: string, name: string, url: string, base_license_url: string},
      *     source_url: string
      * }
      */
@@ -78,7 +78,7 @@ class PublicSourceOffer
      *     source_url: string,
      *     notice: string,
      *     source_offer: string,
-     *     license: array{spdx_id: string, name: string, url: string},
+     *     license: array{spdx_id: string, name: string, url: string, base_license_url: string},
      *     repositories: array<int, array{name: string, url: string, description: string}>,
      *     copyright_notice: string,
      *     warranty_notice: string
@@ -114,6 +114,10 @@ class PublicSourceOffer
 
         if ($this->httpUrlConfig('bootstrap.legal.license_url') === null) {
             $missingFields[] = 'legal.license.url';
+        }
+
+        if ($this->httpUrlConfig('bootstrap.legal.license_base_url') === null) {
+            $missingFields[] = 'legal.license.base_license_url';
         }
 
         if ($this->trimmedStringConfig('bootstrap.legal.copyright_notice') === null) {
@@ -160,7 +164,7 @@ class PublicSourceOffer
     }
 
     /**
-     * @return array{spdx_id: string, name: string, url: string}
+     * @return array{spdx_id: string, name: string, url: string, base_license_url: string}
      */
     private function licenseMetadata(): array
     {
@@ -168,6 +172,7 @@ class PublicSourceOffer
             'spdx_id' => (string) $this->trimmedStringConfig('bootstrap.legal.license_spdx_id'),
             'name' => (string) $this->trimmedStringConfig('bootstrap.legal.license_name'),
             'url' => (string) $this->httpUrlConfig('bootstrap.legal.license_url'),
+            'base_license_url' => (string) $this->httpUrlConfig('bootstrap.legal.license_base_url'),
         ];
     }
 

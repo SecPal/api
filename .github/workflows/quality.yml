@@ -41,47 +41,7 @@ jobs:
           reuse spdx -o reuse.spdx
 
       - name: Check license compatibility
-        run: |
-          licenses=$(grep "LicenseInfoInFile" reuse.spdx | cut -d':' -f2 | sort -u | tr -d ' ')
-
-          echo "Found licenses: $licenses"
-
-          compatible_licenses=(
-            "AGPL-3.0-or-later"
-            "GPL-3.0-or-later"
-            "LGPL-3.0-or-later"
-            "MIT"
-            "BSD-2-Clause"
-            "BSD-3-Clause"
-            "Apache-2.0"
-            "CC0-1.0"
-            "ISC"
-            "OFL-1.1"
-            "ODbL-1.0"
-            "LicenseRef-SecPal-Attribution"
-          )
-
-          incompatible_found=0
-          for license in $licenses; do
-            found=0
-            for compatible in "${compatible_licenses[@]}"; do
-              if [[ "$license" == "$compatible" ]]; then
-                found=1
-                break
-              fi
-            done
-            if [ $found -eq 0 ]; then
-              echo "ERROR: Incompatible license found: $license"
-              incompatible_found=1
-            fi
-          done
-
-          if [ $incompatible_found -eq 1 ]; then
-            echo "ERROR: Found licenses incompatible with AGPL-3.0-or-later"
-            exit 1
-          fi
-
-          echo "All licenses are compatible with AGPL-3.0-or-later"
+        run: bash scripts/check-license-compatibility.sh reuse.spdx
 
   prettier:
     name: Formatting Check

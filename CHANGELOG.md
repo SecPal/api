@@ -55,7 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- fixed PR CI for the SecPal attribution licensing rollout by allowing `LicenseRef-SecPal-Attribution` in the repository license compatibility check and by pinning GitHub Actions PostgreSQL Pest runs to the precreated worker database `public` schema instead of creating PID-based schemas in the base `testing` database (refs `api#1219`)
+- fixed PR CI for the SecPal attribution licensing rollout by allowing `LicenseRef-SecPal-Attribution` in the repository license compatibility check, by validating strict-path SPDX combinations through `scripts/check-license-compatibility.sh` instead of a raw atom grep, and by pinning GitHub Actions PostgreSQL Pest runs to the precreated worker database `public` schema instead of creating PID-based schemas in the base `testing` database (refs `api#1219`)
+- fixed the public bootstrap/source legal metadata to expose the SecPal attribution terms as the effective license document while retaining the AGPL base-license URL separately, keeping the new SPDX expression aligned with the URLs returned to clients (refs `api#1219`)
 - kept reparented organizational units pinned to the actor's pre-move access level even when the destination hierarchy still grants inherited read access, so inherited destination scopes can no longer silently escalate or downgrade the moved unit's effective access
 - blocked reparenting a directly scoped organizational subtree under a destination `include_descendants` scope when that move would newly expose future descendants the actor did not previously inherit
 - fixed `GET /v1/customers` and `GET /v1/customers/{id}` to return a consistent `sites_count` and detail `sites` payload that now match the caller's effective site visibility, keeping customer list/detail responses aligned with `/v1/customers/{id}/sites` for both full-access and scoped users (fixes `api#1212`)
