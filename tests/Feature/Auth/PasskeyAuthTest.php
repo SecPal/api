@@ -1040,6 +1040,60 @@ describe('Passkey Management', function () {
         $user = User::factory()->create();
         $token = $user->issueApiToken('test-suite')->plainTextToken;
 
+        $challengeService = app(PasskeyChallengeService::class);
+        $challengeOptions = [
+            'challenge' => 'test-registration-challenge',
+            'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
+            'user' => ['id' => $user->id, 'name' => $user->email, 'display_name' => $user->name],
+            'pub_key_cred_params' => [['type' => 'public-key', 'alg' => -7]],
+            'timeout' => 60000,
+            'exclude_credentials' => [],
+            'authenticator_selection' => ['resident_key' => 'required', 'require_resident_key' => true, 'user_verification' => 'required'],
+            'attestation' => 'none',
+        ];
+
+        $payload = [
+            'credential' => [
+                'id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'raw_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+                'type' => 'public-key',
+                'response' => [
+                    'client_data_json' => 'Zm9v',
+                    'attestation_object' => 'YmFy',
+                    'transports' => ['internal'],
+                ],
+            ],
+            'label' => 'Touch ID',
+            'current_password' => 'wrong-password',
+        ];
+
+        for ($i = 0; $i < 5; $i++) {
+            $challenge = $challengeService->createRegistrationChallenge($user, $challengeOptions);
+            $response = $this->withToken($token)
+                ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', $payload);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['current_password'])
+                ->assertHeader('X-RateLimit-Limit', '5')
+                ->assertHeader('X-RateLimit-Remaining', (string) (4 - $i));
+        }
+
+        $challenge = $challengeService->createRegistrationChallenge($user, $challengeOptions);
+        $response = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', $payload);
+
+        $response->assertTooManyRequests()
+            ->assertHeader('X-RateLimit-Limit', '5')
+            ->assertHeader('X-RateLimit-Remaining', '0');
+
+        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
+            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+    });
+
+    test('invalid current password burns the passkey registration challenge', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
         $challenge = app(PasskeyChallengeService::class)->createRegistrationChallenge($user, [
             'challenge' => 'test-registration-challenge',
             'rp' => ['id' => 'app.secpal.dev', 'name' => 'SecPal'],
@@ -1066,25 +1120,20 @@ describe('Passkey Management', function () {
             'current_password' => 'wrong-password',
         ];
 
-        for ($i = 0; $i < 5; $i++) {
-            $response = $this->withToken($token)
-                ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', $payload);
+        $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['current_password']);
 
-            $response->assertUnprocessable()
-                ->assertJsonValidationErrors(['current_password'])
-                ->assertHeader('X-RateLimit-Limit', '5')
-                ->assertHeader('X-RateLimit-Remaining', (string) (4 - $i));
-        }
+        $retryResponse = $this->withToken($token)
+            ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', [
+                ...$payload,
+                'current_password' => 'password',
+            ]);
 
-        $response = $this->withToken($token)
-            ->postJson('/v1/me/passkeys/challenges/registration/'.$challenge['challenge_id'].'/verify', $payload);
+        $retryResponse->assertNotFound();
 
-        $response->assertTooManyRequests()
-            ->assertHeader('X-RateLimit-Limit', '5')
-            ->assertHeader('X-RateLimit-Remaining', '0');
-
-        expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
-            ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull();
+        expect(app(PasskeyChallengeService::class)->findRegistrationChallenge($challenge['challenge_id']))->toBeNull();
     });
 
     test('authenticated users cannot delete an unknown passkey credential', function () {
@@ -1233,5 +1282,39 @@ describe('Passkey Management', function () {
         expect((int) $response->headers->get('Retry-After'))->toBeGreaterThan(0)
             ->and($response->headers->get('X-RateLimit-Reset'))->not->toBeNull()
             ->and($user->passkeyCredentials()->count())->toBe(1);
+    });
+
+    test('passkey deletion step-up throttles repeated failures across rotating ips for the same account', function () {
+        $user = User::factory()->create();
+        $token = $user->issueApiToken('test-suite')->plainTextToken;
+
+        $user->passkeyCredentials()->create([
+            'credential_id' => 'Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE',
+            'label' => 'Touch ID',
+            'transports' => ['internal'],
+            'attestation_type' => 'none',
+            'credential_public_key' => 'dGVzdA',
+            'user_handle' => 'dGVzdA',
+            'counter' => 0,
+        ]);
+
+        $payload = [
+            'current_password' => 'wrong-password',
+        ];
+
+        for ($i = 0; $i < 5; $i++) {
+            $response = $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.'.($i + 1)])
+                ->withToken($token)
+                ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', $payload);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['current_password']);
+        }
+
+        $response = $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.99'])
+            ->withToken($token)
+            ->deleteJson('/v1/me/passkeys/Ax9Yc0ZLQmN4V1V1S1cwVnI1Q0FyRkE', $payload);
+
+        $response->assertTooManyRequests();
     });
 });

@@ -28,6 +28,7 @@ use App\Services\MfaService;
 use App\Services\PasskeyChallengeService;
 use App\Services\PasskeyService;
 use Illuminate\Auth\Events\Verified;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -37,6 +38,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -45,6 +47,10 @@ use Webauthn\Exception\WebauthnException;
 
 class AuthController extends Controller
 {
+    private const PASSKEY_STEP_UP_MAX_ATTEMPTS = 5;
+
+    private const PASSKEY_STEP_UP_DECAY_SECONDS = 600;
+
     /**
      * Password reset token expiry time in minutes.
      */
@@ -420,7 +426,7 @@ class AuthController extends Controller
         $user = $request->user();
         /** @var array{current_password: string} $validated */
         $validated = $request->validated();
-        $this->verifyCurrentPasswordStepUp($user, $validated['current_password']);
+        $this->verifyCurrentPasswordStepUp($user, $validated['current_password'], 'registration');
         $user->loadMissing('passkeyCredentials');
 
         $challenge = $this->passkeyChallengeService->createRegistrationChallenge(
@@ -459,7 +465,13 @@ class AuthController extends Controller
 
         /** @var array{current_password: string, credential: array<string, mixed>, label?: string|null} $validated */
         $validated = $request->validated();
-        $this->verifyCurrentPasswordStepUp($user, $validated['current_password']);
+        try {
+            $this->verifyCurrentPasswordStepUp($user, $validated['current_password'], 'registration');
+        } catch (ValidationException $exception) {
+            $this->passkeyChallengeService->forgetRegistrationChallenge($challengeId);
+
+            throw $exception;
+        }
 
         try {
             $credential = $this->passkeyService->verifyRegistration(
@@ -529,7 +541,7 @@ class AuthController extends Controller
             return $this->resourceNotFoundResponse();
         }
 
-        $this->verifyCurrentPasswordStepUp($user, $validated['current_password']);
+        $this->verifyCurrentPasswordStepUp($user, $validated['current_password'], 'deletion');
 
         $result = $this->passkeyService->deleteCredential($user, $credential);
 
@@ -554,13 +566,39 @@ class AuthController extends Controller
      *
      * @throws ValidationException
      */
-    private function verifyCurrentPasswordStepUp(User $user, string $currentPassword): void
+    private function verifyCurrentPasswordStepUp(User $user, string $currentPassword, ?string $scope = null): void
     {
+        if (is_string($scope)) {
+            $rateLimitKey = $this->passkeyStepUpRateLimitKey($user, $scope);
+
+            if (RateLimiter::tooManyAttempts($rateLimitKey, self::PASSKEY_STEP_UP_MAX_ATTEMPTS)) {
+                $retryAfter = RateLimiter::availableIn($rateLimitKey);
+
+                throw new HttpResponseException(response()->json([
+                    'message' => __('Too many passkey attempts. Please try again later.'),
+                ], 429, [
+                    'Retry-After' => (string) $retryAfter,
+                    'X-RateLimit-Limit' => (string) self::PASSKEY_STEP_UP_MAX_ATTEMPTS,
+                    'X-RateLimit-Remaining' => '0',
+                    'X-RateLimit-Reset' => (string) (now()->getTimestamp() + $retryAfter),
+                ]));
+            }
+        }
+
         if (! Hash::check($currentPassword, $user->password)) {
+            if (isset($rateLimitKey)) {
+                RateLimiter::hit($rateLimitKey, self::PASSKEY_STEP_UP_DECAY_SECONDS);
+            }
+
             throw ValidationException::withMessages([
                 'current_password' => ['The current password is invalid.'],
             ]);
         }
+    }
+
+    private function passkeyStepUpRateLimitKey(User $user, string $scope): string
+    {
+        return 'passkey-step-up|'.$scope.'|'.$user->id;
     }
 
     /**

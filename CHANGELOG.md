@@ -251,7 +251,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- made passkey registration verification and passkey deletion return `404` before checking the current-password step-up when the target challenge or credential is missing, and taught the `passkey-verify` rate limiter to count invalid `current_password` failures so stolen-token password guessing cannot bypass the verify throttle
+- made passkey registration verification and passkey deletion return `404` before checking the current-password step-up when the target challenge or credential is missing, taught the `passkey-verify` rate limiter to count invalid `current_password` failures, and added a dedicated per-user step-up lockout so stolen-token password guessing cannot bypass the verify throttle by rotating source IPs
 - moved `TestCaseBootstrapEnvironmentProbe` into `tests/Support` and updated its bootstrap-file regression tests so Composer no longer emits a PSR-4 autoload warning for the test helper class
 - invalidate passkey registration challenges on verification failure so failed attempts cannot be replayed; the authentication challenge path was already fixed in an earlier PR but the registration path was missed
 - Replaced 12 direct `new App\...` instantiations in test files with `app(ClassName::class)` container resolution so tests remain correct if those classes gain constructor dependencies

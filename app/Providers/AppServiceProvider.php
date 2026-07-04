@@ -207,18 +207,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('passkey-verify', function (Request $request) {
-            return Limit::perMinutes(10, 5)
-                ->by($this->passkeyVerifyThrottleKey($request))
-                ->after(fn (SymfonyResponse $response): bool => $this->shouldCountPasskeyVerifyAttempt($response))
-                ->response(function (Request $request, array $headers): JsonResponse {
-                    /** @var array<string, mixed> $headers */
-                    $headers = $headers;
-
-                    return $this->buildRateLimitedJsonResponse(
-                        $headers,
-                        'Too many passkey attempts. Please try again later.',
-                    );
-                });
+            return $this->buildPasskeyVerifyThrottleLimit($this->passkeyVerifyThrottleKey($request));
         });
 
         RateLimiter::for('mfa-user-reset', function (Request $request) {
@@ -455,6 +444,22 @@ class AppServiceProvider extends ServiceProvider
         $scope = $request->route()?->uri() ?? $request->path();
 
         return $request->ip().'|'.$scope;
+    }
+
+    private function buildPasskeyVerifyThrottleLimit(string $key): Limit
+    {
+        return Limit::perMinutes(10, 5)
+            ->by($key)
+            ->after(fn (SymfonyResponse $response): bool => $this->shouldCountPasskeyVerifyAttempt($response))
+            ->response(function (Request $request, array $headers): JsonResponse {
+                /** @var array<string, mixed> $headers */
+                $headers = $headers;
+
+                return $this->buildRateLimitedJsonResponse(
+                    $headers,
+                    'Too many passkey attempts. Please try again later.',
+                );
+            });
     }
 
     /**
