@@ -11,6 +11,7 @@ use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class HealthThrottle
 {
@@ -27,7 +28,49 @@ class HealthThrottle
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $cache = $this->cacheStore();
+        [$limitedResponse, $attempts] = $this->evaluateThrottleWithFallback($request);
+
+        if ($limitedResponse instanceof JsonResponse) {
+            return $limitedResponse;
+        }
+
+        $response = $next($request);
+
+        if ($attempts !== null) {
+            $response->headers->set('X-RateLimit-Limit', (string) self::MAX_ATTEMPTS);
+            $response->headers->set('X-RateLimit-Remaining', (string) max(0, self::MAX_ATTEMPTS - $attempts));
+        }
+
+        return $response;
+    }
+
+    /**
+     * @return array{0: JsonResponse|null, 1: int|null}
+     */
+    private function evaluateThrottleWithFallback(Request $request): array
+    {
+        $preferredStore = $this->preferredCacheStoreName();
+
+        try {
+            return $this->evaluateThrottle($request, $this->cacheStore($preferredStore));
+        } catch (Throwable) {
+            if ($preferredStore === 'file') {
+                return [null, null];
+            }
+        }
+
+        try {
+            return $this->evaluateThrottle($request, $this->cacheStore('file'));
+        } catch (Throwable) {
+            return [null, null];
+        }
+    }
+
+    /**
+     * @return array{0: JsonResponse|null, 1: int}
+     */
+    private function evaluateThrottle(Request $request, CacheRepository $cache): array
+    {
         $key = $this->key($request);
         $timerKey = $key.':timer';
         $now = time();
@@ -42,7 +85,7 @@ class HealthThrottle
         $attempts = $this->integerCacheValue($cache->get($key, 0));
 
         if ($attempts >= self::MAX_ATTEMPTS && $retryAt > $now) {
-            return $this->buildLimitedResponse($retryAt - $now);
+            return [$this->buildLimitedResponse($retryAt - $now), $attempts];
         }
 
         $cache->add($timerKey, $now + self::DECAY_SECONDS, self::DECAY_SECONDS);
@@ -53,12 +96,7 @@ class HealthThrottle
             $cache->put($key, 1, self::DECAY_SECONDS);
         }
 
-        $response = $next($request);
-
-        $response->headers->set('X-RateLimit-Limit', (string) self::MAX_ATTEMPTS);
-        $response->headers->set('X-RateLimit-Remaining', (string) max(0, self::MAX_ATTEMPTS - $attempts));
-
-        return $response;
+        return [null, $attempts];
     }
 
     private function buildLimitedResponse(int $retryAfter): JsonResponse
@@ -72,11 +110,58 @@ class HealthThrottle
         ]);
     }
 
-    private function cacheStore(): CacheRepository
+    private function cacheStore(string $store): CacheRepository
     {
-        return app()->environment('testing')
-            ? $this->cacheFactory->store('array')
-            : $this->cacheFactory->store('file');
+        return $this->cacheFactory->store($store);
+    }
+
+    private function preferredCacheStoreName(): string
+    {
+        $defaultStore = config('cache.default');
+
+        if (! is_string($defaultStore) || $defaultStore === '') {
+            return 'file';
+        }
+
+        return $this->cacheStoreUsesDatabase($defaultStore)
+            ? 'file'
+            : $defaultStore;
+    }
+
+    /**
+     * @param  array<string, bool>  $visited
+     */
+    private function cacheStoreUsesDatabase(string $store, array $visited = []): bool
+    {
+        if (isset($visited[$store])) {
+            return false;
+        }
+
+        $driver = config("cache.stores.{$store}.driver");
+
+        if ($driver === 'database') {
+            return true;
+        }
+
+        if ($driver !== 'failover') {
+            return false;
+        }
+
+        $fallbackStores = config("cache.stores.{$store}.stores", []);
+
+        if (! is_array($fallbackStores)) {
+            return false;
+        }
+
+        $visited[$store] = true;
+
+        foreach ($fallbackStores as $fallbackStore) {
+            if (is_string($fallbackStore) && $this->cacheStoreUsesDatabase($fallbackStore, $visited)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function key(Request $request): string
