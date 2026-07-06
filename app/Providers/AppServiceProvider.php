@@ -95,20 +95,6 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(60, 5)->by($request->ip());
         });
 
-        RateLimiter::for('health', function (Request $request) {
-            return Limit::perMinute(60)
-                ->by($this->healthThrottleKey($request))
-                ->response(function (Request $request, array $headers): JsonResponse {
-                    /** @var array<string, mixed> $headers */
-                    $headers = $headers;
-
-                    return $this->buildRateLimitedJsonResponse(
-                        $headers,
-                        'Too many health check requests. Please try again later.',
-                    );
-                });
-        });
-
         RateLimiter::for('bootstrap', function (Request $request) {
             return Limit::perMinutes(5, 5)
                 ->by($this->bootstrapThrottleKey($request))
@@ -358,13 +344,6 @@ class AppServiceProvider extends ServiceProvider
             : $scope.'|'.$request->ip().'|'.$email;
 
         return 'onboarding|'.hash('sha256', $rawKey);
-    }
-
-    private function healthThrottleKey(Request $request): string
-    {
-        $scope = $request->route()?->uri() ?? $request->path();
-
-        return 'health|'.$request->ip().'|'.$scope;
     }
 
     private function bootstrapThrottleKey(Request $request): string

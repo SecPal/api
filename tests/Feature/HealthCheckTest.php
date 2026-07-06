@@ -69,7 +69,21 @@ describe('Health Check Endpoints', function () {
         it('applies the health throttle middleware to every public health endpoint', function (string $path): void {
             $route = Route::getRoutes()->match(Request::create($path, 'GET'));
 
-            expect($route->gatherMiddleware())->toContain('throttle:health');
+            expect($route->gatherMiddleware())->toContain('health.throttle');
+        })->with([
+            '/health',
+            '/health/live',
+            '/health/ready',
+        ]);
+
+        it('keeps health endpoints out of stateful session and tenant middleware', function (string $path): void {
+            $route = Route::getRoutes()->match(Request::create($path, 'GET'));
+            $middleware = $route->gatherMiddleware();
+
+            expect($middleware)
+                ->not->toContain('api')
+                ->not->toContain(App\Http\Middleware\RestoreSessionFromRememberToken::class)
+                ->not->toContain(App\Http\Middleware\InjectTenantId::class);
         })->with([
             '/health',
             '/health/live',
@@ -208,6 +222,20 @@ describe('Health Check Endpoints', function () {
             seedHealthReadinessPrerequisites();
 
             app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat(now()->subMinutes(10));
+
+            $response = $this->getJson('/health/ready');
+
+            assertPublicReadinessResponse($response, 503, 'not_ready');
+        });
+
+        it('returns 503 instead of 500 when database connectivity throws a non-exception throwable', function () {
+            seedHealthReadinessPrerequisites();
+            app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
+
+            DB::partialMock()
+                ->shouldReceive('connection->getPdo')
+                ->once()
+                ->andThrow(new TypeError('Database password must be a string.'));
 
             $response = $this->getJson('/health/ready');
 
