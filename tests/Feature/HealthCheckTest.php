@@ -69,7 +69,21 @@ describe('Health Check Endpoints', function () {
         it('applies the health throttle middleware to every public health endpoint', function (string $path): void {
             $route = Route::getRoutes()->match(Request::create($path, 'GET'));
 
-            expect($route->gatherMiddleware())->toContain('throttle:health');
+            expect($route->gatherMiddleware())->toContain('health.throttle');
+        })->with([
+            '/health',
+            '/health/live',
+            '/health/ready',
+        ]);
+
+        it('keeps health endpoints out of stateful session and tenant middleware', function (string $path): void {
+            $route = Route::getRoutes()->match(Request::create($path, 'GET'));
+            $middleware = $route->gatherMiddleware();
+
+            expect($middleware)
+                ->not->toContain('api')
+                ->not->toContain(App\Http\Middleware\RestoreSessionFromRememberToken::class)
+                ->not->toContain(App\Http\Middleware\InjectTenantId::class);
         })->with([
             '/health',
             '/health/live',
@@ -210,6 +224,34 @@ describe('Health Check Endpoints', function () {
             app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat(now()->subMinutes(10));
 
             $response = $this->getJson('/health/ready');
+
+            assertPublicReadinessResponse($response, 503, 'not_ready');
+        });
+
+        it('returns 503 instead of 500 when database connectivity is broken', function () {
+            seedHealthReadinessPrerequisites();
+            app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
+
+            $connection = config('database.default');
+            expect($connection)->toBeString();
+
+            $originalConnectionConfig = config("database.connections.{$connection}");
+            expect($originalConnectionConfig)->toBeArray();
+
+            config([
+                "database.connections.{$connection}.host" => '127.0.0.1',
+                "database.connections.{$connection}.port" => '1',
+                "database.connections.{$connection}.url" => null,
+            ]);
+
+            DB::purge($connection);
+
+            try {
+                $response = $this->getJson('/health/ready');
+            } finally {
+                config(["database.connections.{$connection}" => $originalConnectionConfig]);
+                DB::purge($connection);
+            }
 
             assertPublicReadinessResponse($response, 503, 'not_ready');
         });

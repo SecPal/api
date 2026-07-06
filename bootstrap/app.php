@@ -19,12 +19,16 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         apiPrefix: '', // Remove /api/ prefix - routes accessible at /v1/* directly
         commands: __DIR__.'/../routes/console.php',
+        then: static function (): void {
+            require base_path('routes/health.php');
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'tenant' => App\Http\Middleware\SetTenant::class,
             'tenant.inject' => App\Http\Middleware\InjectTenantId::class,
             'check.organizational.scope' => App\Http\Middleware\CheckOrganizationalScope::class,
+            'health.throttle' => App\Http\Middleware\HealthThrottle::class,
             'abilities' => Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
             'ability' => Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
             'permission' => Spatie\Permission\Middleware\PermissionMiddleware::class,

@@ -26,7 +26,6 @@ use App\Http\Controllers\Api\V1\SourceController;
 use App\Http\Controllers\Api\V1\UserAssignmentController;
 use App\Http\Controllers\Api\V1\UserPermissionController;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\HealthController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
 use App\Http\Middleware\EnsureBrowserSessionLoginContext;
@@ -43,19 +42,6 @@ use Illuminate\Support\Facades\Route;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
-
-Route::middleware('throttle:health')->group(function () {
-    Route::get('/health/live', [HealthController::class, 'live']);
-    Route::get('/health/ready', [HealthController::class, 'ready']);
-
-    Route::get('/health', function () {
-        return response()->json([
-            'status' => 'ok',
-            'timestamp' => now()->toIso8601String(),
-            'service' => 'SecPal API',
-        ]);
-    });
-});
 
 // API v1 routes
 Route::prefix('v1')->group(function () {

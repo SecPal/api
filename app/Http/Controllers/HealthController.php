@@ -50,7 +50,7 @@ class HealthController extends Controller
         // Database connectivity
         try {
             DB::connection()->getPdo();
-        } catch (\Exception) {
+        } catch (\Throwable) {
             $allPassed = false;
         }
 
@@ -59,7 +59,7 @@ class HealthController extends Controller
             if (TenantKey::count() === 0) {
                 $allPassed = false;
             }
-        } catch (\Exception) {
+        } catch (\Throwable) {
             $allPassed = false;
         }
 
