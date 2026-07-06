@@ -4,9 +4,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Http\Middleware\HealthThrottle;
+use Illuminate\Cache\RedisStore;
+use Illuminate\Cache\Repository as LaravelCacheRepository;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Contracts\Cache\Store;
 use Illuminate\Http\Request;
+use Illuminate\Redis\Connections\PhpRedisConnection;
 use Symfony\Component\HttpFoundation\Response;
 
 it('uses a configured non-database cache store so production health throttling stays shared', function (): void {
@@ -86,13 +90,42 @@ it('falls back to the file cache when a configured non-database store is unavail
     expect($response->getStatusCode())->toBe(200);
 });
 
-function healthThrottleCacheRepositoryMock(): CacheRepository
-{
-    $store = Mockery::mock(CacheRepository::class);
-    $store->shouldReceive('get')->with(Mockery::type('string'), 0)->andReturn(0);
+it('initializes redis-backed counters without serialization or compression', function (): void {
+    config([
+        'cache.default' => 'redis',
+        'cache.stores.redis.driver' => 'redis',
+    ]);
+
+    $cacheFactory = Mockery::mock(CacheFactory::class);
+    $store = Mockery::mock(RedisStore::class);
+    $connection = Mockery::mock(PhpRedisConnection::class);
+    $redisStore = new LaravelCacheRepository($store);
+
+    $cacheFactory->shouldReceive('store')->once()->with('redis')->andReturn($redisStore);
+    $cacheFactory->shouldNotReceive('store')->with('file');
+
+    $store->shouldReceive('connection')->twice()->andReturn($connection);
+    $store->shouldReceive('get')->with(Mockery::type('string'))->andReturn(0);
     $store->shouldReceive('forget')->with(Mockery::type('string'))->andReturn(true);
     $store->shouldReceive('add')->with(Mockery::type('string'), Mockery::any(), 60)->andReturn(true);
-    $store->shouldReceive('increment')->with(Mockery::type('string'))->andReturn(1);
+    $store->shouldReceive('increment')->with(Mockery::type('string'), 1)->andReturn(1);
+    $connection->shouldReceive('withoutSerializationOrCompression')
+        ->twice()
+        ->andReturnUsing(static fn (callable $callback): mixed => $callback());
 
-    return $store;
+    $response = app(HealthThrottle::class, ['cacheFactory' => $cacheFactory])
+        ->handle(Request::create('/health', 'GET'), fn (): Response => new Response('ok'));
+
+    expect($response->getStatusCode())->toBe(200);
+});
+
+function healthThrottleCacheRepositoryMock(): CacheRepository
+{
+    $store = Mockery::mock(Store::class);
+    $store->shouldReceive('get')->with(Mockery::type('string'))->andReturn(0);
+    $store->shouldReceive('forget')->with(Mockery::type('string'))->andReturn(true);
+    $store->shouldReceive('increment')->with(Mockery::type('string'), 1)->andReturn(1);
+    $store->shouldReceive('put')->with(Mockery::type('string'), Mockery::any(), 60)->andReturn(true);
+
+    return new LaravelCacheRepository($store);
 }

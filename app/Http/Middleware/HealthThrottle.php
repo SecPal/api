@@ -6,10 +6,12 @@
 namespace App\Http\Middleware;
 
 use Closure;
+use Illuminate\Cache\RedisStore;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Redis\Connections\PhpRedisConnection;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -82,18 +84,26 @@ class HealthThrottle
             $retryAt = 0;
         }
 
-        $attempts = $this->integerCacheValue($cache->get($key, 0));
+        $attempts = $this->integerCacheValue(
+            $this->withoutSerializationOrCompression($cache, fn (): mixed => $cache->get($key, 0))
+        );
 
         if ($attempts >= self::MAX_ATTEMPTS && $retryAt > $now) {
             return [$this->buildLimitedResponse($retryAt - $now), $attempts];
         }
 
         $cache->add($timerKey, $now + self::DECAY_SECONDS, self::DECAY_SECONDS);
-        $added = $cache->add($key, 0, self::DECAY_SECONDS);
+        $added = $this->withoutSerializationOrCompression(
+            $cache,
+            fn (): bool => $cache->add($key, 0, self::DECAY_SECONDS),
+        );
         $attempts = $this->integerCacheValue($cache->increment($key));
 
         if (! $added && $attempts === 1) {
-            $cache->put($key, 1, self::DECAY_SECONDS);
+            $this->withoutSerializationOrCompression(
+                $cache,
+                fn (): bool => $cache->put($key, 1, self::DECAY_SECONDS),
+            );
         }
 
         return [null, $attempts];
@@ -182,5 +192,32 @@ class HealthThrottle
         }
 
         return 0;
+    }
+
+    /**
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
+     */
+    private function withoutSerializationOrCompression(CacheRepository $cache, callable $callback): mixed
+    {
+        if (! is_callable([$cache, 'getStore'])) {
+            return $callback();
+        }
+
+        $store = $cache->getStore();
+
+        if (! $store instanceof RedisStore) {
+            return $callback();
+        }
+
+        $connection = $store->connection();
+
+        if (! $connection instanceof PhpRedisConnection) {
+            return $callback();
+        }
+
+        return $connection->withoutSerializationOrCompression($callback);
     }
 }
