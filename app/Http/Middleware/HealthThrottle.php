@@ -31,7 +31,7 @@ class HealthThrottle
         $key = $this->key($request);
         $timerKey = $key.':timer';
         $now = time();
-        $retryAt = (int) $cache->get($timerKey, 0);
+        $retryAt = $this->integerCacheValue($cache->get($timerKey, 0));
 
         if ($retryAt <= $now) {
             $cache->forget($key);
@@ -39,7 +39,7 @@ class HealthThrottle
             $retryAt = 0;
         }
 
-        $attempts = (int) $cache->get($key, 0);
+        $attempts = $this->integerCacheValue($cache->get($key, 0));
 
         if ($attempts >= self::MAX_ATTEMPTS && $retryAt > $now) {
             return $this->buildLimitedResponse($retryAt - $now);
@@ -47,7 +47,7 @@ class HealthThrottle
 
         $cache->add($timerKey, $now + self::DECAY_SECONDS, self::DECAY_SECONDS);
         $added = $cache->add($key, 0, self::DECAY_SECONDS);
-        $attempts = (int) $cache->increment($key);
+        $attempts = $this->integerCacheValue($cache->increment($key));
 
         if (! $added && $attempts === 1) {
             $cache->put($key, 1, self::DECAY_SECONDS);
@@ -55,10 +55,10 @@ class HealthThrottle
 
         $response = $next($request);
 
-        return $response->withHeaders([
-            'X-RateLimit-Limit' => (string) self::MAX_ATTEMPTS,
-            'X-RateLimit-Remaining' => (string) max(0, self::MAX_ATTEMPTS - $attempts),
-        ]);
+        $response->headers->set('X-RateLimit-Limit', (string) self::MAX_ATTEMPTS);
+        $response->headers->set('X-RateLimit-Remaining', (string) max(0, self::MAX_ATTEMPTS - $attempts));
+
+        return $response;
     }
 
     private function buildLimitedResponse(int $retryAfter): JsonResponse
@@ -84,5 +84,18 @@ class HealthThrottle
         $scope = trim($request->path(), '/');
 
         return 'health|'.$request->ip().'|'.$scope;
+    }
+
+    private function integerCacheValue(mixed $value): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && preg_match('/\A-?\d+\z/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return 0;
     }
 }

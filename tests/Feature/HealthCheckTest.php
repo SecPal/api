@@ -228,16 +228,30 @@ describe('Health Check Endpoints', function () {
             assertPublicReadinessResponse($response, 503, 'not_ready');
         });
 
-        it('returns 503 instead of 500 when database connectivity throws a non-exception throwable', function () {
+        it('returns 503 instead of 500 when database connectivity is broken', function () {
             seedHealthReadinessPrerequisites();
             app(RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();
 
-            DB::partialMock()
-                ->shouldReceive('connection->getPdo')
-                ->once()
-                ->andThrow(new TypeError('Database password must be a string.'));
+            $connection = config('database.default');
+            expect($connection)->toBeString();
 
-            $response = $this->getJson('/health/ready');
+            $originalConnectionConfig = config("database.connections.{$connection}");
+            expect($originalConnectionConfig)->toBeArray();
+
+            config([
+                "database.connections.{$connection}.host" => '127.0.0.1',
+                "database.connections.{$connection}.port" => '1',
+                "database.connections.{$connection}.url" => null,
+            ]);
+
+            DB::purge($connection);
+
+            try {
+                $response = $this->getJson('/health/ready');
+            } finally {
+                config(["database.connections.{$connection}" => $originalConnectionConfig]);
+                DB::purge($connection);
+            }
 
             assertPublicReadinessResponse($response, 503, 'not_ready');
         });
