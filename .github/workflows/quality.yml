@@ -17,7 +17,7 @@ permissions:
 jobs:
   reuse:
     name: Check REUSE Compliance
-    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@084b2ab764a6e6b0a865f66853e7421ff4c02434
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@2cc65df6215af0c4238d2d463869cfebfdc246ba
 
   license-compatibility:
     name: Check License Compatibility
@@ -49,7 +49,7 @@ jobs:
 
   markdown-lint:
     name: Markdown Lint
-    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@084b2ab764a6e6b0a865f66853e7421ff4c02434
+    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@2cc65df6215af0c4238d2d463869cfebfdc246ba
     with:
       governance-ref: "6f8e13a7a62cee356811a7f58d6b92119941652f"
 
