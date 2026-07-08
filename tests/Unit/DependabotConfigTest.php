@@ -14,10 +14,10 @@ function dependabotConfigContents(): string
     return $contents;
 }
 
-test('dependabot keeps slash separated branch names for readable update branches', function (): void {
+test('dependabot keeps hyphen separated branch names for readable update branches', function (): void {
     $contents = dependabotConfigContents();
 
     expect($contents)
-        ->toContain('separator: "/"')
-        ->not->toContain('separator: "-"');
+        ->toContain('separator: "-"')
+        ->not->toContain('separator: "/"');
 });
