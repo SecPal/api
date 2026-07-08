@@ -35,6 +35,14 @@ updates:
       interval: "daily"
       time: "04:00"
       timezone: "Europe/Berlin"
+    groups:
+      shared-github-workflows:
+        patterns:
+          - "SecPal/.github/.github/workflows/*"
+      shared-github-workflows-security:
+        applies-to: "security-updates"
+        patterns:
+          - "SecPal/.github/.github/workflows/*"
     commit-message:
       prefix: "chore"
       include: "scope"

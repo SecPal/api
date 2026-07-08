@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- grouped Dependabot updates for `SecPal/.github/.github/workflows/*` under stable `shared-github-workflows` identifiers in `.github/dependabot.yml`, so GitHub derives readable branch names and PR titles from the group name instead of transliterating the full reusable-workflow path into long `SecPal-dot-github-dot-...` strings
 - restored Dependabot pull request branch names to the standard hyphen-separated format in `.github/dependabot.yml`, so GitHub Actions, Composer, and npm update branches no longer expand into deep slash-separated paths like `dependabot/github_actions/main/...`
 - fixed SQLite-backed setup/test migrations that still issued PostgreSQL-only `ALTER TABLE ... CONSTRAINT` rewrites, including the admin-to-manage scope cleanup, employee address constraints, and user-deletion audit-history foreign-key updates, so `migrate:fresh` can progress on SQLite worktrees without aborting on unsupported DDL
 - `GET /v1/activity-logs?search=...` now searches persisted customer/site subject metadata in addition to `description`, and customer/site CRUD logs now persist the entity display name plus canonical identifier into activity `properties`, so the existing frontend search can reliably find create/delete history by customer name, site name, or identifier without any frontend contract change (fixes `api#1213`)

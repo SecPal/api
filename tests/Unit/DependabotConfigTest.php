@@ -21,3 +21,14 @@ test('dependabot keeps hyphen separated branch names for readable update branche
         ->toContain('separator: "-"')
         ->not->toContain('separator: "/"');
 });
+
+test('dependabot groups shared github workflow updates under stable readable identifiers', function (): void {
+    $contents = dependabotConfigContents();
+
+    expect($contents)
+        ->toContain('shared-github-workflows:')
+        ->toContain('shared-github-workflows-security:')
+        ->toContain('patterns:')
+        ->toContain('- "SecPal/.github/.github/workflows/*"')
+        ->toContain('applies-to: "security-updates"');
+});
