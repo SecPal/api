@@ -55,7 +55,7 @@ jobs:
 
   ai-instructions:
     name: AI Instructions
-    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@3505a1da91e8b5cca4e34a024f1d35a7a792149e
+    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@153d3eadf194f25b1f85023c333151e4daa5d6b7
     with:
       governance-ref: "6f8e13a7a62cee356811a7f58d6b92119941652f"
 
