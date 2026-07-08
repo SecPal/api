@@ -26,7 +26,7 @@ updates:
     rebase-strategy: "auto"
     target-branch: "main"
     pull-request-branch-name:
-      separator: "/"
+      separator: "-"
 
   # GitHub Actions - Workflow dependencies
   - package-ecosystem: "github-actions"
@@ -46,7 +46,7 @@ updates:
     rebase-strategy: "auto"
     target-branch: "main"
     pull-request-branch-name:
-      separator: "/"
+      separator: "-"
 
   # npm - JavaScript dependencies (if frontend assets exist)
   - package-ecosystem: "npm"
@@ -67,4 +67,4 @@ updates:
     rebase-strategy: "auto"
     target-branch: "main"
     pull-request-branch-name:
-      separator: "/"
+      separator: "-"
