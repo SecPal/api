@@ -17,7 +17,7 @@ permissions:
 jobs:
   reuse:
     name: Check REUSE Compliance
-    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@3505a1da91e8b5cca4e34a024f1d35a7a792149e
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@153d3eadf194f25b1f85023c333151e4daa5d6b7
 
   license-compatibility:
     name: Check License Compatibility
