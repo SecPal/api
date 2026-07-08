@@ -17,7 +17,7 @@ permissions:
 jobs:
   reuse:
     name: Check REUSE Compliance
-    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@3505a1da91e8b5cca4e34a024f1d35a7a792149e
+    uses: SecPal/.github/.github/workflows/reusable-reuse.yml@153d3eadf194f25b1f85023c333151e4daa5d6b7
 
   license-compatibility:
     name: Check License Compatibility
@@ -49,19 +49,19 @@ jobs:
 
   markdown-lint:
     name: Markdown Lint
-    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@1bf6ae05a4dc64a916aad5e5f687e502ffb90fcd
+    uses: SecPal/.github/.github/workflows/reusable-markdown-lint.yml@153d3eadf194f25b1f85023c333151e4daa5d6b7
     with:
       governance-ref: "6f8e13a7a62cee356811a7f58d6b92119941652f"
 
   ai-instructions:
     name: AI Instructions
-    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@3505a1da91e8b5cca4e34a024f1d35a7a792149e
+    uses: SecPal/.github/.github/workflows/reusable-ai-instructions.yml@153d3eadf194f25b1f85023c333151e4daa5d6b7
     with:
       governance-ref: "6f8e13a7a62cee356811a7f58d6b92119941652f"
 
   pint:
     name: Laravel Pint
-    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@3505a1da91e8b5cca4e34a024f1d35a7a792149e
+    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@153d3eadf194f25b1f85023c333151e4daa5d6b7
     with:
       php-version: "8.4"
 
