@@ -76,8 +76,19 @@ class StoreOrganizationalUnitRequest extends FormRequest
             'custom_type_name' => ['nullable', 'string', 'max:255', 'required_if:type,custom'],
             'description' => ['nullable', 'string', 'max:1000'],
             'metadata' => ['nullable', 'array'],
+            'is_legal_entity' => ['sometimes', $this->strictBooleanRule()],
+            'is_establishment' => ['sometimes', $this->strictBooleanRule()],
             'parent_id' => ['nullable', 'uuid', Rule::exists(OrganizationalUnit::class, 'id')],
         ];
+    }
+
+    private function strictBooleanRule(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            if (! is_bool($value)) {
+                $fail("The {$attribute} field must be true or false.");
+            }
+        };
     }
 
     /**

@@ -34,6 +34,8 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
         expect(Schema::hasColumn('organizational_units', 'custom_type_name'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'description'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'metadata'))->toBeTrue();
+        expect(Schema::hasColumn('organizational_units', 'is_legal_entity'))->toBeTrue();
+        expect(Schema::hasColumn('organizational_units', 'is_establishment'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'created_at'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'updated_at'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'deleted_at'))->toBeTrue();
@@ -46,6 +48,46 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
         expect($indexColumns)->toContain('tenant_id');
         expect($indexColumns)->toContain('type');
         expect($indexColumns)->toContain('deleted_at');
+        expect($indexColumns)->not->toContain('is_legal_entity');
+        expect($indexColumns)->not->toContain('is_establishment');
+    });
+
+    test('organizational status flag columns are required booleans with false defaults', function (): void {
+        $columns = collect(Schema::getColumns('organizational_units'))->keyBy('name');
+
+        expect($columns->get('is_legal_entity'))->not->toBeNull()
+            ->and($columns->get('is_legal_entity')['nullable'])->toBeFalse()
+            ->and($columns->get('is_legal_entity')['default'])->toBeIn([false, 'false', 0, '0'])
+            ->and($columns->get('is_establishment'))->not->toBeNull()
+            ->and($columns->get('is_establishment')['nullable'])->toBeFalse()
+            ->and($columns->get('is_establishment')['default'])->toBeIn([false, 'false', 0, '0']);
+    });
+
+    test('status flag migration assigns false to existing organizational units', function (): void {
+        $keys = TenantKey::generateEnvelopeKeys();
+        $tenant = TenantKey::create($keys);
+        $unitId = Str::uuid()->toString();
+
+        Schema::table('organizational_units', function ($table): void {
+            $table->dropColumn(['is_legal_entity', 'is_establishment']);
+        });
+
+        DB::table('organizational_units')->insert([
+            'id' => $unitId,
+            'tenant_id' => $tenant->id,
+            'name' => 'Existing Unit',
+            'type' => 'company',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_07_10_000000_add_status_flags_to_organizational_units_table.php');
+        $migration->up();
+
+        $unit = DB::table('organizational_units')->where('id', $unitId)->first();
+
+        expect((bool) $unit->is_legal_entity)->toBeFalse()
+            ->and((bool) $unit->is_establishment)->toBeFalse();
     });
 
     test('type column accepts valid enum values', function (): void {

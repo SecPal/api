@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 namespace App\Http\Requests\Api;
@@ -39,6 +39,17 @@ class UpdateOrganizationalUnitRequest extends FormRequest
             'custom_type_name' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'metadata' => ['nullable', 'array'],
+            'is_legal_entity' => ['sometimes', $this->strictBooleanRule()],
+            'is_establishment' => ['sometimes', $this->strictBooleanRule()],
         ];
+    }
+
+    private function strictBooleanRule(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            if (! is_bool($value)) {
+                $fail("The {$attribute} field must be true or false.");
+            }
+        };
     }
 }

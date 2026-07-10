@@ -189,7 +189,7 @@ class OrganizationalUnitController extends Controller
             $this->authorize('createRoot', OrganizationalUnit::class);
         }
 
-        /** @var array{name: string, type: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null, parent_id?: string|null} $validated */
+        /** @var array{name: string, type: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null, is_legal_entity?: bool, is_establishment?: bool, parent_id?: string|null} $validated */
         $validated = $request->validated();
 
         $unit = OrganizationalUnit::create([
@@ -199,6 +199,8 @@ class OrganizationalUnitController extends Controller
             'custom_type_name' => $validated['custom_type_name'] ?? null,
             'description' => $validated['description'] ?? null,
             'metadata' => $validated['metadata'] ?? null,
+            'is_legal_entity' => $validated['is_legal_entity'] ?? false,
+            'is_establishment' => $validated['is_establishment'] ?? false,
         ]);
 
         // Attach parent if specified
@@ -241,7 +243,7 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('update', $organizational_unit);
 
-        /** @var array{name?: string, type?: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null} $validated */
+        /** @var array{name?: string, type?: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null, is_legal_entity?: bool, is_establishment?: bool} $validated */
         $validated = $request->validated();
 
         $organizational_unit->update($validated);
