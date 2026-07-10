@@ -50,6 +50,10 @@ class OrganizationalUnitSeeder extends Seeder
                 'description' => 'Main holding company for SecPal Group',
             ]
         );
+        $holding->update([
+            'is_legal_entity' => true,
+            'is_establishment' => true,
+        ]);
 
         // Ensure self-reference in closure table
         $this->ensureSelfReference($holding);

@@ -46,6 +46,8 @@ class OrganizationalUnitFactory extends Factory
             'custom_type_name' => null,
             'description' => fake()->optional()->sentence(),
             'metadata' => null,
+            'is_legal_entity' => false,
+            'is_establishment' => false,
         ];
     }
 

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added independent organizational-unit `is_legal_entity` and `is_establishment` API flags with false defaults, strict boolean create/update validation, persistence, resource serialization, and focused Pest coverage (refs `api#1259`)
 - added the SecPal AGPL attribution additional terms in `LICENSES/LicenseRef-SecPal-Attribution.txt`, updated project-owned AGPL SPDX metadata to `AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`, standardized touched AGPL copyright headers to `SecPal Contributors`, and documented the section 7(b)/(c) attribution requirements in the licensing/contributor guides (refs `api#1219`)
 - added a public unauthenticated `GET /v1/release` endpoint that returns only the currently deployed API release version plus immutable corresponding-source URL, so the frontend can identify the active backend release without widening the existing AGPL/source-offer metadata surface
 - added a public unauthenticated `GET /v1/source` AGPL source-offer endpoint that keeps the canonical license, repository, copyright, and warranty payload while also returning explicit network-use source-offer notices for SecPal users
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- seed the SecPal Holding organizational unit as both a legal entity and establishment, including repairing the flags when the unit already exists
 - grouped Dependabot updates for `SecPal/.github/.github/workflows/*` under stable `shared-github-workflows` identifiers in `.github/dependabot.yml`, so GitHub derives readable branch names and PR titles from the group name instead of transliterating the full reusable-workflow path into long `SecPal-dot-github-dot-...` strings
 - restored Dependabot pull request branch names to the standard hyphen-separated format in `.github/dependabot.yml`, so GitHub Actions, Composer, and npm update branches no longer expand into deep slash-separated paths like `dependabot/github_actions/main/...`
 - fixed SQLite-backed setup/test migrations that still issued PostgreSQL-only `ALTER TABLE ... CONSTRAINT` rewrites, including the admin-to-manage scope cleanup, employee address constraints, and user-deletion audit-history foreign-key updates, so `migrate:fresh` can progress on SQLite worktrees without aborting on unsupported DDL

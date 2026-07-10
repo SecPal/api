@@ -98,11 +98,27 @@ describe('OrganizationalUnitController - List', function () {
         $response->assertOk()
             ->assertJsonStructure([
                 'data' => [
-                    '*' => ['id', 'name', 'type', 'created_at', 'updated_at'],
+                    '*' => ['id', 'name', 'type', 'is_legal_entity', 'is_establishment', 'created_at', 'updated_at'],
                 ],
                 'meta' => ['current_page', 'last_page', 'per_page', 'total', 'root_unit_ids'],
             ])
             ->assertJsonCount(3, 'data'); // root + 2 created
+    });
+
+    test('list response includes independent status flags', function () {
+        $this->rootUnit->update([
+            'is_legal_entity' => true,
+            'is_establishment' => false,
+        ]);
+
+        $response = getJson('/v1/organizational-units');
+
+        $response->assertOk()
+            ->assertJsonFragment([
+                'id' => $this->rootUnit->id,
+                'is_legal_entity' => true,
+                'is_establishment' => false,
+            ]);
     });
 
     test('list organizational units respects pagination', function () {
@@ -257,13 +273,53 @@ describe('OrganizationalUnitController - Create', function () {
         $response->assertCreated()
             ->assertJsonPath('data.name', 'New Department')
             ->assertJsonPath('data.type', 'department')
-            ->assertJsonPath('data.description', 'A new department');
+            ->assertJsonPath('data.description', 'A new department')
+            ->assertJsonPath('data.is_legal_entity', false)
+            ->assertJsonPath('data.is_establishment', false);
 
         $this->assertDatabaseHas('organizational_units', [
             'name' => 'New Department',
             'type' => 'department',
             'tenant_id' => $this->tenant->id,
+            'is_legal_entity' => false,
+            'is_establishment' => false,
         ]);
+    });
+
+    test('create accepts all independent status flag combinations', function (bool $isLegalEntity, bool $isEstablishment) {
+        $response = postJson('/v1/organizational-units', [
+            'name' => sprintf('Status Unit %s %s', $isLegalEntity ? 'legal' : 'not-legal', $isEstablishment ? 'establishment' : 'not-establishment'),
+            'type' => 'department',
+            'is_legal_entity' => $isLegalEntity,
+            'is_establishment' => $isEstablishment,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.is_legal_entity', $isLegalEntity)
+            ->assertJsonPath('data.is_establishment', $isEstablishment);
+
+        $this->assertDatabaseHas('organizational_units', [
+            'id' => $response->json('data.id'),
+            'is_legal_entity' => $isLegalEntity,
+            'is_establishment' => $isEstablishment,
+        ]);
+    })->with([
+        'neither' => [false, false],
+        'legal entity only' => [true, false],
+        'establishment only' => [false, true],
+        'both' => [true, true],
+    ]);
+
+    test('create strictly validates status flags as booleans', function () {
+        postJson('/v1/organizational-units', [
+            'name' => 'Invalid Status Unit',
+            'type' => 'department',
+            'is_legal_entity' => 'true',
+            'is_establishment' => 1,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_legal_entity', 'is_establishment'])
+            ->assertJsonPath('errors.is_legal_entity.0', 'The is_legal_entity field must be a JSON boolean (true or false).')
+            ->assertJsonPath('errors.is_establishment.0', 'The is_establishment field must be a JSON boolean (true or false).');
     });
 
     test('user can create organizational unit with parent', function () {
@@ -680,7 +736,9 @@ describe('OrganizationalUnitController - Show', function () {
         // Assert
         $response->assertOk()
             ->assertJsonPath('data.id', $this->rootUnit->id)
-            ->assertJsonPath('data.name', 'Root Company');
+            ->assertJsonPath('data.name', 'Root Company')
+            ->assertJsonPath('data.is_legal_entity', false)
+            ->assertJsonPath('data.is_establishment', false);
     });
 
     test('show response exposes action permissions and accessible parent data', function () {
@@ -738,12 +796,64 @@ describe('OrganizationalUnitController - Update', function () {
         // Assert
         $response->assertOk()
             ->assertJsonPath('data.name', 'Updated Company Name')
-            ->assertJsonPath('data.description', 'Updated description');
+            ->assertJsonPath('data.description', 'Updated description')
+            ->assertJsonPath('data.is_legal_entity', false)
+            ->assertJsonPath('data.is_establishment', false);
 
         $this->assertDatabaseHas('organizational_units', [
             'id' => $this->rootUnit->id,
             'name' => 'Updated Company Name',
         ]);
+    });
+
+    test('patch accepts all independent status flag combinations', function (bool $isLegalEntity, bool $isEstablishment) {
+        $response = patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'is_legal_entity' => $isLegalEntity,
+            'is_establishment' => $isEstablishment,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.is_legal_entity', $isLegalEntity)
+            ->assertJsonPath('data.is_establishment', $isEstablishment);
+
+        $this->rootUnit->refresh();
+
+        expect($this->rootUnit->is_legal_entity)->toBe($isLegalEntity)
+            ->and($this->rootUnit->is_establishment)->toBe($isEstablishment);
+    })->with([
+        'neither' => [false, false],
+        'legal entity only' => [true, false],
+        'establishment only' => [false, true],
+        'both' => [true, true],
+    ]);
+
+    test('patching one status flag leaves the other unchanged', function () {
+        $this->rootUnit->update([
+            'is_legal_entity' => true,
+            'is_establishment' => true,
+        ]);
+
+        patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'is_legal_entity' => false,
+        ])->assertOk()
+            ->assertJsonPath('data.is_legal_entity', false)
+            ->assertJsonPath('data.is_establishment', true);
+
+        patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'is_establishment' => false,
+        ])->assertOk()
+            ->assertJsonPath('data.is_legal_entity', false)
+            ->assertJsonPath('data.is_establishment', false);
+    });
+
+    test('patch strictly validates status flags as booleans', function () {
+        patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'is_legal_entity' => 'false',
+            'is_establishment' => 0,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_legal_entity', 'is_establishment'])
+            ->assertJsonPath('errors.is_legal_entity.0', 'The is_legal_entity field must be a JSON boolean (true or false).')
+            ->assertJsonPath('errors.is_establishment.0', 'The is_establishment field must be a JSON boolean (true or false).');
     });
 });
 

@@ -38,6 +38,8 @@ use Illuminate\Support\Facades\DB;
  * @property string|null $custom_type_name Custom type name when type='custom'
  * @property string|null $description Optional description
  * @property array<string, mixed>|null $metadata JSON metadata (address, phone, etc.)
+ * @property bool $is_legal_entity Independent legal-person status; not derived from hierarchy type
+ * @property bool $is_establishment Independent establishment status; not derived from hierarchy type
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
@@ -74,6 +76,8 @@ class OrganizationalUnit extends Model
         'custom_type_name',
         'description',
         'metadata',
+        'is_legal_entity',
+        'is_establishment',
     ];
 
     /**
@@ -86,6 +90,8 @@ class OrganizationalUnit extends Model
         return [
             'tenant_id' => 'integer',
             'metadata' => 'array',
+            'is_legal_entity' => 'boolean',
+            'is_establishment' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',

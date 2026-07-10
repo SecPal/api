@@ -36,10 +36,14 @@ describe('OrganizationalUnit Model', function () {
             ]);
 
             expect($unit)->toBeInstanceOf(OrganizationalUnit::class);
+            $unit->refresh();
+
             expect($unit->id)->toBeString();
             expect($unit->name)->toBe('ProSec Nord GmbH');
             expect($unit->type)->toBe('company');
             expect($unit->tenant_id)->toBe($this->tenant->id);
+            expect($unit->is_legal_entity)->toBeFalse();
+            expect($unit->is_establishment)->toBeFalse();
         });
 
         it('uses UUID for primary key', function (): void {
@@ -72,6 +76,38 @@ describe('OrganizationalUnit Model', function () {
             expect($unit->custom_type_name)->toBe('Einsatzgebiet');
             expect($unit->description)->toBe('A custom organizational unit type');
             expect($unit->metadata)->toBe($metadata);
+        });
+
+        it('mass assigns and casts independent legal status flags', function (): void {
+            $unit = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Status Unit',
+                'type' => 'company',
+                'is_legal_entity' => 1,
+                'is_establishment' => 0,
+            ]);
+
+            $unit->refresh();
+
+            expect($unit->is_legal_entity)->toBeTrue()
+                ->and($unit->is_establishment)->toBeFalse();
+
+            $unit->update([
+                'is_legal_entity' => false,
+                'is_establishment' => true,
+            ]);
+
+            $unit->refresh();
+
+            expect($unit->is_legal_entity)->toBeFalse()
+                ->and($unit->is_establishment)->toBeTrue();
+        });
+
+        it('factory uses stable false defaults for independent legal status flags', function (): void {
+            $unit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+
+            expect($unit->is_legal_entity)->toBeFalse()
+                ->and($unit->is_establishment)->toBeFalse();
         });
 
         it('casts metadata to array', function (): void {

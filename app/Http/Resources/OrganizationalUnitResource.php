@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 namespace App\Http\Resources;
@@ -36,6 +36,8 @@ class OrganizationalUnitResource extends JsonResource
             'custom_type_name' => $this->custom_type_name,
             'description' => $this->description,
             'metadata' => $this->metadata,
+            'is_legal_entity' => $this->is_legal_entity,
+            'is_establishment' => $this->is_establishment,
             'parent' => $this->transformParent($request),
             'permissions' => $this->resolvePermissions($request),
             'children' => OrganizationalUnitResource::collection($this->whenLoaded('children')),
