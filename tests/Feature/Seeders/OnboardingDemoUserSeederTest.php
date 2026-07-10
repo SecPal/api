@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Models\Employee;
+use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -27,6 +28,17 @@ beforeEach(function (): void {
 afterEach(function (): void {
     cleanupTestKekFile();
     TenantKey::setKekPath(null);
+});
+
+test('OrganizationalUnitSeeder marks SecPal Holding as a legal entity and establishment', function (): void {
+    artisan('db:seed', ['--class' => OrganizationalUnitSeeder::class]);
+
+    $holding = OrganizationalUnit::query()
+        ->where('name', 'SecPal Holding')
+        ->firstOrFail();
+
+    expect($holding->is_legal_entity)->toBeTrue()
+        ->and($holding->is_establishment)->toBeTrue();
 });
 
 test('OnboardingDemoUserSeeder creates pre-contract employee at SecPal Holding', function (): void {

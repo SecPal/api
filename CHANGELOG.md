@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- seed the SecPal Holding organizational unit as both a legal entity and establishment by default
 - grouped Dependabot updates for `SecPal/.github/.github/workflows/*` under stable `shared-github-workflows` identifiers in `.github/dependabot.yml`, so GitHub derives readable branch names and PR titles from the group name instead of transliterating the full reusable-workflow path into long `SecPal-dot-github-dot-...` strings
 - restored Dependabot pull request branch names to the standard hyphen-separated format in `.github/dependabot.yml`, so GitHub Actions, Composer, and npm update branches no longer expand into deep slash-separated paths like `dependabot/github_actions/main/...`
 - fixed SQLite-backed setup/test migrations that still issued PostgreSQL-only `ALTER TABLE ... CONSTRAINT` rewrites, including the admin-to-manage scope cleanup, employee address constraints, and user-deletion audit-history foreign-key updates, so `migrate:fresh` can progress on SQLite worktrees without aborting on unsupported DDL

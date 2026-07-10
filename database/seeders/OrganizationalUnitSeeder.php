@@ -48,6 +48,8 @@ class OrganizationalUnitSeeder extends Seeder
             [
                 'type' => 'holding',
                 'description' => 'Main holding company for SecPal Group',
+                'is_legal_entity' => true,
+                'is_establishment' => true,
             ]
         );
 
