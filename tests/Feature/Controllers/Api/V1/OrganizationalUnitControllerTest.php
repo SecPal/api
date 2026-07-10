@@ -114,8 +114,11 @@ describe('OrganizationalUnitController - List', function () {
         $response = getJson('/v1/organizational-units');
 
         $response->assertOk()
-            ->assertJsonPath('data.0.is_legal_entity', true)
-            ->assertJsonPath('data.0.is_establishment', false);
+            ->assertJsonFragment([
+                'id' => $this->rootUnit->id,
+                'is_legal_entity' => true,
+                'is_establishment' => false,
+            ]);
     });
 
     test('list organizational units respects pagination', function () {
@@ -314,7 +317,9 @@ describe('OrganizationalUnitController - Create', function () {
             'is_legal_entity' => 'true',
             'is_establishment' => 1,
         ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['is_legal_entity', 'is_establishment']);
+            ->assertJsonValidationErrors(['is_legal_entity', 'is_establishment'])
+            ->assertJsonPath('errors.is_legal_entity.0', 'The is_legal_entity field must be a JSON boolean (true or false).')
+            ->assertJsonPath('errors.is_establishment.0', 'The is_establishment field must be a JSON boolean (true or false).');
     });
 
     test('user can create organizational unit with parent', function () {
@@ -846,7 +851,9 @@ describe('OrganizationalUnitController - Update', function () {
             'is_legal_entity' => 'false',
             'is_establishment' => 0,
         ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['is_legal_entity', 'is_establishment']);
+            ->assertJsonValidationErrors(['is_legal_entity', 'is_establishment'])
+            ->assertJsonPath('errors.is_legal_entity.0', 'The is_legal_entity field must be a JSON boolean (true or false).')
+            ->assertJsonPath('errors.is_establishment.0', 'The is_establishment field must be a JSON boolean (true or false).');
     });
 });
 

@@ -48,7 +48,7 @@ class UpdateOrganizationalUnitRequest extends FormRequest
     {
         return function (string $attribute, mixed $value, \Closure $fail): void {
             if (! is_bool($value)) {
-                $fail("The {$attribute} field must be true or false.");
+                $fail("The {$attribute} field must be a JSON boolean (true or false).");
             }
         };
     }
