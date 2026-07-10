@@ -41,6 +41,26 @@ test('OrganizationalUnitSeeder marks SecPal Holding as a legal entity and establ
         ->and($holding->is_establishment)->toBeTrue();
 });
 
+test('OrganizationalUnitSeeder repairs status flags on an existing SecPal Holding', function (): void {
+    artisan('db:seed', ['--class' => OrganizationalUnitSeeder::class]);
+
+    $holding = OrganizationalUnit::query()
+        ->where('name', 'SecPal Holding')
+        ->firstOrFail();
+
+    $holding->update([
+        'is_legal_entity' => false,
+        'is_establishment' => false,
+    ]);
+
+    artisan('db:seed', ['--class' => OrganizationalUnitSeeder::class]);
+
+    $holding->refresh();
+
+    expect($holding->is_legal_entity)->toBeTrue()
+        ->and($holding->is_establishment)->toBeTrue();
+});
+
 test('OnboardingDemoUserSeeder creates pre-contract employee at SecPal Holding', function (): void {
     artisan('db:seed', ['--class' => OrganizationalUnitSeeder::class]);
     artisan('db:seed', ['--class' => OnboardingDemoUserSeeder::class]);

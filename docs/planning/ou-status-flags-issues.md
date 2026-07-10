@@ -13,15 +13,15 @@ US-001 prepared the repository-crossing organizational-unit status flag work as 
 
 The epic defines two independent booleans:
 
-- `is_active`: whether the organizational unit is administratively active.
-- `is_assignable`: whether the organizational unit can be selected for new operational assignments, scopes, or related workflows.
+- `is_legal_entity`: whether the organizational unit is a legal entity.
+- `is_establishment`: whether the organizational unit is an establishment.
 
 Neither flag is derived from the other, from hierarchy, from soft deletion, or from the organizational-unit type.
 
 ## Sub-Issues
 
 - SecPal/contracts#338: define the public request and response contract.
-- SecPal/api#1259: persist, validate, expose, filter, and test the flags in the API.
+- SecPal/api#1259: persist, validate, expose, and test the flags in the API.
 - SecPal/frontend#1361: consume, display, edit, cache, and test the flags in the frontend.
 
 ## Branch And PR Boundaries
