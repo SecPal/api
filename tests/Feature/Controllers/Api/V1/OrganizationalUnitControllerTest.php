@@ -420,6 +420,39 @@ describe('OrganizationalUnitController - Create', function () {
         ]);
     });
 
+    test('creates a bootstrap manage scope for an unassignable root unit', function (): void {
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Unassignable Root',
+            'type' => 'holding',
+            'is_assignable' => false,
+        ]);
+
+        $response->assertCreated();
+
+        $this->assertDatabaseHas('user_internal_organizational_scopes', [
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $response->json('data.id'),
+            'access_level' => 'manage',
+        ]);
+    });
+
+    test('creates a bootstrap manage scope for an unassignable child unit', function (): void {
+        $response = postJson('/v1/organizational-units', [
+            'name' => 'Unassignable Child',
+            'type' => 'department',
+            'parent_id' => $this->rootUnit->id,
+            'is_assignable' => false,
+        ]);
+
+        $response->assertCreated();
+
+        $this->assertDatabaseHas('user_internal_organizational_scopes', [
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $response->json('data.id'),
+            'access_level' => 'manage',
+        ]);
+    });
+
     test('create organizational unit requires name', function () {
         // Arrange
         $data = ['type' => 'department'];

@@ -429,6 +429,29 @@ describe('GET /v1/sites', function () {
 });
 
 describe('POST /v1/sites', function () {
+    test('rejects site placement in a non-assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
+        $this->orgUnit->update(['is_assignable' => false]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/sites', [
+                'name' => 'Airport Terminal 1',
+                'customer_id' => $this->customer->id,
+                'organizational_unit_id' => $this->orgUnit->id,
+                'type' => 'permanent',
+                'address' => [
+                    'street' => 'Airport Ring 1',
+                    'city' => 'Berlin',
+                    'postal_code' => '12529',
+                    'country' => 'DE',
+                ],
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id'])
+            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
+    });
+
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson('/v1/sites', [
             'name' => 'New Site',
@@ -891,6 +914,29 @@ describe('GET /v1/sites/{site}', function () {
 });
 
 describe('PATCH /v1/sites/{site}', function () {
+    test('rejects moving a site to a non-assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+
+        $unassignableUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_assignable' => false,
+        ]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/sites/{$site->id}", [
+                'organizational_unit_id' => $unassignableUnit->id,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id'])
+            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
+    });
+
     test('returns 401 when not authenticated', function (): void {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,

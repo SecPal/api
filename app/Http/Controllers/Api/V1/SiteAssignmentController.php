@@ -14,8 +14,10 @@ use App\Http\Resources\Api\V1\SiteAssignmentResource;
 use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Models\User;
+use App\Rules\AssignableOrganizationalUnit;
 use App\Services\EmployeeComplianceService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -74,6 +76,12 @@ class SiteAssignmentController extends AssignmentController
     public function store(StoreSiteAssignmentRequest $request, Site $site, EmployeeComplianceService $complianceService): JsonResponse
     {
         $this->authorize('create', [SiteAssignment::class, $site]);
+
+        if ($site->organizationalUnit?->is_assignable === false) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
+        }
 
         $validated = $request->validated();
         $validated['tenant_id'] = $request->input('tenant_id');

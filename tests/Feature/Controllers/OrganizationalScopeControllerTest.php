@@ -139,6 +139,25 @@ describe('OrganizationalScopeController', function () {
     });
 
     describe('store - POST /organizational-units/{unit}/scopes', function () {
+        it('rejects scope assignments to a non-assignable organizational unit', function (): void {
+            $this->company->update(['is_assignable' => false]);
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => $this->targetUser->id,
+                'access_level' => 'write',
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['organizational_unit_id'])
+                ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
+
+            $this->assertDatabaseMissing('user_internal_organizational_scopes', [
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->company->id,
+            ]);
+        });
+
         it('creates a scope assignment when user has scope-management access', function (): void {
             givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 

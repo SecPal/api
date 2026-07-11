@@ -12,8 +12,10 @@ use App\Http\Requests\UpdateOrganizationalScopeRequest;
 use App\Models\OrganizationalUnit;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Illuminate\Validation\ValidationException;
 
 /**
  * OrganizationalScopeController handles CRUD operations for user organizational scope assignments.
@@ -104,6 +106,12 @@ class OrganizationalScopeController extends Controller
     public function store(StoreOrganizationalScopeRequest $request, OrganizationalUnit $organizational_unit): JsonResponse
     {
         $this->authorize('manageScopes', $organizational_unit);
+
+        if (! $organizational_unit->is_assignable) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
+        }
 
         /** @var array{user_id: string, access_level: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();

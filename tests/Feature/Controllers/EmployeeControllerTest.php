@@ -466,6 +466,28 @@ describe('GET /v1/employees', function () {
 });
 
 describe('POST /v1/employees', function () {
+    test('rejects employee placement in a non-assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+        $this->organizationalUnit->update(['is_assignable' => false]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'Nina',
+                'last_name' => 'Newhire',
+                'email' => 'nina.newhire@example.com',
+                'date_of_birth' => '1993-05-15',
+                'position' => 'Security Guard',
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->addWeek()->toDateString(),
+                'organizational_unit_id' => $this->organizationalUnit->id,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id'])
+            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
+    });
+
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson('/v1/employees', [
             'first_name' => 'John',
@@ -1239,6 +1261,30 @@ describe('GET /v1/employees/{employee}', function () {
 });
 
 describe('PATCH /v1/employees/{employee}', function () {
+    test('rejects moving an employee to a non-assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $unassignableUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_assignable' => false,
+        ]);
+        grantDualManagementScopes($this->user, $unassignableUnit->id);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'organizational_unit_id' => $unassignableUnit->id,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id'])
+            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
+    });
+
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,

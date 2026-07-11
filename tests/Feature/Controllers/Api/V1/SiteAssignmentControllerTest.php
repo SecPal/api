@@ -207,6 +207,32 @@ describe('GET /v1/sites/{site}/assignments', function () {
 });
 
 describe('POST /v1/sites/{site}/assignments', function () {
+    test('rejects assignments for a site in a non-assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+
+        OrganizationalUnit::query()
+            ->findOrFail($this->site->organizational_unit_id)
+            ->update(['is_assignable' => false]);
+        $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $response = $this->withToken($this->token)
+            ->postJson("/v1/sites/{$this->site->id}/assignments", [
+                'user_id' => $targetUser->id,
+                'role' => 'Site Manager',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id'])
+            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
+
+        $this->assertDatabaseMissing('site_assignments', [
+            'site_id' => $this->site->id,
+            'user_id' => $targetUser->id,
+            'role' => 'Site Manager',
+        ]);
+    });
+
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson("/v1/sites/{$this->site->id}/assignments", []);
         $response->assertStatus(401);

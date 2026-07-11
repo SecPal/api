@@ -6,6 +6,7 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Site;
+use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -63,6 +64,7 @@ class StoreSiteRequest extends FormRequest
                 'uuid',
                 Rule::exists('organizational_units', 'id')
                     ->where('tenant_id', $tenantId),
+                new AssignableOrganizationalUnit($tenantId),
             ],
             'type' => ['required', 'in:permanent,temporary'],
             'address' => ['required', 'array'],
