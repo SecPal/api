@@ -53,6 +53,8 @@ class UpdateOrganizationalUnitRequest extends FormRequest
             'metadata' => ['nullable', 'array'],
             'is_legal_entity' => ['sometimes', $this->strictBooleanRule()],
             'is_establishment' => ['sometimes', $this->strictBooleanRule()],
+            'is_active' => ['sometimes', $this->strictBooleanRule()],
+            'is_assignable' => ['sometimes', $this->strictBooleanRule()],
         ];
     }
 

@@ -98,7 +98,7 @@ describe('OrganizationalUnitController - List', function () {
         $response->assertOk()
             ->assertJsonStructure([
                 'data' => [
-                    '*' => ['id', 'name', 'type', 'is_legal_entity', 'is_establishment', 'created_at', 'updated_at'],
+                    '*' => ['id', 'name', 'type', 'is_legal_entity', 'is_establishment', 'is_active', 'is_assignable', 'created_at', 'updated_at'],
                 ],
                 'meta' => ['current_page', 'last_page', 'per_page', 'total', 'root_unit_ids'],
             ])
@@ -119,6 +119,32 @@ describe('OrganizationalUnitController - List', function () {
                 'is_legal_entity' => true,
                 'is_establishment' => false,
             ]);
+    });
+
+    test('list organizational units filters independent status flags', function () {
+        $inactiveAssignable = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_active' => false,
+            'is_assignable' => true,
+        ]);
+        $inactiveAssignable->setParent($this->rootUnit);
+
+        $activeUnassignable = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_active' => true,
+            'is_assignable' => false,
+        ]);
+        $activeUnassignable->setParent($this->rootUnit);
+
+        getJson('/v1/organizational-units?is_active=false')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $inactiveAssignable->id);
+
+        getJson('/v1/organizational-units?is_assignable=false')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $activeUnassignable->id);
     });
 
     test('list organizational units respects pagination', function () {
@@ -275,7 +301,9 @@ describe('OrganizationalUnitController - Create', function () {
             ->assertJsonPath('data.type', 'department')
             ->assertJsonPath('data.description', 'A new department')
             ->assertJsonPath('data.is_legal_entity', false)
-            ->assertJsonPath('data.is_establishment', false);
+            ->assertJsonPath('data.is_establishment', false)
+            ->assertJsonPath('data.is_active', true)
+            ->assertJsonPath('data.is_assignable', true);
 
         $this->assertDatabaseHas('organizational_units', [
             'name' => 'New Department',
@@ -283,6 +311,8 @@ describe('OrganizationalUnitController - Create', function () {
             'tenant_id' => $this->tenant->id,
             'is_legal_entity' => false,
             'is_establishment' => false,
+            'is_active' => true,
+            'is_assignable' => true,
         ]);
     });
 
@@ -320,6 +350,40 @@ describe('OrganizationalUnitController - Create', function () {
             ->assertJsonValidationErrors(['is_legal_entity', 'is_establishment'])
             ->assertJsonPath('errors.is_legal_entity.0', 'The is_legal_entity field must be a JSON boolean (true or false).')
             ->assertJsonPath('errors.is_establishment.0', 'The is_establishment field must be a JSON boolean (true or false).');
+    });
+
+    test('create accepts all independent operational status flag combinations', function (bool $isActive, bool $isAssignable) {
+        $response = postJson('/v1/organizational-units', [
+            'name' => sprintf('Operational Status Unit %s %s', $isActive ? 'active' : 'inactive', $isAssignable ? 'assignable' : 'unassignable'),
+            'type' => 'department',
+            'is_active' => $isActive,
+            'is_assignable' => $isAssignable,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.is_active', $isActive)
+            ->assertJsonPath('data.is_assignable', $isAssignable);
+
+        $this->assertDatabaseHas('organizational_units', [
+            'id' => $response->json('data.id'),
+            'is_active' => $isActive,
+            'is_assignable' => $isAssignable,
+        ]);
+    })->with([
+        'inactive and unassignable' => [false, false],
+        'active only' => [true, false],
+        'assignable only' => [false, true],
+        'active and assignable' => [true, true],
+    ]);
+
+    test('create strictly validates operational status flags as booleans', function () {
+        postJson('/v1/organizational-units', [
+            'name' => 'Invalid Operational Status Unit',
+            'type' => 'department',
+            'is_active' => 'true',
+            'is_assignable' => 1,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_active', 'is_assignable']);
     });
 
     test('user can create organizational unit with parent', function () {
@@ -738,7 +802,9 @@ describe('OrganizationalUnitController - Show', function () {
             ->assertJsonPath('data.id', $this->rootUnit->id)
             ->assertJsonPath('data.name', 'Root Company')
             ->assertJsonPath('data.is_legal_entity', false)
-            ->assertJsonPath('data.is_establishment', false);
+            ->assertJsonPath('data.is_establishment', false)
+            ->assertJsonPath('data.is_active', true)
+            ->assertJsonPath('data.is_assignable', true);
     });
 
     test('show response exposes action permissions and accessible parent data', function () {
@@ -911,6 +977,33 @@ describe('OrganizationalUnitController - Update', function () {
             ->assertJsonValidationErrors(['is_legal_entity', 'is_establishment'])
             ->assertJsonPath('errors.is_legal_entity.0', 'The is_legal_entity field must be a JSON boolean (true or false).')
             ->assertJsonPath('errors.is_establishment.0', 'The is_establishment field must be a JSON boolean (true or false).');
+    });
+
+    test('patch accepts all independent operational status flag combinations', function (bool $isActive, bool $isAssignable) {
+        patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'is_active' => $isActive,
+            'is_assignable' => $isAssignable,
+        ])->assertOk()
+            ->assertJsonPath('data.is_active', $isActive)
+            ->assertJsonPath('data.is_assignable', $isAssignable);
+
+        $this->rootUnit->refresh();
+
+        expect($this->rootUnit->is_active)->toBe($isActive)
+            ->and($this->rootUnit->is_assignable)->toBe($isAssignable);
+    })->with([
+        'inactive and unassignable' => [false, false],
+        'active only' => [true, false],
+        'assignable only' => [false, true],
+        'active and assignable' => [true, true],
+    ]);
+
+    test('patch strictly validates operational status flags as booleans', function () {
+        patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'is_active' => 'false',
+            'is_assignable' => 0,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_active', 'is_assignable']);
     });
 });
 
@@ -1301,6 +1394,8 @@ describe('OrganizationalUnitController - Hierarchy', function () {
             'tenant_id' => $this->tenant->id,
             'name' => 'Child Unit',
             'type' => 'department',
+            'is_active' => false,
+            'is_assignable' => true,
         ]);
         $child->setParent($this->rootUnit);
 
@@ -1316,11 +1411,21 @@ describe('OrganizationalUnitController - Hierarchy', function () {
 
         // Assert
         $response->assertOk()
-            ->assertJsonCount(2, 'data');
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment([
+                'id' => $child->id,
+                'is_active' => false,
+                'is_assignable' => true,
+            ]);
     });
 
     test('user can get ancestors of unit', function () {
         // Arrange: Create hierarchy
+        $this->rootUnit->update([
+            'is_active' => true,
+            'is_assignable' => false,
+        ]);
+
         $child = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'name' => 'Child Unit',
@@ -1334,7 +1439,9 @@ describe('OrganizationalUnitController - Hierarchy', function () {
         // Assert
         $response->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $this->rootUnit->id);
+            ->assertJsonPath('data.0.id', $this->rootUnit->id)
+            ->assertJsonPath('data.0.is_active', true)
+            ->assertJsonPath('data.0.is_assignable', false);
     });
 
     test('user can attach parent to unit', function () {

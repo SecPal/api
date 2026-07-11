@@ -110,6 +110,21 @@ describe('OrganizationalUnit Model', function () {
                 ->and($unit->is_establishment)->toBeFalse();
         });
 
+        it('mass assigns and casts independent operational status flags', function (): void {
+            $unit = OrganizationalUnit::create([
+                'tenant_id' => $this->tenant->id,
+                'name' => 'Operational Status Unit',
+                'type' => 'company',
+                'is_active' => 0,
+                'is_assignable' => 1,
+            ]);
+
+            $unit->refresh();
+
+            expect($unit->is_active)->toBeFalse()
+                ->and($unit->is_assignable)->toBeTrue();
+        });
+
         it('casts metadata to array', function (): void {
             $metadata = ['key' => 'value', 'nested' => ['a' => 1]];
 

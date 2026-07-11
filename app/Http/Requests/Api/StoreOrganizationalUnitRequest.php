@@ -78,6 +78,8 @@ class StoreOrganizationalUnitRequest extends FormRequest
             'metadata' => ['nullable', 'array'],
             'is_legal_entity' => ['sometimes', $this->strictBooleanRule()],
             'is_establishment' => ['sometimes', $this->strictBooleanRule()],
+            'is_active' => ['sometimes', $this->strictBooleanRule()],
+            'is_assignable' => ['sometimes', $this->strictBooleanRule()],
             'parent_id' => ['nullable', 'uuid', Rule::exists(OrganizationalUnit::class, 'id')],
         ];
     }

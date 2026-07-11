@@ -38,6 +38,8 @@ class OrganizationalUnitResource extends JsonResource
             'metadata' => $this->metadata,
             'is_legal_entity' => $this->is_legal_entity,
             'is_establishment' => $this->is_establishment,
+            'is_active' => $this->is_active,
+            'is_assignable' => $this->is_assignable,
             'parent' => $this->transformParent($request),
             'permissions' => $this->resolvePermissions($request),
             'children' => OrganizationalUnitResource::collection($this->whenLoaded('children')),

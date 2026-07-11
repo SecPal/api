@@ -40,6 +40,8 @@ use Illuminate\Support\Facades\DB;
  * @property array<string, mixed>|null $metadata JSON metadata (address, phone, etc.)
  * @property bool $is_legal_entity Independent legal-person status; not derived from hierarchy type
  * @property bool $is_establishment Independent establishment status; not derived from hierarchy type
+ * @property bool $is_active Independent administrative status
+ * @property bool $is_assignable Independent eligibility for new operational assignments and scopes
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
@@ -78,6 +80,8 @@ class OrganizationalUnit extends Model
         'metadata',
         'is_legal_entity',
         'is_establishment',
+        'is_active',
+        'is_assignable',
     ];
 
     /**
@@ -92,6 +96,8 @@ class OrganizationalUnit extends Model
             'metadata' => 'array',
             'is_legal_entity' => 'boolean',
             'is_establishment' => 'boolean',
+            'is_active' => 'boolean',
+            'is_assignable' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
