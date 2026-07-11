@@ -60,7 +60,7 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('viewAny', OrganizationalUnit::class);
 
-        /** @var array{parent_id?: string, type?: string, is_active?: string, is_assignable?: string} $validated */
+        /** @var array{parent_id?: string|null, type?: string|null, is_active?: string|null, is_assignable?: string|null} $validated */
         $validated = $request->validated();
 
         /** @var User $user */
