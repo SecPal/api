@@ -806,6 +806,14 @@ describe('OrganizationalUnitController - Update', function () {
         ]);
     });
 
+    test('updating an organizational unit to a custom type requires a custom type name', function () {
+        patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'type' => 'custom',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['custom_type_name'])
+            ->assertJsonPath('errors.custom_type_name.0', 'The custom type name is required when type is "custom".');
+    });
+
     test('patch accepts all independent status flag combinations', function (bool $isLegalEntity, bool $isEstablishment) {
         $response = patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
             'is_legal_entity' => $isLegalEntity,
