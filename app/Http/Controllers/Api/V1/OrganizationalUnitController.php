@@ -60,7 +60,7 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('viewAny', OrganizationalUnit::class);
 
-        /** @var array{parent_id?: string, type?: string} $validated */
+        /** @var array{parent_id?: string|null, type?: string|null, is_active?: bool|string|null, is_assignable?: bool|string|null} $validated */
         $validated = $request->validated();
 
         /** @var User $user */
@@ -85,6 +85,14 @@ class OrganizationalUnitController extends Controller
         // Filter by type if provided
         if (array_key_exists('type', $validated) && $validated['type'] !== null) {
             $query->where('type', $validated['type']);
+        }
+
+        if (array_key_exists('is_active', $validated) && $validated['is_active'] !== null) {
+            $query->where('is_active', $request->boolean('is_active'));
+        }
+
+        if (array_key_exists('is_assignable', $validated) && $validated['is_assignable'] !== null) {
+            $query->where('is_assignable', $request->boolean('is_assignable'));
         }
 
         // Filter by parent_id if provided
@@ -189,7 +197,7 @@ class OrganizationalUnitController extends Controller
             $this->authorize('createRoot', OrganizationalUnit::class);
         }
 
-        /** @var array{name: string, type: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null, is_legal_entity?: bool, is_establishment?: bool, parent_id?: string|null} $validated */
+        /** @var array{name: string, type: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null, is_legal_entity?: bool, is_establishment?: bool, is_active?: bool, is_assignable?: bool, parent_id?: string|null} $validated */
         $validated = $request->validated();
 
         $unit = OrganizationalUnit::create([
@@ -201,6 +209,8 @@ class OrganizationalUnitController extends Controller
             'metadata' => $validated['metadata'] ?? null,
             'is_legal_entity' => $validated['is_legal_entity'] ?? false,
             'is_establishment' => $validated['is_establishment'] ?? false,
+            'is_active' => $validated['is_active'] ?? true,
+            'is_assignable' => $validated['is_assignable'] ?? true,
         ]);
 
         // Attach parent if specified
@@ -243,7 +253,7 @@ class OrganizationalUnitController extends Controller
     {
         $this->authorize('update', $organizational_unit);
 
-        /** @var array{name?: string, type?: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null, is_legal_entity?: bool, is_establishment?: bool} $validated */
+        /** @var array{name?: string, type?: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null, is_legal_entity?: bool, is_establishment?: bool, is_active?: bool, is_assignable?: bool} $validated */
         $validated = $request->validated();
 
         $organizational_unit->update($validated);

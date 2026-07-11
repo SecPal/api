@@ -48,6 +48,8 @@ class OrganizationalUnitFactory extends Factory
             'metadata' => null,
             'is_legal_entity' => false,
             'is_establishment' => false,
+            'is_active' => true,
+            'is_assignable' => true,
         ];
     }
 

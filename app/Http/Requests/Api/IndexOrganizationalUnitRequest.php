@@ -30,6 +30,8 @@ class IndexOrganizationalUnitRequest extends FormRequest
         return [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'type' => ['nullable', 'string', Rule::in(['holding', 'company', 'region', 'branch', 'division', 'department', 'custom'])],
+            'is_active' => ['nullable', 'boolean'],
+            'is_assignable' => ['nullable', 'boolean'],
             'parent_id' => [
                 'nullable',
                 'string',
