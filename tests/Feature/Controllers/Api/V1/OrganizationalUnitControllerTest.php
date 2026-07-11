@@ -145,6 +145,19 @@ describe('OrganizationalUnitController - List', function () {
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $activeUnassignable->id);
+
+        getJson('/v1/organizational-units?is_active=false&is_assignable=true')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $inactiveAssignable->id);
+    });
+
+    test('list organizational units rejects non-boolean status filters', function () {
+        getJson('/v1/organizational-units?is_active=1&is_assignable=0')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_active', 'is_assignable'])
+            ->assertJsonPath('errors.is_active.0', 'The is_active field must be true or false.')
+            ->assertJsonPath('errors.is_assignable.0', 'The is_assignable field must be true or false.');
     });
 
     test('list organizational units respects pagination', function () {

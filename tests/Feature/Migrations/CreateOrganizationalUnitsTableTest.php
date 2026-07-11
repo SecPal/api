@@ -36,6 +36,8 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
         expect(Schema::hasColumn('organizational_units', 'metadata'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'is_legal_entity'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'is_establishment'))->toBeTrue();
+        expect(Schema::hasColumn('organizational_units', 'is_active'))->toBeTrue();
+        expect(Schema::hasColumn('organizational_units', 'is_assignable'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'created_at'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'updated_at'))->toBeTrue();
         expect(Schema::hasColumn('organizational_units', 'deleted_at'))->toBeTrue();
@@ -63,6 +65,17 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
             ->and($columns->get('is_establishment')['default'])->toBeIn([false, 'false', 0, '0']);
     });
 
+    test('operational status flag columns are required booleans with true defaults', function (): void {
+        $columns = collect(Schema::getColumns('organizational_units'))->keyBy('name');
+
+        expect($columns->get('is_active'))->not->toBeNull()
+            ->and($columns->get('is_active')['nullable'])->toBeFalse()
+            ->and($columns->get('is_active')['default'])->toBeIn([true, 'true', 1, '1'])
+            ->and($columns->get('is_assignable'))->not->toBeNull()
+            ->and($columns->get('is_assignable')['nullable'])->toBeFalse()
+            ->and($columns->get('is_assignable')['default'])->toBeIn([true, 'true', 1, '1']);
+    });
+
     test('status flag migration assigns false to existing organizational units', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
@@ -88,6 +101,35 @@ describe('CreateOrganizationalUnitsTable Migration', function () {
 
         expect((bool) $unit->is_legal_entity)->toBeFalse()
             ->and((bool) $unit->is_establishment)->toBeFalse();
+    });
+
+    test('operational status flag migration assigns true to existing organizational units', function (): void {
+        $keys = TenantKey::generateEnvelopeKeys();
+        $tenant = TenantKey::create($keys);
+        $unitId = Str::uuid()->toString();
+
+        Schema::table('organizational_units', function ($table): void {
+            $table->dropColumn(['is_active', 'is_assignable']);
+        });
+
+        DB::table('organizational_units')->insert([
+            'id' => $unitId,
+            'tenant_id' => $tenant->id,
+            'name' => 'Existing Operational Unit',
+            'type' => 'company',
+            'is_legal_entity' => false,
+            'is_establishment' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_07_11_000000_add_operational_status_flags_to_organizational_units_table.php');
+        $migration->up();
+
+        $unit = DB::table('organizational_units')->where('id', $unitId)->first();
+
+        expect((bool) $unit->is_active)->toBeTrue()
+            ->and((bool) $unit->is_assignable)->toBeTrue();
     });
 
     test('type column accepts valid enum values', function (): void {
