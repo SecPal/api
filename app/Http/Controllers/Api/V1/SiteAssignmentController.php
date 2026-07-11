@@ -145,21 +145,30 @@ class SiteAssignmentController extends AssignmentController
     }
 
     /**
-     * Determine whether an update would reactivate an expired assignment.
+     * Determine whether an update would reactivate an inactive assignment.
      *
      * @param  array<string, mixed>  $validated
      */
     private function wouldReactivateAssignment(SiteAssignment $siteAssignment, array $validated): bool
     {
-        if ($siteAssignment->valid_until === null || ! $siteAssignment->valid_until->lessThan(now()->startOfDay())) {
+        if ($siteAssignment->is_active) {
             return false;
         }
 
         $updatedAssignment = clone $siteAssignment;
         $updatedAssignment->fill($validated);
 
-        return $updatedAssignment->valid_until === null
-            || ! $updatedAssignment->valid_until->lessThan(now()->startOfDay());
+        if ($updatedAssignment->is_active) {
+            return true;
+        }
+
+        return $this->isExpiredAssignment($siteAssignment) && ! $this->isExpiredAssignment($updatedAssignment);
+    }
+
+    private function isExpiredAssignment(SiteAssignment $siteAssignment): bool
+    {
+        return $siteAssignment->valid_until !== null
+            && $siteAssignment->valid_until->lessThan(now()->startOfDay());
     }
 
     private function siteAcceptsNewAssignments(?Site $site): bool

@@ -543,52 +543,42 @@ describe('POST /v1/sites/{site}/assignments', function () {
 });
 
 describe('PATCH /v1/site-assignments/{assignment}', function () {
-    test('rejects scheduling a future reactivation in a non-assignable organizational unit', function (): void {
+    test('rejects reactivating an assignment in a non-assignable organizational unit', function (string $scenario): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
         OrganizationalUnit::query()
             ->findOrFail($this->site->organizational_unit_id)
             ->update(['is_assignable' => false]);
+
+        [$initialDates, $updatedDates] = match ($scenario) {
+            'future start' => [
+                ['valid_from' => now()->addDay(), 'valid_until' => now()->addWeek()],
+                ['valid_from' => now()->toDateString()],
+            ],
+            'future window' => [
+                ['valid_until' => now()->subDay()],
+                ['valid_from' => now()->addDay()->toDateString(), 'valid_until' => now()->addWeek()->toDateString()],
+            ],
+            'current window' => [
+                ['valid_until' => now()->subDay()],
+                ['valid_until' => now()->addWeek()->toDateString()],
+            ],
+        };
+
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
             'site_id' => $this->site->id,
             'user_id' => User::factory()->create(['tenant_id' => $this->tenant->id])->id,
-            'valid_until' => now()->subDay(),
+            ...$initialDates,
         ]);
 
         $response = $this->withToken($this->token)
-            ->patchJson("/v1/site-assignments/{$assignment->id}", [
-                'valid_from' => now()->addDay()->toDateString(),
-                'valid_until' => now()->addWeek()->toDateString(),
-            ]);
+            ->patchJson("/v1/site-assignments/{$assignment->id}", $updatedDates);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['organizational_unit_id']);
-    });
-
-    test('rejects reactivating an expired assignment in a non-assignable organizational unit', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
-        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-
-        OrganizationalUnit::query()
-            ->findOrFail($this->site->organizational_unit_id)
-            ->update(['is_assignable' => false]);
-        $assignment = SiteAssignment::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'site_id' => $this->site->id,
-            'user_id' => User::factory()->create(['tenant_id' => $this->tenant->id])->id,
-            'valid_until' => now()->subDay(),
-        ]);
-
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/site-assignments/{$assignment->id}", [
-                'valid_until' => now()->addWeek()->toDateString(),
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id']);
-    });
+    })->with(['future start', 'future window', 'current window']);
 
     test('returns 401 when not authenticated', function (): void {
         $assignment = SiteAssignment::factory()->create([
