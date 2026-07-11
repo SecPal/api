@@ -844,6 +844,21 @@ describe('OrganizationalUnitController - Update', function () {
             ->assertJsonPath('data.description', 'Updated description');
     });
 
+    test('resending the existing custom type preserves its custom type name', function () {
+        $this->rootUnit->update([
+            'type' => 'custom',
+            'custom_type_name' => 'Security Team',
+        ]);
+
+        patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'type' => 'custom',
+            'description' => 'Updated description',
+        ])->assertOk()
+            ->assertJsonPath('data.type', 'custom')
+            ->assertJsonPath('data.custom_type_name', 'Security Team')
+            ->assertJsonPath('data.description', 'Updated description');
+    });
+
     test('patch accepts all independent status flag combinations', function (bool $isLegalEntity, bool $isEstablishment) {
         $response = patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
             'is_legal_entity' => $isLegalEntity,

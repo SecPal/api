@@ -44,9 +44,11 @@ class UpdateOrganizationalUnitRequest extends FormRequest
                     /** @var OrganizationalUnit|null $organizationalUnit */
                     $organizationalUnit = $this->route('organizational_unit');
                     $effectiveType = $this->input('type', $organizationalUnit?->type);
+                    $isChangingToCustom = $this->input('type') === 'custom'
+                        && $organizationalUnit?->type !== 'custom';
 
                     return $effectiveType === 'custom'
-                        && ($this->has('type') || $this->has('custom_type_name'));
+                        && ($isChangingToCustom || $this->has('custom_type_name'));
                 }),
             ],
             'description' => ['nullable', 'string', 'max:1000'],
