@@ -36,11 +36,35 @@ class UpdateOrganizationalUnitRequest extends FormRequest
         return [
             'name' => ['sometimes', 'string', 'max:255'],
             'type' => ['sometimes', 'string', Rule::in(['holding', 'company', 'region', 'branch', 'division', 'department', 'custom'])],
-            'custom_type_name' => ['nullable', 'string', 'max:255'],
+            'custom_type_name' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::requiredIf(function (): bool {
+                    /** @var OrganizationalUnit|null $organizationalUnit */
+                    $organizationalUnit = $this->route('organizational_unit');
+                    $effectiveType = $this->input('type', $organizationalUnit?->type);
+
+                    return $effectiveType === 'custom'
+                        && ($this->has('type') || $this->has('custom_type_name'));
+                }),
+            ],
             'description' => ['nullable', 'string', 'max:1000'],
             'metadata' => ['nullable', 'array'],
             'is_legal_entity' => ['sometimes', $this->strictBooleanRule()],
             'is_establishment' => ['sometimes', $this->strictBooleanRule()],
+        ];
+    }
+
+    /**
+     * Get custom validation messages for the request.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'custom_type_name.required' => 'The custom type name is required when type is "custom".',
         ];
     }
 
