@@ -1282,6 +1282,47 @@ describe('GET /v1/employees/{employee}', function () {
 });
 
 describe('PATCH /v1/employees/{employee}', function () {
+    test('rejects moving an employee to a soft-deleted organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $softDeletedUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+        $softDeletedUnit->delete();
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'organizational_unit_id' => $softDeletedUnit->id,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
+    });
+
+    test('allows an unchanged soft-deleted organizational unit in an employee update', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'weekly_hours' => 40,
+        ]);
+        $this->organizationalUnit->delete();
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'weekly_hours' => 35,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.weekly_hours', '35.00');
+    });
+
     test('allows an unchanged non-assignable organizational unit in an employee update', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
         $this->organizationalUnit->update(['is_assignable' => false]);

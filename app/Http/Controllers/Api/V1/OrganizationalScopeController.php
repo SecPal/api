@@ -176,6 +176,12 @@ class OrganizationalScopeController extends Controller
             return $selfUpdateResponse;
         }
 
+        if (! $organizational_unit->is_assignable && $this->scopeUpdateExpandsEntitlement($scopeModel, $validated)) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
+        }
+
         if (isset($validated['access_level'])) {
             $scopeModel->access_level = $validated['access_level'];
         }
@@ -210,6 +216,40 @@ class OrganizationalScopeController extends Controller
         return response()->json([
             'data' => $this->transformScope($scopeModel),
         ]);
+    }
+
+    /**
+     * Determine whether an update grants access not covered by the current scope.
+     *
+     * @param  array{access_level?: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool}  $validated
+     */
+    private function scopeUpdateExpandsEntitlement(UserInternalOrganizationalScope $scope, array $validated): bool
+    {
+        $updatedScope = clone $scope;
+        $updatedScope->fill($validated);
+
+        if ($updatedScope->getAccessLevelValue() > $scope->getAccessLevelValue()) {
+            return true;
+        }
+
+        if (! $scope->include_descendants && $updatedScope->include_descendants) {
+            return true;
+        }
+
+        if (! $scope->allow_self_access && $updatedScope->allow_self_access) {
+            return true;
+        }
+
+        for ($managementLevel = 0; $managementLevel <= 255; $managementLevel++) {
+            if (
+                (! $scope->canViewManagementLevel($managementLevel) && $updatedScope->canViewManagementLevel($managementLevel))
+                || (! $scope->canAssignManagementLevel($managementLevel) && $updatedScope->canAssignManagementLevel($managementLevel))
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

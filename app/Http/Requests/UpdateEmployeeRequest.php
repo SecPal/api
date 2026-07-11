@@ -192,10 +192,14 @@ class UpdateEmployeeRequest extends FormRequest
                     /** @var string $tenantId */
                     $tenantId = $this->input('tenant_id');
                     $query->where('tenant_id', $tenantId);
-                })->whereNull('deleted_at'),
+                }),
                 new AssignableOrganizationalUnit($this->input('tenant_id'), $employee?->organizational_unit_id),
-                function (string $attribute, mixed $value, \Closure $fail): void {
+                function (string $attribute, mixed $value, \Closure $fail) use ($employee): void {
                     if ($value === null) {
+                        return;
+                    }
+
+                    if ($value === $employee?->organizational_unit_id) {
                         return;
                     }
 

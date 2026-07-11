@@ -29,12 +29,13 @@ class AssignableOrganizationalUnit implements ValidationRule
         }
 
         $unit = OrganizationalUnit::query()
-            ->select(['id', 'is_assignable'])
+            ->withTrashed()
+            ->select(['id', 'is_assignable', 'deleted_at'])
             ->whereKey($value)
             ->where('tenant_id', $this->tenantId)
             ->first();
 
-        if ($unit !== null && ! $unit->is_assignable) {
+        if ($unit !== null && ($unit->trashed() || ! $unit->is_assignable)) {
             $fail(self::MESSAGE);
         }
     }
