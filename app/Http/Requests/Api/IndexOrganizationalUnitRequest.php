@@ -30,8 +30,8 @@ class IndexOrganizationalUnitRequest extends FormRequest
         return [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'type' => ['nullable', 'string', Rule::in(['holding', 'company', 'region', 'branch', 'division', 'department', 'custom'])],
-            'is_active' => ['nullable', $this->queryBooleanRule()],
-            'is_assignable' => ['nullable', $this->queryBooleanRule()],
+            'is_active' => ['nullable', 'boolean'],
+            'is_assignable' => ['nullable', 'boolean'],
             'parent_id' => [
                 'nullable',
                 'string',
@@ -54,14 +54,5 @@ class IndexOrganizationalUnitRequest extends FormRequest
         return [
             'per_page.max' => 'Maximum 100 items per page.',
         ];
-    }
-
-    private function queryBooleanRule(): \Closure
-    {
-        return function (string $attribute, mixed $value, \Closure $fail): void {
-            if ($value !== 'true' && $value !== 'false') {
-                $fail("The {$attribute} field must be true or false.");
-            }
-        };
     }
 }

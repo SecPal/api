@@ -136,28 +136,26 @@ describe('OrganizationalUnitController - List', function () {
         ]);
         $activeUnassignable->setParent($this->rootUnit);
 
-        getJson('/v1/organizational-units?is_active=false')
+        getJson('/v1/organizational-units?is_active=0')
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $inactiveAssignable->id);
 
-        getJson('/v1/organizational-units?is_assignable=false')
+        getJson('/v1/organizational-units?is_assignable=0')
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $activeUnassignable->id);
 
-        getJson('/v1/organizational-units?is_active=false&is_assignable=true')
+        getJson('/v1/organizational-units?is_active=0&is_assignable=1')
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $inactiveAssignable->id);
     });
 
     test('list organizational units rejects non-boolean status filters', function () {
-        getJson('/v1/organizational-units?is_active=1&is_assignable=0')
+        getJson('/v1/organizational-units?is_active=not-a-boolean&is_assignable=not-a-boolean')
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['is_active', 'is_assignable'])
-            ->assertJsonPath('errors.is_active.0', 'The is_active field must be true or false.')
-            ->assertJsonPath('errors.is_assignable.0', 'The is_assignable field must be true or false.');
+            ->assertJsonValidationErrors(['is_active', 'is_assignable']);
     });
 
     test('list organizational units respects pagination', function () {
