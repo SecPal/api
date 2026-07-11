@@ -63,7 +63,8 @@ class StoreSiteRequest extends FormRequest
                 'required',
                 'uuid',
                 Rule::exists('organizational_units', 'id')
-                    ->where('tenant_id', $tenantId),
+                    ->where('tenant_id', $tenantId)
+                    ->whereNull('deleted_at'),
                 new AssignableOrganizationalUnit($tenantId),
             ],
             'type' => ['required', 'in:permanent,temporary'],

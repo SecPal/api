@@ -64,8 +64,9 @@ class UpdateSiteRequest extends FormRequest
                 'sometimes',
                 'uuid',
                 Rule::exists('organizational_units', 'id')
-                    ->where('tenant_id', $tenantId),
-                new AssignableOrganizationalUnit($tenantId),
+                    ->where('tenant_id', $tenantId)
+                    ->whereNull('deleted_at'),
+                new AssignableOrganizationalUnit($tenantId, $site->organizational_unit_id),
             ],
             'type' => ['sometimes', 'in:permanent,temporary'],
             'address' => ['sometimes', 'array'],

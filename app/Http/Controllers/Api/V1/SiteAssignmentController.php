@@ -77,7 +77,7 @@ class SiteAssignmentController extends AssignmentController
     {
         $this->authorize('create', [SiteAssignment::class, $site]);
 
-        if ($site->organizationalUnit?->is_assignable === false) {
+        if (! $this->siteAcceptsNewAssignments($site)) {
             throw ValidationException::withMessages([
                 'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
             ]);
@@ -126,11 +126,52 @@ class SiteAssignmentController extends AssignmentController
     {
         $this->authorize('update', $siteAssignment);
 
-        $siteAssignment->update($request->validated());
+        $validated = $request->validated();
+
+        if (
+            ! $this->siteAcceptsNewAssignments($siteAssignment->site)
+            && $this->wouldReactivateAssignment($siteAssignment, $validated)
+        ) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
+        }
+
+        $siteAssignment->update($validated);
 
         return response()->json([
             'data' => new SiteAssignmentResource($siteAssignment->fresh(['user', 'site'])),
         ]);
+    }
+
+    /**
+     * Determine whether an update would reactivate an expired or future assignment.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function wouldReactivateAssignment(SiteAssignment $siteAssignment, array $validated): bool
+    {
+        if ($siteAssignment->is_active) {
+            return false;
+        }
+
+        $updatedAssignment = clone $siteAssignment;
+        $updatedAssignment->fill($validated);
+
+        return $updatedAssignment->is_active;
+    }
+
+    private function siteAcceptsNewAssignments(?Site $site): bool
+    {
+        if ($site === null) {
+            return false;
+        }
+
+        $organizationalUnit = $site->organizationalUnit()->withTrashed()->first();
+
+        return $organizationalUnit !== null
+            && ! $organizationalUnit->trashed()
+            && $organizationalUnit->is_assignable;
     }
 
     /**

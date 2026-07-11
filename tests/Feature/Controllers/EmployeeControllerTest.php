@@ -466,6 +466,27 @@ describe('GET /v1/employees', function () {
 });
 
 describe('POST /v1/employees', function () {
+    test('rejects placement in a soft-deleted organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+        $this->organizationalUnit->delete();
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/employees', [
+                'first_name' => 'Nina',
+                'last_name' => 'Newhire',
+                'email' => 'nina.newhire@example.com',
+                'date_of_birth' => '1993-05-15',
+                'position' => 'Security Guard',
+                'status' => Employee::STATUS_PRE_CONTRACT,
+                'contract_type' => 'full_time',
+                'contract_start_date' => now()->addWeek()->toDateString(),
+                'organizational_unit_id' => $this->organizationalUnit->id,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id']);
+    });
+
     test('rejects employee placement in a non-assignable organizational unit', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
         $this->organizationalUnit->update(['is_assignable' => false]);
@@ -1261,6 +1282,26 @@ describe('GET /v1/employees/{employee}', function () {
 });
 
 describe('PATCH /v1/employees/{employee}', function () {
+    test('allows an unchanged non-assignable organizational unit in an employee update', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+        $this->organizationalUnit->update(['is_assignable' => false]);
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'weekly_hours' => 40,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/employees/{$employee->id}", [
+                'organizational_unit_id' => $this->organizationalUnit->id,
+                'weekly_hours' => 35,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.weekly_hours', '35.00');
+    });
+
     test('rejects moving an employee to a non-assignable organizational unit', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 

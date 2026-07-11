@@ -61,6 +61,8 @@ class UpdateEmployeeRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var Employee|null $employee */
+        $employee = $this->route('employee');
         $employeeId = $this->route('employee');
 
         return array_merge([
@@ -190,8 +192,8 @@ class UpdateEmployeeRequest extends FormRequest
                     /** @var string $tenantId */
                     $tenantId = $this->input('tenant_id');
                     $query->where('tenant_id', $tenantId);
-                }),
-                new AssignableOrganizationalUnit($this->input('tenant_id')),
+                })->whereNull('deleted_at'),
+                new AssignableOrganizationalUnit($this->input('tenant_id'), $employee?->organizational_unit_id),
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value === null) {
                         return;

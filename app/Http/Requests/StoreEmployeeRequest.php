@@ -205,7 +205,7 @@ class StoreEmployeeRequest extends FormRequest
                     /** @var string $tenantId */
                     $tenantId = $this->input('tenant_id');
                     $query->where('tenant_id', $tenantId);
-                }),
+                })->whereNull('deleted_at'),
                 new AssignableOrganizationalUnit($this->input('tenant_id')),
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value === null) {

@@ -13,11 +13,18 @@ class AssignableOrganizationalUnit implements ValidationRule
 {
     public const MESSAGE = 'The selected organizational unit is not assignable.';
 
-    public function __construct(private readonly mixed $tenantId) {}
+    public function __construct(
+        private readonly mixed $tenantId,
+        private readonly ?string $currentOrganizationalUnitId = null,
+    ) {}
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        if (! is_string($value) || (! is_int($this->tenantId) && ! is_string($this->tenantId))) {
+        if (
+            ! is_string($value)
+            || $value === $this->currentOrganizationalUnitId
+            || (! is_int($this->tenantId) && ! is_string($this->tenantId))
+        ) {
             return;
         }
 
