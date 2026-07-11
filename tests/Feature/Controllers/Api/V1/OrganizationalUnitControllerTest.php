@@ -814,6 +814,36 @@ describe('OrganizationalUnitController - Update', function () {
             ->assertJsonPath('errors.custom_type_name.0', 'The custom type name is required when type is "custom".');
     });
 
+    test('clearing the name of an existing custom organizational unit is rejected', function () {
+        $this->rootUnit->update([
+            'type' => 'custom',
+            'custom_type_name' => 'Security Team',
+        ]);
+
+        patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'custom_type_name' => null,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['custom_type_name'])
+            ->assertJsonPath('errors.custom_type_name.0', 'The custom type name is required when type is "custom".');
+
+        $this->rootUnit->refresh();
+
+        expect($this->rootUnit->custom_type_name)->toBe('Security Team');
+    });
+
+    test('updating another field on a custom organizational unit preserves its custom type name', function () {
+        $this->rootUnit->update([
+            'type' => 'custom',
+            'custom_type_name' => 'Security Team',
+        ]);
+
+        patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
+            'description' => 'Updated description',
+        ])->assertOk()
+            ->assertJsonPath('data.custom_type_name', 'Security Team')
+            ->assertJsonPath('data.description', 'Updated description');
+    });
+
     test('patch accepts all independent status flag combinations', function (bool $isLegalEntity, bool $isEstablishment) {
         $response = patchJson("/v1/organizational-units/{$this->rootUnit->id}", [
             'is_legal_entity' => $isLegalEntity,
