@@ -170,6 +170,31 @@ test('get accessible organizational unit ids returns directly scoped units', fun
     expect($unitIds)->toContain($orgUnit2->id);
 });
 
+test('direct deny scopes mask inherited organizational unit access', function () {
+    $parent = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
+    $child = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
+    $child->setParent($parent);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $parent->id,
+        'access_level' => 'read',
+        'include_descendants' => true,
+    ]);
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $child->id,
+        'access_level' => 'none',
+        'include_descendants' => false,
+    ]);
+
+    $unitIds = $this->user->getAccessibleOrganizationalUnitIds();
+
+    expect($unitIds)->toContain($parent->id)
+        ->not->toContain($child->id);
+    expect($this->user->hasAccessToUnit($child))->toBeFalse();
+});
+
 test('get accessible customers returns empty when no access', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $unassignedCustomer = Customer::factory()->for($this->tenant, 'tenant')->create();
