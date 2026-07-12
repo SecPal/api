@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreOrganizationalScopeRequest;
 use App\Http\Requests\UpdateOrganizationalScopeRequest;
 use App\Models\OrganizationalUnit;
+use App\Models\OrganizationalUnitClosure;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use App\Rules\AssignableOrganizationalUnit;
@@ -107,12 +108,6 @@ class OrganizationalScopeController extends Controller
     {
         $this->authorize('manageScopes', $organizational_unit);
 
-        if (! $organizational_unit->is_assignable) {
-            throw ValidationException::withMessages([
-                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
-            ]);
-        }
-
         /** @var array{user_id: string, access_level: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
         $validated = $request->validated();
 
@@ -123,6 +118,15 @@ class OrganizationalScopeController extends Controller
             return response()->json([
                 'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
             ], Response::HTTP_FORBIDDEN);
+        }
+
+        if (
+            $validated['access_level'] !== 'none'
+            && ! $this->scopeTargetsAcceptNewEntitlements($organizational_unit, $validated['include_descendants'] ?? true)
+        ) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
         }
 
         $scope = UserInternalOrganizationalScope::create([
@@ -176,7 +180,12 @@ class OrganizationalScopeController extends Controller
             return $selfUpdateResponse;
         }
 
-        if (! $organizational_unit->is_assignable && $this->scopeUpdateExpandsEntitlement($scopeModel, $validated)) {
+        $updatedScopeIncludesDescendants = $validated['include_descendants'] ?? $scopeModel->include_descendants;
+
+        if (
+            $this->scopeUpdateExpandsEntitlement($scopeModel, $validated)
+            && ! $this->scopeTargetsAcceptNewEntitlements($organizational_unit, $updatedScopeIncludesDescendants)
+        ) {
             throw ValidationException::withMessages([
                 'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
             ]);
@@ -232,11 +241,19 @@ class OrganizationalScopeController extends Controller
             return true;
         }
 
-        if (! $scope->include_descendants && $updatedScope->include_descendants) {
+        if (
+            ! $scope->include_descendants
+            && $updatedScope->include_descendants
+            && $updatedScope->hasMinimumAccessLevel('read')
+        ) {
             return true;
         }
 
-        if (! $scope->allow_self_access && $updatedScope->allow_self_access) {
+        if (
+            ! $scope->allow_self_access
+            && $updatedScope->allow_self_access
+            && $updatedScope->hasMinimumAccessLevel('read')
+        ) {
             return true;
         }
 
@@ -262,6 +279,28 @@ class OrganizationalScopeController extends Controller
     {
         return $scope->hasMinimumAccessLevel('write')
             && $scope->canAssignManagementLevel($managementLevel);
+    }
+
+    private function scopeTargetsAcceptNewEntitlements(OrganizationalUnit $organizationalUnit, bool $includeDescendants): bool
+    {
+        $organizationalUnitIds = collect([$organizationalUnit->id]);
+
+        if ($includeDescendants) {
+            $organizationalUnitIds = $organizationalUnitIds->merge(
+                OrganizationalUnitClosure::query()
+                    ->where('ancestor_id', $organizationalUnit->id)
+                    ->where('depth', '>', 0)
+                    ->pluck('descendant_id'),
+            );
+        }
+
+        return ! OrganizationalUnit::withTrashed()
+            ->where('tenant_id', $organizationalUnit->tenant_id)
+            ->whereIn('id', $organizationalUnitIds->unique())
+            ->where(fn ($query) => $query
+                ->whereNotNull('deleted_at')
+                ->orWhere('is_assignable', false))
+            ->exists();
     }
 
     /**
