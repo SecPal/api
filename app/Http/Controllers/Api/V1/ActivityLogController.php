@@ -189,7 +189,9 @@ class ActivityLogController extends Controller
         }
 
         // Get user's organizational scopes
-        $scopes = $user->organizationalScopes()->get();
+        $scopes = $user->organizationalScopes()
+            ->whereIn('access_level', ['read', 'write', 'manage'])
+            ->get();
 
         if ($scopes->isEmpty()) {
             // User has no scopes - can see all activities (global access)

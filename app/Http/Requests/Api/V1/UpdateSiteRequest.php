@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 namespace App\Http\Requests\Api\V1;
@@ -63,9 +63,12 @@ class UpdateSiteRequest extends FormRequest
             'organizational_unit_id' => [
                 'sometimes',
                 'uuid',
-                Rule::exists('organizational_units', 'id')
-                    ->where('tenant_id', $tenantId)
-                    ->whereNull('deleted_at'),
+                Rule::when(
+                    $this->input('organizational_unit_id') !== $site->organizational_unit_id,
+                    Rule::exists('organizational_units', 'id')
+                        ->where('tenant_id', $tenantId)
+                        ->whereNull('deleted_at'),
+                ),
                 new AssignableOrganizationalUnit($tenantId, $site->organizational_unit_id),
             ],
             'type' => ['sometimes', 'in:permanent,temporary'],

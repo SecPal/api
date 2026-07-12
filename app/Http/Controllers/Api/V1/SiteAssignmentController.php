@@ -16,6 +16,7 @@ use App\Models\SiteAssignment;
 use App\Models\User;
 use App\Rules\AssignableOrganizationalUnit;
 use App\Services\EmployeeComplianceService;
+use App\Services\OrganizationalUnitAssignmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
@@ -73,11 +74,15 @@ class SiteAssignmentController extends AssignmentController
      *
      * @return JsonResponse SiteAssignmentResource (201 Created) or error (409 Conflict)
      */
-    public function store(StoreSiteAssignmentRequest $request, Site $site, EmployeeComplianceService $complianceService): JsonResponse
-    {
+    public function store(
+        StoreSiteAssignmentRequest $request,
+        Site $site,
+        EmployeeComplianceService $complianceService,
+        OrganizationalUnitAssignmentService $assignmentService,
+    ): JsonResponse {
         $this->authorize('create', [SiteAssignment::class, $site]);
 
-        if (! $this->siteAcceptsNewAssignments($site)) {
+        if (! $assignmentService->siteAcceptsAssignments($site)) {
             throw ValidationException::withMessages([
                 'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
             ]);
@@ -122,15 +127,18 @@ class SiteAssignmentController extends AssignmentController
      *
      * @return JsonResponse SiteAssignmentResource (200 OK)
      */
-    public function update(UpdateAssignmentRequest $request, SiteAssignment $siteAssignment): JsonResponse
-    {
+    public function update(
+        UpdateAssignmentRequest $request,
+        SiteAssignment $siteAssignment,
+        OrganizationalUnitAssignmentService $assignmentService,
+    ): JsonResponse {
         $this->authorize('update', $siteAssignment);
 
         $validated = $request->validated();
 
         if (
-            ! $this->siteAcceptsNewAssignments($siteAssignment->site)
-            && $this->wouldExpandAssignmentCoverage($siteAssignment, $validated)
+            ! $assignmentService->siteAcceptsAssignments($siteAssignment->site)
+            && $assignmentService->assignmentUpdateExpandsCoverage($siteAssignment, $validated)
         ) {
             throw ValidationException::withMessages([
                 'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
@@ -142,63 +150,6 @@ class SiteAssignmentController extends AssignmentController
         return response()->json([
             'data' => new SiteAssignmentResource($siteAssignment->fresh(['user', 'site'])),
         ]);
-    }
-
-    /**
-     * Determine whether an update would add operational assignment coverage.
-     *
-     * @param  array<string, mixed>  $validated
-     */
-    private function wouldExpandAssignmentCoverage(SiteAssignment $siteAssignment, array $validated): bool
-    {
-        $updatedAssignment = clone $siteAssignment;
-        $updatedAssignment->fill($validated);
-
-        return $this->startsOperationalCoverageEarlier($siteAssignment, $updatedAssignment)
-            || $this->endsOperationalCoverageLater($siteAssignment, $updatedAssignment)
-            || ($siteAssignment->role !== $updatedAssignment->role && $this->hasCurrentOrFutureCoverage($updatedAssignment));
-    }
-
-    private function startsOperationalCoverageEarlier(SiteAssignment $siteAssignment, SiteAssignment $updatedAssignment): bool
-    {
-        $today = now()->startOfDay();
-        $currentStart = $siteAssignment->valid_from?->greaterThan($today) ? $siteAssignment->valid_from : $today;
-        $updatedStart = $updatedAssignment->valid_from?->greaterThan($today) ? $updatedAssignment->valid_from : $today;
-
-        return $updatedStart->lessThan($currentStart);
-    }
-
-    private function endsOperationalCoverageLater(SiteAssignment $siteAssignment, SiteAssignment $updatedAssignment): bool
-    {
-        if ($siteAssignment->valid_until === null) {
-            return false;
-        }
-
-        if ($updatedAssignment->valid_until === null) {
-            return true;
-        }
-
-        return ! $updatedAssignment->valid_until->lessThan(now()->startOfDay())
-            && $updatedAssignment->valid_until->greaterThan($siteAssignment->valid_until);
-    }
-
-    private function hasCurrentOrFutureCoverage(SiteAssignment $siteAssignment): bool
-    {
-        return $siteAssignment->valid_until === null
-            || ! $siteAssignment->valid_until->lessThan(now()->startOfDay());
-    }
-
-    private function siteAcceptsNewAssignments(?Site $site): bool
-    {
-        if ($site === null) {
-            return false;
-        }
-
-        $organizationalUnit = $site->organizationalUnit()->withTrashed()->first();
-
-        return $organizationalUnit !== null
-            && ! $organizationalUnit->trashed()
-            && $organizationalUnit->is_assignable;
     }
 
     /**

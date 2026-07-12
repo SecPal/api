@@ -522,6 +522,33 @@ describe('POST /v1/sites/{site}/assignments', function () {
 });
 
 describe('PATCH /v1/site-assignments/{assignment}', function () {
+    test('allows moving future assignment coverage entirely into the past on a non-assignable unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        OrganizationalUnit::query()
+            ->findOrFail($this->site->organizational_unit_id)
+            ->update(['is_assignable' => false]);
+        $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+        $assignment = SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $this->site->id,
+            'user_id' => $targetUser->id,
+            'valid_from' => now()->addWeek()->toDateString(),
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)->patchJson("/v1/site-assignments/{$assignment->id}", [
+            'valid_from' => now()->subDays(2)->toDateString(),
+            'valid_until' => now()->subDay()->toDateString(),
+        ]);
+
+        $response->assertOk();
+        $assignment->refresh();
+
+        expect($assignment->valid_from?->toDateString())->toBe(now()->subDays(2)->toDateString())
+            ->and($assignment->valid_until?->toDateString())->toBe(now()->subDay()->toDateString());
+    });
+
     test('rejects reactivating an assignment in a non-assignable organizational unit', function (string $scenario): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');

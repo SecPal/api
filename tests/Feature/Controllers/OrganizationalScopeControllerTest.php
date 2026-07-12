@@ -862,6 +862,55 @@ describe('OrganizationalScopeController', function () {
     });
 
     describe('destroy - DELETE /organizational-units/{unit}/scopes/{scope}', function () {
+        it('rejects deleting a direct write scope that masks inherited manage access on a non-assignable unit', function (): void {
+            $this->company->update(['is_assignable' => false]);
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->holding->id,
+                'access_level' => 'manage',
+                'include_descendants' => true,
+            ]);
+            $directScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'write',
+                'include_descendants' => true,
+            ]);
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$directScope->id}");
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['organizational_unit_id']);
+            $this->assertDatabaseHas('user_internal_organizational_scopes', ['id' => $directScope->id]);
+        });
+
+        it('allows deleting a redundant narrower direct scope on a non-assignable unit', function (): void {
+            $this->company->update(['is_assignable' => false]);
+            $narrowScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'read',
+                'include_descendants' => false,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 1,
+            ]);
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'read',
+                'include_descendants' => false,
+                'min_viewable_rank' => 1,
+                'max_viewable_rank' => 5,
+            ]);
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$narrowScope->id}");
+
+            $response->assertNoContent();
+            $this->assertDatabaseMissing('user_internal_organizational_scopes', ['id' => $narrowScope->id]);
+        });
+
         it('rejects deleting an assignable deny subtree that masks a non-assignable descendant', function (): void {
             $this->branch->update(['is_assignable' => false]);
             UserInternalOrganizationalScope::create([

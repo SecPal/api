@@ -10,10 +10,10 @@ use App\Http\Requests\Api\V1\IndexSiteRequest;
 use App\Http\Requests\Api\V1\StoreSiteRequest;
 use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
-use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\TenantKey;
 use App\Rules\AssignableOrganizationalUnit;
+use App\Services\OrganizationalUnitAssignmentService;
 use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -177,13 +177,19 @@ class SiteController extends Controller
      *
      * @return JsonResponse Updated site
      */
-    public function update(UpdateSiteRequest $request, Site $site): JsonResponse
-    {
+    public function update(
+        UpdateSiteRequest $request,
+        Site $site,
+        OrganizationalUnitAssignmentService $assignmentService,
+    ): JsonResponse {
         $this->authorize('update', $site);
 
         $validated = $request->validated();
 
-        if (! $this->siteAcceptsNewAssignments($site, $validated) && $this->wouldExpandSiteCoverage($site, $validated)) {
+        if (
+            ! $assignmentService->siteTargetAcceptsAssignments($site, $validated)
+            && $assignmentService->siteUpdateExpandsCoverage($site, $validated)
+        ) {
             throw ValidationException::withMessages([
                 'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
             ]);
@@ -194,74 +200,6 @@ class SiteController extends Controller
         return response()->json([
             'data' => new SiteResource($site->fresh()),
         ]);
-    }
-
-    /**
-     * Determine whether an update would add operational site coverage.
-     *
-     * @param  array<string, mixed>  $validated
-     */
-    private function wouldExpandSiteCoverage(Site $site, array $validated): bool
-    {
-        $updatedSite = clone $site;
-        $updatedSite->fill($validated);
-
-        if (! $this->hasCurrentOrFutureCoverage($updatedSite)) {
-            return false;
-        }
-
-        if (! $this->hasCurrentOrFutureCoverage($site)) {
-            return true;
-        }
-
-        return $this->startsOperationalCoverageEarlier($site, $updatedSite)
-            || $this->endsOperationalCoverageLater($site, $updatedSite);
-    }
-
-    private function startsOperationalCoverageEarlier(Site $site, Site $updatedSite): bool
-    {
-        $today = now()->startOfDay();
-        $currentStart = $site->valid_from?->greaterThan($today) ? $site->valid_from : $today;
-        $updatedStart = $updatedSite->valid_from?->greaterThan($today) ? $updatedSite->valid_from : $today;
-
-        return $updatedStart->lessThan($currentStart);
-    }
-
-    private function endsOperationalCoverageLater(Site $site, Site $updatedSite): bool
-    {
-        if ($site->valid_until === null) {
-            return false;
-        }
-
-        if ($updatedSite->valid_until === null) {
-            return true;
-        }
-
-        return ! $updatedSite->valid_until->lessThan(now()->startOfDay())
-            && $updatedSite->valid_until->greaterThan($site->valid_until);
-    }
-
-    private function hasCurrentOrFutureCoverage(Site $site): bool
-    {
-        return $site->is_active
-            && ($site->valid_until === null || ! $site->valid_until->lessThan(now()->startOfDay()));
-    }
-
-    /**
-     * Determine whether the target organizational unit accepts site activation.
-     *
-     * @param  array<string, mixed>  $validated
-     */
-    private function siteAcceptsNewAssignments(Site $site, array $validated): bool
-    {
-        $organizationalUnitId = $validated['organizational_unit_id'] ?? $site->organizational_unit_id;
-        $organizationalUnit = OrganizationalUnit::withTrashed()
-            ->where('tenant_id', $site->tenant_id)
-            ->find($organizationalUnitId);
-
-        return $organizationalUnit instanceof OrganizationalUnit
-            && ! $organizationalUnit->trashed()
-            && $organizationalUnit->is_assignable;
     }
 
     /**

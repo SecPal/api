@@ -92,6 +92,7 @@ class ActivityPolicy
         // Organizational scope check: User must have access to activity's org unit
         $scopes = $user->organizationalScopes()
             ->where('organizational_unit_id', $activity->organizational_unit_id)
+            ->whereIn('access_level', ['read', 'write', 'manage'])
             ->get();
 
         if ($scopes->isEmpty()) {
