@@ -19,6 +19,7 @@ compatible_licenses=(
   "BSD-2-Clause"
   "BSD-3-Clause"
   "Apache-2.0"
+  "CC-BY-4.0"
   "CC0-1.0"
   "ISC"
   "OFL-1.1"
@@ -39,6 +40,20 @@ is_allowed_atom() {
   return 1
 }
 
+has_license() {
+  local expected="$1"
+  shift
+  local license
+
+  for license in "$@"; do
+    if [[ "$license" == "$expected" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 is_strict_path() {
   local path="$1"
 
@@ -52,10 +67,13 @@ is_strict_path() {
     || [[ "$path" == bootstrap/* ]] \
     || [[ "$path" == config/* ]] \
     || [[ "$path" == database/* ]] \
+    || [[ "$path" == lang/* ]] \
     || [[ "$path" == public/* ]] \
+    || [[ "$path" == resources/* ]] \
     || [[ "$path" == routes/* ]] \
     || [[ "$path" == tests/* ]] \
-    || [[ "$path" == artisan ]]
+    || [[ "$path" == artisan ]] \
+    || [[ "$path" == .ddev/web-build/Dockerfile.opentimestamps ]]
 }
 
 is_strict_exception() {
@@ -88,6 +106,13 @@ validate_current_file() {
       return 1
     fi
   done
+
+  if ! is_strict_path "$path" \
+    && ([[ "$concluded" == *'LicenseRef-SecPal-Attribution'* ]] \
+      || has_license 'LicenseRef-SecPal-Attribution' "${licenses[@]}"); then
+    echo "ERROR: attribution addendum is only permitted for SecPal-owned AGPL code and assets in $path" >&2
+    return 1
+  fi
 
   if ! is_strict_path "$path"; then
     return 0

@@ -59,7 +59,7 @@ SPDXID: SPDXRef-DOCUMENT
 DocumentName: sample
 DocumentNamespace: https://secpal.dev/spdxdocs/sample
 
-FileName: app/Foo.php
+FileName: app/Models/User.php
 SPDXID: SPDXRef-File
 LicenseInfoInFile: AGPL-3.0-or-later
 LicenseInfoInFile: LicenseRef-SecPal-Attribution
@@ -79,7 +79,7 @@ SPDXID: SPDXRef-DOCUMENT
 DocumentName: sample
 DocumentNamespace: https://secpal.dev/spdxdocs/sample
 
-FileName: app/Foo.php
+FileName: app/Models/User.php
 SPDXID: SPDXRef-File
 LicenseInfoInFile: AGPL-3.0-or-later
 LicenseInfoInFile: MIT
@@ -99,7 +99,7 @@ SPDXID: SPDXRef-DOCUMENT
 DocumentName: sample
 DocumentNamespace: https://secpal.dev/spdxdocs/sample
 
-FileName: app/Foo.php
+FileName: app/Models/User.php
 SPDXID: SPDXRef-File
 LicenseInfoInFile: MIT
 LicenseConcluded: MIT
@@ -118,7 +118,7 @@ SPDXID: SPDXRef-DOCUMENT
 DocumentName: sample
 DocumentNamespace: https://secpal.dev/spdxdocs/sample
 
-FileName: app/Foo.php
+FileName: app/Models/User.php
 SPDXID: SPDXRef-File
 LicenseInfoInFile: AGPL-3.0-or-later
 LicenseInfoInFile: MIT
@@ -166,6 +166,146 @@ FileName: tests/fixtures/address_data/sample_streets.csv
 SPDXID: SPDXRef-Fixture
 LicenseInfoInFile: ODbL-1.0
 LicenseConcluded: ODbL-1.0
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(0)
+        ->and($result['stderr'])->toBe('');
+});
+
+test('license compatibility script allows the Contributor Covenant third-party notice', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: CODE_OF_CONDUCT.md
+SPDXID: SPDXRef-File
+LicenseInfoInFile: CC-BY-4.0
+LicenseConcluded: CC-BY-4.0
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(0)
+        ->and($result['stderr'])->toBe('');
+});
+
+test('license compatibility script rejects the attribution addendum in documentation', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: docs/rbac-architecture.md
+SPDXID: SPDXRef-File
+LicenseInfoInFile: AGPL-3.0-or-later
+LicenseInfoInFile: LicenseRef-SecPal-Attribution
+LicenseConcluded: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
+});
+
+test('license compatibility script rejects concluded documentation attribution despite a cc0 example', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: docs/rbac-architecture.md
+SPDXID: SPDXRef-File
+LicenseInfoInFile: AGPL-3.0-or-later
+LicenseInfoInFile: LicenseRef-SecPal-Attribution
+LicenseInfoInFile: CC0-1.0
+LicenseConcluded: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
+});
+
+test('license compatibility script rejects concluded documentation attribution paired with cc0', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: docs/rbac-architecture.md
+SPDXID: SPDXRef-File
+LicenseInfoInFile: CC0-1.0
+LicenseInfoInFile: LicenseRef-SecPal-Attribution
+LicenseConcluded: CC0-1.0 AND LicenseRef-SecPal-Attribution
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
+});
+
+test('license compatibility script rejects documentation attribution when concluded is noassertion', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: docs/rbac-architecture.md
+SPDXID: SPDXRef-File
+LicenseInfoInFile: CC0-1.0
+LicenseInfoInFile: AGPL-3.0-or-later
+LicenseInfoInFile: LicenseRef-SecPal-Attribution
+LicenseConcluded: NOASSERTION
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
+});
+
+test('license compatibility script allows ci concluded documentation after ignoring attribution examples', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: CONTRIBUTING.md
+SPDXID: SPDXRef-File
+LicenseInfoInFile: CC0-1.0
+LicenseConcluded: CC0-1.0
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(0)
+        ->and($result['stderr'])->toBe('');
+});
+
+test('license compatibility script accepts the OpenTimestamps runtime build asset', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: .ddev/web-build/Dockerfile.opentimestamps
+SPDXID: SPDXRef-File
+LicenseInfoInFile: AGPL-3.0-or-later
+LicenseInfoInFile: LicenseRef-SecPal-Attribution
+LicenseConcluded: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 SPDX
     );
 
