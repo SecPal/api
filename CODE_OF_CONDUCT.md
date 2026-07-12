@@ -1,6 +1,7 @@
 <!--
-SPDX-FileCopyrightText: 2025 SecPal Contributors
-SPDX-License-Identifier: CC0-1.0
+SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
+SPDX-FileCopyrightText: Contributor Covenant
+SPDX-License-Identifier: CC0-1.0 AND CC-BY-4.0
 -->
 
 # Contributor Covenant Code of Conduct

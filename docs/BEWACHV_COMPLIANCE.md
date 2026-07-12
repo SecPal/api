@@ -813,4 +813,4 @@ For production deployment, verify:
 **Document Version:** 1.0
 **Last Updated:** 2026-01-04
 **Author:** SecPal Contributors
-**License:** AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+**License:** CC0-1.0

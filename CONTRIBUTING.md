@@ -433,6 +433,8 @@ terms unless this repository actually includes Tailwind-derived material.
 
 ### SPDX Header Examples
 
+<!-- REUSE-IgnoreStart -->
+
 **For application code (`AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`):**
 
 ```php
@@ -458,16 +460,12 @@ terms unless this repository actually includes Tailwind-derived material.
 # SPDX-License-Identifier: CC0-1.0
 ```
 
-<!-- REUSE-IgnoreStart -->
-
 ```json
 {
   "_comment": "SPDX-FileCopyrightText: 2026 SecPal Contributors",
   "_license": "SPDX-License-Identifier: CC0-1.0"
 }
 ```
-
-<!-- REUSE-IgnoreEnd -->
 
 **For helper scripts (MIT):**
 
@@ -485,6 +483,8 @@ SPDX-FileCopyrightText: 2026 SecPal Contributors
 SPDX-License-Identifier: CC0-1.0
 -->
 ```
+
+<!-- REUSE-IgnoreEnd -->
 
 ### Verification
 

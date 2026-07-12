@@ -19,6 +19,7 @@ compatible_licenses=(
   "BSD-2-Clause"
   "BSD-3-Clause"
   "Apache-2.0"
+  "CC-BY-4.0"
   "CC0-1.0"
   "ISC"
   "OFL-1.1"
@@ -32,20 +33,6 @@ is_allowed_atom() {
 
   for compatible in "${compatible_licenses[@]}"; do
     if [[ "$atom" == "$compatible" ]]; then
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-has_license() {
-  local expected="$1"
-  shift
-  local license
-
-  for license in "$@"; do
-    if [[ "$license" == "$expected" ]]; then
       return 0
     fi
   done
@@ -106,9 +93,7 @@ validate_current_file() {
     fi
   done
 
-  if [[ "$concluded" == *'LicenseRef-SecPal-Attribution'* ]] \
-    && ! is_strict_path "$path" \
-    && ! has_license 'CC0-1.0' "${licenses[@]}"; then
+  if [[ "$concluded" == *'LicenseRef-SecPal-Attribution'* ]] && ! is_strict_path "$path"; then
     echo "ERROR: attribution addendum is only permitted for SecPal-owned AGPL code and assets in $path" >&2
     return 1
   fi
