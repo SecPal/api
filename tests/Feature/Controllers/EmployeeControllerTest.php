@@ -3169,7 +3169,6 @@ test('manager cannot create an employee with a management level outside writable
         'contract_type' => 'full_time',
         'contract_start_date' => now()->toDateString(),
         'position' => 'Area Manager',
-        'organizational_unit_id' => $unit->id,
         'management_level' => 5,
     ]);
 
@@ -3315,6 +3314,7 @@ test('manager cannot update an employee to a management level outside writable a
     ]);
 
     $response = $this->withToken($this->token)->patchJson("/v1/employees/{$employee->id}", [
+        'organizational_unit_id' => $unit->id,
         'management_level' => 5,
     ]);
 
@@ -3349,6 +3349,7 @@ test('manager cannot update an employee in a soft-deleted unit to a management l
     $unit->delete();
 
     $response = $this->withToken($this->token)->patchJson("/v1/employees/{$employee->id}", [
+        'organizational_unit_id' => $unit->id,
         'management_level' => 5,
     ]);
 

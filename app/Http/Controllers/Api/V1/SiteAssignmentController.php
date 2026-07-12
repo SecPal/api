@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 declare(strict_types=1);
@@ -145,24 +145,26 @@ class SiteAssignmentController extends AssignmentController
     }
 
     /**
-     * Determine whether an update would reactivate an inactive assignment.
+     * Determine whether an update would reactivate or extend an assignment.
      *
      * @param  array<string, mixed>  $validated
      */
     private function wouldReactivateAssignment(SiteAssignment $siteAssignment, array $validated): bool
     {
-        if ($siteAssignment->is_active) {
-            return false;
-        }
-
         $updatedAssignment = clone $siteAssignment;
         $updatedAssignment->fill($validated);
 
-        if ($updatedAssignment->is_active) {
+        if (! $siteAssignment->is_active && $updatedAssignment->is_active) {
             return true;
         }
 
-        return $this->isExpiredAssignment($siteAssignment) && ! $this->isExpiredAssignment($updatedAssignment);
+        if ($this->isExpiredAssignment($siteAssignment) && ! $this->isExpiredAssignment($updatedAssignment)) {
+            return true;
+        }
+
+        return $siteAssignment->is_active
+            && $siteAssignment->valid_until !== null
+            && ($updatedAssignment->valid_until === null || $updatedAssignment->valid_until->greaterThan($siteAssignment->valid_until));
     }
 
     private function isExpiredAssignment(SiteAssignment $siteAssignment): bool

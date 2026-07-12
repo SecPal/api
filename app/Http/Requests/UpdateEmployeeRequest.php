@@ -317,7 +317,7 @@ class UpdateEmployeeRequest extends FormRequest
         $organizationalUnitId = $this->input('organizational_unit_id');
 
         if (is_string($organizationalUnitId) && $organizationalUnitId !== '') {
-            $organizationalUnit = OrganizationalUnit::query()->find($organizationalUnitId);
+            $organizationalUnit = OrganizationalUnit::withTrashed()->find($organizationalUnitId);
 
             return $organizationalUnit instanceof OrganizationalUnit ? $organizationalUnit : null;
         }

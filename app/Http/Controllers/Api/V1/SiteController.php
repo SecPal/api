@@ -12,10 +12,12 @@ use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Site;
 use App\Models\TenantKey;
+use App\Rules\AssignableOrganizationalUnit;
 use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * SiteController handles Site resource CRUD operations.
@@ -178,11 +180,36 @@ class SiteController extends Controller
     {
         $this->authorize('update', $site);
 
-        $site->update($request->validated());
+        $validated = $request->validated();
+
+        if ($site->organizationalUnit?->is_assignable === false && $this->wouldReactivateSite($site, $validated)) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
+        }
+
+        $site->update($validated);
 
         return response()->json([
             'data' => new SiteResource($site->fresh()),
         ]);
+    }
+
+    /**
+     * Determine whether an update would reactivate an inactive or expired site.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function wouldReactivateSite(Site $site, array $validated): bool
+    {
+        if ($site->is_active && ! $site->is_expired) {
+            return false;
+        }
+
+        $updatedSite = clone $site;
+        $updatedSite->fill($validated);
+
+        return $updatedSite->is_active && ! $updatedSite->is_expired;
     }
 
     /**

@@ -429,9 +429,9 @@ describe('GET /v1/sites', function () {
 });
 
 describe('POST /v1/sites', function () {
-    test('rejects placement in a soft-deleted organizational unit', function (): void {
+    test('rejects placement in a closed organizational unit', function (bool $isDeleted): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
-        $this->orgUnit->delete();
+        $isDeleted ? $this->orgUnit->delete() : $this->orgUnit->update(['is_assignable' => false]);
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/sites', [
@@ -449,30 +449,7 @@ describe('POST /v1/sites', function () {
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['organizational_unit_id']);
-    });
-
-    test('rejects site placement in a non-assignable organizational unit', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
-        $this->orgUnit->update(['is_assignable' => false]);
-
-        $response = $this->withToken($this->token)
-            ->postJson('/v1/sites', [
-                'name' => 'Airport Terminal 1',
-                'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
-                'type' => 'permanent',
-                'address' => [
-                    'street' => 'Airport Ring 1',
-                    'city' => 'Berlin',
-                    'postal_code' => '12529',
-                    'country' => 'DE',
-                ],
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id'])
-            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
-    });
+    })->with(['deleted' => true, 'non-assignable' => false]);
 
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson('/v1/sites', [
@@ -936,6 +913,25 @@ describe('GET /v1/sites/{site}', function () {
 });
 
 describe('PATCH /v1/sites/{site}', function () {
+    test('rejects reactivating a site in a non-assignable organizational unit', function (array $initialValues, array $updatedValues): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->orgUnit->update(['is_assignable' => false]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            ...$initialValues,
+        ]);
+
+        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", $updatedValues);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id']);
+    })->with([
+        'inactive' => [['is_active' => false], ['is_active' => true]],
+        'expired' => [['valid_until' => now()->subDay()], ['valid_until' => now()->addWeek()->toDateString()]],
+    ]);
+
     test('allows an unchanged non-assignable organizational unit in a site update', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $this->orgUnit->update(['is_assignable' => false]);

@@ -207,13 +207,12 @@ describe('GET /v1/sites/{site}/assignments', function () {
 });
 
 describe('POST /v1/sites/{site}/assignments', function () {
-    test('rejects assignments for a site in a soft-deleted organizational unit', function (): void {
+    test('rejects assignments for a site in a closed organizational unit', function (bool $isDeleted): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
-        OrganizationalUnit::query()
-            ->findOrFail($this->site->organizational_unit_id)
-            ->delete();
+        $organizationalUnit = OrganizationalUnit::query()->findOrFail($this->site->organizational_unit_id);
+        $isDeleted ? $organizationalUnit->delete() : $organizationalUnit->update(['is_assignable' => false]);
         $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
         $response = $this->withToken($this->token)
@@ -224,33 +223,13 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['organizational_unit_id']);
-    });
-
-    test('rejects assignments for a site in a non-assignable organizational unit', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
-        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-
-        OrganizationalUnit::query()
-            ->findOrFail($this->site->organizational_unit_id)
-            ->update(['is_assignable' => false]);
-        $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
-
-        $response = $this->withToken($this->token)
-            ->postJson("/v1/sites/{$this->site->id}/assignments", [
-                'user_id' => $targetUser->id,
-                'role' => 'Site Manager',
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id'])
-            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
 
         $this->assertDatabaseMissing('site_assignments', [
             'site_id' => $this->site->id,
             'user_id' => $targetUser->id,
             'role' => 'Site Manager',
         ]);
-    });
+    })->with(['deleted' => true, 'non-assignable' => false]);
 
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson("/v1/sites/{$this->site->id}/assignments", []);
@@ -564,6 +543,10 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
                 ['valid_until' => now()->subDay()],
                 ['valid_until' => now()->addWeek()->toDateString()],
             ],
+            'active window' => [
+                ['valid_until' => now()->toDateString()],
+                ['valid_until' => now()->addWeek()->toDateString()],
+            ],
         };
 
         $assignment = SiteAssignment::factory()->create([
@@ -578,7 +561,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['organizational_unit_id']);
-    })->with(['future start', 'future window', 'current window']);
+    })->with(['future start', 'future window', 'current window', 'active window']);
 
     test('returns 401 when not authenticated', function (): void {
         $assignment = SiteAssignment::factory()->create([
