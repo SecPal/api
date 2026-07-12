@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- allowed activity logging for same-tenant records that retain a reference to a soft-deleted organizational unit, so permitted historical record updates remain audit-safe instead of failing with a server error (fixes `api#1268`)
 - scoped the employee auto-logging regression lookup to the employee and tenant created by the test, so activity-log assertions cannot read a matching row leaked by an earlier test (fixes `api#1269`)
 - rejected new organizational scopes, effective scope expansions, employee or site placements, and site-user assignments on organizational units marked `is_assignable: false`, including access-level escalation exposed by scope-mask removal, reassignment, reactivation, future-coverage extension, and role-change attempts plus soft-deleted targets, while allowing redundant scope cleanup and fully historical assignment corrections and preserving the required creator bootstrap `manage` scope when creating an unassignable unit (fixes `api#1266`)
 - required a non-empty `custom_type_name` whenever an organizational-unit update explicitly sends `type: custom` or attempts to clear the name of an existing custom unit, matching the create and OpenAPI contracts (fixes `api#1262`)
