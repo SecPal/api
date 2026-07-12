@@ -214,6 +214,28 @@ SPDX
         ->and($result['stderr'])->toBe('');
 });
 
+test('license compatibility script allows ci concluded documentation with attribution examples', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: CONTRIBUTING.md
+SPDXID: SPDXRef-File
+LicenseInfoInFile: AGPL-3.0-or-later
+LicenseInfoInFile: CC0-1.0
+LicenseInfoInFile: LicenseRef-SecPal-Attribution
+LicenseInfoInFile: MIT
+LicenseConcluded: AGPL-3.0-or-later AND CC0-1.0 AND LicenseRef-SecPal-Attribution AND MIT
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(0)
+        ->and($result['stderr'])->toBe('');
+});
+
 test('license compatibility script accepts the OpenTimestamps runtime build asset', function (): void {
     $result = runLicenseCompatibilityScript(<<<'SPDX'
 SPDXVersion: SPDX-2.3
