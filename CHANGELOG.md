@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- aligned repository-owned runtime code and asset SPDX metadata with the SecPal Contributors AGPL attribution policy, returned documentation and configuration to their CC0 policy, preserved third-party notices separately, and added a license-check regression guard for attribution addendum scope (refs `api#1226`)
+- aligned repository-owned runtime code and asset SPDX metadata with the SecPal Contributors AGPL attribution policy, returned documentation and configuration to their CC0 policy, preserved third-party notices separately, and added license-check regression guards for attribution addendum scope in concluded and in-file SPDX metadata (refs `api#1226`)
 - seed the SecPal Holding organizational unit as both a legal entity and establishment, including repairing the flags when the unit already exists
 - grouped Dependabot updates for `SecPal/.github/.github/workflows/*` under stable `shared-github-workflows` identifiers in `.github/dependabot.yml`, so GitHub derives readable branch names and PR titles from the group name instead of transliterating the full reusable-workflow path into long `SecPal-dot-github-dot-...` strings
 - restored Dependabot pull request branch names to the standard hyphen-separated format in `.github/dependabot.yml`, so GitHub Actions, Composer, and npm update branches no longer expand into deep slash-separated paths like `dependabot/github_actions/main/...`

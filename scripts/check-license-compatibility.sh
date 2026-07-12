@@ -40,6 +40,20 @@ is_allowed_atom() {
   return 1
 }
 
+has_license() {
+  local expected="$1"
+  shift
+  local license
+
+  for license in "$@"; do
+    if [[ "$license" == "$expected" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 is_strict_path() {
   local path="$1"
 
@@ -93,7 +107,9 @@ validate_current_file() {
     fi
   done
 
-  if [[ "$concluded" == *'LicenseRef-SecPal-Attribution'* ]] && ! is_strict_path "$path"; then
+  if ! is_strict_path "$path" \
+    && ([[ "$concluded" == *'LicenseRef-SecPal-Attribution'* ]] \
+      || has_license 'LicenseRef-SecPal-Attribution' "${licenses[@]}"); then
     echo "ERROR: attribution addendum is only permitted for SecPal-owned AGPL code and assets in $path" >&2
     return 1
   fi

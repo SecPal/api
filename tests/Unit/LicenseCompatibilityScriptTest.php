@@ -59,7 +59,7 @@ SPDXID: SPDXRef-DOCUMENT
 DocumentName: sample
 DocumentNamespace: https://secpal.dev/spdxdocs/sample
 
-FileName: app/Foo.php
+FileName: app/Models/User.php
 SPDXID: SPDXRef-File
 LicenseInfoInFile: AGPL-3.0-or-later
 LicenseInfoInFile: LicenseRef-SecPal-Attribution
@@ -79,7 +79,7 @@ SPDXID: SPDXRef-DOCUMENT
 DocumentName: sample
 DocumentNamespace: https://secpal.dev/spdxdocs/sample
 
-FileName: app/Foo.php
+FileName: app/Models/User.php
 SPDXID: SPDXRef-File
 LicenseInfoInFile: AGPL-3.0-or-later
 LicenseInfoInFile: MIT
@@ -99,7 +99,7 @@ SPDXID: SPDXRef-DOCUMENT
 DocumentName: sample
 DocumentNamespace: https://secpal.dev/spdxdocs/sample
 
-FileName: app/Foo.php
+FileName: app/Models/User.php
 SPDXID: SPDXRef-File
 LicenseInfoInFile: MIT
 LicenseConcluded: MIT
@@ -118,7 +118,7 @@ SPDXID: SPDXRef-DOCUMENT
 DocumentName: sample
 DocumentNamespace: https://secpal.dev/spdxdocs/sample
 
-FileName: app/Foo.php
+FileName: app/Models/User.php
 SPDXID: SPDXRef-File
 LicenseInfoInFile: AGPL-3.0-or-later
 LicenseInfoInFile: MIT
@@ -253,7 +253,7 @@ SPDX
         ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
 });
 
-test('license compatibility script allows documentation that only contains attribution examples', function (): void {
+test('license compatibility script rejects documentation attribution when concluded is noassertion', function (): void {
     $result = runLicenseCompatibilityScript(<<<'SPDX'
 SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0
@@ -270,8 +270,8 @@ LicenseConcluded: NOASSERTION
 SPDX
     );
 
-    expect($result['exit_code'])->toBe(0)
-        ->and($result['stderr'])->toBe('');
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
 });
 
 test('license compatibility script allows ci concluded documentation after ignoring attribution examples', function (): void {
