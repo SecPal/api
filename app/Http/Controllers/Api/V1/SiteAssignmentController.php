@@ -130,7 +130,7 @@ class SiteAssignmentController extends AssignmentController
 
         if (
             ! $this->siteAcceptsNewAssignments($siteAssignment->site)
-            && $this->wouldReactivateAssignment($siteAssignment, $validated)
+            && $this->wouldExpandAssignmentCoverage($siteAssignment, $validated)
         ) {
             throw ValidationException::withMessages([
                 'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
@@ -145,32 +145,43 @@ class SiteAssignmentController extends AssignmentController
     }
 
     /**
-     * Determine whether an update would reactivate or extend an assignment.
+     * Determine whether an update would add operational assignment coverage.
      *
      * @param  array<string, mixed>  $validated
      */
-    private function wouldReactivateAssignment(SiteAssignment $siteAssignment, array $validated): bool
+    private function wouldExpandAssignmentCoverage(SiteAssignment $siteAssignment, array $validated): bool
     {
         $updatedAssignment = clone $siteAssignment;
         $updatedAssignment->fill($validated);
 
-        if (! $siteAssignment->is_active && $updatedAssignment->is_active) {
-            return true;
-        }
-
-        if ($this->isExpiredAssignment($siteAssignment) && ! $this->isExpiredAssignment($updatedAssignment)) {
-            return true;
-        }
-
-        return $siteAssignment->is_active
-            && $siteAssignment->valid_until !== null
-            && ($updatedAssignment->valid_until === null || $updatedAssignment->valid_until->greaterThan($siteAssignment->valid_until));
+        return $this->startsOperationalCoverageEarlier($siteAssignment, $updatedAssignment)
+            || $this->endsOperationalCoverageLater($siteAssignment, $updatedAssignment)
+            || ($siteAssignment->role !== $updatedAssignment->role && $this->hasCurrentOrFutureCoverage($siteAssignment));
     }
 
-    private function isExpiredAssignment(SiteAssignment $siteAssignment): bool
+    private function startsOperationalCoverageEarlier(SiteAssignment $siteAssignment, SiteAssignment $updatedAssignment): bool
     {
-        return $siteAssignment->valid_until !== null
-            && $siteAssignment->valid_until->lessThan(now()->startOfDay());
+        $today = now()->startOfDay();
+        $currentStart = $siteAssignment->valid_from?->greaterThan($today) ? $siteAssignment->valid_from : $today;
+        $updatedStart = $updatedAssignment->valid_from?->greaterThan($today) ? $updatedAssignment->valid_from : $today;
+
+        return $updatedStart->lessThan($currentStart);
+    }
+
+    private function endsOperationalCoverageLater(SiteAssignment $siteAssignment, SiteAssignment $updatedAssignment): bool
+    {
+        if ($siteAssignment->valid_until === null) {
+            return false;
+        }
+
+        return $updatedAssignment->valid_until === null
+            || $updatedAssignment->valid_until->greaterThan($siteAssignment->valid_until);
+    }
+
+    private function hasCurrentOrFutureCoverage(SiteAssignment $siteAssignment): bool
+    {
+        return $siteAssignment->valid_until === null
+            || ! $siteAssignment->valid_until->lessThan(now()->startOfDay());
     }
 
     private function siteAcceptsNewAssignments(?Site $site): bool

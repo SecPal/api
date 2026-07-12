@@ -10,6 +10,7 @@ use App\Http\Requests\Api\V1\IndexSiteRequest;
 use App\Http\Requests\Api\V1\StoreSiteRequest;
 use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
+use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\TenantKey;
 use App\Rules\AssignableOrganizationalUnit;
@@ -182,7 +183,7 @@ class SiteController extends Controller
 
         $validated = $request->validated();
 
-        if ($site->organizationalUnit?->is_assignable === false && $this->wouldReactivateSite($site, $validated)) {
+        if (! $this->siteAcceptsNewAssignments($site, $validated) && $this->wouldExpandSiteCoverage($site, $validated)) {
             throw ValidationException::withMessages([
                 'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
             ]);
@@ -196,20 +197,40 @@ class SiteController extends Controller
     }
 
     /**
-     * Determine whether an update would reactivate an inactive or expired site.
+     * Determine whether an update would add operational site coverage.
      *
      * @param  array<string, mixed>  $validated
      */
-    private function wouldReactivateSite(Site $site, array $validated): bool
+    private function wouldExpandSiteCoverage(Site $site, array $validated): bool
     {
-        if ($site->is_active && ! $site->is_expired) {
-            return false;
-        }
-
         $updatedSite = clone $site;
         $updatedSite->fill($validated);
 
-        return $updatedSite->is_active && ! $updatedSite->is_expired;
+        if ((! $site->is_active || $site->is_expired) && $updatedSite->is_active && ! $updatedSite->is_expired) {
+            return true;
+        }
+
+        return $site->is_active
+            && ! $site->is_expired
+            && $site->valid_until !== null
+            && ($updatedSite->valid_until === null || $updatedSite->valid_until->greaterThan($site->valid_until));
+    }
+
+    /**
+     * Determine whether the target organizational unit accepts site activation.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function siteAcceptsNewAssignments(Site $site, array $validated): bool
+    {
+        $organizationalUnitId = $validated['organizational_unit_id'] ?? $site->organizational_unit_id;
+        $organizationalUnit = OrganizationalUnit::withTrashed()
+            ->where('tenant_id', $site->tenant_id)
+            ->find($organizationalUnitId);
+
+        return $organizationalUnit instanceof OrganizationalUnit
+            && ! $organizationalUnit->trashed()
+            && $organizationalUnit->is_assignable;
     }
 
     /**

@@ -913,24 +913,47 @@ describe('GET /v1/sites/{site}', function () {
 });
 
 describe('PATCH /v1/sites/{site}', function () {
-    test('rejects reactivating a site in a non-assignable organizational unit', function (array $initialValues, array $updatedValues): void {
+    test('rejects lifecycle expansions in a closed organizational unit', function (array $initialValues, array $updatedValues, bool $isDeleted): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-        $this->orgUnit->update(['is_assignable' => false]);
+        $isDeleted ? $this->orgUnit->delete() : $this->orgUnit->update(['is_assignable' => false]);
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
             'organizational_unit_id' => $this->orgUnit->id,
             ...$initialValues,
         ]);
-
         $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", $updatedValues);
-
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['organizational_unit_id']);
     })->with([
-        'inactive' => [['is_active' => false], ['is_active' => true]],
-        'expired' => [['valid_until' => now()->subDay()], ['valid_until' => now()->addWeek()->toDateString()]],
+        'inactive' => [['is_active' => false], ['is_active' => true], false],
+        'expired' => [['valid_until' => now()->subDay()], ['valid_until' => now()->addWeek()->toDateString()], false],
+        'active extension' => [['valid_until' => now()->addDay()], ['valid_until' => now()->addWeek()->toDateString()], false],
+        'trashed reactivation' => [['is_active' => false], ['is_active' => true], true],
     ]);
+
+    test('allows reactivating a site while moving it to an assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->orgUnit->update(['is_assignable' => false]);
+        $targetUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            'is_active' => false,
+        ]);
+        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
+            'organizational_unit_id' => $targetUnit->id,
+            'is_active' => true,
+        ]);
+
+        $response->assertOk();
+        $this->assertDatabaseHas('sites', [
+            'id' => $site->id,
+            'organizational_unit_id' => $targetUnit->id,
+            'is_active' => true,
+        ]);
+    });
 
     test('allows an unchanged non-assignable organizational unit in a site update', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');

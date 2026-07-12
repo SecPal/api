@@ -466,9 +466,9 @@ describe('GET /v1/employees', function () {
 });
 
 describe('POST /v1/employees', function () {
-    test('rejects placement in a soft-deleted organizational unit', function (): void {
+    test('rejects placement in a closed organizational unit', function (bool $isDeleted): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-        $this->organizationalUnit->delete();
+        $isDeleted ? $this->organizationalUnit->delete() : $this->organizationalUnit->update(['is_assignable' => false]);
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/employees', [
@@ -485,29 +485,7 @@ describe('POST /v1/employees', function () {
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['organizational_unit_id']);
-    });
-
-    test('rejects employee placement in a non-assignable organizational unit', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-        $this->organizationalUnit->update(['is_assignable' => false]);
-
-        $response = $this->withToken($this->token)
-            ->postJson('/v1/employees', [
-                'first_name' => 'Nina',
-                'last_name' => 'Newhire',
-                'email' => 'nina.newhire@example.com',
-                'date_of_birth' => '1993-05-15',
-                'position' => 'Security Guard',
-                'status' => Employee::STATUS_PRE_CONTRACT,
-                'contract_type' => 'full_time',
-                'contract_start_date' => now()->addWeek()->toDateString(),
-                'organizational_unit_id' => $this->organizationalUnit->id,
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id'])
-            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
-    });
+    })->with(['deleted' => true, 'non-assignable' => false]);
 
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson('/v1/employees', [
@@ -1282,13 +1260,14 @@ describe('GET /v1/employees/{employee}', function () {
 });
 
 describe('PATCH /v1/employees/{employee}', function () {
-    test('rejects moving an employee to a soft-deleted organizational unit', function (): void {
+    test('rejects moving an employee to a closed organizational unit', function (bool $isDeleted): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $softDeletedUnit = OrganizationalUnit::factory()->create([
+        $targetUnit = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
+            'is_assignable' => $isDeleted,
         ]);
-        $softDeletedUnit->delete();
+        $isDeleted ? $targetUnit->delete() : grantDualManagementScopes($this->user, $targetUnit->id);
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
             'organizational_unit_id' => $this->organizationalUnit->id,
@@ -1296,14 +1275,14 @@ describe('PATCH /v1/employees/{employee}', function () {
 
         $response = $this->withToken($this->token)
             ->patchJson("/v1/employees/{$employee->id}", [
-                'organizational_unit_id' => $softDeletedUnit->id,
+                'organizational_unit_id' => $targetUnit->id,
             ]);
 
         $response->assertUnprocessable()
-            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
-    });
+            ->assertJsonValidationErrors(['organizational_unit_id']);
+    })->with(['deleted' => true, 'non-assignable' => false]);
 
-    test('allows an unchanged soft-deleted organizational unit in an employee update', function (): void {
+    test('allows an unchanged closed organizational unit in an employee update', function (bool $isDeleted): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
         $employee = Employee::factory()->create([
@@ -1311,7 +1290,7 @@ describe('PATCH /v1/employees/{employee}', function () {
             'organizational_unit_id' => $this->organizationalUnit->id,
             'weekly_hours' => 40,
         ]);
-        $this->organizationalUnit->delete();
+        $isDeleted ? $this->organizationalUnit->delete() : $this->organizationalUnit->update(['is_assignable' => false]);
 
         $response = $this->withToken($this->token)
             ->patchJson("/v1/employees/{$employee->id}", [
@@ -1321,51 +1300,7 @@ describe('PATCH /v1/employees/{employee}', function () {
 
         $response->assertOk()
             ->assertJsonPath('data.weekly_hours', '35.00');
-    });
-
-    test('allows an unchanged non-assignable organizational unit in an employee update', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-        $this->organizationalUnit->update(['is_assignable' => false]);
-
-        $employee = Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'weekly_hours' => 40,
-        ]);
-
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/employees/{$employee->id}", [
-                'organizational_unit_id' => $this->organizationalUnit->id,
-                'weekly_hours' => 35,
-            ]);
-
-        $response->assertOk()
-            ->assertJsonPath('data.weekly_hours', '35.00');
-    });
-
-    test('rejects moving an employee to a non-assignable organizational unit', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-        $unassignableUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'is_assignable' => false,
-        ]);
-        grantDualManagementScopes($this->user, $unassignableUnit->id);
-
-        $employee = Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
-        ]);
-
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/employees/{$employee->id}", [
-                'organizational_unit_id' => $unassignableUnit->id,
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id'])
-            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
-    });
+    })->with(['deleted' => true, 'non-assignable' => false]);
 
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
@@ -3169,6 +3104,7 @@ test('manager cannot create an employee with a management level outside writable
         'contract_type' => 'full_time',
         'contract_start_date' => now()->toDateString(),
         'position' => 'Area Manager',
+        'organizational_unit_id' => $unit->id,
         'management_level' => 5,
     ]);
 

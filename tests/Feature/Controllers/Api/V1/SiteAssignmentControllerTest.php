@@ -547,6 +547,18 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
                 ['valid_until' => now()->toDateString()],
                 ['valid_until' => now()->addWeek()->toDateString()],
             ],
+            'scheduled extension' => [
+                ['valid_from' => now()->addWeek(), 'valid_until' => now()->addWeeks(2)],
+                ['valid_until' => now()->addYear()->toDateString()],
+            ],
+            'scheduled earlier start' => [
+                ['valid_from' => now()->addWeeks(2), 'valid_until' => now()->addWeeks(3)],
+                ['valid_from' => now()->addWeek()->toDateString()],
+            ],
+            'active role change' => [
+                ['role' => 'Site Manager'],
+                ['role' => 'Operations Lead'],
+            ],
         };
 
         $assignment = SiteAssignment::factory()->create([
@@ -561,7 +573,7 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['organizational_unit_id']);
-    })->with(['future start', 'future window', 'current window', 'active window']);
+    })->with(['future start', 'future window', 'current window', 'active window', 'scheduled extension', 'scheduled earlier start', 'active role change']);
 
     test('returns 401 when not authenticated', function (): void {
         $assignment = SiteAssignment::factory()->create([
