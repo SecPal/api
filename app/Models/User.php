@@ -533,6 +533,8 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
 
         /** @var SupportCollection<int, string> $directUnitIds */
         $directUnitIds = collect();
+        /** @var SupportCollection<int, string> $directGrantedUnitIds */
+        $directGrantedUnitIds = collect();
         /** @var SupportCollection<int, string> $ancestorIdsForDescendants */
         $ancestorIdsForDescendants = collect();
         /** @var SupportCollection<int, string> $deniedUnitIds */
@@ -552,6 +554,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
             }
 
             $directUnitIds->push($scope->organizational_unit_id);
+            $directGrantedUnitIds->push($scope->organizational_unit_id);
 
             if ($scope->include_descendants) {
                 $ancestorIdsForDescendants->push($scope->organizational_unit_id);
@@ -579,6 +582,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
         $accessibleUnitIds = $directUnitIds
             ->merge($descendantIds)
             ->diff($deniedUnitIds)
+            ->merge($directGrantedUnitIds)
             ->unique();
 
         return OrganizationalUnit::whereIn('id', $accessibleUnitIds)->get();

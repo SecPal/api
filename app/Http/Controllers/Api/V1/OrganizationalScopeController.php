@@ -185,15 +185,18 @@ class OrganizationalScopeController extends Controller
         }
 
         $updatedScopeIncludesDescendants = $validated['include_descendants'] ?? $scopeModel->include_descendants;
+        $removingDescendantMaskExpandsEntitlement = $scopeModel->include_descendants
+            && ! $updatedScopeIncludesDescendants
+            && $this->removingScopeExpandsClosedUnitEntitlement($organizational_unit, $scopeModel, false);
 
-        if (
+        if ($removingDescendantMaskExpandsEntitlement || (
             $this->scopeUpdateExpandsEntitlement($scopeModel, $validated)
             && ! $this->scopeTargetsAcceptNewEntitlements(
                 $organizational_unit,
                 $updatedScopeIncludesDescendants,
                 $scopeModel->user_id,
             )
-        ) {
+        )) {
             throw ValidationException::withMessages([
                 'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
             ]);
@@ -310,7 +313,24 @@ class OrganizationalScopeController extends Controller
         $maskedDescendantIds = UserInternalOrganizationalScope::query()
             ->where('user_id', $userId)
             ->whereIn('organizational_unit_id', $descendantIds)
-            ->pluck('organizational_unit_id');
+            ->get(['organizational_unit_id', 'access_level', 'include_descendants'])
+            ->pipe(function ($scopes) {
+                $maskedIds = $scopes->pluck('organizational_unit_id');
+                $denyAncestorIds = $scopes
+                    ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->access_level === 'none' && $scope->include_descendants)
+                    ->pluck('organizational_unit_id');
+
+                if ($denyAncestorIds->isNotEmpty()) {
+                    $maskedIds = $maskedIds->merge(
+                        OrganizationalUnitClosure::query()
+                            ->whereIn('ancestor_id', $denyAncestorIds)
+                            ->where('depth', '>', 0)
+                            ->pluck('descendant_id'),
+                    );
+                }
+
+                return $maskedIds;
+            });
 
         return ! OrganizationalUnit::withTrashed()
             ->where('tenant_id', $organizationalUnit->tenant_id)
@@ -325,24 +345,51 @@ class OrganizationalScopeController extends Controller
     private function removingScopeExpandsClosedUnitEntitlement(
         OrganizationalUnit $organizationalUnit,
         UserInternalOrganizationalScope $scope,
+        bool $includeScopeUnit = true,
     ): bool {
-        if ($organizationalUnit->is_assignable) {
-            return false;
-        }
-
         $user = User::query()->find($scope->user_id);
 
         if (! $user instanceof User) {
             return false;
         }
 
-        $replacementScopes = $user->getApplicableOrganizationalScopesForUnitUsingScopes(
-            $organizationalUnit,
-            $user->organizationalScopes()
-                ->whereKeyNot($scope->id)
-                ->get(),
-        );
+        $organizationalUnitIds = $includeScopeUnit
+            ? collect([$organizationalUnit->id])
+            : collect();
 
+        if ($scope->include_descendants) {
+            $organizationalUnitIds = $organizationalUnitIds->merge(
+                OrganizationalUnitClosure::query()
+                    ->where('ancestor_id', $organizationalUnit->id)
+                    ->where('depth', '>', 0)
+                    ->pluck('descendant_id'),
+            );
+        }
+
+        $replacementScopeSet = $user->organizationalScopes()
+            ->whereKeyNot($scope->id)
+            ->get();
+
+        return OrganizationalUnit::withTrashed()
+            ->where('tenant_id', $organizationalUnit->tenant_id)
+            ->whereIn('id', $organizationalUnitIds->unique())
+            ->where(fn ($query) => $query
+                ->whereNotNull('deleted_at')
+                ->orWhere('is_assignable', false))
+            ->get()
+            ->contains(fn (OrganizationalUnit $coveredUnit): bool => $this->scopeSetExpandsEntitlement(
+                $scope,
+                $user->getApplicableOrganizationalScopesForUnitUsingScopes($coveredUnit, $replacementScopeSet),
+            ));
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, UserInternalOrganizationalScope>  $replacementScopes
+     */
+    private function scopeSetExpandsEntitlement(
+        UserInternalOrganizationalScope $scope,
+        \Illuminate\Support\Collection $replacementScopes,
+    ): bool {
         for ($managementLevel = 0; $managementLevel <= 255; $managementLevel++) {
             if (
                 (! $this->scopeCanViewManagementLevel($scope, $managementLevel)

@@ -361,6 +361,30 @@ describe('OrganizationalScopeController', function () {
     });
 
     describe('update - PATCH /organizational-units/{unit}/scopes/{scope}', function () {
+        it('rejects shrinking a deny subtree that masks a non-assignable descendant', function (): void {
+            $this->branch->update(['is_assignable' => false]);
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->holding->id,
+                'access_level' => 'write',
+                'include_descendants' => true,
+            ]);
+            $denyScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'none',
+                'include_descendants' => true,
+            ]);
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$denyScope->id}", [
+                'include_descendants' => false,
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['organizational_unit_id']);
+        });
+
         it('allows extending a deny scope across non-assignable descendants', function (): void {
             $this->branch->update(['is_assignable' => false]);
             $scope = UserInternalOrganizationalScope::create([
@@ -838,6 +862,28 @@ describe('OrganizationalScopeController', function () {
     });
 
     describe('destroy - DELETE /organizational-units/{unit}/scopes/{scope}', function () {
+        it('rejects deleting an assignable deny subtree that masks a non-assignable descendant', function (): void {
+            $this->branch->update(['is_assignable' => false]);
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->holding->id,
+                'access_level' => 'write',
+                'include_descendants' => true,
+            ]);
+            $denyScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'none',
+                'include_descendants' => true,
+            ]);
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->deleteJson("/v1/organizational-units/{$this->company->id}/scopes/{$denyScope->id}");
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['organizational_unit_id']);
+        });
+
         it('rejects deleting a direct deny that masks inherited access to a non-assignable unit', function (): void {
             $this->branch->update(['is_assignable' => false]);
             UserInternalOrganizationalScope::create([

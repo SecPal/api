@@ -223,6 +223,28 @@ test('direct deny scopes with descendants mask inherited subtree access', functi
     expect($this->user->hasAccessToUnit($grandchild))->toBeFalse();
 });
 
+test('direct grants override inherited deny scopes', function () {
+    $parent = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
+    $child = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
+    $child->setParent($parent);
+
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $parent->id,
+        'access_level' => 'none',
+        'include_descendants' => true,
+    ]);
+    UserInternalOrganizationalScope::create([
+        'user_id' => $this->user->id,
+        'organizational_unit_id' => $child->id,
+        'access_level' => 'read',
+        'include_descendants' => false,
+    ]);
+
+    expect($this->user->getAccessibleOrganizationalUnitIds())->toContain($child->id);
+    expect($this->user->hasAccessToUnit($child))->toBeTrue();
+});
+
 test('get accessible customers returns empty when no access', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $unassignedCustomer = Customer::factory()->for($this->tenant, 'tenant')->create();
