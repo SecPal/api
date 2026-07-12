@@ -190,6 +190,29 @@ describe('GET /v1/activity-logs', function () {
         expect($response->json('data')[0]['organizational_unit_id'])->toBe($orgUnit->id);
     });
 
+    test('excludes all activities for users with deny-only organizational scopes', function (): void {
+        ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
+
+        givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
+        actingAs($user, 'sanctum');
+
+        $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $tenant->id]);
+        UserInternalOrganizationalScope::factory()->create([
+            'user_id' => $user->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'access_level' => 'none',
+        ]);
+        Activity::factory()->create([
+            'tenant_id' => $tenant->id,
+            'organizational_unit_id' => $orgUnit->id,
+            'description' => 'Denied activity',
+        ]);
+
+        getJson('/v1/activity-logs')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    });
+
     test('excludes activities from inaccessible organizational units', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 

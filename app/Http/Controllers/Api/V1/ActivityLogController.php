@@ -189,16 +189,24 @@ class ActivityLogController extends Controller
         }
 
         // Get user's organizational scopes
-        $scopes = $user->organizationalScopes()
-            ->whereIn('access_level', ['read', 'write', 'manage'])
-            ->get();
+        $allScopes = $user->organizationalScopes()->get();
 
-        if ($scopes->isEmpty()) {
-            // User has no scopes - can see all activities (global access)
+        if ($allScopes->isEmpty()) {
             return $query;
         }
 
-        // User has scopes - show only scoped activities
+        $scopes = $allScopes
+            ->filter(fn ($scope): bool => in_array($scope->access_level, ['read', 'write', 'manage'], true))
+            ->values();
+
+        if ($scopes->isEmpty()) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        /*
+         * Users with scopes can only see activities covered by a positive scope.
+         * A deny-only scope must not fall back to tenant-wide visibility.
+         */
         // Collect accessible organizational unit IDs
         $accessibleUnitIds = $scopes->pluck('organizational_unit_id')->unique()->toArray();
 
