@@ -1,6 +1,6 @@
 <!--
-SPDX-FileCopyrightText: 2026 SecPal
-SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 SecPal Contributors
+SPDX-License-Identifier: CC0-1.0
 -->
 
 # SecPal/api Copilot Instructions

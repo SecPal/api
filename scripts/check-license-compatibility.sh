@@ -52,10 +52,13 @@ is_strict_path() {
     || [[ "$path" == bootstrap/* ]] \
     || [[ "$path" == config/* ]] \
     || [[ "$path" == database/* ]] \
+    || [[ "$path" == lang/* ]] \
     || [[ "$path" == public/* ]] \
+    || [[ "$path" == resources/* ]] \
     || [[ "$path" == routes/* ]] \
     || [[ "$path" == tests/* ]] \
-    || [[ "$path" == artisan ]]
+    || [[ "$path" == artisan ]] \
+    || [[ "$path" == .ddev/web-build/Dockerfile.opentimestamps ]]
 }
 
 is_strict_exception() {
@@ -88,6 +91,12 @@ validate_current_file() {
       return 1
     fi
   done
+
+  if [[ "$concluded" == *'LicenseRef-SecPal-Attribution'* ]] \
+    && ! is_strict_path "$path"; then
+    echo "ERROR: attribution addendum is only permitted for SecPal-owned AGPL code and assets in $path" >&2
+    return 1
+  fi
 
   if ! is_strict_path "$path"; then
     return 0

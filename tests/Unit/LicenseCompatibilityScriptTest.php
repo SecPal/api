@@ -172,3 +172,64 @@ SPDX
     expect($result['exit_code'])->toBe(0)
         ->and($result['stderr'])->toBe('');
 });
+
+test('license compatibility script rejects the attribution addendum in documentation', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: docs/licensing.md
+SPDXID: SPDXRef-File
+LicenseInfoInFile: AGPL-3.0-or-later
+LicenseInfoInFile: LicenseRef-SecPal-Attribution
+LicenseConcluded: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
+});
+
+test('license compatibility script allows documentation that only contains attribution examples', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: docs/licensing.md
+SPDXID: SPDXRef-File
+LicenseInfoInFile: CC0-1.0
+LicenseInfoInFile: AGPL-3.0-or-later
+LicenseInfoInFile: LicenseRef-SecPal-Attribution
+LicenseConcluded: NOASSERTION
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(0)
+        ->and($result['stderr'])->toBe('');
+});
+
+test('license compatibility script accepts the OpenTimestamps runtime build asset', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: .ddev/web-build/Dockerfile.opentimestamps
+SPDXID: SPDXRef-File
+LicenseInfoInFile: AGPL-3.0-or-later
+LicenseInfoInFile: LicenseRef-SecPal-Attribution
+LicenseConcluded: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(0)
+        ->and($result['stderr'])->toBe('');
+});
