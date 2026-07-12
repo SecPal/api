@@ -670,6 +670,7 @@ test('accepts a soft-deleted organizational_unit_id from the same tenant', funct
         'tenant_id' => $this->tenant->id,
     ]);
     $orgUnit->delete();
+    $this->assertSoftDeleted('organizational_units', ['id' => $orgUnit->id]);
 
     $this->actingAs($this->user);
 
@@ -716,6 +717,7 @@ test('throws exception when a soft-deleted organizational_unit_id belongs to dif
         'tenant_id' => $otherTenant->id,
     ]);
     $otherOrgUnit->delete();
+    $this->assertSoftDeleted('organizational_units', ['id' => $otherOrgUnit->id]);
 
     $this->actingAs($this->user);
 
