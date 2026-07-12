@@ -436,7 +436,7 @@ Search logs for `OpenTimestamp:` prefix.
 
 ## License
 
-This documentation is licensed under CC-BY-4.0.
+This documentation is licensed under CC0-1.0.
 
 The OpenTimestamp client is licensed under LGPL-3.0.
 
