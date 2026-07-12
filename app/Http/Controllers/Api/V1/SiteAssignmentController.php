@@ -174,8 +174,12 @@ class SiteAssignmentController extends AssignmentController
             return false;
         }
 
-        return $updatedAssignment->valid_until === null
-            || $updatedAssignment->valid_until->greaterThan($siteAssignment->valid_until);
+        if ($updatedAssignment->valid_until === null) {
+            return true;
+        }
+
+        return ! $updatedAssignment->valid_until->lessThan(now()->startOfDay())
+            && $updatedAssignment->valid_until->greaterThan($siteAssignment->valid_until);
     }
 
     private function hasCurrentOrFutureCoverage(SiteAssignment $siteAssignment): bool

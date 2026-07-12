@@ -933,6 +933,44 @@ describe('PATCH /v1/sites/{site}', function () {
         'trashed reactivation' => [['is_active' => false], ['is_active' => true], true],
     ]);
 
+    test('allows correcting past-only site coverage in a non-assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->orgUnit->update(['is_assignable' => false]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            'valid_from' => now()->subWeeks(3),
+            'valid_until' => now()->subWeeks(2),
+        ]);
+
+        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
+            'valid_until' => now()->subWeek()->toDateString(),
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.valid_until', now()->subWeek()->toDateString());
+    });
+
+    test('allows activating an expired site in a non-assignable organizational unit without future coverage', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->orgUnit->update(['is_assignable' => false]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            'is_active' => false,
+            'valid_until' => now()->subDay(),
+        ]);
+
+        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
+            'is_active' => true,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.is_active', true);
+    });
+
     test('allows reactivating a site while moving it to an assignable organizational unit', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $this->orgUnit->update(['is_assignable' => false]);

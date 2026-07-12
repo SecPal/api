@@ -242,14 +242,26 @@ class OrganizationalScopeController extends Controller
 
         for ($managementLevel = 0; $managementLevel <= 255; $managementLevel++) {
             if (
-                (! $scope->canViewManagementLevel($managementLevel) && $updatedScope->canViewManagementLevel($managementLevel))
-                || (! $scope->canAssignManagementLevel($managementLevel) && $updatedScope->canAssignManagementLevel($managementLevel))
+                (! $this->scopeCanViewManagementLevel($scope, $managementLevel) && $this->scopeCanViewManagementLevel($updatedScope, $managementLevel))
+                || (! $this->scopeCanAssignManagementLevel($scope, $managementLevel) && $this->scopeCanAssignManagementLevel($updatedScope, $managementLevel))
             ) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function scopeCanViewManagementLevel(UserInternalOrganizationalScope $scope, int $managementLevel): bool
+    {
+        return $scope->hasMinimumAccessLevel('read')
+            && $scope->canViewManagementLevel($managementLevel);
+    }
+
+    private function scopeCanAssignManagementLevel(UserInternalOrganizationalScope $scope, int $managementLevel): bool
+    {
+        return $scope->hasMinimumAccessLevel('write')
+            && $scope->canAssignManagementLevel($managementLevel);
     }
 
     /**

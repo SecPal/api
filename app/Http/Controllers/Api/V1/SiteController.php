@@ -206,14 +206,16 @@ class SiteController extends Controller
         $updatedSite = clone $site;
         $updatedSite->fill($validated);
 
-        if (! $site->is_active && $updatedSite->is_active) {
+        if (! $this->hasCurrentOrFutureCoverage($updatedSite)) {
+            return false;
+        }
+
+        if (! $this->hasCurrentOrFutureCoverage($site)) {
             return true;
         }
 
-        return $site->is_active
-            && $updatedSite->is_active
-            && ($this->startsOperationalCoverageEarlier($site, $updatedSite)
-                || $this->endsOperationalCoverageLater($site, $updatedSite));
+        return $this->startsOperationalCoverageEarlier($site, $updatedSite)
+            || $this->endsOperationalCoverageLater($site, $updatedSite);
     }
 
     private function startsOperationalCoverageEarlier(Site $site, Site $updatedSite): bool
@@ -231,8 +233,18 @@ class SiteController extends Controller
             return false;
         }
 
-        return $updatedSite->valid_until === null
-            || $updatedSite->valid_until->greaterThan($site->valid_until);
+        if ($updatedSite->valid_until === null) {
+            return true;
+        }
+
+        return ! $updatedSite->valid_until->lessThan(now()->startOfDay())
+            && $updatedSite->valid_until->greaterThan($site->valid_until);
+    }
+
+    private function hasCurrentOrFutureCoverage(Site $site): bool
+    {
+        return $site->is_active
+            && ($site->valid_until === null || ! $site->valid_until->lessThan(now()->startOfDay()));
     }
 
     /**

@@ -317,6 +317,8 @@ describe('OrganizationalScopeController', function () {
                 'organizational_unit_id' => $this->company->id,
                 'access_level' => 'manage',
                 'include_descendants' => true,
+                'min_assignable_rank' => 2,
+                'max_assignable_rank' => 3,
             ]);
 
             $this->actingAs($this->scopeManagerUser);
@@ -324,11 +326,14 @@ describe('OrganizationalScopeController', function () {
             $response = $this->patchJson("/v1/organizational-units/{$this->company->id}/scopes/{$scope->id}", [
                 'access_level' => 'read',
                 'include_descendants' => false,
+                'min_assignable_rank' => 2,
+                'max_assignable_rank' => 5,
             ]);
 
             $response->assertOk()
                 ->assertJsonPath('data.access_level', 'read')
-                ->assertJsonPath('data.include_descendants', false);
+                ->assertJsonPath('data.include_descendants', false)
+                ->assertJsonPath('data.max_assignable_rank', 5);
         });
 
         it('rejects expanding a scope assignment on a non-assignable organizational unit', function (array $payload): void {
@@ -355,7 +360,6 @@ describe('OrganizationalScopeController', function () {
             'access level' => [['access_level' => 'manage']],
             'descendants' => [['include_descendants' => true]],
             'viewable ranks' => [['min_viewable_rank' => 1, 'max_viewable_rank' => 5]],
-            'assignable ranks' => [['min_assignable_rank' => 1, 'max_assignable_rank' => 5]],
             'self access' => [['allow_self_access' => true]],
         ]);
 
