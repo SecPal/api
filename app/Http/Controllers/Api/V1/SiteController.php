@@ -12,10 +12,13 @@ use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Site;
 use App\Models\TenantKey;
+use App\Rules\AssignableOrganizationalUnit;
+use App\Services\OrganizationalUnitAssignmentService;
 use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * SiteController handles Site resource CRUD operations.
@@ -174,11 +177,25 @@ class SiteController extends Controller
      *
      * @return JsonResponse Updated site
      */
-    public function update(UpdateSiteRequest $request, Site $site): JsonResponse
-    {
+    public function update(
+        UpdateSiteRequest $request,
+        Site $site,
+        OrganizationalUnitAssignmentService $assignmentService,
+    ): JsonResponse {
         $this->authorize('update', $site);
 
-        $site->update($request->validated());
+        $validated = $request->validated();
+
+        if (
+            ! $assignmentService->siteTargetAcceptsAssignments($site, $validated)
+            && $assignmentService->siteUpdateExpandsCoverage($site, $validated)
+        ) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
+        }
+
+        $site->update($validated);
 
         return response()->json([
             'data' => new SiteResource($site->fresh()),

@@ -8,7 +8,9 @@ namespace App\Services;
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
+use App\Models\OrganizationalUnit;
 use App\Models\User;
+use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -52,6 +54,8 @@ class EmployeeLifecycleService
                     'employee' => __('Cannot activate: onboarding must be completed, workflow must be ready for activation, and contract start date must have passed'),
                 ]);
             }
+
+            $this->ensureOrganizationalUnitAcceptsActivation($employee);
 
             $role = $this->resolveRole(self::EMPLOYEE_ROLE_NAME);
 
@@ -165,6 +169,8 @@ class EmployeeLifecycleService
                     'employee' => __('Cannot return from leave: employee must currently be on leave'),
                 ]);
             }
+
+            $this->ensureOrganizationalUnitAcceptsActivation($employee);
 
             $user = $employee->user;
 
@@ -717,6 +723,21 @@ class EmployeeLifecycleService
         $refreshedEmployee->load(['user']);
 
         return $refreshedEmployee;
+    }
+
+    private function ensureOrganizationalUnitAcceptsActivation(Employee $employee): void
+    {
+        $organizationalUnit = OrganizationalUnit::withTrashed()
+            ->where('tenant_id', $employee->tenant_id)
+            ->find($employee->organizational_unit_id);
+
+        if ($organizationalUnit instanceof OrganizationalUnit && ! $organizationalUnit->trashed() && $organizationalUnit->is_assignable) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+        ]);
     }
 
     private function refreshAuthorizationContext(User $user): void

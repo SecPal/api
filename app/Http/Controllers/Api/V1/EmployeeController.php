@@ -207,10 +207,17 @@ class EmployeeController extends Controller
         // Filter to units with at least one read-accessible scope.
         /** @var Collection<string, Collection<int, UserInternalOrganizationalScope>> $visibleUnits */
         $visibleUnits = collect($unitToScopes)
-            ->map(fn (Collection $unitScopes): Collection => $unitScopes
-                ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('read'))
-                ->values()
-            )
+            ->map(function (Collection $unitScopes): Collection {
+                if ($unitScopes->contains(
+                    fn (UserInternalOrganizationalScope $scope): bool => ! $scope->hasMinimumAccessLevel('read')
+                )) {
+                    return $unitScopes->filter(static fn (): bool => false);
+                }
+
+                return $unitScopes
+                    ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('read'))
+                    ->values();
+            })
             ->filter(fn (Collection $readableScopes): bool => $readableScopes->isNotEmpty());
 
         if ($visibleUnits->isEmpty()) {

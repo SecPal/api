@@ -68,6 +68,48 @@ test('update employee status command activates employees whose contract starts t
     expect($employee->user?->hasRole('Employee'))->toBeTrue();
 });
 
+test('update employee status command does not activate employees in unassignable organizational units', function () {
+    $this->orgUnit->update(['is_assignable' => false]);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->startOfDay(),
+        'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    Artisan::call('employees:update-status');
+
+    $employee->refresh();
+
+    expect($employee->status)->toBe(Employee::STATUS_PRE_CONTRACT);
+    expect($employee->user?->hasRole('Employee'))->toBeFalse();
+    expect(Artisan::output())->toContain('Failed to activate employee');
+});
+
+test('update employee status command does not activate employees in soft-deleted organizational units', function () {
+    $this->orgUnit->delete();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'contract_start_date' => now()->startOfDay(),
+        'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+    ]);
+
+    Artisan::call('employees:update-status');
+
+    $employee->refresh();
+
+    expect($employee->status)->toBe(Employee::STATUS_PRE_CONTRACT);
+    expect($employee->user?->hasRole('Employee'))->toBeFalse();
+    expect(Artisan::output())->toContain('Failed to activate employee');
+});
+
 test('update employee status command deactivates employees whose contract ends today', function () {
     // Create active employee with termination today
     $employee = Employee::factory()->create([

@@ -429,6 +429,28 @@ describe('GET /v1/sites', function () {
 });
 
 describe('POST /v1/sites', function () {
+    test('rejects placement in a closed organizational unit', function (bool $isDeleted): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
+        $isDeleted ? $this->orgUnit->delete() : $this->orgUnit->update(['is_assignable' => false]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/sites', [
+                'name' => 'Airport Terminal 1',
+                'customer_id' => $this->customer->id,
+                'organizational_unit_id' => $this->orgUnit->id,
+                'type' => 'permanent',
+                'address' => [
+                    'street' => 'Airport Ring 1',
+                    'city' => 'Berlin',
+                    'postal_code' => '12529',
+                    'country' => 'DE',
+                ],
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id']);
+    })->with(['deleted' => true, 'non-assignable' => false]);
+
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson('/v1/sites', [
             'name' => 'New Site',
@@ -891,6 +913,129 @@ describe('GET /v1/sites/{site}', function () {
 });
 
 describe('PATCH /v1/sites/{site}', function () {
+    test('rejects lifecycle expansions in a closed organizational unit', function (array $initialValues, array $updatedValues, bool $isDeleted): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $isDeleted ? $this->orgUnit->delete() : $this->orgUnit->update(['is_assignable' => false]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            ...$initialValues,
+        ]);
+        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", $updatedValues);
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id']);
+    })->with([
+        'inactive' => [['is_active' => false], ['is_active' => true], false],
+        'expired' => [['valid_until' => now()->subDay()], ['valid_until' => now()->addWeek()->toDateString()], false],
+        'active extension' => [['valid_until' => now()->addDay()], ['valid_until' => now()->addWeek()->toDateString()], false],
+        'future start activation' => [['is_active' => true, 'valid_from' => now()->addDay()], ['valid_from' => now()->toDateString()], false],
+        'trashed reactivation' => [['is_active' => false], ['is_active' => true], true],
+    ]);
+
+    test('allows correcting past-only site coverage in a non-assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->orgUnit->update(['is_assignable' => false]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            'valid_from' => now()->subWeeks(3),
+            'valid_until' => now()->subWeeks(2),
+        ]);
+
+        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
+            'valid_until' => now()->subWeek()->toDateString(),
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.valid_until', now()->subWeek()->toDateString());
+    });
+
+    test('allows activating an expired site in a non-assignable organizational unit without future coverage', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->orgUnit->update(['is_assignable' => false]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            'is_active' => false,
+            'valid_until' => now()->subDay(),
+        ]);
+
+        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
+            'is_active' => true,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.is_active', true);
+    });
+
+    test('allows reactivating a site while moving it to an assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->orgUnit->update(['is_assignable' => false]);
+        $targetUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            'is_active' => false,
+        ]);
+        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
+            'organizational_unit_id' => $targetUnit->id,
+            'is_active' => true,
+        ]);
+
+        $response->assertOk();
+        $this->assertDatabaseHas('sites', [
+            'id' => $site->id,
+            'organizational_unit_id' => $targetUnit->id,
+            'is_active' => true,
+        ]);
+    });
+
+    test('allows an unchanged non-assignable organizational unit in a site update', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->orgUnit->update(['is_assignable' => false]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/sites/{$site->id}", [
+                'organizational_unit_id' => $this->orgUnit->id,
+                'name' => 'Updated Terminal',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.name', 'Updated Terminal');
+    });
+
+    test('rejects moving a site to a non-assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+
+        $unassignableUnit = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_assignable' => false,
+        ]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/sites/{$site->id}", [
+                'organizational_unit_id' => $unassignableUnit->id,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id'])
+            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
+    });
+
     test('returns 401 when not authenticated', function (): void {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,

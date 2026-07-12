@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\User;
 use App\Policies\EmployeePolicy;
+use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -204,7 +205,8 @@ class StoreEmployeeRequest extends FormRequest
                     /** @var string $tenantId */
                     $tenantId = $this->input('tenant_id');
                     $query->where('tenant_id', $tenantId);
-                }),
+                })->whereNull('deleted_at'),
+                new AssignableOrganizationalUnit($this->input('tenant_id')),
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if ($value === null) {
                         return;

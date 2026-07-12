@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 declare(strict_types=1);
@@ -14,8 +14,11 @@ use App\Http\Resources\Api\V1\SiteAssignmentResource;
 use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Models\User;
+use App\Rules\AssignableOrganizationalUnit;
 use App\Services\EmployeeComplianceService;
+use App\Services\OrganizationalUnitAssignmentService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -71,9 +74,19 @@ class SiteAssignmentController extends AssignmentController
      *
      * @return JsonResponse SiteAssignmentResource (201 Created) or error (409 Conflict)
      */
-    public function store(StoreSiteAssignmentRequest $request, Site $site, EmployeeComplianceService $complianceService): JsonResponse
-    {
+    public function store(
+        StoreSiteAssignmentRequest $request,
+        Site $site,
+        EmployeeComplianceService $complianceService,
+        OrganizationalUnitAssignmentService $assignmentService,
+    ): JsonResponse {
         $this->authorize('create', [SiteAssignment::class, $site]);
+
+        if (! $assignmentService->siteAcceptsAssignments($site)) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
+        }
 
         $validated = $request->validated();
         $validated['tenant_id'] = $request->input('tenant_id');
@@ -114,11 +127,25 @@ class SiteAssignmentController extends AssignmentController
      *
      * @return JsonResponse SiteAssignmentResource (200 OK)
      */
-    public function update(UpdateAssignmentRequest $request, SiteAssignment $siteAssignment): JsonResponse
-    {
+    public function update(
+        UpdateAssignmentRequest $request,
+        SiteAssignment $siteAssignment,
+        OrganizationalUnitAssignmentService $assignmentService,
+    ): JsonResponse {
         $this->authorize('update', $siteAssignment);
 
-        $siteAssignment->update($request->validated());
+        $validated = $request->validated();
+
+        if (
+            ! $assignmentService->siteAcceptsAssignments($siteAssignment->site)
+            && $assignmentService->assignmentUpdateExpandsCoverage($siteAssignment, $validated)
+        ) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
+        }
+
+        $siteAssignment->update($validated);
 
         return response()->json([
             'data' => new SiteAssignmentResource($siteAssignment->fresh(['user', 'site'])),

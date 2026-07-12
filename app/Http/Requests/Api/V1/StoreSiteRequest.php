@@ -1,11 +1,12 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Site;
+use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -62,7 +63,9 @@ class StoreSiteRequest extends FormRequest
                 'required',
                 'uuid',
                 Rule::exists('organizational_units', 'id')
-                    ->where('tenant_id', $tenantId),
+                    ->where('tenant_id', $tenantId)
+                    ->whereNull('deleted_at'),
+                new AssignableOrganizationalUnit($tenantId),
             ],
             'type' => ['required', 'in:permanent,temporary'],
             'address' => ['required', 'array'],

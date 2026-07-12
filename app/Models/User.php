@@ -533,14 +533,29 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
 
         /** @var SupportCollection<int, string> $directUnitIds */
         $directUnitIds = collect();
+        /** @var SupportCollection<int, string> $directGrantedUnitIds */
+        $directGrantedUnitIds = collect();
         /** @var SupportCollection<int, string> $ancestorIdsForDescendants */
         $ancestorIdsForDescendants = collect();
+        /** @var SupportCollection<int, string> $deniedUnitIds */
+        $deniedUnitIds = collect();
+        /** @var SupportCollection<int, string> $deniedAncestorIdsForDescendants */
+        $deniedAncestorIdsForDescendants = collect();
 
         foreach ($scopes as $scope) {
-            // Always include the directly scoped unit
-            $directUnitIds->push($scope->organizational_unit_id);
+            if (! $scope->hasMinimumAccessLevel('read')) {
+                $deniedUnitIds->push($scope->organizational_unit_id);
 
-            // Collect ancestor IDs for descendant query
+                if ($scope->include_descendants) {
+                    $deniedAncestorIdsForDescendants->push($scope->organizational_unit_id);
+                }
+
+                continue;
+            }
+
+            $directUnitIds->push($scope->organizational_unit_id);
+            $directGrantedUnitIds->push($scope->organizational_unit_id);
+
             if ($scope->include_descendants) {
                 $ancestorIdsForDescendants->push($scope->organizational_unit_id);
             }
@@ -555,8 +570,20 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
                 ->pluck('descendant_id');
         }
 
+        if ($deniedAncestorIdsForDescendants->isNotEmpty()) {
+            $deniedUnitIds = $deniedUnitIds->merge(
+                OrganizationalUnitClosure::whereIn('ancestor_id', $deniedAncestorIdsForDescendants->unique())
+                    ->where('depth', '>', 0)
+                    ->pluck('descendant_id'),
+            );
+        }
+
         /** @var SupportCollection<int, string> $accessibleUnitIds */
-        $accessibleUnitIds = $directUnitIds->merge($descendantIds)->unique();
+        $accessibleUnitIds = $directUnitIds
+            ->merge($descendantIds)
+            ->diff($deniedUnitIds)
+            ->merge($directGrantedUnitIds)
+            ->unique();
 
         return OrganizationalUnit::whereIn('id', $accessibleUnitIds)->get();
     }
@@ -745,6 +772,16 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
                 && $matchingAncestorIds->contains($scope->organizational_unit_id))
             ->values();
 
+        if ($inheritedScopes->contains(
+            fn (UserInternalOrganizationalScope $scope): bool => ! $scope->hasMinimumAccessLevel('read')
+        )) {
+            return $inheritedScopes
+                ->filter(
+                    fn (UserInternalOrganizationalScope $scope): bool => ! $scope->hasMinimumAccessLevel('read')
+                )
+                ->values();
+        }
+
         return $inheritedScopes;
     }
 
@@ -913,9 +950,11 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
             return false;
         }
 
-        // If no minimum level specified, any access is sufficient
+        // If no minimum level is specified, read access is required.
         if ($minimumLevel === null) {
-            return true;
+            return $resolvedScopes->contains(
+                fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('read')
+            );
         }
 
         return $resolvedScopes->contains(

@@ -12,8 +12,11 @@ use App\Http\Requests\UpdateOrganizationalScopeRequest;
 use App\Models\OrganizationalUnit;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use App\Rules\AssignableOrganizationalUnit;
+use App\Services\OrganizationalScopeEntitlementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Illuminate\Validation\ValidationException;
 
 /**
  * OrganizationalScopeController handles CRUD operations for user organizational scope assignments.
@@ -101,8 +104,11 @@ class OrganizationalScopeController extends Controller
     /**
      * Store a newly created scope assignment.
      */
-    public function store(StoreOrganizationalScopeRequest $request, OrganizationalUnit $organizational_unit): JsonResponse
-    {
+    public function store(
+        StoreOrganizationalScopeRequest $request,
+        OrganizationalUnit $organizational_unit,
+        OrganizationalScopeEntitlementService $entitlementService,
+    ): JsonResponse {
         $this->authorize('manageScopes', $organizational_unit);
 
         /** @var array{user_id: string, access_level: string, include_descendants?: bool, min_viewable_rank?: int|null, max_viewable_rank?: int|null, min_assignable_rank?: int|null, max_assignable_rank?: int|null, allow_self_access?: bool} $validated */
@@ -115,6 +121,19 @@ class OrganizationalScopeController extends Controller
             return response()->json([
                 'message' => __(self::SELF_SCOPE_ESCALATION_MESSAGE),
             ], Response::HTTP_FORBIDDEN);
+        }
+
+        if (
+            $validated['access_level'] !== 'none'
+            && ! $entitlementService->targetsAcceptNewEntitlements(
+                $organizational_unit,
+                $validated['include_descendants'] ?? true,
+                $validated['user_id'],
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
         }
 
         $scope = UserInternalOrganizationalScope::create([
@@ -137,8 +156,12 @@ class OrganizationalScopeController extends Controller
     /**
      * Update the specified scope assignment.
      */
-    public function update(UpdateOrganizationalScopeRequest $request, OrganizationalUnit $organizational_unit, string $scope): JsonResponse
-    {
+    public function update(
+        UpdateOrganizationalScopeRequest $request,
+        OrganizationalUnit $organizational_unit,
+        string $scope,
+        OrganizationalScopeEntitlementService $entitlementService,
+    ): JsonResponse {
         $this->authorize('manageScopes', $organizational_unit);
 
         /** @var User $actor */
@@ -166,6 +189,24 @@ class OrganizationalScopeController extends Controller
 
         if ($selfUpdateResponse !== null) {
             return $selfUpdateResponse;
+        }
+
+        $updatedScopeIncludesDescendants = $validated['include_descendants'] ?? $scopeModel->include_descendants;
+        $removingDescendantMaskExpandsEntitlement = $scopeModel->include_descendants
+            && ! $updatedScopeIncludesDescendants
+            && $entitlementService->removingScopeExpandsClosedUnitEntitlement($organizational_unit, $scopeModel, false);
+
+        if ($removingDescendantMaskExpandsEntitlement || (
+            $entitlementService->updateExpandsEntitlement($scopeModel, $validated)
+            && ! $entitlementService->targetsAcceptNewEntitlements(
+                $organizational_unit,
+                $updatedScopeIncludesDescendants,
+                $scopeModel->user_id,
+            )
+        )) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
         }
 
         if (isset($validated['access_level'])) {
@@ -207,8 +248,11 @@ class OrganizationalScopeController extends Controller
     /**
      * Remove the specified scope assignment.
      */
-    public function destroy(OrganizationalUnit $organizational_unit, string $scope): JsonResponse|Response
-    {
+    public function destroy(
+        OrganizationalUnit $organizational_unit,
+        string $scope,
+        OrganizationalScopeEntitlementService $entitlementService,
+    ): JsonResponse|Response {
         $this->authorize('manageScopes', $organizational_unit);
 
         /** @var User $actor */
@@ -234,6 +278,12 @@ class OrganizationalScopeController extends Controller
 
         if ($selfDeletionResponse !== null) {
             return $selfDeletionResponse;
+        }
+
+        if ($entitlementService->removingScopeExpandsClosedUnitEntitlement($organizational_unit, $scopeModel)) {
+            throw ValidationException::withMessages([
+                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            ]);
         }
 
         $scopeModel->delete();

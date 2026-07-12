@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\OrganizationalUnit;
 use App\Models\User;
 use App\Policies\EmployeePolicy;
+use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -60,6 +61,8 @@ class UpdateEmployeeRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var Employee|null $employee */
+        $employee = $this->route('employee');
         $employeeId = $this->route('employee');
 
         return array_merge([
@@ -190,8 +193,13 @@ class UpdateEmployeeRequest extends FormRequest
                     $tenantId = $this->input('tenant_id');
                     $query->where('tenant_id', $tenantId);
                 }),
-                function (string $attribute, mixed $value, \Closure $fail): void {
+                new AssignableOrganizationalUnit($this->input('tenant_id'), $employee?->organizational_unit_id),
+                function (string $attribute, mixed $value, \Closure $fail) use ($employee): void {
                     if ($value === null) {
+                        return;
+                    }
+
+                    if ($value === $employee?->organizational_unit_id) {
                         return;
                     }
 
@@ -309,7 +317,7 @@ class UpdateEmployeeRequest extends FormRequest
         $organizationalUnitId = $this->input('organizational_unit_id');
 
         if (is_string($organizationalUnitId) && $organizationalUnitId !== '') {
-            $organizationalUnit = OrganizationalUnit::query()->find($organizationalUnitId);
+            $organizationalUnit = OrganizationalUnit::withTrashed()->find($organizationalUnitId);
 
             return $organizationalUnit instanceof OrganizationalUnit ? $organizationalUnit : null;
         }

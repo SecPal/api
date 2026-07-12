@@ -178,6 +178,7 @@ test('employee lifecycle service rejects activation when employee has no linked 
 
 test('employee lifecycle service rejects activation when onboarding workflow is not ready', function () {
     Mail::fake();
+    $this->orgUnit->update(['is_assignable' => false]);
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -189,7 +190,7 @@ test('employee lifecycle service rejects activation when onboarding workflow is 
     ]);
 
     expect(fn () => $this->service->activate($employee))
-        ->toThrow(ValidationException::class);
+        ->toThrow(ValidationException::class, 'Cannot activate: onboarding must be completed, workflow must be ready for activation, and contract start date must have passed');
 
     $employee->refresh();
 
@@ -306,6 +307,29 @@ test('employee lifecycle service restores the prior runtime access model when re
     expect($user->can('employee.read'))->toBeTrue();
     expect($user->can('employee.update'))->toBeTrue();
     expect($user->can('employee.delete'))->toBeTrue();
+});
+
+test('employee lifecycle service does not restore access in an unassignable organizational unit', function () {
+    Mail::fake();
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $this->orgUnit->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+        'contract_start_date' => now()->subWeek(),
+    ]);
+
+    $onLeaveEmployee = $this->service->placeOnLeave($this->service->activate($employee));
+    $this->orgUnit->update(['is_assignable' => false]);
+
+    expect(fn () => $this->service->returnFromLeave($onLeaveEmployee))
+        ->toThrow(ValidationException::class, 'The selected organizational unit is not assignable.');
+
+    $onLeaveEmployee->refresh();
+
+    expect($onLeaveEmployee->status)->toBe(Employee::STATUS_ON_LEAVE);
 });
 
 test('employee lifecycle service clears on-leave access snapshots and direct permissions on termination', function () {
