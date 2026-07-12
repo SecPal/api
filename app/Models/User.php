@@ -537,10 +537,16 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
         $ancestorIdsForDescendants = collect();
         /** @var SupportCollection<int, string> $deniedUnitIds */
         $deniedUnitIds = collect();
+        /** @var SupportCollection<int, string> $deniedAncestorIdsForDescendants */
+        $deniedAncestorIdsForDescendants = collect();
 
         foreach ($scopes as $scope) {
             if (! $scope->hasMinimumAccessLevel('read')) {
                 $deniedUnitIds->push($scope->organizational_unit_id);
+
+                if ($scope->include_descendants) {
+                    $deniedAncestorIdsForDescendants->push($scope->organizational_unit_id);
+                }
 
                 continue;
             }
@@ -559,6 +565,14 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
             $descendantIds = OrganizationalUnitClosure::whereIn('ancestor_id', $ancestorIdsForDescendants->unique())
                 ->where('depth', '>', 0)
                 ->pluck('descendant_id');
+        }
+
+        if ($deniedAncestorIdsForDescendants->isNotEmpty()) {
+            $deniedUnitIds = $deniedUnitIds->merge(
+                OrganizationalUnitClosure::whereIn('ancestor_id', $deniedAncestorIdsForDescendants->unique())
+                    ->where('depth', '>', 0)
+                    ->pluck('descendant_id'),
+            );
         }
 
         /** @var SupportCollection<int, string> $accessibleUnitIds */
@@ -753,6 +767,16 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
             ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->include_descendants
                 && $matchingAncestorIds->contains($scope->organizational_unit_id))
             ->values();
+
+        if ($inheritedScopes->contains(
+            fn (UserInternalOrganizationalScope $scope): bool => ! $scope->hasMinimumAccessLevel('read')
+        )) {
+            return $inheritedScopes
+                ->filter(
+                    fn (UserInternalOrganizationalScope $scope): bool => ! $scope->hasMinimumAccessLevel('read')
+                )
+                ->values();
+        }
 
         return $inheritedScopes;
     }
