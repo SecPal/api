@@ -710,6 +710,26 @@ test('throws exception when organizational_unit_id belongs to different tenant',
     }
 })->group('security', 'issue-402');
 
+test('throws exception when a soft-deleted organizational_unit_id belongs to different tenant', function () {
+    $otherTenant = TenantKey::factory()->create();
+    $otherOrgUnit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $otherTenant->id,
+    ]);
+    $otherOrgUnit->delete();
+
+    $this->actingAs($this->user);
+
+    expect(fn () => Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $otherOrgUnit->id,
+        'log_name' => 'default',
+        'description' => 'Test log with deleted cross-tenant OU',
+    ]))->toThrow(
+        InvalidArgumentException::class,
+        "Organizational unit '{$otherOrgUnit->id}' belongs to tenant '{$otherTenant->id}' but activity log belongs to tenant '{$this->tenant->id}'"
+    );
+})->group('security', 'issue-1268');
+
 test('throws exception when organizational_unit_id does not exist', function () {
     $this->actingAs($this->user);
 
