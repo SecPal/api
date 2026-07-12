@@ -191,6 +191,24 @@ describe('OrganizationalScopeController', function () {
                 ->assertJsonValidationErrors(['organizational_unit_id']);
         });
 
+        it('allows inherited scope coverage when a direct deny masks the non-assignable descendant', function (): void {
+            $this->branch->update(['is_assignable' => false]);
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->branch->id,
+                'access_level' => 'none',
+            ]);
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->postJson("/v1/organizational-units/{$this->company->id}/scopes", [
+                'user_id' => $this->targetUser->id,
+                'access_level' => 'write',
+                'include_descendants' => true,
+            ]);
+
+            $response->assertCreated();
+        });
+
         it('creates a scope assignment when user has scope-management access', function (): void {
             givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
@@ -820,6 +838,28 @@ describe('OrganizationalScopeController', function () {
     });
 
     describe('destroy - DELETE /organizational-units/{unit}/scopes/{scope}', function () {
+        it('rejects deleting a direct deny that masks inherited access to a non-assignable unit', function (): void {
+            $this->branch->update(['is_assignable' => false]);
+            UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->company->id,
+                'access_level' => 'write',
+                'include_descendants' => true,
+            ]);
+            $denyScope = UserInternalOrganizationalScope::create([
+                'user_id' => $this->targetUser->id,
+                'organizational_unit_id' => $this->branch->id,
+                'access_level' => 'none',
+            ]);
+            $this->actingAs($this->scopeManagerUser);
+
+            $response = $this->deleteJson("/v1/organizational-units/{$this->branch->id}/scopes/{$denyScope->id}");
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['organizational_unit_id']);
+            $this->assertDatabaseHas('user_internal_organizational_scopes', ['id' => $denyScope->id]);
+        });
+
         it('deletes a scope assignment when user has scope-management access', function (): void {
             givePermissionWithTenant($this->scopeManagerUser, $this->tenant->id, 'organizational_scopes.manage');
 
