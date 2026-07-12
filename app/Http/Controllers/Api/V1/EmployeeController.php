@@ -15,10 +15,12 @@ use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
+use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use App\Rules\AssignableOrganizationalUnit;
 use App\Services\BewacherregisterExportService;
 use App\Services\EmployeeComplianceService;
 use App\Services\EmployeeLifecycleService;
@@ -32,6 +34,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 /**
  * EmployeeController handles Employee resource CRUD operations.
@@ -607,6 +610,8 @@ class EmployeeController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        $this->ensureEmployeeOrganizationalUnitAcceptsActivation($employee);
+
         /** @var Employee $freshEmployee */
         $freshEmployee = app(EmployeeLifecycleService::class)->activate($employee);
 
@@ -649,11 +654,28 @@ class EmployeeController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        $this->ensureEmployeeOrganizationalUnitAcceptsActivation($employee);
+
         /** @var Employee $freshEmployee */
         $freshEmployee = app(EmployeeLifecycleService::class)->returnFromLeave($employee);
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
+        ]);
+    }
+
+    private function ensureEmployeeOrganizationalUnitAcceptsActivation(Employee $employee): void
+    {
+        $organizationalUnit = OrganizationalUnit::withTrashed()
+            ->where('tenant_id', $employee->tenant_id)
+            ->find($employee->organizational_unit_id);
+
+        if ($organizationalUnit instanceof OrganizationalUnit && ! $organizationalUnit->trashed() && $organizationalUnit->is_assignable) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
         ]);
     }
 

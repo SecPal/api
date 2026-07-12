@@ -206,14 +206,33 @@ class SiteController extends Controller
         $updatedSite = clone $site;
         $updatedSite->fill($validated);
 
-        if ((! $site->is_active || $site->is_expired) && $updatedSite->is_active && ! $updatedSite->is_expired) {
+        if (! $site->is_active && $updatedSite->is_active) {
             return true;
         }
 
         return $site->is_active
-            && ! $site->is_expired
-            && $site->valid_until !== null
-            && ($updatedSite->valid_until === null || $updatedSite->valid_until->greaterThan($site->valid_until));
+            && $updatedSite->is_active
+            && ($this->startsOperationalCoverageEarlier($site, $updatedSite)
+                || $this->endsOperationalCoverageLater($site, $updatedSite));
+    }
+
+    private function startsOperationalCoverageEarlier(Site $site, Site $updatedSite): bool
+    {
+        $today = now()->startOfDay();
+        $currentStart = $site->valid_from?->greaterThan($today) ? $site->valid_from : $today;
+        $updatedStart = $updatedSite->valid_from?->greaterThan($today) ? $updatedSite->valid_from : $today;
+
+        return $updatedStart->lessThan($currentStart);
+    }
+
+    private function endsOperationalCoverageLater(Site $site, Site $updatedSite): bool
+    {
+        if ($site->valid_until === null) {
+            return false;
+        }
+
+        return $updatedSite->valid_until === null
+            || $updatedSite->valid_until->greaterThan($site->valid_until);
     }
 
     /**

@@ -929,6 +929,7 @@ describe('PATCH /v1/sites/{site}', function () {
         'inactive' => [['is_active' => false], ['is_active' => true], false],
         'expired' => [['valid_until' => now()->subDay()], ['valid_until' => now()->addWeek()->toDateString()], false],
         'active extension' => [['valid_until' => now()->addDay()], ['valid_until' => now()->addWeek()->toDateString()], false],
+        'future start activation' => [['is_active' => true, 'valid_from' => now()->addDay()], ['valid_from' => now()->toDateString()], false],
         'trashed reactivation' => [['is_active' => false], ['is_active' => true], true],
     ]);
 

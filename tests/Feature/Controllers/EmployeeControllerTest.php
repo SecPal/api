@@ -2487,6 +2487,29 @@ describe('DELETE /v1/employees/{employee}', function () {
 });
 
 describe('POST /v1/employees/{employee}/activate', function () {
+    test('rejects lifecycle activation in a closed organizational unit', function (string $endpoint, string $status, bool $isDeleted): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'organizational_unit_id' => $this->organizationalUnit->id,
+            'status' => $status,
+            'onboarding_completed' => true,
+            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+            'contract_start_date' => now()->subDay()->toDateString(),
+        ]);
+        $isDeleted ? $this->organizationalUnit->delete() : $this->organizationalUnit->update(['is_assignable' => false]);
+
+        $response = $this->withToken($this->token)->postJson("/v1/employees/{$employee->id}/{$endpoint}");
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id']);
+    })->with([
+        'activate non-assignable' => ['activate', Employee::STATUS_PRE_CONTRACT, false],
+        'activate deleted' => ['activate', Employee::STATUS_PRE_CONTRACT, true],
+        'return non-assignable' => ['return-from-leave', Employee::STATUS_ON_LEAVE, false],
+        'return deleted' => ['return-from-leave', Employee::STATUS_ON_LEAVE, true],
+    ]);
+
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
