@@ -665,6 +665,24 @@ test('accepts valid organizational_unit_id from same tenant', function () {
     expect($log->organizational_unit_id)->toBe($orgUnit->id);
 })->group('security', 'issue-402');
 
+test('accepts a soft-deleted organizational_unit_id from the same tenant', function () {
+    $orgUnit = OrganizationalUnit::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+    $orgUnit->delete();
+
+    $this->actingAs($this->user);
+
+    $log = Activity::create([
+        'tenant_id' => $this->tenant->id,
+        'organizational_unit_id' => $orgUnit->id,
+        'log_name' => 'default',
+        'description' => 'Test log with deleted OU',
+    ]);
+
+    expect($log->organizational_unit_id)->toBe($orgUnit->id);
+})->group('security', 'issue-1268');
+
 test('throws exception when organizational_unit_id belongs to different tenant', function () {
     $otherTenant = TenantKey::factory()->create();
     $otherOrgUnit = OrganizationalUnit::factory()->create([

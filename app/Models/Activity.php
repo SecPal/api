@@ -480,7 +480,7 @@ class Activity extends SpatieActivity
             );
         }
 
-        $organizationalUnit = OrganizationalUnit::query()
+        $organizationalUnit = OrganizationalUnit::withTrashed()
             ->select(['id', 'tenant_id'])
             ->find($this->organizational_unit_id);
 
