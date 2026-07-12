@@ -38,6 +38,9 @@ test('employee creation triggers activity log with 3-year retention', function (
 
     $activity = Activity::where('log_name', 'employee_changes')
         ->where('description', 'created')
+        ->where('subject_type', Employee::class)
+        ->where('subject_id', $employee->id)
+        ->where('tenant_id', $this->tenant->id)
         ->first();
 
     expect($activity)->not->toBeNull()
