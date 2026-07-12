@@ -599,6 +599,32 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
             ->assertJsonPath('data.valid_until', now()->subWeek()->toDateString());
     });
 
+    test('allows changing a role while ending all assignment coverage in a non-assignable organizational unit', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        OrganizationalUnit::query()
+            ->findOrFail($this->site->organizational_unit_id)
+            ->update(['is_assignable' => false]);
+
+        $assignment = SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $this->site->id,
+            'user_id' => User::factory()->create(['tenant_id' => $this->tenant->id])->id,
+            'role' => 'Supervisor',
+            'valid_until' => null,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->patchJson("/v1/site-assignments/{$assignment->id}", [
+                'role' => 'Former Supervisor',
+                'valid_until' => now()->subDay()->toDateString(),
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.role', 'Former Supervisor')
+            ->assertJsonPath('data.valid_until', now()->subDay()->toDateString());
+    });
+
     test('returns 401 when not authenticated', function (): void {
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,

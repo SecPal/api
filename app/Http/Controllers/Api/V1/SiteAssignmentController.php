@@ -156,7 +156,7 @@ class SiteAssignmentController extends AssignmentController
 
         return $this->startsOperationalCoverageEarlier($siteAssignment, $updatedAssignment)
             || $this->endsOperationalCoverageLater($siteAssignment, $updatedAssignment)
-            || ($siteAssignment->role !== $updatedAssignment->role && $this->hasCurrentOrFutureCoverage($siteAssignment));
+            || ($siteAssignment->role !== $updatedAssignment->role && $this->hasCurrentOrFutureCoverage($updatedAssignment));
     }
 
     private function startsOperationalCoverageEarlier(SiteAssignment $siteAssignment, SiteAssignment $updatedAssignment): bool
