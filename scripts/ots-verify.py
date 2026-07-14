@@ -16,9 +16,9 @@ Exit codes:
 import sys
 import binascii
 import hashlib
+import http.client
 import os
 import time
-import urllib.error
 import urllib.request
 from urllib.parse import urlsplit, urlunsplit
 from pathlib import Path
@@ -44,7 +44,12 @@ MAX_PROVIDER_REQUEST_SECONDS = 2
 MINIMUM_HEADER_API_QUORUM = 2
 MAX_BLOCK_HASH_RESPONSE_BYTES = 128
 MAX_BLOCK_HEADER_RESPONSE_BYTES = 256
-RECOVERABLE_PROVIDER_ERRORS = (urllib.error.URLError, TimeoutError, ValueError)
+RECOVERABLE_PROVIDER_ERRORS = (
+    http.client.HTTPException,
+    OSError,
+    ValueError,
+)
+ATTESTATION_VERIFICATION_ERRORS = RECOVERABLE_PROVIDER_ERRORS + (VerificationError,)
 
 class VerificationDeadlineExceeded(TimeoutError):
     """The shared verification deadline has been exhausted."""
@@ -142,9 +147,6 @@ def fetch_bitcoin_block_header(height: int, deadline: float):
     """Fetch and parse a Bitcoin block header by height from a block explorer API."""
     api_bases = bitcoin_header_api_bases()
     block_hash_sources = {}
-    successful_hashes = set()
-    agreed_block_hash = None
-    agreeing_api_bases = []
 
     for api_base in api_bases:
         try:
@@ -154,17 +156,22 @@ def fetch_bitcoin_block_header(height: int, deadline: float):
         except RECOVERABLE_PROVIDER_ERRORS:
             continue
 
-        successful_hashes.add(block_hash)
-        agreeing_api_bases = block_hash_sources.setdefault(block_hash, [])
-        agreeing_api_bases.append(api_base)
-        if len(agreeing_api_bases) >= MINIMUM_HEADER_API_QUORUM:
-            agreed_block_hash = block_hash
-            break
+        block_hash_sources.setdefault(block_hash, []).append(api_base)
 
-    if agreed_block_hash is None:
-        if len(successful_hashes) > 1:
+    quorum_hashes = [
+        block_hash
+        for block_hash, sources in block_hash_sources.items()
+        if len(sources) >= MINIMUM_HEADER_API_QUORUM
+    ]
+    if len(quorum_hashes) > 1:
+        raise ValueError(f'Bitcoin header APIs returned conflicting quorums at height {height}')
+    if not quorum_hashes:
+        if len(block_hash_sources) > 1:
             raise ValueError(f'Bitcoin header APIs disagree on block hash at height {height}')
         raise ValueError(f'Bitcoin header APIs did not reach quorum at height {height}')
+
+    agreed_block_hash = quorum_hashes[0]
+    agreeing_api_bases = block_hash_sources[agreed_block_hash]
 
     last_header_error = None
     attempted_header_api_bases = set()
@@ -256,7 +263,7 @@ def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
             try:
                 block_header = fetch_bitcoin_block_header(block_height, verification_deadline)
                 attested_time = attestation.verify_against_blockheader(msg, block_header)
-            except (urllib.error.URLError, TimeoutError, ValueError, VerificationError) as e:
+            except ATTESTATION_VERIFICATION_ERRORS as e:
                 print(f"✗ Bitcoin verification failed for block {block_height}: {e}", file=sys.stderr)
                 continue
 

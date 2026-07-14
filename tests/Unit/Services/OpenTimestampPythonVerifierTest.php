@@ -38,6 +38,7 @@ class DetachedTimestampFile:
 PY);
     $shim = str_replace('__ROOT__', var_export($workspace, true), <<<'PY'
 import os, urllib.request
+from http.client import IncompleteRead
 from urllib.parse import urlsplit
 root=__ROOT__; original=urllib.request.urlopen
 class Response:
@@ -46,6 +47,9 @@ class Response:
  def __exit__(self, *args): self.response.close()
  def read(self, size=-1):
   if size < 0: raise RuntimeError('response must be bounded')
+  parsed=urlsplit(self.url)
+  if parsed.hostname == 'truncated-height.test' and '/block-height/' in parsed.path: raise IncompleteRead(b'', 1)
+  if parsed.hostname == 'truncated-header.test' and parsed.path.endswith('/header'): raise IncompleteRead(b'', 1)
   return self.response.read(size)
  def geturl(self): return self.url
 def urlopen(url, timeout=None):
@@ -151,6 +155,71 @@ test('python verifier validates headers using independent HTTPS provider consens
             ->and($malformed)->toBe(1)->and($malformedOutput)->toContain('Bitcoin verification failed')->not->toContain('Traceback')
             ->and($merkle)->toBe(1)->and($hash)->toBe(1)
             ->and($disagreement)->toBe(1)->and($disagreementOutput)->toContain('disagree on block hash');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier recovers from a truncated provider response', function () {
+    $workspace = pythonVerifierWorkspace();
+    $digest = str_repeat('11', 32);
+    $message = str_repeat('22', 32);
+    $header = str_repeat("\0", 36).hex2bin($message).pack('V', 1_700_000_000).str_repeat("\0", 8);
+
+    try {
+        $truncatedHeight = writeVerifierApi($workspace, 'truncated-height', $header);
+        $truncatedHeader = writeVerifierApi($workspace, 'truncated-header', $header);
+        $one = writeVerifierApi($workspace, 'one', $header);
+        $two = writeVerifierApi($workspace, 'two', $header);
+
+        [$heightExitCode] = runPythonVerifier($workspace, "$truncatedHeight,$one,$two", $digest, $message);
+        [$headerExitCode] = runPythonVerifier($workspace, "$truncatedHeader,$one,$two", $digest, $message);
+
+        expect($heightExitCode)->toBe(0)
+            ->and($headerExitCode)->toBe(0);
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier rejects conflicting provider quorums', function () {
+    $workspace = pythonVerifierWorkspace();
+    $digest = str_repeat('11', 32);
+    $message = str_repeat('22', 32);
+    $header = str_repeat("\0", 36).hex2bin($message).pack('V', 1_700_000_000).str_repeat("\0", 8);
+    $conflictingHeader = substr($header, 0, 79)."\1";
+
+    try {
+        $first = writeVerifierApi($workspace, 'first', $header);
+        $second = writeVerifierApi($workspace, 'second', $header);
+        $third = writeVerifierApi($workspace, 'third', $conflictingHeader);
+        $fourth = writeVerifierApi($workspace, 'fourth', $conflictingHeader);
+        $fifth = writeVerifierApi($workspace, 'fifth', $header);
+
+        [$minorityExitCode] = runPythonVerifier(
+            $workspace,
+            "$first,$second,$third",
+            $digest,
+            $message,
+        );
+        [$splitExitCode, $splitOutput] = runPythonVerifier(
+            $workspace,
+            "$first,$second,$third,$fourth",
+            $digest,
+            $message,
+        );
+        [$majorityExitCode, $majorityOutput] = runPythonVerifier(
+            $workspace,
+            "$first,$second,$third,$fourth,$fifth",
+            $digest,
+            $message,
+        );
+
+        expect($minorityExitCode)->toBe(0)
+            ->and($splitExitCode)->toBe(1)
+            ->and($splitOutput)->toContain('conflicting quorums')
+            ->and($majorityExitCode)->toBe(1)
+            ->and($majorityOutput)->toContain('conflicting quorums');
     } finally {
         (new Filesystem)->deleteDirectory($workspace);
     }

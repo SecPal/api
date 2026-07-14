@@ -126,14 +126,15 @@ Verified proofs are **immutable** - once a proof is Bitcoin-anchored and verifie
 
 ### Threat Model
 
-| Threat                    | Mitigation                                                                             |
-| ------------------------- | -------------------------------------------------------------------------------------- |
-| Proof forgery             | The OTS commitment must match the fetched header's Merkle root                         |
-| Header API compromise     | A quorum of canonical provider origins must agree, and the raw header hash is verified |
-| Man-in-the-middle attacks | HTTPS-only origins, redirect checks, API consensus, and raw-header hashing fail closed |
-| Timing attacks            | Two-second request caps preserve redundancy within one shared eight-second deadline    |
-| Provider resource abuse   | Block-hash and raw-header responses are read with strict byte bounds                   |
-| Cache poisoning           | Versioned keys bind decisions to the proof and provider configuration                  |
+| Threat                    | Mitigation                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Proof forgery             | The OTS commitment must match the fetched header's Merkle root                                          |
+| Header API compromise     | Exactly one hash may reach quorum; conflicting quorums fail closed, and the raw header hash is verified |
+| Man-in-the-middle attacks | HTTPS-only origins, redirect checks, API consensus, and raw-header hashing fail closed                  |
+| Timing attacks            | Two-second request caps preserve redundancy within one shared eight-second deadline                     |
+| Partial provider failure  | Truncated reads and other provider-local transport failures do not block healthy APIs                   |
+| Provider resource abuse   | Block-hash and raw-header responses are read with strict byte bounds                                    |
+| Cache poisoning           | Versioned keys bind decisions to the proof and provider configuration                                   |
 
 ## Installation & Setup
 
