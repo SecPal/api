@@ -37,6 +37,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string $legal_entity_id Foreign key to organizational_units
  * @property string $customer_number Auto-generated unique identifier (e.g., KD-2025-0001)
  * @property string $name Company/Organization name
+ * @property string|null $vat_id VAT identification number
  * @property array<string, mixed> $billing_address Structured billing address
  * @property array<string, mixed>|null $contact Primary contact person information
  * @property string|null $notes Internal notes
@@ -79,6 +80,7 @@ class Customer extends Model
         'legal_entity_id',
         'customer_number',
         'name',
+        'vat_id',
         'billing_address',
         'contact',
         'notes',
@@ -118,6 +120,7 @@ class Customer extends Model
                 'customer_number',
                 'legal_entity_id',
                 'name',
+                'vat_id',
                 'billing_address',
                 'contact',
                 'is_active',

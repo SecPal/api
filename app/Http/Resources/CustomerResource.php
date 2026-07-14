@@ -39,6 +39,7 @@ class CustomerResource extends JsonResource
             'legal_entity_id' => $this->legal_entity_id,
             'customer_number' => $this->customer_number,
             'name' => $this->name,
+            'vat_id' => $this->vat_id,
             'billing_address' => $this->billing_address,
             'contact' => $this->contact,
             'notes' => $this->when((bool) $canUpdate, $this->notes),
