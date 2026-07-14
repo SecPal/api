@@ -10,7 +10,7 @@ applyTo: ".github/workflows/**/*.yml,.github/workflows/**/*.yaml,.github/dependa
 
 Applies when editing GitHub Actions workflows and Dependabot configuration in this repository.
 
-- Always set `timeout-minutes` on every job.
+- Always set `timeout-minutes` on every job that runs steps. Jobs that directly call a reusable workflow with `uses` are the required exception: GitHub Actions does not permit `timeout-minutes` on them, so omit it rather than adding invalid syntax.
 - Set explicit `permissions` on every workflow and start with the least privilege needed.
 - Pin third-party actions to immutable versions. GitHub-maintained `actions/*` may use supported major tags in this org.
 - Use reusable workflows from the organization templates when they fit the task.
