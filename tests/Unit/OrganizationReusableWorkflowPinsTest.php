@@ -28,3 +28,12 @@ test('the six organization reusable workflow references use immutable commit SHA
         }
     }
 });
+
+test('the Dependabot auto-merge reusable workflow reference uses the approved immutable commit SHA', function (): void {
+    $contents = file_get_contents(base_path('.github/workflows/dependabot-auto-merge.yml'));
+
+    expect($contents)->not->toBeFalse()
+        ->and($contents)->toContain(
+            'uses: SecPal/.github/.github/workflows/reusable-dependabot-auto-merge.yml@d90b56d4bca7c0d6e7fe1520d69b1f98eca22f5e',
+        );
+});
