@@ -54,6 +54,14 @@ test('verify rejects non hex digest', function () {
         ->toThrow(InvalidArgumentException::class, 'Digest must be 64-character hex SHA256 hash');
 });
 
+test('verify fails closed when bitcoin header APIs are not configured', function () {
+    config()->set('services.opentimestamps.bitcoin_header_api_bases', null);
+    $this->mockExecutor->shouldNotReceive('commandExists', 'execute');
+
+    expect($this->service->verify('proof-data', hash('sha256', 'missing-header-apis')))
+        ->toBeFalse();
+});
+
 test('verify returns false when python not available', function () {
     // Arrange: python3 not available
     $merkleRoot = hash('sha256', 'test-root');
