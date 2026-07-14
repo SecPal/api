@@ -186,6 +186,11 @@ OTS_CALENDAR_URLS=https://alice.btc.calendar.opentimestamps.org,https://bob.btc.
 # Default: 2 (security vs. availability trade-off)
 OTS_MIN_CALENDAR_RESPONSES=2
 
+# Bitcoin header API bases used during verification (comma-separated).
+# At least two distinct bases are required so one configured API base cannot
+# substitute a self-consistent header that is not part of the Bitcoin chain.
+OTS_BITCOIN_HEADER_API_BASES=https://blockstream.info/api,https://mempool.space/api
+
 # Note: CLI timeout is currently hardcoded at 10 seconds in OpenTimestampService
 # and is not configurable via environment variable.
 # HTTP request timeout (OPENTIMESTAMP_TIMEOUT) is separate and defaults to 30s.

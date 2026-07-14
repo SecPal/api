@@ -76,6 +76,17 @@ function writeBitcoinHeaderApi(
     return 'file://'.$api;
 }
 
+function writeAgreeingBitcoinHeaderApis(
+    string $workspace,
+    string $header,
+    ?string $reportedBlockHash = null,
+): string {
+    $firstApiBase = writeBitcoinHeaderApi($workspace, $header, $reportedBlockHash, 'api-one');
+    $secondApiBase = writeBitcoinHeaderApi($workspace, $header, $reportedBlockHash, 'api-two');
+
+    return $firstApiBase.','.$secondApiBase;
+}
+
 function runPythonVerifier(string $workspace, string $apiBase, string $digest, string $attestedMessage): array
 {
     $proofFile = $workspace.'/proof.ots';
@@ -109,7 +120,7 @@ test('python verifier rejects bitcoin attestation when block merkle root does no
             range(32, 63),
         )));
         $header = str_repeat("\0", 36).$wrongMerkleRoot.str_repeat("\0", 12);
-        $apiBase = writeBitcoinHeaderApi($workspace, $header);
+        $apiBase = writeAgreeingBitcoinHeaderApis($workspace, $header);
 
         [$exitCode, $output] = runPythonVerifier($workspace, $apiBase, $digest, $attestedMessage);
 
@@ -130,12 +141,38 @@ test('python verifier accepts a matching bitcoin block header with wire-order me
             range(0, 31),
         ));
         $header = str_repeat("\0", 36).hex2bin($attestedMessage).pack('V', 1_700_000_000).str_repeat("\0", 8);
-        $apiBase = writeBitcoinHeaderApi($workspace, $header);
+        $apiBase = writeAgreeingBitcoinHeaderApis($workspace, $header);
 
         [$exitCode, $output] = runPythonVerifier($workspace, $apiBase, $digest, $attestedMessage);
 
         expect($exitCode)->toBe(0)
             ->and($output)->toContain('Proof is valid and confirmed on Bitcoin blockchain');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier requires at least two distinct bitcoin header APIs', function () {
+    $workspace = createPythonVerifierWorkspace();
+
+    try {
+        $digest = str_repeat('45', 32);
+        $attestedMessage = str_repeat('46', 32);
+        $header = str_repeat("\0", 36).hex2bin($attestedMessage).str_repeat("\0", 12);
+        $apiBase = writeBitcoinHeaderApi($workspace, $header);
+
+        [$exitCode, $output] = runPythonVerifier($workspace, $apiBase, $digest, $attestedMessage);
+        [$duplicateExitCode, $duplicateOutput] = runPythonVerifier(
+            $workspace,
+            $apiBase.','.$apiBase,
+            $digest,
+            $attestedMessage,
+        );
+
+        expect($exitCode)->toBe(1)
+            ->and($output)->toContain('at least two distinct API base URLs')
+            ->and($duplicateExitCode)->toBe(1)
+            ->and($duplicateOutput)->toContain('at least two distinct API base URLs');
     } finally {
         (new Filesystem)->deleteDirectory($workspace);
     }
@@ -148,7 +185,7 @@ test('python verifier rejects a header that does not match the reported bitcoin 
         $digest = str_repeat('55', 32);
         $attestedMessage = str_repeat('66', 32);
         $header = str_repeat("\0", 36).hex2bin($attestedMessage).str_repeat("\0", 12);
-        $apiBase = writeBitcoinHeaderApi($workspace, $header, str_repeat('00', 32));
+        $apiBase = writeAgreeingBitcoinHeaderApis($workspace, $header, str_repeat('00', 32));
 
         [$exitCode, $output] = runPythonVerifier($workspace, $apiBase, $digest, $attestedMessage);
 

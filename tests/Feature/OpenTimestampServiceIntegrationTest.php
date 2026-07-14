@@ -7,7 +7,9 @@ declare(strict_types=1);
 
 use App\Services\OpenTimestampService;
 use App\Services\SystemProcessExecutor;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Cache;
+use Symfony\Component\Process\Process;
 
 /**
  * Integration tests for OpenTimestamp verification.
@@ -29,6 +31,49 @@ beforeEach(function () {
     Cache::flush();
 });
 
+function createRealBitcoinAttestationProof(string $digest, int $height): string
+{
+    $python = <<<'PY'
+import base64
+import sys
+from io import BytesIO
+from opentimestamps.core.notary import BitcoinBlockHeaderAttestation
+from opentimestamps.core.op import OpSHA256
+from opentimestamps.core.serialize import StreamSerializationContext
+from opentimestamps.core.timestamp import DetachedTimestampFile, Timestamp
+
+digest = bytes.fromhex(sys.argv[1])
+timestamp = Timestamp(digest)
+timestamp.attestations.add(BitcoinBlockHeaderAttestation(int(sys.argv[2])))
+proof = DetachedTimestampFile(OpSHA256(), timestamp)
+output = BytesIO()
+proof.serialize(StreamSerializationContext(output))
+print(base64.b64encode(output.getvalue()).decode('ascii'))
+PY;
+    $process = new Process(['python3', '-c', $python, $digest, (string) $height]);
+    $process->mustRun();
+    $proof = base64_decode(trim($process->getOutput()), true);
+
+    if ($proof === false) {
+        throw new RuntimeException('Python returned an invalid base64-encoded OpenTimestamp proof');
+    }
+
+    return $proof;
+}
+
+function writeRealOtsBitcoinHeaderApi(string $workspace, string $directory, string $header, int $height): string
+{
+    $blockHash = bin2hex(strrev(hash('sha256', hash('sha256', $header, true), true)));
+    $api = $workspace.'/'.$directory;
+
+    mkdir($api.'/block-height', 0770, true);
+    mkdir($api.'/block/'.$blockHash, 0770, true);
+    file_put_contents($api.'/block-height/'.$height, $blockHash);
+    file_put_contents($api.'/block/'.$blockHash.'/header', bin2hex($header));
+
+    return 'file://'.$api;
+}
+
 /**
  * Test that the Python verification runtime is available in the environment.
  */
@@ -40,6 +85,43 @@ test('python verification runtime is available', function () {
     )->toBeTrue();
 
     expect(file_exists(base_path('scripts/ots-verify.py')))->toBeTrue();
+});
+
+test('verify accepts a real bitcoin attestation through two agreeing header APIs', function () {
+    $workspace = sys_get_temp_dir().'/ots-real-integration-'.bin2hex(random_bytes(8));
+    mkdir($workspace, 0770, true);
+    $height = 123;
+    $digest = hash('sha256', 'real-open-timestamp-proof');
+    $header = str_repeat("\0", 36).hex2bin($digest).pack('V', 1_700_000_000).str_repeat("\0", 8);
+    $firstApiBase = writeRealOtsBitcoinHeaderApi($workspace, 'api-one', $header, $height);
+    $secondApiBase = writeRealOtsBitcoinHeaderApi($workspace, 'api-two', $header, $height);
+    $environmentKey = 'OTS_BITCOIN_HEADER_API_BASES';
+    $hadEnvValue = array_key_exists($environmentKey, $_ENV);
+    $previousEnvValue = $_ENV[$environmentKey] ?? null;
+    $hadServerValue = array_key_exists($environmentKey, $_SERVER);
+    $previousServerValue = $_SERVER[$environmentKey] ?? null;
+
+    try {
+        $_ENV[$environmentKey] = $firstApiBase.','.$secondApiBase;
+        $_SERVER[$environmentKey] = $firstApiBase.','.$secondApiBase;
+        $proof = createRealBitcoinAttestationProof($digest, $height);
+
+        expect($this->service->verify($proof, $digest))->toBeTrue();
+    } finally {
+        if ($hadEnvValue) {
+            $_ENV[$environmentKey] = $previousEnvValue;
+        } else {
+            unset($_ENV[$environmentKey]);
+        }
+
+        if ($hadServerValue) {
+            $_SERVER[$environmentKey] = $previousServerValue;
+        } else {
+            unset($_SERVER[$environmentKey]);
+        }
+
+        (new Filesystem)->deleteDirectory($workspace);
+    }
 });
 
 /**

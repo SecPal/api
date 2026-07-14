@@ -52,13 +52,15 @@ def bitcoin_header_api_bases():
     """Return explicitly configured APIs or independent public defaults."""
     configured = os.environ.get('OTS_BITCOIN_HEADER_API_BASES')
     if configured is None:
-        return DEFAULT_BITCOIN_HEADER_API_BASES
+        api_bases = DEFAULT_BITCOIN_HEADER_API_BASES
+    else:
+        api_bases = tuple(base.strip().rstrip('/') for base in configured.split(',') if base.strip())
 
-    api_bases = tuple(base.strip().rstrip('/') for base in configured.split(',') if base.strip())
-    if not api_bases:
-        raise ValueError('OTS_BITCOIN_HEADER_API_BASES must contain at least one API base URL')
+    distinct_api_bases = tuple(dict.fromkeys(api_bases))
+    if len(distinct_api_bases) < 2:
+        raise ValueError('OTS_BITCOIN_HEADER_API_BASES must contain at least two distinct API base URLs')
 
-    return api_bases
+    return distinct_api_bases
 
 def fetch_bitcoin_block_header(height: int, deadline: float):
     """Fetch and parse a Bitcoin block header by height from a block explorer API."""
