@@ -13,6 +13,7 @@ use App\Http\Requests\Api\V1\UpdateCustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
+use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -140,6 +141,18 @@ class CustomerController extends Controller
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
         $validated['tenant_id'] = $tenantId;
+        /** @var User $user */
+        $user = $request->user();
+        $legalEntity = OrganizationalUnit::query()
+            ->whereKey($validated['legal_entity_id'])
+            ->where('tenant_id', $tenantId)
+            ->where('is_legal_entity', true)
+            ->where('is_active', true)
+            ->firstOrFail();
+
+        if (! $user->hasAccessToUnit($legalEntity, 'write')) {
+            abort(Response::HTTP_FORBIDDEN, __('Insufficient access level. Required: :level', ['level' => 'write']));
+        }
 
         $customer = DB::transaction(function () use ($tenantId, $validated): Customer {
             TenantKey::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
