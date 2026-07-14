@@ -382,9 +382,9 @@ All commits must be cryptographically signed. SSH and OpenPGP are both accepted;
 # Generate a dedicated SSH signing key (if you do not already have one)
 ssh-keygen -t ed25519 -C "you@example.com" -f ~/.ssh/id_ed25519_signing
 
-# Configure Git to sign commits with the SSH public key
+# Configure Git to sign commits with the dedicated private key
 git config --global gpg.format ssh
-git config --global user.signingkey ~/.ssh/id_ed25519_signing.pub
+git config --global user.signingkey ~/.ssh/id_ed25519_signing
 git config --global commit.gpgSign true
 
 # Copy the public key and add it in GitHub under Settings → SSH and GPG keys
@@ -402,6 +402,7 @@ gpg --gen-key
 gpg --list-secret-keys --keyid-format LONG
 
 # Configure Git to use your key
+git config --global gpg.format openpgp
 git config --global user.signingkey <YOUR_KEY_ID>
 git config --global commit.gpgSign true
 
