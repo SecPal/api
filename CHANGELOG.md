@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added `GET /v1/customers/legal-entities` as a tenant-injected minimal lookup for customer creation, returning only active same-tenant Legal Entities where the caller has global `customers.create` plus organizational write scope
 - added mandatory tenant-consistent `customers.legal_entity_id` persistence with a non-null organizational-unit FK, composite tenant/legal-entity database enforcement, create/update validation for active same-tenant legal entities, Customer model/resource/activity-log coverage, and a migration guard that fails fast when existing customers still need the US-001 approved deterministic backfill
 - added independent organizational-unit `is_active` and `is_assignable` API flags with true defaults, strict boolean create/update validation, independent list filtering, persistence, and resource serialization (refs `api#1264`)
 - added independent organizational-unit `is_legal_entity` and `is_establishment` API flags with false defaults, strict boolean create/update validation, persistence, resource serialization, and focused Pest coverage (refs `api#1259`)

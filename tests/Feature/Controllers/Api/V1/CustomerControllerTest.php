@@ -366,6 +366,101 @@ describe('GET /v1/customers', function () {
     });
 });
 
+describe('GET /v1/customers/legal-entities', function () {
+    test('returns 401 when not authenticated', function (): void {
+        $response = $this->getJson('/v1/customers/legal-entities');
+
+        $response->assertStatus(401);
+    });
+
+    test('returns 403 when user lacks customers.create permission', function (): void {
+        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
+        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
+
+        $response = $this->withToken($this->token)->getJson('/v1/customers/legal-entities');
+
+        $response->assertForbidden();
+    });
+
+    test('returns only writable active same-tenant legal entities with the minimal lookup shape', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+
+        $includedLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'name' => 'Allowed Legal Entity',
+            'is_legal_entity' => true,
+            'is_active' => true,
+        ]);
+        $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignLegalEntity = OrganizationalUnit::factory()->forTenant((string) $foreignTenant->id)->create([
+            'name' => 'Foreign Legal Entity',
+            'is_legal_entity' => true,
+            'is_active' => true,
+        ]);
+        $inactiveLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'name' => 'Inactive Legal Entity',
+            'is_legal_entity' => true,
+            'is_active' => false,
+        ]);
+        $deletedLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'name' => 'Deleted Legal Entity',
+            'is_legal_entity' => true,
+            'is_active' => true,
+        ]);
+        $nonLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'name' => 'Operational Unit',
+            'is_legal_entity' => false,
+            'is_active' => true,
+        ]);
+        $readOnlyLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'name' => 'Read Only Legal Entity',
+            'is_legal_entity' => true,
+            'is_active' => true,
+        ]);
+
+        giveOrganizationalScope($this->user, $includedLegalEntity, accessLevel: 'write');
+        giveOrganizationalScope($this->user, $foreignLegalEntity, accessLevel: 'write');
+        giveOrganizationalScope($this->user, $inactiveLegalEntity, accessLevel: 'write');
+        giveOrganizationalScope($this->user, $deletedLegalEntity, accessLevel: 'write');
+        giveOrganizationalScope($this->user, $nonLegalEntity, accessLevel: 'write');
+        giveOrganizationalScope($this->user, $readOnlyLegalEntity, accessLevel: 'read');
+        $deletedLegalEntity->delete();
+        $this->user->unsetRelation('organizationalScopes');
+
+        $response = $this->withToken($this->token)->getJson('/v1/customers/legal-entities');
+
+        $response->assertOk()
+            ->assertExactJson([
+                'data' => [
+                    [
+                        'id' => $includedLegalEntity->id,
+                        'name' => 'Allowed Legal Entity',
+                    ],
+                ],
+            ]);
+    });
+
+    test('returns legal entities reached through inherited write scope', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+
+        $parentUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'name' => 'Inherited Legal Entity',
+            'is_legal_entity' => true,
+        ]);
+        $legalEntity->setParent($parentUnit);
+        giveOrganizationalScope($this->user, $parentUnit, accessLevel: 'write');
+        $this->user->unsetRelation('organizationalScopes');
+
+        $response = $this->withToken($this->token)->getJson('/v1/customers/legal-entities');
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $legalEntity->id)
+            ->assertJsonPath('data.0.name', 'Inherited Legal Entity');
+    });
+});
+
 describe('POST /v1/customers', function () {
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson('/v1/customers', [

@@ -10,6 +10,7 @@ use App\Http\Requests\Api\V1\IndexCustomerRequest;
 use App\Http\Requests\Api\V1\IndexCustomerSitesRequest;
 use App\Http\Requests\Api\V1\StoreCustomerRequest;
 use App\Http\Requests\Api\V1\UpdateCustomerRequest;
+use App\Http\Resources\Api\V1\CustomerLegalEntityLookupResource;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
@@ -21,6 +22,8 @@ use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
@@ -51,7 +54,7 @@ class CustomerController extends Controller
      * - search (name, customer_number)
      * - is_active (boolean)
      *
-     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection Paginated customer list with metadata
+     * @return AnonymousResourceCollection Paginated customer list with metadata
      */
     public function index(IndexCustomerRequest $request)
     {
@@ -121,6 +124,41 @@ class CustomerController extends Controller
         $customers = $query->paginate($perPage);
 
         return CustomerResource::collection($customers);
+    }
+
+    /**
+     * Display Legal Entity options that can receive new customers.
+     *
+     * GET /api/v1/customers/legal-entities
+     *
+     * @return AnonymousResourceCollection<int, CustomerLegalEntityLookupResource>
+     */
+    public function legalEntities(Request $request): AnonymousResourceCollection
+    {
+        $this->authorize('create', Customer::class);
+
+        /** @var User $user */
+        $user = $request->user();
+        /** @var int $tenantId */
+        $tenantId = $request->get('tenant_id');
+        $organizationalScopes = $user->organizationalScopes()->get();
+
+        $legalEntities = OrganizationalUnit::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_legal_entity', true)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->filter(
+                fn (OrganizationalUnit $legalEntity): bool => $user->hasAccessToUnit(
+                    $legalEntity,
+                    'write',
+                    $organizationalScopes
+                )
+            )
+            ->values();
+
+        return CustomerLegalEntityLookupResource::collection($legalEntities);
     }
 
     /**
@@ -266,7 +304,7 @@ class CustomerController extends Controller
      * Returns paginated list of sites belonging to the customer.
      * User must have view access to the customer.
      *
-     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection<int, SiteResource> Paginated site list
+     * @return AnonymousResourceCollection<int, SiteResource> Paginated site list
      */
     public function sites(IndexCustomerSitesRequest $request, Customer $customer)
     {
