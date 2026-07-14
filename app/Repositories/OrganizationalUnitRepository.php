@@ -22,6 +22,7 @@ final class OrganizationalUnitRepository
             ->where('tenant_id', $tenantId)
             ->where('is_legal_entity', true)
             ->where('is_active', true)
+            ->where('is_assignable', true)
             ->orderBy('name')
             ->get();
     }
@@ -33,6 +34,7 @@ final class OrganizationalUnitRepository
             ->where('tenant_id', $tenantId)
             ->where('is_legal_entity', true)
             ->where('is_active', true)
+            ->where('is_assignable', true)
             ->lockForUpdate()
             ->first();
     }

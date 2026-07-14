@@ -65,6 +65,7 @@ describe('CreateCustomersTable Migration', function () {
         expect(Schema::hasColumn('customers', 'legal_entity_id'))->toBeTrue();
         expect(Schema::hasColumn('customers', 'customer_number'))->toBeTrue();
         expect(Schema::hasColumn('customers', 'name'))->toBeTrue();
+        expect(Schema::hasColumn('customers', 'vat_id'))->toBeTrue();
         expect(Schema::hasColumn('customers', 'billing_address'))->toBeTrue();
         expect(Schema::hasColumn('customers', 'contact'))->toBeTrue();
         expect(Schema::hasColumn('customers', 'notes'))->toBeTrue();

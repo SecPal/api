@@ -73,6 +73,17 @@ test('customer creation locks and revalidates the selected legal entity inside t
         (int) $tenant->id,
         lifecycleCustomerAttributes($legalEntity)
     ))->toThrow(ValidationException::class);
+
+    $legalEntity->update([
+        'is_active' => true,
+        'is_assignable' => false,
+    ]);
+
+    expect(fn () => app(CustomerService::class)->create(
+        $user,
+        (int) $tenant->id,
+        lifecycleCustomerAttributes($legalEntity)
+    ))->toThrow(ValidationException::class);
 });
 
 test('organizational unit customer lifecycle mutations lock the legal entity row', function (): void {

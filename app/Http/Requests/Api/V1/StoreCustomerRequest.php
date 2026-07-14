@@ -41,6 +41,7 @@ class StoreCustomerRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
+            'vat_id' => ['nullable', 'string', 'max:32'],
             'legal_entity_id' => [
                 'required',
                 'uuid',
@@ -48,6 +49,7 @@ class StoreCustomerRequest extends FormRequest
                     ->where('tenant_id', $tenantId)
                     ->where('is_legal_entity', true)
                     ->where('is_active', true)
+                    ->where('is_assignable', true)
                     ->whereNull('deleted_at'),
             ],
             'customer_number' => [

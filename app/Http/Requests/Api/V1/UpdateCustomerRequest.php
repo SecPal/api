@@ -42,6 +42,7 @@ class UpdateCustomerRequest extends FormRequest
 
         return [
             'name' => ['sometimes', 'string', 'max:255'],
+            'vat_id' => ['sometimes', 'nullable', 'string', 'max:32'],
             'legal_entity_id' => [
                 'sometimes',
                 'uuid',
@@ -49,6 +50,7 @@ class UpdateCustomerRequest extends FormRequest
                     ->where('tenant_id', $tenantId)
                     ->where('is_legal_entity', true)
                     ->where('is_active', true)
+                    ->where('is_assignable', true)
                     ->whereNull('deleted_at'),
             ],
             'billing_address' => ['sometimes', 'array'],
