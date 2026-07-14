@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
  */
 
@@ -29,6 +29,8 @@ use RuntimeException;
  */
 class OpenTimestampService
 {
+    private const string VERIFICATION_CACHE_VERSION = 'v2';
+
     /**
      * @var ProcessExecutor CLI process executor
      */
@@ -260,7 +262,9 @@ class OpenTimestampService
         $digest = strtolower($digest);
 
         // Check cache first (immutable once verified)
-        $cacheKey = "ots:verified:{$digest}";
+        // Do not reuse decisions made by earlier verifier versions. In particular,
+        // v1 accepted Bitcoin attestations without checking their block headers.
+        $cacheKey = 'ots:verified:'.self::VERIFICATION_CACHE_VERSION.":{$digest}";
         if (Cache::has($cacheKey)) {
             Log::debug('OpenTimestamp: Cache hit for verified proof', [
                 'digest_hint' => $this->digestHint($digest),

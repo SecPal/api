@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 declare(strict_types=1);
@@ -56,7 +56,7 @@ test('verify rejects invalid proof', function () {
     expect($result)->toBeFalse('Invalid proof should be rejected');
 
     // Verify that failed verifications are NOT cached
-    $cacheKey = "ots:verified:{$digest}";
+    $cacheKey = "ots:verified:v2:{$digest}";
     expect(
         Cache::has($cacheKey),
         'Failed verifications should not be cached (proof may upgrade later)'
@@ -94,7 +94,7 @@ test('verify uses external cli not http calendars', function () {
     )->toBeFalse();
 
     // Additional security check: Ensure we never cached this false result
-    $cacheKey = "ots:verified:{$digest}";
+    $cacheKey = "ots:verified:v2:{$digest}";
     expect(
         Cache::has($cacheKey),
         'Pending proof verification should not be cached'
@@ -121,7 +121,7 @@ test('verify caching integration', function () {
     expect($result1)->toBeFalse();
 
     // Cache should be empty (failed verifications not cached)
-    $cacheKey = "ots:verified:{$digest}";
+    $cacheKey = "ots:verified:v2:{$digest}";
     expect(Cache::has($cacheKey))->toBeFalse();
 
     // Second verification - should hit CLI again (not cached)

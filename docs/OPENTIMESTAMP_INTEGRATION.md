@@ -100,11 +100,15 @@ $storedProof = $service->submit('abc123...');
 - Timing-based attacks via upgrade endpoint control
 - Man-in-the-middle attacks on unverified calendar responses
 
-**Solution**: Issue #415 implements **CLI-only verification** using the official OpenTimestamps Python client:
+**Solution**: Verification uses the official OpenTimestamps Python library plus independent Bitcoin header APIs. The APIs must agree on the block hash for the attested height, the raw header must hash to that block, and the attested commitment must match the header's Merkle root:
 
 ```php
-// ✅ SECURE: Delegates to external CLI (Issue #415)
-$result = $processExecutor->execute(['ots', 'verify', $proofFile, $digestFile]);
+// Delegates proof parsing and Bitcoin-header verification to the bounded Python verifier.
+$result = $processExecutor->execute(
+    ['python3', base_path('scripts/ots-verify.py'), $proofFile, $digest],
+    null,
+    10,
+);
 
 // ❌ INSECURE: Custom crypto + HTTP calendars (Issue #412 - REMOVED)
 // $response = Http::post($calendarUrl . '/verify', ['proof' => $proof]);
@@ -114,18 +118,19 @@ $result = $processExecutor->execute(['ots', 'verify', $proofFile, $digestFile]);
 
 Verified proofs are **immutable** - once a proof is Bitcoin-anchored and verified, it will always be valid (assuming blockchain integrity). Therefore:
 
-- ✅ **Cache successful verifications**: `Cache::forever("ots:verified:{$digest}", true)`
+- ✅ **Cache successful verifications**: `Cache::forever("ots:verified:v2:{$digest}", true)`
+- ✅ **Version verifier decisions**: A verifier security change uses a new namespace so legacy positive results cannot bypass new checks
 - ❌ **Do NOT cache failures**: Pending proofs may upgrade to confirmed later
 
 ### Threat Model
 
-| Threat                     | Mitigation                                                    |
-| -------------------------- | ------------------------------------------------------------- |
-| Proof forgery              | External CLI performs full cryptographic verification         |
-| Calendar server compromise | Verification requires Bitcoin attestation (public blockchain) |
-| Man-in-the-middle attacks  | CLI downloads blockchain headers directly from Bitcoin nodes  |
-| Timing attacks             | Fail-closed: unverified = false, no false positives           |
-| Cache poisoning            | Cache key includes digest; Laravel cache integrity assumed    |
+| Threat                    | Mitigation                                                               |
+| ------------------------- | ------------------------------------------------------------------------ |
+| Proof forgery             | The OTS commitment must match the fetched header's Merkle root           |
+| Header API compromise     | Independent default APIs must agree, and the raw header hash is verified |
+| Man-in-the-middle attacks | HTTPS, API consensus, and raw-header hashing fail closed                 |
+| Timing attacks            | One shared eight-second network deadline fails closed                    |
+| Cache poisoning           | Versioned keys exclude decisions made by vulnerable verifier versions    |
 
 ## Installation & Setup
 
@@ -272,7 +277,7 @@ Successful verifications are cached forever:
 ```php
 // Check cache manually
 $digest = 'abc123...';
-$cacheKey = "ots:verified:{$digest}";
+$cacheKey = "ots:verified:v2:{$digest}";
 
 if (Cache::has($cacheKey)) {
     $isValid = Cache::get($cacheKey); // bool

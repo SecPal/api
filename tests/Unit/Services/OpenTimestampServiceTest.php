@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
  */
 
@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -176,6 +177,24 @@ test('verify returns false for any proof', function () {
     // Second call returns true from cache (not from execution)
     expect($result1)->toBeTrue();
     expect($result2)->toBeTrue();
+});
+
+test('verify ignores successful results cached by the vulnerable verifier', function () {
+    $digest = hash('sha256', 'legacy-cache-entry');
+    $proof = 'forged-proof';
+
+    Cache::forever("ots:verified:{$digest}", true);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Proof verification failed',
+        ]);
+
+    expect($this->service->verify($proof, $digest))->toBeFalse();
 });
 
 test('verify handles malformed proof gracefully', function () {

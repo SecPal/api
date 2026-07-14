@@ -15,6 +15,7 @@ Exit codes:
 
 import sys
 import binascii
+import hashlib
 import os
 import time
 import urllib.error
@@ -33,24 +34,66 @@ except ImportError as e:
     print("A common fix is to install or update it with: pip install --upgrade opentimestamps-client", file=sys.stderr)
     sys.exit(2)
 
-DEFAULT_BITCOIN_HEADER_API_BASE = 'https://blockstream.info/api'
+DEFAULT_BITCOIN_HEADER_API_BASES = (
+    'https://blockstream.info/api',
+    'https://mempool.space/api',
+)
+VERIFICATION_TIMEOUT_SECONDS = 8
 
-def fetch_bitcoin_block_header(height: int):
+def remaining_timeout(deadline: float) -> float:
+    """Return the remaining shared verification budget or fail closed."""
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError('Bitcoin header verification deadline exceeded')
+
+    return remaining
+
+def bitcoin_header_api_bases():
+    """Return explicitly configured APIs or independent public defaults."""
+    configured = os.environ.get('OTS_BITCOIN_HEADER_API_BASES')
+    if configured is None:
+        return DEFAULT_BITCOIN_HEADER_API_BASES
+
+    api_bases = tuple(base.strip().rstrip('/') for base in configured.split(',') if base.strip())
+    if not api_bases:
+        raise ValueError('OTS_BITCOIN_HEADER_API_BASES must contain at least one API base URL')
+
+    return api_bases
+
+def fetch_bitcoin_block_header(height: int, deadline: float):
     """Fetch and parse a Bitcoin block header by height from a block explorer API."""
-    api_base = os.environ.get('OTS_BITCOIN_HEADER_API_BASE', DEFAULT_BITCOIN_HEADER_API_BASE).rstrip('/')
+    api_bases = bitcoin_header_api_bases()
+    block_hashes = []
 
-    with urllib.request.urlopen(f'{api_base}/block-height/{height}', timeout=10) as response:
-        block_hash = response.read().decode('ascii').strip()
+    for api_base in api_bases:
+        with urllib.request.urlopen(
+            f'{api_base}/block-height/{height}',
+            timeout=remaining_timeout(deadline),
+        ) as response:
+            block_hash = response.read().decode('ascii').strip().lower()
 
-    if len(block_hash) != 64 or not all(c in '0123456789abcdefABCDEF' for c in block_hash):
-        raise ValueError(f'Invalid Bitcoin block hash returned for height {height}')
+        if len(block_hash) != 64 or not all(c in '0123456789abcdef' for c in block_hash):
+            raise ValueError(f'Invalid Bitcoin block hash returned for height {height}')
 
-    with urllib.request.urlopen(f'{api_base}/block/{block_hash}/header', timeout=10) as response:
+        block_hashes.append(block_hash)
+
+    if len(set(block_hashes)) != 1:
+        raise ValueError(f'Bitcoin header APIs disagree on block hash at height {height}')
+
+    block_hash = block_hashes[0]
+    with urllib.request.urlopen(
+        f'{api_bases[0]}/block/{block_hash}/header',
+        timeout=remaining_timeout(deadline),
+    ) as response:
         header_hex = response.read().decode('ascii').strip()
 
     header = binascii.unhexlify(header_hex)
     if len(header) != 80:
         raise ValueError(f'Invalid Bitcoin block header length for height {height}: {len(header)} bytes')
+
+    calculated_block_hash = hashlib.sha256(hashlib.sha256(header).digest()).digest()[::-1].hex()
+    if calculated_block_hash != block_hash:
+        raise ValueError(f'Bitcoin block header hash does not match block {block_hash}')
 
     return SimpleNamespace(
         hashMerkleRoot=header[36:68],
@@ -73,6 +116,8 @@ def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
         False otherwise
     """
     try:
+        verification_deadline = time.monotonic() + VERIFICATION_TIMEOUT_SECONDS
+
         # Convert hex digest to bytes
         digest = binascii.unhexlify(digest_hex)
 
@@ -115,7 +160,7 @@ def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
             print(f"  - Bitcoin block: {block_height}", file=sys.stderr)
 
             try:
-                block_header = fetch_bitcoin_block_header(block_height)
+                block_header = fetch_bitcoin_block_header(block_height, verification_deadline)
                 attested_time = attestation.verify_against_blockheader(msg, block_header)
             except (urllib.error.URLError, TimeoutError, ValueError, VerificationError) as e:
                 print(f"✗ Bitcoin verification failed for block {block_height}: {e}", file=sys.stderr)

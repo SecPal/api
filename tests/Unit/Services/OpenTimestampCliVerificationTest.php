@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
  */
 
@@ -9,11 +9,12 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Unit tests for OpenTimestamp CLI-based proof verification.
  *
- * Tests the secure implementation using external `ots verify` CLI tool.
+ * Tests the secure implementation using the external Python verifier.
  * Mocks ProcessExecutor to avoid dependency on actual ots-cli installation.
  *
  * @see OpenTimestampService::verify()
@@ -257,7 +258,9 @@ test('verify caches successful verification', function () {
 
     // Act: First verification
     $result1 = $this->service->verify($proof, $merkleRoot);
-    expect($result1)->toBeTrue();
+    expect($result1)->toBeTrue()
+        ->and(Cache::has("ots:verified:v2:{$merkleRoot}"))->toBeTrue()
+        ->and(Cache::has("ots:verified:{$merkleRoot}"))->toBeFalse();
 
     // Act: Second verification should use cache (no script call)
     $result2 = $this->service->verify($proof, $merkleRoot);
