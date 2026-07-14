@@ -8,11 +8,16 @@ declare(strict_types=1);
 test('draft reminder only runs for pull request events', function (): void {
     $contents = file_get_contents(base_path('.github/workflows/project-automation.yml'));
 
-    expect($contents)
-        ->not->toBeFalse()
-        ->toContain(implode("\n", [
-            '  draft-reminder:',
-            '    name: Draft PR Reminder',
-            "    if: github.event_name == 'pull_request'",
-        ]));
+    expect($contents)->not->toBeFalse();
+
+    $normalizedContents = str_replace(["\r\n", "\r"], "\n", $contents);
+    $jobWasFound = preg_match(
+        '/^  draft-reminder:\n(?<job>(?: {4}.*(?:\n|$))*)/m',
+        $normalizedContents,
+        $matches,
+    );
+
+    expect($jobWasFound)->toBe(1)
+        ->and($matches['job'])
+        ->toMatch("/^    if: github\\.event_name == 'pull_request'$/m");
 });
