@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
+use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -28,10 +29,15 @@ afterEach(function (): void {
  */
 function createMinimalCustomer(string $tenantId, string $customerNumber, string $name = 'Test Customer'): string
 {
+    $legalEntityId = OrganizationalUnit::factory()->forTenant($tenantId)->create([
+        'is_legal_entity' => true,
+    ])->id;
+
     $customerId = Str::uuid()->toString();
     DB::table('customers')->insert([
         'id' => $customerId,
         'tenant_id' => $tenantId,
+        'legal_entity_id' => $legalEntityId,
         'customer_number' => $customerNumber,
         'name' => $name,
         'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
@@ -43,12 +49,20 @@ function createMinimalCustomer(string $tenantId, string $customerNumber, string 
     return $customerId;
 }
 
+function createCustomerMigrationLegalEntity(string $tenantId): string
+{
+    return OrganizationalUnit::factory()->forTenant($tenantId)->create([
+        'is_legal_entity' => true,
+    ])->id;
+}
+
 describe('CreateCustomersTable Migration', function () {
     test('creates customers table with correct columns', function (): void {
         expect(Schema::hasTable('customers'))->toBeTrue();
 
         expect(Schema::hasColumn('customers', 'id'))->toBeTrue();
         expect(Schema::hasColumn('customers', 'tenant_id'))->toBeTrue();
+        expect(Schema::hasColumn('customers', 'legal_entity_id'))->toBeTrue();
         expect(Schema::hasColumn('customers', 'customer_number'))->toBeTrue();
         expect(Schema::hasColumn('customers', 'name'))->toBeTrue();
         expect(Schema::hasColumn('customers', 'billing_address'))->toBeTrue();
@@ -66,6 +80,7 @@ describe('CreateCustomersTable Migration', function () {
         $indexColumns = collect($indexes)->pluck('columns')->flatten()->toArray();
 
         expect($indexColumns)->toContain('tenant_id');
+        expect($indexColumns)->toContain('legal_entity_id');
         expect($indexColumns)->toContain('customer_number');
         expect($indexColumns)->toContain('is_active');
         expect($indexColumns)->toContain('name');
@@ -95,6 +110,58 @@ describe('CreateCustomersTable Migration', function () {
         expect($hasTenantForeignKey)->toBeTrue();
     });
 
+    test('foreign key constraint on legal_entity_id references organizational_units', function (): void {
+        $foreignKeys = Schema::getForeignKeys('customers');
+
+        $hasLegalEntityForeignKey = collect($foreignKeys)->contains(function ($fk) {
+            return in_array('legal_entity_id', $fk['columns'])
+                && $fk['foreign_table'] === 'organizational_units';
+        });
+
+        expect($hasLegalEntityForeignKey)->toBeTrue();
+    });
+
+    test('composite tenant legal entity foreign key enforces same tenant', function (): void {
+        $foreignKeys = Schema::getForeignKeys('customers');
+
+        $hasCompositeForeignKey = collect($foreignKeys)->contains(function ($fk) {
+            return in_array('tenant_id', $fk['columns'])
+                && in_array('legal_entity_id', $fk['columns'])
+                && $fk['foreign_table'] === 'organizational_units';
+        });
+
+        expect($hasCompositeForeignKey)->toBeTrue();
+    });
+
+    test('tenant and legal entity index is present', function (): void {
+        $indexes = Schema::getIndexes('customers');
+
+        $hasTenantLegalEntityIndex = collect($indexes)->contains(function ($index) {
+            return $index['name'] === 'idx_customers_tenant_legal_entity'
+                && $index['columns'] === ['tenant_id', 'legal_entity_id'];
+        });
+
+        expect($hasTenantLegalEntityIndex)->toBeTrue();
+    });
+
+    test('rejects a legal entity from another tenant at database level', function (): void {
+        $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignLegalEntity = createCustomerMigrationLegalEntity((string) $otherTenant->id);
+
+        DB::table('customers')->insert([
+            'id' => Str::uuid()->toString(),
+            'tenant_id' => $tenant->id,
+            'legal_entity_id' => $foreignLegalEntity,
+            'customer_number' => 'KD-2025-CROSS',
+            'name' => 'Cross Tenant Customer',
+            'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    })->throws(PDOException::class);
+
     test('cascade delete removes customers when tenant is deleted', function (): void {
         $keys = TenantKey::generateEnvelopeKeys();
         $tenant = TenantKey::create($keys);
@@ -122,6 +189,7 @@ describe('CreateCustomersTable Migration', function () {
         DB::table('customers')->insert([
             'id' => $customerId,
             'tenant_id' => $tenant->id,
+            'legal_entity_id' => createCustomerMigrationLegalEntity((string) $tenant->id),
             'customer_number' => 'KD-2025-002',
             'name' => 'Acme Corporation',
             'billing_address' => json_encode($billingAddress),
@@ -154,6 +222,7 @@ describe('CreateCustomersTable Migration', function () {
         DB::table('customers')->insert([
             'id' => $customerId,
             'tenant_id' => $tenant->id,
+            'legal_entity_id' => createCustomerMigrationLegalEntity((string) $tenant->id),
             'customer_number' => 'KD-2025-003',
             'name' => 'Test Company',
             'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
@@ -184,6 +253,7 @@ describe('CreateCustomersTable Migration', function () {
         DB::table('customers')->insert([
             'id' => $customerId,
             'tenant_id' => $tenant->id,
+            'legal_entity_id' => createCustomerMigrationLegalEntity((string) $tenant->id),
             'customer_number' => 'KD-2025-004',
             'name' => 'Metadata Test Company',
             'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),

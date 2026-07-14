@@ -36,6 +36,7 @@ class CustomerResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'legal_entity_id' => $this->legal_entity_id,
             'customer_number' => $this->customer_number,
             'name' => $this->name,
             'billing_address' => $this->billing_address,

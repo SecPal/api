@@ -8,6 +8,7 @@
 
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
+use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Models\TenantKey;
@@ -42,6 +43,20 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 });
+
+function customerLegalEntityPayload(OrganizationalUnit $legalEntity, array $overrides = []): array
+{
+    return array_replace_recursive([
+        'name' => 'Acme Corporation',
+        'legal_entity_id' => $legalEntity->id,
+        'billing_address' => [
+            'street' => 'Main Street 123',
+            'city' => 'Berlin',
+            'postal_code' => '10115',
+            'country' => 'DE',
+        ],
+    ], $overrides);
+}
 
 afterEach(function (): void {
     // Reset tenant context
@@ -389,6 +404,7 @@ describe('POST /v1/customers', function () {
         $response->assertStatus(422)
             ->assertJsonValidationErrors([
                 'name',
+                'legal_entity_id',
                 'billing_address',
             ]);
     });
@@ -415,28 +431,25 @@ describe('POST /v1/customers', function () {
 
     test('creates customer with auto-generated customer_number', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
 
         $response = $this->withToken($this->token)
-            ->postJson('/v1/customers', [
-                'name' => 'Acme Corporation',
-                'billing_address' => [
-                    'street' => 'Main Street 123',
-                    'city' => 'Berlin',
-                    'postal_code' => '10115',
-                    'country' => 'DE',
-                ],
+            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
                 'contact' => [
                     'name' => 'John Doe',
                     'email' => 'john@acme.com',
                     'phone' => '+49 30 12345678',
                 ],
                 'notes' => 'Important customer',
-            ]);
+            ]));
 
         $response->assertCreated()
             ->assertJsonStructure([
                 'data' => [
                     'id',
+                    'legal_entity_id',
                     'customer_number',
                     'name',
                     'billing_address',
@@ -450,23 +463,21 @@ describe('POST /v1/customers', function () {
         $customerNumber = $response->json('data.customer_number');
         expect($customerNumber)->toMatch('/^KD-\d{4}-\d{4}$/');
         expect($response->json('data.name'))->toBe('Acme Corporation');
+        expect($response->json('data.legal_entity_id'))->toBe($legalEntity->id);
         expect($response->json('data.is_active'))->toBeTrue();
     });
 
     test('creates customer with custom customer_number', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
 
         $response = $this->withToken($this->token)
-            ->postJson('/v1/customers', [
+            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
                 'name' => 'Tech Industries',
                 'customer_number' => 'CUSTOM-001',
-                'billing_address' => [
-                    'street' => 'Tech Ave 42',
-                    'city' => 'Munich',
-                    'postal_code' => '80331',
-                    'country' => 'DE',
-                ],
-            ]);
+            ]));
 
         $response->assertCreated();
         expect($response->json('data.customer_number'))->toBe('CUSTOM-001');
@@ -474,28 +485,22 @@ describe('POST /v1/customers', function () {
 
     test('generates unique customer_number per tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
 
         $response1 = $this->withToken($this->token)
-            ->postJson('/v1/customers', [
+            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
                 'name' => 'First Customer',
-                'billing_address' => [
-                    'street' => 'Street 1',
-                    'city' => 'Berlin',
-                    'postal_code' => '10115',
-                    'country' => 'DE',
-                ],
-            ]);
+            ]));
 
         $response2 = $this->withToken($this->token)
-            ->postJson('/v1/customers', [
+            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
                 'name' => 'Second Customer',
                 'billing_address' => [
-                    'street' => 'Street 2',
                     'city' => 'Hamburg',
-                    'postal_code' => '20095',
-                    'country' => 'DE',
                 ],
-            ]);
+            ]));
 
         $response1->assertCreated();
         $response2->assertCreated();
@@ -510,20 +515,65 @@ describe('POST /v1/customers', function () {
 
     test('validates country code format (ISO 3166-1 alpha-2)', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
+                'name' => 'Invalid Customer',
+                'billing_address' => [
+                    'country' => 'DEU', // Invalid: should be 2 characters
+                ],
+            ]));
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['billing_address.country']);
+    });
+
+    test('rejects customer creation without a legal entity', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/customers', [
-                'name' => 'Invalid Customer',
+                'name' => 'Missing Legal Entity',
                 'billing_address' => [
                     'street' => 'Street 1',
                     'city' => 'Berlin',
                     'postal_code' => '10115',
-                    'country' => 'DEU', // Invalid: should be 2 characters
+                    'country' => 'DE',
                 ],
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['billing_address.country']);
+            ->assertJsonValidationErrors(['legal_entity_id']);
+    });
+
+    test('rejects customer creation with a legal entity from another tenant', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignLegalEntity = OrganizationalUnit::factory()->forTenant((string) $otherTenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/customers', customerLegalEntityPayload($foreignLegalEntity));
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['legal_entity_id']);
+    });
+
+    test('rejects customer creation with an organizational unit that is not a legal entity', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+        $nonLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => false,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/customers', customerLegalEntityPayload($nonLegalEntity));
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['legal_entity_id']);
     });
 });
 
@@ -559,6 +609,7 @@ describe('GET /v1/customers/{customer}', function () {
             ->assertJsonStructure([
                 'data' => [
                     'id',
+                    'legal_entity_id',
                     'customer_number',
                     'name',
                     'billing_address',
@@ -572,6 +623,7 @@ describe('GET /v1/customers/{customer}', function () {
             ]);
 
         expect($response->json('data.id'))->toBe($customer->id);
+        expect($response->json('data.legal_entity_id'))->toBe($customer->legal_entity_id);
     });
 
     test('returns linked sites_count in customer detail responses', function (): void {

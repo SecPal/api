@@ -60,6 +60,7 @@ function createCustomerAssignmentTestCustomer(string $tenantId, string $customer
     DB::table('customers')->insert([
         'id' => $customerId,
         'tenant_id' => $tenantId,
+        'legal_entity_id' => createCustomerAssignmentLegalEntity($tenantId),
         'customer_number' => $customerNumber,
         'name' => 'Test Customer',
         'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
@@ -69,6 +70,22 @@ function createCustomerAssignmentTestCustomer(string $tenantId, string $customer
     ]);
 
     return $customerId;
+}
+
+function createCustomerAssignmentLegalEntity(string $tenantId): string
+{
+    $legalEntityId = Str::uuid()->toString();
+    DB::table('organizational_units')->insert([
+        'id' => $legalEntityId,
+        'tenant_id' => $tenantId,
+        'type' => 'company',
+        'name' => 'Assignment Legal Entity',
+        'is_legal_entity' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return $legalEntityId;
 }
 
 /**

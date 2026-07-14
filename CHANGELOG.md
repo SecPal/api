@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added mandatory tenant-consistent `customers.legal_entity_id` persistence with a non-null organizational-unit FK, composite tenant/legal-entity database enforcement, create/update validation for active same-tenant legal entities, Customer model/resource/activity-log coverage, and a migration guard that fails fast when existing customers still need the US-001 approved deterministic backfill
 - added independent organizational-unit `is_active` and `is_assignable` API flags with true defaults, strict boolean create/update validation, independent list filtering, persistence, and resource serialization (refs `api#1264`)
 - added independent organizational-unit `is_legal_entity` and `is_establishment` API flags with false defaults, strict boolean create/update validation, persistence, resource serialization, and focused Pest coverage (refs `api#1259`)
 - added the SecPal AGPL attribution additional terms in `LICENSES/LicenseRef-SecPal-Attribution.txt`, updated project-owned AGPL SPDX metadata to `AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`, standardized touched AGPL copyright headers to `SecPal Contributors`, and documented the section 7(b)/(c) attribution requirements in the licensing/contributor guides (refs `api#1219`)

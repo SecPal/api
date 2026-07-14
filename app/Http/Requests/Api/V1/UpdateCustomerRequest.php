@@ -7,6 +7,7 @@ namespace App\Http\Requests\Api\V1;
 
 use App\Models\Customer;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Update Customer Request validation.
@@ -36,8 +37,20 @@ class UpdateCustomerRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var int $tenantId */
+        $tenantId = $this->input('tenant_id');
+
         return [
             'name' => ['sometimes', 'string', 'max:255'],
+            'legal_entity_id' => [
+                'sometimes',
+                'uuid',
+                Rule::exists('organizational_units', 'id')
+                    ->where('tenant_id', $tenantId)
+                    ->where('is_legal_entity', true)
+                    ->where('is_active', true)
+                    ->whereNull('deleted_at'),
+            ],
             'billing_address' => ['sometimes', 'array'],
             'billing_address.street' => ['required_with:billing_address', 'string', 'max:255'],
             'billing_address.city' => ['required_with:billing_address', 'string', 'max:255'],
@@ -65,6 +78,7 @@ class UpdateCustomerRequest extends FormRequest
             'billing_address.city' => 'billing city',
             'billing_address.postal_code' => 'billing postal code',
             'billing_address.country' => 'billing country',
+            'legal_entity_id' => 'legal entity',
             'contact.name' => 'contact name',
             'contact.email' => 'contact email',
             'contact.phone' => 'contact phone',
