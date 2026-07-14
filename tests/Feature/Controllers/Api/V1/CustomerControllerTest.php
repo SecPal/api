@@ -1107,6 +1107,27 @@ describe('PATCH /v1/customers/{customer}', function () {
         expect($customer->refresh()->legal_entity_id)->not->toBe($unassignableLegalEntity->id);
     });
 
+    test('allows an unchanged legal entity after it becomes unassignable', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
+        $customer = Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $legalEntity->id,
+        ]);
+        $legalEntity->update(['is_assignable' => false]);
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/customers/{$customer->id}", [
+                'name' => 'Updated without reassignment',
+                'legal_entity_id' => $legalEntity->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Updated without reassignment')
+            ->assertJsonPath('data.legal_entity_id', $legalEntity->id);
+    });
+
     test('allows users with legal entity scope to view a customer', function (): void {
         $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
             'is_legal_entity' => true,

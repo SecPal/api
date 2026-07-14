@@ -39,6 +39,17 @@ class UpdateCustomerRequest extends FormRequest
     {
         /** @var int $tenantId */
         $tenantId = $this->input('tenant_id');
+        /** @var Customer|null $customer */
+        $customer = $this->route('customer');
+        $legalEntityExists = Rule::exists('organizational_units', 'id')
+            ->where('tenant_id', $tenantId)
+            ->where('is_legal_entity', true)
+            ->where('is_active', true)
+            ->whereNull('deleted_at');
+
+        if ($customer === null || $this->input('legal_entity_id') !== $customer->legal_entity_id) {
+            $legalEntityExists->where('is_assignable', true);
+        }
 
         return [
             'name' => ['sometimes', 'string', 'max:255'],
@@ -46,12 +57,7 @@ class UpdateCustomerRequest extends FormRequest
             'legal_entity_id' => [
                 'sometimes',
                 'uuid',
-                Rule::exists('organizational_units', 'id')
-                    ->where('tenant_id', $tenantId)
-                    ->where('is_legal_entity', true)
-                    ->where('is_active', true)
-                    ->where('is_assignable', true)
-                    ->whereNull('deleted_at'),
+                $legalEntityExists,
             ],
             'billing_address' => ['sometimes', 'array'],
             'billing_address.street' => ['required_with:billing_address', 'string', 'max:255'],
