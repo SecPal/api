@@ -126,15 +126,15 @@ Verified proofs are **immutable** - once a proof is Bitcoin-anchored and verifie
 
 ### Threat Model
 
-| Threat                    | Mitigation                                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Proof forgery             | The OTS commitment must match the fetched header's Merkle root                                          |
-| Header API compromise     | Exactly one hash may reach quorum; conflicting quorums fail closed, and the raw header hash is verified |
-| Man-in-the-middle attacks | HTTPS-only origins, redirect checks, API consensus, and raw-header hashing fail closed                  |
-| Timing attacks            | Two-second request caps preserve redundancy within one shared eight-second deadline                     |
-| Partial provider failure  | Truncated reads and other provider-local transport failures do not block healthy APIs                   |
-| Provider resource abuse   | Block-hash and raw-header responses are read with strict byte bounds                                    |
-| Cache poisoning           | Versioned keys bind decisions to the proof and provider configuration                                   |
+| Threat                    | Mitigation                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Proof forgery             | The OTS commitment must match the fetched header's Merkle root                                               |
+| Header API compromise     | Exactly one hash may reach quorum; conflicting quorums fail closed, and the raw header hash is verified      |
+| Man-in-the-middle attacks | HTTPS-only origins, redirect checks, API consensus, and raw-header hashing fail closed                       |
+| Timing attacks            | Two-second request caps and a reserved two-attempt header phase preserve progress within the shared deadline |
+| Partial provider failure  | Truncated reads and other provider-local transport failures do not block healthy APIs                        |
+| Provider resource abuse   | Block-hash and raw-header responses are read with strict byte bounds                                         |
+| Cache poisoning           | Versioned keys bind decisions to the proof and provider configuration                                        |
 
 ## Installation & Setup
 
@@ -319,7 +319,7 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
 
 2. **Verifier Timeout**
    - Network latency or insufficient quorum across Bitcoin header APIs
-   - Check all configured HTTPS providers; requests are capped at two seconds within the fixed shared deadline
+   - Check all configured HTTPS providers; requests are capped at two seconds, and height lookups leave two request budgets for header retrieval and one fallback within the fixed shared deadline
 
 3. **Digest Mismatch**
    - Ensure digest is SHA256 hex string (64 characters)

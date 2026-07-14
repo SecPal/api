@@ -37,10 +37,12 @@ class DetachedTimestampFile:
   data=ctx.fd.read(); obj=cls(); obj.file_digest=bytes.fromhex(data[:64].decode()); obj.timestamp=Timestamp(bytes.fromhex(data[64:128].decode())); return obj
 PY);
     $shim = str_replace('__ROOT__', var_export($workspace, true), <<<'PY'
-import os, urllib.request
+import os, time, urllib.request
 from http.client import IncompleteRead
 from urllib.parse import urlsplit
-root=__ROOT__; original=urllib.request.urlopen
+root=__ROOT__; original=urllib.request.urlopen; elapsed=0; original_monotonic=time.monotonic
+def monotonic(): return original_monotonic()+elapsed
+time.monotonic=monotonic
 class Response:
  def __init__(self, response, url): self.response=response; self.url=url
  def __enter__(self): return self
@@ -53,7 +55,14 @@ class Response:
   return self.response.read(size)
  def geturl(self): return self.url
 def urlopen(url, timeout=None):
+ global elapsed
  parsed=urlsplit(url)
+ if parsed.hostname and parsed.hostname.startswith('budget-slow-'):
+  elapsed += timeout
+  raise TimeoutError('provider consumed its request budget')
+ if parsed.hostname == 'slow-header.test' and parsed.path.endswith('/header'):
+  elapsed += timeout
+  raise TimeoutError('header provider consumed its request budget')
  if parsed.hostname == 'slow.test':
   if timeout > 2: raise RuntimeError('provider received the shared deadline')
   raise TimeoutError('provider timed out')
@@ -220,6 +229,63 @@ test('python verifier rejects conflicting provider quorums', function () {
             ->and($splitOutput)->toContain('conflicting quorums')
             ->and($majorityExitCode)->toBe(1)
             ->and($majorityOutput)->toContain('conflicting quorums');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier preserves header budget after reaching provider quorum', function () {
+    $workspace = pythonVerifierWorkspace();
+    $digest = str_repeat('11', 32);
+    $message = str_repeat('22', 32);
+    $header = str_repeat("\0", 36).hex2bin($message).pack('V', 1_700_000_000).str_repeat("\0", 8);
+
+    try {
+        $one = writeVerifierApi($workspace, 'one', $header);
+        $two = writeVerifierApi($workspace, 'two', $header);
+        $slowProviders = implode(',', array_map(
+            static fn (int $provider): string => "https://budget-slow-{$provider}.test/api",
+            range(1, 4),
+        ));
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            "$one,$two,$slowProviders",
+            $digest,
+            $message,
+        );
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->toContain('SUCCESS: Proof is valid and confirmed on Bitcoin blockchain');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier preserves header fallback budget after one provider times out', function () {
+    $workspace = pythonVerifierWorkspace();
+    $digest = str_repeat('11', 32);
+    $message = str_repeat('22', 32);
+    $header = str_repeat("\0", 36).hex2bin($message).pack('V', 1_700_000_000).str_repeat("\0", 8);
+
+    try {
+        $slowHeader = writeVerifierApi($workspace, 'slow-header', $header);
+        $one = writeVerifierApi($workspace, 'one', $header);
+        $two = writeVerifierApi($workspace, 'two', $header);
+        $slowProviders = implode(',', array_map(
+            static fn (int $provider): string => "https://budget-slow-{$provider}.test/api",
+            range(1, 3),
+        ));
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            "$slowHeader,$one,$two,$slowProviders",
+            $digest,
+            $message,
+        );
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->toContain('SUCCESS: Proof is valid and confirmed on Bitcoin blockchain');
     } finally {
         (new Filesystem)->deleteDirectory($workspace);
     }

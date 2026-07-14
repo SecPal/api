@@ -42,6 +42,7 @@ DEFAULT_BITCOIN_HEADER_API_BASES = (
 VERIFICATION_TIMEOUT_SECONDS = 8
 MAX_PROVIDER_REQUEST_SECONDS = 2
 MINIMUM_HEADER_API_QUORUM = 2
+MINIMUM_HEADER_FETCH_SECONDS = MAX_PROVIDER_REQUEST_SECONDS * MINIMUM_HEADER_API_QUORUM
 MAX_BLOCK_HASH_RESPONSE_BYTES = 128
 MAX_BLOCK_HEADER_RESPONSE_BYTES = 256
 RECOVERABLE_PROVIDER_ERRORS = (
@@ -147,11 +148,17 @@ def fetch_bitcoin_block_header(height: int, deadline: float):
     """Fetch and parse a Bitcoin block header by height from a block explorer API."""
     api_bases = bitcoin_header_api_bases()
     block_hash_sources = {}
+    height_lookup_deadline = deadline - MINIMUM_HEADER_FETCH_SECONDS
 
     for api_base in api_bases:
         try:
-            block_hash = fetch_bitcoin_block_hash(api_base, height, deadline)
+            block_hash = fetch_bitcoin_block_hash(api_base, height, height_lookup_deadline)
         except VerificationDeadlineExceeded:
+            if any(
+                len(sources) >= MINIMUM_HEADER_API_QUORUM
+                for sources in block_hash_sources.values()
+            ):
+                break
             raise
         except RECOVERABLE_PROVIDER_ERRORS:
             continue
