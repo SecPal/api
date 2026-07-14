@@ -42,7 +42,8 @@ DEFAULT_BITCOIN_HEADER_API_BASES = (
 VERIFICATION_TIMEOUT_SECONDS = 8
 MAX_PROVIDER_REQUEST_SECONDS = 2
 MINIMUM_HEADER_API_QUORUM = 2
-MINIMUM_HEADER_FETCH_SECONDS = MAX_PROVIDER_REQUEST_SECONDS * MINIMUM_HEADER_API_QUORUM
+MAX_PROOF_BYTES = 1024 * 1024
+MAX_TIMESTAMP_ATTESTATIONS = 256
 MAX_BLOCK_HASH_RESPONSE_BYTES = 128
 MAX_BLOCK_HEADER_RESPONSE_BYTES = 256
 RECOVERABLE_PROVIDER_ERRORS = (
@@ -55,6 +56,24 @@ ATTESTATION_VERIFICATION_ERRORS = RECOVERABLE_PROVIDER_ERRORS + (VerificationErr
 class VerificationDeadlineExceeded(TimeoutError):
     """The shared verification deadline has been exhausted."""
 
+class SameOriginHttpsRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Reject redirect targets before urllib opens a different origin."""
+
+    def __init__(self, expected_origin: str):
+        super().__init__()
+        self.expected_origin = expected_origin
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        try:
+            redirect_origin = canonicalize_api_base(newurl)[1]
+        except ValueError as error:
+            raise ValueError('Bitcoin header API redirect target must use the original HTTPS origin') from error
+
+        if redirect_origin != self.expected_origin:
+            raise ValueError('Bitcoin header API redirected to a different origin')
+
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
 def remaining_timeout(deadline: float) -> float:
     """Return the remaining shared verification budget or fail closed."""
     remaining = deadline - time.monotonic()
@@ -62,6 +81,17 @@ def remaining_timeout(deadline: float) -> float:
         raise VerificationDeadlineExceeded('Bitcoin header verification deadline exceeded')
 
     return remaining
+
+def fair_attempt_deadline(deadline: float, remaining_attempts: int) -> float:
+    """Give one provider a bounded share while preserving every later attempt."""
+    if remaining_attempts <= 0:
+        raise ValueError('Remaining provider attempt count must be positive')
+
+    started_at = time.monotonic()
+    return started_at + min(
+        MAX_PROVIDER_REQUEST_SECONDS,
+        remaining_timeout(deadline) / remaining_attempts,
+    )
 
 def canonicalize_api_base(api_base: str):
     """Return a normalized HTTPS API base and its provider origin."""
@@ -103,7 +133,8 @@ def bitcoin_header_api_bases():
 def fetch_api_text(api_base: str, endpoint: str, deadline: float, maximum_bytes: int) -> str:
     """Fetch a bounded response without accepting cross-origin or TLS-downgrade redirects."""
     expected_origin = canonicalize_api_base(api_base)[1]
-    with urllib.request.urlopen(
+    opener = urllib.request.build_opener(SameOriginHttpsRedirectHandler(expected_origin))
+    with opener.open(
         f'{api_base}{endpoint}',
         timeout=min(remaining_timeout(deadline), MAX_PROVIDER_REQUEST_SECONDS),
     ) as response:
@@ -148,11 +179,16 @@ def fetch_bitcoin_block_header(height: int, deadline: float):
     """Fetch and parse a Bitcoin block header by height from a block explorer API."""
     api_bases = bitcoin_header_api_bases()
     block_hash_sources = {}
-    height_lookup_deadline = deadline - MINIMUM_HEADER_FETCH_SECONDS
+    height_lookup_started_at = time.monotonic()
+    height_lookup_deadline = height_lookup_started_at + (remaining_timeout(deadline) / 2)
 
-    for api_base in api_bases:
+    for index, api_base in enumerate(api_bases):
         try:
-            block_hash = fetch_bitcoin_block_hash(api_base, height, height_lookup_deadline)
+            attempt_deadline = fair_attempt_deadline(
+                height_lookup_deadline,
+                len(api_bases) - index,
+            )
+            block_hash = fetch_bitcoin_block_hash(api_base, height, attempt_deadline)
         except VerificationDeadlineExceeded:
             if any(
                 len(sources) >= MINIMUM_HEADER_API_QUORUM
@@ -180,25 +216,25 @@ def fetch_bitcoin_block_header(height: int, deadline: float):
     agreed_block_hash = quorum_hashes[0]
     agreeing_api_bases = block_hash_sources[agreed_block_hash]
 
-    last_header_error = None
-    attempted_header_api_bases = set()
-    for api_base in agreeing_api_bases:
-        attempted_header_api_bases.add(api_base)
-        try:
-            return fetch_valid_bitcoin_header(api_base, agreed_block_hash, height, deadline)
-        except VerificationDeadlineExceeded:
-            raise
-        except RECOVERABLE_PROVIDER_ERRORS as error:
-            last_header_error = error
-
     # Any remaining provider can supply a raw header because its double-SHA
     # hash must still match the block hash established by the provider quorum.
-    for api_base in api_bases:
-        if api_base in attempted_header_api_bases:
-            continue
+    header_api_bases = agreeing_api_bases + [
+        api_base for api_base in api_bases if api_base not in agreeing_api_bases
+    ]
+    last_header_error = None
+    for index, api_base in enumerate(header_api_bases):
 
         try:
-            return fetch_valid_bitcoin_header(api_base, agreed_block_hash, height, deadline)
+            attempt_deadline = fair_attempt_deadline(
+                deadline,
+                len(header_api_bases) - index,
+            )
+            return fetch_valid_bitcoin_header(
+                api_base,
+                agreed_block_hash,
+                height,
+                attempt_deadline,
+            )
         except VerificationDeadlineExceeded:
             raise
         except RECOVERABLE_PROVIDER_ERRORS as error:
@@ -224,6 +260,10 @@ def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
         False otherwise
     """
     try:
+        if len(proof_bytes) > MAX_PROOF_BYTES:
+            print(f"Error: Proof exceeds maximum size of {MAX_PROOF_BYTES} bytes", file=sys.stderr)
+            return False
+
         verification_deadline = time.monotonic() + VERIFICATION_TIMEOUT_SECONDS
 
         # Convert hex digest to bytes
@@ -245,16 +285,20 @@ def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
 
         # Check for Bitcoin attestations
         timestamp = detached_timestamp.timestamp
-        attestations = list(timestamp.all_attestations())
-
-        print(f"Total attestations found: {len(attestations)}", file=sys.stderr)
-
-        # all_attestations() returns tuples of (msg, attestation)
         bitcoin_attestations = []
-        for msg, att in attestations:
+        attestation_count = 0
+        for msg, att in timestamp.all_attestations():
+            attestation_count += 1
+            if attestation_count > MAX_TIMESTAMP_ATTESTATIONS:
+                raise ValueError(
+                    f'Proof exceeds maximum attestation count of {MAX_TIMESTAMP_ATTESTATIONS}'
+                )
+
             print(f"  - {type(att).__name__}", file=sys.stderr)
             if isinstance(att, BitcoinBlockHeaderAttestation):
                 bitcoin_attestations.append((msg, att))
+
+        print(f"Total attestations found: {attestation_count}", file=sys.stderr)
 
         if not bitcoin_attestations:
             print("✗ Proof has no Bitcoin attestations (still pending)", file=sys.stderr)
@@ -263,12 +307,23 @@ def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
         print(f"✓ Found {len(bitcoin_attestations)} Bitcoin attestation(s)", file=sys.stderr)
 
         # Validate each Bitcoin attestation against the real block header.
-        for msg, attestation in bitcoin_attestations:
+        for index, (msg, attestation) in enumerate(bitcoin_attestations):
             block_height = attestation.height
             print(f"  - Bitcoin block: {block_height}", file=sys.stderr)
 
             try:
-                block_header = fetch_bitcoin_block_header(block_height, verification_deadline)
+                attestation_started_at = time.monotonic()
+                remaining_verification_seconds = verification_deadline - attestation_started_at
+                if remaining_verification_seconds <= 0:
+                    raise VerificationDeadlineExceeded(
+                        'Bitcoin header verification deadline exceeded'
+                    )
+
+                remaining_attestation_count = len(bitcoin_attestations) - index
+                attestation_deadline = attestation_started_at + (
+                    remaining_verification_seconds / remaining_attestation_count
+                )
+                block_header = fetch_bitcoin_block_header(block_height, attestation_deadline)
                 attested_time = attestation.verify_against_blockheader(msg, block_header)
             except ATTESTATION_VERIFICATION_ERRORS as e:
                 print(f"✗ Bitcoin verification failed for block {block_height}: {e}", file=sys.stderr)
@@ -310,7 +365,11 @@ def main():
 
     # Read proof file
     try:
-        proof_bytes = proof_file.read_bytes()
+        with proof_file.open('rb') as proof_stream:
+            proof_bytes = proof_stream.read(MAX_PROOF_BYTES + 1)
+        if len(proof_bytes) > MAX_PROOF_BYTES:
+            print(f"Error: Proof exceeds maximum size of {MAX_PROOF_BYTES} bytes", file=sys.stderr)
+            sys.exit(2)
     except Exception as e:
         print(f"Error reading proof file: {e}", file=sys.stderr)
         sys.exit(2)

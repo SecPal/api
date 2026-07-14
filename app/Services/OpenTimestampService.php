@@ -29,7 +29,11 @@ use RuntimeException;
  */
 class OpenTimestampService
 {
-    private const string VERIFICATION_CACHE_VERSION = 'v3';
+    private const string VERIFICATION_CACHE_VERSION = 'v4';
+
+    private const int MAX_VERIFICATION_PROOF_BYTES = 1_048_576;
+
+    private const int MAX_VERIFICATION_CACHE_TTL_SECONDS = 86_400;
 
     /**
      * @var ProcessExecutor External process executor
@@ -240,8 +244,8 @@ class OpenTimestampService
      * CLI-based approach (`ots verify`) required a local Bitcoin node which is
      * not feasible in most development and production environments.
      *
-     * CACHING: Successful verifications are cached forever (proofs are immutable once
-     * Bitcoin-anchored). Failed verifications are NOT cached (proof may be upgraded later).
+     * CACHING: Successful verifications are cached for a bounded TTL and then checked
+     * against the active chain again. Failures are not cached because proofs may upgrade.
      *
      * @param  string  $proof  Binary OTS proof (matches Activity model accessor/mutator)
      * @param  string  $digest  SHA256 hash (64 hex characters)
@@ -261,6 +265,16 @@ class OpenTimestampService
         // Normalize digest to lowercase
         $digest = strtolower($digest);
 
+        if (strlen($proof) > self::MAX_VERIFICATION_PROOF_BYTES) {
+            Log::warning('OpenTimestamp: Proof exceeds verification size limit', [
+                'digest_hint' => $this->digestHint($digest),
+                'proof_size' => strlen($proof),
+                'maximum_proof_size' => self::MAX_VERIFICATION_PROOF_BYTES,
+            ]);
+
+            return false;
+        }
+
         $bitcoinHeaderApiBases = config('services.opentimestamps.bitcoin_header_api_bases');
         if (! is_string($bitcoinHeaderApiBases) || trim($bitcoinHeaderApiBases) === '') {
             Log::error('OpenTimestamp: Bitcoin header APIs are not configured', [
@@ -270,18 +284,42 @@ class OpenTimestampService
             return false;
         }
 
-        // Check cache first (immutable once verified)
+        $configuredCacheTtl = config('services.opentimestamps.verification_cache_ttl_seconds');
+        if (
+            (! is_int($configuredCacheTtl) && ! (is_string($configuredCacheTtl) && ctype_digit($configuredCacheTtl)))
+            || (int) $configuredCacheTtl <= 0
+            || (int) $configuredCacheTtl > self::MAX_VERIFICATION_CACHE_TTL_SECONDS
+        ) {
+            Log::error('OpenTimestamp: Verification cache TTL is invalid', [
+                'digest_hint' => $this->digestHint($digest),
+            ]);
+
+            return false;
+        }
+        $cacheTtlSeconds = (int) $configuredCacheTtl;
+
+        // Check the bounded positive cache before starting the verifier process.
         // Do not reuse decisions made by earlier verifier versions. In particular,
-        // v1 accepted Bitcoin attestations without checking their block headers, while
-        // v2 did not bind successful decisions to the proof or configured providers.
-        $verificationContext = hash('sha256', $proof."\0".$bitcoinHeaderApiBases);
+        // v1 accepted Bitcoin attestations without checking their block headers, v2 did
+        // not bind decisions to the proof/providers, and v3 cached chain state forever.
+        $verificationContext = hash(
+            'sha256',
+            $proof."\0".$bitcoinHeaderApiBases."\0".$cacheTtlSeconds,
+        );
         $cacheKey = 'ots:verified:'.self::VERIFICATION_CACHE_VERSION.":{$digest}:{$verificationContext}";
-        if (Cache::has($cacheKey)) {
+        $cachedVerification = Cache::get($cacheKey);
+        if ($this->isTrustedCachedVerification($cachedVerification, $cacheKey, $cacheTtlSeconds)) {
             Log::debug('OpenTimestamp: Cache hit for verified proof', [
                 'digest_hint' => $this->digestHint($digest),
             ]);
 
-            return (bool) Cache::get($cacheKey);
+            return true;
+        }
+        if ($cachedVerification !== null) {
+            Cache::forget($cacheKey);
+            Log::warning('OpenTimestamp: Ignored invalid verification cache entry', [
+                'digest_hint' => $this->digestHint($digest),
+            ]);
         }
 
         // Check if Python 3 is installed
@@ -345,8 +383,16 @@ class OpenTimestampService
                     'output' => $this->sanitizeProcessMessage((string) $result['stderr']),
                 ]);
 
-                // Cache positive result forever (proofs are immutable once Bitcoin-anchored)
-                Cache::forever($cacheKey, true);
+                // Revalidate periodically so a chain reorganization cannot leave a
+                // previously successful provider observation trusted forever.
+                $cacheValue = $this->createVerificationCacheValue($cacheKey);
+                if ($cacheValue !== null) {
+                    Cache::put($cacheKey, $cacheValue, $cacheTtlSeconds);
+                } else {
+                    Log::warning('OpenTimestamp: Verification result was not cached because the application key is unavailable', [
+                        'digest_hint' => $this->digestHint($digest),
+                    ]);
+                }
 
                 return true;
             }
@@ -363,6 +409,58 @@ class OpenTimestampService
         } finally {
             $this->cleanupTempFile($tempFile);
         }
+    }
+
+    /**
+     * @return array{verified_at: int, authenticator: string}|null
+     */
+    private function createVerificationCacheValue(string $cacheKey): ?array
+    {
+        $applicationKey = config('app.key');
+        if (! is_string($applicationKey) || $applicationKey === '') {
+            return null;
+        }
+
+        $verifiedAt = now()->getTimestamp();
+
+        return [
+            'verified_at' => $verifiedAt,
+            'authenticator' => hash_hmac('sha256', $cacheKey."\0".$verifiedAt, $applicationKey),
+        ];
+    }
+
+    private function isTrustedCachedVerification(
+        mixed $cachedVerification,
+        string $cacheKey,
+        int $cacheTtlSeconds,
+    ): bool {
+        if (
+            ! is_array($cachedVerification)
+            || ! isset($cachedVerification['verified_at'], $cachedVerification['authenticator'])
+            || ! is_int($cachedVerification['verified_at'])
+            || ! is_string($cachedVerification['authenticator'])
+        ) {
+            return false;
+        }
+
+        $verifiedAt = $cachedVerification['verified_at'];
+        $currentTimestamp = now()->getTimestamp();
+        if ($verifiedAt > $currentTimestamp || $currentTimestamp - $verifiedAt >= $cacheTtlSeconds) {
+            return false;
+        }
+
+        $applicationKey = config('app.key');
+        if (! is_string($applicationKey) || $applicationKey === '') {
+            return false;
+        }
+
+        $expectedAuthenticator = hash_hmac(
+            'sha256',
+            $cacheKey."\0".$verifiedAt,
+            $applicationKey,
+        );
+
+        return hash_equals($expectedAuthenticator, $cachedVerification['authenticator']);
     }
 
     /**

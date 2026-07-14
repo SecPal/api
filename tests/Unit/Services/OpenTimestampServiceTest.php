@@ -62,6 +62,29 @@ test('verify fails closed when bitcoin header APIs are not configured', function
         ->toBeFalse();
 });
 
+test('verify fails closed when the verification cache ttl is invalid', function () {
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 0);
+    $this->mockExecutor->shouldNotReceive('execute');
+
+    expect($this->service->verify('proof-data', hash('sha256', 'invalid-cache-ttl')))
+        ->toBeFalse();
+});
+
+test('verify fails closed when the verification cache ttl exceeds one day', function () {
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 86_401);
+    $this->mockExecutor->shouldNotReceive('execute');
+
+    expect($this->service->verify('proof-data', hash('sha256', 'excessive-cache-ttl')))
+        ->toBeFalse();
+});
+
+test('verify rejects oversized proofs before starting the verifier process', function () {
+    $this->mockExecutor->shouldNotReceive('execute');
+
+    expect($this->service->verify(str_repeat('x', 1_048_577), hash('sha256', 'oversized-proof')))
+        ->toBeFalse();
+});
+
 test('verify returns false when python not available', function () {
     // Arrange: python3 not available
     $merkleRoot = hash('sha256', 'test-root');
@@ -201,6 +224,26 @@ test('verify ignores successful results cached by the vulnerable verifier', func
             'exitCode' => 1,
             'stdout' => '',
             'stderr' => 'FAILURE: Proof verification failed',
+        ]);
+
+    expect($this->service->verify($proof, $digest))->toBeFalse();
+});
+
+test('verify ignores unbounded successful results from verifier cache v3', function () {
+    $digest = hash('sha256', 'unbounded-v3-cache-entry');
+    $proof = 'previously-verified-proof';
+    $providerConfiguration = (string) config('services.opentimestamps.bitcoin_header_api_bases');
+    $verificationContext = hash('sha256', $proof."\0".$providerConfiguration);
+
+    Cache::forever("ots:verified:v3:{$digest}:{$verificationContext}", true);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Proof must be revalidated against the active chain',
         ]);
 
     expect($this->service->verify($proof, $digest))->toBeFalse();

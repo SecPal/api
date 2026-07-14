@@ -54,13 +54,6 @@ test('verify rejects invalid proof', function () {
     $result = $this->service->verify($invalidProof, $digest);
 
     expect($result)->toBeFalse('Invalid proof should be rejected');
-
-    // Verify that failed verifications are NOT cached
-    $cacheKey = "ots:verified:{$digest}";
-    expect(
-        Cache::has($cacheKey),
-        'Failed verifications should not be cached (proof may upgrade later)'
-    )->toBeFalse();
 });
 
 /**
@@ -92,22 +85,12 @@ test('verify uses external verifier not http calendars', function () {
         $result,
         'Pending proofs should fail Python verification (no Bitcoin attestation yet)'
     )->toBeFalse();
-
-    // Additional security check: Ensure we never cached this false result
-    $cacheKey = "ots:verified:{$digest}";
-    expect(
-        Cache::has($cacheKey),
-        'Pending proof verification should not be cached'
-    )->toBeFalse();
 });
 
 /**
- * Test caching behavior with multiple verification attempts.
- *
- * This test verifies that the caching layer works correctly
- * when the same proof is verified multiple times.
+ * Test that repeated verification cannot make a pending proof trusted.
  */
-test('verify caching integration', function () {
+test('repeated pending proof verification remains untrusted', function () {
     // Use a pre-generated pending proof
     $pendingProof = base64_encode(
         hex2bin('004f70656e54696d657374616d7073000050726f6f6600bf09e8e884e89294010811c70929'.
@@ -120,16 +103,9 @@ test('verify caching integration', function () {
     $result1 = $this->service->verify($pendingProof, $digest);
     expect($result1)->toBeFalse();
 
-    // Cache should be empty (failed verifications not cached)
-    $cacheKey = "ots:verified:{$digest}";
-    expect(Cache::has($cacheKey))->toBeFalse();
-
     // Second verification - should hit the verifier again (not cached)
     $result2 = $this->service->verify($pendingProof, $digest);
     expect($result2)->toBeFalse();
-
-    // Still not cached
-    expect(Cache::has($cacheKey))->toBeFalse();
 });
 
 /**

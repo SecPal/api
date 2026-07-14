@@ -63,6 +63,7 @@ return [
             'OTS_BITCOIN_HEADER_API_BASES',
             'https://blockstream.info/api,https://mempool.space/api',
         ),
+        'verification_cache_ttl_seconds' => env('OTS_VERIFICATION_CACHE_TTL_SECONDS', 3600),
     ],
 
 ];

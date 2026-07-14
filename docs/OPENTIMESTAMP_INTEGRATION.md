@@ -16,7 +16,7 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 - **Blockchain Anchoring**: Merkle roots are anchored to Bitcoin blocks
 - **Independent Verification**: Proofs are checked against a quorum of Bitcoin header APIs
 - **Privacy-Preserving**: Only SHA256 digests are submitted to public calendars
-- **Performance Optimized**: Caching layer for verified proofs (immutable once confirmed)
+- **Performance Optimized**: Bounded caching for verified proofs with periodic active-chain revalidation
 - **Fail-Closed**: Falls back to unverified state rather than false positives
 
 ## Architecture
@@ -87,7 +87,7 @@ $storedProof = $service->submit('abc123...');
    ↓ (Bitcoin-anchored proof stored)
 5. verify() method (with caching)
    ↓
-6. Verified Proof (cached forever)
+6. Verified Proof (cached for a bounded TTL)
 ```
 
 ## Security Considerations
@@ -117,24 +117,26 @@ $result = $processExecutor->execute(
 
 ### Caching Strategy
 
-Verified proofs are **immutable** - once a proof is Bitcoin-anchored and verified, it will always be valid (assuming blockchain integrity). Therefore:
+The proof bytes are immutable once Bitcoin-anchored, but the active-chain observation must be refreshed so a reorganization cannot leave a stale positive decision trusted forever. Therefore:
 
-- ✅ **Cache successful verifications**: The `v3` key binds the digest to hashes of the exact proof and configured provider set
+- ✅ **Cache successful verifications temporarily**: The `v4` key binds the digest to hashes of the exact proof and configured provider set
+- ✅ **Authenticate cached decisions**: The application key authenticates the cache context and verification time, so database writes cannot forge or extend a positive result
 - ✅ **Version verifier decisions**: A verifier security change uses a new namespace so legacy positive results cannot bypass new checks
-- ✅ **Invalidate on context changes**: Replacing either the proof or provider configuration requires fresh verification
+- ✅ **Invalidate on context changes**: Replacing the proof, provider configuration, or cache TTL requires fresh verification
+- ✅ **Revalidate active-chain state**: Positive decisions expire after `OTS_VERIFICATION_CACHE_TTL_SECONDS` (maximum one day)
 - ❌ **Do NOT cache failures**: Pending proofs may upgrade to confirmed later
 
 ### Threat Model
 
-| Threat                    | Mitigation                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Proof forgery             | The OTS commitment must match the fetched header's Merkle root                                               |
-| Header API compromise     | Exactly one hash may reach quorum; conflicting quorums fail closed, and the raw header hash is verified      |
-| Man-in-the-middle attacks | HTTPS-only origins, redirect checks, API consensus, and raw-header hashing fail closed                       |
-| Timing attacks            | Two-second request caps and a reserved two-attempt header phase preserve progress within the shared deadline |
-| Partial provider failure  | Truncated reads and other provider-local transport failures do not block healthy APIs                        |
-| Provider resource abuse   | Block-hash and raw-header responses are read with strict byte bounds                                         |
-| Cache poisoning           | Versioned keys bind decisions to the proof and provider configuration                                        |
+| Threat                    | Mitigation                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Proof forgery             | The OTS commitment must match the fetched header's Merkle root                                          |
+| Header API compromise     | Exactly one hash may reach quorum; conflicting quorums fail closed, and the raw header hash is verified |
+| Man-in-the-middle attacks | HTTPS-only origins, pre-follow redirect checks, API consensus, and raw-header hashing fail closed       |
+| Timing attacks            | Fair attestation slices plus dynamic height/header phases preserve later verification work              |
+| Partial provider failure  | Truncated reads and other provider-local transport failures do not block healthy APIs                   |
+| Provider resource abuse   | Provider responses, proof files, and attestation traversal have strict bounds                           |
+| Cache poisoning           | Versioned keys and application-key authenticated timestamps reject forged or extended positive entries  |
 
 ## Installation & Setup
 
@@ -178,7 +180,7 @@ ots --version
 ### Environment Variables
 
 ```env
-# OpenTimestamp Configuration (config/opentimestamp.php)
+# OpenTimestamp Configuration (config/services.php)
 
 # Calendar URLs (comma-separated)
 # Default: alice.btc.calendar.opentimestamps.org,
@@ -194,6 +196,10 @@ OTS_MIN_CALENDAR_RESPONSES=2
 # At least two canonical HTTPS origins are required so one configured provider cannot
 # substitute a self-consistent header that is not part of the Bitcoin chain.
 OTS_BITCOIN_HEADER_API_BASES=https://blockstream.info/api,https://mempool.space/api
+
+# Positive verification cache TTL in seconds (default: 3600, maximum: 86400).
+# Expiry forces periodic revalidation against the active Bitcoin chain.
+OTS_VERIFICATION_CACHE_TTL_SECONDS=3600
 
 # Note: The Python verifier process timeout is hardcoded at 10 seconds in OpenTimestampService
 # and is not configurable via environment variable.
@@ -281,7 +287,7 @@ UpgradeOpenTimestampProofs::dispatch();
 
 ### Caching
 
-Successful verifications are cached forever using an internal `v3` key that includes the digest plus hashes of the exact proof and configured provider set. A proof or provider change therefore causes fresh verification.
+Successful verifications use a bounded `v4` cache key that includes the digest plus hashes of the exact proof, configured provider set, and TTL policy. Its value contains an application-key authenticated verification timestamp, which is checked independently of the cache store's expiry. A proof, provider, or TTL change causes immediate fresh verification, forged or artificially extended entries are ignored, and TTL expiry rechecks the proof against the active Bitcoin chain. `OTS_VERIFICATION_CACHE_TTL_SECONDS` defaults to one hour and cannot exceed one day.
 
 ```php
 // Clear all OTS verification cache
@@ -358,7 +364,7 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
 1. **Check Caching**
 
    ```php
-   // Verified proofs should hit cache (<10ms)
+   // Recently verified proofs should hit the bounded cache (<10ms)
    Log::info('Cache hit', ['digest' => $digest]);
    ```
 

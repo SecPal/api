@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Unit tests for OpenTimestamp Python-process proof verification.
@@ -36,6 +37,20 @@ beforeEach(function () {
 
     $this->service = app(OpenTimestampService::class);
 });
+
+function openTimestampVerificationCacheKeyForTest(
+    string $proof,
+    string $digest,
+    int $cacheTtlSeconds,
+): string {
+    $providerConfiguration = (string) config('services.opentimestamps.bitcoin_header_api_bases');
+    $verificationContext = hash(
+        'sha256',
+        $proof."\0".$providerConfiguration."\0".$cacheTtlSeconds,
+    );
+
+    return "ots:verified:v4:{$digest}:{$verificationContext}";
+}
 
 test('verify passes config cached bitcoin header APIs to the python process', function () {
     $merkleRoot = hash('sha256', 'configured-header-apis');
@@ -286,6 +301,114 @@ test('verify caches successful verification', function () {
 
     // Assert: Cache was used (no second script call expected)
     // Mockery will automatically fail if script is called twice
+});
+
+test('verify revalidates successful proofs after the cache ttl', function () {
+    $merkleRoot = hash('sha256', 'revalidation-after-cache-ttl');
+    $proof = buildValidOtsProofForProcessVerification();
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 60);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->twice()
+        ->andReturn(
+            [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => 'SUCCESS: Proof is valid and confirmed on Bitcoin blockchain',
+            ],
+            [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'FAILURE: Bitcoin block is no longer on the active chain',
+            ],
+        );
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeTrue();
+
+    $this->travel(61)->seconds();
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
+});
+
+test('verify revalidates successful proofs when the cache ttl is shortened', function () {
+    $merkleRoot = hash('sha256', 'revalidation-after-cache-ttl-change');
+    $proof = buildValidOtsProofForProcessVerification();
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 3600);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->twice()
+        ->andReturn(
+            [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => 'SUCCESS: Proof is valid and confirmed on Bitcoin blockchain',
+            ],
+            [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'FAILURE: Proof must be checked under the shorter cache policy',
+            ],
+        );
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeTrue();
+
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 60);
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
+});
+
+test('verify ignores forged positive cache values', function () {
+    $merkleRoot = hash('sha256', 'forged-positive-cache-value');
+    $proof = buildValidOtsProofForProcessVerification();
+    $cacheTtlSeconds = 3600;
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', $cacheTtlSeconds);
+    Cache::put(
+        openTimestampVerificationCacheKeyForTest($proof, $merkleRoot, $cacheTtlSeconds),
+        true,
+        $cacheTtlSeconds,
+    );
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Cache value was not authenticated',
+        ]);
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
+});
+
+test('verify ignores authenticated cache values older than the configured ttl', function () {
+    $merkleRoot = hash('sha256', 'expired-authenticated-cache-value');
+    $proof = buildValidOtsProofForProcessVerification();
+    $cacheTtlSeconds = 60;
+    $verifiedAt = now()->subSeconds($cacheTtlSeconds + 1)->getTimestamp();
+    $cacheKey = openTimestampVerificationCacheKeyForTest($proof, $merkleRoot, $cacheTtlSeconds);
+    $authenticator = hash_hmac(
+        'sha256',
+        $cacheKey."\0".$verifiedAt,
+        (string) config('app.key'),
+    );
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', $cacheTtlSeconds);
+    Cache::put($cacheKey, [
+        'verified_at' => $verifiedAt,
+        'authenticator' => $authenticator,
+    ], 3600);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Cache timestamp exceeded the verification policy',
+        ]);
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
 });
 
 test('verify does not cache failed verification', function () {

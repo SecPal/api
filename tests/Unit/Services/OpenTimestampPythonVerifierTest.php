@@ -29,12 +29,15 @@ PY);
     file_put_contents($workspace.'/opentimestamps/core/timestamp.py', <<<'PY'
 from opentimestamps.core.notary import BitcoinBlockHeaderAttestation
 class Timestamp:
- def __init__(self, msg): self.msg = msg
- def all_attestations(self): return [(self.msg, BitcoinBlockHeaderAttestation(123))]
+ def __init__(self, msg, mode): self.msg = msg; self.mode = mode
+ def all_attestations(self):
+  if self.mode == b'multiple': return [(self.msg, BitcoinBlockHeaderAttestation(111)), (self.msg, BitcoinBlockHeaderAttestation(123))]
+  if self.mode == b'many': return [(self.msg, BitcoinBlockHeaderAttestation(123)) for _ in range(257)]
+  return [(self.msg, BitcoinBlockHeaderAttestation(123))]
 class DetachedTimestampFile:
  @classmethod
  def deserialize(cls, ctx):
-  data=ctx.fd.read(); obj=cls(); obj.file_digest=bytes.fromhex(data[:64].decode()); obj.timestamp=Timestamp(bytes.fromhex(data[64:128].decode())); return obj
+  data=ctx.fd.read(); obj=cls(); obj.file_digest=bytes.fromhex(data[:64].decode()); obj.timestamp=Timestamp(bytes.fromhex(data[64:128].decode()), data[128:]); return obj
 PY);
     $shim = str_replace('__ROOT__', var_export($workspace, true), <<<'PY'
 import os, time, urllib.request
@@ -57,10 +60,19 @@ class Response:
 def urlopen(url, timeout=None):
  global elapsed
  parsed=urlsplit(url)
+ if parsed.hostname == 'redirect.test':
+  print('UNSAFE_REDIRECT_TARGET_CONTACTED')
+  raise OSError('redirect target was contacted before validation')
+ if parsed.hostname and parsed.hostname.startswith('attestation-slow-') and '/block-height/111' in parsed.path:
+  elapsed += timeout
+  raise TimeoutError('first attestation consumed its provider budget')
+ if parsed.hostname and parsed.hostname.startswith('height-slow-') and '/block-height/' in parsed.path:
+  elapsed += timeout
+  raise TimeoutError('height provider consumed its fair request budget')
  if parsed.hostname and parsed.hostname.startswith('budget-slow-'):
   elapsed += timeout
   raise TimeoutError('provider consumed its request budget')
- if parsed.hostname == 'slow-header.test' and parsed.path.endswith('/header'):
+ if parsed.hostname and parsed.hostname.startswith('slow-header') and parsed.path.endswith('/header'):
   elapsed += timeout
   raise TimeoutError('header provider consumed its request budget')
  if parsed.hostname == 'slow.test':
@@ -68,9 +80,21 @@ def urlopen(url, timeout=None):
   raise TimeoutError('provider timed out')
  if parsed.hostname and parsed.hostname.endswith('.test'):
   path=os.path.join(root, parsed.hostname.removesuffix('.test'), parsed.path.removeprefix('/api/'))
-  return Response(original('file://'+path, timeout=timeout), url)
+  return Response(open(path, 'rb'), url)
  return original(url, timeout=timeout)
+class Opener:
+ def __init__(self, handlers): self.handlers=handlers
+ def open(self, url, timeout=None):
+  parsed=urlsplit(url)
+  if parsed.hostname == 'redirect.test':
+   request=urllib.request.Request(url)
+   for handler in self.handlers:
+    if hasattr(handler, 'redirect_request'):
+     handler.redirect_request(request, None, 302, 'Found', {}, 'http://127.0.0.1/internal')
+  return urlopen(url, timeout=timeout)
+def build_opener(*handlers): return Opener(handlers)
 urllib.request.urlopen=urlopen
+urllib.request.build_opener=build_opener
 PY);
     file_put_contents($workspace.'/sitecustomize.py', $shim);
 
@@ -95,10 +119,15 @@ function writeVerifierApi(
 }
 
 /** @return array{int, string} */
-function runPythonVerifier(string $workspace, string $apis, string $digest, string $message): array
-{
+function runPythonVerifier(
+    string $workspace,
+    string $apis,
+    string $digest,
+    string $message,
+    string $proofSuffix = '',
+): array {
     $proof = $workspace.'/proof.ots';
-    file_put_contents($proof, $digest.$message);
+    file_put_contents($proof, $digest.$message.$proofSuffix);
     $command = sprintf(
         'PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=%s OTS_BITCOIN_HEADER_API_BASES=%s python3 %s %s %s 2>&1',
         escapeshellarg($workspace),
@@ -286,6 +315,138 @@ test('python verifier preserves header fallback budget after one provider times 
 
         expect($exitCode)->toBe(0)
             ->and($output)->toContain('SUCCESS: Proof is valid and confirmed on Bitcoin blockchain');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier preserves height quorum budget after two providers time out', function () {
+    $workspace = pythonVerifierWorkspace();
+    $digest = str_repeat('11', 32);
+    $message = str_repeat('22', 32);
+    $header = str_repeat("\0", 36).hex2bin($message).pack('V', 1_700_000_000).str_repeat("\0", 8);
+
+    try {
+        $one = writeVerifierApi($workspace, 'one', $header);
+        $two = writeVerifierApi($workspace, 'two', $header);
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            "https://height-slow-one.test/api,https://height-slow-two.test/api,$one,$two",
+            $digest,
+            $message,
+        );
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->toContain('SUCCESS: Proof is valid and confirmed on Bitcoin blockchain');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier preserves a third header attempt after two providers time out', function () {
+    $workspace = pythonVerifierWorkspace();
+    $digest = str_repeat('11', 32);
+    $message = str_repeat('22', 32);
+    $header = str_repeat("\0", 36).hex2bin($message).pack('V', 1_700_000_000).str_repeat("\0", 8);
+
+    try {
+        $slowOne = writeVerifierApi($workspace, 'slow-header-one', $header);
+        $slowTwo = writeVerifierApi($workspace, 'slow-header-two', $header);
+        $healthy = writeVerifierApi($workspace, 'healthy', $header);
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            "$slowOne,$slowTwo,$healthy,https://budget-slow-one.test/api,https://budget-slow-two.test/api",
+            $digest,
+            $message,
+        );
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->toContain('SUCCESS: Proof is valid and confirmed on Bitcoin blockchain');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier rejects cross origin redirects before contacting their target', function () {
+    $workspace = pythonVerifierWorkspace();
+    $digest = str_repeat('11', 32);
+    $message = str_repeat('22', 32);
+    $header = str_repeat("\0", 36).hex2bin($message).pack('V', 1_700_000_000).str_repeat("\0", 8);
+
+    try {
+        $redirect = writeVerifierApi($workspace, 'redirect', $header);
+        $one = writeVerifierApi($workspace, 'one', $header);
+        $two = writeVerifierApi($workspace, 'two', $header);
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            "$redirect,$one,$two",
+            $digest,
+            $message,
+        );
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->not->toContain('UNSAFE_REDIRECT_TARGET_CONTACTED');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier preserves budget for later bitcoin attestations', function () {
+    $workspace = pythonVerifierWorkspace();
+    $digest = str_repeat('11', 32);
+    $message = str_repeat('22', 32);
+    $header = str_repeat("\0", 36).hex2bin($message).pack('V', 1_700_000_000).str_repeat("\0", 8);
+
+    try {
+        $one = writeVerifierApi($workspace, 'attestation-slow-one', $header);
+        $two = writeVerifierApi($workspace, 'attestation-slow-two', $header);
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            "$one,$two",
+            $digest,
+            $message,
+            'multiple',
+        );
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->toContain('Bitcoin block 123 attests existence');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier rejects oversized proofs and excessive attestations', function () {
+    $workspace = pythonVerifierWorkspace();
+    $digest = str_repeat('11', 32);
+    $message = str_repeat('22', 32);
+    $header = str_repeat("\0", 36).hex2bin($message).pack('V', 1_700_000_000).str_repeat("\0", 8);
+
+    try {
+        $one = writeVerifierApi($workspace, 'one', $header);
+        $two = writeVerifierApi($workspace, 'two', $header);
+        [$oversizedExitCode, $oversizedOutput] = runPythonVerifier(
+            $workspace,
+            "$one,$two",
+            $digest,
+            $message,
+            str_repeat('x', 1_048_577 - 128),
+        );
+        [$attestationsExitCode, $attestationsOutput] = runPythonVerifier(
+            $workspace,
+            "$one,$two",
+            $digest,
+            $message,
+            'many',
+        );
+
+        expect($oversizedExitCode)->toBe(2)
+            ->and($oversizedOutput)->toContain('Proof exceeds maximum size')
+            ->and($attestationsExitCode)->toBe(1)
+            ->and($attestationsOutput)->toContain('Proof exceeds maximum attestation count');
     } finally {
         (new Filesystem)->deleteDirectory($workspace);
     }
