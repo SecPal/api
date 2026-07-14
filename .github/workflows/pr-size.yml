@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
+---
 name: PR Size Check
 
 on:
@@ -14,6 +15,6 @@ permissions:
 jobs:
   pr-size:
     name: Check PR Size
-    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@main
+    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@e1d736328463aa41708a4431e60ac996c9034585
     with:
       max-lines: 600

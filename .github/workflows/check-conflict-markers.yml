@@ -1,6 +1,7 @@
-# SPDX-FileCopyrightText: 2025 SecPal Contributors
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
 
+---
 name: Check for Merge Conflict Markers
 
 on:
@@ -14,4 +15,4 @@ permissions:
 
 jobs:
   check-conflicts:
-    uses: SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml@main
+    uses: SecPal/.github/.github/workflows/reusable-check-conflict-markers.yml@e1d736328463aa41708a4431e60ac996c9034585
