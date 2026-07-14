@@ -21,3 +21,9 @@ test('preflight excludes serial tests from the parallel run and executes them se
         ->toContain('${CMD_PREFIX} php artisan test --parallel --exclude-group=serial || TEST_EXIT=$?')
         ->toContain('${CMD_PREFIX} php artisan test --group=serial || TEST_EXIT=$?');
 });
+
+test('preflight excludes gitignored workspace context notes from markdownlint', function (): void {
+    expect(preflightScriptContents())
+        ->toContain('markdownlint --config .markdownlint.json --dot \'**/*.md\'')
+        ->toContain('--ignore .context');
+});
