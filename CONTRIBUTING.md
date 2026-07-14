@@ -379,6 +379,10 @@ All commits must be cryptographically signed. SSH and OpenPGP are both accepted;
 ### SSH signing
 
 ```bash
+# Create the SSH configuration directory with restricted permissions
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+
 # Generate a dedicated SSH signing key (if you do not already have one)
 ssh-keygen -t ed25519 -C "you@secpal.dev" -f ~/.ssh/id_ed25519_signing
 
@@ -414,23 +418,19 @@ gpg --armor --export <YOUR_KEY_ID>
 
 ### Verify a signature
 
-After committing, inspect its signature locally:
-
-```bash
-git log --show-signature -1
-```
-
-For SSH signatures, configure Git's allowed signers file before running `git verify-commit` so Git can verify the signer's identity:
+For SSH signatures, configure Git's allowed signers file before inspecting or verifying the commit so Git can identify the signer:
 
 ```bash
 printf '%s %s\n' "you@secpal.dev" "$(cat ~/.ssh/id_ed25519_signing.pub)" >> ~/.ssh/allowed_signers
 git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
+git log --show-signature -1
 git verify-commit HEAD
 ```
 
-For OpenPGP signatures, run:
+For OpenPGP signatures, inspect and verify the commit with:
 
 ```bash
+git log --show-signature -1
 git verify-commit HEAD
 ```
 
