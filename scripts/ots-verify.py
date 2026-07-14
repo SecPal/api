@@ -40,15 +40,20 @@ DEFAULT_BITCOIN_HEADER_API_BASES = (
     'https://mempool.space/api',
 )
 VERIFICATION_TIMEOUT_SECONDS = 8
+MAX_PROVIDER_REQUEST_SECONDS = 2
 MINIMUM_HEADER_API_QUORUM = 2
 MAX_BLOCK_HASH_RESPONSE_BYTES = 128
 MAX_BLOCK_HEADER_RESPONSE_BYTES = 256
+RECOVERABLE_PROVIDER_ERRORS = (urllib.error.URLError, TimeoutError, ValueError)
+
+class VerificationDeadlineExceeded(TimeoutError):
+    """The shared verification deadline has been exhausted."""
 
 def remaining_timeout(deadline: float) -> float:
     """Return the remaining shared verification budget or fail closed."""
     remaining = deadline - time.monotonic()
     if remaining <= 0:
-        raise TimeoutError('Bitcoin header verification deadline exceeded')
+        raise VerificationDeadlineExceeded('Bitcoin header verification deadline exceeded')
 
     return remaining
 
@@ -94,7 +99,7 @@ def fetch_api_text(api_base: str, endpoint: str, deadline: float, maximum_bytes:
     expected_origin = canonicalize_api_base(api_base)[1]
     with urllib.request.urlopen(
         f'{api_base}{endpoint}',
-        timeout=remaining_timeout(deadline),
+        timeout=min(remaining_timeout(deadline), MAX_PROVIDER_REQUEST_SECONDS),
     ) as response:
         if canonicalize_api_base(response.geturl())[1] != expected_origin:
             raise ValueError('Bitcoin header API redirected to a different origin')
@@ -140,15 +145,13 @@ def fetch_bitcoin_block_header(height: int, deadline: float):
     successful_hashes = set()
     agreed_block_hash = None
     agreeing_api_bases = []
-    queried_api_bases = set()
 
     for api_base in api_bases:
-        queried_api_bases.add(api_base)
         try:
             block_hash = fetch_bitcoin_block_hash(api_base, height, deadline)
-        except TimeoutError:
+        except VerificationDeadlineExceeded:
             raise
-        except (urllib.error.URLError, ValueError):
+        except RECOVERABLE_PROVIDER_ERRORS:
             continue
 
         successful_hashes.add(block_hash)
@@ -164,32 +167,31 @@ def fetch_bitcoin_block_header(height: int, deadline: float):
         raise ValueError(f'Bitcoin header APIs did not reach quorum at height {height}')
 
     last_header_error = None
+    attempted_header_api_bases = set()
     for api_base in agreeing_api_bases:
+        attempted_header_api_bases.add(api_base)
         try:
             return fetch_valid_bitcoin_header(api_base, agreed_block_hash, height, deadline)
-        except TimeoutError:
+        except VerificationDeadlineExceeded:
             raise
-        except (urllib.error.URLError, ValueError) as error:
+        except RECOVERABLE_PROVIDER_ERRORS as error:
             last_header_error = error
 
-    # A provider not needed to form the initial quorum can still supply the
-    # cryptographically bound raw header if the quorum providers cannot.
+    # Any remaining provider can supply a raw header because its double-SHA
+    # hash must still match the block hash established by the provider quorum.
     for api_base in api_bases:
-        if api_base in queried_api_bases:
+        if api_base in attempted_header_api_bases:
             continue
 
         try:
-            if fetch_bitcoin_block_hash(api_base, height, deadline) != agreed_block_hash:
-                continue
-
             return fetch_valid_bitcoin_header(api_base, agreed_block_hash, height, deadline)
-        except TimeoutError:
+        except VerificationDeadlineExceeded:
             raise
-        except (urllib.error.URLError, ValueError) as error:
+        except RECOVERABLE_PROVIDER_ERRORS as error:
             last_header_error = error
 
     raise ValueError(
-        f'No quorum API returned a valid Bitcoin block header at height {height}: {last_header_error}'
+        f'No configured API returned a valid Bitcoin block header at height {height}: {last_header_error}'
     )
 
 def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:

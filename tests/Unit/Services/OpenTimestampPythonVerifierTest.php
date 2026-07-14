@@ -50,6 +50,9 @@ class Response:
  def geturl(self): return self.url
 def urlopen(url, timeout=None):
  parsed=urlsplit(url)
+ if parsed.hostname == 'slow.test':
+  if timeout > 2: raise RuntimeError('provider received the shared deadline')
+  raise TimeoutError('provider timed out')
  if parsed.hostname and parsed.hostname.endswith('.test'):
   path=os.path.join(root, parsed.hostname.removesuffix('.test'), parsed.path.removeprefix('/api/'))
   return Response(original('file://'+path, timeout=timeout), url)
@@ -110,12 +113,20 @@ test('python verifier validates headers using independent HTTPS provider consens
         [$duplicate] = runPythonVerifier($workspace, 'https://ONE.test:443/api/,'.$one, $digest, $message);
         [$insecure, $insecureOutput] = runPythonVerifier($workspace, 'http://one.test/api,http://two.test/api', $digest, $message);
         [$unavailable] = runPythonVerifier($workspace, "https://missing.test/api,$one,$two", $digest, $message);
+        [$slow] = runPythonVerifier($workspace, "https://slow.test/api,$one,$two", $digest, $message);
         $three = writeVerifierApi($workspace, 'three', $header);
         $hash = trim(file_get_contents($workspace.'/one/block-height/123'));
         unlink($workspace.'/one/block/'.$hash.'/header');
         [$fallback] = runPythonVerifier($workspace, "$one,$two", $digest, $message);
         unlink($workspace.'/two/block/'.$hash.'/header');
         [$lateFallback] = runPythonVerifier($workspace, "$one,$two,$three", $digest, $message);
+        $heightFallback = writeVerifierApi($workspace, 'height-fallback', $header);
+        $quorumOne = writeVerifierApi($workspace, 'quorum-one', $header);
+        $quorumTwo = writeVerifierApi($workspace, 'quorum-two', $header);
+        unlink($workspace.'/height-fallback/block-height/123');
+        unlink($workspace.'/quorum-one/block/'.$hash.'/header');
+        unlink($workspace.'/quorum-two/block/'.$hash.'/header');
+        [$heightLookupFallback] = runPythonVerifier($workspace, "$heightFallback,$quorumOne,$quorumTwo", $digest, $message);
         writeVerifierApi($workspace, 'one', $header, headerText: 'not-hex');
         writeVerifierApi($workspace, 'two', $header, headerText: 'not-hex');
         [$malformed, $malformedOutput] = runPythonVerifier($workspace, "$one,$two", $digest, $message);
@@ -132,7 +143,7 @@ test('python verifier validates headers using independent HTTPS provider consens
         $second = writeVerifierApi($workspace, 'second', $other);
         [$disagreement, $disagreementOutput] = runPythonVerifier($workspace, "$first,$second", $digest, $message);
 
-        expect($valid)->toBe(0)->and($unavailable)->toBe(0)
+        expect($valid)->toBe(0)->and($unavailable)->toBe(0)->and($heightLookupFallback)->toBe(0)->and($slow)->toBe(0)
             ->and($single)->toBe(1)->and($singleOutput)->toContain('two distinct HTTPS API origins')
             ->and($duplicate)->toBe(1)
             ->and($insecure)->toBe(1)->and($insecureOutput)->toContain('must use HTTPS')

@@ -131,7 +131,7 @@ Verified proofs are **immutable** - once a proof is Bitcoin-anchored and verifie
 | Proof forgery             | The OTS commitment must match the fetched header's Merkle root                         |
 | Header API compromise     | A quorum of canonical provider origins must agree, and the raw header hash is verified |
 | Man-in-the-middle attacks | HTTPS-only origins, redirect checks, API consensus, and raw-header hashing fail closed |
-| Timing attacks            | One shared eight-second network deadline fails closed                                  |
+| Timing attacks            | Two-second request caps preserve redundancy within one shared eight-second deadline    |
 | Provider resource abuse   | Block-hash and raw-header responses are read with strict byte bounds                   |
 | Cache poisoning           | Versioned keys bind decisions to the proof and provider configuration                  |
 
@@ -318,7 +318,7 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
 
 2. **Verifier Timeout**
    - Network latency or insufficient quorum across Bitcoin header APIs
-   - Check all configured HTTPS providers; verification intentionally fails closed after the fixed deadline
+   - Check all configured HTTPS providers; requests are capped at two seconds within the fixed shared deadline
 
 3. **Digest Mismatch**
    - Ensure digest is SHA256 hex string (64 characters)
