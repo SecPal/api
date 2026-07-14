@@ -29,10 +29,10 @@ use RuntimeException;
  */
 class OpenTimestampService
 {
-    private const string VERIFICATION_CACHE_VERSION = 'v2';
+    private const string VERIFICATION_CACHE_VERSION = 'v3';
 
     /**
-     * @var ProcessExecutor CLI process executor
+     * @var ProcessExecutor External process executor
      */
     private ProcessExecutor $processExecutor;
 
@@ -45,7 +45,7 @@ class OpenTimestampService
      * Submit message digest to OpenTimestamp calendars.
      *
      * Creates pending proof that will be upgraded when Bitcoin block confirms.
-     * Uses `ots stamp` CLI command for reliable calendar server interaction.
+     * Uses the OpenTimestamps Python library for reliable calendar server interaction.
      *
      * @param  string  $digest  SHA256 hash (64 hex characters)
      * @return string Binary OTS proof (pending attestation)
@@ -261,10 +261,21 @@ class OpenTimestampService
         // Normalize digest to lowercase
         $digest = strtolower($digest);
 
+        $bitcoinHeaderApiBases = config('services.opentimestamps.bitcoin_header_api_bases');
+        if (! is_string($bitcoinHeaderApiBases) || trim($bitcoinHeaderApiBases) === '') {
+            Log::error('OpenTimestamp: Bitcoin header APIs are not configured', [
+                'digest_hint' => $this->digestHint($digest),
+            ]);
+
+            return false;
+        }
+
         // Check cache first (immutable once verified)
         // Do not reuse decisions made by earlier verifier versions. In particular,
-        // v1 accepted Bitcoin attestations without checking their block headers.
-        $cacheKey = 'ots:verified:'.self::VERIFICATION_CACHE_VERSION.":{$digest}";
+        // v1 accepted Bitcoin attestations without checking their block headers, while
+        // v2 did not bind successful decisions to the proof or configured providers.
+        $verificationContext = hash('sha256', $proof."\0".$bitcoinHeaderApiBases);
+        $cacheKey = 'ots:verified:'.self::VERIFICATION_CACHE_VERSION.":{$digest}:{$verificationContext}";
         if (Cache::has($cacheKey)) {
             Log::debug('OpenTimestamp: Cache hit for verified proof', [
                 'digest_hint' => $this->digestHint($digest),
@@ -323,7 +334,8 @@ class OpenTimestampService
             $result = $this->processExecutor->execute(
                 ['python3', $scriptPath, $tempFile, $digest],
                 null, // No stdin
-                10 // 10 second timeout
+                10, // 10 second timeout
+                ['OTS_BITCOIN_HEADER_API_BASES' => $bitcoinHeaderApiBases],
             );
 
             // Check exit code (0 = success)

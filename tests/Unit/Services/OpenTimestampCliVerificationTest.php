@@ -12,10 +12,10 @@ use App\Services\OpenTimestampService;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Unit tests for OpenTimestamp CLI-based proof verification.
+ * Unit tests for OpenTimestamp Python-process proof verification.
  *
  * Tests the secure implementation using the external Python verifier.
- * Mocks ProcessExecutor to avoid dependency on actual ots-cli installation.
+ * Mocks ProcessExecutor to avoid dependency on the actual Python runtime.
  *
  * @see OpenTimestampService::verify()
  * @see Issue #412 - Secure OpenTimestamp verification implementation
@@ -27,7 +27,7 @@ uses()->group('unit', 'services', 'opentimestamp', 'verification');
  * @property OpenTimestampService $service
  */
 beforeEach(function () {
-    // Mock ProcessExecutor to avoid CLI dependency in tests
+    // Mock ProcessExecutor to avoid Python-process dependencies in tests
     $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
     $this->mockExecutor->shouldReceive('commandExists')
         ->with('python3')
@@ -38,10 +38,31 @@ beforeEach(function () {
     $this->service = app(OpenTimestampService::class);
 });
 
-test('verify returns true for valid proof when cli succeeds', function () {
+test('verify passes config cached bitcoin header APIs to the python process', function () {
+    $merkleRoot = hash('sha256', 'configured-header-apis');
+    $proof = buildValidOtsProofForProcessVerification();
+    $configuredApiBases = 'https://bitcoin-one.test/api,https://bitcoin-two.test/api';
+    config()->set('services.opentimestamps.bitcoin_header_api_bases', $configuredApiBases);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->withArgs(function ($command, $stdin, $timeout, $environment) use ($configuredApiBases) {
+            return ($environment['OTS_BITCOIN_HEADER_API_BASES'] ?? null) === $configuredApiBases;
+        })
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Proof verification failed',
+        ]);
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
+});
+
+test('verify returns true for valid proof when python verifier succeeds', function () {
     // Arrange: Valid proof data
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: Python script returns success (exit code 0)
     $this->mockExecutor
@@ -70,7 +91,7 @@ test('verify returns true for valid proof when cli succeeds', function () {
     expect($result, 'Python script verification should return true for valid proof')->toBeTrue();
 });
 
-test('verify returns false for invalid proof when cli fails', function () {
+test('verify returns false for invalid proof when python verifier fails', function () {
     // Arrange: Invalid proof
     $merkleRoot = hash('sha256', 'test-root');
     $invalidProof = 'invalid-proof-data';
@@ -104,7 +125,7 @@ test('verify returns false for invalid proof when cli fails', function () {
 test('verify returns false when python not installed', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: python3 not available
     $this->mockExecutor
@@ -123,7 +144,7 @@ test('verify returns false when python not installed', function () {
 test('verify returns false when script times out', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: Python script times out
     $this->mockExecutor
@@ -172,7 +193,7 @@ test('verify rejects non hex digest', function () {
 test('verify normalizes uppercase digest to lowercase', function () {
     // Arrange: Uppercase digest
     $merkleRoot = strtoupper(hash('sha256', 'test-root'));
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: Python script should receive lowercase digest
     $this->mockExecutor
@@ -235,7 +256,7 @@ test('verify handles empty proof gracefully', function () {
 test('verify caches successful verification', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: First call succeeds
     $this->mockExecutor
@@ -258,9 +279,10 @@ test('verify caches successful verification', function () {
 
     // Act: First verification
     $result1 = $this->service->verify($proof, $merkleRoot);
+    $apiBases = config('services.opentimestamps.bitcoin_header_api_bases');
+    $cacheKey = "ots:verified:v3:{$merkleRoot}:".hash('sha256', $proof."\0".$apiBases);
     expect($result1)->toBeTrue()
-        ->and(Cache::has("ots:verified:v2:{$merkleRoot}"))->toBeTrue()
-        ->and(Cache::has("ots:verified:{$merkleRoot}"))->toBeFalse();
+        ->and(Cache::has($cacheKey))->toBeTrue();
 
     // Act: Second verification should use cache (no script call)
     $result2 = $this->service->verify($proof, $merkleRoot);
@@ -268,6 +290,33 @@ test('verify caches successful verification', function () {
 
     // Assert: Cache was used (no second script call expected)
     // Mockery will automatically fail if script is called twice
+});
+
+test('verify does not reuse a successful cache entry for another proof or provider configuration', function () {
+    $merkleRoot = hash('sha256', 'cache-context');
+    $firstProof = 'first-proof';
+    $secondProof = 'second-proof';
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->times(3)
+        ->andReturn(
+            ['exitCode' => 0, 'stdout' => '', 'stderr' => 'SUCCESS'],
+            ['exitCode' => 1, 'stdout' => '', 'stderr' => 'FAILURE'],
+            ['exitCode' => 1, 'stdout' => '', 'stderr' => 'FAILURE'],
+        );
+
+    expect($this->service->verify($firstProof, $merkleRoot))->toBeTrue()
+        ->and($this->service->verify($secondProof, $merkleRoot))->toBeFalse();
+
+    config()->set(
+        'services.opentimestamps.bitcoin_header_api_bases',
+        'https://replacement-one.test/api,https://replacement-two.test/api',
+    );
+
+    expect($this->service->verify($firstProof, $merkleRoot))->toBeFalse()
+        ->and(Cache::has("ots:verified:v2:{$merkleRoot}"))->toBeFalse()
+        ->and(Cache::has("ots:verified:{$merkleRoot}"))->toBeFalse();
 });
 
 test('verify does not cache failed verification', function () {
@@ -306,9 +355,9 @@ test('verify does not cache failed verification', function () {
 /**
  * Build a realistic OTS proof structure for testing.
  *
- * This is just sample binary data - actual validation happens in ots CLI.
+ * This is just sample binary data - actual validation happens in the Python verifier.
  */
-function buildValidOtsProofForCliVerification(): string
+function buildValidOtsProofForProcessVerification(): string
 {
     // Minimal OTS proof structure
     $header = "OpenTimestamps proof\x00";

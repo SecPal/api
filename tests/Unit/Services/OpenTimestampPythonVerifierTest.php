@@ -15,6 +15,47 @@ function createPythonVerifierWorkspace(): string
 {
     $workspace = sys_get_temp_dir().'/ots-python-verifier-'.bin2hex(random_bytes(8));
     mkdir($workspace.'/opentimestamps/core', 0770, true);
+    $siteCustomize = str_replace('__WORKSPACE__', var_export($workspace, true), <<<'PY'
+import os
+import urllib.request
+from urllib.parse import urlsplit
+
+workspace = __WORKSPACE__
+original_urlopen = urllib.request.urlopen
+
+class BoundedResponse:
+    def __init__(self, response, original_url):
+        self.response = response
+        self.original_url = original_url
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.response.close()
+
+    def read(self, size=-1):
+        if size < 0:
+            raise RuntimeError('test response must be read with an explicit bound')
+        return self.response.read(size)
+
+    def geturl(self):
+        return self.original_url
+
+def local_urlopen(url, timeout=None):
+    parsed = urlsplit(url)
+    if parsed.hostname and parsed.hostname.lower().endswith('.test'):
+        directory = parsed.hostname.lower().removesuffix('.test')
+        relative_path = parsed.path.removeprefix('/api/')
+        local_path = os.path.join(workspace, directory, relative_path)
+        response = original_urlopen('file://' + local_path, timeout=timeout)
+        return BoundedResponse(response, url)
+
+    return original_urlopen(url, timeout=timeout)
+
+urllib.request.urlopen = local_urlopen
+PY);
+    file_put_contents($workspace.'/sitecustomize.py', $siteCustomize);
     file_put_contents($workspace.'/opentimestamps/__init__.py', '');
     file_put_contents($workspace.'/opentimestamps/core/__init__.py', '');
     file_put_contents($workspace.'/opentimestamps/core/serialize.py', <<<'PY'
@@ -73,7 +114,7 @@ function writeBitcoinHeaderApi(
     file_put_contents($api.'/block-height/123', $blockHash);
     file_put_contents($api.'/block/'.$blockHash.'/header', bin2hex($header));
 
-    return 'file://'.$api;
+    return 'https://'.$directory.'.test/api';
 }
 
 function writeAgreeingBitcoinHeaderApis(
@@ -170,9 +211,146 @@ test('python verifier requires at least two distinct bitcoin header APIs', funct
         );
 
         expect($exitCode)->toBe(1)
-            ->and($output)->toContain('at least two distinct API base URLs')
+            ->and($output)->toContain('at least two distinct HTTPS API origins')
             ->and($duplicateExitCode)->toBe(1)
-            ->and($duplicateOutput)->toContain('at least two distinct API base URLs');
+            ->and($duplicateOutput)->toContain('at least two distinct HTTPS API origins');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier rejects equivalent spellings of the same bitcoin header API origin', function () {
+    $workspace = createPythonVerifierWorkspace();
+
+    try {
+        $digest = str_repeat('47', 32);
+        $attestedMessage = str_repeat('48', 32);
+        $header = str_repeat("\0", 36).hex2bin($attestedMessage).str_repeat("\0", 12);
+        writeBitcoinHeaderApi($workspace, $header, directory: 'api-one');
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            'https://API-ONE.test:443/api/,https://api-one.test/api',
+            $digest,
+            $attestedMessage,
+        );
+
+        expect($exitCode)->toBe(1)
+            ->and($output)->toContain('at least two distinct HTTPS API origins');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier rejects non https bitcoin header APIs', function () {
+    $workspace = createPythonVerifierWorkspace();
+
+    try {
+        $digest = str_repeat('49', 32);
+        $attestedMessage = str_repeat('4a', 32);
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            'http://api-one.test/api,http://api-two.test/api',
+            $digest,
+            $attestedMessage,
+        );
+
+        expect($exitCode)->toBe(1)
+            ->and($output)->toContain('must use HTTPS');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier accepts a two source quorum when an additional API is unavailable', function () {
+    $workspace = createPythonVerifierWorkspace();
+
+    try {
+        $digest = str_repeat('4b', 32);
+        $attestedMessage = str_repeat('4c', 32);
+        $header = str_repeat("\0", 36).hex2bin($attestedMessage).pack('V', 1_700_000_000).str_repeat("\0", 8);
+        $agreeingApiBases = writeAgreeingBitcoinHeaderApis($workspace, $header);
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            'https://api-unavailable.test/api,'.$agreeingApiBases,
+            $digest,
+            $attestedMessage,
+        );
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->toContain('Proof is valid and confirmed on Bitcoin blockchain');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier fetches a header from another agreeing API when the first header endpoint fails', function () {
+    $workspace = createPythonVerifierWorkspace();
+
+    try {
+        $digest = str_repeat('4d', 32);
+        $attestedMessage = str_repeat('4e', 32);
+        $header = str_repeat("\0", 36).hex2bin($attestedMessage).pack('V', 1_700_000_000).str_repeat("\0", 8);
+        $apiBases = writeAgreeingBitcoinHeaderApis($workspace, $header);
+        $blockHash = bin2hex(strrev(hash('sha256', hash('sha256', $header, true), true)));
+        unlink($workspace.'/api-one/block/'.$blockHash.'/header');
+
+        [$exitCode, $output] = runPythonVerifier($workspace, $apiBases, $digest, $attestedMessage);
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->toContain('Proof is valid and confirmed on Bitcoin blockchain');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier discovers an additional agreeing API when quorum header endpoints fail', function () {
+    $workspace = createPythonVerifierWorkspace();
+
+    try {
+        $digest = str_repeat('51', 32);
+        $attestedMessage = str_repeat('52', 32);
+        $header = str_repeat("\0", 36).hex2bin($attestedMessage).pack('V', 1_700_000_000).str_repeat("\0", 8);
+        $firstApiBase = writeBitcoinHeaderApi($workspace, $header, directory: 'api-one');
+        $secondApiBase = writeBitcoinHeaderApi($workspace, $header, directory: 'api-two');
+        $thirdApiBase = writeBitcoinHeaderApi($workspace, $header, directory: 'api-three');
+        $blockHash = bin2hex(strrev(hash('sha256', hash('sha256', $header, true), true)));
+        unlink($workspace.'/api-one/block/'.$blockHash.'/header');
+        unlink($workspace.'/api-two/block/'.$blockHash.'/header');
+
+        [$exitCode, $output] = runPythonVerifier(
+            $workspace,
+            $firstApiBase.','.$secondApiBase.','.$thirdApiBase,
+            $digest,
+            $attestedMessage,
+        );
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->toContain('Proof is valid and confirmed on Bitcoin blockchain');
+    } finally {
+        (new Filesystem)->deleteDirectory($workspace);
+    }
+});
+
+test('python verifier reports malformed header hex without a traceback', function () {
+    $workspace = createPythonVerifierWorkspace();
+
+    try {
+        $digest = str_repeat('4f', 32);
+        $attestedMessage = str_repeat('50', 32);
+        $header = str_repeat("\0", 36).hex2bin($attestedMessage).str_repeat("\0", 12);
+        $apiBases = writeAgreeingBitcoinHeaderApis($workspace, $header);
+        $blockHash = bin2hex(strrev(hash('sha256', hash('sha256', $header, true), true)));
+        file_put_contents($workspace.'/api-one/block/'.$blockHash.'/header', 'not-hex');
+        file_put_contents($workspace.'/api-two/block/'.$blockHash.'/header', 'not-hex');
+
+        [$exitCode, $output] = runPythonVerifier($workspace, $apiBases, $digest, $attestedMessage);
+
+        expect($exitCode)->toBe(1)
+            ->and($output)->toContain('Bitcoin verification failed')
+            ->and($output)->not->toContain('Traceback');
     } finally {
         (new Filesystem)->deleteDirectory($workspace);
     }

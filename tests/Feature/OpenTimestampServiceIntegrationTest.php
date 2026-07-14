@@ -71,7 +71,58 @@ function writeRealOtsBitcoinHeaderApi(string $workspace, string $directory, stri
     file_put_contents($api.'/block-height/'.$height, $blockHash);
     file_put_contents($api.'/block/'.$blockHash.'/header', bin2hex($header));
 
-    return 'file://'.$api;
+    return 'https://'.$directory.'.test/api';
+}
+
+function writeRealOtsHttpsTestShim(string $workspace): void
+{
+    $siteCustomize = str_replace('__WORKSPACE__', var_export($workspace, true), <<<'PY'
+import os
+import urllib.request
+from urllib.parse import urlsplit
+
+workspace = __WORKSPACE__
+original_urlopen = urllib.request.urlopen
+
+class LocalHttpsResponse:
+    def __init__(self, response, original_url):
+        self.response = response
+        self.original_url = original_url
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.response.close()
+
+    def read(self, size=-1):
+        return self.response.read(size)
+
+    def geturl(self):
+        return self.original_url
+
+def local_urlopen(url, timeout=None):
+    parsed = urlsplit(url)
+    if parsed.hostname and parsed.hostname.lower().endswith('.test'):
+        directory = parsed.hostname.lower().removesuffix('.test')
+        relative_path = parsed.path.removeprefix('/api/')
+        local_path = os.path.join(workspace, directory, relative_path)
+        response = original_urlopen('file://' + local_path, timeout=timeout)
+        return LocalHttpsResponse(response, url)
+
+    return original_urlopen(url, timeout=timeout)
+
+urllib.request.urlopen = local_urlopen
+PY);
+
+    file_put_contents($workspace.'/sitecustomize.py', $siteCustomize);
+}
+
+function otsVerificationCacheKey(string $proof, string $digest): string
+{
+    $apiBases = config('services.opentimestamps.bitcoin_header_api_bases');
+
+    return "ots:verified:v3:{$digest}:".hash('sha256', $proof."\0".$apiBases);
 }
 
 /**
@@ -95,15 +146,21 @@ test('verify accepts a real bitcoin attestation through two agreeing header APIs
     $header = str_repeat("\0", 36).hex2bin($digest).pack('V', 1_700_000_000).str_repeat("\0", 8);
     $firstApiBase = writeRealOtsBitcoinHeaderApi($workspace, 'api-one', $header, $height);
     $secondApiBase = writeRealOtsBitcoinHeaderApi($workspace, 'api-two', $header, $height);
-    $environmentKey = 'OTS_BITCOIN_HEADER_API_BASES';
+    writeRealOtsHttpsTestShim($workspace);
+    $environmentKey = 'PYTHONPATH';
     $hadEnvValue = array_key_exists($environmentKey, $_ENV);
     $previousEnvValue = $_ENV[$environmentKey] ?? null;
     $hadServerValue = array_key_exists($environmentKey, $_SERVER);
     $previousServerValue = $_SERVER[$environmentKey] ?? null;
+    $previousApiBases = config('services.opentimestamps.bitcoin_header_api_bases');
 
     try {
-        $_ENV[$environmentKey] = $firstApiBase.','.$secondApiBase;
-        $_SERVER[$environmentKey] = $firstApiBase.','.$secondApiBase;
+        $_ENV[$environmentKey] = $workspace;
+        $_SERVER[$environmentKey] = $workspace;
+        config()->set(
+            'services.opentimestamps.bitcoin_header_api_bases',
+            $firstApiBase.','.$secondApiBase,
+        );
         $proof = createRealBitcoinAttestationProof($digest, $height);
 
         expect($this->service->verify($proof, $digest))->toBeTrue();
@@ -120,6 +177,7 @@ test('verify accepts a real bitcoin attestation through two agreeing header APIs
             unset($_SERVER[$environmentKey]);
         }
 
+        config()->set('services.opentimestamps.bitcoin_header_api_bases', $previousApiBases);
         (new Filesystem)->deleteDirectory($workspace);
     }
 });
@@ -127,7 +185,7 @@ test('verify accepts a real bitcoin attestation through two agreeing header APIs
 /**
  * Test verification with invalid proof data.
  *
- * This test verifies that the CLI correctly rejects invalid proofs.
+ * This test verifies that the Python verifier correctly rejects invalid proofs.
  */
 test('verify rejects invalid proof', function () {
     $invalidProof = base64_encode('invalid proof data');
@@ -138,7 +196,7 @@ test('verify rejects invalid proof', function () {
     expect($result)->toBeFalse('Invalid proof should be rejected');
 
     // Verify that failed verifications are NOT cached
-    $cacheKey = "ots:verified:v2:{$digest}";
+    $cacheKey = otsVerificationCacheKey($invalidProof, $digest);
     expect(
         Cache::has($cacheKey),
         'Failed verifications should not be cached (proof may upgrade later)'
@@ -146,15 +204,15 @@ test('verify rejects invalid proof', function () {
 });
 
 /**
- * Test that verify() uses CLI verification (not stub/upgrade endpoints).
+ * Test that verify() uses the bounded verifier (not stub/upgrade endpoints).
  *
  * This is a security-critical test: We must never use the stub()
- * or upgrade() endpoints for verification, only the external ots CLI.
+ * or upgrade() endpoints for verification, only the external Python verifier.
  *
  * Context: Issue #412 identified critical vulnerabilities in the hybrid
- * verification approach. Issue #415 mandates CLI-only verification.
+ * verification approach. Issue #415 mandates isolated external verification.
  */
-test('verify uses external cli not http calendars', function () {
+test('verify uses external verifier not http calendars', function () {
     // Use a pre-generated pending proof (not yet Bitcoin-anchored)
     // This is a real OTS proof structure, just not anchored to Bitcoin yet
     $pendingProof = base64_encode(
@@ -168,15 +226,15 @@ test('verify uses external cli not http calendars', function () {
     $result = $this->service->verify($pendingProof, $digest);
 
     // The key assertion: verify() must return false for pending proofs
-    // because CLI verification requires Bitcoin attestation.
-    // This proves we're using CLI (not stub/upgrade endpoints).
+    // because the verifier requires a Bitcoin attestation.
+    // This proves we're using the verifier (not stub/upgrade endpoints).
     expect(
         $result,
-        'Pending proofs should fail CLI verification (no Bitcoin attestation yet)'
+        'Pending proofs should fail Python verification (no Bitcoin attestation yet)'
     )->toBeFalse();
 
     // Additional security check: Ensure we never cached this false result
-    $cacheKey = "ots:verified:v2:{$digest}";
+    $cacheKey = otsVerificationCacheKey($pendingProof, $digest);
     expect(
         Cache::has($cacheKey),
         'Pending proof verification should not be cached'
@@ -198,15 +256,15 @@ test('verify caching integration', function () {
     $digest = '11c709298fc1c149afbf4c8996fb9242'.
               '7ae245e4649b934ca495991b7852b855';
 
-    // First verification - should hit CLI and return false (pending)
+    // First verification - should hit the verifier and return false (pending)
     $result1 = $this->service->verify($pendingProof, $digest);
     expect($result1)->toBeFalse();
 
     // Cache should be empty (failed verifications not cached)
-    $cacheKey = "ots:verified:v2:{$digest}";
+    $cacheKey = otsVerificationCacheKey($pendingProof, $digest);
     expect(Cache::has($cacheKey))->toBeFalse();
 
-    // Second verification - should hit CLI again (not cached)
+    // Second verification - should hit the verifier again (not cached)
     $result2 = $this->service->verify($pendingProof, $digest);
     expect($result2)->toBeFalse();
 
@@ -215,13 +273,13 @@ test('verify caching integration', function () {
 });
 
 /**
- * Test that CLI timeout is handled gracefully.
+ * Test that verifier timeout is handled gracefully.
  *
- * The ots CLI may timeout when calendar servers are slow or unreachable.
+ * The verifier may time out when Bitcoin header APIs are slow or unreachable.
  * This should not crash the application.
  */
-test('verify handles cli timeout gracefully', function () {
-    // Create a proof with invalid data that might cause CLI to hang
+test('verify handles verifier timeout gracefully', function () {
+    // Create a proof with invalid data that might cause the verifier to hang
     $invalidProof = base64_encode(str_repeat("\x00", 1000));
     $digest = hash('sha256', 'timeout test');
 

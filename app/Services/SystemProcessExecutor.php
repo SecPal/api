@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
  */
 
@@ -25,9 +25,13 @@ class SystemProcessExecutor implements ProcessExecutor
     /**
      * {@inheritDoc}
      */
-    public function execute(array $command, ?string $stdin = null, int $timeout = 10): array
-    {
-        $process = new Process($command);
+    public function execute(
+        array $command,
+        ?string $stdin = null,
+        int $timeout = 10,
+        ?array $environment = null,
+    ): array {
+        $process = new Process($command, env: $environment);
         $process->setTimeout($timeout);
 
         if ($stdin !== null) {

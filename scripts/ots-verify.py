@@ -20,6 +20,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit, urlunsplit
 from pathlib import Path
 from io import BytesIO
 from types import SimpleNamespace
@@ -39,6 +40,9 @@ DEFAULT_BITCOIN_HEADER_API_BASES = (
     'https://mempool.space/api',
 )
 VERIFICATION_TIMEOUT_SECONDS = 8
+MINIMUM_HEADER_API_QUORUM = 2
+MAX_BLOCK_HASH_RESPONSE_BYTES = 128
+MAX_BLOCK_HEADER_RESPONSE_BYTES = 256
 
 def remaining_timeout(deadline: float) -> float:
     """Return the remaining shared verification budget or fail closed."""
@@ -48,50 +52,115 @@ def remaining_timeout(deadline: float) -> float:
 
     return remaining
 
+def canonicalize_api_base(api_base: str):
+    """Return a normalized HTTPS API base and its provider origin."""
+    parsed = urlsplit(api_base.strip())
+
+    if parsed.scheme.lower() != 'https':
+        raise ValueError('Bitcoin header API bases must use HTTPS')
+    if not parsed.hostname:
+        raise ValueError('Bitcoin header API bases must include a hostname')
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError('Bitcoin header API bases must not include credentials')
+    if parsed.query or parsed.fragment:
+        raise ValueError('Bitcoin header API bases must not include query strings or fragments')
+
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise ValueError(f'Invalid Bitcoin header API port: {error}') from error
+
+    hostname = parsed.hostname.encode('idna').decode('ascii').lower()
+    formatted_hostname = f'[{hostname}]' if ':' in hostname else hostname
+    netloc = formatted_hostname if port in (None, 443) else f'{formatted_hostname}:{port}'
+    path = parsed.path.rstrip('/')
+    normalized_base = urlunsplit(('https', netloc, path, '', ''))
+
+    return normalized_base, f'https://{netloc}'
+
 def bitcoin_header_api_bases():
-    """Return explicitly configured APIs or independent public defaults."""
+    """Return configured APIs from at least two canonical provider origins."""
     configured = os.environ.get('OTS_BITCOIN_HEADER_API_BASES')
     if configured is None:
         api_bases = DEFAULT_BITCOIN_HEADER_API_BASES
     else:
-        api_bases = tuple(base.strip().rstrip('/') for base in configured.split(',') if base.strip())
+        api_bases = tuple(base.strip() for base in configured.split(',') if base.strip())
 
-    distinct_api_bases = tuple(dict.fromkeys(api_bases))
-    if len(distinct_api_bases) < 2:
-        raise ValueError('OTS_BITCOIN_HEADER_API_BASES must contain at least two distinct API base URLs')
-
-    return distinct_api_bases
-
-def fetch_bitcoin_block_header(height: int, deadline: float):
-    """Fetch and parse a Bitcoin block header by height from a block explorer API."""
-    api_bases = bitcoin_header_api_bases()
-    block_hashes = []
-
+    distinct_origins = {}
     for api_base in api_bases:
-        with urllib.request.urlopen(
-            f'{api_base}/block-height/{height}',
-            timeout=remaining_timeout(deadline),
-        ) as response:
-            block_hash = response.read().decode('ascii').strip().lower()
+        normalized_base, origin = canonicalize_api_base(api_base)
+        distinct_origins.setdefault(origin, normalized_base)
 
-        if len(block_hash) != 64 or not all(c in '0123456789abcdef' for c in block_hash):
-            raise ValueError(f'Invalid Bitcoin block hash returned for height {height}')
+    if len(distinct_origins) < MINIMUM_HEADER_API_QUORUM:
+        raise ValueError(
+            'OTS_BITCOIN_HEADER_API_BASES must contain at least two distinct HTTPS API origins'
+        )
 
-        block_hashes.append(block_hash)
+    return tuple(distinct_origins.values())
 
-    if len(set(block_hashes)) != 1:
-        raise ValueError(f'Bitcoin header APIs disagree on block hash at height {height}')
+def read_bounded_ascii_response(response, maximum_bytes: int, description: str) -> str:
+    """Read a small ASCII API response without allowing unbounded memory use."""
+    response_bytes = response.read(maximum_bytes + 1)
+    if len(response_bytes) > maximum_bytes:
+        raise ValueError(f'{description} response exceeds {maximum_bytes} bytes')
 
-    block_hash = block_hashes[0]
+    try:
+        return response_bytes.decode('ascii').strip()
+    except UnicodeDecodeError as error:
+        raise ValueError(f'{description} response is not ASCII') from error
+
+def fetch_api_text(api_base: str, endpoint: str, deadline: float, maximum_bytes: int) -> str:
+    """Fetch a bounded response without accepting cross-origin or TLS-downgrade redirects."""
+    request_url = f'{api_base}{endpoint}'
+    expected_origin = canonicalize_api_base(api_base)[1]
+
     with urllib.request.urlopen(
-        f'{api_bases[0]}/block/{block_hash}/header',
+        request_url,
         timeout=remaining_timeout(deadline),
     ) as response:
-        header_hex = response.read().decode('ascii').strip()
+        final_url = response.geturl()
+        final_origin = canonicalize_api_base(final_url)[1]
+        if final_origin != expected_origin:
+            raise ValueError('Bitcoin header API redirected to a different origin')
 
-    header = binascii.unhexlify(header_hex)
+        return read_bounded_ascii_response(
+            response,
+            maximum_bytes,
+            'Bitcoin header API',
+        )
+
+def fetch_bitcoin_block_hash(api_base: str, height: int, deadline: float) -> str:
+    """Fetch and validate a Bitcoin block hash for a height."""
+    block_hash = fetch_api_text(
+        api_base,
+        f'/block-height/{height}',
+        deadline,
+        MAX_BLOCK_HASH_RESPONSE_BYTES,
+    ).lower()
+
+    if len(block_hash) != 64 or not all(c in '0123456789abcdef' for c in block_hash):
+        raise ValueError(f'Invalid Bitcoin block hash returned for height {height}')
+
+    return block_hash
+
+def fetch_valid_bitcoin_header(api_base: str, block_hash: str, height: int, deadline: float):
+    """Fetch a bounded raw header and prove that it hashes to the agreed block."""
+    header_hex = fetch_api_text(
+        api_base,
+        f'/block/{block_hash}/header',
+        deadline,
+        MAX_BLOCK_HEADER_RESPONSE_BYTES,
+    )
+
+    try:
+        header = binascii.unhexlify(header_hex)
+    except binascii.Error as error:
+        raise ValueError(f'Invalid Bitcoin block header hex at height {height}') from error
+
     if len(header) != 80:
-        raise ValueError(f'Invalid Bitcoin block header length for height {height}: {len(header)} bytes')
+        raise ValueError(
+            f'Invalid Bitcoin block header length for height {height}: {len(header)} bytes'
+        )
 
     calculated_block_hash = hashlib.sha256(hashlib.sha256(header).digest()).digest()[::-1].hex()
     if calculated_block_hash != block_hash:
@@ -100,6 +169,65 @@ def fetch_bitcoin_block_header(height: int, deadline: float):
     return SimpleNamespace(
         hashMerkleRoot=header[36:68],
         nTime=int.from_bytes(header[68:72], 'little'),
+    )
+
+def fetch_bitcoin_block_header(height: int, deadline: float):
+    """Fetch and parse a Bitcoin block header by height from a block explorer API."""
+    api_bases = bitcoin_header_api_bases()
+    block_hash_sources = {}
+    successful_hashes = set()
+    agreed_block_hash = None
+    agreeing_api_bases = []
+    queried_api_bases = set()
+
+    for api_base in api_bases:
+        queried_api_bases.add(api_base)
+        try:
+            block_hash = fetch_bitcoin_block_hash(api_base, height, deadline)
+        except TimeoutError:
+            raise
+        except (urllib.error.URLError, ValueError):
+            continue
+
+        successful_hashes.add(block_hash)
+        agreeing_api_bases = block_hash_sources.setdefault(block_hash, [])
+        agreeing_api_bases.append(api_base)
+        if len(agreeing_api_bases) >= MINIMUM_HEADER_API_QUORUM:
+            agreed_block_hash = block_hash
+            break
+
+    if agreed_block_hash is None:
+        if len(successful_hashes) > 1:
+            raise ValueError(f'Bitcoin header APIs disagree on block hash at height {height}')
+        raise ValueError(f'Bitcoin header APIs did not reach quorum at height {height}')
+
+    last_header_error = None
+    for api_base in agreeing_api_bases:
+        try:
+            return fetch_valid_bitcoin_header(api_base, agreed_block_hash, height, deadline)
+        except TimeoutError:
+            raise
+        except (urllib.error.URLError, ValueError) as error:
+            last_header_error = error
+
+    # A provider not needed to form the initial quorum can still supply the
+    # cryptographically bound raw header if the quorum providers cannot.
+    for api_base in api_bases:
+        if api_base in queried_api_bases:
+            continue
+
+        try:
+            if fetch_bitcoin_block_hash(api_base, height, deadline) != agreed_block_hash:
+                continue
+
+            return fetch_valid_bitcoin_header(api_base, agreed_block_hash, height, deadline)
+        except TimeoutError:
+            raise
+        except (urllib.error.URLError, ValueError) as error:
+            last_header_error = error
+
+    raise ValueError(
+        f'No quorum API returned a valid Bitcoin block header at height {height}: {last_header_error}'
     )
 
 def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
@@ -180,8 +308,6 @@ def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
 
     except Exception as e:
         print(f"Error during verification: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc(file=sys.stderr)
         return False
 
 def main():

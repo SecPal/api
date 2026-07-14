@@ -14,7 +14,7 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 ### Key Features
 
 - **Blockchain Anchoring**: Merkle roots are anchored to Bitcoin blocks
-- **Offline Verification**: Proofs can be verified without network access
+- **Independent Verification**: Proofs are checked against a quorum of Bitcoin header APIs
 - **Privacy-Preserving**: Only SHA256 digests are submitted to public calendars
 - **Performance Optimized**: Caching layer for verified proofs (immutable once confirmed)
 - **Fail-Closed**: Falls back to unverified state rather than false positives
@@ -25,13 +25,13 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 
 1. **OpenTimestampService** (`app/Services/OpenTimestampService.php`)
    - Handles submission, upgrade, and verification of OTS proofs
-   - Uses external `ots` CLI tool for all cryptographic operations
-   - Implements caching layer for verified proofs
+   - Uses the OpenTimestamps Python library for submission and bounded verification, plus `ots upgrade` for proof upgrades
+   - Implements proof- and provider-bound caching for successful verification decisions
    - **Proof Merging**: Combines attestations from multiple calendar servers for redundancy
 
 2. **ProcessExecutor** (`app/Contracts/ProcessExecutor.php`)
-   - Abstraction for executing external CLI commands
-   - Enables testable, mocked CLI interactions
+   - Abstraction for executing external commands with explicit process environments
+   - Enables testable, mocked process interactions
 
 3. **Jobs**
    - `SubmitMerkleRootToOpenTimestamp`: Submits batch merkle roots to calendars
@@ -92,7 +92,7 @@ $storedProof = $service->submit('abc123...');
 
 ## Security Considerations
 
-### Why External CLI-Only Verification?
+### Why Bounded External Verification?
 
 **Context**: Issue #412 identified critical vulnerabilities in a previous hybrid verification approach that combined local PHP crypto with HTTP calendar endpoints. The vulnerabilities included:
 
@@ -108,6 +108,7 @@ $result = $processExecutor->execute(
     ['python3', base_path('scripts/ots-verify.py'), $proofFile, $digest],
     null,
     10,
+    ['OTS_BITCOIN_HEADER_API_BASES' => config('services.opentimestamps.bitcoin_header_api_bases')],
 );
 
 // ❌ INSECURE: Custom crypto + HTTP calendars (Issue #412 - REMOVED)
@@ -118,19 +119,21 @@ $result = $processExecutor->execute(
 
 Verified proofs are **immutable** - once a proof is Bitcoin-anchored and verified, it will always be valid (assuming blockchain integrity). Therefore:
 
-- ✅ **Cache successful verifications**: `Cache::forever("ots:verified:v2:{$digest}", true)`
+- ✅ **Cache successful verifications**: The `v3` key binds the digest to hashes of the exact proof and configured provider set
 - ✅ **Version verifier decisions**: A verifier security change uses a new namespace so legacy positive results cannot bypass new checks
+- ✅ **Invalidate on context changes**: Replacing either the proof or provider configuration requires fresh verification
 - ❌ **Do NOT cache failures**: Pending proofs may upgrade to confirmed later
 
 ### Threat Model
 
-| Threat                    | Mitigation                                                               |
-| ------------------------- | ------------------------------------------------------------------------ |
-| Proof forgery             | The OTS commitment must match the fetched header's Merkle root           |
-| Header API compromise     | Independent default APIs must agree, and the raw header hash is verified |
-| Man-in-the-middle attacks | HTTPS, API consensus, and raw-header hashing fail closed                 |
-| Timing attacks            | One shared eight-second network deadline fails closed                    |
-| Cache poisoning           | Versioned keys exclude decisions made by vulnerable verifier versions    |
+| Threat                    | Mitigation                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| Proof forgery             | The OTS commitment must match the fetched header's Merkle root                         |
+| Header API compromise     | A quorum of canonical provider origins must agree, and the raw header hash is verified |
+| Man-in-the-middle attacks | HTTPS-only origins, redirect checks, API consensus, and raw-header hashing fail closed |
+| Timing attacks            | One shared eight-second network deadline fails closed                                  |
+| Provider resource abuse   | Block-hash and raw-header responses are read with strict byte bounds                   |
+| Cache poisoning           | Versioned keys bind decisions to the proof and provider configuration                  |
 
 ## Installation & Setup
 
@@ -187,11 +190,11 @@ OTS_CALENDAR_URLS=https://alice.btc.calendar.opentimestamps.org,https://bob.btc.
 OTS_MIN_CALENDAR_RESPONSES=2
 
 # Bitcoin header API bases used during verification (comma-separated).
-# At least two distinct bases are required so one configured API base cannot
+# At least two canonical HTTPS origins are required so one configured provider cannot
 # substitute a self-consistent header that is not part of the Bitcoin chain.
 OTS_BITCOIN_HEADER_API_BASES=https://blockstream.info/api,https://mempool.space/api
 
-# Note: CLI timeout is currently hardcoded at 10 seconds in OpenTimestampService
+# Note: The Python verifier process timeout is hardcoded at 10 seconds in OpenTimestampService
 # and is not configurable via environment variable.
 # HTTP request timeout (OPENTIMESTAMP_TIMEOUT) is separate and defaults to 30s.
 ```
@@ -277,40 +280,29 @@ UpgradeOpenTimestampProofs::dispatch();
 
 ### Caching
 
-Successful verifications are cached forever:
+Successful verifications are cached forever using an internal `v3` key that includes the digest plus hashes of the exact proof and configured provider set. A proof or provider change therefore causes fresh verification.
 
 ```php
-// Check cache manually
-$digest = 'abc123...';
-$cacheKey = "ots:verified:v2:{$digest}";
-
-if (Cache::has($cacheKey)) {
-    $isValid = Cache::get($cacheKey); // bool
-}
-
-// Clear cache for specific digest (rare, only if proof regenerated)
-Cache::forget($cacheKey);
-
 // Clear all OTS verification cache
 Cache::flush(); // ⚠️ Clears ALL cache, use with caution
 ```
 
 ## Troubleshooting
 
-### CLI Not Found
+### Verification Runtime Not Found
 
-**Symptom**: `verify()` returns `false`, logs show "ots CLI not installed"
+**Symptom**: `verify()` returns `false`, logs show that Python is unavailable or the OpenTimestamps module cannot be imported
 
 **Solution**:
 
 ```bash
 # Local shell / container
 python3 -m pip install --user --upgrade opentimestamps-client
-# Ensure ~/.local/bin is on your PATH so `ots` is found
+# Ensure python3 can import the installed opentimestamps package.
 
 # Production
 sudo -H python3 -m pip install --upgrade opentimestamps-client
-which ots  # Should return /usr/local/bin/ots or similar
+python3 -c 'import opentimestamps'
 pip3 list | grep opentimestamps  # Should show opentimestamps-client
 ```
 
@@ -324,16 +316,16 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
    - Proof not yet Bitcoin-anchored (~1 hour after submission)
    - Wait and retry `upgrade()`, then `verify()`
 
-2. **CLI Timeout**
-   - Network latency to Bitcoin nodes
-   - Increase `OTS_CLI_TIMEOUT` in config
+2. **Verifier Timeout**
+   - Network latency or insufficient quorum across Bitcoin header APIs
+   - Check all configured HTTPS providers; verification intentionally fails closed after the fixed deadline
 
 3. **Digest Mismatch**
    - Ensure digest is SHA256 hex string (64 characters)
    - Case-insensitive (normalized to lowercase)
 
 4. **Invalid Proof Format**
-   - Proof must be base64-encoded
+   - `OpenTimestampService::verify()` expects decoded binary OTS proof bytes
    - Proof must be from official `ots` CLI or SecPal `submit()`
 
 ### Calendar Submission Fails
@@ -375,7 +367,7 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
 
 3. **Network Latency**
    - Use geographically closer Bitcoin nodes
-   - Increase `OTS_CLI_TIMEOUT` to prevent premature failures
+   - Configure responsive, independent Bitcoin header API origins
 
 ## Testing
 
@@ -390,10 +382,10 @@ php artisan test tests/Unit/Services/OpenTimestampServiceTest.php
 php artisan test tests/Feature/OpenTimestampServiceIntegrationTest.php
 ```
 
-### Integration Tests with Real CLI
+### Integration Tests with the Real Python Runtime
 
 ```bash
-# Requires ots CLI installed
+# Requires python3 and opentimestamps-client
 php artisan test tests/Feature/OpenTimestampServiceIntegrationTest.php
 ```
 
@@ -422,7 +414,7 @@ echo "test data" | sha256sum | awk '{print $1}' | xxd -r -p | ots verify test.ot
 - **Submission Success Rate**: `SubmitMerkleRootToOpenTimestamp` job success ratio
 - **Upgrade Success Rate**: `UpgradeOpenTimestampProofs` job success ratio
 - **Verification Latency**: P50, P95, P99 for `verify()` calls
-- **Cache Hit Rate**: Ratio of cached vs. CLI verifications
+- **Cache Hit Rate**: Ratio of cached vs. Python-process verifications
 
 ### Logs
 
@@ -430,7 +422,7 @@ echo "test data" | sha256sum | awk '{print $1}' | xxd -r -p | ots verify test.ot
 // Enable debug logging for OTS operations
 Log::debug('OpenTimestamp: Submitting digest', ['digest' => $digest]);
 Log::debug('OpenTimestamp: Cache hit for verified proof', ['digest' => $digest]);
-Log::warning('OpenTimestamp: ots CLI not installed', ['digest' => $digest]);
+Log::warning('OpenTimestamp: python3 not installed', ['digest_hint' => substr($digest, 0, 12)]);
 ```
 
 Search logs for `OpenTimestamp:` prefix.
@@ -440,7 +432,7 @@ Search logs for `OpenTimestamp:` prefix.
 - **OpenTimestamps Website**: <https://opentimestamps.org/>
 - **OpenTimestamps Client**: <https://github.com/opentimestamps/opentimestamps-client>
 - **SecPal Issue #412**: Hybrid verification vulnerabilities (removed)
-- **SecPal Issue #415**: Secure CLI-only verification (implemented)
+- **SecPal Issue #415**: Secure external verification (implemented)
 - **SecPal Issue #385**: Level 3 Audit Trail (parent epic)
 - **Bitcoin Whitepaper**: <https://bitcoin.org/bitcoin.pdf>
 

@@ -15,8 +15,8 @@ use Illuminate\Support\Facades\Log;
 /**
  * Unit tests for OpenTimestamp proof verification.
  *
- * Tests CLI-based verification with mocked ProcessExecutor.
- * For detailed CLI verification tests, see OpenTimestampCliVerificationTest.
+ * Tests Python-process verification with a mocked ProcessExecutor.
+ * For detailed process verification tests, see OpenTimestampCliVerificationTest.
  *
  * @see OpenTimestampService::verify()
  * @see Issue #412 for secure implementation requirements
@@ -28,7 +28,7 @@ uses()->group('unit');
  * @property OpenTimestampService $service
  */
 beforeEach(function () {
-    // Mock ProcessExecutor to avoid CLI dependency
+    // Mock ProcessExecutor to avoid external process dependencies
     $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
     $this->mockExecutor->shouldReceive('commandExists')
         ->with('python3')
@@ -184,6 +184,7 @@ test('verify ignores successful results cached by the vulnerable verifier', func
     $proof = 'forged-proof';
 
     Cache::forever("ots:verified:{$digest}", true);
+    Cache::forever("ots:verified:v2:{$digest}", true);
 
     $this->mockExecutor
         ->shouldReceive('execute')
