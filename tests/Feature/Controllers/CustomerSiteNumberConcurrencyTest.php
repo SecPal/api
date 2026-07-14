@@ -88,6 +88,7 @@ beforeEach(function (): void {
     $this->customer = Customer::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
+    giveOrganizationalScope($this->user, $this->customer->legalEntity, accessLevel: 'write');
 
     $this->organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
