@@ -14,13 +14,15 @@ test('the six organization reusable workflow references use immutable commit SHA
     ];
 
     foreach ($workflowReferences as $workflowPath => $reusableWorkflowNames) {
-        $contents = file_get_contents($workflowPath);
+        $contents = file_get_contents(base_path($workflowPath));
 
-        expect($contents)->not->toBeFalse();
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read workflow: {$workflowPath}");
+        }
 
         foreach ($reusableWorkflowNames as $reusableWorkflowName) {
             expect($contents)->toMatch(sprintf(
-                '/uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/%s@[a-f0-9]{40}(?:\\s|$)/m',
+                '/uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/%s@[A-Fa-f0-9]{40}(?:\\s|$)/m',
                 preg_quote($reusableWorkflowName, '/'),
             ));
         }
