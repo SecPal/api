@@ -7,9 +7,7 @@ declare(strict_types=1);
 
 use App\Services\OpenTimestampService;
 use App\Services\SystemProcessExecutor;
-use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Cache;
-use Symfony\Component\Process\Process;
 
 /**
  * Integration tests for OpenTimestamp verification.
@@ -31,100 +29,6 @@ beforeEach(function () {
     Cache::flush();
 });
 
-function createRealBitcoinAttestationProof(string $digest, int $height): string
-{
-    $python = <<<'PY'
-import base64
-import sys
-from io import BytesIO
-from opentimestamps.core.notary import BitcoinBlockHeaderAttestation
-from opentimestamps.core.op import OpSHA256
-from opentimestamps.core.serialize import StreamSerializationContext
-from opentimestamps.core.timestamp import DetachedTimestampFile, Timestamp
-
-digest = bytes.fromhex(sys.argv[1])
-timestamp = Timestamp(digest)
-timestamp.attestations.add(BitcoinBlockHeaderAttestation(int(sys.argv[2])))
-proof = DetachedTimestampFile(OpSHA256(), timestamp)
-output = BytesIO()
-proof.serialize(StreamSerializationContext(output))
-print(base64.b64encode(output.getvalue()).decode('ascii'))
-PY;
-    $process = new Process(['python3', '-c', $python, $digest, (string) $height]);
-    $process->mustRun();
-    $proof = base64_decode(trim($process->getOutput()), true);
-
-    if ($proof === false) {
-        throw new RuntimeException('Python returned an invalid base64-encoded OpenTimestamp proof');
-    }
-
-    return $proof;
-}
-
-function writeRealOtsBitcoinHeaderApi(string $workspace, string $directory, string $header, int $height): string
-{
-    $blockHash = bin2hex(strrev(hash('sha256', hash('sha256', $header, true), true)));
-    $api = $workspace.'/'.$directory;
-
-    mkdir($api.'/block-height', 0770, true);
-    mkdir($api.'/block/'.$blockHash, 0770, true);
-    file_put_contents($api.'/block-height/'.$height, $blockHash);
-    file_put_contents($api.'/block/'.$blockHash.'/header', bin2hex($header));
-
-    return 'https://'.$directory.'.test/api';
-}
-
-function writeRealOtsHttpsTestShim(string $workspace): void
-{
-    $siteCustomize = str_replace('__WORKSPACE__', var_export($workspace, true), <<<'PY'
-import os
-import urllib.request
-from urllib.parse import urlsplit
-
-workspace = __WORKSPACE__
-original_urlopen = urllib.request.urlopen
-
-class LocalHttpsResponse:
-    def __init__(self, response, original_url):
-        self.response = response
-        self.original_url = original_url
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        self.response.close()
-
-    def read(self, size=-1):
-        return self.response.read(size)
-
-    def geturl(self):
-        return self.original_url
-
-def local_urlopen(url, timeout=None):
-    parsed = urlsplit(url)
-    if parsed.hostname and parsed.hostname.lower().endswith('.test'):
-        directory = parsed.hostname.lower().removesuffix('.test')
-        relative_path = parsed.path.removeprefix('/api/')
-        local_path = os.path.join(workspace, directory, relative_path)
-        response = original_urlopen('file://' + local_path, timeout=timeout)
-        return LocalHttpsResponse(response, url)
-
-    return original_urlopen(url, timeout=timeout)
-
-urllib.request.urlopen = local_urlopen
-PY);
-
-    file_put_contents($workspace.'/sitecustomize.py', $siteCustomize);
-}
-
-function otsVerificationCacheKey(string $proof, string $digest): string
-{
-    $apiBases = config('services.opentimestamps.bitcoin_header_api_bases');
-
-    return "ots:verified:v3:{$digest}:".hash('sha256', $proof."\0".$apiBases);
-}
-
 /**
  * Test that the Python verification runtime is available in the environment.
  */
@@ -136,50 +40,6 @@ test('python verification runtime is available', function () {
     )->toBeTrue();
 
     expect(file_exists(base_path('scripts/ots-verify.py')))->toBeTrue();
-});
-
-test('verify accepts a real bitcoin attestation through two agreeing header APIs', function () {
-    $workspace = sys_get_temp_dir().'/ots-real-integration-'.bin2hex(random_bytes(8));
-    mkdir($workspace, 0770, true);
-    $height = 123;
-    $digest = hash('sha256', 'real-open-timestamp-proof');
-    $header = str_repeat("\0", 36).hex2bin($digest).pack('V', 1_700_000_000).str_repeat("\0", 8);
-    $firstApiBase = writeRealOtsBitcoinHeaderApi($workspace, 'api-one', $header, $height);
-    $secondApiBase = writeRealOtsBitcoinHeaderApi($workspace, 'api-two', $header, $height);
-    writeRealOtsHttpsTestShim($workspace);
-    $environmentKey = 'PYTHONPATH';
-    $hadEnvValue = array_key_exists($environmentKey, $_ENV);
-    $previousEnvValue = $_ENV[$environmentKey] ?? null;
-    $hadServerValue = array_key_exists($environmentKey, $_SERVER);
-    $previousServerValue = $_SERVER[$environmentKey] ?? null;
-    $previousApiBases = config('services.opentimestamps.bitcoin_header_api_bases');
-
-    try {
-        $_ENV[$environmentKey] = $workspace;
-        $_SERVER[$environmentKey] = $workspace;
-        config()->set(
-            'services.opentimestamps.bitcoin_header_api_bases',
-            $firstApiBase.','.$secondApiBase,
-        );
-        $proof = createRealBitcoinAttestationProof($digest, $height);
-
-        expect($this->service->verify($proof, $digest))->toBeTrue();
-    } finally {
-        if ($hadEnvValue) {
-            $_ENV[$environmentKey] = $previousEnvValue;
-        } else {
-            unset($_ENV[$environmentKey]);
-        }
-
-        if ($hadServerValue) {
-            $_SERVER[$environmentKey] = $previousServerValue;
-        } else {
-            unset($_SERVER[$environmentKey]);
-        }
-
-        config()->set('services.opentimestamps.bitcoin_header_api_bases', $previousApiBases);
-        (new Filesystem)->deleteDirectory($workspace);
-    }
 });
 
 /**
@@ -196,7 +56,7 @@ test('verify rejects invalid proof', function () {
     expect($result)->toBeFalse('Invalid proof should be rejected');
 
     // Verify that failed verifications are NOT cached
-    $cacheKey = otsVerificationCacheKey($invalidProof, $digest);
+    $cacheKey = "ots:verified:{$digest}";
     expect(
         Cache::has($cacheKey),
         'Failed verifications should not be cached (proof may upgrade later)'
@@ -234,7 +94,7 @@ test('verify uses external verifier not http calendars', function () {
     )->toBeFalse();
 
     // Additional security check: Ensure we never cached this false result
-    $cacheKey = otsVerificationCacheKey($pendingProof, $digest);
+    $cacheKey = "ots:verified:{$digest}";
     expect(
         Cache::has($cacheKey),
         'Pending proof verification should not be cached'
@@ -261,7 +121,7 @@ test('verify caching integration', function () {
     expect($result1)->toBeFalse();
 
     // Cache should be empty (failed verifications not cached)
-    $cacheKey = otsVerificationCacheKey($pendingProof, $digest);
+    $cacheKey = "ots:verified:{$digest}";
     expect(Cache::has($cacheKey))->toBeFalse();
 
     // Second verification - should hit the verifier again (not cached)

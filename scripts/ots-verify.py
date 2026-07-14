@@ -55,7 +55,6 @@ def remaining_timeout(deadline: float) -> float:
 def canonicalize_api_base(api_base: str):
     """Return a normalized HTTPS API base and its provider origin."""
     parsed = urlsplit(api_base.strip())
-
     if parsed.scheme.lower() != 'https':
         raise ValueError('Bitcoin header API bases must use HTTPS')
     if not parsed.hostname:
@@ -65,26 +64,18 @@ def canonicalize_api_base(api_base: str):
     if parsed.query or parsed.fragment:
         raise ValueError('Bitcoin header API bases must not include query strings or fragments')
 
-    try:
-        port = parsed.port
-    except ValueError as error:
-        raise ValueError(f'Invalid Bitcoin header API port: {error}') from error
-
     hostname = parsed.hostname.encode('idna').decode('ascii').lower()
     formatted_hostname = f'[{hostname}]' if ':' in hostname else hostname
-    netloc = formatted_hostname if port in (None, 443) else f'{formatted_hostname}:{port}'
-    path = parsed.path.rstrip('/')
-    normalized_base = urlunsplit(('https', netloc, path, '', ''))
+    netloc = formatted_hostname if parsed.port in (None, 443) else f'{formatted_hostname}:{parsed.port}'
 
-    return normalized_base, f'https://{netloc}'
+    return urlunsplit(('https', netloc, parsed.path.rstrip('/'), '', '')), f'https://{netloc}'
 
 def bitcoin_header_api_bases():
     """Return configured APIs from at least two canonical provider origins."""
     configured = os.environ.get('OTS_BITCOIN_HEADER_API_BASES')
-    if configured is None:
-        api_bases = DEFAULT_BITCOIN_HEADER_API_BASES
-    else:
-        api_bases = tuple(base.strip() for base in configured.split(',') if base.strip())
+    api_bases = DEFAULT_BITCOIN_HEADER_API_BASES if configured is None else (
+        base.strip() for base in configured.split(',') if base.strip()
+    )
 
     distinct_origins = {}
     for api_base in api_bases:
@@ -98,45 +89,24 @@ def bitcoin_header_api_bases():
 
     return tuple(distinct_origins.values())
 
-def read_bounded_ascii_response(response, maximum_bytes: int, description: str) -> str:
-    """Read a small ASCII API response without allowing unbounded memory use."""
-    response_bytes = response.read(maximum_bytes + 1)
-    if len(response_bytes) > maximum_bytes:
-        raise ValueError(f'{description} response exceeds {maximum_bytes} bytes')
-
-    try:
-        return response_bytes.decode('ascii').strip()
-    except UnicodeDecodeError as error:
-        raise ValueError(f'{description} response is not ASCII') from error
-
 def fetch_api_text(api_base: str, endpoint: str, deadline: float, maximum_bytes: int) -> str:
     """Fetch a bounded response without accepting cross-origin or TLS-downgrade redirects."""
-    request_url = f'{api_base}{endpoint}'
     expected_origin = canonicalize_api_base(api_base)[1]
-
     with urllib.request.urlopen(
-        request_url,
+        f'{api_base}{endpoint}',
         timeout=remaining_timeout(deadline),
     ) as response:
-        final_url = response.geturl()
-        final_origin = canonicalize_api_base(final_url)[1]
-        if final_origin != expected_origin:
+        if canonicalize_api_base(response.geturl())[1] != expected_origin:
             raise ValueError('Bitcoin header API redirected to a different origin')
+        response_bytes = response.read(maximum_bytes + 1)
 
-        return read_bounded_ascii_response(
-            response,
-            maximum_bytes,
-            'Bitcoin header API',
-        )
+    if len(response_bytes) > maximum_bytes:
+        raise ValueError(f'Bitcoin header API response exceeds {maximum_bytes} bytes')
+    return response_bytes.decode('ascii').strip()
 
 def fetch_bitcoin_block_hash(api_base: str, height: int, deadline: float) -> str:
     """Fetch and validate a Bitcoin block hash for a height."""
-    block_hash = fetch_api_text(
-        api_base,
-        f'/block-height/{height}',
-        deadline,
-        MAX_BLOCK_HASH_RESPONSE_BYTES,
-    ).lower()
+    block_hash = fetch_api_text(api_base, f'/block-height/{height}', deadline, MAX_BLOCK_HASH_RESPONSE_BYTES).lower()
 
     if len(block_hash) != 64 or not all(c in '0123456789abcdef' for c in block_hash):
         raise ValueError(f'Invalid Bitcoin block hash returned for height {height}')
@@ -145,12 +115,7 @@ def fetch_bitcoin_block_hash(api_base: str, height: int, deadline: float) -> str
 
 def fetch_valid_bitcoin_header(api_base: str, block_hash: str, height: int, deadline: float):
     """Fetch a bounded raw header and prove that it hashes to the agreed block."""
-    header_hex = fetch_api_text(
-        api_base,
-        f'/block/{block_hash}/header',
-        deadline,
-        MAX_BLOCK_HEADER_RESPONSE_BYTES,
-    )
+    header_hex = fetch_api_text(api_base, f'/block/{block_hash}/header', deadline, MAX_BLOCK_HEADER_RESPONSE_BYTES)
 
     try:
         header = binascii.unhexlify(header_hex)
@@ -166,10 +131,7 @@ def fetch_valid_bitcoin_header(api_base: str, block_hash: str, height: int, dead
     if calculated_block_hash != block_hash:
         raise ValueError(f'Bitcoin block header hash does not match block {block_hash}')
 
-    return SimpleNamespace(
-        hashMerkleRoot=header[36:68],
-        nTime=int.from_bytes(header[68:72], 'little'),
-    )
+    return SimpleNamespace(hashMerkleRoot=header[36:68], nTime=int.from_bytes(header[68:72], 'little'))
 
 def fetch_bitcoin_block_header(height: int, deadline: float):
     """Fetch and parse a Bitcoin block header by height from a block explorer API."""

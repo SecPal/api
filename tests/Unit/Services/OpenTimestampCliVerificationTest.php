@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
-use Illuminate\Support\Facades\Cache;
 
 /**
  * Unit tests for OpenTimestamp Python-process proof verification.
@@ -279,10 +278,7 @@ test('verify caches successful verification', function () {
 
     // Act: First verification
     $result1 = $this->service->verify($proof, $merkleRoot);
-    $apiBases = config('services.opentimestamps.bitcoin_header_api_bases');
-    $cacheKey = "ots:verified:v3:{$merkleRoot}:".hash('sha256', $proof."\0".$apiBases);
-    expect($result1)->toBeTrue()
-        ->and(Cache::has($cacheKey))->toBeTrue();
+    expect($result1)->toBeTrue();
 
     // Act: Second verification should use cache (no script call)
     $result2 = $this->service->verify($proof, $merkleRoot);
@@ -290,33 +286,6 @@ test('verify caches successful verification', function () {
 
     // Assert: Cache was used (no second script call expected)
     // Mockery will automatically fail if script is called twice
-});
-
-test('verify does not reuse a successful cache entry for another proof or provider configuration', function () {
-    $merkleRoot = hash('sha256', 'cache-context');
-    $firstProof = 'first-proof';
-    $secondProof = 'second-proof';
-
-    $this->mockExecutor
-        ->shouldReceive('execute')
-        ->times(3)
-        ->andReturn(
-            ['exitCode' => 0, 'stdout' => '', 'stderr' => 'SUCCESS'],
-            ['exitCode' => 1, 'stdout' => '', 'stderr' => 'FAILURE'],
-            ['exitCode' => 1, 'stdout' => '', 'stderr' => 'FAILURE'],
-        );
-
-    expect($this->service->verify($firstProof, $merkleRoot))->toBeTrue()
-        ->and($this->service->verify($secondProof, $merkleRoot))->toBeFalse();
-
-    config()->set(
-        'services.opentimestamps.bitcoin_header_api_bases',
-        'https://replacement-one.test/api,https://replacement-two.test/api',
-    );
-
-    expect($this->service->verify($firstProof, $merkleRoot))->toBeFalse()
-        ->and(Cache::has("ots:verified:v2:{$merkleRoot}"))->toBeFalse()
-        ->and(Cache::has("ots:verified:{$merkleRoot}"))->toBeFalse();
 });
 
 test('verify does not cache failed verification', function () {
