@@ -1,12 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Customer;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Store Customer Request validation.
@@ -40,11 +41,22 @@ class StoreCustomerRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
+            'vat_id' => ['nullable', 'string', 'max:32'],
+            'legal_entity_id' => [
+                'required',
+                'uuid',
+                Rule::exists('organizational_units', 'id')
+                    ->where('tenant_id', $tenantId)
+                    ->where('is_legal_entity', true)
+                    ->where('is_active', true)
+                    ->where('is_assignable', true)
+                    ->whereNull('deleted_at'),
+            ],
             'customer_number' => [
                 'nullable',
                 'string',
                 'max:50',
-                \Illuminate\Validation\Rule::unique('customers', 'customer_number')
+                Rule::unique('customers', 'customer_number')
                     ->where('tenant_id', $tenantId),
             ],
             'billing_address' => ['required', 'array'],
@@ -74,6 +86,7 @@ class StoreCustomerRequest extends FormRequest
             'billing_address.city' => 'billing city',
             'billing_address.postal_code' => 'billing postal code',
             'billing_address.country' => 'billing country',
+            'legal_entity_id' => 'legal entity',
             'contact.name' => 'contact name',
             'contact.email' => 'contact email',
             'contact.phone' => 'contact phone',

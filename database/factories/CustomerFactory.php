@@ -6,6 +6,7 @@
 namespace Database\Factories;
 
 use App\Models\Customer;
+use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -63,8 +64,21 @@ class CustomerFactory extends Factory
 
         return [
             'tenant_id' => $tenant->id,
+            'legal_entity_id' => function (array $attributes) use ($tenant): string {
+                $tenantId = $attributes['tenant_id'] ?? $tenant->id;
+
+                if (! is_int($tenantId) && ! is_string($tenantId)) {
+                    throw new \InvalidArgumentException('CustomerFactory tenant_id must be an integer or string.');
+                }
+
+                return OrganizationalUnit::factory()
+                    ->forTenant((string) $tenantId)
+                    ->create(['is_legal_entity' => true])
+                    ->id;
+            },
             'customer_number' => $customerNumber,
             'name' => fake()->company().' '.$companyType,
+            'vat_id' => null,
             'billing_address' => [
                 'street' => fake()->streetAddress(),
                 'city' => fake()->city(),

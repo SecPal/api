@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 namespace App\Policies;
@@ -58,6 +58,10 @@ class CustomerPolicy
 
         // Direct assignment to customer (must be currently active)
         if ($customer->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
+            return true;
+        }
+
+        if (in_array($customer->legal_entity_id, $user->getAccessibleOrganizationalUnitIds(), true)) {
             return true;
         }
 

@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 namespace App\Http\Resources;
@@ -36,8 +36,10 @@ class CustomerResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'legal_entity_id' => $this->legal_entity_id,
             'customer_number' => $this->customer_number,
             'name' => $this->name,
+            'vat_id' => $this->vat_id,
             'billing_address' => $this->billing_address,
             'contact' => $this->contact,
             'notes' => $this->when((bool) $canUpdate, $this->notes),

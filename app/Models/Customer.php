@@ -34,8 +34,10 @@ use Spatie\Activitylog\Support\LogOptions;
  *
  * @property string $id UUID primary key
  * @property int $tenant_id Foreign key to tenant_keys
+ * @property string $legal_entity_id Foreign key to organizational_units
  * @property string $customer_number Auto-generated unique identifier (e.g., KD-2025-0001)
  * @property string $name Company/Organization name
+ * @property string|null $vat_id VAT identification number
  * @property array<string, mixed> $billing_address Structured billing address
  * @property array<string, mixed>|null $contact Primary contact person information
  * @property string|null $notes Internal notes
@@ -45,6 +47,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property \Illuminate\Support\Carbon $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
  * @property-read TenantKey $tenant The tenant this customer belongs to
+ * @property-read OrganizationalUnit $legalEntity The legal entity this customer is assigned to
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Site> $sites Sites belonging to this customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Model> $assignments User assignments to this customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $assignedUsers Users assigned to this customer
@@ -74,8 +77,10 @@ class Customer extends Model
      */
     protected $fillable = [
         'tenant_id',
+        'legal_entity_id',
         'customer_number',
         'name',
+        'vat_id',
         'billing_address',
         'contact',
         'notes',
@@ -113,7 +118,9 @@ class Customer extends Model
         return LogOptions::defaults()
             ->logOnly([
                 'customer_number',
+                'legal_entity_id',
                 'name',
+                'vat_id',
                 'billing_address',
                 'contact',
                 'is_active',
@@ -141,6 +148,16 @@ class Customer extends Model
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(TenantKey::class, 'tenant_id');
+    }
+
+    /**
+     * Get the legal entity this customer belongs to.
+     *
+     * @return BelongsTo<OrganizationalUnit, $this>
+     */
+    public function legalEntity(): BelongsTo
+    {
+        return $this->belongsTo(OrganizationalUnit::class, 'legal_entity_id');
     }
 
     /**
