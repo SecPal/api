@@ -30,10 +30,11 @@ test('the six organization reusable workflow references use immutable commit SHA
 });
 
 test('the Dependabot auto-merge reusable workflow reference uses the approved immutable commit SHA', function (): void {
-    $contents = file_get_contents(base_path('.github/workflows/dependabot-auto-merge.yml'));
+    $workflowPath = '.github/workflows/dependabot-auto-merge.yml';
+    $contents = file_get_contents(base_path($workflowPath));
 
     if ($contents === false) {
-        throw new RuntimeException('Unable to read the Dependabot auto-merge workflow.');
+        throw new RuntimeException("Unable to read workflow: {$workflowPath}");
     }
 
     expect($contents)->toMatch(
