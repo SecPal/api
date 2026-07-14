@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
  */
 
@@ -9,13 +9,14 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Unit tests for OpenTimestamp proof verification.
  *
- * Tests CLI-based verification with mocked ProcessExecutor.
- * For detailed CLI verification tests, see OpenTimestampCliVerificationTest.
+ * Tests Python-process verification with a mocked ProcessExecutor.
+ * For detailed process verification tests, see OpenTimestampCliVerificationTest.
  *
  * @see OpenTimestampService::verify()
  * @see Issue #412 for secure implementation requirements
@@ -27,7 +28,7 @@ uses()->group('unit');
  * @property OpenTimestampService $service
  */
 beforeEach(function () {
-    // Mock ProcessExecutor to avoid CLI dependency
+    // Mock ProcessExecutor to avoid external process dependencies
     $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
     $this->mockExecutor->shouldReceive('commandExists')
         ->with('python3')
@@ -51,6 +52,37 @@ test('verify rejects non hex digest', function () {
 
     expect(fn () => $this->service->verify($proof, $invalidDigest))
         ->toThrow(InvalidArgumentException::class, 'Digest must be 64-character hex SHA256 hash');
+});
+
+test('verify fails closed when bitcoin header APIs are not configured', function () {
+    config()->set('services.opentimestamps.bitcoin_header_api_bases', null);
+    $this->mockExecutor->shouldNotReceive('commandExists', 'execute');
+
+    expect($this->service->verify('proof-data', hash('sha256', 'missing-header-apis')))
+        ->toBeFalse();
+});
+
+test('verify fails closed when the verification cache ttl is invalid', function () {
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 0);
+    $this->mockExecutor->shouldNotReceive('execute');
+
+    expect($this->service->verify('proof-data', hash('sha256', 'invalid-cache-ttl')))
+        ->toBeFalse();
+});
+
+test('verify fails closed when the verification cache ttl exceeds one day', function () {
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 86_401);
+    $this->mockExecutor->shouldNotReceive('execute');
+
+    expect($this->service->verify('proof-data', hash('sha256', 'excessive-cache-ttl')))
+        ->toBeFalse();
+});
+
+test('verify rejects oversized proofs before starting the verifier process', function () {
+    $this->mockExecutor->shouldNotReceive('execute');
+
+    expect($this->service->verify(str_repeat('x', 1_048_577), hash('sha256', 'oversized-proof')))
+        ->toBeFalse();
 });
 
 test('verify returns false when python not available', function () {
@@ -176,6 +208,45 @@ test('verify returns false for any proof', function () {
     // Second call returns true from cache (not from execution)
     expect($result1)->toBeTrue();
     expect($result2)->toBeTrue();
+});
+
+test('verify ignores successful results cached by the vulnerable verifier', function () {
+    $digest = hash('sha256', 'legacy-cache-entry');
+    $proof = 'forged-proof';
+
+    Cache::forever("ots:verified:{$digest}", true);
+    Cache::forever("ots:verified:v2:{$digest}", true);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Proof verification failed',
+        ]);
+
+    expect($this->service->verify($proof, $digest))->toBeFalse();
+});
+
+test('verify ignores unbounded successful results from verifier cache v3', function () {
+    $digest = hash('sha256', 'unbounded-v3-cache-entry');
+    $proof = 'previously-verified-proof';
+    $providerConfiguration = (string) config('services.opentimestamps.bitcoin_header_api_bases');
+    $verificationContext = hash('sha256', $proof."\0".$providerConfiguration);
+
+    Cache::forever("ots:verified:v3:{$digest}:{$verificationContext}", true);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Proof must be revalidated against the active chain',
+        ]);
+
+    expect($this->service->verify($proof, $digest))->toBeFalse();
 });
 
 test('verify handles malformed proof gracefully', function () {

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
  */
 
@@ -9,12 +9,13 @@ declare(strict_types=1);
 
 use App\Contracts\ProcessExecutor;
 use App\Services\OpenTimestampService;
+use Illuminate\Support\Facades\Cache;
 
 /**
- * Unit tests for OpenTimestamp CLI-based proof verification.
+ * Unit tests for OpenTimestamp Python-process proof verification.
  *
- * Tests the secure implementation using external `ots verify` CLI tool.
- * Mocks ProcessExecutor to avoid dependency on actual ots-cli installation.
+ * Tests the secure implementation using the external Python verifier.
+ * Mocks ProcessExecutor to avoid dependency on the actual Python runtime.
  *
  * @see OpenTimestampService::verify()
  * @see Issue #412 - Secure OpenTimestamp verification implementation
@@ -26,7 +27,7 @@ uses()->group('unit', 'services', 'opentimestamp', 'verification');
  * @property OpenTimestampService $service
  */
 beforeEach(function () {
-    // Mock ProcessExecutor to avoid CLI dependency in tests
+    // Mock ProcessExecutor to avoid Python-process dependencies in tests
     $this->mockExecutor = Mockery::mock(ProcessExecutor::class);
     $this->mockExecutor->shouldReceive('commandExists')
         ->with('python3')
@@ -37,10 +38,45 @@ beforeEach(function () {
     $this->service = app(OpenTimestampService::class);
 });
 
-test('verify returns true for valid proof when cli succeeds', function () {
+function openTimestampVerificationCacheKeyForTest(
+    string $proof,
+    string $digest,
+    int $cacheTtlSeconds,
+): string {
+    $providerConfiguration = (string) config('services.opentimestamps.bitcoin_header_api_bases');
+    $verificationContext = hash(
+        'sha256',
+        $proof."\0".$providerConfiguration."\0".$cacheTtlSeconds,
+    );
+
+    return "ots:verified:v4:{$digest}:{$verificationContext}";
+}
+
+test('verify passes config cached bitcoin header APIs to the python process', function () {
+    $merkleRoot = hash('sha256', 'configured-header-apis');
+    $proof = buildValidOtsProofForProcessVerification();
+    $configuredApiBases = 'https://bitcoin-one.test/api,https://bitcoin-two.test/api';
+    config()->set('services.opentimestamps.bitcoin_header_api_bases', $configuredApiBases);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->withArgs(function ($command, $stdin, $timeout, $environment) use ($configuredApiBases) {
+            return ($environment['OTS_BITCOIN_HEADER_API_BASES'] ?? null) === $configuredApiBases;
+        })
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Proof verification failed',
+        ]);
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
+});
+
+test('verify returns true for valid proof when python verifier succeeds', function () {
     // Arrange: Valid proof data
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: Python script returns success (exit code 0)
     $this->mockExecutor
@@ -69,7 +105,7 @@ test('verify returns true for valid proof when cli succeeds', function () {
     expect($result, 'Python script verification should return true for valid proof')->toBeTrue();
 });
 
-test('verify returns false for invalid proof when cli fails', function () {
+test('verify returns false for invalid proof when python verifier fails', function () {
     // Arrange: Invalid proof
     $merkleRoot = hash('sha256', 'test-root');
     $invalidProof = 'invalid-proof-data';
@@ -103,7 +139,7 @@ test('verify returns false for invalid proof when cli fails', function () {
 test('verify returns false when python not installed', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: python3 not available
     $this->mockExecutor
@@ -122,7 +158,7 @@ test('verify returns false when python not installed', function () {
 test('verify returns false when script times out', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: Python script times out
     $this->mockExecutor
@@ -171,7 +207,7 @@ test('verify rejects non hex digest', function () {
 test('verify normalizes uppercase digest to lowercase', function () {
     // Arrange: Uppercase digest
     $merkleRoot = strtoupper(hash('sha256', 'test-root'));
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: Python script should receive lowercase digest
     $this->mockExecutor
@@ -234,7 +270,7 @@ test('verify handles empty proof gracefully', function () {
 test('verify caches successful verification', function () {
     // Arrange
     $merkleRoot = hash('sha256', 'test-root');
-    $proof = buildValidOtsProofForCliVerification();
+    $proof = buildValidOtsProofForProcessVerification();
 
     // Mock: First call succeeds
     $this->mockExecutor
@@ -265,6 +301,114 @@ test('verify caches successful verification', function () {
 
     // Assert: Cache was used (no second script call expected)
     // Mockery will automatically fail if script is called twice
+});
+
+test('verify revalidates successful proofs after the cache ttl', function () {
+    $merkleRoot = hash('sha256', 'revalidation-after-cache-ttl');
+    $proof = buildValidOtsProofForProcessVerification();
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 60);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->twice()
+        ->andReturn(
+            [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => 'SUCCESS: Proof is valid and confirmed on Bitcoin blockchain',
+            ],
+            [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'FAILURE: Bitcoin block is no longer on the active chain',
+            ],
+        );
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeTrue();
+
+    $this->travel(61)->seconds();
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
+});
+
+test('verify revalidates successful proofs when the cache ttl is shortened', function () {
+    $merkleRoot = hash('sha256', 'revalidation-after-cache-ttl-change');
+    $proof = buildValidOtsProofForProcessVerification();
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 3600);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->twice()
+        ->andReturn(
+            [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => 'SUCCESS: Proof is valid and confirmed on Bitcoin blockchain',
+            ],
+            [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'FAILURE: Proof must be checked under the shorter cache policy',
+            ],
+        );
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeTrue();
+
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', 60);
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
+});
+
+test('verify ignores forged positive cache values', function () {
+    $merkleRoot = hash('sha256', 'forged-positive-cache-value');
+    $proof = buildValidOtsProofForProcessVerification();
+    $cacheTtlSeconds = 3600;
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', $cacheTtlSeconds);
+    Cache::put(
+        openTimestampVerificationCacheKeyForTest($proof, $merkleRoot, $cacheTtlSeconds),
+        true,
+        $cacheTtlSeconds,
+    );
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Cache value was not authenticated',
+        ]);
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
+});
+
+test('verify ignores authenticated cache values older than the configured ttl', function () {
+    $merkleRoot = hash('sha256', 'expired-authenticated-cache-value');
+    $proof = buildValidOtsProofForProcessVerification();
+    $cacheTtlSeconds = 60;
+    $verifiedAt = now()->subSeconds($cacheTtlSeconds + 1)->getTimestamp();
+    $cacheKey = openTimestampVerificationCacheKeyForTest($proof, $merkleRoot, $cacheTtlSeconds);
+    $authenticator = hash_hmac(
+        'sha256',
+        $cacheKey."\0".$verifiedAt,
+        (string) config('app.key'),
+    );
+    config()->set('services.opentimestamps.verification_cache_ttl_seconds', $cacheTtlSeconds);
+    Cache::put($cacheKey, [
+        'verified_at' => $verifiedAt,
+        'authenticator' => $authenticator,
+    ], 3600);
+
+    $this->mockExecutor
+        ->shouldReceive('execute')
+        ->once()
+        ->andReturn([
+            'exitCode' => 1,
+            'stdout' => '',
+            'stderr' => 'FAILURE: Cache timestamp exceeded the verification policy',
+        ]);
+
+    expect($this->service->verify($proof, $merkleRoot))->toBeFalse();
 });
 
 test('verify does not cache failed verification', function () {
@@ -303,9 +447,9 @@ test('verify does not cache failed verification', function () {
 /**
  * Build a realistic OTS proof structure for testing.
  *
- * This is just sample binary data - actual validation happens in ots CLI.
+ * This is just sample binary data - actual validation happens in the Python verifier.
  */
-function buildValidOtsProofForCliVerification(): string
+function buildValidOtsProofForProcessVerification(): string
 {
     // Minimal OTS proof structure
     $header = "OpenTimestamps proof\x00";

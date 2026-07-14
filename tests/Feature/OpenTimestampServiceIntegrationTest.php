@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 declare(strict_types=1);
@@ -45,7 +45,7 @@ test('python verification runtime is available', function () {
 /**
  * Test verification with invalid proof data.
  *
- * This test verifies that the CLI correctly rejects invalid proofs.
+ * This test verifies that the Python verifier correctly rejects invalid proofs.
  */
 test('verify rejects invalid proof', function () {
     $invalidProof = base64_encode('invalid proof data');
@@ -54,25 +54,18 @@ test('verify rejects invalid proof', function () {
     $result = $this->service->verify($invalidProof, $digest);
 
     expect($result)->toBeFalse('Invalid proof should be rejected');
-
-    // Verify that failed verifications are NOT cached
-    $cacheKey = "ots:verified:{$digest}";
-    expect(
-        Cache::has($cacheKey),
-        'Failed verifications should not be cached (proof may upgrade later)'
-    )->toBeFalse();
 });
 
 /**
- * Test that verify() uses CLI verification (not stub/upgrade endpoints).
+ * Test that verify() uses the bounded verifier (not stub/upgrade endpoints).
  *
  * This is a security-critical test: We must never use the stub()
- * or upgrade() endpoints for verification, only the external ots CLI.
+ * or upgrade() endpoints for verification, only the external Python verifier.
  *
  * Context: Issue #412 identified critical vulnerabilities in the hybrid
- * verification approach. Issue #415 mandates CLI-only verification.
+ * verification approach. Issue #415 mandates isolated external verification.
  */
-test('verify uses external cli not http calendars', function () {
+test('verify uses external verifier not http calendars', function () {
     // Use a pre-generated pending proof (not yet Bitcoin-anchored)
     // This is a real OTS proof structure, just not anchored to Bitcoin yet
     $pendingProof = base64_encode(
@@ -86,28 +79,18 @@ test('verify uses external cli not http calendars', function () {
     $result = $this->service->verify($pendingProof, $digest);
 
     // The key assertion: verify() must return false for pending proofs
-    // because CLI verification requires Bitcoin attestation.
-    // This proves we're using CLI (not stub/upgrade endpoints).
+    // because the verifier requires a Bitcoin attestation.
+    // This proves we're using the verifier (not stub/upgrade endpoints).
     expect(
         $result,
-        'Pending proofs should fail CLI verification (no Bitcoin attestation yet)'
-    )->toBeFalse();
-
-    // Additional security check: Ensure we never cached this false result
-    $cacheKey = "ots:verified:{$digest}";
-    expect(
-        Cache::has($cacheKey),
-        'Pending proof verification should not be cached'
+        'Pending proofs should fail Python verification (no Bitcoin attestation yet)'
     )->toBeFalse();
 });
 
 /**
- * Test caching behavior with multiple verification attempts.
- *
- * This test verifies that the caching layer works correctly
- * when the same proof is verified multiple times.
+ * Test that repeated verification cannot make a pending proof trusted.
  */
-test('verify caching integration', function () {
+test('repeated pending proof verification remains untrusted', function () {
     // Use a pre-generated pending proof
     $pendingProof = base64_encode(
         hex2bin('004f70656e54696d657374616d7073000050726f6f6600bf09e8e884e89294010811c70929'.
@@ -116,30 +99,23 @@ test('verify caching integration', function () {
     $digest = '11c709298fc1c149afbf4c8996fb9242'.
               '7ae245e4649b934ca495991b7852b855';
 
-    // First verification - should hit CLI and return false (pending)
+    // First verification - should hit the verifier and return false (pending)
     $result1 = $this->service->verify($pendingProof, $digest);
     expect($result1)->toBeFalse();
 
-    // Cache should be empty (failed verifications not cached)
-    $cacheKey = "ots:verified:{$digest}";
-    expect(Cache::has($cacheKey))->toBeFalse();
-
-    // Second verification - should hit CLI again (not cached)
+    // Second verification - should hit the verifier again (not cached)
     $result2 = $this->service->verify($pendingProof, $digest);
     expect($result2)->toBeFalse();
-
-    // Still not cached
-    expect(Cache::has($cacheKey))->toBeFalse();
 });
 
 /**
- * Test that CLI timeout is handled gracefully.
+ * Test that verifier timeout is handled gracefully.
  *
- * The ots CLI may timeout when calendar servers are slow or unreachable.
+ * The verifier may time out when Bitcoin header APIs are slow or unreachable.
  * This should not crash the application.
  */
-test('verify handles cli timeout gracefully', function () {
-    // Create a proof with invalid data that might cause CLI to hang
+test('verify handles verifier timeout gracefully', function () {
+    // Create a proof with invalid data that might cause the verifier to hang
     $invalidProof = base64_encode(str_repeat("\x00", 1000));
     $digest = hash('sha256', 'timeout test');
 

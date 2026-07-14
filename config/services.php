@@ -58,4 +58,12 @@ return [
         'timeout' => env('WEB_PUSH_DELIVERY_TIMEOUT', 20),
     ],
 
+    'opentimestamps' => [
+        'bitcoin_header_api_bases' => env(
+            'OTS_BITCOIN_HEADER_API_BASES',
+            'https://blockstream.info/api,https://mempool.space/api',
+        ),
+        'verification_cache_ttl_seconds' => env('OTS_VERIFICATION_CACHE_TTL_SECONDS', 3600),
+    ],
+
 ];
