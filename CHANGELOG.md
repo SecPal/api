@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- hardened OpenTimestamp proof verification so Bitcoin attestations are validated against the corresponding fetched block header Merkle root before a proof is accepted, preventing forged detached timestamps with arbitrary Bitcoin attestation heights from being cached as valid
 - applied the existing `passkey-verify` limiter to `DELETE /v1/me/passkeys/{credentialId}` so wrong `current_password` guesses on passkey deletion now lock out the same way as passkey enrollment verification attempts
 - required current-password step-up before passkey enrollment challenge creation, passkey enrollment verification, and passkey deletion, and defaulted passkey user verification to `required` so newly enrolled passkeys cannot convert a stolen token into an MFA-complete login without a fresh primary-auth proof.
 - single-shot identity-proof enforcement on `POST /v1/onboarding/complete`: a failed date-of-birth check or a name that deviates too far from the HR record now permanently burns the magic link (`invalidated_at`, `invalidated_from_ip`, `invalidated_user_agent`, `invalidation_reason` recorded on `employee_onboarding_tokens`). A single generic 422 is returned for all identity mismatches so an attacker cannot use the response as a per-field oracle. HR must issue a fresh invitation after any failed identity proof.

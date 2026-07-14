@@ -15,12 +15,17 @@ Exit codes:
 
 import sys
 import binascii
+import os
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from io import BytesIO
+from types import SimpleNamespace
 
 try:
     from opentimestamps.core.timestamp import DetachedTimestampFile
-    from opentimestamps.core.notary import BitcoinBlockHeaderAttestation
+    from opentimestamps.core.notary import BitcoinBlockHeaderAttestation, VerificationError
     from opentimestamps.core.serialize import StreamDeserializationContext
 except ImportError as e:
     print("Error: Failed to import the 'opentimestamps' library or required submodules.", file=sys.stderr)
@@ -28,12 +33,36 @@ except ImportError as e:
     print("A common fix is to install or update it with: pip install --upgrade opentimestamps-client", file=sys.stderr)
     sys.exit(2)
 
+DEFAULT_BITCOIN_HEADER_API_BASE = 'https://blockstream.info/api'
+
+def fetch_bitcoin_block_header(height: int):
+    """Fetch and parse a Bitcoin block header by height from a block explorer API."""
+    api_base = os.environ.get('OTS_BITCOIN_HEADER_API_BASE', DEFAULT_BITCOIN_HEADER_API_BASE).rstrip('/')
+
+    with urllib.request.urlopen(f'{api_base}/block-height/{height}', timeout=10) as response:
+        block_hash = response.read().decode('ascii').strip()
+
+    if len(block_hash) != 64 or not all(c in '0123456789abcdefABCDEF' for c in block_hash):
+        raise ValueError(f'Invalid Bitcoin block hash returned for height {height}')
+
+    with urllib.request.urlopen(f'{api_base}/block/{block_hash}/header', timeout=10) as response:
+        header_hex = response.read().decode('ascii').strip()
+
+    header = binascii.unhexlify(header_hex)
+    if len(header) != 80:
+        raise ValueError(f'Invalid Bitcoin block header length for height {height}: {len(header)} bytes')
+
+    return SimpleNamespace(
+        hashMerkleRoot=header[36:68],
+        nTime=int.from_bytes(header[68:72], 'little'),
+    )
+
 def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
     """
     Verify an OTS proof against a digest WITHOUT requiring a local Bitcoin node.
 
-    This uses the opentimestamps library's built-in remote verification which
-    fetches Bitcoin block headers from public APIs.
+    This validates Bitcoin attestations by fetching the attested block header
+    and checking the OTS commitment against that header's Merkle root.
 
     Args:
         proof_bytes: The OTS proof file content (binary)
@@ -80,14 +109,27 @@ def verify_proof(proof_bytes: bytes, digest_hex: str) -> bool:
 
         print(f"✓ Found {len(bitcoin_attestations)} Bitcoin attestation(s)", file=sys.stderr)
 
-        # List all Bitcoin block attestations
+        # Validate each Bitcoin attestation against the real block header.
         for msg, attestation in bitcoin_attestations:
             block_height = attestation.height
             print(f"  - Bitcoin block: {block_height}", file=sys.stderr)
 
-        # If we have Bitcoin attestations and the hash matches, consider it valid
-        print("✓ Proof structure is valid and contains Bitcoin attestations", file=sys.stderr)
-        return True
+            try:
+                block_header = fetch_bitcoin_block_header(block_height)
+                attested_time = attestation.verify_against_blockheader(msg, block_header)
+            except (urllib.error.URLError, TimeoutError, ValueError, VerificationError) as e:
+                print(f"✗ Bitcoin verification failed for block {block_height}: {e}", file=sys.stderr)
+                continue
+
+            print(
+                f"✓ Bitcoin block {block_height} attests existence as of "
+                f"{time.strftime('%Y-%m-%d %Z', time.localtime(attested_time))}",
+                file=sys.stderr,
+            )
+            return True
+
+        print("✗ No Bitcoin attestations matched the corresponding block header", file=sys.stderr)
+        return False
 
     except Exception as e:
         print(f"Error during verification: {e}", file=sys.stderr)
