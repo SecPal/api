@@ -76,7 +76,7 @@ At minimum verify:
 - `vendor/bin/pint --dirty` ran after PHP changes
 - out-of-scope findings were turned into GitHub issues immediately
 - `CHANGELOG.md` was updated for real changes
-- commits are GPG-signed
+- commits are cryptographically signed with SSH or OpenPGP
 - REUSE compliance was checked when changed files require it
 - when a fix alters observable behavior, state lifecycle, error handling, or security constraints, the corresponding tests were identified and updated in the same commit
 - before pushing behavioral or security-critical changes, affected tests were run locally (`PREFLIGHT_RUN_TESTS=1 git push` or invoke the test runner directly)

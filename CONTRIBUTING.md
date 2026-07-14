@@ -13,7 +13,7 @@ We welcome contributions to SecPal! Please read our [Code of Conduct](CODE_OF_CO
 
 Ensure you have the following tools installed:
 
-- **Git** with GPG signing configured
+- **Git** with cryptographic commit signing configured (SSH or OpenPGP)
 - **Node.js** (v22.x) and npm/pnpm/yarn
 - **PHP** 8.4 and Composer (for backend projects)
 - **Pre-commit** hooks tool (optional but recommended)
@@ -148,7 +148,7 @@ rm .preflight-allow-large-pr
 2. **Create a feature branch** using our naming convention (see below).
 3. **Write your code** and add tests where applicable.
 4. **Ensure all tests pass** locally by running `./scripts/preflight.sh`.
-5. **Sign your commits** with GPG (see below).
+5. **Cryptographically sign your commits** with SSH or OpenPGP (see below).
 6. **Push your branch** and open a pull request against `main`.
 
 All pull requests will be reviewed by a maintainer and by GitHub Copilot.
@@ -374,7 +374,25 @@ Closes #123"
 
 ## Signing Commits
 
-All commits must be signed with GPG. To set up commit signing:
+All commits must be cryptographically signed. SSH and OpenPGP are both accepted; unsigned commits are not permitted. Configure one of the following methods, then add its public key to your GitHub account as a signing key.
+
+### SSH signing
+
+```bash
+# Generate a dedicated SSH signing key (if you do not already have one)
+ssh-keygen -t ed25519 -C "you@example.com" -f ~/.ssh/id_ed25519_signing
+
+# Configure Git to sign commits with the SSH public key
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519_signing.pub
+git config --global commit.gpgSign true
+
+# Copy the public key and add it in GitHub under Settings → SSH and GPG keys
+# → New SSH key, choosing the Signing Key type.
+cat ~/.ssh/id_ed25519_signing.pub
+```
+
+### OpenPGP signing
 
 ```bash
 # Generate a GPG key (if you don't have one)
@@ -392,6 +410,32 @@ gpg --armor --export <YOUR_KEY_ID>
 # Copy the entire output (including the BEGIN and END PGP PUBLIC KEY BLOCK lines)
 # and paste it into GitHub under Settings → SSH and GPG keys → New GPG key.
 ```
+
+### Verify a signature
+
+After committing, inspect its signature locally:
+
+```bash
+git log --show-signature -1
+```
+
+For SSH signatures, configure Git's allowed signers file before running `git verify-commit` so Git can verify the signer's identity:
+
+```bash
+printf '%s %s\n' "you@example.com" "$(cat ~/.ssh/id_ed25519_signing.pub)" >> ~/.ssh/allowed_signers
+git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
+git verify-commit HEAD
+```
+
+For OpenPGP signatures, run:
+
+```bash
+git verify-commit HEAD
+```
+
+To verify an OpenPGP signature from another contributor, import that contributor's trusted public key into your keyring first.
+
+GitHub also shows whether a commit is verified after the corresponding SSH or OpenPGP public key is added to your account. The protected `main` branch rejects unsigned commits.
 
 ## Pull Request Guidelines
 
