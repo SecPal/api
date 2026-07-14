@@ -561,6 +561,25 @@ describe('POST /v1/customers', function () {
         expect($response->json('data.is_active'))->toBeTrue();
     });
 
+    test('creates customer with an optional VAT ID', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
+        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
+
+        $response = $this->withToken($this->token)
+            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
+                'vat_id' => 'DE123456789',
+            ]));
+
+        $response->assertCreated()
+            ->assertJsonPath('data.vat_id', 'DE123456789');
+
+        expect(Customer::query()->findOrFail($response->json('data.id'))->vat_id)
+            ->toBe('DE123456789');
+    });
+
     test('creates customer with inherited write scope on the legal entity', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
         $parentUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
@@ -985,6 +1004,27 @@ describe('PATCH /v1/customers/{customer}', function () {
 
         $customer->refresh();
         expect($customer->name)->toBe('Updated Corporation');
+    });
+
+    test('updates and clears an optional VAT ID', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+
+        $customer = Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'vat_id' => 'DE123456789',
+        ]);
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/customers/{$customer->id}", ['vat_id' => 'DE987654321'])
+            ->assertOk()
+            ->assertJsonPath('data.vat_id', 'DE987654321');
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/customers/{$customer->id}", ['vat_id' => null])
+            ->assertOk()
+            ->assertJsonPath('data.vat_id', null);
+
+        expect($customer->refresh()->vat_id)->toBeNull();
     });
 
     test('updates customer when user is assigned', function (): void {

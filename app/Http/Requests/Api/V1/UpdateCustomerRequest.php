@@ -42,6 +42,7 @@ class UpdateCustomerRequest extends FormRequest
 
         return [
             'name' => ['sometimes', 'string', 'max:255'],
+            'vat_id' => ['sometimes', 'nullable', 'string', 'max:32'],
             'legal_entity_id' => [
                 'sometimes',
                 'uuid',

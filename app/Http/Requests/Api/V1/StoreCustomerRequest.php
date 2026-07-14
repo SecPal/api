@@ -41,6 +41,7 @@ class StoreCustomerRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
+            'vat_id' => ['nullable', 'string', 'max:32'],
             'legal_entity_id' => [
                 'required',
                 'uuid',
