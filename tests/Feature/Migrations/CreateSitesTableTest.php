@@ -32,6 +32,7 @@ function createTestCustomer(string $tenantId, string $customerNumber = 'KD-TEST-
     DB::table('customers')->insert([
         'id' => $customerId,
         'tenant_id' => $tenantId,
+        'legal_entity_id' => createTestLegalEntity($tenantId),
         'customer_number' => $customerNumber,
         'name' => 'Test Customer',
         'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
@@ -59,6 +60,17 @@ function createTestOrgUnit(string $tenantId, string $type = 'branch'): string
     ]);
 
     return $orgUnitId;
+}
+
+function createTestLegalEntity(string $tenantId): string
+{
+    $legalEntityId = createTestOrgUnit($tenantId, 'company');
+
+    DB::table('organizational_units')
+        ->where('id', $legalEntityId)
+        ->update(['is_legal_entity' => true]);
+
+    return $legalEntityId;
 }
 
 describe('CreateSitesTable Migration', function () {
@@ -240,6 +252,7 @@ describe('CreateSitesTable Migration', function () {
         DB::table('customers')->insert([
             'id' => $customerId,
             'tenant_id' => $tenant->id,
+            'legal_entity_id' => createTestLegalEntity((string) $tenant->id),
             'customer_number' => 'KD-2025-INVALID',
             'name' => 'Test Customer',
             'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),

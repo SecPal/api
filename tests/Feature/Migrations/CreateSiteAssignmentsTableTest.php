@@ -78,6 +78,7 @@ function createSiteTestCustomer(string $tenantId, string $customerNumber): strin
     DB::table('customers')->insert([
         'id' => $customerId,
         'tenant_id' => $tenantId,
+        'legal_entity_id' => createSiteAssignmentLegalEntity($tenantId),
         'customer_number' => $customerNumber,
         'name' => 'Test Customer',
         'billing_address' => json_encode(['street' => 'Test', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE']),
@@ -87,6 +88,22 @@ function createSiteTestCustomer(string $tenantId, string $customerNumber): strin
     ]);
 
     return $customerId;
+}
+
+function createSiteAssignmentLegalEntity(string $tenantId): string
+{
+    $legalEntityId = Str::uuid()->toString();
+    DB::table('organizational_units')->insert([
+        'id' => $legalEntityId,
+        'tenant_id' => $tenantId,
+        'type' => 'company',
+        'name' => 'Site Assignment Legal Entity',
+        'is_legal_entity' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return $legalEntityId;
 }
 
 /**

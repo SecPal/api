@@ -113,7 +113,7 @@ test('concurrent customer creation requests produce distinct customer numbers', 
         $this,
         $requestCount,
         '/v1/customers',
-        fn (int $index): array => customerCreationPayload($index),
+        fn (int $index): array => customerCreationPayload($index, $this->customer->legal_entity_id),
         fn (array $body): array => [
             'status' => $body['status'],
             'customer_number' => $body['body']['data']['customer_number'] ?? null,
@@ -257,10 +257,11 @@ function runConcurrentJsonPosts(
 /**
  * @return array<string, mixed>
  */
-function customerCreationPayload(int $index): array
+function customerCreationPayload(int $index, string $legalEntityId): array
 {
     return [
         'name' => "Concurrent Customer {$index}",
+        'legal_entity_id' => $legalEntityId,
         'billing_address' => [
             'street' => "Concurrency Street {$index}",
             'city' => 'Berlin',
