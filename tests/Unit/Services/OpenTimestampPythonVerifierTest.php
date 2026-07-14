@@ -153,6 +153,12 @@ test('python verifier validates headers using independent HTTPS provider consens
         [$valid] = runPythonVerifier($workspace, "$one,$two", $digest, $message);
         [$single, $singleOutput] = runPythonVerifier($workspace, $one, $digest, $message);
         [$duplicate] = runPythonVerifier($workspace, 'https://ONE.test:443/api/,'.$one, $digest, $message);
+        [$trailingDotDuplicate, $trailingDotDuplicateOutput] = runPythonVerifier(
+            $workspace,
+            'https://one.test./api,'.$one,
+            $digest,
+            $message,
+        );
         [$insecure, $insecureOutput] = runPythonVerifier($workspace, 'http://one.test/api,http://two.test/api', $digest, $message);
         [$unavailable] = runPythonVerifier($workspace, "https://missing.test/api,$one,$two", $digest, $message);
         [$slow] = runPythonVerifier($workspace, "https://slow.test/api,$one,$two", $digest, $message);
@@ -188,6 +194,8 @@ test('python verifier validates headers using independent HTTPS provider consens
         expect($valid)->toBe(0)->and($unavailable)->toBe(0)->and($heightLookupFallback)->toBe(0)->and($slow)->toBe(0)
             ->and($single)->toBe(1)->and($singleOutput)->toContain('two distinct HTTPS API origins')
             ->and($duplicate)->toBe(1)
+            ->and($trailingDotDuplicate)->toBe(1)
+            ->and($trailingDotDuplicateOutput)->toContain('two distinct HTTPS API origins')
             ->and($insecure)->toBe(1)->and($insecureOutput)->toContain('must use HTTPS')
             ->and($fallback)->toBe(0)->and($lateFallback)->toBe(0)
             ->and($malformed)->toBe(1)->and($malformedOutput)->toContain('Bitcoin verification failed')->not->toContain('Traceback')

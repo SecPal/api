@@ -105,7 +105,12 @@ def canonicalize_api_base(api_base: str):
     if parsed.query or parsed.fragment:
         raise ValueError('Bitcoin header API bases must not include query strings or fragments')
 
-    hostname = parsed.hostname.encode('idna').decode('ascii').lower()
+    # A trailing dot only marks a DNS name as absolute; it does not identify a
+    # different provider. Remove it before counting distinct quorum origins.
+    hostname = parsed.hostname.rstrip('.')
+    if not hostname:
+        raise ValueError('Bitcoin header API bases must include a valid hostname')
+    hostname = hostname.encode('idna').decode('ascii').lower()
     formatted_hostname = f'[{hostname}]' if ':' in hostname else hostname
     netloc = formatted_hostname if parsed.port in (None, 443) else f'{formatted_hostname}:{parsed.port}'
 

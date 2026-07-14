@@ -195,6 +195,9 @@ OTS_MIN_CALENDAR_RESPONSES=2
 # Bitcoin header API bases used during verification (comma-separated).
 # At least two canonical HTTPS origins are required so one configured provider cannot
 # substitute a self-consistent header that is not part of the Bitcoin chain.
+# DNS-equivalent trailing-dot hostnames are treated as the same origin.
+# Configure at least three independently operated, Esplora-compatible origins in
+# production so one unavailable provider does not prevent the remaining two from agreeing.
 OTS_BITCOIN_HEADER_API_BASES=https://blockstream.info/api,https://mempool.space/api
 
 # Positive verification cache TTL in seconds (default: 3600, maximum: 86400).
