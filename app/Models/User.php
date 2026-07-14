@@ -812,6 +812,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct customer assignments
+     * - Access to the customer's legal entity
      * - Access to sites belonging to the customer (via organizational unit or site assignment)
      *
      * @return Collection<int, Customer>
@@ -848,11 +849,12 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct customer assignments
+     * - Access to the customer's legal entity
      * - Access to sites belonging to the customer (via organizational unit or site assignment)
      *
      * @return Builder<Customer>
      */
-    private function accessibleCustomersQuery(): Builder
+    public function accessibleCustomersQuery(): Builder
     {
         $accessibleUnitIds = $this->getAccessibleOrganizationalUnitIds();
         $assignedSiteIds = $this->siteAssignments()->currentlyActive()->pluck('site_id')->toArray();
@@ -863,6 +865,8 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
             ->where(function ($query) use ($assignedCustomerIds, $accessibleUnitIds, $assignedSiteIds) {
                 // Direct customer assignment
                 $query->whereIn('id', $assignedCustomerIds)
+                    // Or belongs to an accessible legal entity
+                    ->orWhereIn('legal_entity_id', $accessibleUnitIds)
                     // Or has sites in accessible org units
                     ->orWhereHas('sites', function ($siteQuery) use ($accessibleUnitIds, $assignedSiteIds) {
                         $siteQuery->where(function ($sq) use ($accessibleUnitIds, $assignedSiteIds) {

@@ -14,10 +14,9 @@ use App\Http\Resources\Api\V1\CustomerLegalEntityLookupResource;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
-use App\Models\OrganizationalUnit;
 use App\Models\Site;
-use App\Models\TenantKey;
 use App\Models\User;
+use App\Services\CustomerService;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -25,7 +24,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 
 /**
  * CustomerController handles Customer resource CRUD operations.
@@ -40,6 +38,10 @@ use Illuminate\Support\Facades\DB;
  */
 class CustomerController extends Controller
 {
+    public function __construct(
+        private readonly CustomerService $customerService,
+    ) {}
+
     /**
      * Display a listing of customers.
      *
@@ -65,45 +67,9 @@ class CustomerController extends Controller
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
 
-        $query = Customer::query()
-            ->where('tenant_id', $tenantId)
-            ->with(['assignments.user']);
+        $query = $this->customerService->visibleQuery($user, $tenantId);
 
         $query = $this->withVisibleSitesCount($query, $user);
-
-        // Need-to-Know filtering: users reaching this branch already have scoped collection access
-        if (! $user->can('customers.read')) {
-            // Pre-compute accessible unit IDs and assigned site IDs to avoid repeated execution
-            $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();
-            $assignedSiteIds = $user->siteAssignments()
-                ->where('valid_from', '<=', now())
-                ->where(function ($q) {
-                    $q->whereNull('valid_until')
-                        ->orWhere('valid_until', '>=', now());
-                })
-                ->pluck('site_id')->toArray();
-
-            $query->where(function ($q) use ($user, $accessibleUnitIds, $assignedSiteIds) {
-                // Direct assignment (must be currently active)
-                $q->whereHas('assignments', function ($a) use ($user) {
-                    $a->where('user_id', $user->id)
-                        ->where(function ($validityQuery) {
-                            $validityQuery->where('valid_from', '<=', now())
-                                ->where(function ($untilQuery) {
-                                    $untilQuery->whereNull('valid_until')
-                                        ->orWhere('valid_until', '>=', now());
-                                });
-                        });
-                })
-                    // Or has accessible sites
-                    ->orWhereHas('sites', function ($s) use ($accessibleUnitIds, $assignedSiteIds) {
-                        $s->where(function ($sq) use ($accessibleUnitIds, $assignedSiteIds) {
-                            $sq->whereIn('organizational_unit_id', $accessibleUnitIds)
-                                ->orWhereIn('id', $assignedSiteIds);
-                        });
-                    });
-            });
-        }
 
         // Search filter
         if ($request->has('search')) {
@@ -141,22 +107,7 @@ class CustomerController extends Controller
         $user = $request->user();
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
-        $organizationalScopes = $user->organizationalScopes()->get();
-
-        $legalEntities = OrganizationalUnit::query()
-            ->where('tenant_id', $tenantId)
-            ->where('is_legal_entity', true)
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get()
-            ->filter(
-                fn (OrganizationalUnit $legalEntity): bool => $user->hasAccessToUnit(
-                    $legalEntity,
-                    'write',
-                    $organizationalScopes
-                )
-            )
-            ->values();
+        $legalEntities = $this->customerService->writableLegalEntities($user, $tenantId);
 
         return CustomerLegalEntityLookupResource::collection($legalEntities);
     }
@@ -175,38 +126,12 @@ class CustomerController extends Controller
     {
         $this->authorize('create', Customer::class);
 
-        $validated = $request->validated();
         /** @var int $tenantId */
         $tenantId = $request->get('tenant_id');
-        $validated['tenant_id'] = $tenantId;
         /** @var User $user */
         $user = $request->user();
-        $legalEntity = OrganizationalUnit::query()
-            ->whereKey($validated['legal_entity_id'])
-            ->where('tenant_id', $tenantId)
-            ->where('is_legal_entity', true)
-            ->where('is_active', true)
-            ->firstOrFail();
 
-        if (! $user->hasAccessToUnit($legalEntity, 'write')) {
-            abort(Response::HTTP_FORBIDDEN, __('Insufficient access level. Required: :level', ['level' => 'write']));
-        }
-
-        $customer = DB::transaction(function () use ($tenantId, $validated): Customer {
-            TenantKey::query()->select('id')->whereKey($tenantId)->lockForUpdate()->firstOrFail();
-
-            // Auto-generate customer_number within the same transaction as the insert.
-            if (! isset($validated['customer_number'])) {
-                $validated['customer_number'] = Customer::generateCustomerNumber($tenantId);
-            }
-
-            // Set default is_active if not provided (DB default not applied when explicitly passing null)
-            if (! isset($validated['is_active'])) {
-                $validated['is_active'] = true;
-            }
-
-            return Customer::create($validated);
-        });
+        $customer = $this->customerService->create($user, $tenantId, $request->validated());
 
         return response()->json([
             'data' => new CustomerResource($customer),
@@ -262,10 +187,19 @@ class CustomerController extends Controller
     {
         $this->authorize('update', $customer);
 
-        $customer->update($request->validated());
+        /** @var int $tenantId */
+        $tenantId = $request->get('tenant_id');
+        /** @var User $user */
+        $user = $request->user();
+        $customer = $this->customerService->update(
+            $user,
+            $tenantId,
+            $customer,
+            $request->validated()
+        );
 
         return response()->json([
-            'data' => new CustomerResource($customer->fresh()),
+            'data' => new CustomerResource($customer),
         ]);
     }
 

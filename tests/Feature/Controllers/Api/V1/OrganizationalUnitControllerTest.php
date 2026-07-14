@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
+use App\Models\Customer;
 use App\Models\OrganizationalUnit;
 use App\Models\OrganizationalUnitClosure;
 use App\Models\TenantKey;
@@ -1036,6 +1037,77 @@ describe('OrganizationalUnitController - Update', function () {
 });
 
 describe('OrganizationalUnitController - Delete', function () {
+    test('prevents deleting a legal entity that is linked to customers', function () {
+        $legalEntity = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_legal_entity' => true,
+        ]);
+        Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $legalEntity->id,
+        ]);
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $legalEntity->id,
+            'access_level' => 'manage',
+        ]);
+
+        deleteJson("/v1/organizational-units/{$legalEntity->id}")
+            ->assertConflict();
+
+        $this->assertDatabaseHas('organizational_units', [
+            'id' => $legalEntity->id,
+            'deleted_at' => null,
+        ]);
+    });
+
+    test('prevents deactivating a legal entity that is linked to customers', function () {
+        $legalEntity = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_legal_entity' => true,
+        ]);
+        Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $legalEntity->id,
+        ]);
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $legalEntity->id,
+            'access_level' => 'manage',
+        ]);
+
+        patchJson("/v1/organizational-units/{$legalEntity->id}", [
+            'is_active' => false,
+        ])->assertConflict();
+
+        expect($legalEntity->refresh()->is_active)->toBeTrue();
+    });
+
+    test('prevents removing legal entity status from a unit that is linked to customers', function () {
+        $legalEntity = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_legal_entity' => true,
+        ]);
+        Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $legalEntity->id,
+        ]);
+        UserInternalOrganizationalScope::create([
+            'tenant_id' => $this->tenant->id,
+            'user_id' => $this->user->id,
+            'organizational_unit_id' => $legalEntity->id,
+            'access_level' => 'manage',
+        ]);
+
+        patchJson("/v1/organizational-units/{$legalEntity->id}", [
+            'is_legal_entity' => false,
+        ])->assertConflict();
+
+        expect($legalEntity->refresh()->is_legal_entity)->toBeTrue();
+    });
+
     test('user can delete organizational unit without children', function () {
         // Arrange: Create a unit as child of root (user has scope on root)
         $unitToDelete = OrganizationalUnit::factory()->create([

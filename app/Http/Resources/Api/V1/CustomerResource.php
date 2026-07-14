@@ -37,7 +37,6 @@ class CustomerResource extends JsonResource
             'legal_entity_id' => $this->resource->legal_entity_id,
             'customer_number' => $this->resource->customer_number,
             'name' => $this->resource->name,
-            'vat_id' => $this->resource->vat_id,
             'billing_address' => $this->resource->billing_address,
             'contact' => $this->resource->contact,
             'notes' => $canUpdate ? $this->resource->notes : null,

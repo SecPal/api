@@ -561,25 +561,6 @@ describe('POST /v1/customers', function () {
         expect($response->json('data.is_active'))->toBeTrue();
     });
 
-    test('creates customer with an optional VAT ID', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
-        ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
-
-        $response = $this->withToken($this->token)
-            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
-                'vat_id' => 'DE123456789',
-            ]));
-
-        $response->assertCreated()
-            ->assertJsonPath('data.vat_id', 'DE123456789');
-
-        expect(Customer::query()->findOrFail($response->json('data.id'))->vat_id)
-            ->toBe('DE123456789');
-    });
-
     test('creates customer with inherited write scope on the legal entity', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
         $parentUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
@@ -1006,27 +987,6 @@ describe('PATCH /v1/customers/{customer}', function () {
         expect($customer->name)->toBe('Updated Corporation');
     });
 
-    test('updates and clears an optional VAT ID', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
-
-        $customer = Customer::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'vat_id' => 'DE123456789',
-        ]);
-
-        $this->withToken($this->token)
-            ->patchJson("/v1/customers/{$customer->id}", ['vat_id' => 'DE987654321'])
-            ->assertOk()
-            ->assertJsonPath('data.vat_id', 'DE987654321');
-
-        $this->withToken($this->token)
-            ->patchJson("/v1/customers/{$customer->id}", ['vat_id' => null])
-            ->assertOk()
-            ->assertJsonPath('data.vat_id', null);
-
-        expect($customer->refresh()->vat_id)->toBeNull();
-    });
-
     test('updates customer when user is assigned', function (): void {
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
 
@@ -1043,6 +1003,49 @@ describe('PATCH /v1/customers/{customer}', function () {
 
         $response->assertOk();
         expect($response->json('data.name'))->toBe('Updated via Assignment');
+    });
+
+    test('rejects changing a customer legal entity without write scope on it', function (): void {
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $unwritableLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
+
+        CustomerAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'user_id' => $this->user->id,
+            'role' => 'Account Manager',
+        ]);
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/customers/{$customer->id}", [
+                'legal_entity_id' => $unwritableLegalEntity->id,
+            ])
+            ->assertForbidden();
+
+        expect($customer->refresh()->legal_entity_id)->not->toBe($unwritableLegalEntity->id);
+    });
+
+    test('allows users with legal entity scope to view a customer', function (): void {
+        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
+        $customer = Customer::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $legalEntity->id,
+        ]);
+        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
+
+        $this->withToken($this->token)
+            ->getJson('/v1/customers')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $customer->id);
+
+        $this->withToken($this->token)
+            ->getJson("/v1/customers/{$customer->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $customer->id);
     });
 
     test('allows partial updates', function (): void {
