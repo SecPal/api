@@ -71,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- documented SSH and OpenPGP as supported commit-signing methods, including self-contained setup and verification commands for each format (fixes `api#1303`)
+- documented SSH and OpenPGP as supported commit-signing methods, including self-contained setup and verification commands for each format, and required signature/identity review findings to be checked against the pull request's actual remote commits instead of synthetic review commits (fixes `api#1303`)
 - aligned the OpenTimestamps integration guide's declared license with its CC0-1.0 SPDX metadata and repository REUSE policy (fixes `api#1272`)
 - allowed activity logging for same-tenant records that retain a reference to a soft-deleted organizational unit, so permitted historical record updates remain audit-safe instead of failing with a server error (fixes `api#1268`)
 - scoped the employee auto-logging regression lookup to the employee and tenant created by the test, so activity-log assertions cannot read a matching row leaked by an earlier test (fixes `api#1269`)
