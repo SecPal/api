@@ -33,11 +33,14 @@ it('runs prettier through npm without pre-commit node environment installation',
         ->and($hook)->not->toContain('additional_dependencies:');
 });
 
-it('smoke tests the npm-backed hooks with npm 12 in CI', function (): void {
+it('smoke tests the npm-backed hooks with npm 12 on Linux and macOS in CI', function (): void {
     $workflow = file_get_contents(base_path('.github/workflows/quality.yml'));
 
     expect($workflow)->not->toBeFalse()
         ->and($workflow)->toContain('pre-commit-hooks:')
+        ->and($workflow)->toContain('runs-on: ${{ matrix.os }}')
+        ->and($workflow)->toContain('- ubuntu-latest')
+        ->and($workflow)->toContain('- macos-latest')
         ->and($workflow)->toContain('npm install --global npm@12.0.0')
         ->and($workflow)->toContain('pre-commit install-hooks')
         ->and($workflow)->toContain('pre-commit run prettier --files')

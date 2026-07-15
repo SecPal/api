@@ -44,9 +44,14 @@ jobs:
         run: bash scripts/check-license-compatibility.sh reuse.spdx
 
   pre-commit-hooks:
-    name: Pre-commit Hook Smoke Test
-    runs-on: ubuntu-latest
+    name: Pre-commit Hook Smoke Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
