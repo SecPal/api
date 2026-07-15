@@ -90,7 +90,7 @@ At minimum verify:
 
 - Treat AI findings and AI-generated fix PRs as hints, not proof.
 - Before merge, prove the defect with a failing test, a reproducible defect, or a stated invariant and why the current code violates it.
-- For commit-signature or author/committer-identity findings, verify that the cited hash belongs to the pull request's actual remote commit set before treating it as repository evidence; never use a temporary review-environment, worktree, or synthetic commit as proof.
+- For commit-signature or author/committer-identity findings, first verify that the cited hash belongs to the pull request's actual remote commit set, then assess it using the hosting provider's verification result or a correctly configured local trust store; never use a temporary review-environment, worktree, or synthetic commit as proof.
 - Green CI alone is not enough for AI-generated changes, especially test, lifecycle, shell, regex, or refactor diffs; review the semantic risk explicitly.
 - Reject AI-generated test or helper mutations that move executable code across Pest scope boundaries or bypass framework wiring.
 - Reject AI-generated refactors that resolve services inside API resources or serializers, move business logic into presentation code, or repeat request-scoped work that should run once per request.
