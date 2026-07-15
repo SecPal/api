@@ -90,6 +90,12 @@ test('parallel workers use and clean up path-safe token-specific bootstrap env f
     $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
     $originalTestToken = getenv('TEST_TOKEN');
+    $originalTestDatabaseBase = getenv('SECPAL_TEST_DATABASE_BASE');
+    $originalTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalTestSchema = getenv('SECPAL_TEST_SCHEMA');
+    $testDatabaseBase = is_string($originalTestDatabaseBase) && $originalTestDatabaseBase !== ''
+        ? $originalTestDatabaseBase
+        : 'testing';
     $environmentFile = $probeDirectory.'/'.$expectedFileName;
 
     mkdir($probeDirectory, 0700, true);
@@ -99,8 +105,11 @@ test('parallel workers use and clean up path-safe token-specific bootstrap env f
         TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
 
         putenv('TEST_TOKEN='.$testToken);
+        putenv('SECPAL_TEST_DATABASE_BASE='.$testDatabaseBase);
         $_ENV['TEST_TOKEN'] = $testToken;
         $_SERVER['TEST_TOKEN'] = $testToken;
+        $_ENV['SECPAL_TEST_DATABASE_BASE'] = $testDatabaseBase;
+        $_SERVER['SECPAL_TEST_DATABASE_BASE'] = $testDatabaseBase;
 
         if ($laravelParallelTesting) {
             putenv('LARAVEL_PARALLEL_TESTING=1');
@@ -111,11 +120,18 @@ test('parallel workers use and clean up path-safe token-specific bootstrap env f
             unset($_ENV['LARAVEL_PARALLEL_TESTING'], $_SERVER['LARAVEL_PARALLEL_TESTING']);
         }
 
+        putenv('SECPAL_TEST_SCHEMA');
+        unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
+
         TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
 
         expect(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentFileName())
             ->toBe($expectedFileName)
-            ->and(is_file($environmentFile))->toBeTrue();
+            ->and(is_file($environmentFile))->toBeTrue()
+            ->and(file_get_contents($environmentFile))->toContain(
+                'SECPAL_TEST_DATABASE_BASE="'.$testDatabaseBase.'"',
+            )
+            ->and(getenv('SECPAL_TEST_SCHEMA'))->toBeString();
 
         TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
 
@@ -123,6 +139,9 @@ test('parallel workers use and clean up path-safe token-specific bootstrap env f
     } finally {
         foreach ([
             'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'SECPAL_TEST_DATABASE_BASE' => $originalTestDatabaseBase,
+            'SECPAL_TEST_DATABASE' => $originalTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalTestSchema,
             'TEST_TOKEN' => $originalTestToken,
         ] as $key => $value) {
             if ($value === false) {
@@ -146,6 +165,10 @@ test('parallel workers use and clean up path-safe token-specific bootstrap env f
         TestCaseBootstrapEnvironmentProbe::clearProbeEnvironmentPath();
         rmdir($probeDirectory);
     }
+
+    expect(getenv('SECPAL_TEST_DATABASE_BASE'))->toBe($originalTestDatabaseBase)
+        ->and(getenv('SECPAL_TEST_DATABASE'))->toBe($originalTestDatabase)
+        ->and(getenv('SECPAL_TEST_SCHEMA'))->toBe($originalTestSchema);
 })->with([
     'numeric Laravel token' => ['7', '.env.testing.bootstrap.7', true],
     'path-unsafe Laravel token' => ['worker/../seven', '.env.testing.bootstrap.92571565c912ae2175fe2b710272b483', true],

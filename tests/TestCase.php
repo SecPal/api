@@ -21,6 +21,8 @@ abstract class TestCase extends BaseTestCase
 
     private const TEST_BOOTSTRAP_ENVIRONMENT_FILE = '.env.testing.bootstrap';
 
+    private const TEST_DATABASE_BASE_ENVIRONMENT_KEY = 'SECPAL_TEST_DATABASE_BASE';
+
     /**
      * @var list<string>
      */
@@ -484,6 +486,14 @@ abstract class TestCase extends BaseTestCase
                 $configuredTestDatabase = self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')
                     ? $value
                     : self::environmentValue('SECPAL_TEST_DATABASE', $value);
+
+                if (
+                    self::environmentVariableIsMissing(self::TEST_DATABASE_BASE_ENVIRONMENT_KEY)
+                    || $configuredTestDatabase === $value
+                ) {
+                    self::setEnvironmentValue(self::TEST_DATABASE_BASE_ENVIRONMENT_KEY, $configuredTestDatabase);
+                }
+
                 $baseTestDatabase = self::parallelTestDatabaseBaseName($configuredTestDatabase);
 
                 self::setEnvironmentValue(
@@ -502,37 +512,11 @@ abstract class TestCase extends BaseTestCase
 
     private static function parallelTestDatabaseBaseName(string $databaseName): string
     {
-        $testTokenSuffix = self::parallelTestTokenSuffix();
-
-        if (! self::isLaravelParallelTesting() && $testTokenSuffix === null) {
+        if (self::environmentVariableIsMissing(self::TEST_DATABASE_BASE_ENVIRONMENT_KEY)) {
             return $databaseName;
         }
 
-        $defaultTestDatabase = self::phpUnitEnvironmentOverrides()['DB_DATABASE'] ?? null;
-
-        if (
-            is_string($defaultTestDatabase) && $defaultTestDatabase !== ''
-            && preg_match(
-                '/\A'.preg_quote($defaultTestDatabase, '/').'(?:_test_(?:[0-9]{1,20}|[a-f0-9]{32}))+\z/',
-                $databaseName,
-            ) === 1
-        ) {
-            return $defaultTestDatabase;
-        }
-
-        if ($testTokenSuffix === null) {
-            return $databaseName;
-        }
-
-        $baseDatabaseName = preg_replace(
-            '/(?:_test_'.preg_quote($testTokenSuffix, '/').')+\z/',
-            '',
-            $databaseName,
-        );
-
-        return is_string($baseDatabaseName) && $baseDatabaseName !== ''
-            ? $baseDatabaseName
-            : $databaseName;
+        return self::environmentValue(self::TEST_DATABASE_BASE_ENVIRONMENT_KEY, $databaseName);
     }
 
     protected static function applyLocalEnvironmentPassthroughs(): void
@@ -883,6 +867,9 @@ abstract class TestCase extends BaseTestCase
         $variables['SECPAL_TEST_DATABASE'] = self::environmentValue(
             'SECPAL_TEST_DATABASE',
             $variables['DB_DATABASE'] ?? 'testing',
+        );
+        $variables[self::TEST_DATABASE_BASE_ENVIRONMENT_KEY] = self::parallelTestDatabaseBaseName(
+            $variables['SECPAL_TEST_DATABASE'],
         );
         $variables['SECPAL_TEST_SCHEMA'] = self::environmentValue(
             'SECPAL_TEST_SCHEMA',
