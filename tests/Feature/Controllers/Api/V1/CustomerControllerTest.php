@@ -1107,6 +1107,25 @@ describe('PATCH /v1/customers/{customer}', function () {
         expect($customer->refresh()->legal_entity_id)->not->toBe($unassignableLegalEntity->id);
     });
 
+    test('rejects changing a customer legal entity to another tenant', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $originalLegalEntityId = $customer->legal_entity_id;
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $foreignLegalEntity = OrganizationalUnit::factory()->forTenant((string) $otherTenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/customers/{$customer->id}", [
+                'legal_entity_id' => $foreignLegalEntity->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['legal_entity_id']);
+
+        expect($customer->refresh()->legal_entity_id)->toBe($originalLegalEntityId);
+    });
+
     test('allows an unchanged legal entity after it becomes unassignable', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
         $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
