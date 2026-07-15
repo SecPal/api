@@ -153,11 +153,59 @@ describe('OrganizationalUnitController - List', function () {
             ->assertJsonPath('data.0.id', $inactiveAssignable->id);
     });
 
+    test('list organizational units accepts textual boolean status filters', function (string $filter, string $value): void {
+        $inactiveAssignable = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_active' => false,
+            'is_assignable' => true,
+        ]);
+        $inactiveAssignable->setParent($this->rootUnit);
+
+        $activeUnassignable = OrganizationalUnit::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'is_active' => true,
+            'is_assignable' => false,
+        ]);
+        $activeUnassignable->setParent($this->rootUnit);
+
+        $expectedIds = match ("{$filter}={$value}") {
+            'is_active=true' => [$this->rootUnit->id, $activeUnassignable->id],
+            'is_active=false' => [$inactiveAssignable->id],
+            'is_assignable=true' => [$this->rootUnit->id, $inactiveAssignable->id],
+            'is_assignable=false' => [$activeUnassignable->id],
+        };
+
+        $response = getJson("/v1/organizational-units?{$filter}={$value}")
+            ->assertOk()
+            ->assertJsonCount(count($expectedIds), 'data');
+
+        expect(collect($response->json('data'))->pluck('id')->sort()->values()->all())
+            ->toBe(collect($expectedIds)->sort()->values()->all());
+    })->with(function (): array {
+        return [
+            'active true' => ['is_active', 'true'],
+            'active false' => ['is_active', 'false'],
+            'assignable true' => ['is_assignable', 'true'],
+            'assignable false' => ['is_assignable', 'false'],
+        ];
+    });
+
     test('list organizational units rejects non-boolean status filters', function () {
         getJson('/v1/organizational-units?is_active=not-a-boolean&is_assignable=not-a-boolean')
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['is_active', 'is_assignable']);
     });
+
+    test('list organizational units rejects noncanonical numeric status filters', function (string $filter, string $value): void {
+        getJson("/v1/organizational-units?{$filter}={$value}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([$filter]);
+    })->with([
+        'active leading zero' => ['is_active', '01'],
+        'active decimal' => ['is_active', '1.0'],
+        'assignable leading zero' => ['is_assignable', '01'],
+        'assignable decimal' => ['is_assignable', '1.0'],
+    ]);
 
     test('list organizational units respects pagination', function () {
         // Arrange: Create 15 units as children of root

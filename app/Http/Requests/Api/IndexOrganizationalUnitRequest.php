@@ -12,6 +12,8 @@ use Illuminate\Validation\Rule;
 
 class IndexOrganizationalUnitRequest extends FormRequest
 {
+    private const BOOLEAN_QUERY_PATTERN = '/\\A(?:0|1|true|false)\\z/';
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -30,8 +32,8 @@ class IndexOrganizationalUnitRequest extends FormRequest
         return [
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'type' => ['nullable', 'string', Rule::in(['holding', 'company', 'region', 'branch', 'division', 'department', 'custom'])],
-            'is_active' => ['nullable', 'boolean'],
-            'is_assignable' => ['nullable', 'boolean'],
+            'is_active' => ['nullable', 'string', 'regex:'.self::BOOLEAN_QUERY_PATTERN],
+            'is_assignable' => ['nullable', 'string', 'regex:'.self::BOOLEAN_QUERY_PATTERN],
             'parent_id' => [
                 'nullable',
                 'string',
