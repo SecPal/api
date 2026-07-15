@@ -206,28 +206,48 @@ test('ensureKekExists rejects a pre-existing file with insecure permissions', fu
 })->group('parallel-safety', 'issue-1106');
 
 test('ensureKekExists publishes the canonical path atomically (loadKek-safe)', function (): void {
+    $uniqueSuffix = getmypid().'-'.uniqid('', true);
+    $temporaryDirectory = sys_get_temp_dir().'/kek-publish-'.$uniqueSuffix;
+    $kekPath = $temporaryDirectory.'/kek.key';
+    $simulatedConcurrentTempPath = dirname(getTestKekPath()).'/.kek-tmp-'.$uniqueSuffix;
+
+    @mkdir($temporaryDirectory, 0700, true);
+    @mkdir(dirname($simulatedConcurrentTempPath), 0700, true);
+    file_put_contents($simulatedConcurrentTempPath, random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES));
+    TenantKey::setKekPath($kekPath);
+
     // Atomic publish guarantee: once ensureKekExists() returns successfully
     // the canonical path is a complete, KEYBYTES-sized, 0600 KEK that
     // loadKek() will accept. This prevents the race that callers like
     // TenantKeyFactory hit when they chain ensureKekExists() -> loadKek()
     // and a partial/zero-length file would make loadKek() throw.
-    TenantKey::ensureKekExists();
+    try {
+        TenantKey::ensureKekExists();
 
-    $kekPath = TenantKey::getKekPath();
+        expect(filesize($kekPath))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES)
+            ->and(fileperms($kekPath) & 0777)->toBe(0600);
 
-    expect(filesize($kekPath))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES)
-        ->and(fileperms($kekPath) & 0777)->toBe(0600);
+        // loadKek() must accept the just-published file without retry/wait.
+        $kek = TenantKey::loadKek();
 
-    // loadKek() must accept the just-published file without retry/wait.
-    $kek = TenantKey::loadKek();
+        expect(strlen($kek))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
 
-    expect(strlen($kek))->toBe(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+        sodium_memzero($kek);
 
-    sodium_memzero($kek);
-
-    // Temp files created during the atomic publish must not linger.
-    $leftoverTempFiles = glob(dirname($kekPath).'/.kek-tmp-*') ?: [];
-    expect($leftoverTempFiles)->toBe([]);
+        // This directory belongs only to the current test invocation, so a
+        // parallel worker's in-flight temporary KEK cannot cause a false
+        // cleanup failure or be removed by this invocation.
+        expect(glob($temporaryDirectory.'/.kek-tmp-*') ?: [])->toBe([])
+            ->and(file_exists($simulatedConcurrentTempPath))->toBeTrue();
+    } finally {
+        @unlink($kekPath);
+        @unlink($simulatedConcurrentTempPath);
+        foreach (glob($temporaryDirectory.'/.kek-tmp-*') ?: [] as $temporaryKekPath) {
+            @unlink($temporaryKekPath);
+        }
+        @rmdir($temporaryDirectory);
+        TenantKey::setKekPath(null);
+    }
 })->group('parallel-safety', 'issue-1106');
 
 test('generateKek still refuses to overwrite an existing KEK', function (): void {
@@ -272,6 +292,9 @@ test('tryCreateKekFile surfaces real failures with the underlying error message'
         expect(glob($temporaryDirectory.'/.kek-tmp-*') ?: [])->toBe([]);
     } finally {
         @unlink($kekPath);
+        foreach (glob($temporaryDirectory.'/.kek-tmp-*') ?: [] as $temporaryKekPath) {
+            @unlink($temporaryKekPath);
+        }
         @rmdir($temporaryDirectory);
         TenantKey::setKekPath(null);
     }

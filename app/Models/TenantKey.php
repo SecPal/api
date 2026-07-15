@@ -434,10 +434,9 @@ class TenantKey extends Model
                 fclose($handle);
             }
 
-            // Only this invocation knows this randomly generated path. Always
-            // attempt its removal: a type check can be stale or fail and leave
-            // the temporary KEK behind after either publish outcome.
-            @unlink($tempPath);
+            if (is_file($tempPath)) {
+                @unlink($tempPath);
+            }
 
             sodium_memzero($kek);
         }
