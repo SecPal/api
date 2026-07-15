@@ -21,6 +21,8 @@ abstract class TestCase extends BaseTestCase
 
     private const TEST_BOOTSTRAP_ENVIRONMENT_FILE = '.env.testing.bootstrap';
 
+    private const TEST_DATABASE_BASE_ENVIRONMENT_KEY = 'SECPAL_TEST_DATABASE_BASE';
+
     /**
      * @var list<string>
      */
@@ -77,6 +79,7 @@ abstract class TestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        self::normalizeParallelWorkerDatabaseConfiguration($this->app);
 
         // Prevent real network calls to HIBP so Password::uncompromised() always
         // passes for test passwords without coupling tests to an external service.
@@ -86,10 +89,9 @@ abstract class TestCase extends BaseTestCase
         app(PermissionRegistrar::class)->setPermissionsTeamId(null);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        // Laravel's RefreshDatabase trait automatically uses parallel test databases
-        // when running with --parallel flag. Database naming convention:
-        // Base: "testing" -> Parallel workers: "testing_test_1", "testing_test_2", etc.
-        // No additional configuration needed - it's handled by Laravel automatically.
+        // Laravel's database traits switch to the worker database during parent::setUp().
+        // Tests without those traits are normalized above so every parallel test uses
+        // the same "<base>_test_<token>" database convention.
     }
 
     /**
@@ -475,19 +477,46 @@ abstract class TestCase extends BaseTestCase
 
     protected static function applyPhpUnitEnvironmentOverrides(): void
     {
+        self::normalizeLaravelParallelTestToken();
+
         foreach (self::phpUnitEnvironmentOverrides() as $name => $value) {
             self::setEnvironmentValue($name, $value);
 
             if ($name === 'DB_DATABASE') {
-                if (self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')) {
-                    self::setEnvironmentValue('SECPAL_TEST_DATABASE', self::isolatedTestDatabaseName($value));
+                $configuredTestDatabase = self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')
+                    ? $value
+                    : self::environmentValue('SECPAL_TEST_DATABASE', $value);
+
+                if (
+                    self::environmentVariableIsMissing(self::TEST_DATABASE_BASE_ENVIRONMENT_KEY)
+                    || $configuredTestDatabase === $value
+                ) {
+                    self::setEnvironmentValue(self::TEST_DATABASE_BASE_ENVIRONMENT_KEY, $configuredTestDatabase);
                 }
+
+                $baseTestDatabase = self::parallelTestDatabaseBaseName($configuredTestDatabase);
+
+                self::setEnvironmentValue(
+                    'SECPAL_TEST_DATABASE',
+                    self::isLaravelParallelTesting()
+                        ? $baseTestDatabase
+                        : self::isolatedTestDatabaseName($baseTestDatabase),
+                );
 
                 if (self::environmentVariableIsMissing('SECPAL_TEST_SCHEMA')) {
                     self::setEnvironmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
                 }
             }
         }
+    }
+
+    private static function parallelTestDatabaseBaseName(string $databaseName): string
+    {
+        if (self::environmentVariableIsMissing(self::TEST_DATABASE_BASE_ENVIRONMENT_KEY)) {
+            return $databaseName;
+        }
+
+        return self::environmentValue(self::TEST_DATABASE_BASE_ENVIRONMENT_KEY, $databaseName);
     }
 
     protected static function applyLocalEnvironmentPassthroughs(): void
@@ -543,12 +572,48 @@ abstract class TestCase extends BaseTestCase
         }
     }
 
+    private static function normalizeParallelWorkerDatabaseConfiguration(Application $app): void
+    {
+        if (! self::isLaravelParallelTesting() || self::parallelTestTokenSuffix() === null) {
+            return;
+        }
+
+        $databaseConnection = $app['config']->get('database.default');
+
+        if (! is_string($databaseConnection) || $databaseConnection === '') {
+            return;
+        }
+
+        $databaseName = $app['config']->get("database.connections.{$databaseConnection}.database");
+
+        if (! is_string($databaseName) || $databaseName === '' || $databaseName === ':memory:') {
+            return;
+        }
+
+        $workerDatabaseName = self::isolatedTestDatabaseName(
+            self::parallelTestDatabaseBaseName($databaseName),
+        );
+
+        if ($databaseName === $workerDatabaseName) {
+            return;
+        }
+
+        $app['config']->set("database.connections.{$databaseConnection}.database", $workerDatabaseName);
+        $app['config']->set("database.connections.{$databaseConnection}.url", null);
+
+        if (isset($app['db'])) {
+            $app['db']->purge($databaseConnection);
+        }
+    }
+
     protected static function effectiveIsolatedTestDatabaseName(): string
     {
-        return self::environmentValue(
+        $databaseName = self::environmentValue(
             'SECPAL_TEST_DATABASE',
-            self::isolatedTestDatabaseName(self::environmentValue('DB_DATABASE', 'testing'))
+            self::environmentValue('DB_DATABASE', 'testing'),
         );
+
+        return self::isolatedTestDatabaseName(self::parallelTestDatabaseBaseName($databaseName));
     }
 
     protected static function configuredIsolatedTestDatabaseName(): ?string
@@ -572,12 +637,10 @@ abstract class TestCase extends BaseTestCase
 
     protected static function bootstrapEnvironmentFileName(): string
     {
-        if (self::isRunningInParallelWorker()) {
-            $testTokenSuffix = self::parallelTestTokenSuffix();
+        $testTokenSuffix = self::parallelTestTokenSuffix();
 
-            if ($testTokenSuffix !== null) {
-                return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE.'.'.$testTokenSuffix;
-            }
+        if ($testTokenSuffix !== null) {
+            return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE.'.'.$testTokenSuffix;
         }
 
         return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE;
@@ -685,15 +748,45 @@ abstract class TestCase extends BaseTestCase
         self::$temporaryBootstrapEnvironmentFile = null;
     }
 
-    private static function isRunningInParallelWorker(): bool
+    private static function isLaravelParallelTesting(): bool
     {
         $parallelTesting = $_SERVER['LARAVEL_PARALLEL_TESTING'] ?? getenv('LARAVEL_PARALLEL_TESTING');
 
-        return ! empty($parallelTesting)
-            && self::parallelTestTokenSuffix() !== null;
+        return ! empty($parallelTesting);
+    }
+
+    private static function normalizeLaravelParallelTestToken(): void
+    {
+        if (! self::isLaravelParallelTesting()) {
+            return;
+        }
+
+        $testToken = self::parallelTestToken();
+        $testTokenSuffix = self::parallelTestTokenSuffix();
+
+        if ($testToken === null || $testTokenSuffix === null || $testToken === $testTokenSuffix) {
+            return;
+        }
+
+        self::setEnvironmentValue('TEST_TOKEN', $testTokenSuffix);
     }
 
     private static function parallelTestTokenSuffix(): ?string
+    {
+        $testToken = self::parallelTestToken();
+
+        if ($testToken === null) {
+            return null;
+        }
+
+        if (preg_match('/\A(?:[0-9]{1,20}|[a-f0-9]{32})\z/', $testToken) === 1) {
+            return $testToken;
+        }
+
+        return substr(hash('sha256', $testToken), 0, 32);
+    }
+
+    private static function parallelTestToken(): ?string
     {
         $testToken = $_SERVER['TEST_TOKEN'] ?? getenv('TEST_TOKEN');
 
@@ -701,13 +794,7 @@ abstract class TestCase extends BaseTestCase
             return null;
         }
 
-        $testToken = (string) $testToken;
-
-        if (preg_match('/\A[0-9]{1,20}\z/', $testToken) === 1) {
-            return $testToken;
-        }
-
-        return substr(hash('sha256', $testToken), 0, 32);
+        return (string) $testToken;
     }
 
     protected static function resetBootstrapEnvironmentState(): void
@@ -780,6 +867,9 @@ abstract class TestCase extends BaseTestCase
         $variables['SECPAL_TEST_DATABASE'] = self::environmentValue(
             'SECPAL_TEST_DATABASE',
             $variables['DB_DATABASE'] ?? 'testing',
+        );
+        $variables[self::TEST_DATABASE_BASE_ENVIRONMENT_KEY] = self::parallelTestDatabaseBaseName(
+            $variables['SECPAL_TEST_DATABASE'],
         );
         $variables['SECPAL_TEST_SCHEMA'] = self::environmentValue(
             'SECPAL_TEST_SCHEMA',

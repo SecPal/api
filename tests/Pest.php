@@ -7,6 +7,8 @@ use Tests\Support\TestKekCounter;
 
 const TEST_KEK_BASE_PATH = 'app/keys';
 
+const PARALLEL_TEST_DATABASE_SUFFIX_PATTERN = '/_test_(?:[0-9]{1,20}|[a-f0-9]{32})\z/';
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
