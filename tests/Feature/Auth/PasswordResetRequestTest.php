@@ -450,8 +450,9 @@ it('preserves the generic response when the token write fails so a database outa
     $parallelTestToken = ParallelTesting::token();
 
     if ($parallelTestToken !== false) {
+        $parallelTestToken = (string) $parallelTestToken;
         $configuredDatabase = (string) config('database.connections.pgsql.database');
-        $workerSuffix = '_test_'.$parallelTestToken;
+        $workerSuffix = '_test_'.parallelTestDatabaseTokenSuffix($parallelTestToken);
 
         expect($configuredDatabase)->toEndWith($workerSuffix)
             ->and(DB::connection()->getDatabaseName())->toBe($configuredDatabase)

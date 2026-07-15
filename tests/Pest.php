@@ -77,6 +77,13 @@ function cleanupTestKekFile(): void
     }
 }
 
+function parallelTestDatabaseTokenSuffix(string $testToken): string
+{
+    return preg_match('/\A[0-9]{1,20}\z/', $testToken) === 1
+        ? $testToken
+        : substr(hash('sha256', $testToken), 0, 32);
+}
+
 function spaOrigin(): string
 {
     return 'https://app.secpal.dev';

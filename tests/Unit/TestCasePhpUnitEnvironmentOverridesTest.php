@@ -11,6 +11,8 @@ test('phpunit environment overrides are applied before bootstrap-sensitive test 
     $originalAppEnv = getenv('APP_ENV');
     $originalDbConnection = getenv('DB_CONNECTION');
     $originalDbDatabase = getenv('DB_DATABASE');
+    $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
+    $originalTestToken = getenv('TEST_TOKEN');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
     $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
 
@@ -18,18 +20,30 @@ test('phpunit environment overrides are applied before bootstrap-sensitive test 
         putenv('APP_ENV=staging');
         putenv('DB_CONNECTION=mysql');
         putenv('DB_DATABASE=secpal');
+        putenv('LARAVEL_PARALLEL_TESTING');
+        putenv('TEST_TOKEN');
         putenv('SECPAL_TEST_DATABASE');
         putenv('SECPAL_TEST_SCHEMA');
 
         $_ENV['APP_ENV'] = 'staging';
         $_ENV['DB_CONNECTION'] = 'mysql';
         $_ENV['DB_DATABASE'] = 'secpal';
-        unset($_ENV['SECPAL_TEST_DATABASE'], $_ENV['SECPAL_TEST_SCHEMA']);
+        unset(
+            $_ENV['LARAVEL_PARALLEL_TESTING'],
+            $_ENV['TEST_TOKEN'],
+            $_ENV['SECPAL_TEST_DATABASE'],
+            $_ENV['SECPAL_TEST_SCHEMA'],
+        );
 
         $_SERVER['APP_ENV'] = 'staging';
         $_SERVER['DB_CONNECTION'] = 'mysql';
         $_SERVER['DB_DATABASE'] = 'secpal';
-        unset($_SERVER['SECPAL_TEST_DATABASE'], $_SERVER['SECPAL_TEST_SCHEMA']);
+        unset(
+            $_SERVER['LARAVEL_PARALLEL_TESTING'],
+            $_SERVER['TEST_TOKEN'],
+            $_SERVER['SECPAL_TEST_DATABASE'],
+            $_SERVER['SECPAL_TEST_SCHEMA'],
+        );
 
         TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
 
@@ -45,6 +59,50 @@ test('phpunit environment overrides are applied before bootstrap-sensitive test 
             'APP_ENV' => $originalAppEnv,
             'DB_CONNECTION' => $originalDbConnection,
             'DB_DATABASE' => $originalDbDatabase,
+            'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'TEST_TOKEN' => $originalTestToken,
+            'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+});
+
+test('Laravel parallel bootstrap normalizes an inherited worker database before its token is available', function (): void {
+    $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
+    $originalTestToken = getenv('TEST_TOKEN');
+    $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
+
+    try {
+        putenv('LARAVEL_PARALLEL_TESTING=1');
+        putenv('TEST_TOKEN');
+        putenv('SECPAL_TEST_DATABASE=testing_test_5');
+        putenv('SECPAL_TEST_SCHEMA');
+        $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
+        $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
+        unset($_ENV['TEST_TOKEN'], $_SERVER['TEST_TOKEN']);
+        $_ENV['SECPAL_TEST_DATABASE'] = 'testing_test_5';
+        $_SERVER['SECPAL_TEST_DATABASE'] = 'testing_test_5';
+        unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
+
+        TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
+
+        expect(getenv('SECPAL_TEST_DATABASE'))->toBe('testing');
+    } finally {
+        foreach ([
+            'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'TEST_TOKEN' => $originalTestToken,
             'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
             'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
         ] as $key => $value) {
@@ -299,12 +357,18 @@ test('non-numeric parallel test tokens produce path-safe isolated database names
 });
 
 test('phpunit environment overrides preserve a caller-provided isolated schema override', function (): void {
+    $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
+    $originalTestToken = getenv('TEST_TOKEN');
     $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
 
     try {
+        putenv('LARAVEL_PARALLEL_TESTING');
+        putenv('TEST_TOKEN');
         putenv('SECPAL_TEST_DATABASE');
         putenv('SECPAL_TEST_SCHEMA=ci_precreated_schema');
+        unset($_ENV['LARAVEL_PARALLEL_TESTING'], $_SERVER['LARAVEL_PARALLEL_TESTING']);
+        unset($_ENV['TEST_TOKEN'], $_SERVER['TEST_TOKEN']);
         unset($_ENV['SECPAL_TEST_DATABASE'], $_SERVER['SECPAL_TEST_DATABASE']);
         $_ENV['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
         $_SERVER['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
@@ -315,6 +379,8 @@ test('phpunit environment overrides preserve a caller-provided isolated schema o
             ->and(getenv('SECPAL_TEST_SCHEMA'))->toBe('ci_precreated_schema');
     } finally {
         foreach ([
+            'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'TEST_TOKEN' => $originalTestToken,
             'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
             'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
         ] as $key => $value) {
@@ -357,12 +423,18 @@ test('effective isolated schema name preserves a caller-provided schema override
 });
 
 test('bootstrap application normalization preserves a caller-provided isolated database override', function (): void {
+    $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
+    $originalTestToken = getenv('TEST_TOKEN');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
     $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
 
     try {
+        putenv('LARAVEL_PARALLEL_TESTING');
+        putenv('TEST_TOKEN');
         putenv('SECPAL_TEST_DATABASE=ci_precreated_testing');
         putenv('SECPAL_TEST_SCHEMA=ci_precreated_schema');
+        unset($_ENV['LARAVEL_PARALLEL_TESTING'], $_SERVER['LARAVEL_PARALLEL_TESTING']);
+        unset($_ENV['TEST_TOKEN'], $_SERVER['TEST_TOKEN']);
         $_ENV['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
         $_ENV['SECPAL_TEST_SCHEMA'] = 'ci_precreated_schema';
         $_SERVER['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
@@ -381,6 +453,8 @@ test('bootstrap application normalization preserves a caller-provided isolated d
         TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
 
         foreach ([
+            'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'TEST_TOKEN' => $originalTestToken,
             'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
             'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
         ] as $key => $value) {
@@ -407,12 +481,18 @@ test('bootstrap schema validation rejects isolated schema names that require quo
 });
 
 test('phpunit environment overrides preserve a caller-provided isolated database override', function (): void {
+    $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
+    $originalTestToken = getenv('TEST_TOKEN');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
     $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
 
     try {
+        putenv('LARAVEL_PARALLEL_TESTING');
+        putenv('TEST_TOKEN');
         putenv('SECPAL_TEST_DATABASE=ci_precreated_testing');
         putenv('SECPAL_TEST_SCHEMA');
+        unset($_ENV['LARAVEL_PARALLEL_TESTING'], $_SERVER['LARAVEL_PARALLEL_TESTING']);
+        unset($_ENV['TEST_TOKEN'], $_SERVER['TEST_TOKEN']);
         $_ENV['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
         $_SERVER['SECPAL_TEST_DATABASE'] = 'ci_precreated_testing';
         unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
@@ -425,6 +505,8 @@ test('phpunit environment overrides preserve a caller-provided isolated database
             );
     } finally {
         foreach ([
+            'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'TEST_TOKEN' => $originalTestToken,
             'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
             'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
         ] as $key => $value) {

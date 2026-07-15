@@ -77,6 +77,7 @@ abstract class TestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        self::normalizeParallelWorkerDatabaseConfiguration($this->app);
 
         // Prevent real network calls to HIBP so Password::uncompromised() always
         // passes for test passwords without coupling tests to an external service.
@@ -86,10 +87,9 @@ abstract class TestCase extends BaseTestCase
         app(PermissionRegistrar::class)->setPermissionsTeamId(null);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        // Laravel's RefreshDatabase trait automatically uses parallel test databases
-        // when running with --parallel flag. Database naming convention:
-        // Base: "testing" -> Parallel workers: "testing_test_1", "testing_test_2", etc.
-        // No additional configuration needed - it's handled by Laravel automatically.
+        // Laravel's database traits switch to the worker database during parent::setUp().
+        // Tests without those traits are normalized above so every parallel test uses
+        // the same "testing_test_<token>" database convention.
     }
 
     /**
@@ -486,7 +486,7 @@ abstract class TestCase extends BaseTestCase
 
                 self::setEnvironmentValue(
                     'SECPAL_TEST_DATABASE',
-                    self::isLaravelParallelTestingWorker()
+                    self::isLaravelParallelTesting()
                         ? $baseTestDatabase
                         : self::isolatedTestDatabaseName($baseTestDatabase),
                 );
@@ -500,9 +500,7 @@ abstract class TestCase extends BaseTestCase
 
     private static function parallelTestDatabaseBaseName(string $databaseName): string
     {
-        $testTokenSuffix = self::parallelTestTokenSuffix();
-
-        if ($testTokenSuffix === null) {
+        if (! self::isLaravelParallelTesting() && self::parallelTestTokenSuffix() === null) {
             return $databaseName;
         }
 
@@ -567,6 +565,40 @@ abstract class TestCase extends BaseTestCase
 
         if (isset($app['db'])) {
             $app['db']->purge();
+        }
+    }
+
+    private static function normalizeParallelWorkerDatabaseConfiguration(Application $app): void
+    {
+        if (! self::isLaravelParallelTesting() || self::parallelTestTokenSuffix() === null) {
+            return;
+        }
+
+        $databaseConnection = $app['config']->get('database.default');
+
+        if (! is_string($databaseConnection) || $databaseConnection === '') {
+            return;
+        }
+
+        $databaseName = $app['config']->get("database.connections.{$databaseConnection}.database");
+
+        if (! is_string($databaseName) || $databaseName === '' || $databaseName === ':memory:') {
+            return;
+        }
+
+        $workerDatabaseName = self::isolatedTestDatabaseName(
+            self::parallelTestDatabaseBaseName($databaseName),
+        );
+
+        if ($databaseName === $workerDatabaseName) {
+            return;
+        }
+
+        $app['config']->set("database.connections.{$databaseConnection}.database", $workerDatabaseName);
+        $app['config']->set("database.connections.{$databaseConnection}.url", null);
+
+        if (isset($app['db'])) {
+            $app['db']->purge($databaseConnection);
         }
     }
 
@@ -712,12 +744,11 @@ abstract class TestCase extends BaseTestCase
         self::$temporaryBootstrapEnvironmentFile = null;
     }
 
-    private static function isLaravelParallelTestingWorker(): bool
+    private static function isLaravelParallelTesting(): bool
     {
         $parallelTesting = $_SERVER['LARAVEL_PARALLEL_TESTING'] ?? getenv('LARAVEL_PARALLEL_TESTING');
 
-        return ! empty($parallelTesting)
-            && self::parallelTestTokenSuffix() !== null;
+        return ! empty($parallelTesting);
     }
 
     private static function parallelTestTokenSuffix(): ?string
