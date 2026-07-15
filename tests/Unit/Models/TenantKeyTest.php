@@ -209,10 +209,9 @@ test('ensureKekExists publishes the canonical path atomically (loadKek-safe)', f
     $uniqueSuffix = getmypid().'-'.uniqid('', true);
     $temporaryDirectory = sys_get_temp_dir().'/kek-publish-'.$uniqueSuffix;
     $kekPath = $temporaryDirectory.'/kek.key';
-    $simulatedConcurrentTempPath = dirname(getTestKekPath()).'/.kek-tmp-'.$uniqueSuffix;
+    $simulatedConcurrentTempPath = $temporaryDirectory.'/.kek-tmp-'.$uniqueSuffix;
 
     @mkdir($temporaryDirectory, 0700, true);
-    @mkdir(dirname($simulatedConcurrentTempPath), 0700, true);
     file_put_contents($simulatedConcurrentTempPath, random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES));
     TenantKey::setKekPath($kekPath);
 
@@ -234,11 +233,11 @@ test('ensureKekExists publishes the canonical path atomically (loadKek-safe)', f
 
         sodium_memzero($kek);
 
-        // This directory belongs only to the current test invocation, so a
-        // parallel worker's in-flight temporary KEK cannot cause a false
-        // cleanup failure or be removed by this invocation.
-        expect(glob($temporaryDirectory.'/.kek-tmp-*') ?: [])->toBe([])
-            ->and(file_exists($simulatedConcurrentTempPath))->toBeTrue();
+        // A concurrent worker can own a temporary KEK in the same directory.
+        // This invocation must remove only its own temporary KEK, leaving the
+        // concurrent worker's file in place.
+        expect(glob($temporaryDirectory.'/.kek-tmp-*') ?: [])
+            ->toBe([$simulatedConcurrentTempPath]);
     } finally {
         @unlink($kekPath);
         @unlink($simulatedConcurrentTempPath);
@@ -277,6 +276,8 @@ test('tryCreateKekFile surfaces real failures with the underlying error message'
     @unlink($kekPath);
 
     if (! @symlink($danglingTarget, $kekPath)) {
+        @rmdir($temporaryDirectory);
+
         $this->markTestSkipped('Unable to create symlink for race-loser path test.');
     }
 
