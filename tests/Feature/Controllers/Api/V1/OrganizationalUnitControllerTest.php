@@ -168,17 +168,19 @@ describe('OrganizationalUnitController - List', function () {
         ]);
         $activeUnassignable->setParent($this->rootUnit);
 
-        [$expectedId, $expectedCount] = match ("{$filter}={$value}") {
-            'is_active=true' => [$this->rootUnit->id, 2],
-            'is_active=false' => [$inactiveAssignable->id, 1],
-            'is_assignable=true' => [$this->rootUnit->id, 2],
-            'is_assignable=false' => [$activeUnassignable->id, 1],
+        $expectedIds = match ("{$filter}={$value}") {
+            'is_active=true' => [$this->rootUnit->id, $activeUnassignable->id],
+            'is_active=false' => [$inactiveAssignable->id],
+            'is_assignable=true' => [$this->rootUnit->id, $inactiveAssignable->id],
+            'is_assignable=false' => [$activeUnassignable->id],
         };
 
-        getJson("/v1/organizational-units?{$filter}={$value}")
+        $response = getJson("/v1/organizational-units?{$filter}={$value}")
             ->assertOk()
-            ->assertJsonCount($expectedCount, 'data')
-            ->assertJsonFragment(['id' => $expectedId]);
+            ->assertJsonCount(count($expectedIds), 'data');
+
+        expect(collect($response->json('data'))->pluck('id')->sort()->values()->all())
+            ->toBe(collect($expectedIds)->sort()->values()->all());
     })->with(function (): array {
         return [
             'active true' => ['is_active', 'true'],
@@ -193,6 +195,17 @@ describe('OrganizationalUnitController - List', function () {
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['is_active', 'is_assignable']);
     });
+
+    test('list organizational units rejects noncanonical numeric status filters', function (string $filter, string $value): void {
+        getJson("/v1/organizational-units?{$filter}={$value}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([$filter]);
+    })->with([
+        'active leading zero' => ['is_active', '01'],
+        'active decimal' => ['is_active', '1.0'],
+        'assignable leading zero' => ['is_assignable', '01'],
+        'assignable decimal' => ['is_assignable', '1.0'],
+    ]);
 
     test('list organizational units respects pagination', function () {
         // Arrange: Create 15 units as children of root

@@ -35,6 +35,10 @@ it('rejects invalid organizational-unit status filters', function (string $filte
 })->with([
     'active unrelated text' => ['is_active', 'not-a-boolean'],
     'active alternate boolean spelling' => ['is_active', 'on'],
+    'active numeric variant' => ['is_active', '01'],
+    'active decimal variant' => ['is_active', '1.0'],
     'assignable unrelated text' => ['is_assignable', 'not-a-boolean'],
     'assignable alternate boolean spelling' => ['is_assignable', 'on'],
+    'assignable numeric variant' => ['is_assignable', '01'],
+    'assignable decimal variant' => ['is_assignable', '1.0'],
 ]);
