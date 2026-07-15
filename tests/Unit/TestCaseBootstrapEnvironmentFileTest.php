@@ -24,7 +24,7 @@ test('creates a dedicated test env file when no local env files exist', function
     mkdir($probeDirectory, 0700, true);
     TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
 
-    $environmentFile = $probeDirectory.'/.env.testing.bootstrap';
+    $environmentFile = $probeDirectory.'/'.TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentFileName();
 
     expect(is_file($probeDirectory.'/.env'))->toBeFalse()
         ->and(is_file($environmentFile))->toBeFalse();
@@ -53,7 +53,7 @@ test('publishes bootstrap env updates via atomic file replacement', function ():
     mkdir($probeDirectory, 0700, true);
     TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
 
-    $environmentFile = $probeDirectory.'/.env.testing.bootstrap';
+    $environmentFile = $probeDirectory.'/'.TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentFileName();
 
     TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
 
@@ -306,7 +306,7 @@ test('isolates the generated test env file and runtime env state from inherited 
         TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
         TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
 
-        $environmentFile = $probeDirectory.'/.env.testing.bootstrap';
+        $environmentFile = $probeDirectory.'/'.TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentFileName();
         $contents = file_get_contents($environmentFile);
 
         expect(is_file($environmentFile))->toBeTrue()
