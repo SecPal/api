@@ -254,10 +254,10 @@ abstract class TestCase extends BaseTestCase
 
     protected static function isolatedTestDatabaseName(string $databaseName): string
     {
-        $testToken = getenv('TEST_TOKEN');
+        $testTokenSuffix = self::parallelTestTokenSuffix();
 
-        if (is_string($testToken) && preg_match('/\A\d+\z/', $testToken) === 1) {
-            return $databaseName.'_test_'.$testToken;
+        if ($testTokenSuffix !== null) {
+            return $databaseName.'_test_'.$testTokenSuffix;
         }
 
         return $databaseName;
@@ -573,10 +573,10 @@ abstract class TestCase extends BaseTestCase
     protected static function bootstrapEnvironmentFileName(): string
     {
         if (self::isRunningInParallelWorker()) {
-            $testToken = $_SERVER['TEST_TOKEN'] ?? getenv('TEST_TOKEN');
+            $testTokenSuffix = self::parallelTestTokenSuffix();
 
-            if (is_string($testToken) && preg_match('/\A[0-9]+\z/', $testToken) === 1) {
-                return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE.'.'.$testToken;
+            if ($testTokenSuffix !== null) {
+                return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE.'.'.$testTokenSuffix;
             }
         }
 
@@ -688,12 +688,26 @@ abstract class TestCase extends BaseTestCase
     private static function isRunningInParallelWorker(): bool
     {
         $parallelTesting = $_SERVER['LARAVEL_PARALLEL_TESTING'] ?? getenv('LARAVEL_PARALLEL_TESTING');
-        $testToken = $_SERVER['TEST_TOKEN'] ?? getenv('TEST_TOKEN');
 
         return ! empty($parallelTesting)
-            && $testToken !== false
-            && $testToken !== null
-            && (string) $testToken !== '';
+            && self::parallelTestTokenSuffix() !== null;
+    }
+
+    private static function parallelTestTokenSuffix(): ?string
+    {
+        $testToken = $_SERVER['TEST_TOKEN'] ?? getenv('TEST_TOKEN');
+
+        if ($testToken === false || $testToken === null || (string) $testToken === '') {
+            return null;
+        }
+
+        $testToken = (string) $testToken;
+
+        if (preg_match('/\A[0-9]{1,20}\z/', $testToken) === 1) {
+            return $testToken;
+        }
+
+        return substr(hash('sha256', $testToken), 0, 32);
     }
 
     protected static function resetBootstrapEnvironmentState(): void
