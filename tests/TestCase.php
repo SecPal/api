@@ -254,10 +254,6 @@ abstract class TestCase extends BaseTestCase
 
     protected static function isolatedTestDatabaseName(string $databaseName): string
     {
-        if (! self::isRunningInParallelWorker()) {
-            return $databaseName;
-        }
-
         $testTokenSuffix = self::parallelTestTokenSuffix();
 
         if ($testTokenSuffix !== null) {
@@ -486,10 +482,13 @@ abstract class TestCase extends BaseTestCase
                 $configuredTestDatabase = self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')
                     ? $value
                     : self::environmentValue('SECPAL_TEST_DATABASE', $value);
+                $baseTestDatabase = self::parallelTestDatabaseBaseName($configuredTestDatabase);
 
                 self::setEnvironmentValue(
                     'SECPAL_TEST_DATABASE',
-                    self::parallelTestDatabaseBaseName($configuredTestDatabase),
+                    self::isLaravelParallelTestingWorker()
+                        ? $baseTestDatabase
+                        : self::isolatedTestDatabaseName($baseTestDatabase),
                 );
 
                 if (self::environmentVariableIsMissing('SECPAL_TEST_SCHEMA')) {
@@ -501,25 +500,21 @@ abstract class TestCase extends BaseTestCase
 
     private static function parallelTestDatabaseBaseName(string $databaseName): string
     {
-        if (! self::isRunningInParallelWorker()) {
-            return $databaseName;
-        }
-
         $testTokenSuffix = self::parallelTestTokenSuffix();
 
         if ($testTokenSuffix === null) {
             return $databaseName;
         }
 
-        $workerSuffix = '_test_'.$testTokenSuffix;
+        $baseDatabaseName = preg_replace(
+            '/(?:_test_(?:[0-9]{1,20}|[a-f0-9]{32}))+\z/',
+            '',
+            $databaseName,
+        );
 
-        if (! str_ends_with($databaseName, $workerSuffix)) {
-            return $databaseName;
-        }
-
-        $baseDatabaseName = substr($databaseName, 0, -strlen($workerSuffix));
-
-        return $baseDatabaseName === '' ? $databaseName : $baseDatabaseName;
+        return is_string($baseDatabaseName) && $baseDatabaseName !== ''
+            ? $baseDatabaseName
+            : $databaseName;
     }
 
     protected static function applyLocalEnvironmentPassthroughs(): void
@@ -606,12 +601,10 @@ abstract class TestCase extends BaseTestCase
 
     protected static function bootstrapEnvironmentFileName(): string
     {
-        if (self::isRunningInParallelWorker()) {
-            $testTokenSuffix = self::parallelTestTokenSuffix();
+        $testTokenSuffix = self::parallelTestTokenSuffix();
 
-            if ($testTokenSuffix !== null) {
-                return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE.'.'.$testTokenSuffix;
-            }
+        if ($testTokenSuffix !== null) {
+            return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE.'.'.$testTokenSuffix;
         }
 
         return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE;
@@ -719,7 +712,7 @@ abstract class TestCase extends BaseTestCase
         self::$temporaryBootstrapEnvironmentFile = null;
     }
 
-    private static function isRunningInParallelWorker(): bool
+    private static function isLaravelParallelTestingWorker(): bool
     {
         $parallelTesting = $_SERVER['LARAVEL_PARALLEL_TESTING'] ?? getenv('LARAVEL_PARALLEL_TESTING');
 

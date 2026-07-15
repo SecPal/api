@@ -85,6 +85,7 @@ test('publishes bootstrap env updates via atomic file replacement', function ():
 test('parallel workers use and clean up path-safe token-specific bootstrap env files', function (
     string $testToken,
     string $expectedFileName,
+    bool $laravelParallelTesting,
 ): void {
     $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
@@ -97,12 +98,18 @@ test('parallel workers use and clean up path-safe token-specific bootstrap env f
         TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
         TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
 
-        putenv('LARAVEL_PARALLEL_TESTING=1');
         putenv('TEST_TOKEN='.$testToken);
-        $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
-        $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
         $_ENV['TEST_TOKEN'] = $testToken;
         $_SERVER['TEST_TOKEN'] = $testToken;
+
+        if ($laravelParallelTesting) {
+            putenv('LARAVEL_PARALLEL_TESTING=1');
+            $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
+            $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
+        } else {
+            putenv('LARAVEL_PARALLEL_TESTING');
+            unset($_ENV['LARAVEL_PARALLEL_TESTING'], $_SERVER['LARAVEL_PARALLEL_TESTING']);
+        }
 
         TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
 
@@ -140,8 +147,9 @@ test('parallel workers use and clean up path-safe token-specific bootstrap env f
         rmdir($probeDirectory);
     }
 })->with([
-    'numeric token' => ['7', '.env.testing.bootstrap.7'],
-    'path-unsafe token' => ['worker/../seven', '.env.testing.bootstrap.92571565c912ae2175fe2b710272b483'],
+    'numeric Laravel token' => ['7', '.env.testing.bootstrap.7', true],
+    'path-unsafe Laravel token' => ['worker/../seven', '.env.testing.bootstrap.92571565c912ae2175fe2b710272b483', true],
+    'token without Laravel flag' => ['8', '.env.testing.bootstrap.8', false],
 ]);
 
 test('reapplies the bootstrap env before each application boot when process vars leak', function (): void {

@@ -62,7 +62,7 @@ test('phpunit environment overrides are applied before bootstrap-sensitive test 
     }
 });
 
-test('parallel test token wins over process-based isolated database naming', function (): void {
+test('parallel test token aligns Laravel and effective isolated database naming', function (): void {
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
     $originalTestToken = getenv('TEST_TOKEN');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
@@ -159,21 +159,24 @@ test('parallel workers let Laravel tokenize an inherited base test database exac
     }
 });
 
-test('parallel workers normalize an inherited tokenized database before Laravel applies its token', function (): void {
+test('parallel workers normalize inherited tokenized databases before Laravel applies its token', function (string $inheritedDatabase): void {
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
     $originalTestToken = getenv('TEST_TOKEN');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
 
     try {
         putenv('LARAVEL_PARALLEL_TESTING=1');
         putenv('TEST_TOKEN=7');
-        putenv('SECPAL_TEST_DATABASE=testing_test_7');
+        putenv('SECPAL_TEST_DATABASE='.$inheritedDatabase);
+        putenv('SECPAL_TEST_SCHEMA');
         $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
         $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
         $_ENV['TEST_TOKEN'] = '7';
         $_SERVER['TEST_TOKEN'] = '7';
-        $_ENV['SECPAL_TEST_DATABASE'] = 'testing_test_7';
-        $_SERVER['SECPAL_TEST_DATABASE'] = 'testing_test_7';
+        $_ENV['SECPAL_TEST_DATABASE'] = $inheritedDatabase;
+        $_SERVER['SECPAL_TEST_DATABASE'] = $inheritedDatabase;
+        unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
 
         TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
 
@@ -188,6 +191,62 @@ test('parallel workers normalize an inherited tokenized database before Laravel 
             'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
             'TEST_TOKEN' => $originalTestToken,
             'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+})->with([
+    'different worker token' => 'testing_test_5',
+    'repeated worker tokens' => 'testing_test_5_test_6',
+]);
+
+test('test token isolates the effective database without the Laravel parallel flag', function (): void {
+    $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
+    $originalTestToken = getenv('TEST_TOKEN');
+    $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
+
+    try {
+        putenv('LARAVEL_PARALLEL_TESTING');
+        putenv('TEST_TOKEN=7');
+        putenv('SECPAL_TEST_DATABASE=testing');
+        putenv('SECPAL_TEST_SCHEMA');
+        unset($_ENV['LARAVEL_PARALLEL_TESTING'], $_SERVER['LARAVEL_PARALLEL_TESTING']);
+        $_ENV['TEST_TOKEN'] = '7';
+        $_SERVER['TEST_TOKEN'] = '7';
+        $_ENV['SECPAL_TEST_DATABASE'] = 'testing';
+        $_SERVER['SECPAL_TEST_DATABASE'] = 'testing';
+        unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
+
+        TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+        $application = TestCaseBootstrapEnvironmentProbe::createBootstrapApplication();
+
+        expect(getenv('SECPAL_TEST_DATABASE'))->toBe('testing_test_7')
+            ->and(TestCaseBootstrapEnvironmentProbe::isolatedTestDatabaseName('testing'))->toBe('testing_test_7')
+            ->and($application['config']->get('database.connections.pgsql.database'))->toBe('testing_test_7')
+            ->and(TestCaseBootstrapEnvironmentProbe::effectiveIsolatedTestDatabaseName())->toBe('testing_test_7');
+    } finally {
+        TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
+        TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
+
+        foreach ([
+            'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'TEST_TOKEN' => $originalTestToken,
+            'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
         ] as $key => $value) {
             if ($value === false) {
                 putenv($key);
