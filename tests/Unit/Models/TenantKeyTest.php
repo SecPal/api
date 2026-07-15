@@ -249,9 +249,11 @@ test('tryCreateKekFile surfaces real failures with the underlying error message'
     // underlying PHP error attached instead of leaving callers with a raw
     // fopen/link warning or a silent success.
     $uniqueSuffix = getmypid().'-'.uniqid('', true);
-    $kekPath = sys_get_temp_dir().'/kek-dangling-'.$uniqueSuffix.'.key';
+    $temporaryDirectory = sys_get_temp_dir().'/kek-dangling-'.$uniqueSuffix;
+    $kekPath = $temporaryDirectory.'/kek.key';
     $danglingTarget = '/nonexistent/'.$uniqueSuffix.'/target.key';
 
+    @mkdir($temporaryDirectory, 0700, true);
     @unlink($kekPath);
 
     if (! @symlink($danglingTarget, $kekPath)) {
@@ -263,8 +265,14 @@ test('tryCreateKekFile surfaces real failures with the underlying error message'
     try {
         expect(fn (): null => TenantKey::ensureKekExists() ?? null)
             ->toThrow(RuntimeException::class, 'Failed to publish KEK file at:');
+
+        // The failed publish path owns and must clean up its temporary KEK.
+        // A dedicated directory keeps this assertion independent of parallel
+        // workers publishing their own KEKs elsewhere.
+        expect(glob($temporaryDirectory.'/.kek-tmp-*') ?: [])->toBe([]);
     } finally {
         @unlink($kekPath);
+        @rmdir($temporaryDirectory);
         TenantKey::setKekPath(null);
     }
 })->group('parallel-safety', 'issue-1106');
