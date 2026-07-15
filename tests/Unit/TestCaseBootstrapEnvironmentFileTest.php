@@ -82,14 +82,13 @@ test('publishes bootstrap env updates via atomic file replacement', function ():
     rmdir($probeDirectory);
 });
 
-test('parallel workers do not delete the shared bootstrap env file during cleanup', function (): void {
+test('parallel workers use and clean up token-specific bootstrap env files', function (): void {
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
     $originalTestToken = getenv('TEST_TOKEN');
-    $environmentFile = dirname(__DIR__, 2).'/.env.testing.bootstrap';
+    $environmentFile = dirname(__DIR__, 2).'/.env.testing.bootstrap.7';
 
     try {
         TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
-        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
 
         putenv('LARAVEL_PARALLEL_TESTING=1');
         putenv('TEST_TOKEN=7');
@@ -98,9 +97,15 @@ test('parallel workers do not delete the shared bootstrap env file during cleanu
         $_ENV['TEST_TOKEN'] = '7';
         $_SERVER['TEST_TOKEN'] = '7';
 
+        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+        expect(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentFileName())
+            ->toBe('.env.testing.bootstrap.7')
+            ->and(is_file($environmentFile))->toBeTrue();
+
         TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
 
-        expect(is_file($environmentFile))->toBeTrue();
+        expect(is_file($environmentFile))->toBeFalse();
     } finally {
         foreach ([
             'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,

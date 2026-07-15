@@ -5,6 +5,7 @@
 .DS_Store
 .env
 .env.testing.bootstrap
+.env.testing.bootstrap.*
 .env.backup
 .env.production
 .phpactor.json

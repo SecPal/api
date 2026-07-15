@@ -572,6 +572,14 @@ abstract class TestCase extends BaseTestCase
 
     protected static function bootstrapEnvironmentFileName(): string
     {
+        if (self::isRunningInParallelWorker()) {
+            $testToken = $_SERVER['TEST_TOKEN'] ?? getenv('TEST_TOKEN');
+
+            if (is_string($testToken) && preg_match('/\A[0-9]+\z/', $testToken) === 1) {
+                return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE.'.'.$testToken;
+            }
+        }
+
         return self::TEST_BOOTSTRAP_ENVIRONMENT_FILE;
     }
 
@@ -670,10 +678,6 @@ abstract class TestCase extends BaseTestCase
             return;
         }
 
-        if (self::isRunningInParallelWorker() && self::usesSharedBootstrapEnvironmentFile()) {
-            return;
-        }
-
         if (is_file(self::$temporaryBootstrapEnvironmentFile)) {
             unlink(self::$temporaryBootstrapEnvironmentFile);
         }
@@ -690,11 +694,6 @@ abstract class TestCase extends BaseTestCase
             && $testToken !== false
             && $testToken !== null
             && (string) $testToken !== '';
-    }
-
-    private static function usesSharedBootstrapEnvironmentFile(): bool
-    {
-        return self::$temporaryBootstrapEnvironmentFile === dirname(__DIR__).'/'.self::TEST_BOOTSTRAP_ENVIRONMENT_FILE;
     }
 
     protected static function resetBootstrapEnvironmentState(): void
