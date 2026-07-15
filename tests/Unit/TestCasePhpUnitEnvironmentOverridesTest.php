@@ -104,6 +104,29 @@ test('parallel test token wins over process-based isolated database naming', fun
     }
 });
 
+test('non-numeric parallel test tokens produce path-safe isolated database names', function (): void {
+    $originalTestToken = getenv('TEST_TOKEN');
+    $testToken = 'worker/../seven';
+
+    try {
+        putenv('TEST_TOKEN='.$testToken);
+        $_ENV['TEST_TOKEN'] = $testToken;
+        $_SERVER['TEST_TOKEN'] = $testToken;
+
+        expect(TestCaseBootstrapEnvironmentProbe::isolatedTestDatabaseName('testing'))
+            ->toBe('testing_test_'.substr(hash('sha256', $testToken), 0, 32));
+    } finally {
+        if ($originalTestToken === false) {
+            putenv('TEST_TOKEN');
+            unset($_ENV['TEST_TOKEN'], $_SERVER['TEST_TOKEN']);
+        } else {
+            putenv('TEST_TOKEN='.$originalTestToken);
+            $_ENV['TEST_TOKEN'] = $originalTestToken;
+            $_SERVER['TEST_TOKEN'] = $originalTestToken;
+        }
+    }
+});
+
 test('phpunit environment overrides preserve a caller-provided isolated schema override', function (): void {
     $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');

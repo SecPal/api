@@ -24,7 +24,7 @@ test('creates a dedicated test env file when no local env files exist', function
     mkdir($probeDirectory, 0700, true);
     TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
 
-    $environmentFile = $probeDirectory.'/.env.testing.bootstrap';
+    $environmentFile = $probeDirectory.'/'.TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentFileName();
 
     expect(is_file($probeDirectory.'/.env'))->toBeFalse()
         ->and(is_file($environmentFile))->toBeFalse();
@@ -53,7 +53,7 @@ test('publishes bootstrap env updates via atomic file replacement', function ():
     mkdir($probeDirectory, 0700, true);
     TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
 
-    $environmentFile = $probeDirectory.'/.env.testing.bootstrap';
+    $environmentFile = $probeDirectory.'/'.TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentFileName();
 
     TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
 
@@ -82,25 +82,37 @@ test('publishes bootstrap env updates via atomic file replacement', function ():
     rmdir($probeDirectory);
 });
 
-test('parallel workers do not delete the shared bootstrap env file during cleanup', function (): void {
+test('parallel workers use and clean up path-safe token-specific bootstrap env files', function (
+    string $testToken,
+    string $expectedFileName,
+): void {
+    $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
     $originalTestToken = getenv('TEST_TOKEN');
-    $environmentFile = dirname(__DIR__, 2).'/.env.testing.bootstrap';
+    $environmentFile = $probeDirectory.'/'.$expectedFileName;
+
+    mkdir($probeDirectory, 0700, true);
 
     try {
+        TestCaseBootstrapEnvironmentProbe::useProbeEnvironmentPath($probeDirectory);
         TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
-        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
 
         putenv('LARAVEL_PARALLEL_TESTING=1');
-        putenv('TEST_TOKEN=7');
+        putenv('TEST_TOKEN='.$testToken);
         $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
         $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
-        $_ENV['TEST_TOKEN'] = '7';
-        $_SERVER['TEST_TOKEN'] = '7';
+        $_ENV['TEST_TOKEN'] = $testToken;
+        $_SERVER['TEST_TOKEN'] = $testToken;
+
+        TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
+
+        expect(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentFileName())
+            ->toBe($expectedFileName)
+            ->and(is_file($environmentFile))->toBeTrue();
 
         TestCaseBootstrapEnvironmentProbe::removeBootstrapEnvironmentStub();
 
-        expect(is_file($environmentFile))->toBeTrue();
+        expect(is_file($environmentFile))->toBeFalse();
     } finally {
         foreach ([
             'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
@@ -123,8 +135,14 @@ test('parallel workers do not delete the shared bootstrap env file during cleanu
         if (is_file(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentLockFilePath())) {
             unlink(TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentLockFilePath());
         }
+
+        TestCaseBootstrapEnvironmentProbe::clearProbeEnvironmentPath();
+        rmdir($probeDirectory);
     }
-});
+})->with([
+    'numeric token' => ['7', '.env.testing.bootstrap.7'],
+    'path-unsafe token' => ['worker/../seven', '.env.testing.bootstrap.92571565c912ae2175fe2b710272b483'],
+]);
 
 test('reapplies the bootstrap env before each application boot when process vars leak', function (): void {
     $probeDirectory = storage_path('framework/testing/bootstrap-env-'.Str::uuid());
@@ -301,7 +319,7 @@ test('isolates the generated test env file and runtime env state from inherited 
         TestCaseBootstrapEnvironmentProbe::resetBootstrapEnvironmentState();
         TestCaseBootstrapEnvironmentProbe::createBootstrapEnvironmentStub();
 
-        $environmentFile = $probeDirectory.'/.env.testing.bootstrap';
+        $environmentFile = $probeDirectory.'/'.TestCaseBootstrapEnvironmentProbe::bootstrapEnvironmentFileName();
         $contents = file_get_contents($environmentFile);
 
         expect(is_file($environmentFile))->toBeTrue()
