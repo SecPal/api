@@ -78,7 +78,10 @@ test('phpunit environment overrides are applied before bootstrap-sensitive test 
     }
 });
 
-test('Laravel parallel bootstrap normalizes an inherited worker database before its token is available', function (): void {
+test('Laravel parallel bootstrap only normalizes a known inherited worker database before its token is available', function (
+    string $configuredTestDatabase,
+    string $expectedTestDatabase,
+): void {
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
     $originalTestToken = getenv('TEST_TOKEN');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
@@ -87,18 +90,18 @@ test('Laravel parallel bootstrap normalizes an inherited worker database before 
     try {
         putenv('LARAVEL_PARALLEL_TESTING=1');
         putenv('TEST_TOKEN');
-        putenv('SECPAL_TEST_DATABASE=testing_test_5');
+        putenv('SECPAL_TEST_DATABASE='.$configuredTestDatabase);
         putenv('SECPAL_TEST_SCHEMA');
         $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
         $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
         unset($_ENV['TEST_TOKEN'], $_SERVER['TEST_TOKEN']);
-        $_ENV['SECPAL_TEST_DATABASE'] = 'testing_test_5';
-        $_SERVER['SECPAL_TEST_DATABASE'] = 'testing_test_5';
+        $_ENV['SECPAL_TEST_DATABASE'] = $configuredTestDatabase;
+        $_SERVER['SECPAL_TEST_DATABASE'] = $configuredTestDatabase;
         unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
 
         TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
 
-        expect(getenv('SECPAL_TEST_DATABASE'))->toBe('testing');
+        expect(getenv('SECPAL_TEST_DATABASE'))->toBe($expectedTestDatabase);
     } finally {
         foreach ([
             'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
@@ -118,7 +121,10 @@ test('Laravel parallel bootstrap normalizes an inherited worker database before 
             $_SERVER[$key] = $value;
         }
     }
-});
+})->with([
+    'default inherited worker database' => ['testing_test_5', 'testing'],
+    'caller-provided suffix-shaped base' => ['ci_test_20260715', 'ci_test_20260715'],
+]);
 
 test('parallel test token aligns Laravel and effective isolated database naming', function (): void {
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
@@ -227,6 +233,7 @@ test('parallel workers let Laravel tokenize an inherited base test database exac
 })->with([
     'default database base' => ['testing', 'testing_test_7'],
     'caller-provided database base' => ['ci_precreated_testing', 'ci_precreated_testing_test_7'],
+    'caller-provided suffix-shaped base' => ['ci_test_20260715', 'ci_test_20260715_test_7'],
 ]);
 
 test('parallel workers normalize inherited tokenized databases before Laravel applies its token', function (string $inheritedDatabase): void {

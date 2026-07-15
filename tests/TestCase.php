@@ -89,7 +89,7 @@ abstract class TestCase extends BaseTestCase
 
         // Laravel's database traits switch to the worker database during parent::setUp().
         // Tests without those traits are normalized above so every parallel test uses
-        // the same "testing_test_<token>" database convention.
+        // the same "<base>_test_<token>" database convention.
     }
 
     /**
@@ -502,12 +502,30 @@ abstract class TestCase extends BaseTestCase
 
     private static function parallelTestDatabaseBaseName(string $databaseName): string
     {
-        if (! self::isLaravelParallelTesting() && self::parallelTestTokenSuffix() === null) {
+        $testTokenSuffix = self::parallelTestTokenSuffix();
+
+        if (! self::isLaravelParallelTesting() && $testTokenSuffix === null) {
+            return $databaseName;
+        }
+
+        $defaultTestDatabase = self::phpUnitEnvironmentOverrides()['DB_DATABASE'] ?? null;
+
+        if (
+            is_string($defaultTestDatabase) && $defaultTestDatabase !== ''
+            && preg_match(
+                '/\A'.preg_quote($defaultTestDatabase, '/').'(?:_test_(?:[0-9]{1,20}|[a-f0-9]{32}))+\z/',
+                $databaseName,
+            ) === 1
+        ) {
+            return $defaultTestDatabase;
+        }
+
+        if ($testTokenSuffix === null) {
             return $databaseName;
         }
 
         $baseDatabaseName = preg_replace(
-            '/(?:_test_(?:[0-9]{1,20}|[a-f0-9]{32}))+\z/',
+            '/(?:_test_'.preg_quote($testTokenSuffix, '/').')+\z/',
             '',
             $databaseName,
         );
