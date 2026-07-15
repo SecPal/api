@@ -254,6 +254,10 @@ abstract class TestCase extends BaseTestCase
 
     protected static function isolatedTestDatabaseName(string $databaseName): string
     {
+        if (! self::isRunningInParallelWorker()) {
+            return $databaseName;
+        }
+
         $testTokenSuffix = self::parallelTestTokenSuffix();
 
         if ($testTokenSuffix !== null) {
@@ -479,12 +483,14 @@ abstract class TestCase extends BaseTestCase
             self::setEnvironmentValue($name, $value);
 
             if ($name === 'DB_DATABASE') {
-                if (
-                    self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')
-                    || self::inheritedBaseTestDatabaseMustBeIsolated($value)
-                ) {
-                    self::setEnvironmentValue('SECPAL_TEST_DATABASE', self::isolatedTestDatabaseName($value));
-                }
+                $configuredTestDatabase = self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')
+                    ? $value
+                    : self::environmentValue('SECPAL_TEST_DATABASE', $value);
+
+                self::setEnvironmentValue(
+                    'SECPAL_TEST_DATABASE',
+                    self::parallelTestDatabaseBaseName($configuredTestDatabase),
+                );
 
                 if (self::environmentVariableIsMissing('SECPAL_TEST_SCHEMA')) {
                     self::setEnvironmentValue('SECPAL_TEST_SCHEMA', self::isolatedTestSchemaName());
@@ -493,10 +499,27 @@ abstract class TestCase extends BaseTestCase
         }
     }
 
-    private static function inheritedBaseTestDatabaseMustBeIsolated(string $databaseName): bool
+    private static function parallelTestDatabaseBaseName(string $databaseName): string
     {
-        return self::isRunningInParallelWorker()
-            && self::environmentValue('SECPAL_TEST_DATABASE', '') === $databaseName;
+        if (! self::isRunningInParallelWorker()) {
+            return $databaseName;
+        }
+
+        $testTokenSuffix = self::parallelTestTokenSuffix();
+
+        if ($testTokenSuffix === null) {
+            return $databaseName;
+        }
+
+        $workerSuffix = '_test_'.$testTokenSuffix;
+
+        if (! str_ends_with($databaseName, $workerSuffix)) {
+            return $databaseName;
+        }
+
+        $baseDatabaseName = substr($databaseName, 0, -strlen($workerSuffix));
+
+        return $baseDatabaseName === '' ? $databaseName : $baseDatabaseName;
     }
 
     protected static function applyLocalEnvironmentPassthroughs(): void
@@ -554,10 +577,12 @@ abstract class TestCase extends BaseTestCase
 
     protected static function effectiveIsolatedTestDatabaseName(): string
     {
-        return self::environmentValue(
+        $databaseName = self::environmentValue(
             'SECPAL_TEST_DATABASE',
-            self::isolatedTestDatabaseName(self::environmentValue('DB_DATABASE', 'testing'))
+            self::environmentValue('DB_DATABASE', 'testing'),
         );
+
+        return self::isolatedTestDatabaseName(self::parallelTestDatabaseBaseName($databaseName));
     }
 
     protected static function configuredIsolatedTestDatabaseName(): ?string

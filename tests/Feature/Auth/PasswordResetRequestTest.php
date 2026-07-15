@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\ParallelTesting;
 use Illuminate\Support\Facades\Schema;
 use Mockery\MockInterface;
 
@@ -446,14 +447,49 @@ it('preserves the generic response when the token write fails so a database outa
     config()->set('auth.password_reset_min_response_time_ms', 0);
     Mail::fake();
 
+    $parallelTestToken = ParallelTesting::token();
+
+    if ($parallelTestToken !== false) {
+        $configuredDatabase = (string) config('database.connections.pgsql.database');
+        $workerSuffix = '_test_'.$parallelTestToken;
+
+        expect($configuredDatabase)->toEndWith($workerSuffix)
+            ->and(DB::connection()->getDatabaseName())->toBe($configuredDatabase)
+            ->and(Schema::getConnection()->getDatabaseName())->toBe($configuredDatabase);
+    }
+
     User::factory()->create([
         'email' => 'db-fail@example.com',
     ]);
 
-    // Drop the reset-token table so the DB::transaction() body fails with a
-    // real database exception. The user-lookup SELECT above is on `users`
-    // and is unaffected.
-    Schema::drop('password_reset_tokens');
+    Mail::assertNothingQueued();
+
+    // Parallel worker databases can retain a public-schema table while the
+    // current process migrates into its isolated schema. Remove every visible
+    // reset-token table so PostgreSQL cannot fall back to a stale public table.
+    $tokenTableSchemas = collect(DB::select(<<<'SQL'
+        SELECT table_schema
+        FROM information_schema.tables
+        WHERE table_name = 'password_reset_tokens'
+          AND table_schema = ANY (current_schemas(false))
+        SQL))->pluck('table_schema')->all();
+
+    $queryGrammar = DB::connection()->getQueryGrammar();
+
+    foreach ($tokenTableSchemas as $schema) {
+        DB::statement('DROP TABLE '.$queryGrammar->wrapTable($schema.'.password_reset_tokens'));
+    }
+
+    expect(Schema::hasTable('password_reset_tokens'))->toBeFalse();
+
+    $remainingTokenTableSchemas = collect(DB::select(<<<'SQL'
+        SELECT table_schema
+        FROM information_schema.tables
+        WHERE table_name = 'password_reset_tokens'
+          AND table_schema = ANY (current_schemas(false))
+        SQL))->pluck('table_schema')->all();
+
+    expect($remainingTokenTableSchemas)->toBe([]);
 
     $this->postJson('/v1/auth/password/reset-request', [
         'email' => 'db-fail@example.com',
@@ -461,5 +497,6 @@ it('preserves the generic response when the token write fails so a database outa
         'message' => 'Password reset email sent if account exists',
     ]);
 
+    expect(Schema::hasTable('password_reset_tokens'))->toBeFalse();
     Mail::assertNothingQueued();
 });

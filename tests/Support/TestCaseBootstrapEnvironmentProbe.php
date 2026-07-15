@@ -8,10 +8,15 @@ declare(strict_types=1);
 namespace Tests\Support;
 
 use Illuminate\Foundation\Application;
+use Illuminate\Testing\Concerns\TestDatabases;
 use Tests\TestCase;
 
 final class TestCaseBootstrapEnvironmentProbe extends TestCase
 {
+    use TestDatabases {
+        testDatabase as private frameworkParallelTestDatabaseName;
+    }
+
     private static ?string $probeEnvironmentPath = null;
 
     /**
@@ -98,6 +103,16 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
     public static function effectiveIsolatedTestSchemaName(): string
     {
         return parent::effectiveIsolatedTestSchemaName();
+    }
+
+    public static function effectiveIsolatedTestDatabaseName(): string
+    {
+        return parent::effectiveIsolatedTestDatabaseName();
+    }
+
+    public function parallelTestDatabaseName(string $databaseName): string
+    {
+        return $this->frameworkParallelTestDatabaseName($databaseName);
     }
 
     public static function expectedTestAppKey(): string
