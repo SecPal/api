@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
-it('runs markdownlint in a pre-commit managed node environment', function (): void {
+it('runs markdownlint through npm without pre-commit node environment installation', function (): void {
     $config = file_get_contents(base_path('.pre-commit-config.yaml'));
     $markdownlintHookPattern = '/- id: markdownlint\b(?P<hook>.*?)(?=\n\s*-\s+id:|\n\s*#\s|\n\s*-\s+repo:|\z)/s';
 
@@ -12,8 +12,23 @@ it('runs markdownlint in a pre-commit managed node environment', function (): vo
 
     $hook = $matches['hook'];
 
-    expect($hook)->toContain('language: node')
-        ->and($hook)->toContain('additional_dependencies:')
-        ->and($hook)->toContain('- markdownlint-cli@0.49.0')
-        ->and($hook)->not->toContain('language: system');
+    expect($hook)->toContain('entry: npx --yes markdownlint-cli@0.49.0 --config .markdownlint.json')
+        ->and($hook)->toContain('language: system')
+        ->and($hook)->not->toContain('additional_dependencies:');
+});
+
+it('runs prettier through npm without pre-commit node environment installation', function (): void {
+    $config = file_get_contents(base_path('.pre-commit-config.yaml'));
+    $prettierHookPattern = '/- id: prettier\b(?P<hook>.*?)(?=\n\s*-\s+id:|\n\s*#\s|\n\s*-\s+repo:|\z)/s';
+
+    expect($config)->not->toBeFalse()
+        ->and($config)->not->toContain('pre-commit/mirrors-prettier')
+        ->and(preg_match($prettierHookPattern, $config, $matches))->toBe(1);
+
+    $hook = $matches['hook'];
+
+    expect($hook)->toContain('entry: npx --yes prettier@4.0.0-alpha.8 --write')
+        ->and($hook)->toContain('language: system')
+        ->and($hook)->toContain('CHANGELOG\\.md')
+        ->and($hook)->not->toContain('additional_dependencies:');
 });
