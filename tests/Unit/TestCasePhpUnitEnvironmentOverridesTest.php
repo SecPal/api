@@ -104,6 +104,49 @@ test('parallel test token wins over process-based isolated database naming', fun
     }
 });
 
+test('parallel workers replace an inherited base test database with their tokenized database', function (): void {
+    $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
+    $originalTestToken = getenv('TEST_TOKEN');
+    $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
+
+    try {
+        putenv('LARAVEL_PARALLEL_TESTING=1');
+        putenv('TEST_TOKEN=7');
+        putenv('SECPAL_TEST_DATABASE=testing');
+        putenv('SECPAL_TEST_SCHEMA');
+        $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
+        $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
+        $_ENV['TEST_TOKEN'] = '7';
+        $_SERVER['TEST_TOKEN'] = '7';
+        $_ENV['SECPAL_TEST_DATABASE'] = 'testing';
+        $_SERVER['SECPAL_TEST_DATABASE'] = 'testing';
+        unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
+
+        TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
+
+        expect(getenv('SECPAL_TEST_DATABASE'))->toBe('testing_test_7');
+    } finally {
+        foreach ([
+            'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'TEST_TOKEN' => $originalTestToken,
+            'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
+
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+});
+
 test('non-numeric parallel test tokens produce path-safe isolated database names', function (): void {
     $originalTestToken = getenv('TEST_TOKEN');
     $testToken = 'worker/../seven';
@@ -289,8 +332,12 @@ test('bootstrap application normalization keeps the isolated database and schema
 
         $application = TestCaseBootstrapEnvironmentProbe::createBootstrapApplication();
 
+        $expectedDatabase = $originalForcedTestDatabase === false
+            ? 'testing'
+            : $originalForcedTestDatabase;
+
         expect($application['config']->get('database.default'))->toBe('pgsql')
-            ->and($application['config']->get('database.connections.pgsql.database'))->toBe('testing')
+            ->and($application['config']->get('database.connections.pgsql.database'))->toBe($expectedDatabase)
             ->and($application['config']->get('database.connections.pgsql.search_path'))->toBe(
                 TestCaseBootstrapEnvironmentProbe::isolatedTestSchemaName().',public'
             );

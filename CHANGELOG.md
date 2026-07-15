@@ -71,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- tokenized inherited base PostgreSQL test database names in parallel Pest workers, so migration DDL runs against each worker's isolated database instead of deadlocking on the shared base database (fixes `api#1315`)
 - replaced the Prettier and Markdownlint Node hooks with pinned npm hooks, so pre-commit no longer invokes its incompatible Node environment installer with current npm versions, and added Linux and macOS npm 12 CI smoke tests that install and execute both hooks (fixes `api#1308`, `api#1309`)
 - isolated each parallel Pest worker's generated bootstrap environment file by test token, preventing process-specific PostgreSQL schema configuration from being overwritten by another worker (fixes `api#1298`)
 - documented SSH and OpenPGP as supported commit-signing methods, including self-contained setup and verification commands for each format, and required signature/identity review findings to use the pull request's actual remote commits and a configured trust source instead of synthetic review commits or unconfigured local keyrings (fixes `api#1303`)

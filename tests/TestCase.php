@@ -479,7 +479,10 @@ abstract class TestCase extends BaseTestCase
             self::setEnvironmentValue($name, $value);
 
             if ($name === 'DB_DATABASE') {
-                if (self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')) {
+                if (
+                    self::environmentVariableIsMissing('SECPAL_TEST_DATABASE')
+                    || self::inheritedBaseTestDatabaseMustBeIsolated($value)
+                ) {
                     self::setEnvironmentValue('SECPAL_TEST_DATABASE', self::isolatedTestDatabaseName($value));
                 }
 
@@ -488,6 +491,12 @@ abstract class TestCase extends BaseTestCase
                 }
             }
         }
+    }
+
+    private static function inheritedBaseTestDatabaseMustBeIsolated(string $databaseName): bool
+    {
+        return self::isRunningInParallelWorker()
+            && self::environmentValue('SECPAL_TEST_DATABASE', '') === $databaseName;
     }
 
     protected static function applyLocalEnvironmentPassthroughs(): void
