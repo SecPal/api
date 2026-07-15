@@ -25,11 +25,10 @@ test('database connection is working', function (): void {
     $parallelTestToken = ParallelTesting::token();
 
     if ($parallelTestToken !== false) {
-        $parallelTestToken = (string) $parallelTestToken;
-        $expectedDatabase = 'testing_test_'.parallelTestDatabaseTokenSuffix($parallelTestToken);
+        $configuredDatabase = (string) config('database.connections.pgsql.database');
 
-        expect(config('database.connections.pgsql.database'))->toBe($expectedDatabase)
-            ->and(DB::connection()->getDatabaseName())->toBe($expectedDatabase);
+        expect($configuredDatabase)->toMatch(PARALLEL_TEST_DATABASE_SUFFIX_PATTERN)
+            ->and(DB::connection()->getDatabaseName())->toBe($configuredDatabase);
     }
 
     expect(fn () => DB::select('SELECT 1'))

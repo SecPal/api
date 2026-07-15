@@ -115,6 +115,11 @@ final class TestCaseBootstrapEnvironmentProbe extends TestCase
         return $this->frameworkParallelTestDatabaseName($databaseName);
     }
 
+    public static function resetParallelTestDatabaseName(): void
+    {
+        self::$originalDatabaseName = null;
+    }
+
     public static function expectedTestAppKey(): string
     {
         return parent::expectedTestAppKey();

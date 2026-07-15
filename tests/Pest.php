@@ -7,6 +7,8 @@ use Tests\Support\TestKekCounter;
 
 const TEST_KEK_BASE_PATH = 'app/keys';
 
+const PARALLEL_TEST_DATABASE_SUFFIX_PATTERN = '/_test_(?:[0-9]{1,20}|[a-f0-9]{32})\z/';
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -75,13 +77,6 @@ function cleanupTestKekFile(): void
             throw new RuntimeException(sprintf('Failed to delete KEK file at path "%s".', $kekPath));
         }
     }
-}
-
-function parallelTestDatabaseTokenSuffix(string $testToken): string
-{
-    return preg_match('/\A[0-9]{1,20}\z/', $testToken) === 1
-        ? $testToken
-        : substr(hash('sha256', $testToken), 0, 32);
 }
 
 function spaOrigin(): string

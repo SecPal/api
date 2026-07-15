@@ -141,6 +141,7 @@ test('parallel test token aligns Laravel and effective isolated database naming'
         TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
 
         $configuredDatabase = (string) getenv('SECPAL_TEST_DATABASE');
+        TestCaseBootstrapEnvironmentProbe::resetParallelTestDatabaseName();
         $probe = new TestCaseBootstrapEnvironmentProbe('createApplication');
 
         expect($configuredDatabase)->toBe('testing')
@@ -150,6 +151,8 @@ test('parallel test token aligns Laravel and effective isolated database naming'
                 TestCaseBootstrapEnvironmentProbe::isolatedTestSchemaName()
             );
     } finally {
+        TestCaseBootstrapEnvironmentProbe::resetParallelTestDatabaseName();
+
         foreach ([
             'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
             'TEST_TOKEN' => $originalTestToken,
@@ -170,7 +173,10 @@ test('parallel test token aligns Laravel and effective isolated database naming'
     }
 });
 
-test('parallel workers let Laravel tokenize an inherited base test database exactly once', function (): void {
+test('parallel workers let Laravel tokenize an inherited base test database exactly once', function (
+    string $baseTestDatabase,
+    string $workerTestDatabase,
+): void {
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
     $originalTestToken = getenv('TEST_TOKEN');
     $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
@@ -179,24 +185,27 @@ test('parallel workers let Laravel tokenize an inherited base test database exac
     try {
         putenv('LARAVEL_PARALLEL_TESTING=1');
         putenv('TEST_TOKEN=7');
-        putenv('SECPAL_TEST_DATABASE=testing');
+        putenv('SECPAL_TEST_DATABASE='.$baseTestDatabase);
         putenv('SECPAL_TEST_SCHEMA');
         $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
         $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
         $_ENV['TEST_TOKEN'] = '7';
         $_SERVER['TEST_TOKEN'] = '7';
-        $_ENV['SECPAL_TEST_DATABASE'] = 'testing';
-        $_SERVER['SECPAL_TEST_DATABASE'] = 'testing';
+        $_ENV['SECPAL_TEST_DATABASE'] = $baseTestDatabase;
+        $_SERVER['SECPAL_TEST_DATABASE'] = $baseTestDatabase;
         unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
 
         TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
 
         $configuredDatabase = (string) getenv('SECPAL_TEST_DATABASE');
+        TestCaseBootstrapEnvironmentProbe::resetParallelTestDatabaseName();
         $probe = new TestCaseBootstrapEnvironmentProbe('createApplication');
 
-        expect($configuredDatabase)->toBe('testing')
-            ->and($probe->parallelTestDatabaseName($configuredDatabase))->toBe('testing_test_7');
+        expect($configuredDatabase)->toBe($baseTestDatabase)
+            ->and($probe->parallelTestDatabaseName($configuredDatabase))->toBe($workerTestDatabase);
     } finally {
+        TestCaseBootstrapEnvironmentProbe::resetParallelTestDatabaseName();
+
         foreach ([
             'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
             'TEST_TOKEN' => $originalTestToken,
@@ -215,7 +224,10 @@ test('parallel workers let Laravel tokenize an inherited base test database exac
             $_SERVER[$key] = $value;
         }
     }
-});
+})->with([
+    'default database base' => ['testing', 'testing_test_7'],
+    'caller-provided database base' => ['ci_precreated_testing', 'ci_precreated_testing_test_7'],
+]);
 
 test('parallel workers normalize inherited tokenized databases before Laravel applies its token', function (string $inheritedDatabase): void {
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
@@ -323,35 +335,55 @@ test('test token isolates the effective database without the Laravel parallel fl
 test('non-numeric parallel test tokens produce path-safe isolated database names', function (): void {
     $originalParallelTesting = getenv('LARAVEL_PARALLEL_TESTING');
     $originalTestToken = getenv('TEST_TOKEN');
+    $originalForcedTestDatabase = getenv('SECPAL_TEST_DATABASE');
+    $originalForcedTestSchema = getenv('SECPAL_TEST_SCHEMA');
     $testToken = 'worker/../seven';
+    $normalizedTestToken = substr(hash('sha256', $testToken), 0, 32);
 
     try {
         putenv('LARAVEL_PARALLEL_TESTING=1');
         putenv('TEST_TOKEN='.$testToken);
+        putenv('SECPAL_TEST_DATABASE');
+        putenv('SECPAL_TEST_SCHEMA');
         $_ENV['LARAVEL_PARALLEL_TESTING'] = '1';
         $_SERVER['LARAVEL_PARALLEL_TESTING'] = '1';
         $_ENV['TEST_TOKEN'] = $testToken;
         $_SERVER['TEST_TOKEN'] = $testToken;
+        unset($_ENV['SECPAL_TEST_DATABASE'], $_SERVER['SECPAL_TEST_DATABASE']);
+        unset($_ENV['SECPAL_TEST_SCHEMA'], $_SERVER['SECPAL_TEST_SCHEMA']);
 
-        expect(TestCaseBootstrapEnvironmentProbe::isolatedTestDatabaseName('testing'))
-            ->toBe('testing_test_'.substr(hash('sha256', $testToken), 0, 32));
+        TestCaseBootstrapEnvironmentProbe::applyPhpUnitEnvironmentOverrides();
+
+        $configuredDatabase = (string) getenv('SECPAL_TEST_DATABASE');
+        $probe = new TestCaseBootstrapEnvironmentProbe('createApplication');
+
+        expect(getenv('TEST_TOKEN'))->toBe($normalizedTestToken)
+            ->and($_ENV['TEST_TOKEN'])->toBe($normalizedTestToken)
+            ->and($_SERVER['TEST_TOKEN'])->toBe($normalizedTestToken)
+            ->and($configuredDatabase)->toBe('testing')
+            ->and(TestCaseBootstrapEnvironmentProbe::isolatedTestDatabaseName($configuredDatabase))
+            ->toBe('testing_test_'.$normalizedTestToken)
+            ->and($probe->parallelTestDatabaseName($configuredDatabase))
+            ->toBe('testing_test_'.$normalizedTestToken)
+            ->and(TestCaseBootstrapEnvironmentProbe::effectiveIsolatedTestDatabaseName())
+            ->toBe('testing_test_'.$normalizedTestToken);
     } finally {
-        if ($originalParallelTesting === false) {
-            putenv('LARAVEL_PARALLEL_TESTING');
-            unset($_ENV['LARAVEL_PARALLEL_TESTING'], $_SERVER['LARAVEL_PARALLEL_TESTING']);
-        } else {
-            putenv('LARAVEL_PARALLEL_TESTING='.$originalParallelTesting);
-            $_ENV['LARAVEL_PARALLEL_TESTING'] = $originalParallelTesting;
-            $_SERVER['LARAVEL_PARALLEL_TESTING'] = $originalParallelTesting;
-        }
+        foreach ([
+            'LARAVEL_PARALLEL_TESTING' => $originalParallelTesting,
+            'TEST_TOKEN' => $originalTestToken,
+            'SECPAL_TEST_DATABASE' => $originalForcedTestDatabase,
+            'SECPAL_TEST_SCHEMA' => $originalForcedTestSchema,
+        ] as $key => $value) {
+            if ($value === false) {
+                putenv($key);
+                unset($_ENV[$key], $_SERVER[$key]);
 
-        if ($originalTestToken === false) {
-            putenv('TEST_TOKEN');
-            unset($_ENV['TEST_TOKEN'], $_SERVER['TEST_TOKEN']);
-        } else {
-            putenv('TEST_TOKEN='.$originalTestToken);
-            $_ENV['TEST_TOKEN'] = $originalTestToken;
-            $_SERVER['TEST_TOKEN'] = $originalTestToken;
+                continue;
+            }
+
+            putenv($key.'='.$value);
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
         }
     }
 });

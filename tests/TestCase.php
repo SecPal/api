@@ -475,6 +475,8 @@ abstract class TestCase extends BaseTestCase
 
     protected static function applyPhpUnitEnvironmentOverrides(): void
     {
+        self::normalizeLaravelParallelTestToken();
+
         foreach (self::phpUnitEnvironmentOverrides() as $name => $value) {
             self::setEnvironmentValue($name, $value);
 
@@ -751,7 +753,38 @@ abstract class TestCase extends BaseTestCase
         return ! empty($parallelTesting);
     }
 
+    private static function normalizeLaravelParallelTestToken(): void
+    {
+        if (! self::isLaravelParallelTesting()) {
+            return;
+        }
+
+        $testToken = self::parallelTestToken();
+        $testTokenSuffix = self::parallelTestTokenSuffix();
+
+        if ($testToken === null || $testTokenSuffix === null || $testToken === $testTokenSuffix) {
+            return;
+        }
+
+        self::setEnvironmentValue('TEST_TOKEN', $testTokenSuffix);
+    }
+
     private static function parallelTestTokenSuffix(): ?string
+    {
+        $testToken = self::parallelTestToken();
+
+        if ($testToken === null) {
+            return null;
+        }
+
+        if (preg_match('/\A(?:[0-9]{1,20}|[a-f0-9]{32})\z/', $testToken) === 1) {
+            return $testToken;
+        }
+
+        return substr(hash('sha256', $testToken), 0, 32);
+    }
+
+    private static function parallelTestToken(): ?string
     {
         $testToken = $_SERVER['TEST_TOKEN'] ?? getenv('TEST_TOKEN');
 
@@ -759,13 +792,7 @@ abstract class TestCase extends BaseTestCase
             return null;
         }
 
-        $testToken = (string) $testToken;
-
-        if (preg_match('/\A[0-9]{1,20}\z/', $testToken) === 1) {
-            return $testToken;
-        }
-
-        return substr(hash('sha256', $testToken), 0, 32);
+        return (string) $testToken;
     }
 
     protected static function resetBootstrapEnvironmentState(): void
