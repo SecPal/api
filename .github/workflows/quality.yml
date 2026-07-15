@@ -43,6 +43,39 @@ jobs:
       - name: Check license compatibility
         run: bash scripts/check-license-compatibility.sh reuse.spdx
 
+  pre-commit-hooks:
+    name: Pre-commit Hook Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install npm 12 and pre-commit
+        run: |
+          npm install --global npm@12.0.0
+          python -m pip install pre-commit==4.5.1
+
+      - name: Install and validate hooks
+        run: |
+          pre-commit validate-config
+          pre-commit install-hooks
+
+      - name: Run npm-backed hooks
+        run: |
+          pre-commit run prettier --files .pre-commit-config.yaml
+          pre-commit run markdownlint --files CHANGELOG.md README.md
+
   prettier:
     name: Formatting Check
     uses: ./.github/workflows/reusable-prettier.yml
