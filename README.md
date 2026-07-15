@@ -523,6 +523,7 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduc
 The `main` branch is protected with the following rules:
 
 - Required status checks must pass
+- Cryptographically signed commits are required (SSH or OpenPGP)
 - Pull request reviews required
 - Conversations must be resolved
 - Force pushes are disabled

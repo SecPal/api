@@ -76,7 +76,7 @@ At minimum verify:
 - `vendor/bin/pint --dirty` ran after PHP changes
 - out-of-scope findings were turned into GitHub issues immediately
 - `CHANGELOG.md` was updated for real changes
-- commits are GPG-signed
+- commits are cryptographically signed with SSH or OpenPGP
 - REUSE compliance was checked when changed files require it
 - when a fix alters observable behavior, state lifecycle, error handling, or security constraints, the corresponding tests were identified and updated in the same commit
 - before pushing behavioral or security-critical changes, affected tests were run locally (`PREFLIGHT_RUN_TESTS=1 git push` or invoke the test runner directly)
@@ -87,6 +87,7 @@ At minimum verify:
 
 - Treat AI findings and AI-generated fix PRs as hints, not proof.
 - Before merge, prove the defect with a failing test, a reproducible defect, or a stated invariant and why the current code violates it.
+- For commit-signature or author/committer-identity findings, first verify that the cited hash belongs to the pull request's actual remote commit set, then assess it using the hosting provider's verification result or a correctly configured local trust store; never use a temporary review-environment, worktree, or synthetic commit as proof.
 - Green CI alone is not enough for AI-generated changes, especially test, lifecycle, shell, regex, or refactor diffs; review the semantic risk explicitly.
 - Reject AI-generated test or helper mutations that move executable code across Pest scope boundaries or bypass framework wiring.
 - Reject AI-generated refactors that resolve services inside API resources or serializers, move business logic into presentation code, or repeat request-scoped work that should run once per request.
