@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- added a native workflow artifact audit script with Pest coverage and its required Ripgrep CI dependency, so API, frontend, contracts, and Android can be checked together for active legacy local-container files, directories, symbolic-link targets, and underscore-delimited references while allowing historical changelog entries, generated root storage, and gitignored workspace metadata.
+- added a native workflow artifact audit script with Pest coverage and its required Ripgrep CI dependency, so API, frontend, contracts, and Android can be checked together for active legacy local-container files, directories, symbolic-link targets, and underscore- or camel-case references while allowing historical changelog entries, generated root storage/cache, and gitignored workspace metadata.
 - added optional customer VAT ID persistence, validation, and API response support (refs `api#1280`)
 - added `GET /v1/customers/legal-entities` as a tenant-injected minimal lookup for customer creation, returning only active, assignable same-tenant Legal Entities where the caller has global `customers.create` plus organizational write scope
 - added mandatory tenant-consistent `customers.legal_entity_id` persistence with a non-null organizational-unit FK, composite tenant/legal-entity database enforcement, create/update validation for active same-tenant legal entities, Customer model/resource/activity-log coverage, and a migration guard that fails fast when existing customers still need the US-001 approved deterministic backfill

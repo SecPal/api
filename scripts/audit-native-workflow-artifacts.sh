@@ -13,9 +13,11 @@ if [ "$#" -eq 0 ]; then
   set -- "$(git rev-parse --show-toplevel)"
 fi
 
-legacy_name="$(printf '%s%s' d dev)"
-legacy_dir="$(printf '.%s' "$legacy_name")"
-pattern="(^|[^[:alnum:]])(${legacy_name}|\\${legacy_dir})([^[:alnum:]]|$)"
+camel_name="$(printf '%s%s' D dev)"
+upper_name="$(printf '%s%s' DD EV)"
+legacy_pattern='[dD][dD][eE][vV]'
+camel_pattern="(${camel_name}|${upper_name})"
+pattern="(^|[^[:alnum:]])${legacy_pattern}([^[:alnum:]]|[[:upper:]]|$)|[[:lower:][:digit:]]${camel_pattern}([^[:lower:][:digit:]]|$)"
 has_findings=0
 
 for repo in "$@"; do
@@ -26,14 +28,14 @@ for repo in "$@"; do
 
   set +e
   content_findings="$(
-    cd "$repo" && rg --hidden --line-number --ignore-case "$pattern" . \
+    cd "$repo" && rg --hidden --line-number "$pattern" . \
       -g '!**/CHANGELOG.md' \
       -g '!**/.git/**' \
       -g '!**/.context/**' \
       -g '!**/vendor/**' \
       -g '!**/node_modules/**' \
       -g '!storage/**' \
-      -g '!**/bootstrap/cache/**' \
+      -g '!bootstrap/cache/**' \
       -g '!**/build/**' \
       -g '!**/dist/**' \
       -g '!**/coverage/**' \
@@ -45,7 +47,7 @@ for repo in "$@"; do
   content_status=$?
   path_candidates="$(
     cd "$repo" && find . \
-      \( -type d \( -name .git -o -name .context -o -name vendor -o -name node_modules -o -path ./storage -o -name build -o -name dist -o -name coverage \) -prune \) -o \
+      \( -type d \( -name .git -o -name .context -o -name vendor -o -name node_modules -o -path ./storage -o -path ./bootstrap/cache -o -name build -o -name dist -o -name coverage \) -prune \) -o \
       \( -type f ! -name CHANGELOG.md ! -name package-lock.json ! -name composer.lock ! -name '*.tsbuildinfo' -print \) -o \
       \( -type l -print \) -o \
       \( -type d -print \)
@@ -65,7 +67,7 @@ for repo in "$@"; do
     fi
   done <<< "$path_candidates"
 
-  path_findings="$(printf '%s\n' "$path_candidates" | rg --line-number --ignore-case "$pattern")"
+  path_findings="$(printf '%s\n' "$path_candidates" | rg --line-number "$pattern")"
   path_status=$?
   set -e
 

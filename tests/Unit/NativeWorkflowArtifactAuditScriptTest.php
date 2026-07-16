@@ -22,10 +22,32 @@ function makeNativeWorkflowAuditFixture(): string
     return $root;
 }
 
+function nativeWorkflowAuditPath(): string
+{
+    return getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin';
+}
+
+function nativeWorkflowExecutableIsAvailable(string $executable): bool
+{
+    foreach (explode(PATH_SEPARATOR, nativeWorkflowAuditPath()) as $directory) {
+        $candidate = $directory === '' ? $executable : $directory.DIRECTORY_SEPARATOR.$executable;
+
+        if (is_file($candidate) && is_executable($candidate)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function runNativeWorkflowArtifactAudit(string ...$paths): array
 {
     if (! function_exists('proc_open')) {
         test()->markTestSkipped('proc_open is required for native workflow artifact audit coverage.');
+    }
+
+    if (! nativeWorkflowExecutableIsAvailable('rg')) {
+        test()->markTestSkipped('ripgrep is required for native workflow artifact audit coverage.');
     }
 
     $process = proc_open(
@@ -39,7 +61,7 @@ function runNativeWorkflowArtifactAudit(string ...$paths): array
         base_path(),
         [
             'LC_ALL' => 'C',
-            'PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
+            'PATH' => nativeWorkflowAuditPath(),
         ],
     );
 
@@ -242,6 +264,71 @@ test('native workflow artifact audit checks neutral symlink targets', function (
 
         expect($result['exit_code'])->toBe(1)
             ->and($result['stderr'])->toContain('local-config.yaml');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit rejects camel-case content references', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+
+    try {
+        file_put_contents($root.'/config.php', '$config = use'.ucfirst(nativeWorkflowLegacyToken()).'Config();');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(1)
+            ->and($result['stderr'])->toContain('config.php');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit rejects camel-case artifact paths', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+    $className = ucfirst(nativeWorkflowLegacyToken()).'Config';
+
+    try {
+        file_put_contents($root.'/'.$className.'.php', '<?php');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(1)
+            ->and($result['stderr'])->toContain($className.'.php');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit checks source bootstrap cache directories', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+    $sourceCache = $root.'/src/bootstrap/cache';
+    mkdir($sourceCache, 0777, true);
+
+    try {
+        file_put_contents($sourceCache.'/config.php', 'Run '.nativeWorkflowLegacyToken().' start.');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(1)
+            ->and($result['stderr'])->toContain('src/bootstrap/cache/config.php');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit ignores generated root bootstrap cache', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+    $generatedCache = $root.'/bootstrap/cache';
+    mkdir($generatedCache, 0777, true);
+
+    try {
+        file_put_contents($generatedCache.'/config.php', 'Run '.nativeWorkflowLegacyToken().' start.');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(0)
+            ->and($result['stdout'])->toContain('Native workflow artifact audit passed');
     } finally {
         File::deleteDirectory($root);
     }

@@ -27,6 +27,13 @@ function makePreflightExecutable(string $path, string $contents): void
     chmod($path, 0755);
 }
 
+function runPreflightFixtureGitCommand(string $root, string $arguments): void
+{
+    exec('git -C '.escapeshellarg($root).' '.$arguments.' 2>&1', $output, $exitCode);
+
+    expect($exitCode)->toBe(0, implode("\n", $output));
+}
+
 function makePreflightFixture(int $parallelExitCode = 0, int $serialExitCode = 9): string
 {
     $root = sys_get_temp_dir().'/secpal-preflight-'.bin2hex(random_bytes(8));
@@ -72,14 +79,20 @@ BASH);
     ));
     chmod($root.'/stubs/php', 0755);
 
-    exec('git -C '.escapeshellarg($root).' init --quiet');
-    exec('git -C '.escapeshellarg($root).' checkout -b feature/preflight --quiet');
-    exec('git -C '.escapeshellarg($root).' config user.email preflight@example.test');
-    exec('git -C '.escapeshellarg($root).' config user.name "Preflight Test"');
-    exec('git -C '.escapeshellarg($root).' add .');
-    exec('git -C '.escapeshellarg($root).' commit --quiet -m initial');
-    exec('git -C '.escapeshellarg($root).' update-ref refs/remotes/origin/main HEAD');
-    exec('git -C '.escapeshellarg($root).' symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main');
+    try {
+        runPreflightFixtureGitCommand($root, 'init --quiet');
+        runPreflightFixtureGitCommand($root, 'checkout -b feature/preflight --quiet');
+        runPreflightFixtureGitCommand($root, 'config user.email preflight@example.test');
+        runPreflightFixtureGitCommand($root, 'config user.name "Preflight Test"');
+        runPreflightFixtureGitCommand($root, 'add .');
+        runPreflightFixtureGitCommand($root, '-c commit.gpgsign=false commit --quiet -m initial');
+        runPreflightFixtureGitCommand($root, 'update-ref refs/remotes/origin/main HEAD');
+        runPreflightFixtureGitCommand($root, 'symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main');
+    } catch (Throwable $exception) {
+        File::deleteDirectory($root);
+
+        throw $exception;
+    }
 
     return $root;
 }
@@ -146,4 +159,45 @@ test('preflight excludes gitignored workspace context notes from markdownlint', 
     expect(preflightScriptContents())
         ->toContain('markdownlint --config .markdownlint.json --dot \'**/*.md\'')
         ->toContain('--ignore-path .gitignore');
+});
+
+test('preflight fixture commits without inherited signing requirements', function (): void {
+    $environment = [
+        'GIT_CONFIG_COUNT' => '3',
+        'GIT_CONFIG_KEY_0' => 'commit.gpgsign',
+        'GIT_CONFIG_VALUE_0' => 'true',
+        'GIT_CONFIG_KEY_1' => 'gpg.format',
+        'GIT_CONFIG_VALUE_1' => 'ssh',
+        'GIT_CONFIG_KEY_2' => 'user.signingkey',
+        'GIT_CONFIG_VALUE_2' => '/definitely/missing/signing-key',
+    ];
+    $originalEnvironment = [];
+
+    foreach ($environment as $name => $value) {
+        $originalEnvironment[$name] = getenv($name);
+        putenv($name.'='.$value);
+    }
+
+    $root = null;
+
+    try {
+        $root = makePreflightFixture();
+        exec('git -C '.escapeshellarg($root).' rev-parse --verify HEAD 2>&1', $output, $exitCode);
+
+        expect($exitCode)->toBe(0, implode("\n", $output));
+    } finally {
+        if ($root !== null) {
+            File::deleteDirectory($root);
+        }
+
+        foreach ($originalEnvironment as $name => $value) {
+            if ($value === false) {
+                putenv($name);
+
+                continue;
+            }
+
+            putenv($name.'='.$value);
+        }
+    }
 });
