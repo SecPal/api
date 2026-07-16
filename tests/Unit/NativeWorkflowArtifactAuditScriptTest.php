@@ -197,3 +197,52 @@ test('native workflow artifact audit ignores workspace context metadata', functi
         File::deleteDirectory($root);
     }
 });
+
+test('native workflow artifact audit checks source directories named storage', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+    $sourceStorage = $root.'/src/storage';
+    mkdir($sourceStorage, 0777, true);
+
+    try {
+        file_put_contents($sourceStorage.'/config.ts', 'export const enabled = "'.nativeWorkflowLegacyToken().'";');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(1)
+            ->and($result['stderr'])->toContain('src/storage/config.ts');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit ignores generated root storage', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+    $generatedStorage = $root.'/storage/framework';
+    mkdir($generatedStorage, 0777, true);
+
+    try {
+        file_put_contents($generatedStorage.'/cache.php', 'Run '.nativeWorkflowLegacyToken().' start.');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(0)
+            ->and($result['stdout'])->toContain('Native workflow artifact audit passed');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit checks neutral symlink targets', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+
+    try {
+        symlink('/tmp/.'.nativeWorkflowLegacyToken().'/config.yaml', $root.'/local-config.yaml');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(1)
+            ->and($result['stderr'])->toContain('local-config.yaml');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});

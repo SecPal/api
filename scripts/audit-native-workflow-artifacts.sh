@@ -26,13 +26,13 @@ for repo in "$@"; do
 
   set +e
   content_findings="$(
-    rg --hidden --line-number --ignore-case "$pattern" "$repo" \
+    cd "$repo" && rg --hidden --line-number --ignore-case "$pattern" . \
       -g '!**/CHANGELOG.md' \
       -g '!**/.git/**' \
       -g '!**/.context/**' \
       -g '!**/vendor/**' \
       -g '!**/node_modules/**' \
-      -g '!**/storage/**' \
+      -g '!storage/**' \
       -g '!**/bootstrap/cache/**' \
       -g '!**/build/**' \
       -g '!**/dist/**' \
@@ -45,12 +45,26 @@ for repo in "$@"; do
   content_status=$?
   path_candidates="$(
     cd "$repo" && find . \
-      \( -type d \( -name .git -o -name .context -o -name vendor -o -name node_modules -o -name storage -o -name build -o -name dist -o -name coverage \) -prune \) -o \
+      \( -type d \( -name .git -o -name .context -o -name vendor -o -name node_modules -o -path ./storage -o -name build -o -name dist -o -name coverage \) -prune \) -o \
       \( -type f ! -name CHANGELOG.md ! -name package-lock.json ! -name composer.lock ! -name '*.tsbuildinfo' -print \) -o \
       \( -type l -print \) -o \
       \( -type d -print \)
   )"
   find_status=$?
+
+  while IFS= read -r candidate; do
+    candidate_path="$repo/${candidate#./}"
+
+    if [ -L "$candidate_path" ]; then
+      if ! link_target="$(readlink "$candidate_path")"; then
+        echo "Native workflow artifact audit could not read symlink target: $candidate_path" >&2
+        exit 2
+      fi
+
+      path_candidates+=$'\n'"$candidate -> $link_target"
+    fi
+  done <<< "$path_candidates"
+
   path_findings="$(printf '%s\n' "$path_candidates" | rg --line-number --ignore-case "$pattern")"
   path_status=$?
   set -e
