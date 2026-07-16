@@ -23,6 +23,12 @@ from opentimestamps.core.timestamp import Timestamp, DetachedTimestampFile
 from opentimestamps.core.op import OpSHA256
 from opentimestamps.core.serialize import StreamSerializationContext
 import opentimestamps.calendar
+from opentimestamps.calendar import DEFAULT_AGGREGATORS
+
+# A single successful calendar submission is sufficient to create a pending proof.
+# Every additional successful response is merged into that same proof.
+MINIMUM_SUCCESSFUL_SUBMISSIONS = 1
+
 
 def main():
     if len(sys.argv) != 2:
@@ -46,22 +52,8 @@ def main():
     # This is the KEY difference: we use the hash AS-IS, not hash it again
     timestamp = Timestamp(digest)
 
-    # Submit to calendar servers
-    # Import DEFAULT_AGGREGATORS from the official opentimestamps library
-    # This ensures we always use the current official servers
-    try:
-        from opentimestamps.cmds import DEFAULT_CALENDAR_URLS
-        calendar_urls = list(DEFAULT_CALENDAR_URLS)
-    except ImportError:
-        # Fallback to hardcoded servers if import fails (older library version)
-        print("Warning: Could not import calendar servers from library", file=sys.stderr)
-        print("Falling back to hardcoded calendar server list", file=sys.stderr)
-        calendar_urls = [
-            'https://a.pool.opentimestamps.org',
-            'https://b.pool.opentimestamps.org',
-            'https://a.pool.eternitywall.com',
-            'https://ots.btc.catallaxy.com',
-        ]
+    # Use the calendar list provided by the installed OpenTimestamps library.
+    calendar_urls = list(DEFAULT_AGGREGATORS)
 
     print(f"Using {len(calendar_urls)} calendar servers", file=sys.stderr)
 
@@ -78,8 +70,11 @@ def main():
             print(f"Warning: Failed to submit to {url}: {e}", file=sys.stderr)
             continue
 
-    if submitted_count == 0:
-        print("Error: Failed to submit to any calendar server", file=sys.stderr)
+    if submitted_count < MINIMUM_SUCCESSFUL_SUBMISSIONS:
+        print(
+            f"Error: Failed to submit to at least {MINIMUM_SUCCESSFUL_SUBMISSIONS} calendar server",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Create DetachedTimestampFile with OpSHA256 as the file hash operation

@@ -66,11 +66,11 @@ test('submit creates pending proof', function () {
     expect(strlen($proof))->toBeGreaterThan(20); // Minimal proof size
 });
 
-test('submit fails if insufficient calendars respond', function () {
-    // Arrange: Python script will fail if calendars don't respond
+test('submit fails when every calendar submission fails', function () {
+    // Arrange: Python script fails only when no calendar accepts the submission.
     $merkleRoot = hash('sha256', 'test-merkle-root');
 
-    // Mock Python script - returns error exit code when insufficient calendars respond
+    // Mock the script's all-calendars-failed exit path.
     $this->mockExecutor->shouldReceive('execute')
         ->withArgs(function ($command, $stdin, $timeout) use ($merkleRoot) {
             return count($command) === 3
@@ -84,12 +84,15 @@ test('submit fails if insufficient calendars respond', function () {
         ->andReturn([
             'exitCode' => 1,
             'stdout' => '',
-            'stderr' => 'only 1 of 3 calendars responded',
+            'stderr' => 'Error: Failed to submit to at least 1 calendar server',
         ]);
 
     // Act & Assert: Should throw exception
     expect(fn () => $this->service->submit($merkleRoot))
-        ->toThrow(RuntimeException::class, 'only 1 of 3 calendars responded');
+        ->toThrow(
+            RuntimeException::class,
+            'Failed to submit timestamp: OTS submission script failed with exit code 1: Error: Failed to submit to at least 1 calendar server',
+        );
 });
 
 test('upgrade returns null if not yet confirmed', function () {

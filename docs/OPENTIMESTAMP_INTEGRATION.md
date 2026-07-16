@@ -24,55 +24,32 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 ### Components
 
 1. **OpenTimestampService** (`app/Services/OpenTimestampService.php`)
+
    - Handles submission, upgrade, and verification of OTS proofs
    - Uses the OpenTimestamps Python library for submission and bounded verification, plus `ots upgrade` for proof upgrades
    - Implements proof- and provider-bound caching for successful verification decisions
-   - **Proof Merging**: Combines attestations from multiple calendar servers for redundancy
+   - Merges every successful calendar submission into one pending proof
 
 2. **ProcessExecutor** (`app/Contracts/ProcessExecutor.php`)
+
    - Abstraction for executing external commands with explicit process environments
    - Enables testable, mocked process interactions
 
 3. **Jobs**
+
    - `SubmitMerkleRootToOpenTimestamp`: Submits batch merkle roots to calendars
    - `UpgradeOpenTimestampProofs`: Polls for Bitcoin-anchored proofs
 
 4. **Runtime installation guidance**
    - Documents how to install `opentimestamps-client` in local shells, containers, and production environments
 
-### Proof Selection from Multiple Calendars
+### Calendar Submission and Proof Merging
 
-When submitting a timestamp to multiple calendar servers, SecPal stores the first valid calendar response:
+`scripts/ots-stamp-hash.py` obtains `DEFAULT_AGGREGATORS` from the installed OpenTimestamps Python library and submits to each calendar **sequentially**. Each successful response is merged into the same in-memory timestamp before it is serialized, so the stored pending proof carries every available calendar attestation.
 
-- **Problem**: If only one calendar server is contacted, submission fails if that server is unavailable
-- **Solution**: Submit to 3 calendar servers in parallel (alice, bob, finney)
-- **Benefit**: Higher success rate (requires minimum 2 of 3 calendars to respond)
-- **Current limitation**: Only the first calendar's proof is stored (not merged)
+The intended success threshold is **one successful calendar response**. This keeps submission available when some calendars are unavailable while retaining the redundancy contributed by any additional successful responses. Submission fails only when every calendar request fails.
 
-> **Note on Proof Merging**
-> True OTS proof merging (combining attestations from multiple calendars into a single proof) requires implementing a full OTS binary format parser with fork operation support (OpCode 0xFF). This is tracked in Issue #410 (Full OTS Parser) and Issue #411 (Proof Merging).
->
-> The current implementation prioritizes reliability and OTS compliance by storing a valid proof from one calendar rather than attempting to create an invalid merged structure.
-
-**Implementation** (Issue #411 - Updated after review):
-
-- `submit()` sends digest to 3 calendar servers in parallel
-- Each calendar returns a complete OTS proof with its attestation
-- `mergeProofs()` selects the first valid proof to store
-- The stored proof is structurally valid and verifiable by OTS CLI tools
-
-**Example**:
-
-```php
-// 3 calendars respond with individual OTS proofs
-$aliceProof = Http::post('alice.btc.../timestamp/abc123'); // Valid OTS proof
-$bobProof = Http::post('bob.btc.../timestamp/abc123');     // Valid OTS proof
-$finneyProof = Http::post('finney.../timestamp/abc123');   // Valid OTS proof
-
-// submit() returns first proof (alice's)
-$storedProof = $service->submit('abc123...');
-// $storedProof is a valid OTS proof verifiable by: ots verify
-```
+The library owns both the calendar list and the OTS merge operation; SecPal does not select a first response or expose a PHP `mergeProofs()` method.
 
 ### Data Flow
 
@@ -180,17 +157,12 @@ ots --version
 ### Environment Variables
 
 ```env
-# OpenTimestamp Configuration (config/services.php)
+# OpenTimestamp Configuration
 
-# Calendar URLs (comma-separated)
-# Default: alice.btc.calendar.opentimestamps.org,
-#          bob.btc.calendar.opentimestamps.org,
-#          finney.calendar.eternitywall.com
-OTS_CALENDAR_URLS=https://alice.btc.calendar.opentimestamps.org,https://bob.btc.calendar.opentimestamps.org
-
-# Minimum successful calendar responses required
-# Default: 2 (security vs. availability trade-off)
-OTS_MIN_CALENDAR_RESPONSES=2
+# Calendar submission uses the installed OpenTimestamps Python library's
+# DEFAULT_AGGREGATORS. SecPal does not read OTS_CALENDAR_URLS or
+# OTS_MIN_CALENDAR_RESPONSES. It submits sequentially, merges all successful
+# responses, and requires one successful response.
 
 # Bitcoin header API bases used during verification (comma-separated).
 # At least two canonical HTTPS origins are required so one configured provider cannot
@@ -205,8 +177,9 @@ OTS_BITCOIN_HEADER_API_BASES=https://blockstream.info/api,https://mempool.space/
 OTS_VERIFICATION_CACHE_TTL_SECONDS=3600
 
 # Note: The Python verifier process timeout is hardcoded at 10 seconds in OpenTimestampService
-# and is not configurable via environment variable.
-# HTTP request timeout (OPENTIMESTAMP_TIMEOUT) is separate and defaults to 30s.
+# and is not configurable via environment variable. Calendar submission has a hardcoded
+# 15-second process timeout in OpenTimestampService; the Python library owns individual
+# calendar requests.
 ```
 
 ### Queue Configuration
@@ -323,14 +296,17 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
 **Possible Causes**:
 
 1. **Pending Proof (Most Common)**
+
    - Proof not yet Bitcoin-anchored (~1 hour after submission)
    - Wait and retry `upgrade()`, then `verify()`
 
 2. **Verifier Timeout**
+
    - Network latency or insufficient quorum across Bitcoin header APIs
    - Check all configured HTTPS providers; requests are capped at two seconds, and height lookups leave two request budgets for header retrieval and one fallback within the fixed shared deadline
 
 3. **Digest Mismatch**
+
    - Ensure digest is SHA256 hex string (64 characters)
    - Case-insensitive (normalized to lowercase)
 
@@ -340,7 +316,7 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
 
 ### Calendar Submission Fails
 
-**Symptom**: `submit()` throws `RuntimeException: only 0 of 3 calendars responded`
+**Symptom**: `submit()` throws `RuntimeException: Failed to submit timestamp`
 
 **Solution**:
 
@@ -352,11 +328,13 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
    ```
 
 2. **Firewall Rules**
+
    - Ensure outbound HTTPS (443) allowed to calendar servers
 
-3. **Calendar Server Down**
+3. **All Calendar Servers Unavailable**
    - Check calendar server status: <https://opentimestamps.org/>
-   - Lower `OTS_MIN_CALENDAR_RESPONSES` (not recommended for production)
+   - The runtime accepts one successful response and automatically retains all
+     additional successful calendar attestations; no application threshold is configurable.
 
 ### Performance Issues
 
@@ -372,6 +350,7 @@ pip3 list | grep opentimestamps  # Should show opentimestamps-client
    ```
 
 2. **Database Query Optimization**
+
    - Index on `activity_log.opentimestamp_merkle_root`
    - Index on `activity_log.opentimestamp_proof_confirmed`
 
