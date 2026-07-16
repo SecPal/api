@@ -166,12 +166,16 @@ test('license compatibility script allows documented third-party configuration t
     ];
 
     $laravelTemplateSpdx = implode("\n\n", array_map(
-        static fn (string $path): string => <<<SPDX
+        static function (string $path): string {
+            $spdxId = str_replace(['/', '.'], '-', $path);
+
+            return <<<SPDX
 FileName: {$path}
-SPDXID: SPDXRef-{$path}
+SPDXID: SPDXRef-{$spdxId}
 LicenseInfoInFile: MIT
 LicenseConcluded: MIT
-SPDX,
+SPDX;
+        },
         $laravelTemplateFiles,
     ));
 
