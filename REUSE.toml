@@ -9,8 +9,42 @@ path = "app/**"
 SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
 
 [[annotations]]
-path = "config/**"
+path = [
+  "config/activitylog.php",
+  "config/address_data.php",
+  "config/android.php",
+  "config/attachments.php",
+  "config/bootstrap.php",
+  "config/onboarding_nationalities.php",
+  "config/opentimestamp.php",
+  "config/passkeys.php",
+  "config/polyglot.php",
+  "config/two-factor.php",
+]
 SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
+
+[[annotations]]
+path = [
+  "config/app.php",
+  "config/auth.php",
+  "config/cache.php",
+  "config/cors.php",
+  "config/database.php",
+  "config/filesystems.php",
+  "config/logging.php",
+  "config/mail.php",
+  "config/queue.php",
+  "config/sanctum.php",
+  "config/services.php",
+  "config/session.php",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Taylor Otwell"
+
+[[annotations]]
+path = "config/permission.php"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Spatie bvba <info@spatie.be>"
 
 [[annotations]]
 path = "database/**"

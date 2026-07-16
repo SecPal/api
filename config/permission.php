@@ -2,8 +2,7 @@
 
 /*
  * SPDX-FileCopyrightText: 2025 SecPal Contributors
- *
- * SPDX-License-Identifier: CC0-1.0
+ * SPDX-License-Identifier: MIT
  */
 
 return [

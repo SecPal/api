@@ -79,7 +79,7 @@ is_strict_exception() {
   local path="$1"
 
   case "$path" in
-    bootstrap/cache/.gitignore|config/permission.php|database/.gitignore|public/.htaccess|public/robots.txt|tests/fixtures/address_data/sample_streets.csv)
+    bootstrap/cache/.gitignore|config/app.php|config/auth.php|config/cache.php|config/cors.php|config/database.php|config/filesystems.php|config/logging.php|config/mail.php|config/permission.php|config/queue.php|config/sanctum.php|config/services.php|config/session.php|database/.gitignore|public/.htaccess|public/robots.txt|tests/fixtures/address_data/sample_streets.csv)
       return 0
       ;;
   esac
