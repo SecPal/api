@@ -269,6 +269,43 @@ test('native workflow artifact audit checks neutral symlink targets', function (
     }
 });
 
+test('native workflow artifact audit relativizes absolute in-repository symlink targets', function (): void {
+    $parent = sys_get_temp_dir().'/'.nativeWorkflowLegacyToken().'-clean-'.Str::uuid();
+    $root = $parent.'/repository';
+    $target = $root.'/native-config/config.yaml';
+    mkdir(dirname($target), 0777, true);
+    file_put_contents($target, 'name: native');
+    symlink($target, $root.'/local-config.yaml');
+
+    try {
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(0)
+            ->and($result['stdout'])->toContain('Native workflow artifact audit passed');
+    } finally {
+        File::deleteDirectory($parent);
+    }
+});
+
+test('native workflow artifact audit relativizes absolute sibling symlink targets', function (): void {
+    $parent = sys_get_temp_dir().'/'.nativeWorkflowLegacyToken().'-clean-'.Str::uuid();
+    $root = $parent.'/repository';
+    $target = $parent.'/shared/config.yaml';
+    mkdir($root, 0777, true);
+    mkdir(dirname($target), 0777, true);
+    file_put_contents($target, 'name: shared');
+    symlink($target, $root.'/local-config.yaml');
+
+    try {
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(0)
+            ->and($result['stdout'])->toContain('Native workflow artifact audit passed');
+    } finally {
+        File::deleteDirectory($parent);
+    }
+});
+
 test('native workflow artifact audit rejects camel-case content references', function (): void {
     $root = makeNativeWorkflowAuditFixture();
 

@@ -4,6 +4,31 @@
 
 set -euo pipefail
 
+relativize_absolute_path() {
+  local target="$1"
+  local base="$2"
+  local common="$base"
+  local prefix=""
+
+  while [ "$target" != "$common" ] && [[ "$target" != "$common/"* ]]; do
+    if [ "$common" = "/" ]; then
+      break
+    fi
+
+    common="${common%/*}"
+    [ -n "$common" ] || common="/"
+    prefix="../$prefix"
+  done
+
+  if [ "$target" = "$common" ]; then
+    printf '%s' "${prefix:-.}"
+  elif [ "$common" = "/" ]; then
+    printf '%s%s' "$prefix" "${target#/}"
+  else
+    printf '%s%s' "$prefix" "${target#"$common"/}"
+  fi
+}
+
 if ! command -v rg >/dev/null 2>&1; then
   echo "ripgrep is required for native workflow artifact auditing." >&2
   exit 2
@@ -26,9 +51,11 @@ for repo in "$@"; do
     exit 2
   fi
 
+  repo_root="$(cd "$repo" && pwd -P)"
+
   set +e
   content_findings="$(
-    cd "$repo" && rg --hidden --line-number "$pattern" . \
+    cd "$repo_root" && rg --hidden --line-number "$pattern" . \
       -g '!**/CHANGELOG.md' \
       -g '!**/.git/**' \
       -g '!**/.context/**' \
@@ -46,7 +73,7 @@ for repo in "$@"; do
   )"
   content_status=$?
   path_candidates="$(
-    cd "$repo" && find . \
+    cd "$repo_root" && find . \
       \( -type d \( -name .git -o -name .context -o -name vendor -o -name node_modules -o -path ./storage -o -path ./bootstrap/cache -o -name build -o -name dist -o -name coverage \) -prune \) -o \
       \( -type f ! -name CHANGELOG.md ! -name package-lock.json ! -name composer.lock ! -name '*.tsbuildinfo' -print \) -o \
       \( -type l -print \) -o \
@@ -55,12 +82,16 @@ for repo in "$@"; do
   find_status=$?
 
   while IFS= read -r candidate; do
-    candidate_path="$repo/${candidate#./}"
+    candidate_path="$repo_root/${candidate#./}"
 
     if [ -L "$candidate_path" ]; then
       if ! link_target="$(readlink "$candidate_path")"; then
         echo "Native workflow artifact audit could not read symlink target: $candidate_path" >&2
         exit 2
+      fi
+
+      if [[ "$link_target" = /* ]]; then
+        link_target="$(relativize_absolute_path "$link_target" "$repo_root")"
       fi
 
       path_candidates+=$'\n'"$candidate -> $link_target"
