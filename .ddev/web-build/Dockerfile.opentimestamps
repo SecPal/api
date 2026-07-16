@@ -1,8 +1,0 @@
-# SPDX-FileCopyrightText: 2026 SecPal Contributors
-# SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3-pip \
-    && pip3 install --no-cache-dir --break-system-packages opentimestamps-client==0.7.1 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*

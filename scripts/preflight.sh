@@ -87,51 +87,42 @@ if [ -f composer.json ]; then
   if ! command -v composer >/dev/null 2>&1; then
     echo "Warning: composer.json found but composer not installed - skipping PHP checks" >&2
   else
-    # Auto-detect DDEV for consistent environment
-    CMD_PREFIX=""
-    if command -v ddev >/dev/null 2>&1 && ddev describe >/dev/null 2>&1; then
-      CMD_PREFIX="ddev exec"
-      echo "✓ DDEV detected - using containerized environment for PHP checks"
+    # OPTIMIZATION: Skip install if vendor is up-to-date with composer.lock (massive time saver)
+    # Force install via: PREFLIGHT_FORCE_INSTALL=1 git push
+    NEEDS_INSTALL=0
+    if [ "${PREFLIGHT_FORCE_INSTALL:-0}" = "1" ] || [ ! -d vendor ]; then
+      NEEDS_INSTALL=1
+    elif [ -f composer.lock ] && [ composer.lock -nt vendor ]; then
+      # composer.lock modified after vendor/ - reinstall needed
+      NEEDS_INSTALL=1
+    elif [ ! -f composer.lock ] && [ -f composer.json ] && [ composer.json -nt vendor ]; then
+      # No lock file but composer.json newer than vendor/ - reinstall needed
+      NEEDS_INSTALL=1
     fi
 
-    # Only install dependencies if DDEV not available (DDEV manages its own vendor/)
-    if [ -z "$CMD_PREFIX" ]; then
-      # OPTIMIZATION: Skip install if vendor is up-to-date with composer.lock (massive time saver)
-      # Force install via: PREFLIGHT_FORCE_INSTALL=1 git push
-      NEEDS_INSTALL=0
-      if [ "${PREFLIGHT_FORCE_INSTALL:-0}" = "1" ] || [ ! -d vendor ]; then
-        NEEDS_INSTALL=1
-      elif [ -f composer.lock ] && [ composer.lock -nt vendor ]; then
-        # composer.lock modified after vendor/ - reinstall needed
-        NEEDS_INSTALL=1
-      elif [ ! -f composer.lock ] && [ -f composer.json ] && [ composer.json -nt vendor ]; then
-        # No lock file but composer.json newer than vendor/ - reinstall needed
-        NEEDS_INSTALL=1
-      fi
-
-      if [ "$NEEDS_INSTALL" -eq 1 ]; then
-        composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
-      else
-        echo "ℹ️  Skipping composer install (dependencies up-to-date, force via PREFLIGHT_FORCE_INSTALL=1)" >&2
-      fi
+    if [ "$NEEDS_INSTALL" -eq 1 ]; then
+      composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+    else
+      echo "ℹ️  Skipping composer install (dependencies up-to-date, force via PREFLIGHT_FORCE_INSTALL=1)" >&2
     fi
+
     # Run Laravel Pint code style check if available (blocking: aligns with gates)
     # Workflow: check → fix if needed → verify (per SELF_REVIEW_CHECKLIST.md)
     if [ -x ./vendor/bin/pint ]; then
       echo "→ Checking code style (pint --test --dirty)..."
-      if ! ${CMD_PREFIX} ./vendor/bin/pint --test --dirty; then
+      if ! ./vendor/bin/pint --test --dirty; then
         echo "→ Auto-fixing code style issues (pint --dirty)..."
-        ${CMD_PREFIX} ./vendor/bin/pint --dirty
+        ./vendor/bin/pint --dirty
         echo "→ Verifying fix matches CI requirements (pint --test --dirty)..."
-        ${CMD_PREFIX} ./vendor/bin/pint --test --dirty
+        ./vendor/bin/pint --test --dirty
       fi
     fi
     # Run PHPStan (use configured level from phpstan.neon if exists, else max)
     if [ -x ./vendor/bin/phpstan ]; then
       if [ -f phpstan.neon ] || [ -f phpstan.neon.dist ]; then
-        ${CMD_PREFIX} php -d memory_limit=512M ./vendor/bin/phpstan analyse
+        php -d memory_limit=512M ./vendor/bin/phpstan analyse
       else
-        ${CMD_PREFIX} php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
+        php -d memory_limit=512M ./vendor/bin/phpstan analyse --level=max
       fi
     fi
     # Run tests (Laravel Artisan → Pest → PHPUnit)
@@ -142,26 +133,19 @@ if [ -f composer.json ]; then
       echo "→ Running tests (enabled via PREFLIGHT_RUN_TESTS=1)..."
       TEST_EXIT=0
       if [ -f artisan ]; then
-        ${CMD_PREFIX} php artisan test --parallel --exclude-group=serial || TEST_EXIT=$?
-        ${CMD_PREFIX} php artisan test --group=serial || TEST_EXIT=$?
+        php artisan test --parallel --exclude-group=serial || TEST_EXIT=$?
+        php artisan test --group=serial || TEST_EXIT=$?
       elif [ -x ./vendor/bin/pest ]; then
-        ${CMD_PREFIX} ./vendor/bin/pest --parallel || TEST_EXIT=$?
+        ./vendor/bin/pest --parallel || TEST_EXIT=$?
       elif [ -x ./vendor/bin/phpunit ]; then
-        ${CMD_PREFIX} ./vendor/bin/phpunit || TEST_EXIT=$?
+        ./vendor/bin/phpunit || TEST_EXIT=$?
       fi
 
       if [ "$TEST_EXIT" -ne 0 ]; then
         echo "" >&2
-        if [ -z "$CMD_PREFIX" ]; then
-          echo "⚠️  Tests failed - this may be expected if database is unavailable" >&2
-          echo "CI will run tests in proper environment with database" >&2
-          echo "Tip: Use DDEV for tests requiring PostgreSQL: ddev exec php artisan test" >&2
-        else
-          echo "❌ Tests failed in DDEV environment - this should not happen!" >&2
-          echo "Please fix the failing tests before pushing." >&2
-          exit 1
-        fi
+        echo "❌ Tests failed. Please fix the failing tests before pushing." >&2
         echo "" >&2
+        exit "$TEST_EXIT"
       fi
     else
       echo "ℹ️  Skipping tests in pre-push hook (enable via PREFLIGHT_RUN_TESTS=1)" >&2

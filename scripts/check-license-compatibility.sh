@@ -72,8 +72,7 @@ is_strict_path() {
     || [[ "$path" == resources/* ]] \
     || [[ "$path" == routes/* ]] \
     || [[ "$path" == tests/* ]] \
-    || [[ "$path" == artisan ]] \
-    || [[ "$path" == .ddev/web-build/Dockerfile.opentimestamps ]]
+    || [[ "$path" == artisan ]]
 }
 
 is_strict_exception() {

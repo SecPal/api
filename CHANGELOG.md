@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added a native workflow artifact audit script with Pest coverage and its required Ripgrep CI dependency, so API, frontend, contracts, and Android can be checked together for active legacy local-container files, directories, repository-relative symbolic-link targets, and underscore- or camel-case references while allowing historical changelog entries, generated root storage/cache, and gitignored workspace metadata.
 - added optional customer VAT ID persistence, validation, and API response support (refs `api#1280`)
 - added `GET /v1/customers/legal-entities` as a tenant-injected minimal lookup for customer creation, returning only active, assignable same-tenant Legal Entities where the caller has global `customers.create` plus organizational write scope
 - added mandatory tenant-consistent `customers.legal_entity_id` persistence with a non-null organizational-unit FK, composite tenant/legal-entity database enforcement, create/update validation for active same-tenant legal entities, Customer model/resource/activity-log coverage, and a migration guard that fails fast when existing customers still need the US-001 approved deterministic backfill
@@ -32,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- removed obsolete API DDEV configuration, the OpenTimestamps DDEV build Dockerfile, the DDEV `.gitignore` allowlist, and the license-compatibility strict-path handling and regression coverage that existed only for that removed Dockerfile
+- made local API preflight run Composer, Pint, PHPStan, and enabled Laravel/Pest/PHPUnit tests directly in the native shell, removed DDEV command routing and guidance, and fail preflight when `PREFLIGHT_RUN_TESTS=1` exposes a failing test
 - isolated atomic TenantKey KEK cleanup assertions per test invocation so parallel workers no longer report one another's in-flight temporary files as leftovers (fixes `api#1317`)
 - restricted the draft pull-request reminder workflow to `pull_request` events, preventing issue-event runs from attempting to create a pull-request reminder comment without issue-comment permission (fixes `api#1287`)
 - made local markdownlint preflight honor `.gitignore`, excluding generated `.context` workspace notes and keeping validation scoped to repository Markdown artifacts (fixes `api#1281`, `api#1286`)

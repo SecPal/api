@@ -18,7 +18,7 @@ SecPal uses Laravel's Mail system with Mailpit for local email testing. All emai
 - **UI Listener**: `127.0.0.1:8025` (local-only unless securely proxied)
 - **Configuration**: See `.env.example`
 
-Mailpit is no longer routed through DDEV. Keep the UI local-only by default and use an SSH tunnel or an authenticated reverse proxy if remote access is required.
+Mailpit runs as a native local service. Keep the UI local-only by default and use an SSH tunnel or an authenticated reverse proxy if remote access is required.
 
 ## Configuration
 

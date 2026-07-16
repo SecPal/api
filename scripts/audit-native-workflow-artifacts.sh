@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: MIT
+
+set -euo pipefail
+
+relativize_absolute_path() {
+  local target="$1"
+  local base="$2"
+  local common="$base"
+  local prefix=""
+
+  while [ "$target" != "$common" ] && [[ "$target" != "$common/"* ]]; do
+    if [ "$common" = "/" ]; then
+      break
+    fi
+
+    common="${common%/*}"
+    [ -n "$common" ] || common="/"
+    prefix="../$prefix"
+  done
+
+  if [ "$target" = "$common" ]; then
+    printf '%s' "${prefix:-.}"
+  elif [ "$common" = "/" ]; then
+    printf '%s%s' "$prefix" "${target#/}"
+  else
+    printf '%s%s' "$prefix" "${target#"$common"/}"
+  fi
+}
+
+if ! command -v rg >/dev/null 2>&1; then
+  echo "ripgrep is required for native workflow artifact auditing." >&2
+  exit 2
+fi
+
+if [ "$#" -eq 0 ]; then
+  set -- "$(git rev-parse --show-toplevel)"
+fi
+
+camel_name="$(printf '%s%s' D dev)"
+upper_name="$(printf '%s%s' DD EV)"
+legacy_pattern='[dD][dD][eE][vV]'
+camel_pattern="(${camel_name}|${upper_name})"
+pattern="(^|[^[:alnum:]])${legacy_pattern}([^[:alnum:]]|[[:upper:]]|$)|[[:lower:][:digit:]]${camel_pattern}([^[:lower:][:digit:]]|$)"
+has_findings=0
+
+for repo in "$@"; do
+  if [ ! -d "$repo" ]; then
+    echo "Native workflow artifact audit target is not a directory: $repo" >&2
+    exit 2
+  fi
+
+  repo_root="$(cd "$repo" && pwd -P)"
+
+  set +e
+  content_findings="$(
+    cd "$repo_root" && rg --hidden --line-number "$pattern" . \
+      -g '!**/CHANGELOG.md' \
+      -g '!**/.git/**' \
+      -g '!**/.context/**' \
+      -g '!**/vendor/**' \
+      -g '!**/node_modules/**' \
+      -g '!storage/**' \
+      -g '!bootstrap/cache/**' \
+      -g '!**/build/**' \
+      -g '!**/dist/**' \
+      -g '!**/coverage/**' \
+      -g '!**/package-lock.json' \
+      -g '!**/composer.lock' \
+      -g '!**/*.tsbuildinfo' \
+      2>&1
+  )"
+  content_status=$?
+  path_candidates="$(
+    cd "$repo_root" && find . \
+      \( -type d \( -name .git -o -name .context -o -name vendor -o -name node_modules -o -path ./storage -o -path ./bootstrap/cache -o -name build -o -name dist -o -name coverage \) -prune \) -o \
+      \( -type f ! -name CHANGELOG.md ! -name package-lock.json ! -name composer.lock ! -name '*.tsbuildinfo' -print \) -o \
+      \( -type l -print \) -o \
+      \( -type d -print \)
+  )"
+  find_status=$?
+
+  while IFS= read -r candidate; do
+    candidate_path="$repo_root/${candidate#./}"
+
+    if [ -L "$candidate_path" ]; then
+      if ! link_target="$(readlink "$candidate_path")"; then
+        echo "Native workflow artifact audit could not read symlink target: $candidate_path" >&2
+        exit 2
+      fi
+
+      if [[ "$link_target" = /* ]]; then
+        link_target="$(relativize_absolute_path "$link_target" "$repo_root")"
+      fi
+
+      path_candidates+=$'\n'"$candidate -> $link_target"
+    fi
+  done <<< "$path_candidates"
+
+  path_findings="$(printf '%s\n' "$path_candidates" | rg --line-number "$pattern")"
+  path_status=$?
+  set -e
+
+  if [ "$content_status" -gt 1 ] || [ "$find_status" -ne 0 ] || [ "$path_status" -gt 1 ]; then
+    echo "Native workflow artifact audit could not search $repo." >&2
+    exit 2
+  fi
+
+  findings="${content_findings}${content_findings:+$'\n'}${path_findings}"
+
+  if [ -n "$findings" ]; then
+    has_findings=1
+    echo "Active legacy local-container references remain in $repo:" >&2
+    echo "$findings" >&2
+  fi
+done
+
+if [ "$has_findings" -ne 0 ]; then
+  exit 1
+fi
+
+echo "Native workflow artifact audit passed for $# repository path(s)."
