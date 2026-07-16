@@ -45,7 +45,7 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
 
 ### Calendar Submission and Proof Merging
 
-`scripts/ots-stamp-hash.py` obtains the calendar list from the installed OpenTimestamps Python library and submits to each calendar **sequentially**. Each successful response is merged into the same in-memory timestamp before it is serialized, so the stored pending proof carries every available calendar attestation.
+`scripts/ots-stamp-hash.py` obtains `DEFAULT_AGGREGATORS` from the installed OpenTimestamps Python library and submits to each calendar **sequentially**. Each successful response is merged into the same in-memory timestamp before it is serialized, so the stored pending proof carries every available calendar attestation.
 
 The intended success threshold is **one successful calendar response**. This keeps submission available when some calendars are unavailable while retaining the redundancy contributed by any additional successful responses. Submission fails only when every calendar request fails.
 
@@ -160,7 +160,7 @@ ots --version
 # OpenTimestamp Configuration
 
 # Calendar submission uses the installed OpenTimestamps Python library's
-# DEFAULT_CALENDAR_URLS. SecPal does not read OTS_CALENDAR_URLS or
+# DEFAULT_AGGREGATORS. SecPal does not read OTS_CALENDAR_URLS or
 # OTS_MIN_CALENDAR_RESPONSES. It submits sequentially, merges all successful
 # responses, and requires one successful response.
 

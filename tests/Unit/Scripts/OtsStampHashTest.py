@@ -9,10 +9,14 @@ import contextlib
 import io
 import runpy
 import sys
-import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+import opentimestamps.calendar
+from opentimestamps.core.notary import PendingAttestation
+from opentimestamps.core.serialize import StreamDeserializationContext
+from opentimestamps.core.timestamp import DetachedTimestampFile, Timestamp
 
 
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "ots-stamp-hash.py"
@@ -22,23 +26,6 @@ DIGEST = "a" * 64
 class OtsStampHashTest(unittest.TestCase):
     def run_script(self, outcomes: dict[str, object]):
         submissions: list[str] = []
-
-        class Timestamp:
-            def __init__(self, message: bytes):
-                self.msg = message
-                self.responses: list[str] = []
-
-            def merge(self, response):
-                self.responses.append(response.url)
-
-        class DetachedTimestampFile:
-            def __init__(self, operation, timestamp):
-                self.timestamp = timestamp
-
-            def serialize(self, context):
-                context.stream.write(
-                    b"proof:" + b"|".join(url.encode() for url in self.timestamp.responses)
-                )
 
         class RemoteCalendar:
             def __init__(self, url: str):
@@ -50,29 +37,20 @@ class OtsStampHashTest(unittest.TestCase):
                 if isinstance(outcome, Exception):
                     raise outcome
 
-                return types.SimpleNamespace(url=self.url)
+                response = Timestamp(message)
+                response.attestations.add(PendingAttestation(self.url))
 
-        modules = {
-            "opentimestamps": types.ModuleType("opentimestamps"),
-            "opentimestamps.calendar": types.SimpleNamespace(RemoteCalendar=RemoteCalendar),
-            "opentimestamps.cmds": types.SimpleNamespace(
-                DEFAULT_CALENDAR_URLS=list(outcomes)
-            ),
-            "opentimestamps.core": types.ModuleType("opentimestamps.core"),
-            "opentimestamps.core.timestamp": types.SimpleNamespace(
-                Timestamp=Timestamp, DetachedTimestampFile=DetachedTimestampFile
-            ),
-            "opentimestamps.core.op": types.SimpleNamespace(OpSHA256=object),
-            "opentimestamps.core.serialize": types.SimpleNamespace(
-                StreamSerializationContext=lambda stream: types.SimpleNamespace(stream=stream)
-            ),
-        }
-        modules["opentimestamps"].calendar = modules["opentimestamps.calendar"]
+                return response
 
         stdout = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
         stderr = io.StringIO()
         with (
-            patch.dict(sys.modules, modules),
+            patch.object(
+                opentimestamps.calendar,
+                "DEFAULT_AGGREGATORS",
+                tuple(outcomes),
+            ),
+            patch.object(opentimestamps.calendar, "RemoteCalendar", RemoteCalendar),
             patch.object(sys, "argv", [str(SCRIPT), DIGEST]),
             contextlib.redirect_stdout(stdout),
             contextlib.redirect_stderr(stderr),
@@ -88,6 +66,11 @@ class OtsStampHashTest(unittest.TestCase):
         stdout.flush()
         return exit_code, stdout.buffer.getvalue(), stderr.getvalue(), submissions, runtime
 
+    def deserialize_proof(self, proof: bytes):
+        context = StreamDeserializationContext(io.BytesIO(proof))
+
+        return DetachedTimestampFile.deserialize(context)
+
     def test_merges_every_successful_calendar_response_and_accepts_one(self):
         urls = {
             "https://first.example": object(),
@@ -100,7 +83,16 @@ class OtsStampHashTest(unittest.TestCase):
         self.assertEqual(1, runtime["MINIMUM_SUCCESSFUL_SUBMISSIONS"])
         self.assertEqual(0, exit_code)
         self.assertEqual(list(urls), submissions)
-        self.assertEqual(b"proof:https://first.example|https://last.example", proof)
+        detached_timestamp = self.deserialize_proof(proof)
+        self.assertEqual(bytes.fromhex(DIGEST), detached_timestamp.file_digest)
+        self.assertEqual(
+            {"https://first.example", "https://last.example"},
+            {
+                attestation.uri
+                for attestation in detached_timestamp.timestamp.attestations
+                if isinstance(attestation, PendingAttestation)
+            },
+        )
         self.assertIn("Success: Created proof with 2 calendar attestations", stderr)
 
     def test_succeeds_when_exactly_one_calendar_submission_succeeds(self):
@@ -114,7 +106,15 @@ class OtsStampHashTest(unittest.TestCase):
         self.assertEqual(1, runtime["MINIMUM_SUCCESSFUL_SUBMISSIONS"])
         self.assertEqual(0, exit_code)
         self.assertEqual(list(urls), submissions)
-        self.assertEqual(b"proof:https://successful.example", proof)
+        detached_timestamp = self.deserialize_proof(proof)
+        self.assertEqual(
+            {"https://successful.example"},
+            {
+                attestation.uri
+                for attestation in detached_timestamp.timestamp.attestations
+                if isinstance(attestation, PendingAttestation)
+            },
+        )
         self.assertIn("Success: Created proof with 1 calendar attestations", stderr)
 
     def test_fails_only_when_no_calendar_submissions_succeed(self):
