@@ -200,6 +200,25 @@ SPDX
         ->and($result['stderr'])->toBe('');
 });
 
+test('license compatibility script rejects a non mit license for a third-party configuration template', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: config/app.php
+SPDXID: SPDXRef-ConfigApp
+LicenseInfoInFile: CC0-1.0
+LicenseConcluded: CC0-1.0
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('documented exception must use exactly MIT');
+});
+
 test('license compatibility script allows the Contributor Covenant third-party notice', function (): void {
     $result = runLicenseCompatibilityScript(<<<'SPDX'
 SPDXVersion: SPDX-2.3
