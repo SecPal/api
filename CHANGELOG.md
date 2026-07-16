@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - isolated atomic TenantKey KEK cleanup assertions per test invocation so parallel workers no longer report one another's in-flight temporary files as leftovers (fixes `api#1317`)
 - restricted the draft pull-request reminder workflow to `pull_request` events, preventing issue-event runs from attempting to create a pull-request reminder comment without issue-comment permission (fixes `api#1287`)
-- excluded gitignored `.context` workspace notes from local markdownlint preflight checks so only repository Markdown artifacts are validated (fixes `api#1286`)
+- made local markdownlint preflight honor `.gitignore`, excluding generated `.context` workspace notes and keeping validation scoped to repository Markdown artifacts (fixes `api#1281`, `api#1286`)
 - aligned repository-owned runtime code and asset SPDX metadata with the SecPal Contributors AGPL attribution policy, returned documentation and configuration to their CC0 policy, preserved third-party notices separately, and added license-check regression guards for attribution addendum scope in concluded and in-file SPDX metadata (refs `api#1226`)
 - seed the SecPal Holding organizational unit as both a legal entity and establishment, including repairing the flags when the unit already exists
 - grouped Dependabot updates for `SecPal/.github/.github/workflows/*` under stable `shared-github-workflows` identifiers in `.github/dependabot.yml`, so GitHub derives readable branch names and PR titles from the group name instead of transliterating the full reusable-workflow path into long `SecPal-dot-github-dot-...` strings
