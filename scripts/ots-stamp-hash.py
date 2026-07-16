@@ -24,6 +24,10 @@ from opentimestamps.core.op import OpSHA256
 from opentimestamps.core.serialize import StreamSerializationContext
 import opentimestamps.calendar
 
+# A single successful calendar submission is sufficient to create a pending proof.
+# Every additional successful response is merged into that same proof.
+MINIMUM_SUCCESSFUL_SUBMISSIONS = 1
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: ots-stamp-hash.py <hex_hash>", file=sys.stderr)
@@ -78,8 +82,11 @@ def main():
             print(f"Warning: Failed to submit to {url}: {e}", file=sys.stderr)
             continue
 
-    if submitted_count == 0:
-        print("Error: Failed to submit to any calendar server", file=sys.stderr)
+    if submitted_count < MINIMUM_SUCCESSFUL_SUBMISSIONS:
+        print(
+            f"Error: Failed to submit to at least {MINIMUM_SUCCESSFUL_SUBMISSIONS} calendar server",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Create DetachedTimestampFile with OpSHA256 as the file hash operation
