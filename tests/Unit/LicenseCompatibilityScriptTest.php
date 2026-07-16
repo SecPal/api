@@ -149,8 +149,37 @@ SPDX
         ->and($result['stderr'])->toBe('');
 });
 
-test('license compatibility script allows documented non agpl exceptions in strict directories', function (): void {
-    $result = runLicenseCompatibilityScript(<<<'SPDX'
+test('license compatibility script allows documented third-party configuration templates in strict directories', function (): void {
+    $laravelTemplateFiles = [
+        'config/app.php',
+        'config/auth.php',
+        'config/cache.php',
+        'config/cors.php',
+        'config/database.php',
+        'config/filesystems.php',
+        'config/logging.php',
+        'config/mail.php',
+        'config/queue.php',
+        'config/sanctum.php',
+        'config/services.php',
+        'config/session.php',
+    ];
+
+    $laravelTemplateSpdx = implode("\n\n", array_map(
+        static function (string $path): string {
+            $spdxId = str_replace(['/', '.'], '-', $path);
+
+            return <<<SPDX
+FileName: {$path}
+SPDXID: SPDXRef-{$spdxId}
+LicenseInfoInFile: MIT
+LicenseConcluded: MIT
+SPDX;
+        },
+        $laravelTemplateFiles,
+    ));
+
+    $result = runLicenseCompatibilityScript(<<<SPDX
 SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0
 SPDXID: SPDXRef-DOCUMENT
@@ -159,8 +188,10 @@ DocumentNamespace: https://secpal.dev/spdxdocs/sample
 
 FileName: config/permission.php
 SPDXID: SPDXRef-Config
-LicenseInfoInFile: CC0-1.0
-LicenseConcluded: CC0-1.0
+LicenseInfoInFile: MIT
+LicenseConcluded: MIT
+
+{$laravelTemplateSpdx}
 
 FileName: tests/fixtures/address_data/sample_streets.csv
 SPDXID: SPDXRef-Fixture
@@ -171,6 +202,25 @@ SPDX
 
     expect($result['exit_code'])->toBe(0)
         ->and($result['stderr'])->toBe('');
+});
+
+test('license compatibility script rejects a non mit license for a third-party configuration template', function (): void {
+    $result = runLicenseCompatibilityScript(<<<'SPDX'
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: sample
+DocumentNamespace: https://secpal.dev/spdxdocs/sample
+
+FileName: config/app.php
+SPDXID: SPDXRef-ConfigApp
+LicenseInfoInFile: CC0-1.0
+LicenseConcluded: CC0-1.0
+SPDX
+    );
+
+    expect($result['exit_code'])->toBe(1)
+        ->and($result['stderr'])->toContain('documented exception must use exactly MIT');
 });
 
 test('license compatibility script allows the Contributor Covenant third-party notice', function (): void {

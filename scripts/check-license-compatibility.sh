@@ -78,8 +78,23 @@ is_strict_path() {
 is_strict_exception() {
   local path="$1"
 
+  strict_exception_license "$path" > /dev/null
+}
+
+strict_exception_license() {
+  local path="$1"
+
   case "$path" in
-    bootstrap/cache/.gitignore|config/permission.php|database/.gitignore|public/.htaccess|public/robots.txt|tests/fixtures/address_data/sample_streets.csv)
+    config/app.php|config/auth.php|config/cache.php|config/cors.php|config/database.php|config/filesystems.php|config/logging.php|config/mail.php|config/permission.php|config/queue.php|config/sanctum.php|config/services.php|config/session.php)
+      echo 'MIT'
+      return 0
+      ;;
+    bootstrap/cache/.gitignore|database/.gitignore|public/.htaccess|public/robots.txt)
+      echo 'CC0-1.0'
+      return 0
+      ;;
+    tests/fixtures/address_data/sample_streets.csv)
+      echo 'ODbL-1.0'
       return 0
       ;;
   esac
@@ -97,6 +112,8 @@ validate_current_file() {
     return 0
   fi
 
+  path="${path#./}"
+
   local license
 
   for license in "${licenses[@]}"; do
@@ -105,6 +122,23 @@ validate_current_file() {
       return 1
     fi
   done
+
+  local exception_license
+
+  if exception_license="$(strict_exception_license "$path")"; then
+    if [[ "${#licenses[@]}" -ne 1 ]] \
+      || ! has_license "$exception_license" "${licenses[@]}"; then
+      echo "ERROR: documented exception must use exactly $exception_license in $path" >&2
+      return 1
+    fi
+
+    if [[ "$concluded" != "NOASSERTION" && "$concluded" != "$exception_license" ]]; then
+      echo "ERROR: documented exception must conclude exactly $exception_license in $path" >&2
+      return 1
+    fi
+
+    return 0
+  fi
 
   if ! is_strict_path "$path" \
     && ([[ "$concluded" == *'LicenseRef-SecPal-Attribution'* ]] \
