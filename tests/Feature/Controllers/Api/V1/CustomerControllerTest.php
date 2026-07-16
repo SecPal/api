@@ -1066,8 +1066,27 @@ describe('PATCH /v1/customers/{customer}', function () {
         expect($customer->refresh()->vat_id)->toBeNull();
     });
 
+    test('changes a customer legal entity when the user has write scope on it', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $writableLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+            'is_legal_entity' => true,
+        ]);
+        giveOrganizationalScope($this->user, $writableLegalEntity, accessLevel: 'write');
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/customers/{$customer->id}", [
+                'legal_entity_id' => $writableLegalEntity->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.legal_entity_id', $writableLegalEntity->id);
+
+        expect($customer->refresh()->legal_entity_id)->toBe($writableLegalEntity->id);
+    });
+
     test('rejects changing a customer legal entity without write scope on it', function (): void {
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $originalLegalEntityId = $customer->legal_entity_id;
         $unwritableLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
             'is_legal_entity' => true,
         ]);
@@ -1085,7 +1104,7 @@ describe('PATCH /v1/customers/{customer}', function () {
             ])
             ->assertForbidden();
 
-        expect($customer->refresh()->legal_entity_id)->not->toBe($unwritableLegalEntity->id);
+        expect($customer->refresh()->legal_entity_id)->toBe($originalLegalEntityId);
     });
 
     test('rejects changing a customer legal entity to an unassignable unit', function (): void {
