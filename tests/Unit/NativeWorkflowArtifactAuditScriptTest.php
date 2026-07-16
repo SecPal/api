@@ -24,6 +24,10 @@ function makeNativeWorkflowAuditFixture(): string
 
 function runNativeWorkflowArtifactAudit(string ...$paths): array
 {
+    if (! function_exists('proc_open')) {
+        test()->markTestSkipped('proc_open is required for native workflow artifact audit coverage.');
+    }
+
     $process = proc_open(
         ['bash', 'scripts/audit-native-workflow-artifacts.sh', ...$paths],
         [
@@ -129,4 +133,67 @@ test('native workflow artifact audit reports invalid target paths as search erro
 
     expect($result['exit_code'])->toBe(2)
         ->and($result['stderr'])->toContain('target is not a directory');
+});
+
+test('native workflow artifact audit ignores the absolute parent checkout path', function (): void {
+    $parent = sys_get_temp_dir().'/'.nativeWorkflowLegacyToken().'-clean-'.Str::uuid();
+    $root = $parent.'/repository';
+    mkdir($root, 0777, true);
+
+    try {
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(0)
+            ->and($result['stdout'])->toContain('Native workflow artifact audit passed');
+    } finally {
+        File::deleteDirectory($parent);
+    }
+});
+
+test('native workflow artifact audit rejects underscore-delimited active references', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+
+    try {
+        file_put_contents($root.'/.env.example', strtoupper(nativeWorkflowLegacyToken()).'_ENABLED=true');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(1)
+            ->and($result['stderr'])->toContain('.env.example');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit ignores nested dependency directories', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+    $dependencyPath = $root.'/packages/example/vendor/package';
+    mkdir($dependencyPath, 0777, true);
+
+    try {
+        file_put_contents($dependencyPath.'/config.php', 'Run '.nativeWorkflowLegacyToken().' start.');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(0)
+            ->and($result['stdout'])->toContain('Native workflow artifact audit passed');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit ignores workspace context metadata', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+    mkdir($root.'/.context');
+
+    try {
+        file_put_contents($root.'/.context/'.nativeWorkflowLegacyToken().'-notes.md', 'Historical workspace notes.');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(0)
+            ->and($result['stdout'])->toContain('Native workflow artifact audit passed');
+    } finally {
+        File::deleteDirectory($root);
+    }
 });

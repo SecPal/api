@@ -15,7 +15,7 @@ fi
 
 legacy_name="$(printf '%s%s' d dev)"
 legacy_dir="$(printf '.%s' "$legacy_name")"
-pattern="(^|[^[:alnum:]_])(${legacy_name}|\\${legacy_dir})([^[:alnum:]_]|$)"
+pattern="(^|[^[:alnum:]])(${legacy_name}|\\${legacy_dir})([^[:alnum:]]|$)"
 has_findings=0
 
 for repo in "$@"; do
@@ -27,24 +27,25 @@ for repo in "$@"; do
   set +e
   content_findings="$(
     rg --hidden --line-number --ignore-case "$pattern" "$repo" \
-      -g '!CHANGELOG.md' \
-      -g '!.git' \
-      -g '!vendor' \
-      -g '!node_modules' \
-      -g '!storage' \
-      -g '!bootstrap/cache' \
-      -g '!build' \
-      -g '!dist' \
-      -g '!coverage' \
-      -g '!package-lock.json' \
-      -g '!composer.lock' \
-      -g '!*.tsbuildinfo' \
+      -g '!**/CHANGELOG.md' \
+      -g '!**/.git/**' \
+      -g '!**/.context/**' \
+      -g '!**/vendor/**' \
+      -g '!**/node_modules/**' \
+      -g '!**/storage/**' \
+      -g '!**/bootstrap/cache/**' \
+      -g '!**/build/**' \
+      -g '!**/dist/**' \
+      -g '!**/coverage/**' \
+      -g '!**/package-lock.json' \
+      -g '!**/composer.lock' \
+      -g '!**/*.tsbuildinfo' \
       2>&1
   )"
   content_status=$?
   path_candidates="$(
-    find "$repo" \
-      \( -type d \( -name .git -o -name vendor -o -name node_modules -o -name storage -o -name build -o -name dist -o -name coverage \) -prune \) -o \
+    cd "$repo" && find . \
+      \( -type d \( -name .git -o -name .context -o -name vendor -o -name node_modules -o -name storage -o -name build -o -name dist -o -name coverage \) -prune \) -o \
       \( -type f ! -name CHANGELOG.md ! -name package-lock.json ! -name composer.lock ! -name '*.tsbuildinfo' -print \) -o \
       \( -type l -print \) -o \
       \( -type d -print \)
