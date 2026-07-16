@@ -8,11 +8,9 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
-if (! function_exists('legacyLocalContainerToken')) {
-    function legacyLocalContainerToken(): string
-    {
-        return 'd'.'dev';
-    }
+function nativeWorkflowLegacyToken(): string
+{
+    return 'd'.'dev';
 }
 
 function makeNativeWorkflowAuditFixture(): string
@@ -62,7 +60,7 @@ test('native workflow artifact audit allows only changelog history', function ()
     $root = makeNativeWorkflowAuditFixture();
 
     try {
-        file_put_contents($root.'/CHANGELOG.md', 'Removed '.strtoupper(legacyLocalContainerToken()).' history.');
+        file_put_contents($root.'/CHANGELOG.md', 'Removed '.strtoupper(nativeWorkflowLegacyToken()).' history.');
 
         $result = runNativeWorkflowArtifactAudit($root);
 
@@ -75,7 +73,7 @@ test('native workflow artifact audit allows only changelog history', function ()
 
 test('native workflow artifact audit rejects legacy local-container artifacts even without matching content', function (): void {
     $root = makeNativeWorkflowAuditFixture();
-    $token = legacyLocalContainerToken();
+    $token = nativeWorkflowLegacyToken();
 
     try {
         mkdir($root.'/.'.$token);
@@ -88,4 +86,47 @@ test('native workflow artifact audit rejects legacy local-container artifacts ev
     } finally {
         File::deleteDirectory($root);
     }
+});
+
+test('native workflow artifact audit rejects active content references', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+
+    try {
+        file_put_contents($root.'/README.md', 'Run '.nativeWorkflowLegacyToken().' start.');
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(1)
+            ->and($result['stderr'])->toContain('README.md');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit rejects legacy local-container symlinks', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+    $token = nativeWorkflowLegacyToken();
+
+    try {
+        mkdir($root.'/native-config');
+        file_put_contents($root.'/native-config/config.yaml', 'name: obsolete');
+        symlink($root.'/native-config', $root.'/.'.$token);
+
+        $result = runNativeWorkflowArtifactAudit($root);
+
+        expect($result['exit_code'])->toBe(1)
+            ->and($result['stderr'])->toContain('Active legacy local-container references remain');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('native workflow artifact audit reports invalid target paths as search errors', function (): void {
+    $root = makeNativeWorkflowAuditFixture();
+    File::deleteDirectory($root);
+
+    $result = runNativeWorkflowArtifactAudit($root);
+
+    expect($result['exit_code'])->toBe(2)
+        ->and($result['stderr'])->toContain('target is not a directory');
 });

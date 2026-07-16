@@ -46,6 +46,7 @@ for repo in "$@"; do
     find "$repo" \
       \( -type d \( -name .git -o -name vendor -o -name node_modules -o -name storage -o -name build -o -name dist -o -name coverage \) -prune \) -o \
       \( -type f ! -name CHANGELOG.md ! -name package-lock.json ! -name composer.lock ! -name '*.tsbuildinfo' -print \) -o \
+      \( -type l -print \) -o \
       \( -type d -print \)
   )"
   find_status=$?
