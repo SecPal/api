@@ -89,7 +89,10 @@ test('submit fails when every calendar submission fails', function () {
 
     // Act & Assert: Should throw exception
     expect(fn () => $this->service->submit($merkleRoot))
-        ->toThrow(RuntimeException::class, 'Failed to submit to at least 1 calendar server');
+        ->toThrow(
+            RuntimeException::class,
+            'Failed to submit timestamp: OTS submission script failed with exit code 1: Error: Failed to submit to at least 1 calendar server',
+        );
 });
 
 test('upgrade returns null if not yet confirmed', function () {

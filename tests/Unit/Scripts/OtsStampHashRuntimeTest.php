@@ -18,5 +18,5 @@ test('OpenTimestamps stamping script merges calendar responses and enforces its 
     $process->run();
 
     expect($process->getExitCode())
-        ->toBe(0, $process->getErrorOutput());
+        ->toBe(0, $process->getOutput().$process->getErrorOutput());
 });
