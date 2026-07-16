@@ -37,6 +37,7 @@ function runNativeWorkflowArtifactAudit(string ...$paths): array
         base_path(),
         [
             'LC_ALL' => 'C',
+            'PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
         ],
     );
 
