@@ -292,23 +292,3 @@ SPDX
     expect($result['exit_code'])->toBe(0)
         ->and($result['stderr'])->toBe('');
 });
-
-test('license compatibility script accepts the OpenTimestamps runtime build asset', function (): void {
-    $result = runLicenseCompatibilityScript(<<<'SPDX'
-SPDXVersion: SPDX-2.3
-DataLicense: CC0-1.0
-SPDXID: SPDXRef-DOCUMENT
-DocumentName: sample
-DocumentNamespace: https://secpal.dev/spdxdocs/sample
-
-FileName: .ddev/web-build/Dockerfile.opentimestamps
-SPDXID: SPDXRef-File
-LicenseInfoInFile: AGPL-3.0-or-later
-LicenseInfoInFile: LicenseRef-SecPal-Attribution
-LicenseConcluded: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
-SPDX
-    );
-
-    expect($result['exit_code'])->toBe(0)
-        ->and($result['stderr'])->toBe('');
-});

@@ -14,12 +14,102 @@ function preflightScriptContents(): string
     return $contents;
 }
 
+if (! function_exists('legacyLocalContainerToken')) {
+    function legacyLocalContainerToken(): string
+    {
+        return 'd'.'dev';
+    }
+}
+
+function makeExecutable(string $path, string $contents): void
+{
+    file_put_contents($path, $contents);
+    chmod($path, 0755);
+}
+
+function preflightFixturePath(string $path = ''): string
+{
+    $root = sys_get_temp_dir().'/secpal-preflight-'.bin2hex(random_bytes(8));
+
+    mkdir($root.'/scripts', 0777, true);
+    mkdir($root.'/vendor/bin', 0777, true);
+    mkdir($root.'/stubs', 0777, true);
+
+    file_put_contents($root.'/composer.json', '{}');
+    file_put_contents($root.'/composer.lock', '{}');
+    file_put_contents($root.'/commands.log', '');
+    file_put_contents($root.'/artisan', '');
+    touch($root.'/vendor/.keep');
+    copy(base_path('scripts/preflight.sh'), $root.'/scripts/preflight.sh');
+    chmod($root.'/scripts/preflight.sh', 0755);
+
+    makeExecutable($root.'/vendor/bin/pint', "#!/usr/bin/env bash\nexit 0\n");
+    makeExecutable($root.'/vendor/bin/phpstan', "#!/usr/bin/env bash\nexit 0\n");
+    makeExecutable($root.'/stubs/composer', "#!/usr/bin/env bash\necho composer \"\$@\" >> \"$root/commands.log\"\nexit 0\n");
+    makeExecutable($root.'/stubs/npx', "#!/usr/bin/env bash\necho npx \"\$@\" >> \"$root/commands.log\"\nexit 0\n");
+    makeExecutable($root.'/stubs/reuse', "#!/usr/bin/env bash\necho reuse \"\$@\" >> \"$root/commands.log\"\nexit 0\n");
+    makeExecutable($root.'/stubs/php', <<<'BASH'
+#!/usr/bin/env bash
+echo php "$@" >> COMMAND_LOG
+case "$*" in
+  *"artisan test --parallel --exclude-group=serial"*)
+    exit 0
+    ;;
+  *"artisan test --group=serial"*)
+    exit 9
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+BASH);
+    $phpStub = file_get_contents($root.'/stubs/php');
+    expect($phpStub)->not->toBeFalse();
+    file_put_contents($root.'/stubs/php', str_replace('COMMAND_LOG', $root.'/commands.log', $phpStub));
+    chmod($root.'/stubs/php', 0755);
+
+    exec('git -C '.escapeshellarg($root).' init --quiet');
+    exec('git -C '.escapeshellarg($root).' checkout -b feature/preflight --quiet');
+    exec('git -C '.escapeshellarg($root).' config user.email preflight@example.test');
+    exec('git -C '.escapeshellarg($root).' config user.name "Preflight Test"');
+    exec('git -C '.escapeshellarg($root).' add .');
+    exec('git -C '.escapeshellarg($root).' commit --quiet -m initial');
+    exec('git -C '.escapeshellarg($root).' update-ref refs/remotes/origin/main HEAD');
+    exec('git -C '.escapeshellarg($root).' symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main');
+
+    return $path === '' ? $root : $root.'/'.$path;
+}
+
 test('preflight excludes serial tests from the parallel run and executes them separately', function (): void {
     $contents = preflightScriptContents();
 
     expect($contents)
-        ->toContain('${CMD_PREFIX} php artisan test --parallel --exclude-group=serial || TEST_EXIT=$?')
-        ->toContain('${CMD_PREFIX} php artisan test --group=serial || TEST_EXIT=$?');
+        ->toContain('php artisan test --parallel --exclude-group=serial || TEST_EXIT=$?')
+        ->toContain('php artisan test --group=serial || TEST_EXIT=$?');
+});
+
+test('preflight runs PHP tooling directly and fails when enabled tests fail', function (): void {
+    $root = preflightFixturePath();
+
+    $command = sprintf(
+        'cd %s && PATH=%s:$PATH PREFLIGHT_RUN_TESTS=1 bash scripts/preflight.sh 2>&1',
+        escapeshellarg($root),
+        escapeshellarg($root.'/stubs'),
+    );
+
+    exec($command, $output, $exitCode);
+
+    $commands = file_get_contents($root.'/commands.log');
+
+    expect($exitCode)->toBe(9)
+        ->and($commands)->toContain('php -d memory_limit=512M ./vendor/bin/phpstan analyse')
+        ->and($commands)->toContain('php artisan test --parallel --exclude-group=serial')
+        ->and($commands)->toContain('php artisan test --group=serial')
+        ->and(implode("\n", $output))->not->toContain(strtoupper(legacyLocalContainerToken()));
+});
+
+test('preflight does not contain legacy local-container command routing or guidance', function (): void {
+    expect(strtolower(preflightScriptContents()))->not->toContain(legacyLocalContainerToken());
 });
 
 test('preflight excludes gitignored workspace context notes from markdownlint', function (): void {

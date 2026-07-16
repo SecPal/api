@@ -60,7 +60,7 @@ See [README.md](./README.md) for full installation instructions.
 
 ## Test Database Setup (Automated)
 
-**✅ Fully automated during local test bootstrap** - No DDEV dependency required.
+**✅ Fully automated during local test bootstrap** - No local container stack dependency required.
 
 ### How It Works
 
