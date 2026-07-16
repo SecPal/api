@@ -25,5 +25,5 @@ test('preflight excludes serial tests from the parallel run and executes them se
 test('preflight excludes gitignored workspace context notes from markdownlint', function (): void {
     expect(preflightScriptContents())
         ->toContain('markdownlint --config .markdownlint.json --dot \'**/*.md\'')
-        ->toContain('--ignore .context');
+        ->toContain('--ignore-path .gitignore');
 });
