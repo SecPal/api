@@ -213,6 +213,44 @@ function giveOrganizationalScope(
 }
 
 /**
+ * Give a scoped user effective access to an establishment through a customer assignment.
+ */
+function grantEmployeeEstablishmentAccess(
+    App\Models\User $user,
+    App\Models\TenantKey $tenant,
+    App\Models\LegalEntity $legalEntity,
+    App\Models\Establishment $establishment,
+    App\Models\OrganizationalUnit $scopeUnit,
+    int $maximumRank = 0,
+): void {
+    $customer = App\Models\Customer::factory()->create([
+        'tenant_id' => $tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    App\Models\CustomerEstablishment::factory()->create([
+        'tenant_id' => $tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $establishment->id,
+    ]);
+    App\Models\CustomerAssignment::factory()->create([
+        'tenant_id' => $tenant->id,
+        'customer_id' => $customer->id,
+        'user_id' => $user->id,
+    ]);
+    $user->organizationalScopes()->create([
+        'organizational_unit_id' => $scopeUnit->id,
+        'access_level' => 'write',
+        'include_descendants' => false,
+        'min_viewable_rank' => 0,
+        'max_viewable_rank' => $maximumRank,
+        'min_assignable_rank' => 0,
+        'max_assignable_rank' => $maximumRank,
+        'allow_self_access' => true,
+    ]);
+}
+
+/**
  * Assign role to user with temporal attributes, bypassing relationship constraints.
  * Directly inserts into model_has_roles with tenant_id support.
  */

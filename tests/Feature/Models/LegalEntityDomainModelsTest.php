@@ -73,7 +73,7 @@ test('customer establishment stores local contact data outside customer master d
         ->and($link->customer->getAttributes())->not->toHaveKeys(['contact', 'notes', 'metadata']);
 });
 
-test('OU-scoped users fail closed for domain creation without an explicit entitlement mapping', function (): void {
+test('domain creation policies do not infer Legal Entity access from OU scopes', function (): void {
     $tenant = TenantKey::factory()->create();
     app(PermissionRegistrar::class)->setPermissionsTeamId($tenant->id);
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
@@ -89,6 +89,6 @@ test('OU-scoped users fail closed for domain creation without an explicit entitl
         'access_level' => 'write',
     ]);
 
-    expect((new EmployeePolicy)->create($user))->toBeFalse()
+    expect(app(EmployeePolicy::class)->create($user))->toBeTrue()
         ->and((new SitePolicy)->create($user))->toBeFalse();
 });

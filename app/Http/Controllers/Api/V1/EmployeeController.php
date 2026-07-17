@@ -17,7 +17,9 @@ use App\Models\Employee;
 use App\Models\EmployeeAddress;
 use App\Models\TenantKey;
 use App\Models\User;
+use App\Models\UserInternalOrganizationalScope;
 use App\Services\BewacherregisterExportService;
+use App\Services\DomainAccessService;
 use App\Services\EmployeeComplianceService;
 use App\Services\EmployeeLifecycleService;
 use App\Services\EmployeeOnboardingInvitationService;
@@ -37,6 +39,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class EmployeeController extends Controller
 {
+    public function __construct(private readonly DomainAccessService $domainAccess) {}
+
     /**
      * Display a listing of employees.
      *
@@ -110,12 +114,10 @@ class EmployeeController extends Controller
         /** @var int $tenantId */
         $tenantId = $request->input('tenant_id');
 
-        $query = Employee::where('tenant_id', $tenantId);
+        $query = $this->domainAccess->visibleEmployeesQuery($user, $tenantId);
 
-        // Legal entities and establishments intentionally have no OU mapping yet.
-        // Scoped users must fail closed until explicit domain entitlements exist.
         if ($user->organizationalScopes()->exists()) {
-            $query->whereRaw('1 = 0');
+            $this->applyManagementLevelVisibility($query, $user);
         }
 
         // Filter by status
@@ -143,6 +145,44 @@ class EmployeeController extends Controller
         }
 
         return $query;
+    }
+
+    /** @param Builder<Employee> $query */
+    private function applyManagementLevelVisibility(Builder $query, User $user): void
+    {
+        /** @var \Illuminate\Support\Collection<int, UserInternalOrganizationalScope> $scopes */
+        $scopes = $user->organizationalScopes()
+            ->whereHas('organizationalUnit')
+            ->get()
+            ->filter(
+                fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('read'),
+            );
+        $viewableLevels = collect(range(0, 255))
+            ->filter(
+                fn (int $managementLevel): bool => $scopes->contains(
+                    fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($managementLevel),
+                ),
+            )
+            ->values();
+        $allowsSelfAccess = $scopes->contains(
+            fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access,
+        );
+
+        if (! $allowsSelfAccess && $viewableLevels->isEmpty()) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function (Builder $query) use ($allowsSelfAccess, $user, $viewableLevels): void {
+            if ($allowsSelfAccess) {
+                $query->orWhere('user_id', $user->id);
+            }
+
+            if ($viewableLevels->isNotEmpty()) {
+                $query->orWhereIn('management_level', $viewableLevels);
+            }
+        });
     }
 
     /**

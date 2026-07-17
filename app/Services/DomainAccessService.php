@@ -9,6 +9,7 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\CustomerEstablishment;
+use App\Models\Employee;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\Site;
@@ -24,6 +25,56 @@ use Illuminate\Validation\ValidationException;
  */
 final class DomainAccessService
 {
+    /** @return Builder<Employee> */
+    public function visibleEmployeesQuery(User $user, int $tenantId): Builder
+    {
+        $this->ensureTenant($user, $tenantId);
+
+        return Employee::query()
+            ->where('tenant_id', $tenantId)
+            ->whereIn(
+                'establishment_id',
+                $this->visibleEmployeeEstablishmentsQuery($user, $tenantId)->select('establishments.id'),
+            );
+    }
+
+    public function employeeDomainIsAccessible(
+        User $user,
+        int $tenantId,
+        string $legalEntityId,
+        string $establishmentId,
+    ): bool {
+        $this->ensureTenant($user, $tenantId);
+
+        return $this->visibleEmployeeEstablishmentsQuery($user, $tenantId)
+            ->whereKey($establishmentId)
+            ->where('legal_entity_id', $legalEntityId)
+            ->exists();
+    }
+
+    public function ensureEmployeeDomainWritable(
+        User $user,
+        int $tenantId,
+        string $legalEntityId,
+        string $establishmentId,
+    ): void {
+        $this->ensureTenant($user, $tenantId);
+
+        $isWritable = $this->visibleEmployeeEstablishmentsQuery($user, $tenantId)
+            ->whereNull('establishments.deleted_at')
+            ->where('establishments.is_active', true)
+            ->whereHas('legalEntity', fn (Builder $query): Builder => $query->where('is_active', true))
+            ->whereKey($establishmentId)
+            ->where('legal_entity_id', $legalEntityId)
+            ->exists();
+
+        if (! $isWritable) {
+            throw ValidationException::withMessages([
+                'establishment_id' => [__('The selected establishment is invalid.')],
+            ]);
+        }
+    }
+
     /** @return Builder<Customer> */
     public function visibleCustomersQuery(User $user, int $tenantId): Builder
     {
@@ -223,5 +274,35 @@ final class DomainAccessService
         return $this->writableLegalEntitiesQuery($tenantId)
             ->whereKey($legalEntityId)
             ->firstOrFail();
+    }
+
+    /** @return Builder<Establishment> */
+    private function visibleEmployeeEstablishmentsQuery(User $user, int $tenantId): Builder
+    {
+        $query = Establishment::withTrashed()
+            ->where('tenant_id', $tenantId);
+
+        if (! $user->organizationalScopes()->exists()) {
+            return $query;
+        }
+
+        $assignedCustomerIds = $user->customerAssignments()
+            ->where('tenant_id', $tenantId)
+            ->currentlyActive()
+            ->pluck('customer_id');
+        $assignedSiteIds = $user->siteAssignments()
+            ->where('tenant_id', $tenantId)
+            ->currentlyActive()
+            ->pluck('site_id');
+
+        return $query->where(function (Builder $query) use ($assignedCustomerIds, $assignedSiteIds): void {
+            $query->whereHas(
+                'customerEstablishments',
+                fn (Builder $query): Builder => $query->whereIn('customer_id', $assignedCustomerIds),
+            )->orWhereHas(
+                'sites',
+                fn (Builder $query): Builder => $query->whereIn('id', $assignedSiteIds),
+            );
+        });
     }
 }

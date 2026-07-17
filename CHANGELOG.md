@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** Employee create/update/list/detail paths now use mandatory tenant-consistent Legal Entity and establishment assignments instead of organizational-unit fields; effective customer/site assignment access and the existing employee permissions, access levels, self-access setting, and management-level ranges jointly constrain scoped employee access (US-006).
 - removed obsolete API DDEV configuration, the OpenTimestamps DDEV build Dockerfile, the DDEV `.gitignore` allowlist, and the license-compatibility strict-path handling and regression coverage that existed only for that removed Dockerfile
 - made local API preflight run Composer, Pint, PHPStan, and enabled Laravel/Pest/PHPUnit tests directly in the native shell, removed DDEV command routing and guidance, and fail preflight when `PREFLIGHT_RUN_TESTS=1` exposes a failing test
 - isolated atomic TenantKey KEK cleanup assertions per test invocation so parallel workers no longer report one another's in-flight temporary files as leftovers (fixes `api#1317`)

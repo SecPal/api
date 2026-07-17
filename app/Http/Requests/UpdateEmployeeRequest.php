@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\InteractsWithCertificationValidation;
 use App\Http\Requests\Concerns\InteractsWithEmployeeAddressValidation;
+use App\Http\Requests\Concerns\InteractsWithEmployeeDomainValidation;
 use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
 use Illuminate\Foundation\Http\FormRequest;
@@ -23,6 +24,7 @@ class UpdateEmployeeRequest extends FormRequest
 {
     use InteractsWithCertificationValidation;
     use InteractsWithEmployeeAddressValidation;
+    use InteractsWithEmployeeDomainValidation;
     use InteractsWithWorkPermitValidation;
 
     /**
@@ -40,7 +42,9 @@ class UpdateEmployeeRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $this->validateSalaryWriteAccess($validator);
-
+            /** @var Employee|null $employee */
+            $employee = $this->route('employee');
+            $this->validateEmployeeDomainAssignment($validator, $employee);
             $this->validateEmployeeAddressesPayload($validator);
         });
     }

@@ -34,7 +34,7 @@ beforeEach(function (): void {
     // Run seeder to ensure predefined roles exist
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
-    $this->policy = new EmployeePolicy;
+    $this->policy = app(EmployeePolicy::class);
 });
 
 afterEach(function (): void {
