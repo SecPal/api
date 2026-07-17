@@ -187,6 +187,17 @@ test('only users with employee_qualification.write permission can create employe
     expect($this->policy->create($userWithoutPermission, $employee))->toBeFalse();
 });
 
+test('OU-scoped users cannot create employee qualifications', function (): void {
+    $organizationalUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.write');
+    giveOrganizationalScope($user, $organizationalUnit);
+
+    expect($this->policy->create($user, $employee))->toBeFalse();
+});
+
 test('OU scopes do not grant employee qualification update access', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
     $user = User::factory()->create();
