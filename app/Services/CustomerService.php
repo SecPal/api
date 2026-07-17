@@ -51,14 +51,14 @@ final class CustomerService
     /** @return \Closure(Relation<*, *, *>): void */
     private function visibleCustomerEstablishmentsConstraint(User $user, int $tenantId): \Closure
     {
-        $visibleCustomerEstablishmentIds = $this->domainAccess
+        $visibleCustomerEstablishmentIdsQuery = $this->domainAccess
             ->visibleCustomerEstablishmentsQuery($user, $tenantId)
             ->select('customer_establishments.id');
 
-        return static function (Relation $relation) use ($visibleCustomerEstablishmentIds): void {
+        return static function (Relation $relation) use ($visibleCustomerEstablishmentIdsQuery): void {
             $relation->getQuery()->whereIn(
                 'customer_establishments.id',
-                $visibleCustomerEstablishmentIds,
+                $visibleCustomerEstablishmentIdsQuery,
             );
         };
     }
