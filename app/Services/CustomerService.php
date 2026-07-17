@@ -29,19 +29,10 @@ final class CustomerService
      */
     public function visibleQuery(User $user, int $tenantId): Builder
     {
-        $visibleCustomerEstablishmentIds = $this->domainAccess
-            ->visibleCustomerEstablishmentsQuery($user, $tenantId)
-            ->select('customer_establishments.id');
-
         return $this->domainAccess->visibleCustomersQuery($user, $tenantId)
             ->with([
                 'assignments.user',
-                'customerEstablishments' => function (Relation $relation) use ($visibleCustomerEstablishmentIds): void {
-                    $relation->getQuery()->whereIn(
-                        'customer_establishments.id',
-                        $visibleCustomerEstablishmentIds,
-                    );
-                },
+                'customerEstablishments' => $this->visibleCustomerEstablishmentsConstraint($user, $tenantId),
             ]);
     }
 
@@ -50,20 +41,26 @@ final class CustomerService
         int $tenantId,
         Customer $customer,
     ): Customer {
+        $customer->load([
+            'customerEstablishments' => $this->visibleCustomerEstablishmentsConstraint($user, $tenantId),
+        ]);
+
+        return $customer;
+    }
+
+    /** @return \Closure(Relation<*, *, *>): void */
+    private function visibleCustomerEstablishmentsConstraint(User $user, int $tenantId): \Closure
+    {
         $visibleCustomerEstablishmentIds = $this->domainAccess
             ->visibleCustomerEstablishmentsQuery($user, $tenantId)
             ->select('customer_establishments.id');
 
-        $customer->load([
-            'customerEstablishments' => function (Relation $relation) use ($visibleCustomerEstablishmentIds): void {
-                $relation->getQuery()->whereIn(
-                    'customer_establishments.id',
-                    $visibleCustomerEstablishmentIds,
-                );
-            },
-        ]);
-
-        return $customer;
+        return static function (Relation $relation) use ($visibleCustomerEstablishmentIds): void {
+            $relation->getQuery()->whereIn(
+                'customer_establishments.id',
+                $visibleCustomerEstablishmentIds,
+            );
+        };
     }
 
     /**

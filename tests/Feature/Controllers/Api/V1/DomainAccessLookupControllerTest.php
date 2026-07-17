@@ -290,14 +290,18 @@ test('site-scoped access does not expose other establishments of the same custom
         'legal_entity_id' => $legalEntity->id,
         'establishment_id' => $visibleEstablishment->id,
         'customer_id' => $customer->id,
-        'contact_name_plain' => 'Hidden Contact',
-        'email_plain' => 'hidden@example.com',
+        'contact_name_plain' => 'Visible Contact',
+        'phone_plain' => '+49 30 123456',
+        'email_plain' => 'visible@example.com',
+        'comments_plain' => 'Visible through the active site assignment.',
     ]);
     $hiddenLink = CustomerEstablishment::factory()->create([
         'tenant_id' => $this->tenant->id,
         'legal_entity_id' => $legalEntity->id,
         'establishment_id' => $hiddenEstablishment->id,
         'customer_id' => $customer->id,
+        'contact_name_plain' => 'Hidden Contact',
+        'email_plain' => 'hidden@example.com',
     ]);
     $site = Site::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -310,6 +314,26 @@ test('site-scoped access does not expose other establishments of the same custom
         'site_id' => $site->id,
         'user_id' => $this->user->id,
     ]);
+    $hiddenSite = Site::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_id' => $customer->id,
+        'legal_entity_id' => $legalEntity->id,
+        'establishment_id' => $hiddenEstablishment->id,
+    ]);
+    foreach (['expired', 'future'] as $state) {
+        SiteAssignment::factory()->{$state}()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $hiddenSite->id,
+            'user_id' => $this->user->id,
+            'role' => "{$state} site assignment",
+        ]);
+        CustomerAssignment::factory()->{$state}()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'user_id' => $this->user->id,
+            'role' => "{$state} customer assignment",
+        ]);
+    }
 
     $this->withToken($this->token)->getJson('/v1/customer-establishments')
         ->assertOk()
@@ -319,10 +343,19 @@ test('site-scoped access does not expose other establishments of the same custom
     $this->withToken($this->token)->getJson('/v1/customers')
         ->assertOk()
         ->assertJsonPath('data.0.customer_establishments.0.id', $visibleLink->id)
+        ->assertJsonPath('data.0.customer_establishments.0.contact_name', 'Visible Contact')
+        ->assertJsonPath('data.0.customer_establishments.0.phone', '+49 30 123456')
+        ->assertJsonPath('data.0.customer_establishments.0.email', 'visible@example.com')
+        ->assertJsonPath(
+            'data.0.customer_establishments.0.comments',
+            'Visible through the active site assignment.',
+        )
         ->assertJsonMissing(['id' => $hiddenLink->id]);
     $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}")
         ->assertOk()
         ->assertJsonPath('data.customer_establishments.0.id', $visibleLink->id)
+        ->assertJsonPath('data.customer_establishments.0.contact_name', 'Visible Contact')
+        ->assertJsonPath('data.customer_establishments.0.email', 'visible@example.com')
         ->assertJsonMissing(['id' => $hiddenLink->id]);
     $this->withToken($this->token)
         ->getJson("/v1/customer-establishments/{$hiddenLink->id}")
