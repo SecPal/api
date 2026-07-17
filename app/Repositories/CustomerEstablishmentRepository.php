@@ -10,23 +10,9 @@ namespace App\Repositories;
 use App\Models\Customer;
 use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
-use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 
 final class CustomerEstablishmentRepository
 {
-    /** @return Builder<CustomerEstablishment> */
-    public function visibleQuery(User $user, int $tenantId): Builder
-    {
-        $query = CustomerEstablishment::query()->where('tenant_id', $tenantId);
-
-        if ($user->can('customers.read') && ! $user->organizationalScopes()->exists()) {
-            return $query;
-        }
-
-        return $query->whereIn('customer_id', $user->accessibleCustomersQuery()->select('customers.id'));
-    }
-
     public function lockCustomer(int $tenantId, string $customerId): Customer
     {
         return Customer::query()

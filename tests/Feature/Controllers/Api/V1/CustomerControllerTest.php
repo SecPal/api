@@ -367,9 +367,9 @@ describe('GET /v1/customers', function () {
     });
 });
 
-describe('GET /v1/customers/legal-entities', function () {
+describe('GET /v1/lookups/legal-entities', function () {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->getJson('/v1/customers/legal-entities');
+        $response = $this->getJson('/v1/lookups/legal-entities');
 
         $response->assertStatus(401);
     });
@@ -378,7 +378,7 @@ describe('GET /v1/customers/legal-entities', function () {
         $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
 
-        $response = $this->withToken($this->token)->getJson('/v1/customers/legal-entities');
+        $response = $this->withToken($this->token)->getJson('/v1/lookups/legal-entities');
 
         $response->assertForbidden();
     });
@@ -405,7 +405,7 @@ describe('GET /v1/customers/legal-entities', function () {
         ]);
         $deletedLegalEntity->delete();
 
-        $response = $this->withToken($this->token)->getJson('/v1/customers/legal-entities');
+        $response = $this->withToken($this->token)->getJson('/v1/lookups/legal-entities');
 
         $response->assertOk()
             ->assertExactJson([
@@ -424,7 +424,7 @@ describe('GET /v1/customers/legal-entities', function () {
         giveOrganizationalScope($this->user, $unit, accessLevel: 'write');
         LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
 
-        $response = $this->withToken($this->token)->getJson('/v1/customers/legal-entities');
+        $response = $this->withToken($this->token)->getJson('/v1/lookups/legal-entities');
 
         $response->assertForbidden();
     });

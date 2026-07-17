@@ -14,16 +14,18 @@ use App\Repositories\CustomerEstablishmentRepository;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 final class CustomerEstablishmentService
 {
-    public function __construct(private readonly CustomerEstablishmentRepository $customerEstablishments) {}
+    public function __construct(
+        private readonly CustomerEstablishmentRepository $customerEstablishments,
+        private readonly DomainAccessService $domainAccess,
+    ) {}
 
     /** @return Builder<CustomerEstablishment> */
     public function visibleQuery(User $user, int $tenantId): Builder
     {
-        return $this->customerEstablishments->visibleQuery($user, $tenantId);
+        return $this->domainAccess->visibleCustomerEstablishmentsQuery($user, $tenantId);
     }
 
     /** @param array<string, mixed> $attributes */
@@ -40,12 +42,12 @@ final class CustomerEstablishmentService
                     $this->stringAttribute($attributes, 'establishment_id'),
                 );
 
-                if (! $user->can('update', $customer)
-                    || $customer->legal_entity_id !== $establishment->legal_entity_id) {
-                    throw ValidationException::withMessages([
-                        'establishment_id' => [__('The selected establishment is invalid.')],
-                    ]);
-                }
+                $this->domainAccess->ensureCustomerEstablishmentWritable(
+                    $user,
+                    $tenantId,
+                    $customer,
+                    $establishment,
+                );
 
                 return $this->customerEstablishments->create([
                     'tenant_id' => $tenantId,
@@ -61,8 +63,18 @@ final class CustomerEstablishmentService
     }
 
     /** @param array<string, mixed> $attributes */
-    public function update(CustomerEstablishment $customerEstablishment, array $attributes): CustomerEstablishment
-    {
+    public function update(
+        User $user,
+        int $tenantId,
+        CustomerEstablishment $customerEstablishment,
+        array $attributes,
+    ): CustomerEstablishment {
+        $this->domainAccess->ensureCustomerEstablishmentWritableRecord(
+            $user,
+            $tenantId,
+            $customerEstablishment,
+        );
+
         return $this->customerEstablishments->update(
             $customerEstablishment,
             $this->plainContactAttributes($attributes),

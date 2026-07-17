@@ -69,10 +69,17 @@ final class CustomerEstablishmentController extends Controller
         CustomerEstablishment $customerEstablishment,
     ): JsonResponse {
         $this->authorize('update', $customerEstablishment);
+        /** @var User $user */
+        $user = $request->user();
 
         return response()->json([
             'data' => new CustomerEstablishmentResource(
-                $this->service->update($customerEstablishment, $request->validated())
+                $this->service->update(
+                    $user,
+                    $request->integer('tenant_id'),
+                    $customerEstablishment,
+                    $request->validated(),
+                )
             ),
         ]);
     }

@@ -10,7 +10,6 @@ use App\Http\Requests\Api\V1\IndexCustomerRequest;
 use App\Http\Requests\Api\V1\IndexCustomerSitesRequest;
 use App\Http\Requests\Api\V1\StoreCustomerRequest;
 use App\Http\Requests\Api\V1\UpdateCustomerRequest;
-use App\Http\Resources\Api\V1\CustomerLegalEntityLookupResource;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
@@ -21,7 +20,6 @@ use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
@@ -90,26 +88,6 @@ class CustomerController extends Controller
         $customers = $query->paginate($perPage);
 
         return CustomerResource::collection($customers);
-    }
-
-    /**
-     * Display Legal Entity options that can receive new customers.
-     *
-     * GET /api/v1/customers/legal-entities
-     *
-     * @return AnonymousResourceCollection<int, CustomerLegalEntityLookupResource>
-     */
-    public function legalEntities(Request $request): AnonymousResourceCollection
-    {
-        $this->authorize('create', Customer::class);
-
-        /** @var User $user */
-        $user = $request->user();
-        /** @var int $tenantId */
-        $tenantId = $request->get('tenant_id');
-        $legalEntities = $this->customerService->writableLegalEntities($user, $tenantId);
-
-        return CustomerLegalEntityLookupResource::collection($legalEntities);
     }
 
     /**

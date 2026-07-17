@@ -9,20 +9,17 @@ namespace App\Services;
 
 use App\Exceptions\DuplicateResourceException;
 use App\Models\Customer;
-use App\Models\LegalEntity;
 use App\Models\User;
 use App\Repositories\CustomerRepository;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 final class CustomerService
 {
     public function __construct(
         private readonly CustomerRepository $customers,
+        private readonly DomainAccessService $domainAccess,
     ) {}
 
     /**
@@ -30,25 +27,8 @@ final class CustomerService
      */
     public function visibleQuery(User $user, int $tenantId): Builder
     {
-        return $this->customers->visibleQuery($user, $tenantId);
-    }
-
-    /**
-     * @return Collection<int, LegalEntity>
-     */
-    public function writableLegalEntities(User $user, int $tenantId): Collection
-    {
-        if ($user->organizationalScopes()->exists()) {
-            /** @var Collection<int, LegalEntity> $empty */
-            $empty = new Collection;
-
-            return $empty;
-        }
-
-        return LegalEntity::query()
-            ->where('tenant_id', $tenantId)
-            ->where('is_active', true)
-            ->get();
+        return $this->domainAccess->visibleCustomersQuery($user, $tenantId)
+            ->with(['assignments.user', 'customerEstablishments']);
     }
 
     /**
@@ -59,7 +39,11 @@ final class CustomerService
         try {
             return DB::transaction(function () use ($user, $tenantId, $attributes): Customer {
                 $this->customers->lockTenant($tenantId);
-                $this->lockWritableLegalEntity($user, $tenantId, $this->legalEntityId($attributes));
+                $this->domainAccess->ensureCustomerCreatable(
+                    $user,
+                    $tenantId,
+                    $this->legalEntityId($attributes),
+                );
 
                 $attributes['tenant_id'] = $tenantId;
 
@@ -85,9 +69,16 @@ final class CustomerService
     {
         try {
             return DB::transaction(function () use ($user, $tenantId, $customer, $attributes): Customer {
+                $this->domainAccess->ensureCustomerWritable($user, $tenantId, $customer);
+
                 if (isset($attributes['legal_entity_id'])
                     && $attributes['legal_entity_id'] !== $customer->legal_entity_id) {
-                    $this->lockWritableLegalEntity($user, $tenantId, $this->legalEntityId($attributes));
+                    $this->domainAccess->ensureCustomerLegalEntityWritable(
+                        $user,
+                        $tenantId,
+                        $customer,
+                        $this->legalEntityId($attributes),
+                    );
                 }
 
                 return $this->customers->update($customer, $attributes);
@@ -95,30 +86,6 @@ final class CustomerService
         } catch (QueryException $exception) {
             throw DuplicateResourceException::fromQueryException($exception) ?? $exception;
         }
-    }
-
-    private function lockWritableLegalEntity(User $user, int $tenantId, string $legalEntityId): LegalEntity
-    {
-        $legalEntity = LegalEntity::query()
-            ->where('tenant_id', $tenantId)
-            ->where('is_active', true)
-            ->whereKey($legalEntityId)
-            ->lockForUpdate()
-            ->first();
-
-        if ($legalEntity === null) {
-            throw ValidationException::withMessages([
-                'legal_entity_id' => [__('The selected legal entity is invalid.')],
-            ]);
-        }
-
-        if ($user->organizationalScopes()->exists()) {
-            throw new AuthorizationException(
-                __('No organizational entitlement exists for the selected legal entity.')
-            );
-        }
-
-        return $legalEntity;
     }
 
     /**
