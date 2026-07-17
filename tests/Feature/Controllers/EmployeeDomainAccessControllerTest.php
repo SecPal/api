@@ -8,9 +8,12 @@ declare(strict_types=1);
 use App\Models\Customer;
 use App\Models\CustomerEstablishment;
 use App\Models\Employee;
+use App\Models\EmployeeDocument;
+use App\Models\EmployeeQualification;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
+use App\Models\Qualification;
 use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Models\TenantKey;
@@ -94,6 +97,82 @@ test('employee lists and details use effective establishment access and manageme
         ->assertJsonMissingPath('data.organizational_unit');
     $this->withToken($this->token)->getJson("/v1/employees/{$rankHiddenEmployee->id}")->assertForbidden();
     $this->withToken($this->token)->getJson("/v1/employees/{$domainHiddenEmployee->id}")->assertForbidden();
+});
+
+test('scoped employee details do not bypass side resource policies', function (): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.read');
+    $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+    grantEmployeeEstablishmentAccess(
+        $this->user,
+        $this->tenant,
+        $this->legalEntity,
+        $this->establishment,
+        $scopeUnit,
+    );
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'establishment_id' => $this->establishment->id,
+        'management_level' => 0,
+    ]);
+    EmployeeDocument::factory()->create([
+        'employee_id' => $employee->id,
+        'uploaded_by' => $this->user->id,
+    ]);
+    EmployeeQualification::factory()->create([
+        'employee_id' => $employee->id,
+        'qualification_id' => Qualification::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ])->id,
+    ]);
+
+    $this->withToken($this->token)
+        ->getJson("/v1/employees/{$employee->id}")
+        ->assertOk()
+        ->assertJsonMissingPath('data.documents')
+        ->assertJsonMissingPath('data.qualifications');
+});
+
+test('employee self details include qualifications and only employee-visible documents', function (): void {
+    $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+    grantEmployeeEstablishmentAccess(
+        $this->user,
+        $this->tenant,
+        $this->legalEntity,
+        $this->establishment,
+        $scopeUnit,
+    );
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'user_id' => $this->user->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'establishment_id' => $this->establishment->id,
+        'management_level' => 0,
+    ]);
+    $visibleDocument = EmployeeDocument::factory()->create([
+        'employee_id' => $employee->id,
+        'uploaded_by' => $this->user->id,
+        'visible_to_employee' => true,
+    ]);
+    $hiddenDocument = EmployeeDocument::factory()->create([
+        'employee_id' => $employee->id,
+        'uploaded_by' => $this->user->id,
+        'visible_to_employee' => false,
+    ]);
+    $employeeQualification = EmployeeQualification::factory()->create([
+        'employee_id' => $employee->id,
+        'qualification_id' => Qualification::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ])->id,
+    ]);
+
+    $this->withToken($this->token)
+        ->getJson("/v1/employees/{$employee->id}")
+        ->assertOk()
+        ->assertJsonPath('data.documents.0.id', $visibleDocument->id)
+        ->assertJsonMissing(['id' => $hiddenDocument->id])
+        ->assertJsonPath('data.qualifications.0.id', $employeeQualification->id);
 });
 
 test('non-current customer assignments no longer grant employee visibility', function (string $deletedDomain): void {

@@ -15,17 +15,15 @@ use App\Models\User;
  * Authorization rules for employee document management with visibility control.
  *
  * Rules:
- * - viewAny: Employee (own documents) OR HR OR Manager (scope)
+ * - viewAny: Employee (own documents) OR unscoped users with dedicated read access
  * - view: Check visible_to_employee flag + ownership
- * - create: employee_document.write with tenant-wide or scoped access
- * - update: employee_document.write with tenant-wide or scoped access
- * - delete: employee_document.write with tenant-wide or scoped access
+ * - create/update/delete: Same-tenant, unscoped employee_document.write access
  */
 class EmployeeDocumentPolicy
 {
     private function canManageEmployeeDocuments(User $user, Employee $employee, string $permission): bool
     {
-        if (! $user->can($permission)) {
+        if ($user->tenant_id !== $employee->tenant_id || ! $user->can($permission)) {
             return false;
         }
 
@@ -40,11 +38,14 @@ class EmployeeDocumentPolicy
      * Determine if user can view any documents.
      *
      * Employees can list their own visible documents.
-     * Users with employee_document.read permission can list documents in scope
-     * or tenant-wide when no scopes are assigned.
+     * Other users require same-tenant, unscoped employee_document.read access.
      */
     public function viewAny(User $user, Employee $employee): bool
     {
+        if ($user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
         if ($user->id === $employee->user_id) {
             return true;
         }
@@ -61,7 +62,7 @@ class EmployeeDocumentPolicy
     public function view(User $user, EmployeeDocument $document): bool
     {
         $employee = $document->employee;
-        if ($employee === null) {
+        if ($employee === null || $user->tenant_id !== $employee->tenant_id) {
             return false;
         }
 
@@ -76,8 +77,7 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can create documents.
      *
-     * Users with employee_document.write permission can upload documents in
-     * scope or tenant-wide when no scopes are assigned.
+     * Users require same-tenant, unscoped employee_document.write access.
      */
     public function create(User $user, Employee $employee): bool
     {
@@ -87,7 +87,7 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can update a document.
      *
-     * Users with employee_document.write permission can update with scope validation.
+     * Users require same-tenant, unscoped employee_document.write access.
      */
     public function update(User $user, EmployeeDocument $document): bool
     {
@@ -102,7 +102,7 @@ class EmployeeDocumentPolicy
     /**
      * Determine if user can delete a document.
      *
-     * Users with employee_document.write permission can delete with scope validation.
+     * Users require same-tenant, unscoped employee_document.write access.
      */
     public function delete(User $user, EmployeeDocument $document): bool
     {

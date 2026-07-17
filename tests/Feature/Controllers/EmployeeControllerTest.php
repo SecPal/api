@@ -10,11 +10,14 @@ use App\Mail\BwrIdDocumentAutoDeletedMail;
 use App\Mail\OnboardingInvitationMail;
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
+use App\Models\EmployeeDocument;
 use App\Models\EmployeeOnboardingToken;
+use App\Models\EmployeeQualification;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
+use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Support\LikePattern;
@@ -1082,6 +1085,44 @@ describe('GET /v1/employees/{employee}', function () {
                 ],
             ]);
     });
+
+    test('includes side resources only with their dedicated read permissions', function (bool $canReadSideResources): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+        if ($canReadSideResources) {
+            givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
+            givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.read');
+        }
+
+        $employee = Employee::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
+        ]);
+        $document = EmployeeDocument::factory()->create([
+            'employee_id' => $employee->id,
+            'uploaded_by' => $this->user->id,
+        ]);
+        $employeeQualification = EmployeeQualification::factory()->create([
+            'employee_id' => $employee->id,
+            'qualification_id' => Qualification::factory()->create([
+                'tenant_id' => $this->tenant->id,
+            ])->id,
+        ]);
+
+        $response = $this->withToken($this->token)
+            ->getJson("/v1/employees/{$employee->id}")
+            ->assertOk();
+
+        if ($canReadSideResources) {
+            $response->assertJsonPath('data.documents.0.id', $document->id)
+                ->assertJsonPath('data.qualifications.0.id', $employeeQualification->id);
+
+            return;
+        }
+
+        $response->assertJsonMissingPath('data.documents')
+            ->assertJsonMissingPath('data.qualifications');
+    })->with([false, true]);
 
     test('omits sensitive identifiers for managers without employees.read_sensitive', function (): void {
         giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');

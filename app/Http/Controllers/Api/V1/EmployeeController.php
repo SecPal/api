@@ -15,6 +15,8 @@ use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
+use App\Models\EmployeeDocument;
+use App\Models\EmployeeQualification;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Services\BewacherregisterExportService;
@@ -24,7 +26,9 @@ use App\Services\EmployeeLifecycleService;
 use App\Services\EmployeeOnboardingInvitationService;
 use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -206,11 +210,27 @@ class EmployeeController extends Controller
      *
      * GET /api/v1/employees/{employee}
      */
-    public function show(Employee $employee): JsonResponse
+    public function show(Request $request, Employee $employee): JsonResponse
     {
         $this->authorize('view', $employee);
 
-        $employee->load(['user', 'legalEntity', 'establishment', 'employeeQualifications.qualification', 'documents', 'addresses']);
+        /** @var User $user */
+        $user = $request->user();
+        $relations = ['user', 'legalEntity', 'establishment', 'addresses'];
+
+        if ($user->can('viewAny', [EmployeeQualification::class, $employee])) {
+            $relations[] = 'employeeQualifications.qualification';
+        }
+
+        if ($user->can('viewAny', [EmployeeDocument::class, $employee])) {
+            $relations['documents'] = function (HasMany $query) use ($employee, $user): void {
+                if ($user->id === $employee->user_id) {
+                    $query->where('visible_to_employee', true);
+                }
+            };
+        }
+
+        $employee->load($relations);
 
         return response()->json([
             'data' => new EmployeeResource($employee),

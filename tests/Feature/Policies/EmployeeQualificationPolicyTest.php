@@ -96,6 +96,24 @@ test('employee cannot view other employees qualifications', function (): void {
     expect($this->policy->view($user, $employeeQualification))->toBeFalse();
 });
 
+test('qualification policies reject employees from another tenant', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.read');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_qualification.write');
+    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $employee = Employee::factory()->for($otherTenant, 'tenant')->create();
+    $employeeQualification = EmployeeQualification::factory()->create([
+        'employee_id' => $employee->id,
+        'qualification_id' => Qualification::factory()->for($otherTenant, 'tenant')->create()->id,
+    ]);
+
+    expect($this->policy->viewAny($user, $employee))->toBeFalse()
+        ->and($this->policy->view($user, $employeeQualification))->toBeFalse()
+        ->and($this->policy->create($user, $employee))->toBeFalse()
+        ->and($this->policy->update($user, $employeeQualification))->toBeFalse()
+        ->and($this->policy->delete($user, $employeeQualification))->toBeFalse();
+});
+
 test('OU-scoped users fail closed when viewing employee qualifications', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
@@ -163,9 +181,10 @@ test('only users with employee_qualification.write permission can create employe
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'employee_qualification.write');
 
     $userWithoutPermission = User::factory()->create();
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
 
-    expect($this->policy->create($userWithPermission))->toBeTrue();
-    expect($this->policy->create($userWithoutPermission))->toBeFalse();
+    expect($this->policy->create($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->create($userWithoutPermission, $employee))->toBeFalse();
 });
 
 test('OU scopes do not grant employee qualification update access', function (): void {

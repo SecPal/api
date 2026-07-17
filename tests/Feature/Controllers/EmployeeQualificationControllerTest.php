@@ -102,6 +102,23 @@ describe('GET /v1/employees/{employee}/qualifications', function () {
         expect($response->json('data'))->toHaveCount(1);
     });
 
+    test('employee can list own qualifications while organizationally scoped', function (): void {
+        $this->employee->update(['user_id' => $this->user->id]);
+        giveOrganizationalScope(
+            $this->user,
+            OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]),
+        );
+        $employeeQualification = EmployeeQualification::factory()->create([
+            'employee_id' => $this->employee->id,
+            'qualification_id' => $this->qualification->id,
+        ]);
+
+        $this->withToken($this->token)
+            ->getJson("/v1/employees/{$this->employee->id}/qualifications")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $employeeQualification->id);
+    });
+
     test('manager with organizational scope cannot list qualifications of employee outside scope', function (): void {
         $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
         $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -168,6 +185,26 @@ describe('POST /v1/employees/{employee}/qualifications', function () {
             ]);
 
         $response->assertStatus(403);
+    });
+
+    test('organizationally scoped user cannot attach qualifications', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.write');
+        giveOrganizationalScope(
+            $this->user,
+            OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]),
+        );
+
+        $this->withToken($this->token)
+            ->postJson("/v1/employees/{$this->employee->id}/qualifications", [
+                'qualification_id' => $this->qualification->id,
+                'obtained_date' => now()->toDateString(),
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('employee_qualifications', [
+            'employee_id' => $this->employee->id,
+            'qualification_id' => $this->qualification->id,
+        ]);
     });
 
     test('returns 422 when required fields are missing', function (): void {

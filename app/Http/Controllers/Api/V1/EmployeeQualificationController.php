@@ -12,7 +12,6 @@ use App\Http\Resources\EmployeeQualificationResource;
 use App\Models\Employee;
 use App\Models\EmployeeQualification;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -28,18 +27,9 @@ class EmployeeQualificationController extends Controller
      *
      * GET /api/v1/employees/{employee}/qualifications
      */
-    public function index(Request $request, Employee $employee): JsonResponse
+    public function index(Employee $employee): JsonResponse
     {
         $this->authorize('viewAny', [EmployeeQualification::class, $employee]);
-
-        // Check organizational scope access for scoped users
-        /** @var \App\Models\User $user */
-        $user = $request->user();
-        $hasScopes = $user->organizationalScopes()->exists();
-
-        if ($hasScopes) {
-            abort(Response::HTTP_FORBIDDEN, 'No organizational entitlement exists for this employee.');
-        }
 
         $qualifications = $employee->employeeQualifications()
             ->with(['qualification', 'employee'])

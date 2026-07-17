@@ -72,6 +72,22 @@ test('users without employee_document.read permission cannot view any documents'
     expect($this->policy->viewAny($user, $employee))->toBeFalse();
 });
 
+test('document policies reject employees from another tenant', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_document.read');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee_document.write');
+    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $employee = Employee::factory()->for($otherTenant, 'tenant')->create();
+    $document = EmployeeDocument::factory()->for($employee)->create();
+
+    expect($this->policy->viewAny($user, $employee))->toBeFalse()
+        ->and($this->policy->view($user, $document))->toBeFalse()
+        ->and($this->policy->create($user, $employee))->toBeFalse()
+        ->and($this->policy->update($user, $document))->toBeFalse()
+        ->and($this->policy->delete($user, $document))->toBeFalse()
+        ->and($this->policy->download($user, $document))->toBeFalse();
+});
+
 test('employee can list own documents without explicit document permission', function (): void {
     $user = User::factory()->create();
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([

@@ -5,6 +5,7 @@
 
 namespace App\Policies;
 
+use App\Models\Employee;
 use App\Models\EmployeeQualification;
 use App\Models\User;
 
@@ -14,23 +15,29 @@ use App\Models\User;
  * Authorization rules for employee-qualification pivot relationships.
  *
  * Rules:
- * - viewAny: Employee (own qualifications) OR HR OR Manager (scope)
- * - view: Check employee access
- * - create: HR only
- * - update: HR only (certificate details)
- * - delete: HR only
+ * - viewAny/view: Employee (own qualifications) OR same-tenant, unscoped read access
+ * - create/update/delete: Same-tenant, unscoped write access
  */
 class EmployeeQualificationPolicy
 {
     /**
      * Determine if user can view any employee qualifications.
      *
-     * Users with employee_qualification.read permission can view qualifications.
-     * Scope-based filtering handled at controller level.
+     * Employees can view their own qualifications. Other users require the
+     * dedicated read permission without an organizational scope.
      */
-    public function viewAny(User $user): bool
+    public function viewAny(User $user, ?Employee $employee = null): bool
     {
-        return $user->can('employee_qualification.read');
+        if ($employee !== null && $user->tenant_id !== $employee->tenant_id) {
+            return false;
+        }
+
+        if ($employee !== null && $user->id === $employee->user_id) {
+            return true;
+        }
+
+        return $user->can('employee_qualification.read')
+            && ! $user->organizationalScopes()->exists();
     }
 
     /**
@@ -46,86 +53,49 @@ class EmployeeQualificationPolicy
             return false;
         }
 
-        // Employee can view own qualifications
-        if ($user->id === $employee->user_id) {
-            return true;
-        }
-
-        // Users with permission can view
-        if (! $user->can('employee_qualification.read')) {
-            return false;
-        }
-
-        // Check if user has organizational scopes (Manager role)
-        $hasScopes = $user->organizationalScopes()->exists();
-
-        if ($hasScopes) {
-            return false;
-        }
-
-        return true;
+        return $this->viewAny($user, $employee);
     }
 
     /**
      * Determine if user can create employee qualifications.
      *
-     * Users with employee_qualification.write permission can assign qualifications.
-     * Scope validation enforced at controller level.
+     * Users require the dedicated write permission without an organizational scope.
      */
-    public function create(User $user): bool
+    public function create(User $user, Employee $employee): bool
     {
-        return $user->can('employee_qualification.write');
+        return $this->hasUnrestrictedWriteAccess($user, $employee);
     }
 
     /**
      * Determine if user can update an employee qualification.
      *
-     * Users with employee_qualification.update permission can update with scope validation.
+     * Users require same-tenant, unscoped employee_qualification.write access.
      */
     public function update(User $user, EmployeeQualification $employeeQualification): bool
     {
-        if (! $user->can('employee_qualification.write')) {
-            return false;
-        }
-
         $employee = $employeeQualification->employee;
-        if ($employee === null) {
-            return false;
-        }
 
-        // Check if user has organizational scopes (Manager role)
-        $hasScopes = $user->organizationalScopes()->exists();
-
-        if ($hasScopes) {
-            return false;
-        }
-
-        return true;
+        return $employee !== null
+            && $this->hasUnrestrictedWriteAccess($user, $employee);
     }
 
     /**
      * Determine if user can delete an employee qualification.
      *
-     * Users with employee_qualification.delete permission can delete with scope validation.
+     * Users require same-tenant, unscoped employee_qualification.write access.
      */
     public function delete(User $user, EmployeeQualification $employeeQualification): bool
     {
-        if (! $user->can('employee_qualification.write')) {
-            return false;
-        }
-
         $employee = $employeeQualification->employee;
-        if ($employee === null) {
-            return false;
-        }
 
-        // Check if user has organizational scopes (Manager role)
-        $hasScopes = $user->organizationalScopes()->exists();
+        return $employee !== null
+            && $this->hasUnrestrictedWriteAccess($user, $employee);
+    }
 
-        if ($hasScopes) {
-            return false;
-        }
-
-        return true;
+    private function hasUnrestrictedWriteAccess(User $user, Employee $employee): bool
+    {
+        return $user->tenant_id === $employee->tenant_id
+            && $user->can('employee_qualification.write')
+            && ! $user->organizationalScopes()->exists();
     }
 }
