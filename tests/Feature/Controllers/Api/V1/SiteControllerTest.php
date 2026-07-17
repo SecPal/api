@@ -416,9 +416,19 @@ describe('GET /v1/sites', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['id'])->toBe($site1->id);
+
+        $this->customer->delete();
+
+        $this->withToken($this->token)
+            ->getJson('/v1/sites')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $site1->id]);
+        $this->withToken($this->token)
+            ->getJson("/v1/sites/{$site1->id}")
+            ->assertForbidden();
     });
 
-    test('user without permission can list sites via customer assignment', function (): void {
+    test('customer assignments expose sites only while the customer domain is current', function (string $deletedDomain): void {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
@@ -440,7 +450,20 @@ describe('GET /v1/sites', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['id'])->toBe($site->id);
-    });
+
+        match ($deletedDomain) {
+            'customer' => $this->customer->delete(),
+            'legal entity' => $this->customer->legalEntity()->delete(),
+        };
+
+        $this->withToken($this->token)
+            ->getJson('/v1/sites')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $site->id]);
+        $this->withToken($this->token)
+            ->getJson("/v1/sites/{$site->id}")
+            ->assertForbidden();
+    })->with(['customer', 'legal entity']);
 
     test('supports pagination with custom per_page', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
@@ -1017,9 +1040,51 @@ describe('GET /v1/sites/{site}', function () {
 });
 
 describe('PATCH /v1/sites/{site}', function () {
-    test('allows correcting past-only site coverage in a non-assignable organizational unit', function (): void {
+    test('rejects coverage expansions in inactive domains without resubmitting domain identifiers', function (string $inactiveDomain, string $expansion): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-        $this->orgUnit->update(['is_assignable' => false]);
+
+        match ($inactiveDomain) {
+            'customer' => $this->customer->update(['is_active' => false]),
+            'legal entity' => $this->customer->legalEntity()->update(['is_active' => false]),
+            'establishment' => $this->establishment->update(['is_active' => false]),
+        };
+        [$initialValues, $updatedValues] = match ($expansion) {
+            'reactivation' => [
+                ['is_active' => false],
+                ['is_active' => true],
+            ],
+            'expired extension' => [
+                ['valid_until' => now()->subDay()],
+                ['valid_until' => now()->addWeek()->toDateString()],
+            ],
+            'active extension' => [
+                ['valid_until' => now()->addDay()],
+                ['valid_until' => now()->addWeek()->toDateString()],
+            ],
+        };
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
+            ...$initialValues,
+        ]);
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/sites/{$site->id}", $updatedValues)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        $site->refresh();
+        expect($site->is_active)->toBe($initialValues['is_active'] ?? true)
+            ->and($site->valid_until?->toDateString())
+            ->toBe(($initialValues['valid_until'] ?? null)?->toDateString());
+    })->with(['customer', 'legal entity', 'establishment'])
+        ->with(['reactivation', 'expired extension', 'active extension']);
+
+    test('allows correcting past-only site coverage in an inactive establishment', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->establishment->update(['is_active' => false]);
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
@@ -1037,9 +1102,9 @@ describe('PATCH /v1/sites/{site}', function () {
             ->assertJsonPath('data.valid_until', now()->subWeek()->toDateString());
     });
 
-    test('allows activating an expired site in a non-assignable organizational unit without future coverage', function (): void {
+    test('allows activating an expired site in an inactive establishment without future coverage', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-        $this->orgUnit->update(['is_assignable' => false]);
+        $this->establishment->update(['is_active' => false]);
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
@@ -1059,6 +1124,7 @@ describe('PATCH /v1/sites/{site}', function () {
 
     test('allows reactivating a site while moving it to another establishment', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->establishment->update(['is_active' => false]);
         $targetEstablishment = Establishment::factory()->create([
             'tenant_id' => $this->tenant->id,
             'legal_entity_id' => $this->customer->legal_entity_id,
@@ -1090,9 +1156,8 @@ describe('PATCH /v1/sites/{site}', function () {
         ]);
     });
 
-    test('allows an unchanged non-assignable organizational unit in a site update', function (): void {
+    test('allows resubmitting an unchanged active domain during a non-lifecycle update', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-        $this->orgUnit->update(['is_assignable' => false]);
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,

@@ -12,10 +12,12 @@ use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Site;
 use App\Models\TenantKey;
+use App\Services\OrganizationalUnitAssignmentService;
 use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * SiteController handles Site resource CRUD operations.
@@ -173,11 +175,21 @@ class SiteController extends Controller
      *
      * @return JsonResponse Updated site
      */
-    public function update(UpdateSiteRequest $request, Site $site): JsonResponse
-    {
+    public function update(
+        UpdateSiteRequest $request,
+        Site $site,
+        OrganizationalUnitAssignmentService $assignmentService,
+    ): JsonResponse {
         $this->authorize('update', $site);
 
         $validated = $request->validated();
+
+        if ($assignmentService->siteUpdateExpandsCoverage($site, $validated)
+            && ! $assignmentService->siteTargetDomainIsActive($site, $validated)) {
+            throw ValidationException::withMessages([
+                'establishment_id' => __('The selected customer, legal entity, and establishment combination is invalid.'),
+            ]);
+        }
 
         $site->update($validated);
 

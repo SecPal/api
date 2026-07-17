@@ -96,6 +96,38 @@ test('employee lists and details use effective establishment access and manageme
     $this->withToken($this->token)->getJson("/v1/employees/{$domainHiddenEmployee->id}")->assertForbidden();
 });
 
+test('non-current customer assignments no longer grant employee visibility', function (string $deletedDomain): void {
+    $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+    grantEmployeeEstablishmentAccess(
+        $this->user,
+        $this->tenant,
+        $this->legalEntity,
+        $this->establishment,
+        $scopeUnit,
+    );
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'establishment_id' => $this->establishment->id,
+        'management_level' => 0,
+    ]);
+
+    $assignedCustomerId = $this->user->customerAssignments()->sole()->customer_id;
+    $assignedCustomer = Customer::query()->findOrFail($assignedCustomerId);
+    match ($deletedDomain) {
+        'customer' => $assignedCustomer->delete(),
+        'legal entity' => $assignedCustomer->legalEntity()->delete(),
+    };
+
+    $this->withToken($this->token)
+        ->getJson('/v1/employees')
+        ->assertOk()
+        ->assertJsonMissing(['id' => $employee->id]);
+    $this->withToken($this->token)
+        ->getJson("/v1/employees/{$employee->id}")
+        ->assertForbidden();
+})->with(['customer', 'legal entity']);
+
 test('employee lists fail closed when existing scopes do not grant read access', function (): void {
     $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
     grantEmployeeEstablishmentAccess(
@@ -133,7 +165,7 @@ test('legacy OU list filters are not part of employee filtering', function (): v
         ->assertJsonMissingPath('data.0.organizational_unit_id');
 });
 
-test('an active site assignment grants employee visibility only at the assigned establishment', function (): void {
+test('an active site assignment grants employee visibility only while its customer domain is current', function (string $deletedDomain): void {
     $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
     giveOrganizationalScope(
         $this->user,
@@ -187,7 +219,17 @@ test('an active site assignment grants employee visibility only at the assigned 
         ->assertOk()
         ->assertJsonFragment(['id' => $visibleEmployee->id])
         ->assertJsonMissing(['id' => $hiddenEmployee->id]);
-});
+
+    match ($deletedDomain) {
+        'customer' => $customer->delete(),
+        'legal entity' => $customer->legalEntity()->delete(),
+    };
+
+    $this->withToken($this->token)
+        ->getJson('/v1/employees')
+        ->assertOk()
+        ->assertJsonMissing(['id' => $visibleEmployee->id]);
+})->with(['customer', 'legal entity']);
 
 test('historical employees remain visible after their assigned establishment is closed', function (): void {
     $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();

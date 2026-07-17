@@ -257,6 +257,30 @@ describe('POST /v1/sites/{site}/assignments', function () {
         ]);
     });
 
+    test('rejects assignments for a site whose customer is inactive', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+
+        Customer::query()
+            ->findOrFail($this->site->customer_id)
+            ->update(['is_active' => false]);
+        $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $this->withToken($this->token)
+            ->postJson("/v1/sites/{$this->site->id}/assignments", [
+                'user_id' => $targetUser->id,
+                'role' => 'Site Manager',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        $this->assertDatabaseMissing('site_assignments', [
+            'site_id' => $this->site->id,
+            'user_id' => $targetUser->id,
+            'role' => 'Site Manager',
+        ]);
+    });
+
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson("/v1/sites/{$this->site->id}/assignments", []);
         $response->assertStatus(401);

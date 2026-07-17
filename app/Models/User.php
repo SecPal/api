@@ -812,8 +812,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct customer assignments
-     * - Access to the customer's legal entity
-     * - Access to sites belonging to the customer (via organizational unit or site assignment)
+     * - Access to sites belonging to the customer through a site assignment
      *
      * @return Collection<int, Customer>
      */
@@ -849,8 +848,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct customer assignments
-     * - Access to the customer's legal entity
-     * - Access to sites belonging to the customer (via organizational unit or site assignment)
+     * - Access to sites belonging to the customer through a site assignment
      *
      * @return Builder<Customer>
      */
@@ -861,6 +859,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
 
         return Customer::query()
             ->where('tenant_id', $this->tenant_id)
+            ->whereHas('legalEntity')
             ->where(function ($query) use ($assignedCustomerIds, $assignedSiteIds) {
                 // Direct customer assignment
                 $query->whereIn('id', $assignedCustomerIds)
@@ -875,7 +874,6 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct site assignments
-     * - Access to site's organizational unit
      * - Assignment to site's customer (Key Accounts see all customer sites)
      *
      * @return Collection<int, Site>
@@ -907,7 +905,6 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct site assignments
-     * - Access to site's organizational unit
      * - Assignment to site's customer (Key Accounts see all customer sites)
      *
      * @return Builder<Site>
@@ -919,6 +916,10 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
 
         return Site::query()
             ->where('tenant_id', $this->tenant_id)
+            ->whereHas(
+                'customer',
+                fn (Builder $query): Builder => $query->whereHas('legalEntity'),
+            )
             ->where(function ($query) use ($assignedSiteIds, $assignedCustomerIds) {
                 $query->whereIn('id', $assignedSiteIds)
                     ->orWhereIn('customer_id', $assignedCustomerIds);

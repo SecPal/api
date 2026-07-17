@@ -53,10 +53,30 @@ class OrganizationalUnitAssignmentService
             return false;
         }
 
-        return $this->domainAccess->establishmentDomainIsActive(
+        return $this->domainAccess->siteDomainIsActive(
             $site->tenant_id,
+            $site->customer_id,
             $site->legal_entity_id,
             $site->establishment_id,
+        );
+    }
+
+    /** @param array<string, mixed> $validated */
+    public function siteTargetDomainIsActive(Site $site, array $validated): bool
+    {
+        $customerId = $validated['customer_id'] ?? $site->customer_id;
+        $legalEntityId = $validated['legal_entity_id'] ?? $site->legal_entity_id;
+        $establishmentId = $validated['establishment_id'] ?? $site->establishment_id;
+
+        if (! is_string($customerId) || ! is_string($legalEntityId) || ! is_string($establishmentId)) {
+            return false;
+        }
+
+        return $this->domainAccess->siteDomainIsActive(
+            $site->tenant_id,
+            $customerId,
+            $legalEntityId,
+            $establishmentId,
         );
     }
 

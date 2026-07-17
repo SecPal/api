@@ -5,6 +5,7 @@
 
 namespace App\Policies;
 
+use App\Models\Customer;
 use App\Models\Site;
 use App\Models\User;
 
@@ -57,13 +58,18 @@ class SitePolicy
             return true;
         }
 
+        $customer = $site->customer;
+        if (! $customer instanceof Customer || ! $customer->legalEntity()->exists()) {
+            return false;
+        }
+
         // Direct assignment to site (must be currently active)
         if ($site->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
         }
 
         // Assignment to customer (Key Account sees all customer sites, must be currently active)
-        if ($site->customer->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
+        if ($customer->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;
         }
 

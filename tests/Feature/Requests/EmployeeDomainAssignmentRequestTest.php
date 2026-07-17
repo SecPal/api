@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
@@ -161,6 +162,38 @@ test('scoped employee create accepts only effectively accessible establishments 
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['management_level']);
 });
+
+test('non-current customer assignments no longer grant employee write access', function (string $deletedDomain): void {
+    $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+    grantEmployeeEstablishmentAccess(
+        $this->user,
+        $this->tenant,
+        $this->legalEntity,
+        $this->establishment,
+        $scopeUnit,
+    );
+
+    $assignedCustomerId = $this->user->customerAssignments()->sole()->customer_id;
+    $assignedCustomer = Customer::query()->findOrFail($assignedCustomerId);
+    match ($deletedDomain) {
+        'customer' => $assignedCustomer->delete(),
+        'legal entity' => $assignedCustomer->legalEntity()->delete(),
+    };
+
+    $expectedValidationField = $deletedDomain === 'legal entity'
+        ? 'legal_entity_id'
+        : 'establishment_id';
+
+    $this->withToken($this->token)
+        ->postJson('/v1/employees', employeeDomainPayload([
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$expectedValidationField]);
+
+    expect(Employee::query()->where('email', 'erika.musterfrau@secpal.dev')->exists())->toBeFalse();
+})->with(['customer', 'legal entity']);
 
 test('employee update validates the resulting pair and effective access', function (): void {
     $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();

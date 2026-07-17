@@ -56,6 +56,10 @@ class CustomerPolicy
             return true;
         }
 
+        if (! $customer->legalEntity()->exists()) {
+            return false;
+        }
+
         // Direct assignment to customer (must be currently active)
         if ($customer->assignments()->where('user_id', $user->id)->currentlyActive()->exists()) {
             return true;

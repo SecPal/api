@@ -220,10 +220,18 @@ final class DomainAccessRepository
         $assignedCustomerIds = $user->customerAssignments()
             ->where('tenant_id', $tenantId)
             ->currentlyActive()
+            ->whereIn(
+                'customer_id',
+                $this->currentCustomersQuery($tenantId)->select('customers.id'),
+            )
             ->pluck('customer_id');
         $assignedSiteIds = $user->siteAssignments()
             ->where('tenant_id', $tenantId)
             ->currentlyActive()
+            ->whereHas('site', fn (Builder $query): Builder => $query->whereHas(
+                'customer',
+                fn (Builder $query): Builder => $query->whereHas('legalEntity'),
+            ))
             ->pluck('site_id');
 
         return $query->where(function (Builder $query) use ($assignedCustomerIds, $assignedSiteIds): void {

@@ -259,6 +259,16 @@ describe('GET /v1/customers', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['id'])->toBe($customer1->id);
+
+        $customer1->legalEntity()->delete();
+
+        $this->withToken($this->token)
+            ->getJson('/v1/customers')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $customer1->id]);
+        $this->withToken($this->token)
+            ->getJson("/v1/customers/{$customer1->id}")
+            ->assertForbidden();
     });
 
     test('user without permission can list customers via scoped site access', function (): void {
@@ -282,6 +292,16 @@ describe('GET /v1/customers', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['id'])->toBe($customer->id);
+
+        $customer->legalEntity()->delete();
+
+        $this->withToken($this->token)
+            ->getJson('/v1/customers')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $customer->id]);
+        $this->withToken($this->token)
+            ->getJson("/v1/customers/{$customer->id}")
+            ->assertForbidden();
     });
 
     test('scoped user with customer read permission only receives visible sites_count in customer list', function (): void {
