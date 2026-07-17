@@ -8,9 +8,8 @@ namespace App\Services;
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
-use App\Models\Establishment;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use App\Repositories\DomainAccessRepository;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -28,7 +27,10 @@ class EmployeeLifecycleService
 
     private const ON_LEAVE_ROLE_NAME = 'Employee Read Only';
 
-    public function __construct(private readonly ActivityCauserContextService $activityCauserContextService) {}
+    public function __construct(
+        private readonly ActivityCauserContextService $activityCauserContextService,
+        private readonly DomainAccessRepository $domainAccess,
+    ) {}
 
     /**
      * Activate a pre-contract employee and provision their runtime access atomically.
@@ -727,13 +729,11 @@ class EmployeeLifecycleService
 
     private function ensureEstablishmentAcceptsActivation(Employee $employee): void
     {
-        $establishment = Establishment::withTrashed()
-            ->where('tenant_id', $employee->tenant_id)
-            ->where('legal_entity_id', $employee->legal_entity_id)
-            ->whereHas('legalEntity', fn (EloquentBuilder $query): EloquentBuilder => $query->where('is_active', true))
-            ->find($employee->establishment_id);
-
-        if ($establishment instanceof Establishment && ! $establishment->trashed() && $establishment->is_active) {
+        if ($this->domainAccess->establishmentDomainIsActive(
+            $employee->tenant_id,
+            $employee->legal_entity_id,
+            $employee->establishment_id,
+        )) {
             return;
         }
 

@@ -5,13 +5,15 @@
 
 namespace App\Services;
 
-use App\Models\Establishment;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Repositories\DomainAccessRepository;
 use Carbon\CarbonInterface;
 
 class OrganizationalUnitAssignmentService
 {
+    public function __construct(private readonly DomainAccessRepository $domainAccess) {}
+
     /** @param array<string, mixed> $validated */
     public function siteUpdateExpandsCoverage(Site $site, array $validated): bool
     {
@@ -51,22 +53,11 @@ class OrganizationalUnitAssignmentService
             return false;
         }
 
-        $establishment = $site->establishment()->withTrashed()->first();
-
-        return $this->establishmentAcceptsAssignments($establishment);
-    }
-
-    /** @param array<string, mixed> $validated */
-    public function siteTargetAcceptsAssignments(Site $site, array $validated): bool
-    {
-        $establishmentId = $validated['establishment_id'] ?? $site->establishment_id;
-        $establishment = Establishment::withTrashed()
-            ->where('tenant_id', $site->tenant_id)
-            ->where('legal_entity_id', $validated['legal_entity_id'] ?? $site->legal_entity_id)
-            ->whereKey($establishmentId)
-            ->first();
-
-        return $this->establishmentAcceptsAssignments($establishment);
+        return $this->domainAccess->establishmentDomainIsActive(
+            $site->tenant_id,
+            $site->legal_entity_id,
+            $site->establishment_id,
+        );
     }
 
     private function startsCoverageEarlier(?CarbonInterface $currentValidFrom, ?CarbonInterface $updatedValidFrom): bool
@@ -102,12 +93,5 @@ class OrganizationalUnitAssignmentService
     {
         return $assignment->valid_until === null
             || ! $assignment->valid_until->lessThan(now()->startOfDay());
-    }
-
-    private function establishmentAcceptsAssignments(?Establishment $establishment): bool
-    {
-        return $establishment instanceof Establishment
-            && ! $establishment->trashed()
-            && $establishment->is_active;
     }
 }

@@ -330,4 +330,40 @@ test('site-scoped access does not expose other establishments of the same custom
         ->getJson("/v1/lookups/establishments/{$hiddenEstablishment->id}/customers")
         ->assertOk()
         ->assertExactJson(['data' => []]);
+
+    $site->delete();
+
+    $this->withToken($this->token)->getJson('/v1/customer-establishments')
+        ->assertOk()
+        ->assertJsonMissing(['id' => $visibleLink->id]);
 });
+
+test('customer establishment lists exclude links outside the current domain', function (string $deletedModel): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'establishment_id' => $establishment->id,
+        'customer_id' => $customer->id,
+    ]);
+
+    match ($deletedModel) {
+        'customer' => $customer->delete(),
+        'establishment' => $establishment->delete(),
+        'legal entity' => $legalEntity->delete(),
+    };
+
+    $this->withToken($this->token)->getJson('/v1/customer-establishments')
+        ->assertOk()
+        ->assertJsonMissing(['id' => $link->id]);
+})->with(['customer', 'establishment', 'legal entity']);

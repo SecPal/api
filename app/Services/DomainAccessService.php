@@ -264,9 +264,11 @@ final class DomainAccessService
     ): void {
         $this->ensureCustomerWritable($user, $tenantId, $customer);
 
-        if ($establishment->tenant_id !== $tenantId
-            || ! $establishment->is_active
-            || $customer->legal_entity_id !== $establishment->legal_entity_id) {
+        if (! $this->repository->customerEstablishmentDomainIsActive(
+            $tenantId,
+            $customer->id,
+            $establishment->id,
+        )) {
             throw ValidationException::withMessages([
                 'establishment_id' => [__('The selected establishment is invalid.')],
             ]);

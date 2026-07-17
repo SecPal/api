@@ -94,7 +94,7 @@ final class DomainAccessRepository
         int $tenantId,
         bool $hasUnrestrictedAccess,
     ): Builder {
-        $query = CustomerEstablishment::query()->where('tenant_id', $tenantId);
+        $query = $this->currentCustomerEstablishmentDomainsQuery($tenantId);
 
         if ($hasUnrestrictedAccess) {
             return $query;
@@ -115,6 +115,7 @@ final class DomainAccessRepository
                     $query->selectRaw('1')
                         ->from((new Site)->getTable())
                         ->where('sites.tenant_id', $tenantId)
+                        ->whereNull('sites.deleted_at')
                         ->whereColumn('sites.customer_id', 'customer_establishments.customer_id')
                         ->whereColumn('sites.establishment_id', 'customer_establishments.establishment_id')
                         ->whereIn('sites.id', $assignedSiteIds);
@@ -133,17 +134,13 @@ final class DomainAccessRepository
     /** @return Builder<Establishment> */
     public function writableEstablishmentsQuery(int $tenantId, string $legalEntityId): Builder
     {
-        return Establishment::query()
-            ->where('tenant_id', $tenantId)
-            ->where('legal_entity_id', $legalEntityId)
-            ->where('is_active', true);
+        return $this->activeEstablishmentsQuery($tenantId)
+            ->where('legal_entity_id', $legalEntityId);
     }
 
     public function findWritableEstablishment(int $tenantId, string $establishmentId): ?Establishment
     {
-        return Establishment::query()
-            ->where('tenant_id', $tenantId)
-            ->where('is_active', true)
+        return $this->activeEstablishmentsQuery($tenantId)
             ->whereKey($establishmentId)
             ->first();
     }
@@ -151,9 +148,7 @@ final class DomainAccessRepository
     /** @return Builder<Customer> */
     public function writableCustomersForEstablishmentQuery(int $tenantId, string $establishmentId): Builder
     {
-        return Customer::query()
-            ->where('tenant_id', $tenantId)
-            ->where('is_active', true)
+        return $this->activeCustomersQuery($tenantId)
             ->whereHas(
                 'customerEstablishments',
                 fn (Builder $query): Builder => $query->where('establishment_id', $establishmentId),
@@ -164,9 +159,10 @@ final class DomainAccessRepository
     public function writableEmployeeEstablishmentsQuery(User $user, int $tenantId): Builder
     {
         return $this->visibleEmployeeEstablishmentsQuery($user, $tenantId, true)
-            ->whereNull('establishments.deleted_at')
-            ->where('establishments.is_active', true)
-            ->whereHas('legalEntity', fn (Builder $query): Builder => $query->where('is_active', true));
+            ->whereIn(
+                'establishments.id',
+                $this->activeEstablishmentsQuery($tenantId)->select('establishments.id'),
+            );
     }
 
     public function siteDomainIsActive(
@@ -175,15 +171,37 @@ final class DomainAccessRepository
         string $legalEntityId,
         string $establishmentId,
     ): bool {
-        return CustomerEstablishment::query()
-            ->where('tenant_id', $tenantId)
+        return $this->activeCustomerEstablishmentDomainsQuery($tenantId)
             ->where('customer_id', $customerId)
             ->where('legal_entity_id', $legalEntityId)
             ->where('establishment_id', $establishmentId)
-            ->whereHas('customer', fn (Builder $query): Builder => $query->where('is_active', true))
-            ->whereHas('establishment', fn (Builder $query): Builder => $query
-                ->where('is_active', true)
-                ->whereHas('legalEntity', fn (Builder $query): Builder => $query->where('is_active', true)))
+            ->exists();
+    }
+
+    public function customerEstablishmentDomainIsActive(
+        int $tenantId,
+        string $customerId,
+        string $establishmentId,
+    ): bool {
+        return $this->activeCustomersQuery($tenantId)
+            ->whereKey($customerId)
+            ->whereIn(
+                'customers.legal_entity_id',
+                $this->activeEstablishmentsQuery($tenantId)
+                    ->whereKey($establishmentId)
+                    ->select('establishments.legal_entity_id'),
+            )
+            ->exists();
+    }
+
+    public function establishmentDomainIsActive(
+        int $tenantId,
+        string $legalEntityId,
+        string $establishmentId,
+    ): bool {
+        return $this->activeEstablishmentsQuery($tenantId)
+            ->where('legal_entity_id', $legalEntityId)
+            ->whereKey($establishmentId)
             ->exists();
     }
 
@@ -217,5 +235,69 @@ final class DomainAccessRepository
                 fn (Builder $query): Builder => $query->whereIn('id', $assignedSiteIds),
             );
         });
+    }
+
+    /** @return Builder<CustomerEstablishment> */
+    private function currentCustomerEstablishmentDomainsQuery(int $tenantId): Builder
+    {
+        return CustomerEstablishment::query()
+            ->where('tenant_id', $tenantId)
+            ->whereIn(
+                'customer_id',
+                $this->currentCustomersQuery($tenantId)->select('customers.id'),
+            )
+            ->whereIn(
+                'establishment_id',
+                $this->currentEstablishmentsQuery($tenantId)->select('establishments.id'),
+            );
+    }
+
+    /** @return Builder<CustomerEstablishment> */
+    private function activeCustomerEstablishmentDomainsQuery(int $tenantId): Builder
+    {
+        return CustomerEstablishment::query()
+            ->where('tenant_id', $tenantId)
+            ->whereIn(
+                'customer_id',
+                $this->activeCustomersQuery($tenantId)->select('customers.id'),
+            )
+            ->whereIn(
+                'establishment_id',
+                $this->activeEstablishmentsQuery($tenantId)->select('establishments.id'),
+            );
+    }
+
+    /** @return Builder<Customer> */
+    private function currentCustomersQuery(int $tenantId): Builder
+    {
+        return Customer::query()
+            ->where('tenant_id', $tenantId)
+            ->whereHas('legalEntity');
+    }
+
+    /** @return Builder<Customer> */
+    private function activeCustomersQuery(int $tenantId): Builder
+    {
+        return Customer::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->whereHas('legalEntity', fn (Builder $query): Builder => $query->where('is_active', true));
+    }
+
+    /** @return Builder<Establishment> */
+    private function currentEstablishmentsQuery(int $tenantId): Builder
+    {
+        return Establishment::query()
+            ->where('tenant_id', $tenantId)
+            ->whereHas('legalEntity');
+    }
+
+    /** @return Builder<Establishment> */
+    private function activeEstablishmentsQuery(int $tenantId): Builder
+    {
+        return Establishment::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->whereHas('legalEntity', fn (Builder $query): Builder => $query->where('is_active', true));
     }
 }

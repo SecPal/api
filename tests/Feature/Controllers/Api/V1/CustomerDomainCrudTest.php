@@ -305,3 +305,25 @@ test('customer establishment rejects cross-tenant and cross-legal-entity links',
         'establishment_id' => $otherEstablishment->id,
     ])->assertUnprocessable()->assertJsonValidationErrors(['establishment_id']);
 });
+
+test('customer establishment rejects inactive customer domains', function (string $inactiveModel): void {
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+    ]);
+
+    match ($inactiveModel) {
+        'customer' => $customer->update(['is_active' => false]),
+        'legal entity' => $this->legalEntity->update(['is_active' => false]),
+    };
+
+    $this->withToken($this->token)->postJson('/v1/customer-establishments', [
+        'customer_id' => $customer->id,
+        'establishment_id' => $this->establishment->id,
+    ])->assertUnprocessable()->assertJsonValidationErrors(['establishment_id']);
+
+    $this->assertDatabaseMissing('customer_establishments', [
+        'customer_id' => $customer->id,
+        'establishment_id' => $this->establishment->id,
+    ]);
+})->with(['customer', 'legal entity']);

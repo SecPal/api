@@ -9,6 +9,7 @@
 use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
@@ -231,6 +232,30 @@ describe('POST /v1/sites/{site}/assignments', function () {
             'role' => 'Site Manager',
         ]);
     })->with(['deleted' => true, 'non-assignable' => false]);
+
+    test('rejects assignments for a site whose legal entity is inactive', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+
+        LegalEntity::query()
+            ->findOrFail($this->site->legal_entity_id)
+            ->update(['is_active' => false]);
+        $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $this->withToken($this->token)
+            ->postJson("/v1/sites/{$this->site->id}/assignments", [
+                'user_id' => $targetUser->id,
+                'role' => 'Site Manager',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        $this->assertDatabaseMissing('site_assignments', [
+            'site_id' => $this->site->id,
+            'user_id' => $targetUser->id,
+            'role' => 'Site Manager',
+        ]);
+    });
 
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson("/v1/sites/{$this->site->id}/assignments", []);
