@@ -12,6 +12,7 @@ use App\Models\Customer;
 use App\Models\User;
 use App\Repositories\CustomerRepository;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,8 +29,41 @@ final class CustomerService
      */
     public function visibleQuery(User $user, int $tenantId): Builder
     {
+        $visibleCustomerEstablishmentIds = $this->domainAccess
+            ->visibleCustomerEstablishmentsQuery($user, $tenantId)
+            ->select('customer_establishments.id');
+
         return $this->domainAccess->visibleCustomersQuery($user, $tenantId)
-            ->with(['assignments.user']);
+            ->with([
+                'assignments.user',
+                'customerEstablishments' => function (Relation $relation) use ($visibleCustomerEstablishmentIds): void {
+                    $relation->getQuery()->whereIn(
+                        'customer_establishments.id',
+                        $visibleCustomerEstablishmentIds,
+                    );
+                },
+            ]);
+    }
+
+    public function loadVisibleCustomerEstablishments(
+        User $user,
+        int $tenantId,
+        Customer $customer,
+    ): Customer {
+        $visibleCustomerEstablishmentIds = $this->domainAccess
+            ->visibleCustomerEstablishmentsQuery($user, $tenantId)
+            ->select('customer_establishments.id');
+
+        $customer->load([
+            'customerEstablishments' => function (Relation $relation) use ($visibleCustomerEstablishmentIds): void {
+                $relation->getQuery()->whereIn(
+                    'customer_establishments.id',
+                    $visibleCustomerEstablishmentIds,
+                );
+            },
+        ]);
+
+        return $customer;
     }
 
     /**

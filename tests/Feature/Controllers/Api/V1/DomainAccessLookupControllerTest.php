@@ -318,10 +318,12 @@ test('site-scoped access does not expose other establishments of the same custom
 
     $this->withToken($this->token)->getJson('/v1/customers')
         ->assertOk()
-        ->assertJsonMissingPath('data.0.customer_establishments');
+        ->assertJsonPath('data.0.customer_establishments.0.id', $visibleLink->id)
+        ->assertJsonMissing(['id' => $hiddenLink->id]);
     $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}")
         ->assertOk()
-        ->assertJsonMissingPath('data.customer_establishments');
+        ->assertJsonPath('data.customer_establishments.0.id', $visibleLink->id)
+        ->assertJsonMissing(['id' => $hiddenLink->id]);
     $this->withToken($this->token)
         ->getJson("/v1/customer-establishments/{$hiddenLink->id}")
         ->assertForbidden();

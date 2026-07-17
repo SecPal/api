@@ -149,7 +149,37 @@ test('customer update cannot collide by either normalized identity', function ()
     }
 });
 
-test('customer establishment CRUD exposes local contacts only through its dedicated resource', function (): void {
+test('customer CRUD embeds customer establishments and returns an empty collection when none exist', function (): void {
+    $created = $this->withToken($this->token)->postJson(
+        '/v1/customers',
+        domainCustomerPayload($this->legalEntity),
+    );
+
+    $created->assertCreated()
+        ->assertJsonPath('data.customer_establishments', []);
+
+    $customer = Customer::query()->findOrFail($created->json('data.id'));
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $this->establishment->id,
+        'contact_name_plain' => 'Lokaler Kontakt',
+    ]);
+
+    $this->withToken($this->token)->getJson('/v1/customers')
+        ->assertOk()
+        ->assertJsonPath('data.0.customer_establishments.0.id', $link->id);
+    $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}")
+        ->assertOk()
+        ->assertJsonPath('data.customer_establishments.0.id', $link->id);
+    $this->withToken($this->token)->patchJson("/v1/customers/{$customer->id}", [
+        'name' => 'Aktualisierter Kunde GmbH',
+    ])->assertOk()
+        ->assertJsonPath('data.customer_establishments.0.id', $link->id);
+});
+
+test('customer establishment CRUD exposes local contacts through customer and dedicated resources', function (): void {
     $customer = Customer::factory()->create([
         'tenant_id' => $this->tenant->id,
         'legal_entity_id' => $this->legalEntity->id,
@@ -184,11 +214,11 @@ test('customer establishment CRUD exposes local contacts only through its dedica
 
     $this->withToken($this->token)->getJson('/v1/customers')
         ->assertOk()
-        ->assertJsonMissingPath('data.0.customer_establishments')
+        ->assertJsonPath('data.0.customer_establishments.0.id', $linkId)
         ->assertJsonMissingPath('data.0.organizational_unit_id');
     $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}")
         ->assertOk()
-        ->assertJsonMissingPath('data.customer_establishments')
+        ->assertJsonPath('data.customer_establishments.0.id', $linkId)
         ->assertJsonMissingPath('data.organizational_unit_id');
     $this->withToken($this->token)->getJson("/v1/customer-establishments/{$linkId}")
         ->assertOk()
