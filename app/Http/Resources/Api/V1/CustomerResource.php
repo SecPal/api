@@ -30,8 +30,6 @@ class CustomerResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $canUpdate = $this->resolveCanUpdate($request);
-
         return [
             'id' => $this->resource->id,
             'legal_entity_id' => $this->resource->legal_entity_id,
@@ -39,28 +37,11 @@ class CustomerResource extends JsonResource
             'name' => $this->resource->name,
             'vat_id' => $this->resource->vat_id,
             'billing_address' => $this->resource->billing_address,
-            'contact' => $this->resource->contact,
-            'notes' => $canUpdate ? $this->resource->notes : null,
-            'metadata' => $this->resource->metadata,
             'is_active' => $this->resource->is_active,
             'sites_count' => $this->whenCounted('sites'),
             'created_at' => \App\Support\ApiTimestamp::format($this->resource->created_at),
             'updated_at' => \App\Support\ApiTimestamp::format($this->resource->updated_at),
             'deleted_at' => \App\Support\ApiTimestamp::nullable($this->resource->deleted_at),
         ];
-    }
-
-    private function resolveCanUpdate(Request $request): bool
-    {
-        $precomputed = $this->resource->getAttribute('_resource_can_update');
-
-        if (is_bool($precomputed)) {
-            return $precomputed;
-        }
-
-        /** @var \App\Models\User|null $user */
-        $user = $request->user();
-
-        return $user?->can('update', $this->resource) ?? false;
     }
 }

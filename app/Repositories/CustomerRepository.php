@@ -9,28 +9,9 @@ namespace App\Repositories;
 
 use App\Models\Customer;
 use App\Models\TenantKey;
-use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 
 final class CustomerRepository
 {
-    /**
-     * Build the customer query permitted by the user's tenant permissions and scopes.
-     *
-     * @return Builder<Customer>
-     */
-    public function visibleQuery(User $user, int $tenantId): Builder
-    {
-        if ($user->can('customers.read')) {
-            return Customer::query()
-                ->where('tenant_id', $tenantId)
-                ->with(['assignments.user']);
-        }
-
-        return $user->accessibleCustomersQuery()
-            ->with(['assignments.user']);
-    }
-
     public function nextCustomerNumber(int $tenantId): string
     {
         return Customer::generateCustomerNumber($tenantId);
@@ -62,5 +43,10 @@ final class CustomerRepository
         $customer->refresh();
 
         return $customer;
+    }
+
+    public function hasEstablishmentLinks(Customer $customer): bool
+    {
+        return $customer->customerEstablishments()->withTrashed()->exists();
     }
 }

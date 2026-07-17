@@ -8,6 +8,8 @@
 
 use App\Models\Customer;
 use App\Models\Employee;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
@@ -207,12 +209,12 @@ describe('GET /v1/sites/{site}/assignments', function () {
 });
 
 describe('POST /v1/sites/{site}/assignments', function () {
-    test('rejects assignments for a site in a closed organizational unit', function (bool $isDeleted): void {
+    test('rejects assignments for a site in a closed establishment', function (bool $isDeleted): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
-        $organizationalUnit = OrganizationalUnit::query()->findOrFail($this->site->organizational_unit_id);
-        $isDeleted ? $organizationalUnit->delete() : $organizationalUnit->update(['is_assignable' => false]);
+        $establishment = Establishment::query()->findOrFail($this->site->establishment_id);
+        $isDeleted ? $establishment->delete() : $establishment->update(['is_active' => false]);
         $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
         $response = $this->withToken($this->token)
@@ -222,7 +224,7 @@ describe('POST /v1/sites/{site}/assignments', function () {
             ]);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id']);
+            ->assertJsonValidationErrors(['establishment_id']);
 
         $this->assertDatabaseMissing('site_assignments', [
             'site_id' => $this->site->id,
@@ -230,6 +232,54 @@ describe('POST /v1/sites/{site}/assignments', function () {
             'role' => 'Site Manager',
         ]);
     })->with(['deleted' => true, 'non-assignable' => false]);
+
+    test('rejects assignments for a site whose legal entity is inactive', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+
+        LegalEntity::query()
+            ->findOrFail($this->site->legal_entity_id)
+            ->update(['is_active' => false]);
+        $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $this->withToken($this->token)
+            ->postJson("/v1/sites/{$this->site->id}/assignments", [
+                'user_id' => $targetUser->id,
+                'role' => 'Site Manager',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        $this->assertDatabaseMissing('site_assignments', [
+            'site_id' => $this->site->id,
+            'user_id' => $targetUser->id,
+            'role' => 'Site Manager',
+        ]);
+    });
+
+    test('rejects assignments for a site whose customer is inactive', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+
+        Customer::query()
+            ->findOrFail($this->site->customer_id)
+            ->update(['is_active' => false]);
+        $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $this->withToken($this->token)
+            ->postJson("/v1/sites/{$this->site->id}/assignments", [
+                'user_id' => $targetUser->id,
+                'role' => 'Site Manager',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        $this->assertDatabaseMissing('site_assignments', [
+            'site_id' => $this->site->id,
+            'user_id' => $targetUser->id,
+            'role' => 'Site Manager',
+        ]);
+    });
 
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson("/v1/sites/{$this->site->id}/assignments", []);
@@ -324,7 +374,6 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
         Employee::factory()->withExpiringComplianceCertifications()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $organizationalUnit->id,
             'user_id' => $targetUser->id,
         ]);
 
@@ -357,7 +406,6 @@ describe('POST /v1/sites/{site}/assignments', function () {
 
         Employee::factory()->withComplianceCertifications()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $organizationalUnit->id,
             'user_id' => $targetUser->id,
             'firearms_license_expiry' => now()->addDays(20)->toDateString(),
             'first_aid_cert_expiry' => now()->addDays(45)->toDateString(),
@@ -525,9 +573,9 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
     test('allows moving future assignment coverage entirely into the past on a non-assignable unit', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-        OrganizationalUnit::query()
-            ->findOrFail($this->site->organizational_unit_id)
-            ->update(['is_assignable' => false]);
+        Establishment::query()
+            ->findOrFail($this->site->establishment_id)
+            ->update(['is_active' => false]);
         $targetUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -549,13 +597,13 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
             ->and($assignment->valid_until?->toDateString())->toBe(now()->subDay()->toDateString());
     });
 
-    test('rejects reactivating an assignment in a non-assignable organizational unit', function (string $scenario): void {
+    test('rejects reactivating an assignment in a non-assignable establishment', function (string $scenario): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
-        OrganizationalUnit::query()
-            ->findOrFail($this->site->organizational_unit_id)
-            ->update(['is_assignable' => false]);
+        Establishment::query()
+            ->findOrFail($this->site->establishment_id)
+            ->update(['is_active' => false]);
 
         [$initialDates, $updatedDates] = match ($scenario) {
             'future start' => [
@@ -599,15 +647,15 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
             ->patchJson("/v1/site-assignments/{$assignment->id}", $updatedDates);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id']);
+            ->assertJsonValidationErrors(['establishment_id']);
     })->with(['future start', 'future window', 'current window', 'active window', 'scheduled extension', 'scheduled earlier start', 'active role change']);
 
-    test('allows correcting past-only assignment coverage in a non-assignable organizational unit', function (): void {
+    test('allows correcting past-only assignment coverage in a non-assignable establishment', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-        OrganizationalUnit::query()
-            ->findOrFail($this->site->organizational_unit_id)
-            ->update(['is_assignable' => false]);
+        Establishment::query()
+            ->findOrFail($this->site->establishment_id)
+            ->update(['is_active' => false]);
 
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -626,12 +674,12 @@ describe('PATCH /v1/site-assignments/{assignment}', function () {
             ->assertJsonPath('data.valid_until', now()->subWeek()->toDateString());
     });
 
-    test('allows changing a role while ending all assignment coverage in a non-assignable organizational unit', function (): void {
+    test('allows changing a role while ending all assignment coverage in a non-assignable establishment', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'assignments.update');
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-        OrganizationalUnit::query()
-            ->findOrFail($this->site->organizational_unit_id)
-            ->update(['is_assignable' => false]);
+        Establishment::query()
+            ->findOrFail($this->site->establishment_id)
+            ->update(['is_active' => false]);
 
         $assignment = SiteAssignment::factory()->create([
             'tenant_id' => $this->tenant->id,

@@ -63,9 +63,12 @@ test('logs user with employee', function () {
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'user_id' => $user->id,
         'email' => $user->email,
+    ]);
+    App\Models\UserInternalOrganizationalScope::create([
+        'user_id' => $user->id,
+        'organizational_unit_id' => $this->orgUnit->id,
     ]);
 
     $activity = $this->service->logLoginFailed($user->email, 'invalid_credentials');
@@ -116,7 +119,6 @@ test('logs user without employee', function () {
 test('logs employee without user account', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'user_id' => null, // No user account
         'email' => 'employee-no-user@example.com',
     ]);
@@ -126,8 +128,8 @@ test('logs employee without user account', function () {
     expect($activity)->not->toBeNull();
     expect($activity->properties['user_exists'])->toBeFalse();
     expect($activity->properties['employee_exists'])->toBeTrue();
-    expect($activity->properties['has_organizational_unit'])->toBeTrue();
-    expect($activity->organizational_unit_id)->toBe($this->orgUnit->id);
+    expect($activity->properties['has_organizational_unit'])->toBeFalse();
+    expect($activity->organizational_unit_id)->toBeNull();
 
     // This combination is now logically consistent:
     // No user account exists, but employee record provides the OU

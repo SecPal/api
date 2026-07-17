@@ -34,7 +34,7 @@ beforeEach(function (): void {
     // Run seeder to ensure predefined roles exist
     Artisan::call('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
 
-    $this->policy = new EmployeePolicy;
+    $this->policy = app(EmployeePolicy::class);
 });
 
 afterEach(function (): void {
@@ -64,7 +64,18 @@ test('users without employee.read permission cannot view any employees', functio
     expect($this->policy->viewAny($user))->toBeFalse();
 });
 
-test('employee can view own profile', function (): void {
+test('unscoped users with employee permissions have tenant-wide employee access', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
+    givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+
+    expect($this->policy->view($user, $employee))->toBeTrue()
+        ->and($this->policy->update($user, $employee))->toBeTrue()
+        ->and($this->policy->delete($user, $employee))->toBeTrue();
+});
+
+test('OU-scoped employee self access fails closed without a domain entitlement', function (): void {
     // NOTE: Self-access control (ADR-009) requires allow_self_access = true in scope
     // This test was updated to reflect the new architecture where self-access is DISABLED by default
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -76,7 +87,6 @@ test('employee can view own profile', function (): void {
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
-        'organizational_unit_id' => $orgUnit->id,
     ]);
 
     // Create scope with allow_self_access = true
@@ -89,7 +99,7 @@ test('employee can view own profile', function (): void {
         'allow_self_access' => true, // Required for self-access
     ]);
 
-    expect($this->policy->view($user, $employee))->toBeTrue();
+    expect($this->policy->view($user, $employee))->toBeFalse();
 });
 
 test('employee cannot view other employees', function (): void {
@@ -99,7 +109,7 @@ test('employee cannot view other employees', function (): void {
     expect($this->policy->view($user, $otherEmployee))->toBeFalse();
 });
 
-test('users with employee.read permission can view all employees', function (): void {
+test('OU-scoped users fail closed when viewing employees', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
@@ -123,13 +133,12 @@ test('users with employee.read permission can view all employees', function (): 
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
     ]);
 
-    expect($this->policy->view($user, $employee))->toBeTrue();
+    expect($this->policy->view($user, $employee))->toBeFalse();
 });
 
-test('users with employee.read permission can view employees in own organizational scope', function (): void {
+test('OU scopes do not grant employee access', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
@@ -153,10 +162,9 @@ test('users with employee.read permission can view employees in own organization
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
     ]);
 
-    expect($this->policy->view($user, $employee))->toBeTrue();
+    expect($this->policy->view($user, $employee))->toBeFalse();
 });
 
 test('users with employee.read permission cannot view employees outside organizational scope', function (): void {
@@ -174,7 +182,6 @@ test('users with employee.read permission cannot view employees outside organiza
 
     // Employee is in orgUnit2
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit2->id,
     ]);
 
     expect($this->policy->view($user, $employee))->toBeFalse();
@@ -190,7 +197,7 @@ test('only users with employee.write or employee.create permission can create em
     expect($this->policy->create($userWithoutPermission))->toBeFalse();
 });
 
-test('employee can update own profile', function (): void {
+test('OU-scoped employee self update fails closed without a domain entitlement', function (): void {
     // NOTE: Self-access control (ADR-009) requires allow_self_access = true in scope
     // This test was updated to reflect the new architecture where self-access is DISABLED by default
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -202,7 +209,6 @@ test('employee can update own profile', function (): void {
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
-        'organizational_unit_id' => $orgUnit->id,
     ]);
 
     // Create scope with allow_self_access = true
@@ -215,10 +221,10 @@ test('employee can update own profile', function (): void {
         'allow_self_access' => true, // Required for self-access
     ]);
 
-    expect($this->policy->update($user, $employee))->toBeTrue();
+    expect($this->policy->update($user, $employee))->toBeFalse();
 });
 
-test('users with employee.write permission can update all employees', function (): void {
+test('OU-scoped users fail closed when updating employees', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
@@ -242,10 +248,9 @@ test('users with employee.write permission can update all employees', function (
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
     ]);
 
-    expect($this->policy->update($user, $employee))->toBeTrue();
+    expect($this->policy->update($user, $employee))->toBeFalse();
 });
 
 test('employee cannot update other employees', function (): void {
@@ -264,11 +269,10 @@ test('only users with employee.write or employee.delete permission can delete em
     $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => 0,
     ]);
 
-    expect($this->policy->delete($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->delete($userWithPermission, $employee))->toBeFalse();
     expect($this->policy->delete($userWithoutPermission, $employee))->toBeFalse();
 });
 
@@ -281,12 +285,11 @@ test('only users with employee.write or employee.activate permission can activat
     $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => 0,
         'status' => 'pre_contract',
     ]);
 
-    expect($this->policy->activate($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->activate($userWithPermission, $employee))->toBeFalse();
     expect($this->policy->activate($userWithoutPermission, $employee))->toBeFalse();
 });
 
@@ -299,12 +302,11 @@ test('only users with employee.write or employee.terminate permission can termin
     $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => 0,
         'status' => 'active',
     ]);
 
-    expect($this->policy->terminate($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->terminate($userWithPermission, $employee))->toBeFalse();
     expect($this->policy->terminate($userWithoutPermission, $employee))->toBeFalse();
 });
 
@@ -330,7 +332,6 @@ test('delete activate and terminate require the same scope and rank coverage as 
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => 4,
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -354,7 +355,6 @@ test('self lifecycle actions still require assignable rank coverage', function (
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => 5,
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -370,8 +370,8 @@ test('self lifecycle actions still require assignable rank coverage', function (
         'allow_self_access' => true,
     ]);
 
-    expect($this->policy->view($user, $employee))->toBeTrue()
-        ->and($this->policy->update($user, $employee))->toBeTrue()
+    expect($this->policy->view($user, $employee))->toBeFalse()
+        ->and($this->policy->update($user, $employee))->toBeFalse()
         ->and($this->policy->delete($user, $employee))->toBeFalse()
         ->and($this->policy->activate($user, $employee))->toBeFalse()
         ->and($this->policy->placeOnLeave($user, $employee))->toBeFalse()
@@ -386,7 +386,6 @@ test('activate denies users whose permissions do not match the requested action'
     giveOrganizationalScope($user, $orgUnit, 0, 0, 0, 0);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => 0,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -394,7 +393,7 @@ test('activate denies users whose permissions do not match the requested action'
     expect($this->policy->activate($user, $employee))->toBeFalse();
 });
 
-test('lifecycle actions remain authorized for employees in soft-deleted organizational units', function (): void {
+test('OU-scoped lifecycle actions fail closed for soft-deleted units', function (): void {
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
     givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
@@ -404,7 +403,6 @@ test('lifecycle actions remain authorized for employees in soft-deleted organiza
     giveOrganizationalScope($user, $orgUnit, 0, 0, 0, 0);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => 0,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -412,13 +410,12 @@ test('lifecycle actions remain authorized for employees in soft-deleted organiza
     $orgUnit->delete();
     $employee->refresh();
 
-    expect($employee->organizationalUnit)->toBeNull()
-        ->and($this->policy->delete($user, $employee))->toBeTrue()
-        ->and($this->policy->activate($user, $employee))->toBeTrue()
-        ->and($this->policy->terminate($user, $employee))->toBeTrue();
+    expect($this->policy->delete($user, $employee))->toBeFalse()
+        ->and($this->policy->activate($user, $employee))->toBeFalse()
+        ->and($this->policy->terminate($user, $employee))->toBeFalse();
 });
 
-test('lifecycle actions remain authorized for employees in deleted descendant units reached through ancestor scopes', function (): void {
+test('OU-scoped lifecycle actions fail closed for deleted descendant units', function (): void {
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'employee.delete');
     givePermissionWithTenant($user, $this->tenant->id, 'employee.activate');
@@ -441,7 +438,6 @@ test('lifecycle actions remain authorized for employees in deleted descendant un
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $branch->id,
         'management_level' => 0,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -449,10 +445,9 @@ test('lifecycle actions remain authorized for employees in deleted descendant un
     $branch->delete();
     $employee->refresh();
 
-    expect($employee->organizationalUnit)->toBeNull()
-        ->and($this->policy->delete($user, $employee))->toBeTrue()
-        ->and($this->policy->activate($user, $employee))->toBeTrue()
-        ->and($this->policy->terminate($user, $employee))->toBeTrue();
+    expect($this->policy->delete($user, $employee))->toBeFalse()
+        ->and($this->policy->activate($user, $employee))->toBeFalse()
+        ->and($this->policy->terminate($user, $employee))->toBeFalse();
 });
 
 test('only users with employee.write permission can place employees on leave', function (): void {
@@ -464,12 +459,11 @@ test('only users with employee.write permission can place employees on leave', f
     $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => 0,
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
-    expect($this->policy->placeOnLeave($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->placeOnLeave($userWithPermission, $employee))->toBeFalse();
     expect($this->policy->placeOnLeave($userWithoutPermission, $employee))->toBeFalse();
 });
 
@@ -482,11 +476,10 @@ test('only users with employee.write permission can return employees from leave'
     $userWithoutPermission = User::factory()->create(['tenant_id' => $this->tenant->id]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => 0,
         'status' => Employee::STATUS_ON_LEAVE,
     ]);
 
-    expect($this->policy->returnFromLeave($userWithPermission, $employee))->toBeTrue();
+    expect($this->policy->returnFromLeave($userWithPermission, $employee))->toBeFalse();
     expect($this->policy->returnFromLeave($userWithoutPermission, $employee))->toBeFalse();
 });

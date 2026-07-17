@@ -8,9 +8,8 @@ namespace App\Services;
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
-use App\Models\OrganizationalUnit;
 use App\Models\User;
-use App\Rules\AssignableOrganizationalUnit;
+use App\Repositories\DomainAccessRepository;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -28,7 +27,10 @@ class EmployeeLifecycleService
 
     private const ON_LEAVE_ROLE_NAME = 'Employee Read Only';
 
-    public function __construct(private readonly ActivityCauserContextService $activityCauserContextService) {}
+    public function __construct(
+        private readonly ActivityCauserContextService $activityCauserContextService,
+        private readonly DomainAccessRepository $domainAccess,
+    ) {}
 
     /**
      * Activate a pre-contract employee and provision their runtime access atomically.
@@ -55,7 +57,7 @@ class EmployeeLifecycleService
                 ]);
             }
 
-            $this->ensureOrganizationalUnitAcceptsActivation($employee);
+            $this->ensureEstablishmentAcceptsActivation($employee);
 
             $role = $this->resolveRole(self::EMPLOYEE_ROLE_NAME);
 
@@ -170,7 +172,7 @@ class EmployeeLifecycleService
                 ]);
             }
 
-            $this->ensureOrganizationalUnitAcceptsActivation($employee);
+            $this->ensureEstablishmentAcceptsActivation($employee);
 
             $user = $employee->user;
 
@@ -725,18 +727,18 @@ class EmployeeLifecycleService
         return $refreshedEmployee;
     }
 
-    private function ensureOrganizationalUnitAcceptsActivation(Employee $employee): void
+    private function ensureEstablishmentAcceptsActivation(Employee $employee): void
     {
-        $organizationalUnit = OrganizationalUnit::withTrashed()
-            ->where('tenant_id', $employee->tenant_id)
-            ->find($employee->organizational_unit_id);
-
-        if ($organizationalUnit instanceof OrganizationalUnit && ! $organizationalUnit->trashed() && $organizationalUnit->is_assignable) {
+        if ($this->domainAccess->establishmentDomainIsActive(
+            $employee->tenant_id,
+            $employee->legal_entity_id,
+            $employee->establishment_id,
+        )) {
             return;
         }
 
         throw ValidationException::withMessages([
-            'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            'establishment_id' => __('The selected establishment is inactive or unavailable.'),
         ]);
     }
 

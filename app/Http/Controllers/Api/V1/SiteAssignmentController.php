@@ -14,7 +14,6 @@ use App\Http\Resources\Api\V1\SiteAssignmentResource;
 use App\Models\Site;
 use App\Models\SiteAssignment;
 use App\Models\User;
-use App\Rules\AssignableOrganizationalUnit;
 use App\Services\EmployeeComplianceService;
 use App\Services\OrganizationalUnitAssignmentService;
 use Illuminate\Http\JsonResponse;
@@ -84,7 +83,7 @@ class SiteAssignmentController extends AssignmentController
 
         if (! $assignmentService->siteAcceptsAssignments($site)) {
             throw ValidationException::withMessages([
-                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+                'establishment_id' => __('The selected establishment is not active.'),
             ]);
         }
 
@@ -141,7 +140,7 @@ class SiteAssignmentController extends AssignmentController
             && $assignmentService->assignmentUpdateExpandsCoverage($siteAssignment, $validated)
         ) {
             throw ValidationException::withMessages([
-                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+                'establishment_id' => __('The selected establishment is not active.'),
             ]);
         }
 

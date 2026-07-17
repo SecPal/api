@@ -10,9 +10,14 @@ use App\Mail\BwrIdDocumentAutoDeletedMail;
 use App\Mail\OnboardingInvitationMail;
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
+use App\Models\EmployeeDocument;
 use App\Models\EmployeeOnboardingToken;
+use App\Models\EmployeeQualification;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Permission;
+use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
 use App\Support\LikePattern;
@@ -34,6 +39,8 @@ uses(RefreshDatabase::class);
  * @property TenantKey $tenant
  * @property User $user
  * @property string $token
+ * @property LegalEntity $legalEntity
+ * @property Establishment $establishment
  * @property OrganizationalUnit $organizationalUnit
  */
 beforeEach(function (): void {
@@ -66,8 +73,13 @@ beforeEach(function (): void {
     $this->organizationalUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
-
-    grantDualManagementScopes($this->user, $this->organizationalUnit->id);
+    $this->legalEntity = LegalEntity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+    ]);
+    $this->establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+    ]);
 });
 
 afterEach(function (): void {
@@ -117,7 +129,8 @@ describe('GET /v1/employees', function () {
 
         Employee::factory()->count(3)->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)->getJson('/v1/employees');
@@ -137,13 +150,15 @@ describe('GET /v1/employees', function () {
 
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_TERMINATED,
         ]);
 
@@ -154,122 +169,74 @@ describe('GET /v1/employees', function () {
         expect($response->json('data'))->toHaveCount(1);
     });
 
-    test('filters employees by organizational_unit_id', function (): void {
+    test('filters employees by establishment_id', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
-        $otherUnit = OrganizationalUnit::factory()->create([
+        $otherEstablishment = Establishment::factory()->create([
             'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $this->legalEntity->id,
         ]);
 
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $otherUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $otherEstablishment->id,
         ]);
 
         $response = $this->withToken($this->token)
-            ->getJson("/v1/employees?organizational_unit_id={$this->organizationalUnit->id}");
+            ->getJson("/v1/employees?establishment_id={$this->establishment->id}");
 
         $response->assertStatus(200);
         expect($response->json('data'))->toHaveCount(1);
     });
 
-    test('returns 422 for invalid organizational_unit_id filter format', function (): void {
+    test('returns 422 for invalid establishment_id filter format', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
         $response = $this->withToken($this->token)
-            ->getJson('/v1/employees?organizational_unit_id=1');
+            ->getJson('/v1/employees?establishment_id=1');
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['organizational_unit_id']);
+            ->assertJsonValidationErrors(['establishment_id']);
     });
 
-    test('returns empty list for foreign-tenant organizational_unit_id filter', function (): void {
+    test('returns empty list for foreign-tenant establishment_id filter', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-        $foreignUnit = OrganizationalUnit::factory()->create([
+        $foreignEstablishment = Establishment::factory()->create([
             'tenant_id' => $otherTenant->id,
         ]);
 
         $response = $this->withToken($this->token)
-            ->getJson("/v1/employees?organizational_unit_id={$foreignUnit->id}");
+            ->getJson("/v1/employees?establishment_id={$foreignEstablishment->id}");
 
         $response->assertOk();
         expect($response->json('data'))->toBeArray();
         expect($response->json('data'))->toHaveCount(0);
     });
 
-    test('manager with organizational scope cannot list employees outside scope', function (): void {
-        $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-        $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-        // Assign Manager role and organizational scope for unitA only
-        giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $unitA->id,
-            'access_level' => 'read',
-            'include_descendants' => false,
-        ]);
-
+    test('organizationally scoped users fail closed for employee domain records', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-
-        // Create employees in both units
-        Employee::factory()->create([
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
+        $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $unitA->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
-
-        Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $unitB->id,
-        ]);
-
-        // Manager should only see employee from unitA (scope filtering)
-        $response = $this->withToken($this->token)->getJson('/v1/employees');
-
-        $response->assertStatus(200);
-        expect($response->json('data'))->toHaveCount(1);
-        expect($response->json('data')[0]['organizational_unit_id'])->toBe($unitA->id);
-    });
-
-    test('employee index hides employees whose management level is outside the user\'s viewable rank scopes', function (): void {
-        $this->user->organizationalScopes()->delete();
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'read',
-            'include_descendants' => false,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
-        $guardEmployee = Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'management_level' => 0,
-        ]);
-
-        $leadershipEmployee = Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'management_level' => 5,
-        ]);
-
         $response = $this->withToken($this->token)->getJson('/v1/employees');
 
         $response->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $guardEmployee->id);
+            ->assertJsonCount(0, 'data');
 
         $this->withToken($this->token)
-            ->getJson("/v1/employees/{$leadershipEmployee->id}")
+            ->getJson("/v1/employees/{$employee->id}")
             ->assertForbidden();
     });
 
@@ -278,13 +245,15 @@ describe('GET /v1/employees', function () {
 
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'email' => 'john.doe@example.com',
         ]);
 
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'email' => 'jane.smith@example.com',
         ]);
 
@@ -301,14 +270,16 @@ describe('GET /v1/employees', function () {
 
         Employee::factory()->withExpiringComplianceCertifications()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
             'email' => 'alert@example.com',
         ]);
 
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
             'email' => 'clear@example.com',
         ]);
@@ -329,13 +300,15 @@ describe('GET /v1/employees', function () {
 
         Employee::factory(2)->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
         Employee::factory()->withExpiringWorkPermit()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
             'email' => 'work-permit-alert@example.com',
             'nationalities' => ['TR'],
@@ -360,7 +333,8 @@ describe('GET /v1/employees', function () {
 
         Employee::factory()->withComplianceCertifications()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
             'email' => 'warning@example.com',
             'firearms_license_expiry' => now()->addDays(20)->toDateString(),
@@ -378,7 +352,8 @@ describe('GET /v1/employees', function () {
 
         Employee::factory()->withExpiringComplianceCertifications()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
             'email' => 'critical@example.com',
         ]);
@@ -407,7 +382,8 @@ describe('GET /v1/employees', function () {
 
         Employee::factory(3)->withExpiringComplianceCertifications()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
@@ -426,7 +402,8 @@ describe('GET /v1/employees', function () {
 
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'email' => 'john.doe@secpal.dev',
         ]);
 
@@ -442,7 +419,8 @@ describe('GET /v1/employees', function () {
 
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'email' => 'foo\\%_bar@secpal.dev',
         ]);
 
@@ -466,27 +444,6 @@ describe('GET /v1/employees', function () {
 });
 
 describe('POST /v1/employees', function () {
-    test('rejects placement in a closed organizational unit', function (bool $isDeleted): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-        $isDeleted ? $this->organizationalUnit->delete() : $this->organizationalUnit->update(['is_assignable' => false]);
-
-        $response = $this->withToken($this->token)
-            ->postJson('/v1/employees', [
-                'first_name' => 'Nina',
-                'last_name' => 'Newhire',
-                'email' => 'nina.newhire@example.com',
-                'date_of_birth' => '1993-05-15',
-                'position' => 'Security Guard',
-                'status' => Employee::STATUS_PRE_CONTRACT,
-                'contract_type' => 'full_time',
-                'contract_start_date' => now()->addWeek()->toDateString(),
-                'organizational_unit_id' => $this->organizationalUnit->id,
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id']);
-    })->with(['deleted' => true, 'non-assignable' => false]);
-
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson('/v1/employees', [
             'first_name' => 'John',
@@ -509,7 +466,8 @@ describe('POST /v1/employees', function () {
             'contract_start_date' => now()->toDateString(),
             'weekly_hours' => 40,
             'hourly_rate' => 15.50,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'management_level' => 0,
         ]);
 
@@ -532,7 +490,8 @@ describe('POST /v1/employees', function () {
                 'status',
                 'contract_start_date',
                 'contract_type',
-                'organizational_unit_id',
+                'legal_entity_id',
+                'establishment_id',
             ]);
     });
 
@@ -554,7 +513,8 @@ describe('POST /v1/employees', function () {
                 'date_of_birth',
                 'position',
                 'contract_start_date',
-                'organizational_unit_id',
+                'legal_entity_id',
+                'establishment_id',
             ]);
     });
 
@@ -573,7 +533,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->addWeek()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 16.50,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -594,7 +555,6 @@ describe('POST /v1/employees', function () {
         $user = User::factory()->create();
         $token = $user->createToken('test-device')->plainTextToken;
         givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
-        grantDualManagementScopes($user, $this->organizationalUnit->id);
 
         $response = $this->withToken($token)
             ->postJson('/v1/employees', [
@@ -608,7 +568,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->addWeek()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 16.50,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'management_level' => 0,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
@@ -634,7 +595,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 15.50,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -674,7 +636,8 @@ describe('POST /v1/employees', function () {
             'contract_start_date' => now()->toDateString(),
             'weekly_hours' => 40,
             'hourly_rate' => 15.50,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'sachkunde_type' => 'none',
             'work_permit_type' => 'none',
             'criminal_record_status' => 'valid',
@@ -711,7 +674,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 18.00,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -742,7 +706,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->addWeek()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 16.50,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -785,7 +750,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->addWeek()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 16.50,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -822,7 +788,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 15.50,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -853,7 +820,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 15.00,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -872,7 +840,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->toDateString(),
                 'weekly_hours' => 20,
                 'hourly_rate' => 16.00,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -899,8 +868,12 @@ describe('POST /v1/employees', function () {
         givePermissionWithTenant($otherUser, $otherTenant->id, 'employee.write');
         givePermissionWithTenant($otherUser, $otherTenant->id, 'employees.read_salary');
 
-        $otherOrganizationalUnit = OrganizationalUnit::factory()->create([
+        $otherLegalEntity = LegalEntity::factory()->create([
             'tenant_id' => $otherTenant->id,
+        ]);
+        $otherEstablishment = Establishment::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'legal_entity_id' => $otherLegalEntity->id,
         ]);
 
         $firstTenantResponse = $this
@@ -915,14 +888,13 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 15.00,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
                 'management_level' => 0,
             ]);
-
-        grantDualManagementScopes($otherUser, $otherOrganizationalUnit->id);
 
         Sanctum::actingAs($otherUser, [User::API_ACCESS_ABILITY]);
 
@@ -938,7 +910,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 16.00,
-                'organizational_unit_id' => $otherOrganizationalUnit->id,
+                'legal_entity_id' => $otherLegalEntity->id,
+                'establishment_id' => $otherEstablishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -973,7 +946,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->addWeek()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 15.50,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -1008,7 +982,8 @@ describe('POST /v1/employees', function () {
                 'contract_start_date' => now()->addWeek()->toDateString(),
                 'weekly_hours' => 40,
                 'hourly_rate' => 15.50,
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'sachkunde_type' => 'none',
                 'work_permit_type' => 'none',
                 'criminal_record_status' => 'valid',
@@ -1048,7 +1023,8 @@ describe('GET /v1/employees/{employee}', function () {
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->getJson("/v1/employees/{$employee->id}");
@@ -1058,7 +1034,8 @@ describe('GET /v1/employees/{employee}', function () {
     test('returns 403 when user lacks employee.read permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -1073,11 +1050,11 @@ describe('GET /v1/employees/{employee}', function () {
         // We intentionally create two non-overlapping rank scopes (ADR-009):
         // one for Guards (0-0) and one for Leadership (1-255). A single scope
         // cannot model both cohorts without either excluding one group or broadening access.
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'position' => 'Test Position',
             'management_level' => 3,
         ]);
@@ -1097,7 +1074,8 @@ describe('GET /v1/employees/{employee}', function () {
                     'position',
                     'management_level',
                     'user',
-                    'organizational_unit',
+                    'legal_entity_id',
+                    'establishment_id',
                 ],
             ])
             ->assertJson([
@@ -1108,43 +1086,51 @@ describe('GET /v1/employees/{employee}', function () {
             ]);
     });
 
-    test('renders an employee stranded in a soft-deleted organizational unit without crashing', function (): void {
+    test('includes side resources only with their dedicated read permissions', function (bool $canReadSideResources): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-
-        $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-        grantDualManagementScopes($this->user, $unit->id);
+        if ($canReadSideResources) {
+            givePermissionWithTenant($this->user, $this->tenant->id, 'employee_document.read');
+            givePermissionWithTenant($this->user, $this->tenant->id, 'employee_qualification.read');
+        }
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $unit->id,
-            'management_level' => 3,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
+        ]);
+        $document = EmployeeDocument::factory()->create([
+            'employee_id' => $employee->id,
+            'uploaded_by' => $this->user->id,
+        ]);
+        $employeeQualification = EmployeeQualification::factory()->create([
+            'employee_id' => $employee->id,
+            'qualification_id' => Qualification::factory()->create([
+                'tenant_id' => $this->tenant->id,
+            ])->id,
         ]);
 
-        $unit->delete();
-
         $response = $this->withToken($this->token)
-            ->getJson("/v1/employees/{$employee->id}");
+            ->getJson("/v1/employees/{$employee->id}")
+            ->assertOk();
 
-        $response->assertOk()
-            ->assertJsonPath('data.organizational_unit_id', $unit->id)
-            ->assertJsonPath('data.organizational_unit', null);
-    });
+        if ($canReadSideResources) {
+            $response->assertJsonPath('data.documents.0.id', $document->id)
+                ->assertJsonPath('data.qualifications.0.id', $employeeQualification->id);
+
+            return;
+        }
+
+        $response->assertJsonMissingPath('data.documents')
+            ->assertJsonMissingPath('data.qualifications');
+    })->with([false, true]);
 
     test('omits sensitive identifiers for managers without employees.read_sensitive', function (): void {
         giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'management_level' => 0,
             'tax_id' => '12345678901',
             'social_security_number' => '65 123456 A 123',
@@ -1173,18 +1159,10 @@ describe('GET /v1/employees/{employee}', function () {
     test('returns sensitive identifiers for HR users with employees.read_sensitive', function (): void {
         giveRoleWithTenant($this->user, $this->tenant->id, 'HR');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'management_level' => 0,
             'tax_id' => '12345678901',
             'social_security_number' => '65 123456 A 123',
@@ -1212,11 +1190,11 @@ describe('GET /v1/employees/{employee}', function () {
         $user = User::factory()->create();
         $token = $user->createToken('test-device')->plainTextToken;
         givePermissionWithTenant($user, $this->tenant->id, 'employee.read');
-        grantDualManagementScopes($user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'management_level' => 0,
             'hourly_rate' => '29.75',
         ]);
@@ -1232,12 +1210,8 @@ describe('GET /v1/employees/{employee}', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-        $foreignUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $otherTenant->id,
-        ]);
         $employee = Employee::factory()->create([
             'tenant_id' => $otherTenant->id,
-            'organizational_unit_id' => $foreignUnit->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -1260,41 +1234,21 @@ describe('GET /v1/employees/{employee}', function () {
 });
 
 describe('PATCH /v1/employees/{employee}', function () {
-    test('rejects moving an employee to a closed organizational unit', function (bool $isDeleted): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-        $targetUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'is_assignable' => $isDeleted,
-        ]);
-        $isDeleted ? $targetUnit->delete() : grantDualManagementScopes($this->user, $targetUnit->id);
-        $employee = Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
-        ]);
-
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/employees/{$employee->id}", [
-                'organizational_unit_id' => $targetUnit->id,
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id']);
-    })->with(['deleted' => true, 'non-assignable' => false]);
-
     test('allows an unchanged closed organizational unit in an employee update', function (bool $isDeleted): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'weekly_hours' => 40,
         ]);
         $isDeleted ? $this->organizationalUnit->delete() : $this->organizationalUnit->update(['is_assignable' => false]);
 
         $response = $this->withToken($this->token)
             ->patchJson("/v1/employees/{$employee->id}", [
-                'organizational_unit_id' => $this->organizationalUnit->id,
+                'legal_entity_id' => $this->legalEntity->id,
+                'establishment_id' => $this->establishment->id,
                 'weekly_hours' => 35,
             ]);
 
@@ -1305,7 +1259,8 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->patchJson("/v1/employees/{$employee->id}", [
@@ -1318,7 +1273,8 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -1333,11 +1289,11 @@ describe('PATCH /v1/employees/{employee}', function () {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
         // Need TWO scopes: 0-0 for Guards + 1-255 for Leadership (ADR-009)
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'weekly_hours' => 40,
         ]);
 
@@ -1354,11 +1310,11 @@ describe('PATCH /v1/employees/{employee}', function () {
         $user = User::factory()->create();
         $token = $user->createToken('test-device')->plainTextToken;
         givePermissionWithTenant($user, $this->tenant->id, 'employee.write');
-        grantDualManagementScopes($user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'hourly_rate' => 15.50,
         ]);
 
@@ -1376,11 +1332,10 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects blank address rows without deleting existing address history', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
-
         $employee = Employee::factory()->withAddressHistory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $existingAddressIds = $employee->addresses()->orderBy('id')->pluck('id')->all();
@@ -1411,11 +1366,10 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('treats addresses null as a no-op for existing address history', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
-
         $employee = Employee::factory()->withAddressHistory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $existingAddressIds = $employee->addresses()->orderBy('id')->pluck('id')->all();
@@ -1436,11 +1390,10 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects an address row where all fields are empty', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $existingCount = $employee->addresses()->count();
@@ -1461,11 +1414,10 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects an address row where all fields are blank strings', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $existingCount = $employee->addresses()->count();
@@ -1486,11 +1438,10 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects addresses null for employees that require a current BWR address', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
-
         $employee = Employee::factory()->withAddressHistory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'pending',
         ]);
 
@@ -1511,11 +1462,10 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects direct status changes via patch', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
@@ -1533,11 +1483,10 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects null status via patch', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
@@ -1555,11 +1504,10 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects direct bwr field changes via patch and preserves audit trail invariants', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'pending',
             'bwr_id' => null,
             'bwr_notes' => null,
@@ -1599,11 +1547,10 @@ describe('PATCH /v1/employees/{employee}', function () {
     test('rejects direct retention field changes via patch', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'employment_end_date' => null,
             'retention_period_end' => null,
         ]);
@@ -1631,7 +1578,8 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->postJson("/v1/employees/{$employee->id}/bwr/export", [
@@ -1644,7 +1592,8 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
     test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -1658,18 +1607,10 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
     test('exports a bwr-ready employee and transitions status to pending', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'first_name' => 'Taylor',
             'last_name' => 'Export',
             'date_of_birth' => '1990-01-15',
@@ -1757,18 +1698,10 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
     test('returns 422 when employee is not ready for bwr export', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'not_registered',
             'gender' => null,
         ]);
@@ -1789,18 +1722,10 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
     test('returns locale-independent bwr export error codes under a German Accept-Language header', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'not_registered',
             'gender' => null,
         ]);
@@ -1821,18 +1746,10 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
     test('returns 422 when employee already left not_registered status', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'pending',
         ]);
 
@@ -1850,7 +1767,8 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'not_registered',
         ]);
 
@@ -1866,18 +1784,10 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
     test('exports a bwr-ready employee as xml', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'first_name' => 'Taylor',
             'last_name' => 'Export',
             'date_of_birth' => '1990-01-15',
@@ -1950,22 +1860,14 @@ describe('POST /v1/employees/{employee}/bwr/export', function (): void {
     test('completes the bwr workflow from export to activation with audit side effects', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         Mail::fake();
         Storage::fake('local');
         Storage::disk('local')->put('id_documents/bwr-end-to-end-test.pdf', 'test content');
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'first_name' => 'Taylor',
             'last_name' => 'Workflow',
             'date_of_birth' => '1990-01-15',
@@ -2113,18 +2015,10 @@ describe('GET /v1/employees/{employee}/bwr/exports/{file}/download', function ()
     test('downloads a generated bwr export', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'first_name' => 'Taylor',
             'last_name' => 'Export',
             'date_of_birth' => '1990-01-15',
@@ -2192,7 +2086,8 @@ describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'pending',
         ]);
 
@@ -2207,7 +2102,8 @@ describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
     test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'pending',
         ]);
 
@@ -2223,18 +2119,10 @@ describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
     test('returns 422 when activating without a bwr id', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'pending',
         ]);
 
@@ -2250,18 +2138,10 @@ describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
     test('returns 422 when bwr transition is not allowed', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'not_registered',
         ]);
 
@@ -2278,21 +2158,13 @@ describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
     test('activates a pending employee, persists bwr data, and logs the change', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         Storage::fake('local');
         Storage::disk('local')->put('id_documents/bwr-status-test.pdf', 'test content');
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'pending',
             'id_document_copy_path' => 'id_documents/bwr-status-test.pdf',
             'id_document_copy_deleted_at' => null,
@@ -2336,18 +2208,10 @@ describe('PUT /v1/employees/{employee}/bwr/status', function (): void {
     test('idempotent re-put with same status succeeds and updates notes', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
 
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => true,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
-
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'bwr_status' => 'active',
             'bwr_id' => '1234567',
             'bwr_registered_at' => now()->subDay(),
@@ -2371,7 +2235,8 @@ describe('DELETE /v1/employees/{employee}', function () {
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->deleteJson("/v1/employees/{$employee->id}");
@@ -2381,7 +2246,8 @@ describe('DELETE /v1/employees/{employee}', function () {
     test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -2395,7 +2261,8 @@ describe('DELETE /v1/employees/{employee}', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -2405,25 +2272,10 @@ describe('DELETE /v1/employees/{employee}', function () {
         expect(Employee::withTrashed()->find($employee->id)->deleted_at)->not->toBeNull();
     });
 
-    test('deletes an employee without an organizational unit when tenant permission allows lifecycle cleanup', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-        $employee = Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => null,
-            'management_level' => 0,
-        ]);
-
-        $response = $this->withToken($this->token)
-            ->deleteJson("/v1/employees/{$employee->id}");
-
-        $response->assertNoContent();
-        expect(Employee::withTrashed()->find($employee->id)->deleted_at)->not->toBeNull();
-    });
-
-    test('returns 403 when target employee is outside the actor management rank scope', function (): void {
+    test('returns 403 for deletion when the actor has an organizational scope', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
         $this->user->organizationalScopes()->delete();
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
         $this->user->organizationalScopes()->create([
             'organizational_unit_id' => $this->organizationalUnit->id,
             'access_level' => 'manage',
@@ -2437,7 +2289,8 @@ describe('DELETE /v1/employees/{employee}', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'management_level' => 3,
         ]);
 
@@ -2455,7 +2308,8 @@ describe('DELETE /v1/employees/{employee}', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'user_id' => $linkedUser->id,
             'user_account_active' => true,
@@ -2487,33 +2341,11 @@ describe('DELETE /v1/employees/{employee}', function () {
 });
 
 describe('POST /v1/employees/{employee}/activate', function () {
-    test('rejects lifecycle activation in a closed organizational unit', function (string $endpoint, string $status, bool $isDeleted): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-        $employee = Employee::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'status' => $status,
-            'onboarding_completed' => true,
-            'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
-            'contract_start_date' => now()->subDay()->toDateString(),
-        ]);
-        $isDeleted ? $this->organizationalUnit->delete() : $this->organizationalUnit->update(['is_assignable' => false]);
-
-        $response = $this->withToken($this->token)->postJson("/v1/employees/{$employee->id}/{$endpoint}");
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id']);
-    })->with([
-        'activate non-assignable' => ['activate', Employee::STATUS_PRE_CONTRACT, false],
-        'activate deleted' => ['activate', Employee::STATUS_PRE_CONTRACT, true],
-        'return non-assignable' => ['return-from-leave', Employee::STATUS_ON_LEAVE, false],
-        'return deleted' => ['return-from-leave', Employee::STATUS_ON_LEAVE, true],
-    ]);
-
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
@@ -2524,7 +2356,8 @@ describe('POST /v1/employees/{employee}/activate', function () {
     test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
@@ -2539,7 +2372,8 @@ describe('POST /v1/employees/{employee}/activate', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
             'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -2554,23 +2388,15 @@ describe('POST /v1/employees/{employee}/activate', function () {
         expect($response->json('data.onboarding_workflow.status'))->toBe(Employee::WORKFLOW_STATUS_ACTIVE);
     });
 
-    test('returns 403 when target employee is outside the actor management rank scope', function (): void {
+    test('returns 403 for activation when the actor has an organizational scope', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
         $this->user->organizationalScopes()->delete();
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => false,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'min_assignable_rank' => 0,
-            'max_assignable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'management_level' => 3,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
@@ -2588,7 +2414,8 @@ describe('POST /v1/employees/{employee}/activate', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => false,
             'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -2606,7 +2433,8 @@ describe('POST /v1/employees/{employee}/activate', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
             'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
@@ -2624,7 +2452,8 @@ describe('POST /v1/employees/{employee}/activate', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
             'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -2642,7 +2471,8 @@ describe('POST /v1/employees/{employee}/activate', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
             'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -2667,7 +2497,8 @@ describe('POST /v1/employees/{employee}/terminate', function () {
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
@@ -2681,7 +2512,8 @@ describe('POST /v1/employees/{employee}/terminate', function () {
     test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
@@ -2698,7 +2530,8 @@ describe('POST /v1/employees/{employee}/terminate', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
@@ -2712,23 +2545,15 @@ describe('POST /v1/employees/{employee}/terminate', function () {
         expect($response->json('data.status'))->toBe(Employee::STATUS_TERMINATED);
     });
 
-    test('returns 403 when target employee is outside the actor management rank scope', function (): void {
+    test('returns 403 for termination when the actor has an organizational scope', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
         $this->user->organizationalScopes()->delete();
-        $this->user->organizationalScopes()->create([
-            'organizational_unit_id' => $this->organizationalUnit->id,
-            'access_level' => 'manage',
-            'include_descendants' => false,
-            'min_viewable_rank' => 0,
-            'max_viewable_rank' => 0,
-            'min_assignable_rank' => 0,
-            'max_assignable_rank' => 0,
-            'allow_self_access' => true,
-        ]);
+        grantDualManagementScopes($this->user, $this->organizationalUnit->id);
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'management_level' => 3,
             'status' => Employee::STATUS_ACTIVE,
         ]);
@@ -2746,7 +2571,8 @@ describe('POST /v1/employees/{employee}/terminate', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
@@ -2763,7 +2589,8 @@ describe('POST /v1/employees/{employee}/leave', function () {
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
@@ -2774,7 +2601,8 @@ describe('POST /v1/employees/{employee}/leave', function () {
     test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
@@ -2789,7 +2617,8 @@ describe('POST /v1/employees/{employee}/leave', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
             'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -2814,7 +2643,8 @@ describe('POST /v1/employees/{employee}/leave', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
 
@@ -2829,7 +2659,8 @@ describe('POST /v1/employees/{employee}/return-from-leave', function () {
     test('returns 401 when not authenticated', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ON_LEAVE,
         ]);
 
@@ -2840,7 +2671,8 @@ describe('POST /v1/employees/{employee}/return-from-leave', function () {
     test('returns 403 when user lacks employee.write permission', function (): void {
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ON_LEAVE,
         ]);
 
@@ -2855,7 +2687,8 @@ describe('POST /v1/employees/{employee}/return-from-leave', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
             'onboarding_completed' => true,
             'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -2884,7 +2717,8 @@ describe('POST /v1/employees/{employee}/return-from-leave', function () {
 
         $employee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
             'status' => Employee::STATUS_ACTIVE,
         ]);
 
@@ -2893,503 +2727,4 @@ describe('POST /v1/employees/{employee}/return-from-leave', function () {
 
         $response->assertStatus(422);
     });
-});
-
-test('manager cannot create employee in unit outside their scope', function (): void {
-    $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    // Manager has scope only on unitA
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $unitA->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-        'min_viewable_rank' => 0,
-        'max_viewable_rank' => 0,
-        'min_assignable_rank' => 0,
-        'max_assignable_rank' => 0,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    // Attempt to create employee in unitB (outside scope)
-    $response = $this->withToken($this->token)->postJson('/v1/employees', [
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-        'email' => 'john.doe@example.com',
-        'date_of_birth' => '1990-01-15',
-        'status' => 'pre_contract',
-        'contract_type' => 'full_time',
-        'contract_start_date' => now()->toDateString(),
-        'position' => 'Security Guard',
-        'organizational_unit_id' => $unitB->id,
-        'management_level' => 0,
-    ]);
-
-    $response->assertStatus(422);
-    $response->assertJsonValidationErrors(['organizational_unit_id']);
-    expect($response->json('errors.organizational_unit_id.0'))->toContain('do not have access');
-});
-
-test('manager can create employee in unit within their scope', function (): void {
-    $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    // Manager has scope on unitA
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $unitA->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-        'min_viewable_rank' => 0,
-        'max_viewable_rank' => 0,
-        'min_assignable_rank' => 0,
-        'max_assignable_rank' => 0,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    // Create employee in unitA (within scope)
-    $response = $this->withToken($this->token)->postJson('/v1/employees', [
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-        'email' => 'john.doe@example.com',
-        'date_of_birth' => '1990-01-15',
-        'status' => 'pre_contract',
-        'contract_type' => 'full_time',
-        'contract_start_date' => now()->toDateString(),
-        'position' => 'Security Guard',
-        'organizational_unit_id' => $unitA->id,
-        'management_level' => 0,
-    ]);
-
-    $response->assertStatus(201);
-    expect($response->json('data.organizational_unit_id'))->toBe($unitA->id);
-});
-
-test('manager without scope on target unit fails organizational-unit validation when moving employee outside their scope', function (): void {
-    $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $unitB = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    // Manager has scope only on unitA
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $unitA->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    // Create employee in unitA
-    $employee = Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $unitA->id,
-    ]);
-
-    // Attempt to move employee to unitB (outside scope)
-    $response = $this->withToken($this->token)->patchJson("/v1/employees/{$employee->id}", [
-        'organizational_unit_id' => $unitB->id,
-    ]);
-
-    $response->assertStatus(422)
-        ->assertJsonValidationErrors(['organizational_unit_id']);
-});
-
-test('user without organizational scopes cannot create employee in any unit', function (): void {
-    $unitA = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    $this->user->organizationalScopes()->delete();
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    $response = $this->withToken($this->token)->postJson('/v1/employees', [
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-        'email' => 'john.doe@example.com',
-        'date_of_birth' => '1990-01-15',
-        'status' => 'pre_contract',
-        'contract_type' => 'full_time',
-        'contract_start_date' => now()->toDateString(),
-        'position' => 'Security Guard',
-        'organizational_unit_id' => $unitA->id,
-        'management_level' => 0,
-    ]);
-
-    $response
-        ->assertStatus(422)
-        ->assertJsonValidationErrors(['organizational_unit_id']);
-});
-
-test('manager with include_descendants=true can create employee in child unit', function (): void {
-    $parent = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $child = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $child->setParent($parent);
-
-    // Manager has scope on parent with include_descendants=true
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $parent->id,
-        'access_level' => 'write',
-        'include_descendants' => true,
-        'min_viewable_rank' => 0,
-        'max_viewable_rank' => 0,
-        'min_assignable_rank' => 0,
-        'max_assignable_rank' => 0,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    // Create employee in child unit
-    $response = $this->withToken($this->token)->postJson('/v1/employees', [
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-        'email' => 'john.doe@example.com',
-        'date_of_birth' => '1990-01-15',
-        'status' => 'pre_contract',
-        'contract_type' => 'full_time',
-        'contract_start_date' => now()->toDateString(),
-        'position' => 'Security Guard',
-        'organizational_unit_id' => $child->id,
-        'management_level' => 0,
-    ]);
-
-    $response->assertStatus(201);
-    expect($response->json('data.organizational_unit_id'))->toBe($child->id);
-});
-
-test('manager can view a newly created employee in a descendant unit immediately after create', function (): void {
-    $parent = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $child = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $child->setParent($parent);
-
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $parent->id,
-        'access_level' => 'write',
-        'include_descendants' => true,
-        'min_viewable_rank' => 0,
-        'max_viewable_rank' => 0,
-        'min_assignable_rank' => 0,
-        'max_assignable_rank' => 0,
-        'allow_self_access' => true,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    $createResponse = $this->withToken($this->token)->postJson('/v1/employees', [
-        'first_name' => 'Descendant',
-        'last_name' => 'Visible',
-        'email' => 'descendant.visible@example.com',
-        'date_of_birth' => '1990-01-15',
-        'status' => Employee::STATUS_PRE_CONTRACT,
-        'contract_type' => 'full_time',
-        'contract_start_date' => now()->toDateString(),
-        'position' => 'Security Guard',
-        'organizational_unit_id' => $child->id,
-        'management_level' => 0,
-    ]);
-
-    $createResponse->assertCreated();
-
-    $employeeId = $createResponse->json('data.id');
-
-    $this->withToken($this->token)
-        ->getJson("/v1/employees/{$employeeId}")
-        ->assertOk()
-        ->assertJsonPath('data.organizational_unit.id', $child->id);
-});
-
-test('manager cannot create an employee with a management level outside writable and viewable scope', function (): void {
-    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $unit->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-        'min_viewable_rank' => 0,
-        'max_viewable_rank' => 0,
-        'min_assignable_rank' => 0,
-        'max_assignable_rank' => 0,
-        'allow_self_access' => true,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    $response = $this->withToken($this->token)->postJson('/v1/employees', [
-        'first_name' => 'Rank',
-        'last_name' => 'Mismatch',
-        'email' => 'rank.mismatch@example.com',
-        'date_of_birth' => '1990-01-15',
-        'status' => Employee::STATUS_PRE_CONTRACT,
-        'contract_type' => 'full_time',
-        'contract_start_date' => now()->toDateString(),
-        'position' => 'Area Manager',
-        'organizational_unit_id' => $unit->id,
-        'management_level' => 5,
-    ]);
-
-    $response->assertStatus(422)
-        ->assertJsonValidationErrors(['management_level']);
-});
-
-test('manager can create a non-management employee when scope uses null rank maxima', function (): void {
-    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $unit->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-        'min_viewable_rank' => null,
-        'max_viewable_rank' => null,
-        'min_assignable_rank' => null,
-        'max_assignable_rank' => null,
-        'allow_self_access' => true,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    $response = $this->withToken($this->token)->postJson('/v1/employees', [
-        'first_name' => 'Guard',
-        'last_name' => 'Zero',
-        'email' => 'guard.zero@example.com',
-        'date_of_birth' => '1992-04-10',
-        'status' => Employee::STATUS_PRE_CONTRACT,
-        'contract_type' => 'full_time',
-        'contract_start_date' => now()->toDateString(),
-        'position' => 'Security Guard',
-        'organizational_unit_id' => $unit->id,
-    ]);
-
-    $response->assertCreated()
-        ->assertJsonPath('data.management_level', 0);
-});
-
-test('manager create validation error is translated to german', function (): void {
-    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $unit->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-        'min_viewable_rank' => 0,
-        'max_viewable_rank' => 0,
-        'min_assignable_rank' => 0,
-        'max_assignable_rank' => 0,
-        'allow_self_access' => true,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    $response = $this->withToken($this->token)
-        ->withHeaders(['Accept-Language' => 'de'])
-        ->postJson('/v1/employees', [
-            'first_name' => 'Rank',
-            'last_name' => 'Mismatch',
-            'email' => 'rank.mismatch.de@example.com',
-            'date_of_birth' => '1990-01-15',
-            'status' => Employee::STATUS_PRE_CONTRACT,
-            'contract_type' => 'full_time',
-            'contract_start_date' => now()->toDateString(),
-            'position' => 'Area Manager',
-            'organizational_unit_id' => $unit->id,
-            'management_level' => 5,
-        ]);
-
-    $response->assertStatus(422)
-        ->assertJsonValidationErrors(['management_level']);
-
-    $message = $response->json('errors.management_level.0');
-
-    expect($message)
-        ->toBeString()
-        ->toContain('Führungsebene')
-        ->toContain('organisatorischen Geltungsbereichs')
-        ->not->toContain('You may only create employees');
-});
-
-test('manager with leadership-only scope cannot create a non-management employee when min rank excludes guards', function (): void {
-    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $unit->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-        'min_viewable_rank' => 1,
-        'max_viewable_rank' => null,
-        'min_assignable_rank' => 1,
-        'max_assignable_rank' => null,
-        'allow_self_access' => true,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    $response = $this->withToken($this->token)->postJson('/v1/employees', [
-        'first_name' => 'Guard',
-        'last_name' => 'Excluded',
-        'email' => 'guard.excluded@example.com',
-        'date_of_birth' => '1992-04-10',
-        'status' => Employee::STATUS_PRE_CONTRACT,
-        'contract_type' => 'full_time',
-        'contract_start_date' => now()->toDateString(),
-        'position' => 'Security Guard',
-        'organizational_unit_id' => $unit->id,
-    ]);
-
-    $response->assertStatus(422)
-        ->assertJsonValidationErrors(['management_level']);
-});
-
-test('manager cannot update an employee to a management level outside writable and viewable scope', function (): void {
-    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $unit->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-        'min_viewable_rank' => 0,
-        'max_viewable_rank' => 0,
-        'min_assignable_rank' => 0,
-        'max_assignable_rank' => 0,
-        'allow_self_access' => true,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    $employee = Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $unit->id,
-        'management_level' => 0,
-    ]);
-
-    $response = $this->withToken($this->token)->patchJson("/v1/employees/{$employee->id}", [
-        'organizational_unit_id' => $unit->id,
-        'management_level' => 5,
-    ]);
-
-    $response->assertStatus(422)
-        ->assertJsonValidationErrors(['management_level']);
-});
-
-test('manager cannot update an employee in a soft-deleted unit to a management level outside writable and viewable scope', function (): void {
-    $unit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $unit->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-        'min_viewable_rank' => 0,
-        'max_viewable_rank' => 0,
-        'min_assignable_rank' => 0,
-        'max_assignable_rank' => 0,
-        'allow_self_access' => true,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    $employee = Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $unit->id,
-        'management_level' => 0,
-    ]);
-
-    $unit->delete();
-
-    $response = $this->withToken($this->token)->patchJson("/v1/employees/{$employee->id}", [
-        'organizational_unit_id' => $unit->id,
-        'management_level' => 5,
-    ]);
-
-    $response->assertStatus(422)
-        ->assertJsonValidationErrors(['management_level']);
-});
-
-test('manager with include_descendants=false cannot create employee in child unit', function (): void {
-    $parent = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $child = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $child->setParent($parent);
-
-    // Manager has scope on parent with include_descendants=false
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $parent->id,
-        'access_level' => 'write',
-        'include_descendants' => false,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
-
-    // Attempt to create employee in child unit
-    $response = $this->withToken($this->token)->postJson('/v1/employees', [
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-        'email' => 'john.doe@example.com',
-        'date_of_birth' => '1990-01-15',
-        'status' => 'pre_contract',
-        'contract_type' => 'full_time',
-        'contract_start_date' => now()->toDateString(),
-        'position' => 'Security Guard',
-        'organizational_unit_id' => $child->id,
-        'management_level' => 0,
-    ]);
-
-    $response->assertStatus(422);
-    $response->assertJsonValidationErrors(['organizational_unit_id']);
-});
-
-test('manager with scope on parent can list employees from all descendant units', function (): void {
-    $parent = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $child1 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $child1->setParent($parent);
-    $child2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    $child2->setParent($parent);
-
-    // Manager has scope on parent with include_descendants=true
-    giveRoleWithTenant($this->user, $this->tenant->id, 'Manager');
-    $this->user->organizationalScopes()->create([
-        'organizational_unit_id' => $parent->id,
-        'access_level' => 'read',
-        'include_descendants' => true,
-    ]);
-
-    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
-
-    // Create employees in parent and child units
-    Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $parent->id,
-    ]);
-    Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $child1->id,
-    ]);
-    Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $child2->id,
-    ]);
-
-    // Create employee in unrelated unit (should not be visible)
-    $unrelatedUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
-    Employee::factory()->create([
-        'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $unrelatedUnit->id,
-    ]);
-
-    $response = $this->withToken($this->token)->getJson('/v1/employees');
-
-    $response->assertStatus(200);
-    // Should see 3 employees (parent + 2 children), not the unrelated one
-    expect($response->json('data'))->toHaveCount(3);
 });

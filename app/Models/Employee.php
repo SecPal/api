@@ -117,7 +117,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property ?\Illuminate\Support\Carbon $onboarding_invitation_mail_sent_at
  * @property ?\Illuminate\Support\Carbon $onboarding_invitation_mail_failed_at
  * @property string|null $onboarding_invitation_failure_reason
- * @property string|null $organizational_unit_id
+ * @property string $legal_entity_id
+ * @property string $establishment_id
  * @property string|null $position Job title/role (e.g., 'Objektleiter Flughafen Berlin')
  * @property int $management_level Management level: 0=non-management, 1=CEO/highest, 2-255=lower levels
  * @property \Illuminate\Support\Carbon $created_at
@@ -137,7 +138,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read SupportCollection<int, array{type: string, label: string, expiry: string, status: string, days_until_expiry: int}> $expiring_documents
  * @property-read TenantKey $tenant
  * @property-read User|null $user
- * @property-read OrganizationalUnit|null $organizationalUnit
+ * @property-read LegalEntity $legalEntity
+ * @property-read Establishment $establishment
  * @property-read Collection<int, EmployeeQualification> $employeeQualifications
  * @property-read Collection<int, Qualification> $qualifications
  * @property-read Collection<int, EmployeeDocument> $documents
@@ -400,7 +402,8 @@ class Employee extends Model
         'onboarding_invitation_mail_sent_at',
         'onboarding_invitation_mail_failed_at',
         'onboarding_invitation_failure_reason',
-        'organizational_unit_id',
+        'legal_entity_id',
+        'establishment_id',
         'position',
         'management_level',
     ];
@@ -512,7 +515,7 @@ class Employee extends Model
      * MIT Werten geloggt (rechtlich/compliance notwendig):
      * - employee_number, status, position, management_level
      * - contract_type, hire_date, contract_start_date, termination_date, last_working_day
-     * - user_account_active, organizational_unit_id
+     * - user_account_active, legal_entity_id, establishment_id
      *
      * OHNE Werte geloggt (personenbezogene Daten - DSGVO Art. 5 Abs. 1 lit. c):
      * - first_name, last_name (via booted() Event)
@@ -537,7 +540,8 @@ class Employee extends Model
                 'termination_date',
                 'last_working_day',
                 'user_account_active',
-                'organizational_unit_id',
+                'legal_entity_id',
+                'establishment_id',
             ])
             ->dontLogIfAttributesChangedOnly(['updated_at'])
             ->logOnlyDirty()
@@ -694,14 +698,16 @@ class Employee extends Model
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Get the organizational unit this employee belongs to.
-     *
-     * @return BelongsTo<OrganizationalUnit, $this>
-     */
-    public function organizationalUnit(): BelongsTo
+    /** @return BelongsTo<LegalEntity, $this> */
+    public function legalEntity(): BelongsTo
     {
-        return $this->belongsTo(OrganizationalUnit::class);
+        return $this->belongsTo(LegalEntity::class);
+    }
+
+    /** @return BelongsTo<Establishment, $this> */
+    public function establishment(): BelongsTo
+    {
+        return $this->belongsTo(Establishment::class);
     }
 
     /**

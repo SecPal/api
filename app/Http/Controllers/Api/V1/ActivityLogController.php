@@ -267,7 +267,6 @@ class ActivityLogController extends Controller
                                 $employeeQuery->select(DB::raw(1))
                                     ->from('employees')
                                     ->whereColumn('employees.user_id', 'activity_log.causer_id')
-                                    ->whereColumn('employees.organizational_unit_id', 'activity_log.organizational_unit_id')
                                     ->where(function ($rankQueryBuilder) use ($rankRanges): void {
                                         /** @var \Illuminate\Database\Query\Builder $rankQueryBuilder */
                                         foreach ($rankRanges as $range) {
@@ -307,8 +306,7 @@ class ActivityLogController extends Controller
                         /** @var \Illuminate\Database\Query\Builder $employeeCheckQuery */
                         $employeeCheckQuery->select(DB::raw(1))
                             ->from('employees')
-                            ->whereColumn('employees.user_id', 'activity_log.causer_id')
-                            ->whereColumn('employees.organizational_unit_id', 'activity_log.organizational_unit_id');
+                            ->whereColumn('employees.user_id', 'activity_log.causer_id');
                     })
                     ->where(function ($unitsQuery) use ($rankRangesByUnit) {
                         foreach ($rankRangesByUnit as $unitId => $rankRanges) {

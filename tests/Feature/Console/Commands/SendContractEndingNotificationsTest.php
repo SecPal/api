@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
@@ -53,7 +53,6 @@ test('send contract ending notifications command sends emails 7 days before term
         'last_name' => 'Doe',
         'email' => 'john.doe@example.com',
         'date_of_birth' => '1990-01-01',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->subMonths(6),
         'termination_date' => now()->addDays(7),
         'status' => Employee::STATUS_PRE_CONTRACT,
@@ -79,7 +78,6 @@ test('send contract ending notifications command skips employees without termina
     // Create active employee without termination date
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->subMonths(6),
         'termination_date' => null,
         'status' => Employee::STATUS_PRE_CONTRACT,
@@ -107,7 +105,6 @@ test('send contract ending notifications command dry run does not send emails', 
         'last_name' => 'Smith',
         'email' => 'jane.smith@example.com',
         'date_of_birth' => '1992-03-15',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->subMonths(6),
         'termination_date' => now()->addDays(7),
         'status' => Employee::STATUS_PRE_CONTRACT,
@@ -131,14 +128,12 @@ test('send contract ending notifications command handles multiple employees', fu
     $employees = collect([
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->orgUnit->id,
             'contract_start_date' => now()->subMonths(6),
             'termination_date' => now()->addDays(7),
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->orgUnit->id,
             'contract_start_date' => now()->subMonths(6),
             'termination_date' => now()->addDays(7),
             'status' => Employee::STATUS_PRE_CONTRACT,

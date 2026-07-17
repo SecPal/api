@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
+use App\Exceptions\DuplicateResourceException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -101,6 +102,17 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'message' => __('Resource not found.'),
             ], 404);
+        });
+
+        $exceptions->render(function (DuplicateResourceException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => __('A matching record already exists.'),
+                'code' => 'DUPLICATE_RESOURCE',
+            ], 409);
         });
 
         $exceptions->render(function (Throwable $e, Request $request) use ($shouldRenderApiJson) {

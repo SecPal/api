@@ -52,7 +52,6 @@ test('employee compliance alert command sends warning notifications 30 days befo
 
     $employee = Employee::factory()->withComplianceCertifications()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'user_id' => $user->id,
         'email' => 'warning.employee@example.com',
         'status' => Employee::STATUS_ACTIVE,
@@ -79,7 +78,6 @@ test('employee compliance alert command sends critical notifications 7 days befo
 
     $employee = Employee::factory()->withComplianceCertifications()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'user_id' => $user->id,
         'email' => 'critical.employee@example.com',
         'status' => Employee::STATUS_ACTIVE,
@@ -105,7 +103,6 @@ test('employee compliance alert command sends expired notifications on first day
 
     $employee = Employee::factory()->withComplianceCertifications()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'user_id' => $user->id,
         'email' => 'expired.employee@example.com',
         'status' => Employee::STATUS_ACTIVE,
@@ -131,7 +128,6 @@ test('employee compliance alert command dry run does not send mails', function (
 
     Employee::factory()->withComplianceCertifications()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'user_id' => $user->id,
         'email' => 'dry-run.employee@example.com',
         'status' => Employee::STATUS_ACTIVE,
@@ -147,7 +143,6 @@ test('employee compliance alert command dry run does not send mails', function (
 test('employee compliance alert command skips employees without user accounts or email', function (): void {
     Employee::factory()->withComplianceCertifications()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'user_id' => null,
         'email' => null,
         'status' => Employee::STATUS_ACTIVE,

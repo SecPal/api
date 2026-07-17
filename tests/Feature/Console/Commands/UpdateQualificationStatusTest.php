@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
@@ -63,7 +63,6 @@ test('update qualification status command expires qualifications past expiry dat
         'last_name' => 'Doe',
         'email' => 'john.doe@example.com',
         'date_of_birth' => '1990-01-01',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->subMonths(6),
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -93,7 +92,6 @@ test('update qualification status command sends notification 30 days before expi
         'last_name' => 'Smith',
         'email' => 'jane.smith@example.com',
         'date_of_birth' => '1992-03-15',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->subMonths(3),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -132,7 +130,6 @@ test('update qualification status command dry run does not change status', funct
         'last_name' => 'Johnson',
         'email' => 'bob.johnson@example.com',
         'date_of_birth' => '1985-07-20',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->subMonths(6),
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -168,13 +165,11 @@ test('update qualification status command processes multiple qualifications', fu
     $employees = collect([
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->orgUnit->id,
             'contract_start_date' => now()->subMonths(6),
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),
         Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->orgUnit->id,
             'contract_start_date' => now()->subMonths(6),
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]),

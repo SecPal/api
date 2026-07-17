@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Models\Employee;
@@ -88,7 +88,19 @@ test('employee cannot view other employees submissions', function (): void {
     expect($this->policy->view($user, $submission))->toBeFalse();
 });
 
-test('users with onboarding.read can view all submissions regardless of scope', function (): void {
+test('unscoped users with onboarding.read have tenant-wide submission access', function (): void {
+    $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    givePermissionWithTenant($user, $this->tenant->id, 'onboarding.read');
+    $employee = Employee::factory()->for($this->tenant, 'tenant')->create();
+    $submission = OnboardingFormSubmission::factory()->create([
+        'employee_id' => $employee->id,
+        'form_template_id' => OnboardingFormTemplate::factory()->create()->id,
+    ]);
+
+    expect($this->policy->view($user, $submission))->toBeTrue();
+});
+
+test('OU-scoped users fail closed when viewing onboarding submissions', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $userWithPermission = User::factory()->create();
     givePermissionWithTenant($userWithPermission, $this->tenant->id, 'onboarding.read');
@@ -96,7 +108,6 @@ test('users with onboarding.read can view all submissions regardless of scope', 
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
         'status' => Employee::STATUS_PRE_CONTRACT,
-        'organizational_unit_id' => $orgUnit->id,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
     $submission = OnboardingFormSubmission::factory()->create([
@@ -104,10 +115,10 @@ test('users with onboarding.read can view all submissions regardless of scope', 
         'form_template_id' => $template->id,
     ]);
 
-    expect($this->policy->view($userWithPermission, $submission))->toBeTrue();
+    expect($this->policy->view($userWithPermission, $submission))->toBeFalse();
 });
 
-test('users with onboarding.read and org scope can view submissions in scope', function (): void {
+test('OU scopes do not grant onboarding submission access', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
     $userWithScope = User::factory()->create();
     givePermissionWithTenant($userWithScope, $this->tenant->id, 'onboarding.read');
@@ -119,7 +130,6 @@ test('users with onboarding.read and org scope can view submissions in scope', f
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
     $template = OnboardingFormTemplate::factory()->create();
@@ -128,7 +138,7 @@ test('users with onboarding.read and org scope can view submissions in scope', f
         'form_template_id' => $template->id,
     ]);
 
-    expect($this->policy->view($userWithScope, $submission))->toBeTrue();
+    expect($this->policy->view($userWithScope, $submission))->toBeFalse();
 });
 
 test('only pre contract employees can create submissions without onboarding.write', function (): void {

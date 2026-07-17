@@ -111,10 +111,7 @@ class ActivityPolicy
                 return true; // User can view their own activities
             }
 
-            // Find causer's employee record IN THIS SPECIFIC organizational unit
-            $causerEmployee = Employee::where('user_id', $activity->causer_id)
-                ->where('organizational_unit_id', $activity->organizational_unit_id)
-                ->first();
+            $causerEmployee = Employee::where('user_id', $activity->causer_id)->first();
 
             // If employee not found in THIS org unit, check if they have an employee record ANYWHERE
             if ($causerEmployee === null) {
@@ -127,15 +124,6 @@ class ActivityPolicy
                         }
                     }
 
-                    return false;
-                }
-
-                // Check if causer has employee record in ANY organizational unit
-                $hasEmployeeRecordAnywhere = Employee::where('user_id', $activity->causer_id)->exists();
-
-                if ($hasEmployeeRecordAnywhere) {
-                    // Causer is an employee but in a DIFFERENT org unit
-                    // This activity should NOT be visible (cross-org unit isolation)
                     return false;
                 }
 

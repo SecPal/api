@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Models\CostCenter;
@@ -72,7 +72,7 @@ test('user assigned to site can view it', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
@@ -82,11 +82,11 @@ test('user assigned to site can view it', function (): void {
     expect($this->policy->view($user, $site))->toBeTrue();
 });
 
-test('user with org unit access can view sites in that unit', function (): void {
+test('OU scope does not grant site access without a domain entitlement', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     $user->organizationalScopes()->create([
         'organizational_unit_id' => $orgUnit->id,
@@ -94,7 +94,7 @@ test('user with org unit access can view sites in that unit', function (): void 
         'access_level' => 'write',
     ]);
 
-    expect($this->policy->view($user, $site))->toBeTrue();
+    expect($this->policy->view($user, $site))->toBeFalse();
 });
 
 test('user with sites.delete permission can delete site without active cost centers', function (): void {
@@ -102,7 +102,7 @@ test('user with sites.delete permission can delete site without active cost cent
     givePermissionWithTenant($user, $this->tenant->id, 'sites.delete');
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     expect($this->policy->delete($user, $site))->toBeTrue();
 });
@@ -112,7 +112,7 @@ test('user cannot delete site with active cost centers', function (): void {
     givePermissionWithTenant($user, $this->tenant->id, 'sites.delete');
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
     CostCenter::factory()->for($site)->create(['is_active' => true]);
 
     expect($this->policy->delete($user, $site))->toBeFalse();
@@ -123,7 +123,7 @@ test('user with expired site assignment cannot view site', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
@@ -139,7 +139,7 @@ test('user with future site assignment cannot view site yet', function (): void 
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
@@ -155,7 +155,7 @@ test('user with expired site assignment cannot update site', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,

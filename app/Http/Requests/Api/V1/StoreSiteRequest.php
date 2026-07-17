@@ -6,9 +6,10 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Site;
-use App\Rules\AssignableOrganizationalUnit;
+use App\Services\DomainAccessService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 /**
  * Store Site Request validation.
@@ -16,7 +17,8 @@ use Illuminate\Validation\Rule;
  * Validates site creation with required fields:
  * - name (site/object name)
  * - customer_id (foreign key to customers)
- * - organizational_unit_id (internal unit responsible)
+ * - legal_entity_id (responsible legal entity)
+ * - establishment_id (responsible establishment)
  * - type (permanent or temporary)
  * - address (structured JSON with GPS coordinates)
  * - contact (optional on-site contact)
@@ -31,7 +33,11 @@ class StoreSiteRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->can('create', Site::class) ?? false;
+        $user = $this->user();
+
+        return $user !== null
+            && ! $user->organizationalScopes()->exists()
+            && $user->can('create', Site::class);
     }
 
     /**
@@ -43,6 +49,8 @@ class StoreSiteRequest extends FormRequest
     {
         /** @var int $tenantId */
         $tenantId = $this->get('tenant_id');
+        $customerId = $this->string('customer_id')->toString();
+        $legalEntityId = $this->string('legal_entity_id')->toString();
 
         return [
             'name' => ['required', 'string', 'max:255'],
@@ -59,14 +67,23 @@ class StoreSiteRequest extends FormRequest
                 Rule::exists('customers', 'id')
                     ->where('tenant_id', $tenantId),
             ],
-            'organizational_unit_id' => [
+            'legal_entity_id' => [
                 'required',
                 'uuid',
-                Rule::exists('organizational_units', 'id')
+                Rule::exists('customers', 'legal_entity_id')
                     ->where('tenant_id', $tenantId)
-                    ->whereNull('deleted_at'),
-                new AssignableOrganizationalUnit($tenantId),
+                    ->where('id', $customerId),
             ],
+            'establishment_id' => [
+                'required',
+                'uuid',
+                Rule::exists('customer_establishments', 'establishment_id')
+                    ->where('tenant_id', $tenantId)
+                    ->where('customer_id', $customerId)
+                    ->where('legal_entity_id', $legalEntityId)
+                    ->whereNull('deleted_at'),
+            ],
+            'organizational_unit_id' => ['prohibited'],
             'type' => ['required', 'in:permanent,temporary'],
             'address' => ['required', 'array'],
             'address.street' => ['required', 'string', 'max:255'],
@@ -88,6 +105,31 @@ class StoreSiteRequest extends FormRequest
         ];
     }
 
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->hasAny([
+                'customer_id',
+                'legal_entity_id',
+                'establishment_id',
+            ])) {
+                return;
+            }
+
+            if (! app(DomainAccessService::class)->siteDomainIsActive(
+                $this->integer('tenant_id'),
+                $this->string('customer_id')->toString(),
+                $this->string('legal_entity_id')->toString(),
+                $this->string('establishment_id')->toString(),
+            )) {
+                $validator->errors()->add(
+                    'establishment_id',
+                    __('The selected customer, legal entity, and establishment combination is invalid.'),
+                );
+            }
+        });
+    }
+
     /**
      * Get custom attribute names for validator errors.
      *
@@ -97,7 +139,8 @@ class StoreSiteRequest extends FormRequest
     {
         return [
             'customer_id' => 'customer',
-            'organizational_unit_id' => 'organizational unit',
+            'legal_entity_id' => 'legal entity',
+            'establishment_id' => 'establishment',
             'address.street' => 'street',
             'address.city' => 'city',
             'address.postal_code' => 'postal code',

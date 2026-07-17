@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Models\Customer;
@@ -73,7 +73,7 @@ test('users with site-scoped access can view any customers', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
@@ -104,11 +104,11 @@ test('user not assigned to customer cannot view it', function (): void {
 });
 
 // view tests - site access
-test('user with access to customer site can view customer', function (): void {
+test('OU scope does not grant customer access without a domain entitlement', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     // Give user access to organizational unit
     $user->organizationalScopes()->create([
@@ -117,14 +117,14 @@ test('user with access to customer site can view customer', function (): void {
         'access_level' => 'write',
     ]);
 
-    expect($this->policy->view($user, $customer))->toBeTrue();
+    expect($this->policy->view($user, $customer))->toBeFalse();
 });
 
 test('user assigned to site can view customer', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
@@ -138,7 +138,7 @@ test('user without any access cannot view customer', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    Site::factory()->for($customer)->create();
 
     expect($this->policy->view($user, $customer))->toBeFalse();
 });
@@ -199,7 +199,7 @@ test('user with permission can delete customer (active sites check in controller
     givePermissionWithTenant($user, $this->tenant->id, 'customers.delete');
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create(['is_active' => true]);
+    Site::factory()->for($customer)->create(['is_active' => true]);
 
     // Policy only checks permission - business rule (active sites) handled in controller
     expect($this->policy->delete($user, $customer))->toBeTrue();
@@ -259,7 +259,7 @@ test('user with expired site assignment cannot view customer via site', function
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,

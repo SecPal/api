@@ -15,7 +15,6 @@ use App\Models\OrganizationalUnitClosure;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use App\Services\OrganizationalUnitAccessService;
-use App\Services\OrganizationalUnitCustomerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -31,10 +30,6 @@ use Illuminate\Validation\Rule;
  */
 class OrganizationalUnitController extends Controller
 {
-    public function __construct(
-        private readonly OrganizationalUnitCustomerService $organizationalUnitCustomerService,
-    ) {}
-
     private function respondWithUnit(Request $request, OrganizationalUnit $unit, int $status = Response::HTTP_OK): JsonResponse
     {
         if (! $request->attributes->has('accessible_unit_ids')) {
@@ -53,17 +48,6 @@ class OrganizationalUnitController extends Controller
         return response()->json([
             'data' => new OrganizationalUnitResource($responseUnit),
         ], $status);
-    }
-
-    /**
-     * Build the conflict response for a legal entity that customers still reference.
-     */
-    private function linkedCustomersConflictResponse(): JsonResponse
-    {
-        return response()->json([
-            'message' => __('Cannot remove or deactivate a legal entity that is linked to customers.'),
-            'error' => 'has_linked_customers',
-        ], Response::HTTP_CONFLICT);
     }
 
     /**
@@ -272,13 +256,9 @@ class OrganizationalUnitController extends Controller
         /** @var array{name?: string, type?: string, custom_type_name?: string|null, description?: string|null, metadata?: array<mixed>|null, is_legal_entity?: bool, is_establishment?: bool, is_active?: bool, is_assignable?: bool} $validated */
         $validated = $request->validated();
 
-        $updatedUnit = $this->organizationalUnitCustomerService->update($organizational_unit, $validated);
+        $organizational_unit->update($validated);
 
-        if ($updatedUnit === null) {
-            return $this->linkedCustomersConflictResponse();
-        }
-
-        return $this->respondWithUnit($request, $updatedUnit);
+        return $this->respondWithUnit($request, $organizational_unit);
     }
 
     /**
@@ -308,9 +288,7 @@ class OrganizationalUnitController extends Controller
             ], Response::HTTP_CONFLICT);
         }
 
-        if (! $this->organizationalUnitCustomerService->delete($organizational_unit)) {
-            return $this->linkedCustomersConflictResponse();
-        }
+        $organizational_unit->delete();
 
         return response()->noContent();
     }

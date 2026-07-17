@@ -75,12 +75,11 @@ function createCustomerAssignmentTestCustomer(string $tenantId, string $customer
 function createCustomerAssignmentLegalEntity(string $tenantId): string
 {
     $legalEntityId = Str::uuid()->toString();
-    DB::table('organizational_units')->insert([
+    DB::table('legal_entities')->insert([
         'id' => $legalEntityId,
         'tenant_id' => $tenantId,
-        'type' => 'company',
         'name' => 'Assignment Legal Entity',
-        'is_legal_entity' => true,
+        'is_active' => true,
         'created_at' => now(),
         'updated_at' => now(),
     ]);

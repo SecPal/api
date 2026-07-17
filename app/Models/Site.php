@@ -39,7 +39,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property string $id UUID primary key
  * @property int $tenant_id Foreign key to tenant_keys
  * @property string $customer_id Foreign key to customers
- * @property string $organizational_unit_id Foreign key to organizational_units
+ * @property string $legal_entity_id Foreign key to legal_entities
+ * @property string $establishment_id Foreign key to establishments
  * @property string $site_number Auto-generated unique identifier (e.g., OBJ-2025-0001)
  * @property string $name Site name (e.g., "Airport Terminal 1")
  * @property string $type Type: 'permanent' or 'temporary'
@@ -58,7 +59,8 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property-read bool $is_expired Whether the site validity period has expired
  * @property-read TenantKey $tenant The tenant this site belongs to
  * @property-read Customer $customer The customer that owns this site
- * @property-read OrganizationalUnit $organizationalUnit The internal unit responsible
+ * @property-read LegalEntity $legalEntity The responsible Legal Entity
+ * @property-read Establishment $establishment The responsible establishment
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Model> $assignments User assignments to this site
  * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $assignedUsers Users assigned to this site
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Model> $costCenters Cost centers for this site
@@ -89,7 +91,8 @@ class Site extends Model
     protected $fillable = [
         'tenant_id',
         'customer_id',
-        'organizational_unit_id',
+        'legal_entity_id',
+        'establishment_id',
         'site_number',
         'name',
         'type',
@@ -143,7 +146,8 @@ class Site extends Model
                 'is_active',
                 'valid_from',
                 'valid_until',
-                'organizational_unit_id',
+                'legal_entity_id',
+                'establishment_id',
             ])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
@@ -180,14 +184,16 @@ class Site extends Model
         return $this->belongsTo(Customer::class, 'customer_id');
     }
 
-    /**
-     * Get the organizational unit responsible for this site.
-     *
-     * @return BelongsTo<OrganizationalUnit, $this>
-     */
-    public function organizationalUnit(): BelongsTo
+    /** @return BelongsTo<LegalEntity, $this> */
+    public function legalEntity(): BelongsTo
     {
-        return $this->belongsTo(OrganizationalUnit::class, 'organizational_unit_id');
+        return $this->belongsTo(LegalEntity::class);
+    }
+
+    /** @return BelongsTo<Establishment, $this> */
+    public function establishment(): BelongsTo
+    {
+        return $this->belongsTo(Establishment::class);
     }
 
     /**
@@ -284,9 +290,18 @@ class Site extends Model
      * @param  Builder<Site>  $query
      * @return Builder<Site>
      */
-    public function scopeForOrganizationalUnit(Builder $query, string $unitId): Builder
+    public function scopeForLegalEntity(Builder $query, string $legalEntityId): Builder
     {
-        return $query->where('organizational_unit_id', $unitId);
+        return $query->where('legal_entity_id', $legalEntityId);
+    }
+
+    /**
+     * @param  Builder<Site>  $query
+     * @return Builder<Site>
+     */
+    public function scopeForEstablishment(Builder $query, string $establishmentId): Builder
+    {
+        return $query->where('establishment_id', $establishmentId);
     }
 
     /**

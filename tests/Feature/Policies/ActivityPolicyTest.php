@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Models\Activity;
@@ -60,7 +60,6 @@ function createEmployeeWithUser(TenantKey $tenant, OrganizationalUnit $orgUnit, 
 {
     $user = User::factory()->create(['tenant_id' => $tenant->id]);
     $employee = Employee::factory()->for($tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
         'management_level' => $leadershipRank,
         'user_id' => $user->id,
     ]);
@@ -341,7 +340,6 @@ test('view allows activity with non-User causer (e.g., Employee) regardless of r
 
     // Activity caused by Employee model (not User)
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $this->orgUnit->id,
     ]);
 
     $activity = Activity::factory()->create([
@@ -360,7 +358,6 @@ test('view allows activity when user has multiple scopes and one matches rank', 
 
     // Create FE3 employee
     $fe3Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $this->orgUnit->id,
         'management_level' => 3, // FE3
     ]);
     $fe3User = User::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -402,7 +399,6 @@ test('view allows activity caused by leadership when scope has no rank restricti
 
     // Create FE3 employee
     $fe3Employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $this->orgUnit->id,
         'management_level' => 3, // FE3
     ]);
     $fe3User = User::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -435,7 +431,6 @@ test('view allows activity caused by guard when scope has no rank restrictions (
 
     // Create guard employee (no leadership level)
     $guardEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $this->orgUnit->id,
         'management_level' => 0, // Guard
     ]);
     $guardUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -567,7 +562,7 @@ test('view denies activity when OTHER user without employee record caused it and
     expect($this->policy->view($user, $activity))->toBeFalse();
 });
 
-test('view denies activity when causer employee is from different organizational unit', function (): void {
+test('view does not infer an OU association from the causer employee', function (): void {
     $user = User::factory()->create(['tenant_id' => $this->tenant->id]);
     givePermissionWithTenant($user, $this->tenant->id, 'activity_log.read');
 
@@ -586,7 +581,6 @@ test('view denies activity when causer employee is from different organizational
 
     // Causer from different org unit
     $otherEmployee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $otherOrgUnit->id,
         'management_level' => 1,
     ]);
     $otherUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -601,5 +595,5 @@ test('view denies activity when causer employee is from different organizational
         'causer_id' => $otherUser->id,
     ]);
 
-    expect($this->policy->view($user, $activity))->toBeFalse();
+    expect($this->policy->view($user, $activity))->toBeTrue();
 });

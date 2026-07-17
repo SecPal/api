@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Models\Customer;
-use App\Models\OrganizationalUnit;
+use App\Models\LegalEntity;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -45,16 +45,14 @@ test('customer can be created with factory', function (): void {
 });
 
 test('customer has legal entity relationship', function (): void {
-    $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-        'is_legal_entity' => true,
-    ]);
+    $legalEntity = LegalEntity::factory()->forTenant($this->tenant->id)->create();
 
     $customer = Customer::factory()->create([
         'tenant_id' => $this->tenant->id,
         'legal_entity_id' => $legalEntity->id,
     ]);
 
-    expect($customer->legalEntity)->toBeInstanceOf(OrganizationalUnit::class)
+    expect($customer->legalEntity)->toBeInstanceOf(LegalEntity::class)
         ->and($customer->legalEntity->id)->toBe($legalEntity->id);
 });
 
@@ -63,9 +61,8 @@ test('customer factory creates a tenant matching legal entity by default', funct
         'tenant_id' => $this->tenant->id,
     ]);
 
-    expect($customer->legalEntity)->toBeInstanceOf(OrganizationalUnit::class)
-        ->and($customer->legalEntity->tenant_id)->toBe($customer->tenant_id)
-        ->and($customer->legalEntity->is_legal_entity)->toBeTrue();
+    expect($customer->legalEntity)->toBeInstanceOf(LegalEntity::class)
+        ->and($customer->legalEntity->tenant_id)->toBe($customer->tenant_id);
 });
 
 test('customer number is auto generated with correct format', function (): void {
@@ -176,20 +173,6 @@ test('customer billing address is cast to array', function (): void {
         ->and($customer->billing_address['city'])->toBe('Berlin');
 });
 
-test('customer contact is cast to array', function (): void {
-    $customer = Customer::factory()->create([
-        'contact' => [
-            'name' => 'Max Mustermann',
-            'email' => 'max@example.com',
-            'phone' => '+49 30 12345678',
-            'position' => 'Facility Manager',
-        ],
-    ]);
-
-    expect($customer->contact)->toBeArray()
-        ->and($customer->contact['name'])->toBe('Max Mustermann');
-});
-
 test('customer can be soft deleted', function (): void {
     $customer = Customer::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -206,16 +189,4 @@ test('customer can be inactive', function (): void {
     $customer = Customer::factory()->inactive()->create();
 
     expect($customer->is_active)->toBeFalse();
-});
-
-test('customer metadata is nullable', function (): void {
-    $customer = Customer::factory()->create(['metadata' => null]);
-
-    expect($customer->metadata)->toBeNull();
-});
-
-test('customer notes is nullable', function (): void {
-    $customer = Customer::factory()->create(['notes' => null]);
-
-    expect($customer->notes)->toBeNull();
 });

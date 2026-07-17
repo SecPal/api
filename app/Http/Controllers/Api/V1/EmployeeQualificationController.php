@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 namespace App\Http\Controllers\Api\V1;
@@ -12,7 +12,6 @@ use App\Http\Resources\EmployeeQualificationResource;
 use App\Models\Employee;
 use App\Models\EmployeeQualification;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 /**
@@ -28,20 +27,9 @@ class EmployeeQualificationController extends Controller
      *
      * GET /api/v1/employees/{employee}/qualifications
      */
-    public function index(Request $request, Employee $employee): JsonResponse
+    public function index(Employee $employee): JsonResponse
     {
         $this->authorize('viewAny', [EmployeeQualification::class, $employee]);
-
-        // Check organizational scope access for scoped users
-        /** @var \App\Models\User $user */
-        $user = $request->user();
-        $hasScopes = $user->organizationalScopes()->exists();
-
-        if ($hasScopes && $employee->organizationalUnit !== null) {
-            if (! $user->hasAccessToUnit($employee->organizationalUnit)) {
-                abort(Response::HTTP_FORBIDDEN, 'You do not have access to this employee\'s organizational unit');
-            }
-        }
 
         $qualifications = $employee->employeeQualifications()
             ->with(['qualification', 'employee'])

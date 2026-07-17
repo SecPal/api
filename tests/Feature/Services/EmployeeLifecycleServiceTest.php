@@ -12,6 +12,8 @@ use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
@@ -99,12 +101,11 @@ test('employee lifecycle RBAC bootstrap tolerates pre-seeded permissions and rol
     ]);
 });
 
-test('employee lifecycle service activates employee atomically', function () {
+test('employee lifecycle service activates employee atomically', function (): void {
     Mail::fake();
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -119,9 +120,35 @@ test('employee lifecycle service activates employee atomically', function () {
     expect($activatedEmployee->user_account_activated_at)->not->toBeNull();
     expect($activatedEmployee->user?->hasRole('Employee'))->toBeTrue();
 
-    Mail::assertQueued(WelcomeActiveMail::class, function ($mail) use ($activatedEmployee) {
+    Mail::assertQueued(WelcomeActiveMail::class, function ($mail) use ($activatedEmployee): bool {
         return $mail->employee->id === $activatedEmployee->id;
     });
+});
+
+test('employee lifecycle service rejects activation under an inactive legal entity', function (): void {
+    Mail::fake();
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'establishment_id' => $establishment->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+        'contract_start_date' => now()->subDay(),
+    ]);
+    $legalEntity->update(['is_active' => false]);
+
+    expect(fn () => $this->service->activate($employee))
+        ->toThrow(ValidationException::class);
+
+    expect($employee->refresh()->status)->toBe(Employee::STATUS_PRE_CONTRACT)
+        ->and($employee->user?->hasRole('Employee'))->toBeFalse();
+    Mail::assertNothingQueued();
 });
 
 test('employee lifecycle service rolls activation back when employee role is missing', function () {
@@ -129,7 +156,6 @@ test('employee lifecycle service rolls activation back when employee role is mis
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -154,7 +180,6 @@ test('employee lifecycle service rejects activation when employee has no linked 
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -182,7 +207,6 @@ test('employee lifecycle service rejects activation when onboarding workflow is 
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_CONTRACT_CONFIRMED,
@@ -204,7 +228,6 @@ test('employee lifecycle service terminates employee and revokes runtime access 
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -249,7 +272,6 @@ test('employee lifecycle service places active employee on leave with read-only 
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -281,7 +303,6 @@ test('employee lifecycle service restores the prior runtime access model when re
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -309,12 +330,11 @@ test('employee lifecycle service restores the prior runtime access model when re
     expect($user->can('employee.delete'))->toBeTrue();
 });
 
-test('employee lifecycle service does not restore access in an unassignable organizational unit', function () {
+test('employee lifecycle service restores access independently of organizational unit assignability', function (): void {
     Mail::fake();
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -324,12 +344,9 @@ test('employee lifecycle service does not restore access in an unassignable orga
     $onLeaveEmployee = $this->service->placeOnLeave($this->service->activate($employee));
     $this->orgUnit->update(['is_assignable' => false]);
 
-    expect(fn () => $this->service->returnFromLeave($onLeaveEmployee))
-        ->toThrow(ValidationException::class, 'The selected organizational unit is not assignable.');
+    $restoredEmployee = $this->service->returnFromLeave($onLeaveEmployee);
 
-    $onLeaveEmployee->refresh();
-
-    expect($onLeaveEmployee->status)->toBe(Employee::STATUS_ON_LEAVE);
+    expect($restoredEmployee->status)->toBe(Employee::STATUS_ACTIVE);
 });
 
 test('employee lifecycle service clears on-leave access snapshots and direct permissions on termination', function () {
@@ -337,7 +354,6 @@ test('employee lifecycle service clears on-leave access snapshots and direct per
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
@@ -367,7 +383,6 @@ test('employee lifecycle service clears on-leave access snapshots and direct per
 test('employee lifecycle service deletes an employee without a linked user account', function (): void {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'user_id' => null,
         'user_account_active' => false,
@@ -387,7 +402,6 @@ test('employee lifecycle service deletes a linked user while preserving employee
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'user_id' => $linkedUser->id,
         'user_account_active' => true,
@@ -433,7 +447,6 @@ test('employee lifecycle service deletes a linked user while preserving employee
     $site = Site::factory()
         ->forTenant($this->tenant->id)
         ->forCustomer($customer)
-        ->forOrganizationalUnit($this->orgUnit)
         ->create();
 
     $expiredCustomerAssignment = CustomerAssignment::factory()
@@ -502,7 +515,6 @@ test('employee lifecycle service preserves causer rank context without invalidat
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'user_id' => $linkedUser->id,
         'user_account_active' => true,
@@ -546,7 +558,6 @@ test('employee lifecycle service does not synthesize missing causer rank snapsho
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'user_id' => $linkedUser->id,
         'user_account_active' => true,
@@ -614,7 +625,6 @@ test('employee lifecycle service keeps a user account when another employee stil
 
     $deletedEmployee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'user_id' => $linkedUser->id,
         'user_account_active' => true,
@@ -622,7 +632,6 @@ test('employee lifecycle service keeps a user account when another employee stil
 
     $remainingEmployee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_ACTIVE,
         'user_id' => $linkedUser->id,
         'user_account_active' => true,
@@ -659,7 +668,6 @@ test('employee lifecycle service deprovisions a shared user when only trashed em
 
     $deletedEmployee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'user_id' => $linkedUser->id,
         'user_account_active' => true,
@@ -667,7 +675,6 @@ test('employee lifecycle service deprovisions a shared user when only trashed em
 
     $trashedEmployee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_TERMINATED,
         'user_id' => $linkedUser->id,
         'user_account_active' => false,
@@ -713,7 +720,6 @@ test('employee lifecycle service deprovisions a shared user when remaining emplo
 
     $deletedEmployee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'user_id' => $linkedUser->id,
         'user_account_active' => true,
@@ -721,7 +727,6 @@ test('employee lifecycle service deprovisions a shared user when remaining emplo
 
     $inactiveEmployee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_TERMINATED,
         'user_id' => $linkedUser->id,
         'user_account_active' => false,
@@ -747,7 +752,6 @@ test('employee lifecycle service cancels future assignments when deleting a link
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'user_id' => $linkedUser->id,
         'user_account_active' => true,
@@ -757,7 +761,6 @@ test('employee lifecycle service cancels future assignments when deleting a link
     $site = Site::factory()
         ->forTenant($this->tenant->id)
         ->forCustomer($customer)
-        ->forOrganizationalUnit($this->orgUnit)
         ->create();
 
     $futureStart = now()->addWeek()->toDateString();
@@ -792,7 +795,6 @@ test('employee lifecycle service rolls leave transition back when the read-only 
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_completed' => true,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,

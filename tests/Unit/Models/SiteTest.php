@@ -4,7 +4,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Models\Customer;
-use App\Models\OrganizationalUnit;
+use App\Models\CustomerEstablishment;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\Site;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -47,6 +49,30 @@ test('site can be created with factory', function () {
     expect($site->name)->not->toBeNull();
     expect($site->address)->toBeArray();
     expect($site->is_active)->toBeTrue();
+});
+
+test('site factory restores an existing soft-deleted customer establishment link', function () {
+    $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $customer->legal_entity_id,
+    ]);
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $customer->legal_entity_id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $establishment->id,
+    ]);
+    $link->delete();
+
+    Site::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $customer->legal_entity_id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $establishment->id,
+    ]);
+
+    expect($link->fresh()?->trashed())->toBeFalse();
 });
 
 test('site number is auto generated with correct format', function () {
@@ -158,17 +184,17 @@ test('scope currently valid filters by validity period', function () {
     expect($currentlyValid)->toHaveCount(2);
 });
 
-test('scope for organizational unit filters correctly', function () {
-    $orgUnit1 = OrganizationalUnit::factory()->create();
-    $orgUnit2 = OrganizationalUnit::factory()->create();
+test('scope for establishment filters correctly', function (): void {
+    $establishment1 = Establishment::factory()->create();
+    $establishment2 = Establishment::factory()->create();
 
-    Site::factory()->forOrganizationalUnit($orgUnit1)->create();
-    Site::factory()->forOrganizationalUnit($orgUnit2)->create();
+    Site::factory()->forEstablishment($establishment1)->create();
+    Site::factory()->forEstablishment($establishment2)->create();
 
-    $sites = Site::forOrganizationalUnit($orgUnit1->id)->get();
+    $sites = Site::forEstablishment($establishment1->id)->get();
 
     expect($sites)->toHaveCount(1);
-    expect($sites->first()->organizational_unit_id)->toBe($orgUnit1->id);
+    expect($sites->first()->establishment_id)->toBe($establishment1->id);
 });
 
 test('site has tenant relationship', function () {
@@ -186,12 +212,13 @@ test('site has customer relationship', function () {
     expect($site->customer->id)->toBe($customer->id);
 });
 
-test('site has organizational unit relationship', function () {
-    $orgUnit = OrganizationalUnit::factory()->create();
-    $site = Site::factory()->forOrganizationalUnit($orgUnit)->create();
+test('site has legal entity and establishment relationships', function (): void {
+    $establishment = Establishment::factory()->create();
+    $site = Site::factory()->forEstablishment($establishment)->create();
 
-    expect($site->organizationalUnit)->toBeInstanceOf(OrganizationalUnit::class);
-    expect($site->organizationalUnit->id)->toBe($orgUnit->id);
+    expect($site->legalEntity)->toBeInstanceOf(LegalEntity::class);
+    expect($site->establishment)->toBeInstanceOf(Establishment::class);
+    expect($site->establishment->id)->toBe($establishment->id);
 });
 
 test('site has assignments relationship', function () {

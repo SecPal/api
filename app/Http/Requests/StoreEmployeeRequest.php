@@ -7,12 +7,9 @@ namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\InteractsWithCertificationValidation;
 use App\Http\Requests\Concerns\InteractsWithEmployeeAddressValidation;
+use App\Http\Requests\Concerns\InteractsWithEmployeeDomainValidation;
 use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
-use App\Models\OrganizationalUnit;
-use App\Models\User;
-use App\Policies\EmployeePolicy;
-use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -26,6 +23,7 @@ class StoreEmployeeRequest extends FormRequest
 {
     use InteractsWithCertificationValidation;
     use InteractsWithEmployeeAddressValidation;
+    use InteractsWithEmployeeDomainValidation;
     use InteractsWithWorkPermitValidation;
 
     /**
@@ -40,12 +38,7 @@ class StoreEmployeeRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $this->validateSalaryWriteAccess($validator);
-
-            if ($validator->errors()->has('organizational_unit_id') || $validator->errors()->has('management_level')) {
-                return;
-            }
-
-            $this->validateEmployeeScopeConstraints($validator);
+            $this->validateEmployeeDomainAssignment($validator);
             $this->validateEmployeeAddressesPayload($validator);
         });
     }
@@ -198,33 +191,26 @@ class StoreEmployeeRequest extends FormRequest
             'criminal_record_status' => ['nullable', Rule::in(['valid', 'expired', 'pending'])],
             'criminal_record_check_date' => ['nullable', 'date'],
 
-            // Organizational - Security: Validate user has access to selected unit
-            'organizational_unit_id' => [
+            'legal_entity_id' => [
                 'required',
-                Rule::exists('organizational_units', 'id')->where(function (\Illuminate\Database\Query\Builder $query): void {
+                'uuid',
+                Rule::exists('legal_entities', 'id')->where(function (\Illuminate\Database\Query\Builder $query): void {
                     /** @var string $tenantId */
                     $tenantId = $this->input('tenant_id');
                     $query->where('tenant_id', $tenantId);
                 })->whereNull('deleted_at'),
-                new AssignableOrganizationalUnit($this->input('tenant_id')),
-                function (string $attribute, mixed $value, \Closure $fail): void {
-                    if ($value === null) {
-                        return;
-                    }
-
-                    /** @var User $user */
-                    $user = $this->user();
-
-                    // If user has organizational scopes, verify access to the selected unit
-                    $hasScopes = $user->organizationalScopes()->exists();
-                    if ($hasScopes) {
-                        $accessibleUnitIds = $user->getAccessibleOrganizationalUnits()->pluck('id')->toArray();
-                        if (! in_array($value, $accessibleUnitIds, true)) {
-                            $fail(__('You do not have access to the selected organizational unit.'));
-                        }
-                    }
-                },
             ],
+            'establishment_id' => [
+                'required',
+                'uuid',
+                Rule::exists('establishments', 'id')->where(function (\Illuminate\Database\Query\Builder $query): void {
+                    /** @var string $tenantId */
+                    $tenantId = $this->input('tenant_id');
+                    $query->where('tenant_id', $tenantId)
+                        ->where('legal_entity_id', $this->input('legal_entity_id'));
+                })->whereNull('deleted_at'),
+            ],
+            'organizational_unit_id' => ['prohibited'],
         ], $this->employeeAddressItemRules(), $this->certificationValidationRules());
     }
 
@@ -250,7 +236,8 @@ class StoreEmployeeRequest extends FormRequest
             'status.in' => __('Valid employee statuses are: :statuses.', [
                 'statuses' => implode(', ', Employee::VALID_STATUSES),
             ]),
-            'organizational_unit_id.required' => __('Organizational unit is required'),
+            'legal_entity_id.required' => __('Legal entity is required'),
+            'establishment_id.required' => __('Establishment is required'),
             'send_invitation.boolean' => __('Invitation sending must be true or false'),
             'bwr_status.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
             'bwr_registered_at.missing' => __('BWR fields must be changed via the dedicated BWR status endpoint.'),
@@ -286,55 +273,6 @@ class StoreEmployeeRequest extends FormRequest
             'work_permit_expiry.required' => 'Ablaufdatum der Arbeitserlaubnis ist für befristete Arbeitserlaubnisse verpflichtend.',
             'work_permit_expiry.after' => 'Ablaufdatum der Arbeitserlaubnis muss in der Zukunft liegen.',
         ], $this->certificationValidationMessages());
-    }
-
-    private function validateEmployeeScopeConstraints(Validator $validator): void
-    {
-        /** @var User $user */
-        $user = $this->user();
-
-        if (! $user->organizationalScopes()->exists()) {
-            $validator->errors()->add('organizational_unit_id', __('You must have an organizational scope before creating employees.'));
-
-            return;
-        }
-
-        $organizationalUnitId = $this->input('organizational_unit_id');
-        if (! is_string($organizationalUnitId) || $organizationalUnitId === '') {
-            return;
-        }
-
-        $organizationalUnit = OrganizationalUnit::query()->find($organizationalUnitId);
-        if (! $organizationalUnit instanceof OrganizationalUnit) {
-            return;
-        }
-
-        $scopes = $user->getApplicableOrganizationalScopesForUnit($organizationalUnit)
-            ->filter(fn ($scope): bool => $scope->hasMinimumAccessLevel('write'))
-            ->values();
-
-        if ($scopes->isEmpty()) {
-            $validator->errors()->add('organizational_unit_id', __('You do not have write access to the selected organizational unit.'));
-
-            return;
-        }
-
-        $managementLevel = $this->resolvedManagementLevel();
-        $policy = app(EmployeePolicy::class);
-
-        if (! $policy->canCreateInUnit($user, $organizationalUnit, $managementLevel)) {
-            $validator->errors()->add(
-                'management_level',
-                __('You may only create employees whose management level remains assignable and viewable within your organizational scope.'),
-            );
-        }
-    }
-
-    private function resolvedManagementLevel(): int
-    {
-        $managementLevel = $this->input('management_level');
-
-        return is_numeric($managementLevel) ? (int) $managementLevel : 0;
     }
 
     private function validateSalaryWriteAccess(Validator $validator): void

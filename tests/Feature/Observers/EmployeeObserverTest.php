@@ -82,7 +82,6 @@ test('employee observer creates user account when status changes to pre_contract
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'email' => 'john.doe@example.com',
         'contract_start_date' => now()->addDays(7),
         'status' => Employee::STATUS_PRE_CONTRACT,
@@ -112,7 +111,6 @@ test('employee observer reuses existing user account in same tenant', function (
         'last_name' => 'User',
         'email' => 'existing@example.com',
         'date_of_birth' => '1988-11-30',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->addDays(14),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -151,7 +149,6 @@ test('employee observer does not reuse user account from another tenant', functi
         'last_name' => 'User',
         'email' => 'conflict@example.com',
         'date_of_birth' => '1988-11-30',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->addDays(14),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -184,7 +181,6 @@ test('employee observer does not reuse user account already linked to another em
         'last_name' => 'Employee',
         'email' => 'linked@example.com',
         'date_of_birth' => '1988-11-30',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->addDays(7),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -204,7 +200,6 @@ test('employee observer does not reuse user account already linked to another em
         'last_name' => 'Employee',
         'email' => 'duplicate@example.com',
         'date_of_birth' => '1990-12-01',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->addDays(14),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -231,7 +226,6 @@ test('employee observer does not activate user account when status changes to ac
         'last_name' => 'Smith',
         'email' => 'jane.smith@example.com',
         'date_of_birth' => '1992-03-15',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now(),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -261,7 +255,6 @@ test('employee observer does not deactivate user account when status changes to 
         'last_name' => 'Johnson',
         'email' => 'bob.johnson@example.com',
         'date_of_birth' => '1985-07-20',
-        'organizational_unit_id' => $this->orgUnit->id,
         'contract_start_date' => now()->subMonths(6),
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
@@ -303,7 +296,6 @@ test('employee observer does not reduce runtime access when status changes to on
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
@@ -344,7 +336,6 @@ test('employee observer does not restore runtime access when status changes from
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
     ]);
 
@@ -397,7 +388,6 @@ test('employee observer does not restore runtime access when status changes from
 test('employee observer updates blind indexes when encrypted fields change', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Original',
         'last_name' => 'Name',
         'status' => Employee::STATUS_ACTIVE,
@@ -422,7 +412,6 @@ test('employee observer does not trigger status transition when status unchanged
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_ACTIVE,
     ]);
 
@@ -437,12 +426,15 @@ test('employee observer does not trigger status transition when status unchanged
 test('employee observer creates user immediately when status=pre_contract during Employee::create() without auto-sending an invitation - Issue #345', function () {
     Mail::fake();
 
+    $domainEmployee = Employee::factory()->make(['tenant_id' => $this->tenant->id]);
+
     // This test reproduces the exact scenario from Issue #345
     // Verifies observer works with direct model creation (not just via factory) for comprehensive coverage
     $uniqueId = Illuminate\Support\Str::random(8);
     $employee = Employee::create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
+        'legal_entity_id' => $domainEmployee->legal_entity_id,
+        'establishment_id' => $domainEmployee->establishment_id,
         'employee_number' => 'EMP-TEST-'.$uniqueId,
         'first_name' => 'Issue',
         'last_name' => 'Test',

@@ -8,6 +8,9 @@
 
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
+use App\Models\CustomerEstablishment;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
@@ -44,7 +47,7 @@ beforeEach(function (): void {
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 });
 
-function customerLegalEntityPayload(OrganizationalUnit $legalEntity, array $overrides = []): array
+function customerLegalEntityPayload(LegalEntity $legalEntity, array $overrides = []): array
 {
     return array_replace_recursive([
         'name' => 'Acme Corporation',
@@ -256,6 +259,16 @@ describe('GET /v1/customers', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['id'])->toBe($customer1->id);
+
+        $customer1->legalEntity()->delete();
+
+        $this->withToken($this->token)
+            ->getJson('/v1/customers')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $customer1->id]);
+        $this->withToken($this->token)
+            ->getJson("/v1/customers/{$customer1->id}")
+            ->assertForbidden();
     });
 
     test('user without permission can list customers via scoped site access', function (): void {
@@ -279,9 +292,23 @@ describe('GET /v1/customers', function () {
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data')[0]['id'])->toBe($customer->id);
+
+        $customer->legalEntity()->delete();
+
+        $this->withToken($this->token)
+            ->getJson('/v1/customers')
+            ->assertOk()
+            ->assertJsonMissing(['id' => $customer->id]);
+        $this->withToken($this->token)
+            ->getJson("/v1/customers/{$customer->id}")
+            ->assertForbidden();
     });
 
-    test('user without permission only receives visible sites_count in customer list', function (): void {
+    test('scoped user with customer read permission only receives visible sites_count in customer list', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+        $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $scopeUnit, accessLevel: 'read');
+
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $visibleSite = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -366,76 +393,45 @@ describe('GET /v1/customers', function () {
     });
 });
 
-describe('GET /v1/customers/legal-entities', function () {
+describe('GET /v1/lookups/legal-entities', function (): void {
     test('returns 401 when not authenticated', function (): void {
-        $response = $this->getJson('/v1/customers/legal-entities');
+        $response = $this->getJson('/v1/lookups/legal-entities');
 
         $response->assertStatus(401);
     });
 
     test('returns 403 when user lacks customers.create permission', function (): void {
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
 
-        $response = $this->withToken($this->token)->getJson('/v1/customers/legal-entities');
+        $response = $this->withToken($this->token)->getJson('/v1/lookups/legal-entities');
 
         $response->assertForbidden();
     });
 
-    test('returns only writable active same-tenant legal entities with the minimal lookup shape', function (): void {
+    test('returns active same-tenant legal entities with the minimal lookup shape', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
 
-        $includedLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+        $includedLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
             'name' => 'Allowed Legal Entity',
-            'is_legal_entity' => true,
             'is_active' => true,
         ]);
         $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-        $foreignLegalEntity = OrganizationalUnit::factory()->forTenant((string) $foreignTenant->id)->create([
+        $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $foreignTenant->id)->create([
             'name' => 'Foreign Legal Entity',
-            'is_legal_entity' => true,
             'is_active' => true,
         ]);
-        $inactiveLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+        $inactiveLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
             'name' => 'Inactive Legal Entity',
-            'is_legal_entity' => true,
             'is_active' => false,
         ]);
-        $deletedLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
+        $deletedLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
             'name' => 'Deleted Legal Entity',
-            'is_legal_entity' => true,
             'is_active' => true,
         ]);
-        $nonLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'name' => 'Operational Unit',
-            'is_legal_entity' => false,
-            'is_active' => true,
-        ]);
-        $readOnlyLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'name' => 'Read Only Legal Entity',
-            'is_legal_entity' => true,
-            'is_active' => true,
-        ]);
-        $unassignableLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'name' => 'Unassignable Legal Entity',
-            'is_legal_entity' => true,
-            'is_active' => true,
-            'is_assignable' => false,
-        ]);
-
-        giveOrganizationalScope($this->user, $includedLegalEntity, accessLevel: 'write');
-        giveOrganizationalScope($this->user, $foreignLegalEntity, accessLevel: 'write');
-        giveOrganizationalScope($this->user, $inactiveLegalEntity, accessLevel: 'write');
-        giveOrganizationalScope($this->user, $deletedLegalEntity, accessLevel: 'write');
-        giveOrganizationalScope($this->user, $nonLegalEntity, accessLevel: 'write');
-        giveOrganizationalScope($this->user, $readOnlyLegalEntity, accessLevel: 'read');
-        giveOrganizationalScope($this->user, $unassignableLegalEntity, accessLevel: 'write');
         $deletedLegalEntity->delete();
-        $this->user->unsetRelation('organizationalScopes');
 
-        $response = $this->withToken($this->token)->getJson('/v1/customers/legal-entities');
+        $response = $this->withToken($this->token)->getJson('/v1/lookups/legal-entities');
 
         $response->assertOk()
             ->assertExactJson([
@@ -448,23 +444,15 @@ describe('GET /v1/customers/legal-entities', function () {
             ]);
     });
 
-    test('returns legal entities reached through inherited write scope', function (): void {
+    test('returns no legal entities when the user has an organizational scope', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
+        $unit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $unit, accessLevel: 'write');
+        LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
 
-        $parentUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'name' => 'Inherited Legal Entity',
-            'is_legal_entity' => true,
-        ]);
-        $legalEntity->setParent($parentUnit);
-        giveOrganizationalScope($this->user, $parentUnit, accessLevel: 'write');
-        $this->user->unsetRelation('organizationalScopes');
+        $response = $this->withToken($this->token)->getJson('/v1/lookups/legal-entities');
 
-        $response = $this->withToken($this->token)->getJson('/v1/customers/legal-entities');
-
-        $response->assertOk()
-            ->assertJsonPath('data.0.id', $legalEntity->id)
-            ->assertJsonPath('data.0.name', 'Inherited Legal Entity');
+        $response->assertForbidden();
     });
 });
 
@@ -484,10 +472,8 @@ describe('POST /v1/customers', function () {
     });
 
     test('returns 403 when user lacks customers.create permission', function (): void {
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity));
@@ -531,20 +517,11 @@ describe('POST /v1/customers', function () {
 
     test('creates customer with auto-generated customer_number', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
 
         $response = $this->withToken($this->token)
-            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
-                'contact' => [
-                    'name' => 'John Doe',
-                    'email' => 'john@acme.com',
-                    'phone' => '+49 30 12345678',
-                ],
-                'notes' => 'Important customer',
-            ]));
+            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity));
 
         $response->assertCreated()
             ->assertJsonStructure([
@@ -554,8 +531,6 @@ describe('POST /v1/customers', function () {
                     'customer_number',
                     'name',
                     'billing_address',
-                    'contact',
-                    // notes only visible with customers.update permission
                     'is_active',
                     'created_at',
                 ],
@@ -568,28 +543,10 @@ describe('POST /v1/customers', function () {
         expect($response->json('data.is_active'))->toBeTrue();
     });
 
-    test('creates customer with inherited write scope on the legal entity', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $parentUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
-        ]);
-        $legalEntity->setParent($parentUnit);
-        giveOrganizationalScope($this->user, $parentUnit, accessLevel: 'write');
-
-        $response = $this->withToken($this->token)
-            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity));
-
-        $response->assertCreated()
-            ->assertJsonPath('data.legal_entity_id', $legalEntity->id);
-    });
-
     test('creates customer with custom customer_number', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
@@ -603,10 +560,8 @@ describe('POST /v1/customers', function () {
 
     test('creates customer with an optional VAT ID', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
 
         $this->withToken($this->token)
             ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
@@ -623,10 +578,8 @@ describe('POST /v1/customers', function () {
 
     test('generates unique customer_number per tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
 
         $response1 = $this->withToken($this->token)
             ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
@@ -654,10 +607,8 @@ describe('POST /v1/customers', function () {
 
     test('validates country code format (ISO 3166-1 alpha-2)', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity, [
@@ -711,8 +662,7 @@ describe('POST /v1/customers', function () {
     test('rejects customer creation with a legal entity from another tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-        $foreignLegalEntity = OrganizationalUnit::factory()->forTenant((string) $otherTenant->id)->create([
-            'is_legal_entity' => true,
+        $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $otherTenant->id)->create([
         ]);
 
         $response = $this->withToken($this->token)
@@ -724,10 +674,8 @@ describe('POST /v1/customers', function () {
 
     test('rejects customer creation with a soft-deleted legal entity', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $deletedLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $deletedLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-        giveOrganizationalScope($this->user, $deletedLegalEntity, accessLevel: 'write');
         $deletedLegalEntity->delete();
 
         $response = $this->withToken($this->token)
@@ -737,38 +685,12 @@ describe('POST /v1/customers', function () {
             ->assertJsonValidationErrors(['legal_entity_id']);
     });
 
-    test('rejects customer creation with an organizational unit that is not a legal entity', function (): void {
+    test('rejects customer creation when the user has an organizational scope', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $nonLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => false,
+        $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-
-        $response = $this->withToken($this->token)
-            ->postJson('/v1/customers', customerLegalEntityPayload($nonLegalEntity));
-
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['legal_entity_id']);
-    });
-
-    test('rejects customer creation with an unassignable legal entity', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
-            'is_assignable' => false,
-        ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
-
-        $this->withToken($this->token)
-            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity))
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['legal_entity_id']);
-    });
-
-    test('rejects customer creation without write scope on the legal entity', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
-        ]);
+        $unit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $unit, accessLevel: 'write');
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity));
@@ -780,22 +702,6 @@ describe('POST /v1/customers', function () {
         ]);
     });
 
-    test('rejects customer creation with only read scope on the legal entity', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
-        ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'read');
-
-        $response = $this->withToken($this->token)
-            ->postJson('/v1/customers', customerLegalEntityPayload($legalEntity));
-
-        $response->assertForbidden();
-        $this->assertDatabaseMissing('customers', [
-            'tenant_id' => $this->tenant->id,
-            'legal_entity_id' => $legalEntity->id,
-        ]);
-    });
 });
 
 describe('GET /v1/customers/{customer}', function () {
@@ -834,8 +740,6 @@ describe('GET /v1/customers/{customer}', function () {
                     'customer_number',
                     'name',
                     'billing_address',
-                    'contact',
-                    'notes',
                     'is_active',
                     'assignments',
                     'created_at',
@@ -869,6 +773,10 @@ describe('GET /v1/customers/{customer}', function () {
     });
 
     test('returns only independently visible sites in customer detail for scoped users', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+        $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $scopeUnit, accessLevel: 'read');
+
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $visibleSite = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -925,36 +833,6 @@ describe('GET /v1/customers/{customer}', function () {
 
         $response->assertOk()
             ->assertJsonPath('data.sites_count', 2);
-    });
-
-    test('includes notes when user can update customer', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
-
-        $customer = Customer::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'notes' => 'Confidential notes',
-        ]);
-
-        $response = $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}");
-
-        $response->assertOk();
-        expect($response->json('data.notes'))->toBe('Confidential notes');
-    });
-
-    test('hides notes when user cannot update customer', function (): void {
-        // Give read permission but not update permission
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
-
-        $customer = Customer::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'notes' => 'Confidential notes',
-        ]);
-
-        $response = $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}");
-
-        $response->assertOk();
-        expect($response->json('data'))->not->toHaveKey('notes');
     });
 
     test('returns 404 when user tries to access customer from different tenant', function (): void {
@@ -1066,13 +944,11 @@ describe('PATCH /v1/customers/{customer}', function () {
         expect($customer->refresh()->vat_id)->toBeNull();
     });
 
-    test('changes a customer legal entity when the user has write scope on it', function (): void {
+    test('changes a customer legal entity with tenant-wide update permission', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
-        $writableLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $writableLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
-        giveOrganizationalScope($this->user, $writableLegalEntity, accessLevel: 'write');
 
         $this->withToken($this->token)
             ->patchJson("/v1/customers/{$customer->id}", [
@@ -1084,11 +960,10 @@ describe('PATCH /v1/customers/{customer}', function () {
         expect($customer->refresh()->legal_entity_id)->toBe($writableLegalEntity->id);
     });
 
-    test('rejects changing a customer legal entity without write scope on it', function (): void {
+    test('rejects legal entity reassignment without tenant-wide update permission', function (): void {
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $originalLegalEntityId = $customer->legal_entity_id;
-        $unwritableLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+        $unwritableLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
 
         CustomerAssignment::factory()->create([
@@ -1104,26 +979,33 @@ describe('PATCH /v1/customers/{customer}', function () {
             ])
             ->assertForbidden();
 
-        expect($customer->refresh()->legal_entity_id)->toBe($originalLegalEntityId);
+        expect($customer->refresh()->legal_entity_id)
+            ->toBe($originalLegalEntityId);
     });
 
-    test('rejects changing a customer legal entity to an unassignable unit', function (): void {
+    test('rejects legal entity reassignment while establishment links exist', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
-        $unassignableLegalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
-            'is_assignable' => false,
+        $establishment = Establishment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $customer->legal_entity_id,
         ]);
-        giveOrganizationalScope($this->user, $unassignableLegalEntity, accessLevel: 'write');
+        CustomerEstablishment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $customer->legal_entity_id,
+            'customer_id' => $customer->id,
+            'establishment_id' => $establishment->id,
+        ]);
+        $targetLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
 
         $this->withToken($this->token)
             ->patchJson("/v1/customers/{$customer->id}", [
-                'legal_entity_id' => $unassignableLegalEntity->id,
+                'legal_entity_id' => $targetLegalEntity->id,
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['legal_entity_id']);
 
-        expect($customer->refresh()->legal_entity_id)->not->toBe($unassignableLegalEntity->id);
+        expect($customer->refresh()->legal_entity_id)->not->toBe($targetLegalEntity->id);
     });
 
     test('rejects changing a customer legal entity to another tenant', function (): void {
@@ -1131,8 +1013,7 @@ describe('PATCH /v1/customers/{customer}', function () {
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $originalLegalEntityId = $customer->legal_entity_id;
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-        $foreignLegalEntity = OrganizationalUnit::factory()->forTenant((string) $otherTenant->id)->create([
-            'is_legal_entity' => true,
+        $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $otherTenant->id)->create([
         ]);
 
         $this->withToken($this->token)
@@ -1145,46 +1026,25 @@ describe('PATCH /v1/customers/{customer}', function () {
         expect($customer->refresh()->legal_entity_id)->toBe($originalLegalEntityId);
     });
 
-    test('allows an unchanged legal entity after it becomes unassignable', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
+    test('organizationally scoped users fail closed when viewing customers', function (): void {
+        $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
         ]);
+        $unit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $unit, accessLevel: 'read');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
         $customer = Customer::factory()->create([
             'tenant_id' => $this->tenant->id,
             'legal_entity_id' => $legalEntity->id,
         ]);
-        $legalEntity->update(['is_assignable' => false]);
-
-        $this->withToken($this->token)
-            ->patchJson("/v1/customers/{$customer->id}", [
-                'name' => 'Updated without reassignment',
-                'legal_entity_id' => $legalEntity->id,
-            ])
-            ->assertOk()
-            ->assertJsonPath('data.name', 'Updated without reassignment')
-            ->assertJsonPath('data.legal_entity_id', $legalEntity->id);
-    });
-
-    test('allows users with legal entity scope to view a customer', function (): void {
-        $legalEntity = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create([
-            'is_legal_entity' => true,
-        ]);
-        $customer = Customer::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'legal_entity_id' => $legalEntity->id,
-        ]);
-        giveOrganizationalScope($this->user, $legalEntity, accessLevel: 'write');
 
         $this->withToken($this->token)
             ->getJson('/v1/customers')
             ->assertOk()
-            ->assertJsonPath('data.0.id', $customer->id);
+            ->assertJsonCount(0, 'data');
 
         $this->withToken($this->token)
             ->getJson("/v1/customers/{$customer->id}")
-            ->assertOk()
-            ->assertJsonPath('data.id', $customer->id);
+            ->assertForbidden();
     });
 
     test('allows partial updates', function (): void {
@@ -1349,6 +1209,10 @@ describe('GET /v1/customers/{customer}/sites', function () {
     });
 
     test('returns only independently visible customer sites for scoped users', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+        $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $scopeUnit, accessLevel: 'read');
+
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
 
         $visibleSite = Site::factory()->create([

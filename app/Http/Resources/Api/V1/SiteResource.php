@@ -35,7 +35,8 @@ class SiteResource extends JsonResource
         return [
             'id' => $this->resource->id,
             'customer_id' => $this->resource->customer_id,
-            'organizational_unit_id' => $this->resource->organizational_unit_id,
+            'legal_entity_id' => $this->resource->legal_entity_id,
+            'establishment_id' => $this->resource->establishment_id,
             'site_number' => $this->resource->site_number,
             'name' => $this->resource->name,
             'type' => $this->resource->type,

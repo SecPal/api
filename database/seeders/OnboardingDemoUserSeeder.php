@@ -6,6 +6,8 @@
 namespace Database\Seeders;
 
 use App\Models\Employee;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -56,10 +58,24 @@ class OnboardingDemoUserSeeder extends Seeder
                 ->where('email', 'onboarding@example.com')
                 ->first();
 
+            $legalEntity = LegalEntity::query()->firstOrCreate(
+                ['tenant_id' => $tenantId, 'name' => 'SecPal Demo GmbH'],
+                ['is_active' => true],
+            );
+            $establishment = Establishment::query()->firstOrCreate(
+                [
+                    'tenant_id' => $tenantId,
+                    'legal_entity_id' => $legalEntity->id,
+                    'name' => 'SecPal Demo Berlin',
+                ],
+                ['is_active' => true],
+            );
+
             $payload = [
                 'tenant_id' => $tenantId,
                 'user_id' => $user->id,
-                'organizational_unit_id' => $holding->id,
+                'legal_entity_id' => $legalEntity->id,
+                'establishment_id' => $establishment->id,
                 'employee_number' => self::DEMO_EMPLOYEE_NUMBER,
                 'first_name' => 'John',
                 'last_name' => 'Doe',

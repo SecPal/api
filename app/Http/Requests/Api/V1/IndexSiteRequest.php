@@ -36,7 +36,7 @@ class IndexSiteRequest extends FormRequest
                 'nullable',
                 'uuid',
             ],
-            'organizational_unit_id' => [
+            'establishment_id' => [
                 'nullable',
                 'uuid',
             ],

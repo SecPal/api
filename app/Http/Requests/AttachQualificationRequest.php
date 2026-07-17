@@ -5,6 +5,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Employee;
 use App\Models\EmployeeQualification;
 use App\Models\Qualification;
 use Illuminate\Foundation\Http\FormRequest;
@@ -19,7 +20,10 @@ class AttachQualificationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('create', EmployeeQualification::class) ?? false;
+        $employee = $this->route('employee');
+
+        return $employee instanceof Employee
+            && ($this->user()?->can('create', [EmployeeQualification::class, $employee]) ?? false);
     }
 
     /**

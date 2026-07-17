@@ -10,7 +10,6 @@ use App\Http\Requests\Api\V1\IndexCustomerRequest;
 use App\Http\Requests\Api\V1\IndexCustomerSitesRequest;
 use App\Http\Requests\Api\V1\StoreCustomerRequest;
 use App\Http\Requests\Api\V1\UpdateCustomerRequest;
-use App\Http\Resources\Api\V1\CustomerLegalEntityLookupResource;
 use App\Http\Resources\CustomerResource;
 use App\Http\Resources\SiteResource;
 use App\Models\Customer;
@@ -21,7 +20,6 @@ use App\Support\LikePattern;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
@@ -93,26 +91,6 @@ class CustomerController extends Controller
     }
 
     /**
-     * Display Legal Entity options that can receive new customers.
-     *
-     * GET /api/v1/customers/legal-entities
-     *
-     * @return AnonymousResourceCollection<int, CustomerLegalEntityLookupResource>
-     */
-    public function legalEntities(Request $request): AnonymousResourceCollection
-    {
-        $this->authorize('create', Customer::class);
-
-        /** @var User $user */
-        $user = $request->user();
-        /** @var int $tenantId */
-        $tenantId = $request->get('tenant_id');
-        $legalEntities = $this->customerService->writableLegalEntities($user, $tenantId);
-
-        return CustomerLegalEntityLookupResource::collection($legalEntities);
-    }
-
-    /**
      * Store a newly created customer.
      *
      * POST /api/v1/customers
@@ -158,7 +136,7 @@ class CustomerController extends Controller
         $customer->load([
             'assignments.user',
             'sites' => function (HasMany $query) use ($user): void {
-                if ($user->can('customers.read')) {
+                if ($this->hasUnrestrictedCustomerReadAccess($user)) {
                     return;
                 }
 
@@ -247,11 +225,11 @@ class CustomerController extends Controller
         /** @var User $user */
         $user = $request->user();
         $perPage = $request->integer('per_page', 15);
-        $sites = $user->can('customers.read')
-            ? $customer->sites()->with(['organizationalUnit', 'assignments.user'])
+        $sites = $this->hasUnrestrictedCustomerReadAccess($user)
+            ? $customer->sites()->with(['legalEntity', 'establishment', 'assignments.user'])
             : $user->visibleSitesQuery()
                 ->where('customer_id', $customer->id)
-                ->with(['organizationalUnit', 'assignments.user']);
+                ->with(['legalEntity', 'establishment', 'assignments.user']);
 
         if ($request->has('is_active')) {
             $sites->where('is_active', $request->boolean('is_active'));
@@ -282,7 +260,7 @@ class CustomerController extends Controller
      */
     private function visibleSitesCountDefinition(User $user): array
     {
-        if ($user->can('customers.read')) {
+        if ($this->hasUnrestrictedCustomerReadAccess($user)) {
             return ['sites'];
         }
 
@@ -291,5 +269,11 @@ class CustomerController extends Controller
                 $query->whereIn('sites.id', $user->visibleSitesQuery()->select('sites.id'));
             },
         ];
+    }
+
+    private function hasUnrestrictedCustomerReadAccess(User $user): bool
+    {
+        return $user->can('customers.read')
+            && ! $user->organizationalScopes()->exists();
     }
 }

@@ -5,13 +5,15 @@
 
 namespace App\Services;
 
-use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
+use App\Repositories\DomainAccessRepository;
 use Carbon\CarbonInterface;
 
 class OrganizationalUnitAssignmentService
 {
+    public function __construct(private readonly DomainAccessRepository $domainAccess) {}
+
     /** @param array<string, mixed> $validated */
     public function siteUpdateExpandsCoverage(Site $site, array $validated): bool
     {
@@ -51,21 +53,31 @@ class OrganizationalUnitAssignmentService
             return false;
         }
 
-        $organizationalUnit = $site->organizationalUnit()->withTrashed()->first();
-
-        return $this->organizationalUnitAcceptsAssignments($organizationalUnit);
+        return $this->domainAccess->siteDomainIsActive(
+            $site->tenant_id,
+            $site->customer_id,
+            $site->legal_entity_id,
+            $site->establishment_id,
+        );
     }
 
     /** @param array<string, mixed> $validated */
-    public function siteTargetAcceptsAssignments(Site $site, array $validated): bool
+    public function siteTargetDomainIsActive(Site $site, array $validated): bool
     {
-        $organizationalUnitId = $validated['organizational_unit_id'] ?? $site->organizational_unit_id;
-        $organizationalUnit = OrganizationalUnit::withTrashed()
-            ->where('tenant_id', $site->tenant_id)
-            ->whereKey($organizationalUnitId)
-            ->first();
+        $customerId = $validated['customer_id'] ?? $site->customer_id;
+        $legalEntityId = $validated['legal_entity_id'] ?? $site->legal_entity_id;
+        $establishmentId = $validated['establishment_id'] ?? $site->establishment_id;
 
-        return $this->organizationalUnitAcceptsAssignments($organizationalUnit);
+        if (! is_string($customerId) || ! is_string($legalEntityId) || ! is_string($establishmentId)) {
+            return false;
+        }
+
+        return $this->domainAccess->siteDomainIsActive(
+            $site->tenant_id,
+            $customerId,
+            $legalEntityId,
+            $establishmentId,
+        );
     }
 
     private function startsCoverageEarlier(?CarbonInterface $currentValidFrom, ?CarbonInterface $updatedValidFrom): bool
@@ -101,12 +113,5 @@ class OrganizationalUnitAssignmentService
     {
         return $assignment->valid_until === null
             || ! $assignment->valid_until->lessThan(now()->startOfDay());
-    }
-
-    private function organizationalUnitAcceptsAssignments(?OrganizationalUnit $organizationalUnit): bool
-    {
-        return $organizationalUnit instanceof OrganizationalUnit
-            && ! $organizationalUnit->trashed()
-            && $organizationalUnit->is_assignable;
     }
 }

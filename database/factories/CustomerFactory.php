@@ -6,7 +6,7 @@
 namespace Database\Factories;
 
 use App\Models\Customer;
-use App\Models\OrganizationalUnit;
+use App\Models\LegalEntity;
 use App\Models\TenantKey;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -71,9 +71,9 @@ class CustomerFactory extends Factory
                     throw new \InvalidArgumentException('CustomerFactory tenant_id must be an integer or string.');
                 }
 
-                return OrganizationalUnit::factory()
+                return LegalEntity::factory()
                     ->forTenant((string) $tenantId)
-                    ->create(['is_legal_entity' => true])
+                    ->create()
                     ->id;
             },
             'customer_number' => $customerNumber,
@@ -85,20 +85,6 @@ class CustomerFactory extends Factory
                 'postal_code' => (string) fake()->postcode(),
                 'country' => 'DE',
             ],
-            'contact' => [
-                'name' => fake()->name(),
-                'email' => fake()->safeEmail(),
-                'phone' => fake()->phoneNumber(),
-                'position' => fake()->randomElement([
-                    'Geschäftsführer',
-                    'Facility Manager',
-                    'Objektleiter',
-                    'Einkaufsleiter',
-                    'Verwaltungsleiter',
-                ]),
-            ],
-            'notes' => fake()->optional(0.3)->paragraph(),
-            'metadata' => null,
             'is_active' => true,
         ];
     }
@@ -120,38 +106,6 @@ class CustomerFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'tenant_id' => $tenantId,
-        ]);
-    }
-
-    /**
-     * Configure the factory without contact information.
-     */
-    public function withoutContact(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'contact' => null,
-        ]);
-    }
-
-    /**
-     * Configure the factory with custom metadata.
-     *
-     * @param  array<string, mixed>  $metadata
-     */
-    public function withMetadata(array $metadata): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'metadata' => $metadata,
-        ]);
-    }
-
-    /**
-     * Configure the factory with detailed notes.
-     */
-    public function withNotes(string $notes): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'notes' => $notes,
         ]);
     }
 }

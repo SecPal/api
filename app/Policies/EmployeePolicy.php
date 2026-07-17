@@ -6,9 +6,9 @@
 namespace App\Policies;
 
 use App\Models\Employee;
-use App\Models\OrganizationalUnit;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
+use App\Services\DomainAccessService;
 use Illuminate\Support\Collection;
 
 /**
@@ -29,6 +29,8 @@ use Illuminate\Support\Collection;
  */
 class EmployeePolicy
 {
+    public function __construct(private readonly DomainAccessService $domainAccess) {}
+
     /**
      * Determine if user can view any employees.
      *
@@ -47,11 +49,10 @@ class EmployeePolicy
      * 1. Tenant isolation check (always first)
      * 2. Self-access: User can view own profile IF allow_self_access=true in scope
      * 3. Permission check: Requires employee.read permission
-     * 4. Organizational scope check: ALL users MUST have scopes to access organizational data
-     * 5. Rank filtering: Employee must be within user's viewable rank range
+     * 4. Scoped users require effective access to the employee's establishment
+     * 5. Scoped users remain constrained by their access level and management ranges
      *
-     * IMPORTANT: There is NO role-based bypass without scopes - all users accessing
-     * organizational features must have defined scopes (with appropriate rank ranges).
+     * Unscoped users with the required permission retain tenant-wide domain access.
      */
     public function view(User $user, Employee $employee): bool
     {
@@ -75,6 +76,40 @@ class EmployeePolicy
         return $user->can('employee.write') || $user->can('employee.create');
     }
 
+    public function canCreateAtManagementLevel(User $user, int $managementLevel): bool
+    {
+        if (! $this->create($user)) {
+            return false;
+        }
+
+        if (! $user->organizationalScopes()->exists()) {
+            return true;
+        }
+
+        return $this->scopesAuthorizeManagementLevel(
+            $this->applicableScopes($user, 'write'),
+            $managementLevel,
+            requireAssignableRank: true,
+        );
+    }
+
+    public function canUpdateAtManagementLevel(User $user, int $managementLevel): bool
+    {
+        if (! $this->userHasAnyPermission($user, ['employee.write', 'employee.update'])) {
+            return false;
+        }
+
+        if (! $user->organizationalScopes()->exists()) {
+            return true;
+        }
+
+        return $this->scopesAuthorizeManagementLevel(
+            $this->applicableScopes($user, 'write'),
+            $managementLevel,
+            requireAssignableRank: true,
+        );
+    }
+
     /**
      * Determine if user can update an employee.
      *
@@ -95,58 +130,6 @@ class EmployeePolicy
     }
 
     /**
-     * Determine whether the user may create an employee in the given unit with the given management level.
-     */
-    public function canCreateInUnit(User $user, OrganizationalUnit $organizationalUnit, int $managementLevel): bool
-    {
-        if (! $this->create($user)) {
-            return false;
-        }
-
-        return $this->scopesAuthorizeManagementLevel(
-            $this->applicableScopes($user, $organizationalUnit, 'write'),
-            $managementLevel,
-            requireAssignableRank: true,
-        );
-    }
-
-    /**
-     * Determine whether the user may update an employee into the given unit and management level.
-     */
-    public function canUpdateInUnit(User $user, OrganizationalUnit $organizationalUnit, int $managementLevel): bool
-    {
-        if (! $user->can('employee.write') && ! $user->can('employee.update')) {
-            return false;
-        }
-
-        return $this->scopesAuthorizeManagementLevel(
-            $this->applicableScopes($user, $organizationalUnit, 'write'),
-            $managementLevel,
-            requireAssignableRank: true,
-        );
-    }
-
-    /**
-     * @return Collection<int, UserInternalOrganizationalScope>
-     */
-    private function applicableScopes(User $user, ?OrganizationalUnit $organizationalUnit, string $minimumAccessLevel): Collection
-    {
-        if ($organizationalUnit === null) {
-            /** @var Collection<int, UserInternalOrganizationalScope> $emptyScopes */
-            $emptyScopes = collect();
-
-            return $emptyScopes;
-        }
-
-        /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
-        $scopes = $user->getApplicableOrganizationalScopesForUnit($organizationalUnit)
-            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel($minimumAccessLevel))
-            ->values();
-
-        return $scopes;
-    }
-
-    /**
      * Determine if user can delete an employee.
      *
      * Users with employee.write or employee.delete permission can delete employees (soft delete).
@@ -160,7 +143,6 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
-            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -178,7 +160,6 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
-            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -206,7 +187,6 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
-            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -222,7 +202,6 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
-            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -240,7 +219,6 @@ class EmployeePolicy
             'write',
             requireAssignableRank: true,
             allowSelfAccessShortcut: false,
-            allowUnassignedLifecycleCleanup: true,
         );
     }
 
@@ -254,46 +232,33 @@ class EmployeePolicy
         string $minimumAccessLevel,
         bool $requireAssignableRank,
         bool $allowSelfAccessShortcut,
-        bool $allowUnassignedLifecycleCleanup = false,
     ): bool {
         if ($user->tenant_id !== $employee->tenant_id || ! $this->userHasAnyPermission($user, $permissions)) {
             return false;
         }
 
-        $organizationalUnit = $this->resolveOrganizationalUnitForAuthorization($employee);
-
-        if ($organizationalUnit === null) {
-            return $allowUnassignedLifecycleCleanup && $employee->organizational_unit_id === null;
+        if (! $user->organizationalScopes()->exists()) {
+            return true;
         }
 
-        $scopes = $this->applicableScopes(
+        if (! $this->domainAccess->employeeDomainIsAccessible(
             $user,
-            $organizationalUnit,
-            $minimumAccessLevel,
-        );
-
-        if ($scopes->isEmpty()) {
+            $employee->tenant_id,
+            $employee->legal_entity_id,
+            $employee->establishment_id,
+        )) {
             return false;
         }
 
+        $scopes = $this->applicableScopes($user, $minimumAccessLevel);
+
         if ($allowSelfAccessShortcut && $user->id === $employee->user_id) {
-            return $scopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
+            return $scopes->contains(
+                fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access,
+            );
         }
 
         return $this->scopesAuthorizeManagementLevel($scopes, $employee->management_level, $requireAssignableRank);
-    }
-
-    private function resolveOrganizationalUnitForAuthorization(Employee $employee): ?OrganizationalUnit
-    {
-        if ($employee->organizationalUnit !== null) {
-            return $employee->organizationalUnit;
-        }
-
-        if ($employee->organizational_unit_id === null) {
-            return null;
-        }
-
-        return OrganizationalUnit::withTrashed()->find($employee->organizational_unit_id);
     }
 
     /**
@@ -310,11 +275,27 @@ class EmployeePolicy
         return false;
     }
 
-    /**
-     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
-     */
-    private function scopesAuthorizeManagementLevel(Collection $scopes, int $managementLevel, bool $requireAssignableRank): bool
+    /** @return Collection<int, UserInternalOrganizationalScope> */
+    private function applicableScopes(User $user, string $minimumAccessLevel): Collection
     {
+        /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
+        $scopes = $user->organizationalScopes()
+            ->whereHas('organizationalUnit')
+            ->get()
+            ->filter(
+                fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel($minimumAccessLevel),
+            )
+            ->values();
+
+        return $scopes;
+    }
+
+    /** @param Collection<int, UserInternalOrganizationalScope> $scopes */
+    private function scopesAuthorizeManagementLevel(
+        Collection $scopes,
+        int $managementLevel,
+        bool $requireAssignableRank,
+    ): bool {
         if ($scopes->isEmpty()) {
             return false;
         }

@@ -65,7 +65,7 @@ test('create employee addresses migration applies on sqlite-backed setups', func
     }
 });
 
-test('sqlite-backed migrate:fresh completes through the latest migrations', function (): void {
+test('sqlite-backed migrate:fresh stops at the PostgreSQL-only domain migration', function (): void {
     $databasePath = createRemoveAdminAccessLevelTemporarySqliteDatabase('sqlite-migrate-fresh');
 
     try {
@@ -78,9 +78,10 @@ test('sqlite-backed migrate:fresh completes through the latest migrations', func
 
         $output = $process->getErrorOutput().$process->getOutput();
 
-        expect($process->isSuccessful())->toBeTrue($output)
+        expect($process->isSuccessful())->toBeFalse($output)
             ->and($output)->toContain('2026_06_29_160000_preserve_android_enrollment_history_on_user_delete')
-            ->and($output)->not->toContain(' FAIL');
+            ->and($output)->toContain('2026_07_17_120000_create_legal_entity_domain_model')
+            ->and($output)->toContain('requires PostgreSQL');
     } finally {
         if (is_file($databasePath)) {
             unlink($databasePath);

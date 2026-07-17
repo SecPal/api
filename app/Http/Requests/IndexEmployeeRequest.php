@@ -33,7 +33,11 @@ class IndexEmployeeRequest extends FormRequest
         return [
             'status' => ['nullable', Rule::in(Employee::VALID_STATUSES)],
             'compliance_status' => ['nullable', Rule::in(EmployeeComplianceService::ALERT_STATUSES)],
-            'organizational_unit_id' => [
+            'legal_entity_id' => [
+                'nullable',
+                'uuid',
+            ],
+            'establishment_id' => [
                 'nullable',
                 'uuid',
             ],

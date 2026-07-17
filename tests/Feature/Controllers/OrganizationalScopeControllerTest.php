@@ -748,7 +748,6 @@ describe('OrganizationalScopeController', function () {
 
             Employee::factory()->create([
                 'tenant_id' => $this->tenant->id,
-                'organizational_unit_id' => $this->region->id,
                 'management_level' => 0,
             ]);
 
@@ -798,7 +797,6 @@ describe('OrganizationalScopeController', function () {
             $employee = Employee::factory()->create([
                 'tenant_id' => $this->tenant->id,
                 'user_id' => $selfManagingUser->id,
-                'organizational_unit_id' => $this->company->id,
                 'management_level' => 0,
             ]);
 

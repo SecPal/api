@@ -812,8 +812,7 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct customer assignments
-     * - Access to the customer's legal entity
-     * - Access to sites belonging to the customer (via organizational unit or site assignment)
+     * - Access to sites belonging to the customer through a site assignment
      *
      * @return Collection<int, Customer>
      */
@@ -849,30 +848,23 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct customer assignments
-     * - Access to the customer's legal entity
-     * - Access to sites belonging to the customer (via organizational unit or site assignment)
+     * - Access to sites belonging to the customer through a site assignment
      *
      * @return Builder<Customer>
      */
     public function accessibleCustomersQuery(): Builder
     {
-        $accessibleUnitIds = $this->getAccessibleOrganizationalUnitIds();
         $assignedSiteIds = $this->siteAssignments()->currentlyActive()->pluck('site_id')->toArray();
         $assignedCustomerIds = $this->customerAssignments()->currentlyActive()->pluck('customer_id')->toArray();
 
         return Customer::query()
             ->where('tenant_id', $this->tenant_id)
-            ->where(function ($query) use ($assignedCustomerIds, $accessibleUnitIds, $assignedSiteIds) {
+            ->whereHas('legalEntity')
+            ->where(function ($query) use ($assignedCustomerIds, $assignedSiteIds) {
                 // Direct customer assignment
                 $query->whereIn('id', $assignedCustomerIds)
-                    // Or belongs to an accessible legal entity
-                    ->orWhereIn('legal_entity_id', $accessibleUnitIds)
-                    // Or has sites in accessible org units
-                    ->orWhereHas('sites', function ($siteQuery) use ($accessibleUnitIds, $assignedSiteIds) {
-                        $siteQuery->where(function ($sq) use ($accessibleUnitIds, $assignedSiteIds) {
-                            $sq->whereIn('organizational_unit_id', $accessibleUnitIds)
-                                ->orWhereIn('id', $assignedSiteIds);
-                        });
+                    ->orWhereHas('sites', function ($siteQuery) use ($assignedSiteIds) {
+                        $siteQuery->whereIn('id', $assignedSiteIds);
                     });
             });
     }
@@ -882,7 +874,6 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct site assignments
-     * - Access to site's organizational unit
      * - Assignment to site's customer (Key Accounts see all customer sites)
      *
      * @return Collection<int, Site>
@@ -914,22 +905,23 @@ class User extends Authenticatable implements MustVerifyEmailContract, TwoFactor
      *
      * Access is granted through:
      * - Direct site assignments
-     * - Access to site's organizational unit
      * - Assignment to site's customer (Key Accounts see all customer sites)
      *
      * @return Builder<Site>
      */
     private function accessibleSitesQuery(): Builder
     {
-        $accessibleUnitIds = $this->getAccessibleOrganizationalUnitIds();
         $assignedSiteIds = $this->siteAssignments()->currentlyActive()->pluck('site_id')->toArray();
         $assignedCustomerIds = $this->customerAssignments()->currentlyActive()->pluck('customer_id')->toArray();
 
         return Site::query()
             ->where('tenant_id', $this->tenant_id)
-            ->where(function ($query) use ($accessibleUnitIds, $assignedSiteIds, $assignedCustomerIds) {
-                $query->whereIn('organizational_unit_id', $accessibleUnitIds)
-                    ->orWhereIn('id', $assignedSiteIds)
+            ->whereHas(
+                'customer',
+                fn (Builder $query): Builder => $query->whereHas('legalEntity'),
+            )
+            ->where(function ($query) use ($assignedSiteIds, $assignedCustomerIds) {
+                $query->whereIn('id', $assignedSiteIds)
                     ->orWhereIn('customer_id', $assignedCustomerIds);
             });
     }

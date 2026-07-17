@@ -8,7 +8,8 @@ declare(strict_types=1);
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Models\Employee;
-use App\Models\OrganizationalUnit;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -34,11 +35,13 @@ beforeEach(function (): void {
 
     $registrar->setPermissionsTeamId(null);
 
-    $this->organizationalUnit = OrganizationalUnit::factory()->create([
+    $this->legalEntity = LegalEntity::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
-    // Rank 0 (non-management) requires scopes whose view/assign ranges are exactly [0,0] (see UserInternalOrganizationalScope).
-    giveOrganizationalScope($this->user, $this->organizationalUnit, 0, 0, 0, 0);
+    $this->establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+    ]);
 });
 
 afterEach(function (): void {
@@ -58,7 +61,8 @@ function validStoreEmployeeData(object $testCase, array $overrides = []): array
         'status' => 'active',
         'contract_start_date' => '2025-01-01',
         'contract_type' => 'full_time',
-        'organizational_unit_id' => $testCase->organizationalUnit->id,
+        'legal_entity_id' => $testCase->legalEntity->id,
+        'establishment_id' => $testCase->establishment->id,
         'tenant_id' => $testCase->tenant->id,
         'management_level' => 0,
     ], $overrides);
@@ -193,7 +197,6 @@ test('blank current address rows are rejected for store and update requests', fu
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
     ]);
 
     $updateValidator = makeUpdateEmployeeValidator($this, $employee, [
@@ -349,7 +352,6 @@ test('eea and swiss nationalities are exempt from work permit requirement', func
 test('UpdateEmployeeRequest enforces work permit rules when patching employee into non exempt nationality', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
         'nationalities' => ['DE'],
         'work_permit_type' => 'none',
     ]);
@@ -374,7 +376,6 @@ test('UpdateEmployeeRequest enforces work permit rules when patching employee in
 test('UpdateEmployeeRequest rejects direct bwr transition fields', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
         'bwr_status' => 'pending',
     ]);
 
@@ -448,7 +449,6 @@ test('additional certifications require structured nested data', function () {
 test('update request validates additional certifications and firearms expiry fields', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
     ]);
 
     $validator = makeUpdateEmployeeValidator($this, $employee, [
@@ -501,7 +501,6 @@ test('emergency contacts require name and phone and validate optional email form
 test('UpdateEmployeeRequest validates emergency contacts on partial updates', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
     ]);
 
     $invalidUpdateValidator = makeUpdateEmployeeValidator($this, $employee, [

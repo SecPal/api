@@ -313,7 +313,6 @@ describe('GET /v1/activity-logs', function () {
         Employee::factory()->create([
             'tenant_id' => $tenant->id,
             'user_id' => $seniorManager->id,
-            'organizational_unit_id' => $orgUnit->id,
             'management_level' => 1,
         ]);
 
@@ -321,7 +320,6 @@ describe('GET /v1/activity-logs', function () {
         Employee::factory()->create([
             'tenant_id' => $tenant->id,
             'user_id' => $subordinate->id,
-            'organizational_unit_id' => $orgUnit->id,
             'management_level' => 3,
         ]);
 
@@ -415,7 +413,7 @@ describe('GET /v1/activity-logs', function () {
         expect($response->json('data'))->toHaveCount(0);
     });
 
-    test('preserves rank filtering for activities caused by deprovisioned employees', function (): void {
+    test('excludes scoped activities when deprovisioning removed their OU employee context', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
         givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
@@ -437,7 +435,6 @@ describe('GET /v1/activity-logs', function () {
         $seniorEmployee = Employee::factory()->create([
             'tenant_id' => $tenant->id,
             'user_id' => $seniorManager->id,
-            'organizational_unit_id' => $orgUnit->id,
             'management_level' => 1,
         ]);
 
@@ -445,7 +442,6 @@ describe('GET /v1/activity-logs', function () {
         $subordinateEmployee = Employee::factory()->create([
             'tenant_id' => $tenant->id,
             'user_id' => $subordinate->id,
-            'organizational_unit_id' => $orgUnit->id,
             'management_level' => 3,
         ]);
 
@@ -471,8 +467,7 @@ describe('GET /v1/activity-logs', function () {
         $response = getJson('/v1/activity-logs');
 
         $response->assertOk();
-        expect($response->json('data'))->toHaveCount(1);
-        expect($response->json('data')[0]['description'])->toBe('Deprovisioned subordinate activity');
+        expect($response->json('data'))->toHaveCount(0);
     });
 
     test('ignores preserved rank context while a current employee causer still exists', function (): void {
@@ -497,7 +492,6 @@ describe('GET /v1/activity-logs', function () {
         $seniorEmployee = Employee::factory()->create([
             'tenant_id' => $tenant->id,
             'user_id' => $seniorManager->id,
-            'organizational_unit_id' => $orgUnit->id,
             'management_level' => 1,
         ]);
 
@@ -974,7 +968,7 @@ describe('GET /v1/activity-logs/{activity}', function () {
         expect($response->json('data.id'))->toBe($activity->id);
     });
 
-    test('returns deprovisioned employee activity when preserved rank context is still viewable', function (): void {
+    test('denies deprovisioned employee activity without preserved OU context', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
         givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
@@ -996,7 +990,6 @@ describe('GET /v1/activity-logs/{activity}', function () {
         $subordinateEmployee = Employee::factory()->create([
             'tenant_id' => $tenant->id,
             'user_id' => $subordinate->id,
-            'organizational_unit_id' => $orgUnit->id,
             'management_level' => 3,
         ]);
 
@@ -1012,11 +1005,10 @@ describe('GET /v1/activity-logs/{activity}', function () {
 
         $response = getJson("/v1/activity-logs/{$activity->id}");
 
-        $response->assertOk();
-        expect($response->json('data.id'))->toBe($activity->id);
+        $response->assertForbidden();
     });
 
-    test('returns deprovisioned employee activity using its original preserved rank context', function (): void {
+    test('denies deprovisioned employee activity after rank changes without OU context', function (): void {
         ['tenant' => $tenant, 'user' => $user] = createActivityLogContext();
 
         givePermissionWithTenant($user, $tenant->id, 'activity_log.read');
@@ -1038,7 +1030,6 @@ describe('GET /v1/activity-logs/{activity}', function () {
         $subordinateEmployee = Employee::factory()->create([
             'tenant_id' => $tenant->id,
             'user_id' => $subordinate->id,
-            'organizational_unit_id' => $orgUnit->id,
             'management_level' => 3,
         ]);
 
@@ -1059,8 +1050,7 @@ describe('GET /v1/activity-logs/{activity}', function () {
 
         $response = getJson("/v1/activity-logs/{$activity->id}");
 
-        $response->assertOk();
-        expect($response->json('data.id'))->toBe($activity->id);
+        $response->assertForbidden();
     });
 
     test('returns 403 for activity in inaccessible organizational unit', function (): void {

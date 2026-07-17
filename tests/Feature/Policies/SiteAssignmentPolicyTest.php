@@ -1,6 +1,6 @@
 <?php
 
-// SPDX-FileCopyrightText: 2025 SecPal Contributors
+// SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Models\Customer;
@@ -46,7 +46,7 @@ test('user assigned to site can view its assignments', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,
@@ -61,7 +61,7 @@ test('user with permission and site update access can create assignments', funct
     givePermissionWithTenant($user, $this->tenant->id, 'assignments.create');
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,

@@ -5,7 +5,6 @@
 
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
-use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -27,9 +26,6 @@ afterEach(function (): void {
 test('employee factory seeds exactly one current address by default', function (): void {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
-        ])->id,
     ]);
 
     $employee->load('addresses');
@@ -41,9 +37,6 @@ test('employee factory seeds exactly one current address by default', function (
 test('can persist a historical address row with resided_until set', function (): void {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
-        ])->id,
     ]);
 
     $employee->addresses()->delete();

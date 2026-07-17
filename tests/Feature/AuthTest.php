@@ -186,7 +186,6 @@ describe('SPA Session Login', function () {
 
             $deletedEmployee = Employee::factory()->create([
                 'tenant_id' => $tenant->id,
-                'organizational_unit_id' => $orgUnit->id,
                 'status' => Employee::STATUS_PRE_CONTRACT,
                 'user_id' => $user->id,
                 'user_account_active' => true,
@@ -194,7 +193,6 @@ describe('SPA Session Login', function () {
 
             $trashedEmployee = Employee::factory()->create([
                 'tenant_id' => $tenant->id,
-                'organizational_unit_id' => $orgUnit->id,
                 'status' => Employee::STATUS_TERMINATED,
                 'user_id' => $user->id,
                 'user_account_active' => false,
@@ -1977,7 +1975,6 @@ describe('Organizational Scopes Authorization', function () {
         Site::factory()->create([
             'tenant_id' => $tenant->id,
             'customer_id' => $customer->id,
-            'organizational_unit_id' => $orgUnit->id,
         ]);
 
         $user = User::factory()->create([
