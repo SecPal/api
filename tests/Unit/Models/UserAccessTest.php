@@ -71,7 +71,7 @@ test('customer assignments relationship', function () {
 test('site assignments relationship', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
@@ -114,8 +114,8 @@ test('assigned customers relationship', function () {
 test('assigned sites relationship', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
-    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
+    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
@@ -248,7 +248,7 @@ test('direct grants override inherited deny scopes', function () {
 test('get accessible customers returns empty when no access', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $unassignedCustomer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    Site::factory()->for($this->tenant, 'tenant')->for($unassignedCustomer)->for($orgUnit, 'organizationalUnit')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($unassignedCustomer)->create();
 
     $customers = $this->user->getAccessibleCustomers();
 
@@ -258,7 +258,7 @@ test('get accessible customers returns empty when no access', function () {
 test('has accessible customers returns false when no access exists', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $unassignedCustomer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    Site::factory()->for($this->tenant, 'tenant')->for($unassignedCustomer)->for($orgUnit, 'organizationalUnit')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($unassignedCustomer)->create();
 
     expect($this->user->hasAccessibleCustomers())->toBeFalse();
 });
@@ -297,10 +297,10 @@ test('has accessible customers returns true for direct customer assignments', fu
     expect($this->user->hasAccessibleCustomers())->toBeTrue();
 });
 
-test('get accessible customers includes customers with sites in accessible org units', function () {
+test('OU scopes do not grant access to customers without an explicit domain entitlement', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     UserInternalOrganizationalScope::create([
         'user_id' => $this->user->id,
@@ -311,14 +311,14 @@ test('get accessible customers includes customers with sites in accessible org u
 
     $customers = $this->user->getAccessibleCustomers();
 
-    expect($customers)->toHaveCount(1);
-    expect($customers->contains($customer))->toBeTrue();
+    expect($customers)->toHaveCount(0);
+    expect($customers->contains($customer))->toBeFalse();
 });
 
 test('get accessible customers includes customers with directly assigned sites', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
@@ -343,11 +343,11 @@ test('get accessible customers combines all access paths', function () {
 
     // Customer 2: Site in accessible org unit
     $customer2 = Customer::factory()->for($this->tenant, 'tenant')->create();
-    Site::factory()->for($this->tenant, 'tenant')->for($customer2)->for($orgUnit, 'organizationalUnit')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($customer2)->create();
 
     // Customer 3: Direct site assignment
     $customer3 = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site3 = Site::factory()->for($this->tenant, 'tenant')->for($customer3)->for($orgUnit, 'organizationalUnit')->create();
+    $site3 = Site::factory()->for($this->tenant, 'tenant')->for($customer3)->create();
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
         'site_id' => $site3->id,
@@ -365,9 +365,9 @@ test('get accessible customers combines all access paths', function () {
 
     $customers = $this->user->getAccessibleCustomers();
 
-    expect($customers)->toHaveCount(3);
+    expect($customers)->toHaveCount(2);
     expect($customers->contains($customer1))->toBeTrue();
-    expect($customers->contains($customer2))->toBeTrue();
+    expect($customers->contains($customer2))->toBeFalse();
     expect($customers->contains($customer3))->toBeTrue();
     expect($customers->contains($customer4))->toBeFalse();
 });
@@ -375,7 +375,7 @@ test('get accessible customers combines all access paths', function () {
 test('get accessible sites returns empty when no access', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     $sites = $this->user->getAccessibleSites();
 
@@ -385,18 +385,18 @@ test('get accessible sites returns empty when no access', function () {
 test('has accessible sites returns false when no access exists', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     expect($this->user->hasAccessibleSites())->toBeFalse();
 });
 
-test('get accessible sites includes sites in accessible org units', function () {
+test('OU scopes do not grant access to sites without an explicit domain entitlement', function () {
     $orgUnit1 = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $orgUnit2 = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
 
-    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit1, 'organizationalUnit')->create();
-    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit2, 'organizationalUnit')->create();
+    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
+    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     UserInternalOrganizationalScope::create([
         'user_id' => $this->user->id,
@@ -407,8 +407,8 @@ test('get accessible sites includes sites in accessible org units', function () 
 
     $sites = $this->user->getAccessibleSites();
 
-    expect($sites)->toHaveCount(1);
-    expect($sites->contains($site1))->toBeTrue();
+    expect($sites)->toHaveCount(0);
+    expect($sites->contains($site1))->toBeFalse();
     expect($sites->contains($site2))->toBeFalse();
 });
 
@@ -416,9 +416,9 @@ test('get accessible sites includes directly assigned sites', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
 
-    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
-    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
-    $site3 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
+    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
+    $site3 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
@@ -442,8 +442,8 @@ test('get accessible sites includes sites from assigned customers', function () 
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
 
-    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
-    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
+    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
@@ -461,7 +461,7 @@ test('get accessible sites includes sites from assigned customers', function () 
 test('has accessible sites returns true for customer assignments', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
@@ -478,24 +478,24 @@ test('get accessible sites combines all access paths', function () {
     $customer2 = Customer::factory()->for($this->tenant, 'tenant')->create();
 
     // Site 1: Via org unit access
-    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer1)->for($orgUnit1, 'organizationalUnit')->create();
+    $site1 = Site::factory()->for($this->tenant, 'tenant')->for($customer1)->create();
 
     // Site 2: Via direct site assignment
-    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer1)->for($orgUnit2, 'organizationalUnit')->create();
+    $site2 = Site::factory()->for($this->tenant, 'tenant')->for($customer1)->create();
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
         'site_id' => $site2->id,
     ]);
 
     // Site 3: Via customer assignment (Key Account)
-    $site3 = Site::factory()->for($this->tenant, 'tenant')->for($customer2)->for($orgUnit2, 'organizationalUnit')->create();
+    $site3 = Site::factory()->for($this->tenant, 'tenant')->for($customer2)->create();
     CustomerAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
         'customer_id' => $customer2->id,
     ]);
 
     // Site 4: No access
-    $site4 = Site::factory()->for($this->tenant, 'tenant')->for($customer1)->for($orgUnit2, 'organizationalUnit')->create();
+    $site4 = Site::factory()->for($this->tenant, 'tenant')->for($customer1)->create();
 
     UserInternalOrganizationalScope::create([
         'user_id' => $this->user->id,
@@ -506,8 +506,8 @@ test('get accessible sites combines all access paths', function () {
 
     $sites = $this->user->getAccessibleSites();
 
-    expect($sites)->toHaveCount(3);
-    expect($sites->contains($site1))->toBeTrue();
+    expect($sites)->toHaveCount(2);
+    expect($sites->contains($site1))->toBeFalse();
     expect($sites->contains($site2))->toBeTrue();
     expect($sites->contains($site3))->toBeTrue();
     expect($sites->contains($site4))->toBeFalse();
@@ -523,7 +523,7 @@ test('get accessible customers does not include duplicates', function () {
         'customer_id' => $customer->id,
     ]);
 
-    $site = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $this->user->id,
         'site_id' => $site->id,
@@ -545,7 +545,7 @@ test('get accessible customers does not include duplicates', function () {
 test('get accessible sites does not include duplicates', function () {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($this->tenant, 'tenant')->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
 
     // Create multiple access paths to same site
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([

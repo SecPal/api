@@ -29,7 +29,7 @@ class CustomerPolicy
      */
     public function viewAny(User $user): bool
     {
-        if ($user->can('customers.read')) {
+        if ($user->can('customers.read') && ! $user->organizationalScopes()->exists()) {
             return true;
         }
 
@@ -52,7 +52,7 @@ class CustomerPolicy
         }
 
         // Permission-based access
-        if ($user->can('customers.read')) {
+        if ($user->can('customers.read') && ! $user->organizationalScopes()->exists()) {
             return true;
         }
 
@@ -61,21 +61,11 @@ class CustomerPolicy
             return true;
         }
 
-        if (in_array($customer->legal_entity_id, $user->getAccessibleOrganizationalUnitIds(), true)) {
-            return true;
-        }
-
-        // Access via site (user has access to at least one site of this customer)
-        $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();
-
         // Sites where user is assigned directly (currently active only)
         $assignedSiteIds = $user->siteAssignments()->currentlyActive()->pluck('site_id')->toArray();
 
         return $customer->sites()
-            ->where(function ($query) use ($accessibleUnitIds, $assignedSiteIds) {
-                $query->whereIn('organizational_unit_id', $accessibleUnitIds)
-                    ->orWhereIn('id', $assignedSiteIds);
-            })
+            ->whereIn('id', $assignedSiteIds)
             ->exists();
     }
 
@@ -84,7 +74,8 @@ class CustomerPolicy
      */
     public function create(User $user): bool
     {
-        return $user->can('customers.create');
+        return $user->can('customers.create')
+            && ! $user->organizationalScopes()->exists();
     }
 
     /**

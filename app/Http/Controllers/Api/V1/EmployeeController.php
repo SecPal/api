@@ -15,10 +15,8 @@ use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
-use App\Models\OrganizationalUnitClosure;
 use App\Models\TenantKey;
 use App\Models\User;
-use App\Models\UserInternalOrganizationalScope;
 use App\Services\BewacherregisterExportService;
 use App\Services\EmployeeComplianceService;
 use App\Services\EmployeeLifecycleService;
@@ -29,7 +27,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -47,7 +44,8 @@ class EmployeeController extends Controller
      *
      * Supports filtering by:
      * - status (applicant, pre_contract, active, on_leave, terminated)
-     * - organizational_unit_id
+     * - legal_entity_id
+     * - establishment_id
      * - search (email, employee_number)
      */
     public function index(IndexEmployeeRequest $request): AnonymousResourceCollection
@@ -55,7 +53,7 @@ class EmployeeController extends Controller
         $this->authorize('viewAny', Employee::class);
 
         $employees = $this->buildEmployeeIndexQuery($request)
-            ->with(['user', 'organizationalUnit'])
+            ->with(['user', 'legalEntity', 'establishment'])
             ->paginate($request->integer('per_page', 15));
 
         return EmployeeResource::collection($employees);
@@ -80,7 +78,7 @@ class EmployeeController extends Controller
                 Employee::STATUS_ACTIVE,
                 Employee::STATUS_ON_LEAVE,
             ])
-            ->with(['user', 'organizationalUnit'])
+            ->with(['user', 'legalEntity', 'establishment'])
             ->get()
             ->filter(fn (Employee $employee): bool => $complianceService->hasAlerts($employee, $complianceStatus))
             ->values();
@@ -114,10 +112,10 @@ class EmployeeController extends Controller
 
         $query = Employee::where('tenant_id', $tenantId);
 
-        // Apply organizational scope filtering for scoped users (e.g., managers)
-        $user->loadMissing('organizationalScopes');
-        if ($user->organizationalScopes->isNotEmpty()) {
-            $this->applyScopedEmployeeVisibility($query, $user);
+        // Legal entities and establishments intentionally have no OU mapping yet.
+        // Scoped users must fail closed until explicit domain entitlements exist.
+        if ($user->organizationalScopes()->exists()) {
+            $query->whereRaw('1 = 0');
         }
 
         // Filter by status
@@ -125,9 +123,12 @@ class EmployeeController extends Controller
             $query->where('status', $request->input('status'));
         }
 
-        // Filter by organizational unit
-        if ($request->has('organizational_unit_id')) {
-            $query->where('organizational_unit_id', $request->input('organizational_unit_id'));
+        if ($request->has('legal_entity_id')) {
+            $query->where('legal_entity_id', $request->input('legal_entity_id'));
+        }
+
+        if ($request->has('establishment_id')) {
+            $query->where('establishment_id', $request->input('establishment_id'));
         }
 
         // Search by email or employee_number
@@ -142,166 +143,6 @@ class EmployeeController extends Controller
         }
 
         return $query;
-    }
-
-    /**
-     * Apply scoped employee visibility so collection access matches detail authorization.
-     *
-     * @param  Builder<Employee>  $query
-     */
-    private function applyScopedEmployeeVisibility(Builder $query, User $user): void
-    {
-        // Scopes already loaded by buildEmployeeIndexQuery; build unit->scopes map in memory.
-        /** @var Collection<int, UserInternalOrganizationalScope> $loadedScopes */
-        $loadedScopes = $user->organizationalScopes;
-
-        /** @var array<string, Collection<int, UserInternalOrganizationalScope>> $unitToScopes */
-        $unitToScopes = $loadedScopes
-            ->groupBy('organizational_unit_id')
-            ->map(fn (Collection $group): Collection => $group->values())
-            ->all();
-
-        $directUnitIds = collect(array_keys($unitToScopes));
-
-        // Resolve descendant units for include_descendants scopes in a single batch query.
-        /** @var Collection<string, UserInternalOrganizationalScope> $descendantScopesByAncestorId */
-        $descendantScopesByAncestorId = $loadedScopes
-            ->filter(fn (UserInternalOrganizationalScope $scope): bool => (bool) $scope->include_descendants)
-            ->keyBy('organizational_unit_id');
-
-        if ($descendantScopesByAncestorId->isNotEmpty()) {
-            OrganizationalUnitClosure::whereIn('ancestor_id', $descendantScopesByAncestorId->keys())
-                ->where('depth', '>', 0)
-                ->select(['ancestor_id', 'descendant_id'])
-                ->orderBy('ancestor_id')
-                ->orderBy('descendant_id')
-                ->each(function (OrganizationalUnitClosure $closure) use (
-                    $directUnitIds,
-                    $descendantScopesByAncestorId,
-                    &$unitToScopes,
-                ): void {
-                    $descendantId = $closure->descendant_id;
-
-                    // Direct scope takes precedence over inherited descendant scope.
-                    if ($directUnitIds->contains($descendantId)) {
-                        return;
-                    }
-
-                    /** @var UserInternalOrganizationalScope|null $ancestorScope */
-                    $ancestorScope = $descendantScopesByAncestorId->get($closure->ancestor_id);
-
-                    if (! $ancestorScope instanceof UserInternalOrganizationalScope) {
-                        return;
-                    }
-
-                    if (! isset($unitToScopes[$descendantId])) {
-                        /** @var Collection<int, UserInternalOrganizationalScope> $emptyCollection */
-                        $emptyCollection = collect();
-                        $unitToScopes[$descendantId] = $emptyCollection;
-                    }
-
-                    $unitToScopes[$descendantId]->push($ancestorScope);
-                });
-        }
-
-        // Filter to units with at least one read-accessible scope.
-        /** @var Collection<string, Collection<int, UserInternalOrganizationalScope>> $visibleUnits */
-        $visibleUnits = collect($unitToScopes)
-            ->map(function (Collection $unitScopes): Collection {
-                if ($unitScopes->contains(
-                    fn (UserInternalOrganizationalScope $scope): bool => ! $scope->hasMinimumAccessLevel('read')
-                )) {
-                    return $unitScopes->filter(static fn (): bool => false);
-                }
-
-                return $unitScopes
-                    ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('read'))
-                    ->values();
-            })
-            ->filter(fn (Collection $readableScopes): bool => $readableScopes->isNotEmpty());
-
-        if ($visibleUnits->isEmpty()) {
-            $query->whereRaw('1 = 0');
-
-            return;
-        }
-
-        $query->where(function (Builder $scopeQuery) use ($visibleUnits, $user): void {
-            foreach ($visibleUnits as $unitId => $unitScopes) {
-                $scopeQuery->orWhere(function (Builder $unitQuery) use ($unitId, $unitScopes, $user): void {
-                    $unitQuery->where('organizational_unit_id', $unitId);
-
-                    $this->applyManagementLevelVisibilityConstraints($unitQuery, $unitScopes, $user);
-                });
-            }
-        });
-    }
-
-    /**
-     * @param  Builder<Employee>  $query
-     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
-     */
-    private function applyManagementLevelVisibilityConstraints(Builder $query, Collection $scopes, User $user): void
-    {
-        if ($this->hasFullyViewableScope($scopes)) {
-            return;
-        }
-
-        $allowsSelfAccess = $scopes->contains(
-            fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access
-        );
-
-        $query->where(function (Builder $visibilityQuery) use ($allowsSelfAccess, $scopes, $user): void {
-            if ($allowsSelfAccess) {
-                $visibilityQuery->orWhere('user_id', $user->id);
-            }
-
-            foreach ($scopes as $scope) {
-                $this->addViewableManagementLevelConstraint($visibilityQuery, $scope);
-            }
-        });
-    }
-
-    /**
-     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
-     */
-    private function hasFullyViewableScope(Collection $scopes): bool
-    {
-        return $scopes->contains(function (UserInternalOrganizationalScope $scope): bool {
-            $minimum = $scope->min_viewable_rank;
-            $maximum = $scope->max_viewable_rank;
-
-            return ($minimum === null || $minimum === 0) && $maximum === null;
-        });
-    }
-
-    /**
-     * @param  Builder<Employee>  $query
-     */
-    private function addViewableManagementLevelConstraint(Builder $query, UserInternalOrganizationalScope $scope): void
-    {
-        $minimum = $scope->min_viewable_rank;
-        $maximum = $scope->max_viewable_rank;
-
-        if (($minimum === null || $minimum === 0) && $maximum === 0) {
-            $query->orWhere('management_level', 0);
-
-            return;
-        }
-
-        if ($maximum === 0) {
-            return;
-        }
-
-        $query->orWhere(function (Builder $rankQuery) use ($minimum, $maximum): void {
-            $lowerBound = ($minimum === null || $minimum === 0) ? 1 : $minimum;
-
-            $rankQuery->where('management_level', '>=', $lowerBound);
-
-            if ($maximum !== null) {
-                $rankQuery->where('management_level', '<=', $maximum);
-            }
-        });
     }
 
     /**
@@ -356,7 +197,7 @@ class EmployeeController extends Controller
 
         /** @var Employee $freshEmployee */
         $freshEmployee = $employee->fresh();
-        $freshEmployee->load(['user', 'organizationalUnit', 'addresses']);
+        $freshEmployee->load(['user', 'legalEntity', 'establishment', 'addresses']);
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
@@ -372,7 +213,7 @@ class EmployeeController extends Controller
     {
         $this->authorize('view', $employee);
 
-        $employee->load(['user', 'organizationalUnit', 'employeeQualifications.qualification', 'documents', 'addresses']);
+        $employee->load(['user', 'legalEntity', 'establishment', 'employeeQualifications.qualification', 'documents', 'addresses']);
 
         return response()->json([
             'data' => new EmployeeResource($employee),
@@ -417,7 +258,7 @@ class EmployeeController extends Controller
 
         /** @var Employee $freshEmployee */
         $freshEmployee = $employee->fresh();
-        $freshEmployee->load(['user', 'organizationalUnit', 'addresses']);
+        $freshEmployee->load(['user', 'legalEntity', 'establishment', 'addresses']);
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),
@@ -570,7 +411,7 @@ class EmployeeController extends Controller
 
         /** @var Employee $freshEmployee */
         $freshEmployee = $employee->fresh();
-        $freshEmployee->load(['user', 'organizationalUnit', 'addresses']);
+        $freshEmployee->load(['user', 'legalEntity', 'establishment', 'addresses']);
 
         return response()->json([
             'data' => new EmployeeResource($freshEmployee),

@@ -80,8 +80,8 @@ test('OnboardingDemoUserSeeder creates pre-contract employee at SecPal Holding',
         ->and((string) $employee->contract_start_date)->toContain('2028-05-01')
         ->and((string) $employee->date_of_birth)->toContain('1990-01-01')
         ->and($employee->user_id)->toBe($user->id)
-        ->and($employee->organizationalUnit?->name)->toBe('SecPal Holding')
-        ->and($employee->organizationalUnit?->type)->toBe('holding');
+        ->and($employee->legalEntity?->name)->toBe('SecPal Demo GmbH')
+        ->and($employee->establishment?->name)->toBe('SecPal Demo Berlin');
 });
 
 test('OnboardingDemoUserSeeder is idempotent', function (): void {

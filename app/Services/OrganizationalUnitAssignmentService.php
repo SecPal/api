@@ -5,7 +5,7 @@
 
 namespace App\Services;
 
-use App\Models\OrganizationalUnit;
+use App\Models\Establishment;
 use App\Models\Site;
 use App\Models\SiteAssignment;
 use Carbon\CarbonInterface;
@@ -51,21 +51,22 @@ class OrganizationalUnitAssignmentService
             return false;
         }
 
-        $organizationalUnit = $site->organizationalUnit()->withTrashed()->first();
+        $establishment = $site->establishment()->withTrashed()->first();
 
-        return $this->organizationalUnitAcceptsAssignments($organizationalUnit);
+        return $this->establishmentAcceptsAssignments($establishment);
     }
 
     /** @param array<string, mixed> $validated */
     public function siteTargetAcceptsAssignments(Site $site, array $validated): bool
     {
-        $organizationalUnitId = $validated['organizational_unit_id'] ?? $site->organizational_unit_id;
-        $organizationalUnit = OrganizationalUnit::withTrashed()
+        $establishmentId = $validated['establishment_id'] ?? $site->establishment_id;
+        $establishment = Establishment::withTrashed()
             ->where('tenant_id', $site->tenant_id)
-            ->whereKey($organizationalUnitId)
+            ->where('legal_entity_id', $validated['legal_entity_id'] ?? $site->legal_entity_id)
+            ->whereKey($establishmentId)
             ->first();
 
-        return $this->organizationalUnitAcceptsAssignments($organizationalUnit);
+        return $this->establishmentAcceptsAssignments($establishment);
     }
 
     private function startsCoverageEarlier(?CarbonInterface $currentValidFrom, ?CarbonInterface $updatedValidFrom): bool
@@ -103,10 +104,10 @@ class OrganizationalUnitAssignmentService
             || ! $assignment->valid_until->lessThan(now()->startOfDay());
     }
 
-    private function organizationalUnitAcceptsAssignments(?OrganizationalUnit $organizationalUnit): bool
+    private function establishmentAcceptsAssignments(?Establishment $establishment): bool
     {
-        return $organizationalUnit instanceof OrganizationalUnit
-            && ! $organizationalUnit->trashed()
-            && $organizationalUnit->is_assignable;
+        return $establishment instanceof Establishment
+            && ! $establishment->trashed()
+            && $establishment->is_active;
     }
 }

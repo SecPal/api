@@ -13,7 +13,6 @@ use App\Models\User;
  *
  * Implements Need-to-Know principle:
  * - Users can see sites they are assigned to OR
- * - Sites in their accessible organizational units OR
  * - Sites belonging to customers they are assigned to
  *
  * @see SecPal/.github#210 Customer & Site Management Epic
@@ -45,7 +44,6 @@ class SitePolicy
      * - User has sites.read permission (can view any site), OR
      * - User is directly assigned to the site, OR
      * - User is assigned to the site's customer (Key Accounts see all customer sites), OR
-     * - User has access to the site's organizational unit
      */
     public function view(User $user, Site $site): bool
     {
@@ -69,10 +67,7 @@ class SitePolicy
             return true;
         }
 
-        // Access via organizational unit
-        $accessibleUnitIds = $user->getAccessibleOrganizationalUnitIds();
-
-        return in_array($site->organizational_unit_id, $accessibleUnitIds, true);
+        return false;
     }
 
     /**
@@ -80,7 +75,7 @@ class SitePolicy
      */
     public function create(User $user): bool
     {
-        return $user->can('sites.create');
+        return ! $user->organizationalScopes()->exists() && $user->can('sites.create');
     }
 
     /**

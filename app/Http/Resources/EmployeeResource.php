@@ -192,14 +192,14 @@ class EmployeeResource extends JsonResource
                 'failure_reason' => $this->onboarding_invitation_failure_reason,
             ],
 
-            // Organizational
-            'organizational_unit_id' => $this->organizational_unit_id,
+            // Domain assignment
+            'legal_entity_id' => $this->legal_entity_id,
+            'establishment_id' => $this->establishment_id,
             'position' => $this->position,
             'management_level' => $this->management_level,
 
             // Relationships (optional, load when needed)
             'user' => $this->whenLoaded('user', fn (): ?UserResource => $this->user === null ? null : new UserResource($this->user)),
-            'organizational_unit' => $this->whenLoaded('organizationalUnit', fn (): ?OrganizationalUnitResource => $this->organizationalUnit === null ? null : new OrganizationalUnitResource($this->organizationalUnit)),
             'qualifications' => EmployeeQualificationResource::collection($this->whenLoaded('employeeQualifications')),
             'documents' => EmployeeDocumentResource::collection($this->whenLoaded('documents')),
 

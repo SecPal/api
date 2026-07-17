@@ -142,7 +142,6 @@ test('site route binding resolves only within the authenticated tenant', functio
     $otherTenantSite = Site::factory()->create([
         'tenant_id' => $otherTenant->id,
         'customer_id' => $otherTenantCustomer->id,
-        'organizational_unit_id' => $otherTenantUnit->id,
     ]);
 
     /** @var Site|null $resolvedSameTenantSite */

@@ -28,12 +28,6 @@ class CustomerResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var \App\Models\User|null $user */
-        $user = $request->user();
-
-        // Check if user can update this customer (to show notes)
-        $canUpdate = $user?->can('update', $this->resource);
-
         return [
             'id' => $this->id,
             'legal_entity_id' => $this->legal_entity_id,
@@ -41,9 +35,6 @@ class CustomerResource extends JsonResource
             'name' => $this->name,
             'vat_id' => $this->vat_id,
             'billing_address' => $this->billing_address,
-            'contact' => $this->contact,
-            'notes' => $this->when((bool) $canUpdate, $this->notes),
-            'metadata' => $this->metadata,
             'is_active' => $this->is_active,
 
             // Relationships

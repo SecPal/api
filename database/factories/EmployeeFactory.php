@@ -7,7 +7,8 @@ namespace Database\Factories;
 
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
-use App\Models\OrganizationalUnit;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\TenantKey;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -18,7 +19,22 @@ class EmployeeFactory extends Factory
 {
     public function configure(): static
     {
-        return $this->afterCreating(function (Employee $employee): void {
+        return $this->afterMaking(function (Employee $employee): void {
+            $establishment = Establishment::query()->find($employee->establishment_id);
+            if ($establishment && $establishment->tenant_id === $employee->tenant_id) {
+                $employee->legal_entity_id = $establishment->legal_entity_id;
+
+                return;
+            }
+
+            $legalEntity = LegalEntity::factory()->forTenant($employee->tenant_id)->create();
+            $establishment = Establishment::factory()->create([
+                'tenant_id' => $employee->tenant_id,
+                'legal_entity_id' => $legalEntity->id,
+            ]);
+            $employee->legal_entity_id = $legalEntity->id;
+            $employee->establishment_id = $establishment->id;
+        })->afterCreating(function (Employee $employee): void {
             if ($employee->addresses()->exists()) {
                 return;
             }
@@ -63,9 +79,16 @@ class EmployeeFactory extends Factory
             fake()->unique()->numberBetween(1, 9999)
         );
 
+        $legalEntity = LegalEntity::factory()->forTenant($tenant->id)->create();
+        $establishment = Establishment::factory()->create([
+            'tenant_id' => $tenant->id,
+            'legal_entity_id' => $legalEntity->id,
+        ]);
+
         return [
             'tenant_id' => $tenant->id,
-            'organizational_unit_id' => OrganizationalUnit::factory(),
+            'legal_entity_id' => $legalEntity->id,
+            'establishment_id' => $establishment->id,
             'employee_number' => $employeeNumber,
             'first_name' => $firstName,
             'last_name' => $lastName,

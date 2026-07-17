@@ -66,13 +66,11 @@ class OnboardingFormSubmissionPolicy
         // Check if user has organizational scopes (Manager role)
         $hasScopes = $user->organizationalScopes()->exists();
 
-        if ($hasScopes && $employee->organizationalUnit !== null) {
-            // Check organizational scope
-            return $user->hasAccessToUnit($employee->organizationalUnit);
+        if ($hasScopes) {
+            return false;
         }
 
-        // No scopes = no access
-        return false;
+        return true;
     }
 
     /**

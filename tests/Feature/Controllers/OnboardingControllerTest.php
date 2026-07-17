@@ -52,7 +52,6 @@ beforeEach(function (): void {
 
     $this->employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $organizationalUnit->id,
         'user_id' => $this->user->id,
         'status' => Employee::STATUS_PRE_CONTRACT,
         'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_ACCOUNT_INITIALIZED,
@@ -395,7 +394,6 @@ describe('GET /v1/onboarding/submissions', function () {
         // Create submission for different employee (should not be returned)
         $otherEmployee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->employee->organizational_unit_id,
         ]);
 
         OnboardingFormSubmission::factory()->create([
@@ -2239,7 +2237,6 @@ describe('PATCH /v1/onboarding/submissions/{submission}', function () {
         $otherUser = User::factory()->create();
         $otherEmployee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->employee->organizational_unit_id,
             'user_id' => $otherUser->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);
@@ -2487,7 +2484,6 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
         $otherUser = User::factory()->create();
         $otherEmployee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->employee->organizational_unit_id,
             'user_id' => $otherUser->id,
             'status' => Employee::STATUS_PRE_CONTRACT,
         ]);

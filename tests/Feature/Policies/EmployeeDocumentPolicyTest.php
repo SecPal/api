@@ -49,7 +49,7 @@ test('users with employee_document.read permission can view any employee documen
     expect($this->policy->viewAny($user, $employee))->toBeTrue();
 });
 
-test('users with employee_document.read permission can view any employee documents (Manager)', function (): void {
+test('OU-scoped users fail closed when listing employee documents', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     $user->assignRole('Manager');
@@ -59,11 +59,10 @@ test('users with employee_document.read permission can view any employee documen
         'access_level' => 'read',
     ]);
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
     ]);
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.read');
 
-    expect($this->policy->viewAny($user, $employee))->toBeTrue();
+    expect($this->policy->viewAny($user, $employee))->toBeFalse();
 });
 
 test('users without employee_document.read permission cannot view any documents', function (): void {
@@ -106,23 +105,22 @@ test('employee cannot view own documents marked not visible to employee', functi
     expect($this->policy->view($user, $document))->toBeFalse();
 });
 
-test('users with employee_document.read permission can view all documents regardless of visibility flag', function (): void {
+test('OU-scoped users fail closed when viewing employee documents', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.read');
     giveOrganizationalScope($user, $orgUnit);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
     ]);
     $document = EmployeeDocument::factory()->for($employee)->create([
         'visible_to_employee' => false,
     ]);
 
-    expect($this->policy->view($user, $document))->toBeTrue();
+    expect($this->policy->view($user, $document))->toBeFalse();
 });
 
-test('users with employee_document.read permission can view documents of employees in scope', function (): void {
+test('OU scopes do not grant employee document access', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.read');
@@ -134,13 +132,12 @@ test('users with employee_document.read permission can view documents of employe
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
     ]);
     $document = EmployeeDocument::factory()->for($employee)->create([
         'visible_to_employee' => false,
     ]);
 
-    expect($this->policy->view($user, $document))->toBeTrue();
+    expect($this->policy->view($user, $document))->toBeFalse();
 });
 
 test('users with employee_document.read permission cannot view documents of employees outside scope', function (): void {
@@ -156,7 +153,6 @@ test('users with employee_document.read permission cannot view documents of empl
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit2->id,
     ]);
     $document = EmployeeDocument::factory()->for($employee)->create([
         'visible_to_employee' => false,
@@ -181,7 +177,6 @@ test('users with employee_document.write permission cannot create documents outs
     $orgUnit2 = OrganizationalUnit::factory()->create();
     $user = User::factory()->create();
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit2->id,
     ]);
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.write');
     $user->organizationalScopes()->create([
@@ -193,7 +188,7 @@ test('users with employee_document.write permission cannot create documents outs
     expect($this->policy->create($user, $employee))->toBeFalse();
 });
 
-test('users with employee_document.write permission can update documents in scope', function (): void {
+test('OU scopes do not grant employee document update access', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.write');
@@ -204,11 +199,10 @@ test('users with employee_document.write permission can update documents in scop
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
     ]);
     $document = EmployeeDocument::factory()->for($employee)->create();
 
-    expect($this->policy->update($user, $document))->toBeTrue();
+    expect($this->policy->update($user, $document))->toBeFalse();
 });
 
 test('users without employee_document.write permission cannot update documents', function (): void {
@@ -233,14 +227,13 @@ test('users with employee_document.write permission cannot update documents outs
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit2->id,
     ]);
     $document = EmployeeDocument::factory()->for($employee)->create();
 
     expect($this->policy->update($user, $document))->toBeFalse();
 });
 
-test('users with employee_document.write permission can delete documents in scope', function (): void {
+test('OU scopes do not grant employee document delete access', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create();
     $user = User::factory()->create();
     givePermissionWithTenant($user, $this->tenant->id, 'employee_document.write');
@@ -251,11 +244,10 @@ test('users with employee_document.write permission can delete documents in scop
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit->id,
     ]);
     $document = EmployeeDocument::factory()->for($employee)->create();
 
-    expect($this->policy->delete($user, $document))->toBeTrue();
+    expect($this->policy->delete($user, $document))->toBeFalse();
 });
 
 test('users with employee_document.write permission cannot delete documents outside scope', function (): void {
@@ -270,7 +262,6 @@ test('users with employee_document.write permission cannot delete documents outs
     ]);
 
     $employee = Employee::factory()->for($this->tenant, 'tenant')->create([
-        'organizational_unit_id' => $orgUnit2->id,
     ]);
     $document = EmployeeDocument::factory()->for($employee)->create();
 

@@ -6,7 +6,9 @@
 namespace Database\Factories;
 
 use App\Models\Customer;
-use App\Models\OrganizationalUnit;
+use App\Models\CustomerEstablishment;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\Site;
 use App\Models\TenantKey;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -24,6 +26,33 @@ class SiteFactory extends Factory
      * @var class-string<Site>
      */
     protected $model = Site::class;
+
+    public function configure(): static
+    {
+        return $this->afterMaking(function (Site $site): void {
+            $customer = Customer::query()->findOrFail($site->customer_id);
+            $site->tenant_id = $customer->tenant_id;
+            $site->legal_entity_id = $customer->legal_entity_id;
+
+            $establishment = Establishment::query()->find($site->establishment_id);
+            if (! $establishment
+                || $establishment->tenant_id !== $customer->tenant_id
+                || $establishment->legal_entity_id !== $customer->legal_entity_id) {
+                $establishment = Establishment::factory()->create([
+                    'tenant_id' => $customer->tenant_id,
+                    'legal_entity_id' => $customer->legal_entity_id,
+                ]);
+                $site->establishment_id = $establishment->id;
+            }
+
+            CustomerEstablishment::query()->firstOrCreate([
+                'tenant_id' => $site->tenant_id,
+                'legal_entity_id' => $site->legal_entity_id,
+                'customer_id' => $site->customer_id,
+                'establishment_id' => $site->establishment_id,
+            ]);
+        });
+    }
 
     /**
      * Define the model's default state.
@@ -88,10 +117,21 @@ class SiteFactory extends Factory
         /** @var string $siteType */
         $siteType = fake()->randomElement($siteTypes);
 
+        $legalEntity = LegalEntity::factory()->forTenant($tenant->id)->create();
+        $customer = Customer::factory()->create([
+            'tenant_id' => $tenant->id,
+            'legal_entity_id' => $legalEntity->id,
+        ]);
+        $establishment = Establishment::factory()->create([
+            'tenant_id' => $tenant->id,
+            'legal_entity_id' => $legalEntity->id,
+        ]);
+
         return [
             'tenant_id' => $tenant->id,
-            'customer_id' => Customer::factory()->forTenant($tenant->id),
-            'organizational_unit_id' => OrganizationalUnit::factory()->forTenant((string) $tenant->id),
+            'customer_id' => $customer->id,
+            'legal_entity_id' => $legalEntity->id,
+            'establishment_id' => $establishment->id,
             'site_number' => $siteNumber,
             'name' => $siteType.' '.fake()->numberBetween(1, 5),
             'type' => 'permanent',
@@ -175,21 +215,39 @@ class SiteFactory extends Factory
      */
     public function forCustomer(Customer $customer): static
     {
-        return $this->state(fn (array $attributes) => [
-            'customer_id' => $customer->id,
-            'tenant_id' => $customer->tenant_id,
-        ]);
+        return $this->state(function () use ($customer): array {
+            $establishment = Establishment::factory()->create([
+                'tenant_id' => $customer->tenant_id,
+                'legal_entity_id' => $customer->legal_entity_id,
+            ]);
+
+            return [
+                'customer_id' => $customer->id,
+                'tenant_id' => $customer->tenant_id,
+                'legal_entity_id' => $customer->legal_entity_id,
+                'establishment_id' => $establishment->id,
+            ];
+        });
     }
 
     /**
-     * Configure the factory with a specific organizational unit.
+     * Configure the factory with a specific establishment.
      */
-    public function forOrganizationalUnit(OrganizationalUnit $orgUnit): static
+    public function forEstablishment(Establishment $establishment): static
     {
-        return $this->state(fn (array $attributes) => [
-            'organizational_unit_id' => $orgUnit->id,
-            'tenant_id' => $orgUnit->tenant_id,
-        ]);
+        return $this->state(function () use ($establishment): array {
+            $customer = Customer::factory()->create([
+                'tenant_id' => $establishment->tenant_id,
+                'legal_entity_id' => $establishment->legal_entity_id,
+            ]);
+
+            return [
+                'customer_id' => $customer->id,
+                'tenant_id' => $establishment->tenant_id,
+                'legal_entity_id' => $establishment->legal_entity_id,
+                'establishment_id' => $establishment->id,
+            ];
+        });
     }
 
     /**

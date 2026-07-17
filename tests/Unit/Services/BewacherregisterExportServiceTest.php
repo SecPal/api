@@ -8,7 +8,6 @@ declare(strict_types=1);
 use App\Exceptions\BewacherregisterExportNotReadyException;
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
-use App\Models\OrganizationalUnit;
 use App\Models\TenantKey;
 use App\Services\BewacherregisterExportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,10 +22,6 @@ beforeEach(function (): void {
     $keys = TenantKey::generateEnvelopeKeys();
     $this->tenant = TenantKey::create($keys);
 
-    $this->organizationalUnit = OrganizationalUnit::factory()->create([
-        'tenant_id' => $this->tenant->id,
-    ]);
-
     Storage::fake('local');
 
     $this->service = app(BewacherregisterExportService::class);
@@ -37,11 +32,10 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
-function createBewacherregisterReadyEmployee(TenantKey $tenant, OrganizationalUnit $organizationalUnit, array $overrides = []): Employee
+function createBewacherregisterReadyEmployee(TenantKey $tenant, array $overrides = []): Employee
 {
     $employee = Employee::factory()->create(array_merge([
         'tenant_id' => $tenant->id,
-        'organizational_unit_id' => $organizationalUnit->id,
         'first_name' => 'Taylor',
         'last_name' => 'Export',
         'date_of_birth' => '1990-01-15',
@@ -97,7 +91,7 @@ function createBewacherregisterReadyEmployee(TenantKey $tenant, OrganizationalUn
 }
 
 test('exports a BWR-ready employee to CSV storage', function (): void {
-    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
+    $employee = createBewacherregisterReadyEmployee($this->tenant);
 
     $export = $this->service->exportCsv($employee, 'HR Operations');
 
@@ -118,7 +112,7 @@ test('exports a BWR-ready employee to CSV storage', function (): void {
 });
 
 test('exports a BWR-ready employee to XML storage', function (): void {
-    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
+    $employee = createBewacherregisterReadyEmployee($this->tenant);
 
     $export = $this->service->exportXml($employee, 'HR Operations');
 
@@ -140,7 +134,7 @@ test('exports a BWR-ready employee to XML storage', function (): void {
 });
 
 test('export throws when required BWR fields are missing', function (): void {
-    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
+    $employee = createBewacherregisterReadyEmployee($this->tenant);
     $employee->addresses()->delete();
     $employee->forceFill([
         'gender' => null,
@@ -160,7 +154,7 @@ test('export throws when required BWR fields are missing', function (): void {
 test('export exception exposes stable missing field codes even when the locale is German', function (): void {
     app()->setLocale('de');
 
-    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
+    $employee = createBewacherregisterReadyEmployee($this->tenant, [
         'gender' => null,
     ]);
 
@@ -175,7 +169,7 @@ test('export exception exposes stable missing field codes even when the locale i
 });
 
 test('export requires valid work authorization for non exempt nationalities', function (): void {
-    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
+    $employee = createBewacherregisterReadyEmployee($this->tenant, [
         'nationalities' => ['TR'],
         'work_permit_type' => 'none',
         'work_permit_number' => null,
@@ -187,7 +181,7 @@ test('export requires valid work authorization for non exempt nationalities', fu
 });
 
 test('export preserves seven digit BWR ids including leading zeroes', function (): void {
-    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
+    $employee = createBewacherregisterReadyEmployee($this->tenant, [
         'bwr_id' => '0001234',
     ]);
 
@@ -220,7 +214,7 @@ test('export preserves seven digit BWR ids including leading zeroes', function (
 });
 
 test('export throws when id_document_expiry is in the past', function (): void {
-    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit, [
+    $employee = createBewacherregisterReadyEmployee($this->tenant, [
         'id_document_expiry' => now()->subDay()->toDateString(),
     ]);
 
@@ -234,7 +228,7 @@ test('address continuity check ignores segments entirely before the export windo
     // window. The algorithm must not report a false-positive gap.
     $windowStart = now()->startOfDay()->subYears(5);
 
-    $employee = createBewacherregisterReadyEmployee($this->tenant, $this->organizationalUnit);
+    $employee = createBewacherregisterReadyEmployee($this->tenant);
     $employee->addresses()->delete();
 
     // Historical address that ends well before the 5-year window.

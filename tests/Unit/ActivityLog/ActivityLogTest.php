@@ -177,7 +177,7 @@ test('user agent auto-captured from request', function () {
     expect($log->user_agent)->not->toBeNull();
 });
 
-test('causer employee context columns are captured at creation', function () {
+test('causer employee OU context is not inferred without a domain entitlement mapping', function () {
     $orgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
@@ -186,7 +186,6 @@ test('causer employee context columns are captured at creation', function () {
         ->for($this->tenant, 'tenant')
         ->create([
             'user_id' => $this->user->id,
-            'organizational_unit_id' => $orgUnit->id,
             'management_level' => 3,
         ]);
 
@@ -204,9 +203,9 @@ test('causer employee context columns are captured at creation', function () {
 
     $log->refresh();
 
-    expect($log->causer_employee_id)->toBe($employee->id)
-        ->and($log->causer_employee_organizational_unit_id)->toBe($orgUnit->id)
-        ->and($log->causer_employee_management_level)->toBe(3)
+    expect($log->causer_employee_id)->toBeNull()
+        ->and($log->causer_employee_organizational_unit_id)->toBeNull()
+        ->and($log->causer_employee_management_level)->toBeNull()
         ->and($log->properties->toArray())->toBe(['existing' => 'value']);
 });
 
@@ -214,14 +213,6 @@ test('verifyChain fails when preserved causer scope context is tampered', functi
     $orgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
-
-    $employee = Employee::factory()
-        ->for($this->tenant, 'tenant')
-        ->create([
-            'user_id' => $this->user->id,
-            'organizational_unit_id' => $orgUnit->id,
-            'management_level' => 3,
-        ]);
 
     $this->actingAs($this->user);
 
@@ -232,12 +223,14 @@ test('verifyChain fails when preserved causer scope context is tampered', functi
         'description' => 'Scoped activity',
         'causer_type' => User::class,
         'causer_id' => $this->user->id,
+        'causer_employee_id' => fake()->uuid(),
+        'causer_employee_organizational_unit_id' => $orgUnit->id,
+        'causer_employee_management_level' => 3,
     ]);
 
     $log->refresh();
 
-    expect($log->causer_employee_id)->toBe($employee->id)
-        ->and($log->verifyChain())->toBeTrue();
+    expect($log->verifyChain())->toBeTrue();
 
     DB::table('activity_log')
         ->where('id', $log->id)

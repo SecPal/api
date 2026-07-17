@@ -61,15 +61,13 @@ test('employees table allows duplicate employee numbers across tenants', functio
 
     Employee::factory()->create([
         'tenant_id' => $tenantOne->id,
-        'organizational_unit_id' => $unitOne->id,
         'employee_number' => 'EMP-2026-0001',
         'email' => 'tenant-one@example.com',
     ]);
 
-    expect(function () use ($tenantTwo, $unitTwo): void {
+    expect(function () use ($tenantTwo): void {
         Employee::factory()->create([
             'tenant_id' => $tenantTwo->id,
-            'organizational_unit_id' => $unitTwo->id,
             'employee_number' => 'EMP-2026-0001',
             'email' => 'tenant-two@example.com',
         ]);
@@ -87,7 +85,6 @@ test('employees table rejects duplicate employee numbers within the same tenant'
 
     Employee::factory()->create([
         'tenant_id' => $tenant->id,
-        'organizational_unit_id' => $unit->id,
         'employee_number' => 'EMP-2026-0001',
         'email' => 'employee-one@example.com',
     ]);
@@ -95,7 +92,6 @@ test('employees table rejects duplicate employee numbers within the same tenant'
     try {
         Employee::factory()->create([
             'tenant_id' => $tenant->id,
-            'organizational_unit_id' => $unit->id,
             'employee_number' => 'EMP-2026-0001',
             'email' => 'employee-two@example.com',
         ]);

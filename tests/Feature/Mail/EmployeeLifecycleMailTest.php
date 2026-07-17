@@ -52,7 +52,6 @@ afterEach(function () {
 test('onboarding invitation mail has correct content', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'John',
         'last_name' => 'Doe',
         'email' => 'john.doe.onboarding@secpal.dev',
@@ -93,7 +92,6 @@ test('onboarding invitation mail renders key onboarding copy sections', function
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'John',
         'last_name' => 'Doe',
         'email' => 'john.doe.onboarding.copy@secpal.dev',
@@ -137,7 +135,6 @@ test('onboarding invitation mail renders key onboarding copy sections', function
 test('onboarding invitation URL includes token and email parameters', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'email' => 'test.onboarding@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -161,7 +158,6 @@ test('onboarding invitation URL includes token and email parameters', function (
 test('onboarding invitation mail preserves plaintext token property', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'email' => 'test.reset@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -182,7 +178,6 @@ test('onboarding invitation mail preserves plaintext token property', function (
 test('welcome active mail has correct content', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Jane',
         'last_name' => 'Smith',
         'email' => 'jane.smith.welcome@secpal.dev',
@@ -199,7 +194,6 @@ test('welcome active mail has correct content', function () {
 test('welcome active mail contains employee data', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_ACTIVE,
         'employee_number' => 'TEST-002',
     ]);
@@ -235,7 +229,6 @@ test('employee lifecycle mail subjects resolve in German', function () {
 test('account deactivated mail has correct content', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Bob',
         'last_name' => 'Johnson',
         'email' => 'bob.johnson.deactivated@secpal.dev',
@@ -253,7 +246,6 @@ test('account deactivated mail contains termination date', function () {
     $terminationDate = now()->subDays(1);
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'status' => Employee::STATUS_TERMINATED,
         'termination_date' => $terminationDate,
     ]);
@@ -266,7 +258,6 @@ test('account deactivated mail contains termination date', function () {
 test('contract ending soon mail has correct content', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Alice',
         'last_name' => 'Brown',
         'email' => 'alice.brown.ending@secpal.dev',
@@ -284,7 +275,6 @@ test('contract ending soon mail contains future termination date', function () {
     $futureDate = now()->addDays(45);
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'termination_date' => $futureDate,
     ]);
 
@@ -296,7 +286,6 @@ test('contract ending soon mail contains future termination date', function () {
 test('qualification expiring mail has correct content', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Charlie',
         'last_name' => 'Wilson',
         'email' => 'charlie.wilson.qual@secpal.dev',
@@ -327,7 +316,6 @@ test('qualification expiring mail has correct content', function () {
 test('qualification expiring mail contains qualification data', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
     ]);
 
     $qualification = Qualification::create([
@@ -358,7 +346,6 @@ test('qualification expiring mail contains qualification data', function () {
 test('employee compliance alert mail has correct content', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'first_name' => 'Taylor',
         'last_name' => 'Alert',
         'email' => 'taylor.alert@secpal.dev',
@@ -382,7 +369,6 @@ test('employee compliance alert mail has correct content', function () {
 test('employee compliance alert mail stores provided severity and documents', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'email' => 'severity.alert@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -409,7 +395,6 @@ test('employee compliance alert mail envelope subject contains translated severi
 
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'email' => 'envelope.test@secpal.dev',
         'status' => Employee::STATUS_ACTIVE,
     ]);
@@ -423,7 +408,6 @@ test('employee compliance alert mail envelope subject contains translated severi
 test('bwr id document auto deleted mail includes employee details and deletion reason', function () {
     $employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->orgUnit->id,
         'employee_number' => 'EMP-912',
         'first_name' => 'Casey',
         'last_name' => 'Secure',

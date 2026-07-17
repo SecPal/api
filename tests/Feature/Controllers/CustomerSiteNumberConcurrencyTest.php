@@ -7,7 +7,8 @@
  */
 
 use App\Models\Customer;
-use App\Models\OrganizationalUnit;
+use App\Models\CustomerEstablishment;
+use App\Models\Establishment;
 use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -64,7 +65,7 @@ function refreshCustomerSiteNumberConcurrencyDatabase(): void
  * @property User $user
  * @property string $token
  * @property Customer $customer
- * @property OrganizationalUnit $organizationalUnit
+ * @property Establishment $establishment
  */
 beforeEach(function (): void {
     refreshCustomerSiteNumberConcurrencyDatabase();
@@ -88,10 +89,15 @@ beforeEach(function (): void {
     $this->customer = Customer::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);
-    giveOrganizationalScope($this->user, $this->customer->legalEntity, accessLevel: 'write');
-
-    $this->organizationalUnit = OrganizationalUnit::factory()->create([
+    $this->establishment = Establishment::factory()->create([
         'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->customer->legal_entity_id,
+    ]);
+    CustomerEstablishment::query()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->customer->legal_entity_id,
+        'customer_id' => $this->customer->id,
+        'establishment_id' => $this->establishment->id,
     ]);
 });
 
@@ -141,7 +147,12 @@ test('concurrent site creation requests produce distinct site numbers', function
         $this,
         $requestCount,
         '/v1/sites',
-        fn (int $index): array => siteCreationPayload($this->customer->id, $this->organizationalUnit->id, $index),
+        fn (int $index): array => siteCreationPayload(
+            $this->customer->id,
+            $this->customer->legal_entity_id,
+            $this->establishment->id,
+            $index,
+        ),
         fn (array $body): array => [
             'status' => $body['status'],
             'site_number' => $body['body']['data']['site_number'] ?? null,
@@ -275,12 +286,13 @@ function customerCreationPayload(int $index, string $legalEntityId): array
 /**
  * @return array<string, mixed>
  */
-function siteCreationPayload(string $customerId, string $organizationalUnitId, int $index): array
+function siteCreationPayload(string $customerId, string $legalEntityId, string $establishmentId, int $index): array
 {
     return [
         'name' => "Concurrent Site {$index}",
         'customer_id' => $customerId,
-        'organizational_unit_id' => $organizationalUnitId,
+        'legal_entity_id' => $legalEntityId,
+        'establishment_id' => $establishmentId,
         'type' => 'permanent',
         'address' => [
             'street' => "Object Street {$index}",

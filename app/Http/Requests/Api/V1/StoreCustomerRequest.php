@@ -45,11 +45,9 @@ class StoreCustomerRequest extends FormRequest
             'legal_entity_id' => [
                 'required',
                 'uuid',
-                Rule::exists('organizational_units', 'id')
+                Rule::exists('legal_entities', 'id')
                     ->where('tenant_id', $tenantId)
-                    ->where('is_legal_entity', true)
                     ->where('is_active', true)
-                    ->where('is_assignable', true)
                     ->whereNull('deleted_at'),
             ],
             'customer_number' => [
@@ -64,12 +62,6 @@ class StoreCustomerRequest extends FormRequest
             'billing_address.city' => ['required', 'string', 'max:255'],
             'billing_address.postal_code' => ['required', 'string', 'max:20'],
             'billing_address.country' => ['required', 'string', 'size:2'], // ISO 3166-1 alpha-2
-            'contact' => ['nullable', 'array'],
-            'contact.name' => ['nullable', 'string', 'max:255'],
-            'contact.email' => ['nullable', 'email', 'max:255'],
-            'contact.phone' => ['nullable', 'string', 'max:50'],
-            'notes' => ['nullable', 'string', 'max:5000'],
-            'metadata' => ['nullable', 'array'],
             'is_active' => ['nullable', 'boolean'],
         ];
     }
@@ -87,9 +79,6 @@ class StoreCustomerRequest extends FormRequest
             'billing_address.postal_code' => 'billing postal code',
             'billing_address.country' => 'billing country',
             'legal_entity_id' => 'legal entity',
-            'contact.name' => 'contact name',
-            'contact.email' => 'contact email',
-            'contact.phone' => 'contact phone',
         ];
     }
 }

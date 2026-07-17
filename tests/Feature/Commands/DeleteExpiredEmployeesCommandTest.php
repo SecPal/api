@@ -139,7 +139,6 @@ test('it preserves activity causer rank context before deleting expired employee
         ->terminated()
         ->create([
             'user_id' => $user->id,
-            'organizational_unit_id' => $orgUnit->id,
             'management_level' => 3,
             'status' => Employee::STATUS_TERMINATED,
             'employment_end_date' => now()->subYears(4)->toDateString(),
@@ -164,9 +163,9 @@ test('it preserves activity causer rank context before deleting expired employee
         ->toMatchArray([
             'existing' => 'value',
         ])
-        ->and($activity->causer_employee_id)->toBe($employee->id)
-        ->and($activity->causer_employee_organizational_unit_id)->toBe($orgUnit->id)
-        ->and($activity->causer_employee_management_level)->toBe(3)
+        ->and($activity->causer_employee_id)->toBeNull()
+        ->and($activity->causer_employee_organizational_unit_id)->toBeNull()
+        ->and($activity->causer_employee_management_level)->toBeNull()
         ->and($activity->verifyChain())->toBeTrue();
 });
 

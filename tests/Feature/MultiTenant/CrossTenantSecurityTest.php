@@ -79,8 +79,17 @@ afterEach(function (): void {
 describe('Cross-Tenant Isolation - Sites', function () {
     test('user cannot list sites from other tenant', function () {
         // Create org units and customers for both tenants
-        $orgUnit1 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant1->id]);
         $customer1 = Customer::factory()->create(['tenant_id' => $this->tenant1->id]);
+        $establishment = App\Models\Establishment::factory()->create([
+            'tenant_id' => $this->tenant1->id,
+            'legal_entity_id' => $customer1->legal_entity_id,
+        ]);
+        App\Models\CustomerEstablishment::factory()->create([
+            'tenant_id' => $this->tenant1->id,
+            'legal_entity_id' => $customer1->legal_entity_id,
+            'customer_id' => $customer1->id,
+            'establishment_id' => $establishment->id,
+        ]);
 
         $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant2->id]);
         $customer2 = Customer::factory()->create(['tenant_id' => $this->tenant2->id]);
@@ -89,14 +98,12 @@ describe('Cross-Tenant Isolation - Sites', function () {
         $site1 = Site::factory()->create([
             'tenant_id' => $this->tenant1->id,
             'customer_id' => $customer1->id,
-            'organizational_unit_id' => $orgUnit1->id,
             'name' => 'Tenant 1 Site',
         ]);
 
         $site2 = Site::factory()->create([
             'tenant_id' => $this->tenant2->id,
             'customer_id' => $customer2->id,
-            'organizational_unit_id' => $orgUnit2->id,
             'name' => 'Tenant 2 Site',
         ]);
 
@@ -117,7 +124,6 @@ describe('Cross-Tenant Isolation - Sites', function () {
         $site2 = Site::factory()->create([
             'tenant_id' => $this->tenant2->id,
             'customer_id' => $customer2->id,
-            'organizational_unit_id' => $orgUnit2->id,
         ]);
 
         // User1 attempts to view Tenant2 site
@@ -155,7 +161,6 @@ describe('Cross-Tenant Isolation - Sites', function () {
         $site2 = Site::factory()->create([
             'tenant_id' => $this->tenant2->id,
             'customer_id' => $customer2->id,
-            'organizational_unit_id' => $orgUnit2->id,
         ]);
 
         // User1 attempts to update Tenant2 site
@@ -173,7 +178,6 @@ describe('Cross-Tenant Isolation - Sites', function () {
         $site2 = Site::factory()->create([
             'tenant_id' => $this->tenant2->id,
             'customer_id' => $customer2->id,
-            'organizational_unit_id' => $orgUnit2->id,
         ]);
 
         // User1 attempts to delete Tenant2 site
@@ -243,12 +247,10 @@ describe('Cross-Tenant Isolation - Employees', function () {
 
         $employee1 = Employee::factory()->create([
             'tenant_id' => $this->tenant1->id,
-            'organizational_unit_id' => $orgUnit1->id,
         ]);
 
         $employee2 = Employee::factory()->create([
             'tenant_id' => $this->tenant2->id,
-            'organizational_unit_id' => $orgUnit2->id,
         ]);
 
         // User1 should only see Tenant1 employee
@@ -265,7 +267,6 @@ describe('Cross-Tenant Isolation - Employees', function () {
         $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant2->id]);
         $employee2 = Employee::factory()->create([
             'tenant_id' => $this->tenant2->id,
-            'organizational_unit_id' => $orgUnit2->id,
         ]);
 
         $response = $this->withToken($this->token1)->getJson("/v1/employees/{$employee2->id}");
@@ -277,7 +278,6 @@ describe('Cross-Tenant Isolation - Employees', function () {
         $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant2->id]);
         $employee2 = Employee::factory()->create([
             'tenant_id' => $this->tenant2->id,
-            'organizational_unit_id' => $orgUnit2->id,
         ]);
 
         $response = $this->withToken($this->token1)->patchJson("/v1/employees/{$employee2->id}", [
@@ -291,7 +291,6 @@ describe('Cross-Tenant Isolation - Employees', function () {
         $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant2->id]);
         $employee2 = Employee::factory()->create([
             'tenant_id' => $this->tenant2->id,
-            'organizational_unit_id' => $orgUnit2->id,
         ]);
 
         $response = $this->withToken($this->token1)->deleteJson("/v1/employees/{$employee2->id}");
@@ -304,7 +303,6 @@ describe('Cross-Tenant Isolation - Employees', function () {
         $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant2->id]);
         $employee2 = Employee::factory()->create([
             'tenant_id' => $this->tenant2->id,
-            'organizational_unit_id' => $orgUnit2->id,
             'status' => 'pre_contract',
         ]);
 
@@ -321,7 +319,6 @@ describe('Cross-Tenant Isolation - Employees', function () {
         $orgUnit2 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant2->id]);
         $employee2 = Employee::factory()->create([
             'tenant_id' => $this->tenant2->id,
-            'organizational_unit_id' => $orgUnit2->id,
             'status' => 'active',
         ]);
 
@@ -348,14 +345,12 @@ describe('Query String Spoofing Prevention', function () {
         Site::factory()->create([
             'tenant_id' => $this->tenant1->id,
             'customer_id' => $customer1->id,
-            'organizational_unit_id' => $orgUnit1->id,
             'name' => 'Tenant 1 Site',
         ]);
 
         Site::factory()->create([
             'tenant_id' => $this->tenant2->id,
             'customer_id' => $customer2->id,
-            'organizational_unit_id' => $orgUnit2->id,
             'name' => 'Tenant 2 Site',
         ]);
 
@@ -369,15 +364,25 @@ describe('Query String Spoofing Prevention', function () {
     });
 
     test('request body tenant_id is ignored for site creation', function () {
-        $orgUnit1 = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant1->id]);
         $customer1 = Customer::factory()->create(['tenant_id' => $this->tenant1->id]);
+        $establishment = App\Models\Establishment::factory()->create([
+            'tenant_id' => $this->tenant1->id,
+            'legal_entity_id' => $customer1->legal_entity_id,
+        ]);
+        App\Models\CustomerEstablishment::query()->create([
+            'tenant_id' => $this->tenant1->id,
+            'legal_entity_id' => $customer1->legal_entity_id,
+            'customer_id' => $customer1->id,
+            'establishment_id' => $establishment->id,
+        ]);
 
         $response = $this->withToken($this->token1)->postJson('/v1/sites', [
             'name' => 'Test Site',
             'type' => 'permanent',
             'tenant_id' => $this->tenant2->id, // Spoofed tenant_id
             'customer_id' => $customer1->id,
-            'organizational_unit_id' => $orgUnit1->id,
+            'legal_entity_id' => $customer1->legal_entity_id,
+            'establishment_id' => $establishment->id,
             'address' => [
                 'street' => 'Test Street',
                 'city' => 'Test City',
@@ -404,7 +409,6 @@ describe('Security Attack Scenarios', function () {
         $sites2 = Site::factory()->count(100)->create([
             'tenant_id' => $this->tenant2->id,
             'customer_id' => $customer2->id,
-            'organizational_unit_id' => $orgUnit2->id,
         ]);
 
         // User1 attempts to access each Tenant2 site
@@ -421,7 +425,6 @@ describe('Security Attack Scenarios', function () {
         $site1 = Site::factory()->create([
             'tenant_id' => $this->tenant1->id,
             'customer_id' => $customer1->id,
-            'organizational_unit_id' => $orgUnit1->id,
         ]);
 
         // Attempt to change site's tenant_id
@@ -444,13 +447,11 @@ describe('Security Attack Scenarios', function () {
         $site1 = Site::factory()->create([
             'tenant_id' => $this->tenant1->id,
             'customer_id' => $customer1->id,
-            'organizational_unit_id' => $orgUnit1->id,
         ]);
 
         $site2 = Site::factory()->create([
             'tenant_id' => $this->tenant2->id,
             'customer_id' => $customer2->id,
-            'organizational_unit_id' => $orgUnit2->id,
         ]);
 
         // Attempt to filter by both tenants

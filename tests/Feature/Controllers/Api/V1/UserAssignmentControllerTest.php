@@ -106,14 +106,6 @@ describe('GET /v1/me/customer-assignments', function () {
                 'postal_code' => '10115',
                 'country' => 'DE',
             ],
-            'contact' => [
-                'name' => 'Ada Contact',
-                'email' => 'ada@secpal.dev',
-                'phone' => '+49 30 123456',
-                'position' => 'Facility Manager',
-            ],
-            'notes' => 'Customer-internal note',
-            'metadata' => ['tier' => 'gold'],
         ]);
 
         CustomerAssignment::factory()->create([
@@ -134,24 +126,14 @@ describe('GET /v1/me/customer-assignments', function () {
                 'postal_code' => '10115',
                 'country' => 'DE',
             ],
-            'contact' => [
-                'name' => 'Ada Contact',
-                'email' => 'ada@secpal.dev',
-                'phone' => '+49 30 123456',
-                'position' => 'Facility Manager',
-            ],
-            'notes' => 'Customer-internal note',
-            'metadata' => ['tier' => 'gold'],
             'deleted_at' => null,
         ]);
         expect($response->json('data')[0]['customer'])->toHaveKeys([
             'id',
+            'legal_entity_id',
             'customer_number',
             'name',
             'billing_address',
-            'contact',
-            'notes',
-            'metadata',
             'is_active',
             'created_at',
             'updated_at',
@@ -363,7 +345,8 @@ describe('GET /v1/me/site-assignments', function () {
         $response->assertOk();
         expect($response->json('data')[0]['site'])->toMatchArray([
             'customer_id' => $customer->id,
-            'organizational_unit_id' => $site->organizational_unit_id,
+            'legal_entity_id' => $site->legal_entity_id,
+            'establishment_id' => $site->establishment_id,
             'name' => 'Main Facility',
             'type' => 'temporary',
             'address' => [
@@ -387,7 +370,8 @@ describe('GET /v1/me/site-assignments', function () {
         expect($response->json('data')[0]['site'])->toHaveKeys([
             'id',
             'customer_id',
-            'organizational_unit_id',
+            'legal_entity_id',
+            'establishment_id',
             'site_number',
             'name',
             'type',

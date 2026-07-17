@@ -7,6 +7,8 @@
  */
 
 use App\Models\Customer;
+use App\Models\CustomerEstablishment;
+use App\Models\Establishment;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
 use App\Models\SiteAssignment;
@@ -24,6 +26,7 @@ uses(RefreshDatabase::class);
  * @property string $token
  * @property OrganizationalUnit $orgUnit
  * @property Customer $customer
+ * @property Establishment $establishment
  */
 beforeEach(function (): void {
     incrementTestKekCounter();
@@ -52,6 +55,16 @@ beforeEach(function (): void {
     // Create customer for site assignments
     $this->customer = Customer::factory()->create([
         'tenant_id' => $this->tenant->id,
+    ]);
+    $this->establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->customer->legal_entity_id,
+    ]);
+    CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->customer->legal_entity_id,
+        'customer_id' => $this->customer->id,
+        'establishment_id' => $this->establishment->id,
     ]);
 });
 
@@ -86,7 +99,8 @@ describe('GET /v1/sites', function () {
         Site::factory()->count(3)->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)->getJson('/v1/sites');
@@ -104,7 +118,8 @@ describe('GET /v1/sites', function () {
                         'is_active',
                         'is_expired',
                         'customer_id',
-                        'organizational_unit_id',
+                        'legal_entity_id',
+                        'establishment_id',
                     ],
                 ],
                 'links',
@@ -118,7 +133,8 @@ describe('GET /v1/sites', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         SiteAssignment::factory()->create([
@@ -141,14 +157,16 @@ describe('GET /v1/sites', function () {
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'is_active' => true,
         ]);
 
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'is_active' => false,
         ]);
 
@@ -166,14 +184,16 @@ describe('GET /v1/sites', function () {
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'type' => 'permanent',
         ]);
 
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'type' => 'temporary',
         ]);
 
@@ -195,13 +215,15 @@ describe('GET /v1/sites', function () {
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $customer2->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -238,53 +260,56 @@ describe('GET /v1/sites', function () {
         expect($response->json('data'))->toHaveCount(0);
     });
 
-    test('filters sites by organizational_unit_id', function (): void {
+    test('filters sites by establishment_id', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
-        $orgUnit2 = OrganizationalUnit::factory()->create([
+        $establishment2 = Establishment::factory()->create([
             'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
         ]);
 
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $orgUnit2->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $establishment2->id,
         ]);
 
         $response = $this->withToken($this->token)
-            ->getJson("/v1/sites?organizational_unit_id={$this->orgUnit->id}");
+            ->getJson("/v1/sites?establishment_id={$this->establishment->id}");
 
         $response->assertOk();
         expect($response->json('data'))->toHaveCount(1);
-        expect($response->json('data')[0]['organizational_unit_id'])->toBe($this->orgUnit->id);
+        expect($response->json('data')[0]['establishment_id'])->toBe($this->establishment->id);
     });
 
-    test('returns 422 for invalid organizational_unit_id filter format', function (): void {
+    test('returns 422 for invalid establishment_id filter format', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
         $response = $this->withToken($this->token)
-            ->getJson('/v1/sites?organizational_unit_id=1');
+            ->getJson('/v1/sites?establishment_id=1');
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['organizational_unit_id']);
+            ->assertJsonValidationErrors(['establishment_id']);
     });
 
-    test('returns empty list for foreign-tenant organizational_unit_id filter', function (): void {
+    test('returns empty list for foreign-tenant establishment_id filter', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.read');
 
         $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
-        $foreignUnit = OrganizationalUnit::factory()->create([
+        $foreignEstablishment = Establishment::factory()->create([
             'tenant_id' => $otherTenant->id,
         ]);
 
         $response = $this->withToken($this->token)
-            ->getJson("/v1/sites?organizational_unit_id={$foreignUnit->id}");
+            ->getJson("/v1/sites?establishment_id={$foreignEstablishment->id}");
 
         $response->assertOk();
         expect($response->json('data'))->toBeArray();
@@ -297,14 +322,16 @@ describe('GET /v1/sites', function () {
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'name' => 'Airport Terminal 1',
         ]);
 
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'name' => 'Shopping Mall',
         ]);
 
@@ -322,13 +349,15 @@ describe('GET /v1/sites', function () {
         $site1 = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -345,7 +374,8 @@ describe('GET /v1/sites', function () {
         Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -360,13 +390,15 @@ describe('GET /v1/sites', function () {
         $site1 = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $site2 = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         // Assign user to site1
@@ -390,7 +422,8 @@ describe('GET /v1/sites', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         App\Models\CustomerAssignment::factory()->create([
@@ -415,7 +448,8 @@ describe('GET /v1/sites', function () {
         Site::factory()->count(20)->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
@@ -429,33 +463,12 @@ describe('GET /v1/sites', function () {
 });
 
 describe('POST /v1/sites', function () {
-    test('rejects placement in a closed organizational unit', function (bool $isDeleted): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
-        $isDeleted ? $this->orgUnit->delete() : $this->orgUnit->update(['is_assignable' => false]);
-
-        $response = $this->withToken($this->token)
-            ->postJson('/v1/sites', [
-                'name' => 'Airport Terminal 1',
-                'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
-                'type' => 'permanent',
-                'address' => [
-                    'street' => 'Airport Ring 1',
-                    'city' => 'Berlin',
-                    'postal_code' => '12529',
-                    'country' => 'DE',
-                ],
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id']);
-    })->with(['deleted' => true, 'non-assignable' => false]);
-
     test('returns 401 when not authenticated', function (): void {
         $response = $this->postJson('/v1/sites', [
             'name' => 'New Site',
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'type' => 'permanent',
             'address' => [
                 'street' => 'Main St 1',
@@ -472,7 +485,8 @@ describe('POST /v1/sites', function () {
         $response = $this->withToken($this->token)->postJson('/v1/sites', [
             'name' => 'New Site',
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'type' => 'permanent',
             'address' => [
                 'street' => 'Main St 1',
@@ -495,7 +509,8 @@ describe('POST /v1/sites', function () {
             ->assertJsonValidationErrors([
                 'name',
                 'customer_id',
-                'organizational_unit_id',
+                'legal_entity_id',
+                'establishment_id',
                 'type',
                 'address',
             ]);
@@ -508,7 +523,8 @@ describe('POST /v1/sites', function () {
             ->postJson('/v1/sites', [
                 'name' => 'New Site',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
                     'street' => 'Main St 1',
@@ -531,7 +547,8 @@ describe('POST /v1/sites', function () {
             ->postJson('/v1/sites', [
                 'name' => 'Airport Terminal 1',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
                     'street' => 'Airport Ring 1',
@@ -562,7 +579,8 @@ describe('POST /v1/sites', function () {
                     'is_active',
                     'is_expired',
                     'customer_id',
-                    'organizational_unit_id',
+                    'legal_entity_id',
+                    'establishment_id',
                     'created_at',
                 ],
             ]);
@@ -582,7 +600,8 @@ describe('POST /v1/sites', function () {
                 'name' => 'Custom Site',
                 'site_number' => 'CUSTOM-SITE-001',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'temporary',
                 'address' => [
                     'street' => 'Event Str 42',
@@ -603,7 +622,8 @@ describe('POST /v1/sites', function () {
             ->postJson('/v1/sites', [
                 'name' => 'First Site',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
                     'street' => 'Street 1',
@@ -617,7 +637,8 @@ describe('POST /v1/sites', function () {
             ->postJson('/v1/sites', [
                 'name' => 'Second Site',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
                     'street' => 'Street 2',
@@ -645,7 +666,8 @@ describe('POST /v1/sites', function () {
             ->postJson('/v1/sites', [
                 'name' => 'Invalid Site',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'invalid-type',
                 'address' => [
                     'street' => 'Street 1',
@@ -666,7 +688,8 @@ describe('POST /v1/sites', function () {
             ->postJson('/v1/sites', [
                 'name' => 'Temporary Site',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'temporary',
                 'valid_from' => '2025-06-01',
                 'valid_until' => '2025-05-01', // Before valid_from
@@ -689,7 +712,8 @@ describe('POST /v1/sites', function () {
             ->postJson('/v1/sites', [
                 'name' => 'Invalid Site',
                 'customer_id' => '550e8400-e29b-41d4-a716-446655440000', // Non-existent UUID
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
                     'street' => 'Street 1',
@@ -703,14 +727,15 @@ describe('POST /v1/sites', function () {
             ->assertJsonValidationErrors(['customer_id']);
     });
 
-    test('validates organizational_unit_id must exist in tenant', function (): void {
+    test('validates establishment_id must exist in tenant', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
 
         $response = $this->withToken($this->token)
             ->postJson('/v1/sites', [
                 'name' => 'Invalid Site',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => '550e8400-e29b-41d4-a716-446655440000', // Non-existent UUID
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => '550e8400-e29b-41d4-a716-446655440000', // Non-existent UUID
                 'type' => 'permanent',
                 'address' => [
                     'street' => 'Street 1',
@@ -721,7 +746,7 @@ describe('POST /v1/sites', function () {
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['organizational_unit_id']);
+            ->assertJsonValidationErrors(['establishment_id']);
     });
 
     test('validates latitude range', function (): void {
@@ -731,7 +756,8 @@ describe('POST /v1/sites', function () {
             ->postJson('/v1/sites', [
                 'name' => 'Invalid GPS Site',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
                     'street' => 'Street 1',
@@ -753,7 +779,8 @@ describe('POST /v1/sites', function () {
             ->postJson('/v1/sites', [
                 'name' => 'Invalid GPS Site',
                 'customer_id' => $this->customer->id,
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'type' => 'permanent',
                 'address' => [
                     'street' => 'Street 1',
@@ -774,7 +801,8 @@ describe('GET /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->getJson("/v1/sites/{$site->id}");
@@ -785,7 +813,8 @@ describe('GET /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)->getJson("/v1/sites/{$site->id}");
@@ -796,7 +825,8 @@ describe('GET /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         // Assign user to site
@@ -823,7 +853,8 @@ describe('GET /v1/sites/{site}', function () {
                     'is_active',
                     'is_expired',
                     'customer',
-                    'organizational_unit',
+                    'legal_entity_id',
+                    'establishment_id',
                     'assignments',
                     'created_at',
                     'updated_at',
@@ -840,7 +871,8 @@ describe('GET /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'access_instructions' => 'Secret gate code: 1234',
             'notes' => 'Confidential notes',
         ]);
@@ -858,7 +890,8 @@ describe('GET /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'access_instructions' => 'Secret gate code: 1234',
             'notes' => 'Confidential notes',
         ]);
@@ -877,13 +910,9 @@ describe('GET /v1/sites/{site}', function () {
         $otherTenantCustomer = Customer::factory()->create([
             'tenant_id' => $otherTenant->id,
         ]);
-        $otherTenantUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $otherTenant->id,
-        ]);
         $site = Site::factory()->create([
             'tenant_id' => $otherTenant->id,
             'customer_id' => $otherTenantCustomer->id,
-            'organizational_unit_id' => $otherTenantUnit->id,
         ]);
 
         $response = $this->withToken($this->token)->getJson("/v1/sites/{$site->id}");
@@ -913,33 +942,14 @@ describe('GET /v1/sites/{site}', function () {
 });
 
 describe('PATCH /v1/sites/{site}', function () {
-    test('rejects lifecycle expansions in a closed organizational unit', function (array $initialValues, array $updatedValues, bool $isDeleted): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-        $isDeleted ? $this->orgUnit->delete() : $this->orgUnit->update(['is_assignable' => false]);
-        $site = Site::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
-            ...$initialValues,
-        ]);
-        $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", $updatedValues);
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id']);
-    })->with([
-        'inactive' => [['is_active' => false], ['is_active' => true], false],
-        'expired' => [['valid_until' => now()->subDay()], ['valid_until' => now()->addWeek()->toDateString()], false],
-        'active extension' => [['valid_until' => now()->addDay()], ['valid_until' => now()->addWeek()->toDateString()], false],
-        'future start activation' => [['is_active' => true, 'valid_from' => now()->addDay()], ['valid_from' => now()->toDateString()], false],
-        'trashed reactivation' => [['is_active' => false], ['is_active' => true], true],
-    ]);
-
     test('allows correcting past-only site coverage in a non-assignable organizational unit', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
         $this->orgUnit->update(['is_assignable' => false]);
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'valid_from' => now()->subWeeks(3),
             'valid_until' => now()->subWeeks(2),
         ]);
@@ -958,7 +968,8 @@ describe('PATCH /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'is_active' => false,
             'valid_until' => now()->subDay(),
         ]);
@@ -971,25 +982,35 @@ describe('PATCH /v1/sites/{site}', function () {
             ->assertJsonPath('data.is_active', true);
     });
 
-    test('allows reactivating a site while moving it to an assignable organizational unit', function (): void {
+    test('allows reactivating a site while moving it to another establishment', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-        $this->orgUnit->update(['is_assignable' => false]);
-        $targetUnit = OrganizationalUnit::factory()->create(['tenant_id' => $this->tenant->id]);
+        $targetEstablishment = Establishment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+        ]);
+        CustomerEstablishment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'customer_id' => $this->customer->id,
+            'establishment_id' => $targetEstablishment->id,
+        ]);
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'is_active' => false,
         ]);
         $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
-            'organizational_unit_id' => $targetUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $targetEstablishment->id,
             'is_active' => true,
         ]);
 
         $response->assertOk();
         $this->assertDatabaseHas('sites', [
             'id' => $site->id,
-            'organizational_unit_id' => $targetUnit->id,
+            'establishment_id' => $targetEstablishment->id,
             'is_active' => true,
         ]);
     });
@@ -1000,12 +1021,14 @@ describe('PATCH /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)
             ->patchJson("/v1/sites/{$site->id}", [
-                'organizational_unit_id' => $this->orgUnit->id,
+                'legal_entity_id' => $this->customer->legal_entity_id,
+                'establishment_id' => $this->establishment->id,
                 'name' => 'Updated Terminal',
             ]);
 
@@ -1013,34 +1036,12 @@ describe('PATCH /v1/sites/{site}', function () {
             ->assertJsonPath('data.name', 'Updated Terminal');
     });
 
-    test('rejects moving a site to a non-assignable organizational unit', function (): void {
-        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
-
-        $unassignableUnit = OrganizationalUnit::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'is_assignable' => false,
-        ]);
-        $site = Site::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
-        ]);
-
-        $response = $this->withToken($this->token)
-            ->patchJson("/v1/sites/{$site->id}", [
-                'organizational_unit_id' => $unassignableUnit->id,
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['organizational_unit_id'])
-            ->assertJsonPath('errors.organizational_unit_id.0', 'The selected organizational unit is not assignable.');
-    });
-
     test('returns 401 when not authenticated', function (): void {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->patchJson("/v1/sites/{$site->id}", [
@@ -1054,7 +1055,8 @@ describe('PATCH /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
@@ -1070,7 +1072,8 @@ describe('PATCH /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
@@ -1088,7 +1091,8 @@ describe('PATCH /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         SiteAssignment::factory()->create([
@@ -1112,7 +1116,8 @@ describe('PATCH /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'name' => 'Original Name',
             'is_active' => true,
         ]);
@@ -1132,7 +1137,8 @@ describe('PATCH /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)->patchJson("/v1/sites/{$site->id}", [
@@ -1156,7 +1162,8 @@ describe('PATCH /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
             'valid_from' => '2025-01-01',
             'valid_until' => null,
         ]);
@@ -1176,7 +1183,8 @@ describe('DELETE /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->deleteJson("/v1/sites/{$site->id}");
@@ -1187,7 +1195,8 @@ describe('DELETE /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)->deleteJson("/v1/sites/{$site->id}");
@@ -1200,7 +1209,8 @@ describe('DELETE /v1/sites/{site}', function () {
         $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->orgUnit->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
         ]);
 
         $response = $this->withToken($this->token)->deleteJson("/v1/sites/{$site->id}");

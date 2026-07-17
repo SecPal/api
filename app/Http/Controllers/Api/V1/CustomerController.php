@@ -248,10 +248,10 @@ class CustomerController extends Controller
         $user = $request->user();
         $perPage = $request->integer('per_page', 15);
         $sites = $user->can('customers.read')
-            ? $customer->sites()->with(['organizationalUnit', 'assignments.user'])
+            ? $customer->sites()->with(['legalEntity', 'establishment', 'assignments.user'])
             : $user->visibleSitesQuery()
                 ->where('customer_id', $customer->id)
-                ->with(['organizationalUnit', 'assignments.user']);
+                ->with(['legalEntity', 'establishment', 'assignments.user']);
 
         if ($request->has('is_active')) {
             $sites->where('is_active', $request->boolean('is_active'));

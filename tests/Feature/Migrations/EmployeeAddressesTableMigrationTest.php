@@ -95,15 +95,12 @@ test('employees table no longer has legacy flat address columns or address_histo
     expect(Schema::hasColumn('employees', 'address_history'))->toBeFalse();
 });
 
-test('rolling back cleanup migrations does not recreate removed state columns in 0.x', function (): void {
+test('the breaking legal entity migration prevents rollback into an unsupported schema', function (): void {
     expect(Schema::hasColumn('employees', 'birth_state'))->toBeFalse();
     expect(Schema::hasColumn('employee_addresses', 'state'))->toBeFalse();
 
-    $this->artisan('migrate:rollback', ['--step' => 1])->assertSuccessful();
-    expect(Schema::hasColumn('employees', 'birth_state'))->toBeFalse();
-
-    $this->artisan('migrate:rollback', ['--step' => 1])->assertSuccessful();
-    expect(Schema::hasColumn('employee_addresses', 'state'))->toBeFalse();
+    expect(fn () => $this->artisan('migrate:rollback', ['--step' => 1]))
+        ->toThrow(RuntimeException::class, 'intentionally irreversible');
 });
 
 test('dropping legacy employee address columns backfills current and historical rows first', function (): void {

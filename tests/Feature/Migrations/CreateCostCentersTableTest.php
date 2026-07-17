@@ -65,12 +65,11 @@ function createCostCenterTestCustomer(string $tenantId, string $customerNumber):
 function createCostCenterLegalEntity(string $tenantId): string
 {
     $legalEntityId = Str::uuid()->toString();
-    DB::table('organizational_units')->insert([
+    DB::table('legal_entities')->insert([
         'id' => $legalEntityId,
         'tenant_id' => $tenantId,
-        'type' => 'company',
         'name' => 'Cost Center Legal Entity',
-        'is_legal_entity' => true,
+        'is_active' => true,
         'created_at' => now(),
         'updated_at' => now(),
     ]);
@@ -84,11 +83,32 @@ function createCostCenterLegalEntity(string $tenantId): string
 function createCostCenterTestSite(string $tenantId, string $customerId, string $orgUnitId, string $siteNumber): string
 {
     $siteId = Str::uuid()->toString();
+    $legalEntityId = (string) DB::table('customers')->where('id', $customerId)->value('legal_entity_id');
+    $establishmentId = Str::uuid()->toString();
+    DB::table('establishments')->insert([
+        'id' => $establishmentId,
+        'tenant_id' => $tenantId,
+        'legal_entity_id' => $legalEntityId,
+        'name' => 'Cost Center Establishment',
+        'is_active' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    DB::table('customer_establishments')->insert([
+        'id' => Str::uuid()->toString(),
+        'tenant_id' => $tenantId,
+        'legal_entity_id' => $legalEntityId,
+        'customer_id' => $customerId,
+        'establishment_id' => $establishmentId,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
     DB::table('sites')->insert([
         'id' => $siteId,
         'tenant_id' => $tenantId,
         'customer_id' => $customerId,
-        'organizational_unit_id' => $orgUnitId,
+        'legal_entity_id' => $legalEntityId,
+        'establishment_id' => $establishmentId,
         'site_number' => $siteNumber,
         'name' => 'Test Site',
         'type' => 'permanent',

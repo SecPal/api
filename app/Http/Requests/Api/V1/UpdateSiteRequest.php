@@ -6,7 +6,6 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Site;
-use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -29,7 +28,16 @@ class UpdateSiteRequest extends FormRequest
         /** @var Site|null $site */
         $site = $this->route('site');
 
-        return $site !== null && ($this->user()?->can('update', $site) ?? false);
+        $user = $this->user();
+        if ($site === null || $user === null || ! $user->can('update', $site)) {
+            return false;
+        }
+
+        $reassignsDomain = $this->exists('customer_id')
+            || $this->exists('legal_entity_id')
+            || $this->exists('establishment_id');
+
+        return ! $reassignsDomain || ! $user->organizationalScopes()->exists();
     }
 
     /**
@@ -43,6 +51,8 @@ class UpdateSiteRequest extends FormRequest
         $tenantId = $this->get('tenant_id');
         /** @var Site $site */
         $site = $this->route('site');
+        $customerId = $this->exists('customer_id') ? $this->string('customer_id')->toString() : $site->customer_id;
+        $legalEntityId = $this->exists('legal_entity_id') ? $this->string('legal_entity_id')->toString() : $site->legal_entity_id;
 
         return [
             'name' => ['sometimes', 'string', 'max:255'],
@@ -60,16 +70,20 @@ class UpdateSiteRequest extends FormRequest
                 Rule::exists('customers', 'id')
                     ->where('tenant_id', $tenantId),
             ],
-            'organizational_unit_id' => [
+            'legal_entity_id' => [
                 'sometimes',
                 'uuid',
-                Rule::when(
-                    $this->input('organizational_unit_id') !== $site->organizational_unit_id,
-                    Rule::exists('organizational_units', 'id')
-                        ->where('tenant_id', $tenantId)
-                        ->whereNull('deleted_at'),
-                ),
-                new AssignableOrganizationalUnit($tenantId, $site->organizational_unit_id),
+                Rule::exists('customers', 'legal_entity_id')
+                    ->where('tenant_id', $tenantId)
+                    ->where('id', $customerId),
+            ],
+            'establishment_id' => [
+                'sometimes',
+                'uuid',
+                Rule::exists('customer_establishments', 'establishment_id')
+                    ->where('tenant_id', $tenantId)
+                    ->where('customer_id', $customerId)
+                    ->where('legal_entity_id', $legalEntityId),
             ],
             'type' => ['sometimes', 'in:permanent,temporary'],
             'address' => ['sometimes', 'array'],
@@ -127,7 +141,8 @@ class UpdateSiteRequest extends FormRequest
     {
         return [
             'customer_id' => 'customer',
-            'organizational_unit_id' => 'organizational unit',
+            'legal_entity_id' => 'legal entity',
+            'establishment_id' => 'establishment',
             'address.street' => 'street',
             'address.city' => 'city',
             'address.postal_code' => 'postal code',

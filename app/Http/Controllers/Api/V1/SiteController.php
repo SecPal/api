@@ -12,20 +12,17 @@ use App\Http\Requests\Api\V1\UpdateSiteRequest;
 use App\Http\Resources\SiteResource;
 use App\Models\Site;
 use App\Models\TenantKey;
-use App\Rules\AssignableOrganizationalUnit;
-use App\Services\OrganizationalUnitAssignmentService;
 use App\Support\LikePattern;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 /**
  * SiteController handles Site resource CRUD operations.
  *
  * Implements access control via SitePolicy:
  * - Users can only see sites they are assigned to OR
- * - Sites in accessible organizational units OR
+ * - Sites linked to an assigned customer OR
  * - Sites belonging to customers they are assigned to
  * - Full CRUD requires appropriate permissions
  *
@@ -42,7 +39,6 @@ class SiteController extends Controller
      * Returns paginated list of accessible sites based on:
      * - Direct site assignments (currently active)
      * - Customer assignments (Key Account access)
-     * - Access via site organizational units
      * - 403 when user has no effective collection access at all
      *
      * Supports filtering by:
@@ -50,7 +46,7 @@ class SiteController extends Controller
      * - is_active (boolean)
      * - type (permanent, temporary)
      * - customer_id (UUID)
-     * - organizational_unit_id (UUID)
+     * - establishment_id (UUID)
      *
      * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection Paginated site list with metadata
      */
@@ -65,7 +61,7 @@ class SiteController extends Controller
 
         $query = $user->visibleSitesQuery()
             ->where('tenant_id', $tenantId)
-            ->with(['customer', 'organizationalUnit', 'assignments.user']);
+            ->with(['customer', 'legalEntity', 'establishment', 'assignments.user']);
 
         // Search filter
         if ($request->has('search')) {
@@ -92,9 +88,8 @@ class SiteController extends Controller
             $query->where('customer_id', $request->string('customer_id')->toString());
         }
 
-        // Organizational unit filter
-        if ($request->has('organizational_unit_id')) {
-            $query->where('organizational_unit_id', $request->string('organizational_unit_id')->toString());
+        if ($request->has('establishment_id')) {
+            $query->where('establishment_id', $request->string('establishment_id')->toString());
         }
 
         $perPage = $request->integer('per_page', 15);
@@ -150,7 +145,8 @@ class SiteController extends Controller
      *
      * Includes relationships:
      * - customer
-     * - organizationalUnit
+     * - legalEntity
+     * - establishment
      * - assignments with users
      *
      * @return JsonResponse Site details
@@ -159,7 +155,7 @@ class SiteController extends Controller
     {
         $this->authorize('view', $site);
 
-        $site->load(['customer', 'organizationalUnit', 'assignments.user']);
+        $site->load(['customer', 'legalEntity', 'establishment', 'assignments.user']);
 
         return response()->json([
             'data' => new SiteResource($site),
@@ -177,23 +173,11 @@ class SiteController extends Controller
      *
      * @return JsonResponse Updated site
      */
-    public function update(
-        UpdateSiteRequest $request,
-        Site $site,
-        OrganizationalUnitAssignmentService $assignmentService,
-    ): JsonResponse {
+    public function update(UpdateSiteRequest $request, Site $site): JsonResponse
+    {
         $this->authorize('update', $site);
 
         $validated = $request->validated();
-
-        if (
-            ! $assignmentService->siteTargetAcceptsAssignments($site, $validated)
-            && $assignmentService->siteUpdateExpandsCoverage($site, $validated)
-        ) {
-            throw ValidationException::withMessages([
-                'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
-            ]);
-        }
 
         $site->update($validated);
 

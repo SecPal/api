@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Breaking:** added independent tenant-local `legal_entities`, `establishments`, and `customer_establishments` domain tables and models; moved local customer contact data exclusively to the unique customer/establishment link; required tenant-consistent Legal Entity and establishment assignments for sites and employees; replaced customer-to-OU persistence with composite tenant/domain foreign keys; and made deployment fail fast and irreversibly when existing customers, sites, or employees would require an unsupported data migration (US-002).
 - added a native workflow artifact audit script with Pest coverage and its required Ripgrep CI dependency, so API, frontend, contracts, and Android can be checked together for active legacy local-container files, directories, repository-relative symbolic-link targets, and underscore- or camel-case references while allowing historical changelog entries, generated root storage/cache, and gitignored workspace metadata.
 - added optional customer VAT ID persistence, validation, and API response support (refs `api#1280`)
 - added `GET /v1/customers/legal-entities` as a tenant-injected minimal lookup for customer creation, returning only active, assignable same-tenant Legal Entities where the caller has global `customers.create` plus organizational write scope

@@ -8,10 +8,9 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Customer;
-use App\Models\OrganizationalUnit;
+use App\Models\LegalEntity;
 use App\Models\User;
 use App\Repositories\CustomerRepository;
-use App\Repositories\OrganizationalUnitRepository;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -22,7 +21,6 @@ final class CustomerService
 {
     public function __construct(
         private readonly CustomerRepository $customers,
-        private readonly OrganizationalUnitRepository $organizationalUnits,
     ) {}
 
     /**
@@ -34,22 +32,21 @@ final class CustomerService
     }
 
     /**
-     * @return Collection<int, OrganizationalUnit>
+     * @return Collection<int, LegalEntity>
      */
     public function writableLegalEntities(User $user, int $tenantId): Collection
     {
-        $organizationalScopes = $user->organizationalScopes()->get();
+        if ($user->organizationalScopes()->exists()) {
+            /** @var Collection<int, LegalEntity> $empty */
+            $empty = new Collection;
 
-        return $this->organizationalUnits
-            ->activeLegalEntitiesForTenant($tenantId)
-            ->filter(
-                fn (OrganizationalUnit $legalEntity): bool => $user->hasAccessToUnit(
-                    $legalEntity,
-                    'write',
-                    $organizationalScopes
-                )
-            )
-            ->values();
+            return $empty;
+        }
+
+        return LegalEntity::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->get();
     }
 
     /**
@@ -91,9 +88,14 @@ final class CustomerService
         });
     }
 
-    private function lockWritableLegalEntity(User $user, int $tenantId, string $legalEntityId): OrganizationalUnit
+    private function lockWritableLegalEntity(User $user, int $tenantId, string $legalEntityId): LegalEntity
     {
-        $legalEntity = $this->organizationalUnits->lockActiveLegalEntity($tenantId, $legalEntityId);
+        $legalEntity = LegalEntity::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->whereKey($legalEntityId)
+            ->lockForUpdate()
+            ->first();
 
         if ($legalEntity === null) {
             throw ValidationException::withMessages([
@@ -101,9 +103,9 @@ final class CustomerService
             ]);
         }
 
-        if (! $user->hasAccessToUnit($legalEntity, 'write')) {
+        if ($user->organizationalScopes()->exists()) {
             throw new AuthorizationException(
-                __('Insufficient access level. Required: :level', ['level' => 'write'])
+                __('No organizational entitlement exists for the selected legal entity.')
             );
         }
 

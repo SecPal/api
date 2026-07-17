@@ -33,11 +33,7 @@ class EmployeeDocumentPolicy
             return true;
         }
 
-        if ($employee->organizationalUnit === null) {
-            return false;
-        }
-
-        return $user->hasAccessToUnit($employee->organizationalUnit);
+        return false;
     }
 
     /**

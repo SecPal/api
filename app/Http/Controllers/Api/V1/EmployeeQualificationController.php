@@ -37,10 +37,8 @@ class EmployeeQualificationController extends Controller
         $user = $request->user();
         $hasScopes = $user->organizationalScopes()->exists();
 
-        if ($hasScopes && $employee->organizationalUnit !== null) {
-            if (! $user->hasAccessToUnit($employee->organizationalUnit)) {
-                abort(Response::HTTP_FORBIDDEN, 'You do not have access to this employee\'s organizational unit');
-            }
+        if ($hasScopes) {
+            abort(Response::HTTP_FORBIDDEN, 'No organizational entitlement exists for this employee.');
         }
 
         $qualifications = $employee->employeeQualifications()

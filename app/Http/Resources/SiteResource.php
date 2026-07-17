@@ -12,7 +12,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * API Resource for Site model.
  *
  * Transforms Site model data for API responses.
- * Includes customer, organizational unit, and assignment relationships when loaded.
+ * Includes customer, legal entity, establishment, and assignment relationships when loaded.
  *
  * @see SecPal/api#314 Site CRUD API endpoints
  *
@@ -36,7 +36,8 @@ class SiteResource extends JsonResource
         return [
             'id' => $this->id,
             'customer_id' => $this->customer_id,
-            'organizational_unit_id' => $this->organizational_unit_id,
+            'legal_entity_id' => $this->legal_entity_id,
+            'establishment_id' => $this->establishment_id,
             'site_number' => $this->site_number,
             'name' => $this->name,
             'type' => $this->type,
@@ -53,7 +54,6 @@ class SiteResource extends JsonResource
 
             // Relationships
             'customer' => new CustomerResource($this->whenLoaded('customer')),
-            'organizational_unit' => new OrganizationalUnitResource($this->whenLoaded('organizationalUnit')),
             'assignments' => SiteAssignmentResource::collection($this->whenLoaded('assignments')),
             'assigned_users_count' => $this->whenCounted('assignedUsers'),
             'cost_centers_count' => $this->whenCounted('costCenters'),

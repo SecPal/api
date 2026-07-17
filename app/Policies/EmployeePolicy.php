@@ -6,10 +6,7 @@
 namespace App\Policies;
 
 use App\Models\Employee;
-use App\Models\OrganizationalUnit;
 use App\Models\User;
-use App\Models\UserInternalOrganizationalScope;
-use Illuminate\Support\Collection;
 
 /**
  * Employee Policy
@@ -72,7 +69,8 @@ class EmployeePolicy
      */
     public function create(User $user): bool
     {
-        return $user->can('employee.write') || $user->can('employee.create');
+        return ! $user->organizationalScopes()->exists()
+            && ($user->can('employee.write') || $user->can('employee.create'));
     }
 
     /**
@@ -92,58 +90,6 @@ class EmployeePolicy
             requireAssignableRank: true,
             allowSelfAccessShortcut: true,
         );
-    }
-
-    /**
-     * Determine whether the user may create an employee in the given unit with the given management level.
-     */
-    public function canCreateInUnit(User $user, OrganizationalUnit $organizationalUnit, int $managementLevel): bool
-    {
-        if (! $this->create($user)) {
-            return false;
-        }
-
-        return $this->scopesAuthorizeManagementLevel(
-            $this->applicableScopes($user, $organizationalUnit, 'write'),
-            $managementLevel,
-            requireAssignableRank: true,
-        );
-    }
-
-    /**
-     * Determine whether the user may update an employee into the given unit and management level.
-     */
-    public function canUpdateInUnit(User $user, OrganizationalUnit $organizationalUnit, int $managementLevel): bool
-    {
-        if (! $user->can('employee.write') && ! $user->can('employee.update')) {
-            return false;
-        }
-
-        return $this->scopesAuthorizeManagementLevel(
-            $this->applicableScopes($user, $organizationalUnit, 'write'),
-            $managementLevel,
-            requireAssignableRank: true,
-        );
-    }
-
-    /**
-     * @return Collection<int, UserInternalOrganizationalScope>
-     */
-    private function applicableScopes(User $user, ?OrganizationalUnit $organizationalUnit, string $minimumAccessLevel): Collection
-    {
-        if ($organizationalUnit === null) {
-            /** @var Collection<int, UserInternalOrganizationalScope> $emptyScopes */
-            $emptyScopes = collect();
-
-            return $emptyScopes;
-        }
-
-        /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
-        $scopes = $user->getApplicableOrganizationalScopesForUnit($organizationalUnit)
-            ->filter(fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel($minimumAccessLevel))
-            ->values();
-
-        return $scopes;
     }
 
     /**
@@ -260,40 +206,9 @@ class EmployeePolicy
             return false;
         }
 
-        $organizationalUnit = $this->resolveOrganizationalUnitForAuthorization($employee);
-
-        if ($organizationalUnit === null) {
-            return $allowUnassignedLifecycleCleanup && $employee->organizational_unit_id === null;
-        }
-
-        $scopes = $this->applicableScopes(
-            $user,
-            $organizationalUnit,
-            $minimumAccessLevel,
-        );
-
-        if ($scopes->isEmpty()) {
-            return false;
-        }
-
-        if ($allowSelfAccessShortcut && $user->id === $employee->user_id) {
-            return $scopes->contains(fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access);
-        }
-
-        return $this->scopesAuthorizeManagementLevel($scopes, $employee->management_level, $requireAssignableRank);
-    }
-
-    private function resolveOrganizationalUnitForAuthorization(Employee $employee): ?OrganizationalUnit
-    {
-        if ($employee->organizationalUnit !== null) {
-            return $employee->organizationalUnit;
-        }
-
-        if ($employee->organizational_unit_id === null) {
-            return null;
-        }
-
-        return OrganizationalUnit::withTrashed()->find($employee->organizational_unit_id);
+        // Domain records have no OU entitlement mapping. Scoped access therefore
+        // fails closed until a dedicated Legal Entity/establishment entitlement exists.
+        return ! $user->organizationalScopes()->exists();
     }
 
     /**
@@ -308,23 +223,5 @@ class EmployeePolicy
         }
 
         return false;
-    }
-
-    /**
-     * @param  Collection<int, UserInternalOrganizationalScope>  $scopes
-     */
-    private function scopesAuthorizeManagementLevel(Collection $scopes, int $managementLevel, bool $requireAssignableRank): bool
-    {
-        if ($scopes->isEmpty()) {
-            return false;
-        }
-
-        return $scopes->contains(function (UserInternalOrganizationalScope $scope) use ($managementLevel, $requireAssignableRank): bool {
-            if (! $scope->canViewManagementLevel($managementLevel)) {
-                return false;
-            }
-
-            return ! $requireAssignableRank || $scope->canAssignManagementLevel($managementLevel);
-        });
     }
 }

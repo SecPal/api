@@ -7,7 +7,8 @@
  */
 
 use App\Models\Employee;
-use App\Models\OrganizationalUnit;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
@@ -70,7 +71,8 @@ function assertChildProcessSucceeded(int $childPid): void
  * @property TenantKey $tenant
  * @property User $user
  * @property string $token
- * @property OrganizationalUnit $organizationalUnit
+ * @property LegalEntity $legalEntity
+ * @property Establishment $establishment
  */
 beforeEach(function (): void {
     refreshEmployeeNumberConcurrencyDatabase();
@@ -91,12 +93,12 @@ beforeEach(function (): void {
     givePermissionWithTenant($this->user, $this->tenant->id, 'employees.read_salary');
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
-    $this->organizationalUnit = OrganizationalUnit::factory()->create([
+    $this->legalEntity = LegalEntity::factory()->forTenant($this->tenant->id)->create();
+    $this->establishment = Establishment::factory()->create([
         'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
     ]);
 
-    giveOrganizationalScope($this->user, $this->organizationalUnit, 0, 0, 0, 0);
-    giveOrganizationalScope($this->user, $this->organizationalUnit, 1, 255, 1, 255);
 });
 
 afterEach(function (): void {
@@ -147,7 +149,11 @@ test('concurrent employee creation requests produce distinct employee numbers', 
                 }
 
                 $response = $this->withToken($this->token)
-                    ->postJson('/v1/employees', employeeCreationPayload($this->organizationalUnit->id, $index));
+                    ->postJson('/v1/employees', employeeCreationPayload(
+                        $this->legalEntity->id,
+                        $this->establishment->id,
+                        $index,
+                    ));
 
                 file_put_contents($resultPath, json_encode([
                     'status' => $response->getStatusCode(),
@@ -200,7 +206,7 @@ test('concurrent employee creation requests produce distinct employee numbers', 
 /**
  * @return array<string, int|string|float>
  */
-function employeeCreationPayload(string $organizationalUnitId, int $index): array
+function employeeCreationPayload(string $legalEntityId, string $establishmentId, int $index): array
 {
     return [
         'first_name' => "Concurrent-{$index}",
@@ -213,7 +219,8 @@ function employeeCreationPayload(string $organizationalUnitId, int $index): arra
         'contract_start_date' => now()->toDateString(),
         'weekly_hours' => 40,
         'hourly_rate' => 15.00,
-        'organizational_unit_id' => $organizationalUnitId,
+        'legal_entity_id' => $legalEntityId,
+        'establishment_id' => $establishmentId,
         'sachkunde_type' => 'none',
         'work_permit_type' => 'none',
         'criminal_record_status' => 'valid',

@@ -9,10 +9,6 @@ use App\Http\Requests\Concerns\InteractsWithCertificationValidation;
 use App\Http\Requests\Concerns\InteractsWithEmployeeAddressValidation;
 use App\Http\Requests\Concerns\InteractsWithWorkPermitValidation;
 use App\Models\Employee;
-use App\Models\OrganizationalUnit;
-use App\Models\User;
-use App\Policies\EmployeePolicy;
-use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -45,11 +41,6 @@ class UpdateEmployeeRequest extends FormRequest
         $validator->after(function (Validator $validator): void {
             $this->validateSalaryWriteAccess($validator);
 
-            if ($validator->errors()->has('organizational_unit_id') || $validator->errors()->has('management_level')) {
-                return;
-            }
-
-            $this->validateEmployeeScopeConstraints($validator);
             $this->validateEmployeeAddressesPayload($validator);
         });
     }
@@ -184,37 +175,27 @@ class UpdateEmployeeRequest extends FormRequest
             'criminal_record_status' => ['sometimes', 'nullable', Rule::in(['valid', 'expired', 'pending'])],
             'criminal_record_check_date' => ['sometimes', 'nullable', 'date'],
 
-            // Organizational - Security: Validate user has access to selected unit
-            'organizational_unit_id' => [
+            'legal_entity_id' => [
                 'sometimes',
-                'nullable',
-                Rule::exists('organizational_units', 'id')->where(function (\Illuminate\Database\Query\Builder $query): void {
+                'required',
+                'uuid',
+                Rule::exists('legal_entities', 'id')->where(function (\Illuminate\Database\Query\Builder $query): void {
                     /** @var string $tenantId */
                     $tenantId = $this->input('tenant_id');
                     $query->where('tenant_id', $tenantId);
-                }),
-                new AssignableOrganizationalUnit($this->input('tenant_id'), $employee?->organizational_unit_id),
-                function (string $attribute, mixed $value, \Closure $fail) use ($employee): void {
-                    if ($value === null) {
-                        return;
-                    }
-
-                    if ($value === $employee?->organizational_unit_id) {
-                        return;
-                    }
-
-                    /** @var User $user */
-                    $user = $this->user();
-
-                    // If user has organizational scopes, verify access to the selected unit
-                    $hasScopes = $user->organizationalScopes()->exists();
-                    if ($hasScopes) {
-                        $accessibleUnitIds = $user->getAccessibleOrganizationalUnits()->pluck('id')->toArray();
-                        if (! in_array($value, $accessibleUnitIds, true)) {
-                            $fail(__('You do not have access to the selected organizational unit.'));
-                        }
-                    }
-                },
+                })->whereNull('deleted_at'),
+            ],
+            'establishment_id' => [
+                'sometimes',
+                'required',
+                'uuid',
+                Rule::exists('establishments', 'id')->where(function (\Illuminate\Database\Query\Builder $query) use ($employee): void {
+                    /** @var string $tenantId */
+                    $tenantId = $this->input('tenant_id');
+                    $legalEntityId = $this->input('legal_entity_id', $employee?->legal_entity_id);
+                    $query->where('tenant_id', $tenantId)
+                        ->where('legal_entity_id', $legalEntityId);
+                })->whereNull('deleted_at'),
             ],
         ], $this->employeeAddressItemRules(), $this->certificationValidationRules(true));
     }
@@ -270,78 +251,6 @@ class UpdateEmployeeRequest extends FormRequest
         }
 
         return false;
-    }
-
-    private function validateEmployeeScopeConstraints(Validator $validator): void
-    {
-        /** @var User $user */
-        $user = $this->user();
-
-        if (! $user->organizationalScopes()->exists()) {
-            return;
-        }
-
-        /** @var Employee|null $employee */
-        $employee = $this->route('employee');
-        if (! $employee instanceof Employee) {
-            return;
-        }
-
-        $organizationalUnit = $this->resolvedOrganizationalUnit($employee);
-        if (! $organizationalUnit instanceof OrganizationalUnit) {
-            return;
-        }
-
-        $scopes = $user->getApplicableOrganizationalScopesForUnit($organizationalUnit)
-            ->filter(fn ($scope): bool => $scope->hasMinimumAccessLevel('write'))
-            ->values();
-
-        if ($scopes->isEmpty()) {
-            $validator->errors()->add('organizational_unit_id', __('You do not have write access to the selected organizational unit.'));
-
-            return;
-        }
-
-        $policy = app(EmployeePolicy::class);
-
-        if (! $policy->canUpdateInUnit($user, $organizationalUnit, $this->resolvedManagementLevel($employee))) {
-            $validator->errors()->add(
-                'management_level',
-                __('You may only update employees whose management level remains assignable and viewable within your organizational scope.'),
-            );
-        }
-    }
-
-    private function resolvedOrganizationalUnit(Employee $employee): ?OrganizationalUnit
-    {
-        $organizationalUnitId = $this->input('organizational_unit_id');
-
-        if (is_string($organizationalUnitId) && $organizationalUnitId !== '') {
-            $organizationalUnit = OrganizationalUnit::withTrashed()->find($organizationalUnitId);
-
-            return $organizationalUnit instanceof OrganizationalUnit ? $organizationalUnit : null;
-        }
-
-        if ($employee->organizationalUnit instanceof OrganizationalUnit) {
-            return $employee->organizationalUnit;
-        }
-
-        if ($employee->organizational_unit_id === null) {
-            return null;
-        }
-
-        return OrganizationalUnit::withTrashed()->find($employee->organizational_unit_id);
-    }
-
-    private function resolvedManagementLevel(Employee $employee): int
-    {
-        $managementLevel = $this->input('management_level');
-
-        if (is_numeric($managementLevel)) {
-            return (int) $managementLevel;
-        }
-
-        return $employee->management_level;
     }
 
     private function validateSalaryWriteAccess(Validator $validator): void

@@ -48,12 +48,10 @@ beforeEach(function (): void {
     $this->site = Site::factory()->create([
         'tenant_id' => $this->tenant->id,
         'customer_id' => $this->customer->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
     ]);
 
     $this->employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
     ]);
 });
 

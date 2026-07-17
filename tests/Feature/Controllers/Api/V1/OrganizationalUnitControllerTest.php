@@ -1085,14 +1085,13 @@ describe('OrganizationalUnitController - Update', function () {
 });
 
 describe('OrganizationalUnitController - Delete', function () {
-    test('prevents deleting a legal entity that is linked to customers', function () {
+    test('deletes an organizational unit independently of customer legal entities', function () {
         $legalEntity = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'is_legal_entity' => true,
         ]);
         Customer::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'legal_entity_id' => $legalEntity->id,
         ]);
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
@@ -1102,22 +1101,20 @@ describe('OrganizationalUnitController - Delete', function () {
         ]);
 
         deleteJson("/v1/organizational-units/{$legalEntity->id}")
-            ->assertConflict();
+            ->assertNoContent();
 
-        $this->assertDatabaseHas('organizational_units', [
+        $this->assertSoftDeleted('organizational_units', [
             'id' => $legalEntity->id,
-            'deleted_at' => null,
         ]);
     });
 
-    test('prevents deactivating a legal entity that is linked to customers', function () {
+    test('deactivates an organizational unit independently of customer legal entities', function () {
         $legalEntity = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'is_legal_entity' => true,
         ]);
         Customer::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'legal_entity_id' => $legalEntity->id,
         ]);
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
@@ -1128,19 +1125,18 @@ describe('OrganizationalUnitController - Delete', function () {
 
         patchJson("/v1/organizational-units/{$legalEntity->id}", [
             'is_active' => false,
-        ])->assertConflict();
+        ])->assertOk();
 
-        expect($legalEntity->refresh()->is_active)->toBeTrue();
+        expect($legalEntity->refresh()->is_active)->toBeFalse();
     });
 
-    test('prevents removing legal entity status from a unit that is linked to customers', function () {
+    test('removes organizational-unit legal entity status independently of customers', function () {
         $legalEntity = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'is_legal_entity' => true,
         ]);
         Customer::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'legal_entity_id' => $legalEntity->id,
         ]);
         UserInternalOrganizationalScope::create([
             'tenant_id' => $this->tenant->id,
@@ -1151,9 +1147,9 @@ describe('OrganizationalUnitController - Delete', function () {
 
         patchJson("/v1/organizational-units/{$legalEntity->id}", [
             'is_legal_entity' => false,
-        ])->assertConflict();
+        ])->assertOk();
 
-        expect($legalEntity->refresh()->is_legal_entity)->toBeTrue();
+        expect($legalEntity->refresh()->is_legal_entity)->toBeFalse();
     });
 
     test('user can delete organizational unit without children', function () {

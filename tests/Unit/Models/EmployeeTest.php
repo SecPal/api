@@ -6,7 +6,8 @@
 use App\Models\Employee;
 use App\Models\EmployeeAddress;
 use App\Models\EmployeeDocument;
-use App\Models\OrganizationalUnit;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\Qualification;
 use App\Models\TenantKey;
 use App\Models\User;
@@ -302,11 +303,16 @@ test('get default onboarding steps returns consistent structure with completed a
 });
 
 test('employee relationships load correctly', function () {
-    $orgUnit = OrganizationalUnit::factory()->create();
+    $legalEntity = LegalEntity::factory()->forTenant($this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
     $user = User::factory()->create();
 
     $employee = Employee::factory()->create([
-        'organizational_unit_id' => $orgUnit->id,
+        'legal_entity_id' => $legalEntity->id,
+        'establishment_id' => $establishment->id,
         'user_id' => $user->id,
     ]);
 
@@ -318,10 +324,11 @@ test('employee relationships load correctly', function () {
 
     EmployeeDocument::factory()->create(['employee_id' => $employee->id]);
 
-    $employee->load(['user', 'organizationalUnit', 'qualifications', 'documents']);
+    $employee->load(['user', 'legalEntity', 'establishment', 'qualifications', 'documents']);
 
     expect($employee->user)->toBeInstanceOf(User::class);
-    expect($employee->organizationalUnit)->toBeInstanceOf(OrganizationalUnit::class);
+    expect($employee->legalEntity)->toBeInstanceOf(LegalEntity::class);
+    expect($employee->establishment)->toBeInstanceOf(Establishment::class);
     expect($employee->qualifications)->toHaveCount(1);
     expect($employee->documents)->toHaveCount(1);
 });

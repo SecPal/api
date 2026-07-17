@@ -30,24 +30,22 @@ use Spatie\Activitylog\Support\LogOptions;
  * - Auto-generated customer_number (format: KD-YYYY-NNNN)
  * - Soft deletes for data preservation
  * - Flexible user assignments with roles
- * - Structured billing address and contact information
+ * - Legal-entity-wide billing and master data
  *
  * @property string $id UUID primary key
  * @property int $tenant_id Foreign key to tenant_keys
- * @property string $legal_entity_id Foreign key to organizational_units
+ * @property string $legal_entity_id Foreign key to legal_entities
  * @property string $customer_number Auto-generated unique identifier (e.g., KD-2025-0001)
  * @property string $name Company/Organization name
  * @property string|null $vat_id VAT identification number
  * @property array<string, mixed> $billing_address Structured billing address
- * @property array<string, mixed>|null $contact Primary contact person information
- * @property string|null $notes Internal notes
- * @property array<string, mixed>|null $metadata Extensible metadata for custom attributes
  * @property bool $is_active Active status
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
  * @property \Illuminate\Support\Carbon|null $deleted_at
  * @property-read TenantKey $tenant The tenant this customer belongs to
- * @property-read OrganizationalUnit $legalEntity The legal entity this customer is assigned to
+ * @property-read LegalEntity $legalEntity The legal entity this customer is assigned to
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, CustomerEstablishment> $customerEstablishments Local establishment assignments
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Site> $sites Sites belonging to this customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, Model> $assignments User assignments to this customer
  * @property-read \Illuminate\Database\Eloquent\Collection<int, User> $assignedUsers Users assigned to this customer
@@ -82,9 +80,6 @@ class Customer extends Model
         'name',
         'vat_id',
         'billing_address',
-        'contact',
-        'notes',
-        'metadata',
         'is_active',
     ];
 
@@ -98,8 +93,6 @@ class Customer extends Model
         return [
             'tenant_id' => 'integer',
             'billing_address' => 'array',
-            'contact' => 'array',
-            'metadata' => 'array',
             'is_active' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -122,7 +115,6 @@ class Customer extends Model
                 'name',
                 'vat_id',
                 'billing_address',
-                'contact',
                 'is_active',
             ])
             ->logOnlyDirty()
@@ -153,11 +145,19 @@ class Customer extends Model
     /**
      * Get the legal entity this customer belongs to.
      *
-     * @return BelongsTo<OrganizationalUnit, $this>
+     * @return BelongsTo<LegalEntity, $this>
      */
     public function legalEntity(): BelongsTo
     {
-        return $this->belongsTo(OrganizationalUnit::class, 'legal_entity_id');
+        return $this->belongsTo(LegalEntity::class, 'legal_entity_id');
+    }
+
+    /**
+     * @return HasMany<CustomerEstablishment, $this>
+     */
+    public function customerEstablishments(): HasMany
+    {
+        return $this->hasMany(CustomerEstablishment::class);
     }
 
     /**

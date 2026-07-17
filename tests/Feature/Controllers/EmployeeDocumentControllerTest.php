@@ -57,17 +57,9 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
     $this->token = $this->user->createToken('test-device')->plainTextToken;
 
-    $organizationalUnit = OrganizationalUnit::factory()->create([
-        'tenant_id' => $this->tenant->id,
-    ]);
-
     $this->employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $organizationalUnit->id,
     ]);
-
-    // Give organizational scope for testing
-    giveOrganizationalScope($this->user, $organizationalUnit);
 
     Storage::fake('local');
 });
@@ -176,22 +168,19 @@ describe('GET /v1/employees/{employee}/documents', function () {
         // Employee in unitA (accessible)
         $employeeA = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $unitA->id,
         ]);
 
         // Employee in unitB (not accessible)
         $employeeB = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $unitB->id,
         ]);
 
         EmployeeDocument::factory()->create(['employee_id' => $employeeA->id]);
         EmployeeDocument::factory()->create(['employee_id' => $employeeB->id]);
 
-        // Manager can access documents of employeeA
+        // OU scopes cannot grant access to domain employees after the breaking change.
         $responseA = $this->withToken($managerToken)->getJson("/v1/employees/{$employeeA->id}/documents");
-        $responseA->assertStatus(200);
-        expect($responseA->json('data'))->toHaveCount(1);
+        $responseA->assertStatus(403);
 
         // Manager cannot access documents of employeeB (outside scope)
         $responseB = $this->withToken($managerToken)->getJson("/v1/employees/{$employeeB->id}/documents");
@@ -411,7 +400,6 @@ describe('GET /v1/employees/{employee}/documents/{document}', function () {
 
         $otherEmployee = Employee::factory()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $this->employee->organizational_unit_id,
         ]);
 
         $foreignDocument = EmployeeDocument::factory()->create([

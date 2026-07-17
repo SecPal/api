@@ -54,7 +54,7 @@ test('user assigned to site can view its cost centers', function (): void {
     $user = User::factory()->create();
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
     $costCenter = CostCenter::factory()->for($site)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
@@ -70,7 +70,7 @@ test('user with permission and site update access can create cost centers', func
     givePermissionWithTenant($user, $this->tenant->id, 'cost-centers.create');
     $orgUnit = OrganizationalUnit::factory()->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
-    $site = Site::factory()->for($customer)->for($orgUnit, 'organizationalUnit')->create();
+    $site = Site::factory()->for($customer)->create();
 
     SiteAssignment::factory()->for($this->tenant, 'tenant')->create([
         'user_id' => $user->id,

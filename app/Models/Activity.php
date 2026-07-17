@@ -377,23 +377,8 @@ class Activity extends SpatieActivity
 
     private function captureCauserEmployeeContext(): void
     {
-        if ($this->causer_type !== User::class || $this->causer_id === null || $this->organizational_unit_id === null) {
-            return;
-        }
-
-        $causerEmployee = Employee::query()
-            ->select(['id', 'organizational_unit_id', 'management_level'])
-            ->where('user_id', $this->causer_id)
-            ->where('organizational_unit_id', $this->organizational_unit_id)
-            ->first();
-
-        if (! $causerEmployee instanceof Employee) {
-            return;
-        }
-
-        $this->causer_employee_id ??= $causerEmployee->id;
-        $this->causer_employee_organizational_unit_id ??= $causerEmployee->organizational_unit_id;
-        $this->causer_employee_management_level ??= $causerEmployee->management_level;
+        // Employees no longer belong to OUs. Without an explicit entitlement
+        // mapping, no OU-scoped employee snapshot can be attributed safely.
     }
 
     /**

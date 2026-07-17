@@ -36,7 +36,6 @@ beforeEach(function (): void {
 
     $this->employee = Employee::factory()->create([
         'tenant_id' => $this->tenant->id,
-        'organizational_unit_id' => $orgUnit->id,
     ]);
 
     $this->service = new EmployeeDocumentStorageService;

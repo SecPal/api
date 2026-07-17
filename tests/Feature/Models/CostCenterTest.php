@@ -30,7 +30,6 @@ beforeEach(function (): void {
     $this->site = Site::factory()->create([
         'tenant_id' => $this->tenant->id,
         'customer_id' => $this->customer->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
     ]);
 });
 
@@ -170,7 +169,6 @@ test('forTenant scope filters cost centers by tenant', function (): void {
     $site2 = Site::factory()->create([
         'tenant_id' => $tenant2->id,
         'customer_id' => $customer2->id,
-        'organizational_unit_id' => $orgUnit2->id,
     ]);
 
     CostCenter::factory()->create([
@@ -214,7 +212,6 @@ test('forSite scope filters cost centers by site', function (): void {
     $site2 = Site::factory()->create([
         'tenant_id' => $this->tenant->id,
         'customer_id' => $this->customer->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
         'site_number' => 'OBJ-TEST-'.time(),
     ]);
 

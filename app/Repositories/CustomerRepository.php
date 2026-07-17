@@ -21,7 +21,7 @@ final class CustomerRepository
      */
     public function visibleQuery(User $user, int $tenantId): Builder
     {
-        if ($user->can('customers.read')) {
+        if ($user->can('customers.read') && ! $user->organizationalScopes()->exists()) {
             return Customer::query()
                 ->where('tenant_id', $tenantId)
                 ->with(['assignments.user']);

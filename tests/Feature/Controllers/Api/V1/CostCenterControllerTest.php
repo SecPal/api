@@ -52,7 +52,6 @@ beforeEach(function (): void {
     $this->site = Site::factory()->create([
         'tenant_id' => $this->tenant->id,
         'customer_id' => $this->customer->id,
-        'organizational_unit_id' => $this->organizationalUnit->id,
     ]);
 });
 
@@ -268,7 +267,6 @@ describe('POST /v1/sites/{site}/cost-centers', function () {
         $otherSite = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
         ]);
 
         CostCenter::factory()->create([
@@ -402,7 +400,6 @@ describe('GET /v1/sites/{site}/cost-centers/{costCenter}', function () {
         $otherSite = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
         ]);
 
         $foreignCostCenter = CostCenter::factory()->create([
@@ -496,7 +493,6 @@ describe('PUT /v1/sites/{site}/cost-centers/{costCenter}', function () {
         $otherSite = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $this->customer->id,
-            'organizational_unit_id' => $this->organizationalUnit->id,
         ]);
 
         $foreignCostCenter = CostCenter::factory()->create([

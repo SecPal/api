@@ -285,7 +285,6 @@ describe('POST /v1/customers/{customer}/assignments', function () {
 
         Employee::factory()->withExpiringComplianceCertifications()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $organizationalUnit->id,
             'user_id' => $targetUser->id,
         ]);
 
@@ -326,7 +325,6 @@ describe('POST /v1/customers/{customer}/assignments', function () {
 
         Employee::factory()->withComplianceCertifications()->create([
             'tenant_id' => $this->tenant->id,
-            'organizational_unit_id' => $organizationalUnit->id,
             'user_id' => $targetUser->id,
             'firearms_license_expiry' => now()->addDays(20)->toDateString(),
             'first_aid_cert_expiry' => now()->addDays(45)->toDateString(),

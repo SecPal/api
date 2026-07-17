@@ -104,22 +104,17 @@ class ActivityLogService
             // User exists - check if they have an employee record
             $employee = \App\Models\Employee::where('user_id', $user->id)->first();
 
-            if ($employee instanceof \App\Models\Employee) {
-                // Use employee's organizational unit
-                $organizationalUnitId = $employee->organizational_unit_id;
-            } else {
-                // Use user's primary organizational unit (first scope)
-                $user->loadMissing('organizationalScopes');
-                /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
-                $firstScope = $user->organizationalScopes->first();
-                $organizationalUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
-            }
+            // Employees are independent of OUs; audit OU context can only come
+            // from the user's explicit organizational scopes.
+            $user->loadMissing('organizationalScopes');
+            /** @var \App\Models\UserInternalOrganizationalScope|null $firstScope */
+            $firstScope = $user->organizationalScopes->first();
+            $organizationalUnitId = $firstScope !== null ? $firstScope->organizational_unit_id : null;
         } else {
             // User doesn't exist - check if email belongs to an employee (without user account)
             $employee = \App\Models\Employee::where('email', $email)->first();
 
             if ($employee instanceof \App\Models\Employee) {
-                $organizationalUnitId = $employee->organizational_unit_id;
                 $targetTenantId = $employee->tenant_id;
             }
             // else: unknown email (no user, no employee) - remains NULL (global, only visible to users without organizational scopes who can review tenant-wide activity)

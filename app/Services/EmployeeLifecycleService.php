@@ -8,9 +8,8 @@ namespace App\Services;
 use App\Mail\AccountDeactivatedMail;
 use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
-use App\Models\OrganizationalUnit;
+use App\Models\Establishment;
 use App\Models\User;
-use App\Rules\AssignableOrganizationalUnit;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -55,7 +54,7 @@ class EmployeeLifecycleService
                 ]);
             }
 
-            $this->ensureOrganizationalUnitAcceptsActivation($employee);
+            $this->ensureEstablishmentAcceptsActivation($employee);
 
             $role = $this->resolveRole(self::EMPLOYEE_ROLE_NAME);
 
@@ -170,7 +169,7 @@ class EmployeeLifecycleService
                 ]);
             }
 
-            $this->ensureOrganizationalUnitAcceptsActivation($employee);
+            $this->ensureEstablishmentAcceptsActivation($employee);
 
             $user = $employee->user;
 
@@ -725,18 +724,19 @@ class EmployeeLifecycleService
         return $refreshedEmployee;
     }
 
-    private function ensureOrganizationalUnitAcceptsActivation(Employee $employee): void
+    private function ensureEstablishmentAcceptsActivation(Employee $employee): void
     {
-        $organizationalUnit = OrganizationalUnit::withTrashed()
+        $establishment = Establishment::withTrashed()
             ->where('tenant_id', $employee->tenant_id)
-            ->find($employee->organizational_unit_id);
+            ->where('legal_entity_id', $employee->legal_entity_id)
+            ->find($employee->establishment_id);
 
-        if ($organizationalUnit instanceof OrganizationalUnit && ! $organizationalUnit->trashed() && $organizationalUnit->is_assignable) {
+        if ($establishment instanceof Establishment && ! $establishment->trashed() && $establishment->is_active) {
             return;
         }
 
         throw ValidationException::withMessages([
-            'organizational_unit_id' => __(AssignableOrganizationalUnit::MESSAGE),
+            'establishment_id' => __('The selected establishment is inactive or unavailable.'),
         ]);
     }
 
