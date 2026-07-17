@@ -14,6 +14,7 @@ use App\Repositories\CustomerRepository;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 final class CustomerService
 {
@@ -28,7 +29,7 @@ final class CustomerService
     public function visibleQuery(User $user, int $tenantId): Builder
     {
         return $this->domainAccess->visibleCustomersQuery($user, $tenantId)
-            ->with(['assignments.user', 'customerEstablishments']);
+            ->with(['assignments.user']);
     }
 
     /**
@@ -79,6 +80,12 @@ final class CustomerService
                         $customer,
                         $this->legalEntityId($attributes),
                     );
+
+                    if ($this->customers->hasEstablishmentLinks($customer)) {
+                        throw ValidationException::withMessages([
+                            'legal_entity_id' => [__('A customer with establishment links cannot change legal entity.')],
+                        ]);
+                    }
                 }
 
                 return $this->customers->update($customer, $attributes);

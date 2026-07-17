@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
+use App\Models\Site;
 use App\Models\TenantKey;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -148,7 +149,7 @@ test('customer update cannot collide by either normalized identity', function ()
     }
 });
 
-test('customer establishment CRUD embeds local contacts without OU data', function (): void {
+test('customer establishment CRUD exposes local contacts only through its dedicated resource', function (): void {
     $customer = Customer::factory()->create([
         'tenant_id' => $this->tenant->id,
         'legal_entity_id' => $this->legalEntity->id,
@@ -183,12 +184,15 @@ test('customer establishment CRUD embeds local contacts without OU data', functi
 
     $this->withToken($this->token)->getJson('/v1/customers')
         ->assertOk()
-        ->assertJsonPath('data.0.customer_establishments.0.id', $linkId)
+        ->assertJsonMissingPath('data.0.customer_establishments')
         ->assertJsonMissingPath('data.0.organizational_unit_id');
     $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}")
         ->assertOk()
-        ->assertJsonPath('data.customer_establishments.0.email', 'local@example.com')
+        ->assertJsonMissingPath('data.customer_establishments')
         ->assertJsonMissingPath('data.organizational_unit_id');
+    $this->withToken($this->token)->getJson("/v1/customer-establishments/{$linkId}")
+        ->assertOk()
+        ->assertJsonPath('data.email', 'local@example.com');
 
     $this->withToken($this->token)
         ->deleteJson("/v1/customer-establishments/{$linkId}")
@@ -213,6 +217,69 @@ test('duplicate customer establishment pair uses the neutral conflict response',
             'message' => 'A matching record already exists.',
             'code' => 'DUPLICATE_RESOURCE',
         ]);
+});
+
+test('customer establishment deletion is blocked while sites reference the link', function (): void {
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+    ]);
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $this->establishment->id,
+    ]);
+    Site::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $this->establishment->id,
+    ]);
+
+    $this->withToken($this->token)
+        ->deleteJson("/v1/customer-establishments/{$link->id}")
+        ->assertConflict();
+
+    expect($link->fresh()?->trashed())->toBeFalse();
+});
+
+test('a deleted customer establishment can be recreated but cannot authorize a site while deleted', function (): void {
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+    ]);
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $this->establishment->id,
+    ]);
+    $link->delete();
+
+    givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
+    $this->withToken($this->token)->postJson('/v1/sites', [
+        'name' => 'Rejected Site',
+        'customer_id' => $customer->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'establishment_id' => $this->establishment->id,
+        'type' => 'permanent',
+        'address' => [
+            'street' => 'Main Street 1',
+            'city' => 'Berlin',
+            'postal_code' => '10115',
+            'country' => 'DE',
+        ],
+    ])->assertUnprocessable()->assertJsonValidationErrors(['establishment_id']);
+
+    $this->withToken($this->token)->postJson('/v1/customer-establishments', [
+        'customer_id' => $customer->id,
+        'establishment_id' => $this->establishment->id,
+        'contact_name' => 'Restored Contact',
+    ])->assertCreated();
+
+    expect($link->fresh()?->trashed())->toBeFalse()
+        ->and($link->fresh()?->contact_name)->toBe('Restored Contact');
 });
 
 test('customer establishment rejects cross-tenant and cross-legal-entity links', function (): void {

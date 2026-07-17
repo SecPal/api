@@ -215,3 +215,19 @@ test('historical employees remain visible after their assigned establishment is 
         ->getJson("/v1/employees/{$employee->id}")
         ->assertOk();
 });
+
+test('historical employees can be updated without reassigning their closed domain', function (): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.update');
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'establishment_id' => $this->establishment->id,
+    ]);
+    $this->establishment->update(['is_active' => false]);
+
+    $this->withToken($this->token)
+        ->patchJson("/v1/employees/{$employee->id}", ['phone' => '+49 30 123456'])
+        ->assertOk();
+
+    expect($employee->refresh()->phone)->toBe('+49 30 123456');
+});

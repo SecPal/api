@@ -67,7 +67,7 @@ test('update employee status command activates employees whose contract starts t
     expect($employee->user?->hasRole('Employee'))->toBeTrue();
 });
 
-test('update employee status command ignores unrelated unassignable organizational units', function () {
+test('update employee status command ignores unrelated unassignable organizational units', function (): void {
     $this->orgUnit->update(['is_assignable' => false]);
 
     $employee = Employee::factory()->create([
@@ -86,7 +86,7 @@ test('update employee status command ignores unrelated unassignable organization
     expect($employee->user?->hasRole('Employee'))->toBeTrue();
 });
 
-test('update employee status command ignores unrelated deleted organizational units', function () {
+test('update employee status command ignores unrelated deleted organizational units', function (): void {
     $this->orgUnit->delete();
 
     $employee = Employee::factory()->create([

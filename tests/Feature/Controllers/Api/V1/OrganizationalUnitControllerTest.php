@@ -1085,7 +1085,7 @@ describe('OrganizationalUnitController - Update', function () {
 });
 
 describe('OrganizationalUnitController - Delete', function () {
-    test('deletes an organizational unit independently of customer legal entities', function () {
+    test('deletes an organizational unit independently of customer legal entities', function (): void {
         $legalEntity = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'is_legal_entity' => true,
@@ -1108,7 +1108,7 @@ describe('OrganizationalUnitController - Delete', function () {
         ]);
     });
 
-    test('deactivates an organizational unit independently of customer legal entities', function () {
+    test('deactivates an organizational unit independently of customer legal entities', function (): void {
         $legalEntity = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'is_legal_entity' => true,
@@ -1130,7 +1130,7 @@ describe('OrganizationalUnitController - Delete', function () {
         expect($legalEntity->refresh()->is_active)->toBeFalse();
     });
 
-    test('removes organizational-unit legal entity status independently of customers', function () {
+    test('removes organizational-unit legal entity status independently of customers', function (): void {
         $legalEntity = OrganizationalUnit::factory()->create([
             'tenant_id' => $this->tenant->id,
             'is_legal_entity' => true,

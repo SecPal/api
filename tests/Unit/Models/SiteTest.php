@@ -159,7 +159,7 @@ test('scope currently valid filters by validity period', function () {
     expect($currentlyValid)->toHaveCount(2);
 });
 
-test('scope for establishment filters correctly', function () {
+test('scope for establishment filters correctly', function (): void {
     $establishment1 = Establishment::factory()->create();
     $establishment2 = Establishment::factory()->create();
 
@@ -187,7 +187,7 @@ test('site has customer relationship', function () {
     expect($site->customer->id)->toBe($customer->id);
 });
 
-test('site has legal entity and establishment relationships', function () {
+test('site has legal entity and establishment relationships', function (): void {
     $establishment = Establishment::factory()->create();
     $site = Site::factory()->forEstablishment($establishment)->create();
 

@@ -78,7 +78,8 @@ class StoreSiteRequest extends FormRequest
                 Rule::exists('customer_establishments', 'establishment_id')
                     ->where('tenant_id', $tenantId)
                     ->where('customer_id', $customerId)
-                    ->where('legal_entity_id', $legalEntityId),
+                    ->where('legal_entity_id', $legalEntityId)
+                    ->whereNull('deleted_at'),
             ],
             'type' => ['required', 'in:permanent,temporary'],
             'address' => ['required', 'array'],

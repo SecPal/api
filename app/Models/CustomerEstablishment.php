@@ -56,14 +56,6 @@ class CustomerEstablishment extends Model
         'phone_plain',
         'email_plain',
         'comments_plain',
-        'contact_name',
-        'phone',
-        'email',
-        'comments',
-        'contact_name_enc',
-        'phone_enc',
-        'email_enc',
-        'comments_enc',
     ];
 
     /** @var list<string> */

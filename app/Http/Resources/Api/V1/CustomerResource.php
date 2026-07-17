@@ -39,9 +39,6 @@ class CustomerResource extends JsonResource
             'billing_address' => $this->resource->billing_address,
             'is_active' => $this->resource->is_active,
             'sites_count' => $this->whenCounted('sites'),
-            'customer_establishments' => CustomerEstablishmentResource::collection(
-                $this->whenLoaded('customerEstablishments')
-            ),
             'created_at' => \App\Support\ApiTimestamp::format($this->resource->created_at),
             'updated_at' => \App\Support\ApiTimestamp::format($this->resource->updated_at),
             'deleted_at' => \App\Support\ApiTimestamp::nullable($this->resource->deleted_at),

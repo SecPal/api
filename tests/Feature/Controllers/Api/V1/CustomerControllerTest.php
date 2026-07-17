@@ -8,6 +8,8 @@
 
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
+use App\Models\CustomerEstablishment;
+use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\OrganizationalUnit;
 use App\Models\Site;
@@ -367,7 +369,7 @@ describe('GET /v1/customers', function () {
     });
 });
 
-describe('GET /v1/lookups/legal-entities', function () {
+describe('GET /v1/lookups/legal-entities', function (): void {
     test('returns 401 when not authenticated', function (): void {
         $response = $this->getJson('/v1/lookups/legal-entities');
 
@@ -930,7 +932,7 @@ describe('PATCH /v1/customers/{customer}', function () {
         expect($customer->refresh()->legal_entity_id)->toBe($writableLegalEntity->id);
     });
 
-    test('allows an assigned unscoped user to change the customer legal entity', function (): void {
+    test('rejects legal entity reassignment without tenant-wide update permission', function (): void {
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $originalLegalEntityId = $customer->legal_entity_id;
         $unwritableLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create([
@@ -947,12 +949,35 @@ describe('PATCH /v1/customers/{customer}', function () {
             ->patchJson("/v1/customers/{$customer->id}", [
                 'legal_entity_id' => $unwritableLegalEntity->id,
             ])
-            ->assertOk()
-            ->assertJsonPath('data.legal_entity_id', $unwritableLegalEntity->id);
+            ->assertForbidden();
 
         expect($customer->refresh()->legal_entity_id)
-            ->toBe($unwritableLegalEntity->id)
-            ->not->toBe($originalLegalEntityId);
+            ->toBe($originalLegalEntityId);
+    });
+
+    test('rejects legal entity reassignment while establishment links exist', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $establishment = Establishment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $customer->legal_entity_id,
+        ]);
+        CustomerEstablishment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $customer->legal_entity_id,
+            'customer_id' => $customer->id,
+            'establishment_id' => $establishment->id,
+        ]);
+        $targetLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/customers/{$customer->id}", [
+                'legal_entity_id' => $targetLegalEntity->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['legal_entity_id']);
+
+        expect($customer->refresh()->legal_entity_id)->not->toBe($targetLegalEntity->id);
     });
 
     test('rejects changing a customer legal entity to another tenant', function (): void {

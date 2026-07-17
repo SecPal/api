@@ -12,12 +12,12 @@ use App\Models\CustomerEstablishment;
 use App\Models\Employee;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
-use App\Models\Site;
 use App\Models\User;
+use App\Models\UserInternalOrganizationalScope;
+use App\Repositories\DomainAccessRepository;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -25,17 +25,40 @@ use Illuminate\Validation\ValidationException;
  */
 final class DomainAccessService
 {
+    public function __construct(private readonly DomainAccessRepository $repository) {}
+
     /** @return Builder<Employee> */
     public function visibleEmployeesQuery(User $user, int $tenantId): Builder
     {
         $this->ensureTenant($user, $tenantId);
 
-        return Employee::query()
-            ->where('tenant_id', $tenantId)
-            ->whereIn(
-                'establishment_id',
-                $this->visibleEmployeeEstablishmentsQuery($user, $tenantId)->select('establishments.id'),
+        /** @var Collection<int, UserInternalOrganizationalScope> $scopes */
+        $scopes = $user->organizationalScopes()
+            ->whereHas('organizationalUnit')
+            ->get()
+            ->filter(
+                fn (UserInternalOrganizationalScope $scope): bool => $scope->hasMinimumAccessLevel('read'),
             );
+        $hasOrganizationalScopes = $user->organizationalScopes()->exists();
+        $viewableManagementLevels = array_values(
+            array_filter(
+                range(0, 255),
+                fn (int $managementLevel): bool => $scopes->contains(
+                    fn (UserInternalOrganizationalScope $scope): bool => $scope->canViewManagementLevel($managementLevel),
+                ),
+            ),
+        );
+        $allowsSelfAccess = $scopes->contains(
+            fn (UserInternalOrganizationalScope $scope): bool => $scope->allow_self_access,
+        );
+
+        return $this->repository->visibleEmployeesQuery(
+            $user,
+            $tenantId,
+            $hasOrganizationalScopes,
+            $allowsSelfAccess,
+            $viewableManagementLevels,
+        );
     }
 
     public function employeeDomainIsAccessible(
@@ -46,10 +69,14 @@ final class DomainAccessService
     ): bool {
         $this->ensureTenant($user, $tenantId);
 
-        return $this->visibleEmployeeEstablishmentsQuery($user, $tenantId)
-            ->whereKey($establishmentId)
-            ->where('legal_entity_id', $legalEntityId)
-            ->exists();
+        return $this->repository->employeeDomainExists(
+            $user,
+            $tenantId,
+            $legalEntityId,
+            $establishmentId,
+            $user->organizationalScopes()->exists(),
+            false,
+        );
     }
 
     public function ensureEmployeeDomainWritable(
@@ -60,13 +87,14 @@ final class DomainAccessService
     ): void {
         $this->ensureTenant($user, $tenantId);
 
-        $isWritable = $this->visibleEmployeeEstablishmentsQuery($user, $tenantId)
-            ->whereNull('establishments.deleted_at')
-            ->where('establishments.is_active', true)
-            ->whereHas('legalEntity', fn (Builder $query): Builder => $query->where('is_active', true))
-            ->whereKey($establishmentId)
-            ->where('legal_entity_id', $legalEntityId)
-            ->exists();
+        $isWritable = $this->repository->employeeDomainExists(
+            $user,
+            $tenantId,
+            $legalEntityId,
+            $establishmentId,
+            $user->organizationalScopes()->exists(),
+            true,
+        );
 
         if (! $isWritable) {
             throw ValidationException::withMessages([
@@ -80,43 +108,23 @@ final class DomainAccessService
     {
         $this->ensureTenant($user, $tenantId);
 
-        if ($user->can('customers.read') && ! $user->organizationalScopes()->exists()) {
-            return Customer::query()->where('tenant_id', $tenantId);
-        }
-
-        return $user->accessibleCustomersQuery()->where('customers.tenant_id', $tenantId);
+        return $this->repository->visibleCustomersQuery(
+            $user,
+            $tenantId,
+            $this->hasUnrestrictedCustomerReadAccess($user),
+        );
     }
 
     /** @return Builder<CustomerEstablishment> */
     public function visibleCustomerEstablishmentsQuery(User $user, int $tenantId): Builder
     {
         $this->ensureTenant($user, $tenantId);
-        $query = CustomerEstablishment::query()->where('tenant_id', $tenantId);
 
-        if ($user->can('customers.read') && ! $user->organizationalScopes()->exists()) {
-            return $query;
-        }
-
-        $assignedCustomerIds = $user->customerAssignments()
-            ->where('tenant_id', $tenantId)
-            ->currentlyActive()
-            ->pluck('customer_id');
-        $assignedSiteIds = $user->siteAssignments()
-            ->where('tenant_id', $tenantId)
-            ->currentlyActive()
-            ->pluck('site_id');
-
-        return $query->where(function (Builder $query) use ($assignedCustomerIds, $assignedSiteIds, $tenantId): void {
-            $query->whereIn('customer_id', $assignedCustomerIds)
-                ->orWhereExists(function (QueryBuilder $query) use ($assignedSiteIds, $tenantId): void {
-                    $query->selectRaw('1')
-                        ->from((new Site)->getTable())
-                        ->where('sites.tenant_id', $tenantId)
-                        ->whereColumn('sites.customer_id', 'customer_establishments.customer_id')
-                        ->whereColumn('sites.establishment_id', 'customer_establishments.establishment_id')
-                        ->whereIn('sites.id', $assignedSiteIds);
-                });
-        });
+        return $this->repository->visibleCustomerEstablishmentsQuery(
+            $user,
+            $tenantId,
+            $this->hasUnrestrictedCustomerReadAccess($user),
+        );
     }
 
     /** @return Collection<int, LegalEntity> */
@@ -124,7 +132,7 @@ final class DomainAccessService
     {
         $this->ensureCanCreateCustomers($user, $tenantId);
 
-        return $this->writableLegalEntitiesQuery($tenantId)->orderBy('name')->get();
+        return $this->repository->writableLegalEntitiesQuery($tenantId)->orderBy('name')->get();
     }
 
     /** @return Collection<int, Establishment> */
@@ -136,10 +144,7 @@ final class DomainAccessService
         $this->ensureCanCreateCustomers($user, $tenantId);
         $this->findWritableLegalEntity($tenantId, $legalEntityId);
 
-        return Establishment::query()
-            ->where('tenant_id', $tenantId)
-            ->where('legal_entity_id', $legalEntityId)
-            ->where('is_active', true)
+        return $this->repository->writableEstablishmentsQuery($tenantId, $legalEntityId)
             ->orderBy('name')
             ->get();
     }
@@ -151,11 +156,14 @@ final class DomainAccessService
         string $establishmentId,
     ): Collection {
         $this->ensureCanCreateCustomers($user, $tenantId);
-        $establishment = Establishment::query()
-            ->where('tenant_id', $tenantId)
-            ->where('is_active', true)
-            ->whereKey($establishmentId)
-            ->firstOrFail();
+        $establishment = $this->repository->findWritableEstablishment($tenantId, $establishmentId);
+
+        if ($establishment === null) {
+            throw ValidationException::withMessages([
+                'establishment_id' => [__('The selected establishment is invalid.')],
+            ]);
+        }
+
         $this->findWritableLegalEntity($tenantId, $establishment->legal_entity_id);
 
         return $this->visibleCustomersQuery($user, $tenantId)
@@ -171,7 +179,7 @@ final class DomainAccessService
     {
         $this->ensureCanCreateCustomers($user, $tenantId);
 
-        $legalEntity = $this->writableLegalEntitiesQuery($tenantId)
+        $legalEntity = $this->repository->writableLegalEntitiesQuery($tenantId)
             ->whereKey($legalEntityId)
             ->lockForUpdate()
             ->first();
@@ -201,7 +209,12 @@ final class DomainAccessService
         string $legalEntityId,
     ): LegalEntity {
         $this->ensureCustomerWritable($user, $tenantId, $customer);
-        $legalEntity = $this->writableLegalEntitiesQuery($tenantId)
+
+        if (! $user->can('customers.update') || $user->organizationalScopes()->exists()) {
+            throw new AuthorizationException;
+        }
+
+        $legalEntity = $this->repository->writableLegalEntitiesQuery($tenantId)
             ->whereKey($legalEntityId)
             ->lockForUpdate()
             ->first();
@@ -245,6 +258,30 @@ final class DomainAccessService
         }
     }
 
+    public function customerEstablishmentIsVisible(
+        User $user,
+        int $tenantId,
+        CustomerEstablishment $customerEstablishment,
+    ): bool {
+        return $this->visibleCustomerEstablishmentsQuery($user, $tenantId)
+            ->whereKey($customerEstablishment->id)
+            ->exists();
+    }
+
+    public function siteDomainIsActive(
+        int $tenantId,
+        string $customerId,
+        string $legalEntityId,
+        string $establishmentId,
+    ): bool {
+        return $this->repository->siteDomainIsActive(
+            $tenantId,
+            $customerId,
+            $legalEntityId,
+            $establishmentId,
+        );
+    }
+
     private function ensureCanCreateCustomers(User $user, int $tenantId): void
     {
         $this->ensureTenant($user, $tenantId);
@@ -261,48 +298,15 @@ final class DomainAccessService
         }
     }
 
-    /** @return Builder<LegalEntity> */
-    private function writableLegalEntitiesQuery(int $tenantId): Builder
-    {
-        return LegalEntity::query()
-            ->where('tenant_id', $tenantId)
-            ->where('is_active', true);
-    }
-
     private function findWritableLegalEntity(int $tenantId, string $legalEntityId): LegalEntity
     {
-        return $this->writableLegalEntitiesQuery($tenantId)
+        return $this->repository->writableLegalEntitiesQuery($tenantId)
             ->whereKey($legalEntityId)
             ->firstOrFail();
     }
 
-    /** @return Builder<Establishment> */
-    private function visibleEmployeeEstablishmentsQuery(User $user, int $tenantId): Builder
+    private function hasUnrestrictedCustomerReadAccess(User $user): bool
     {
-        $query = Establishment::withTrashed()
-            ->where('tenant_id', $tenantId);
-
-        if (! $user->organizationalScopes()->exists()) {
-            return $query;
-        }
-
-        $assignedCustomerIds = $user->customerAssignments()
-            ->where('tenant_id', $tenantId)
-            ->currentlyActive()
-            ->pluck('customer_id');
-        $assignedSiteIds = $user->siteAssignments()
-            ->where('tenant_id', $tenantId)
-            ->currentlyActive()
-            ->pluck('site_id');
-
-        return $query->where(function (Builder $query) use ($assignedCustomerIds, $assignedSiteIds): void {
-            $query->whereHas(
-                'customerEstablishments',
-                fn (Builder $query): Builder => $query->whereIn('customer_id', $assignedCustomerIds),
-            )->orWhereHas(
-                'sites',
-                fn (Builder $query): Builder => $query->whereIn('id', $assignedSiteIds),
-            );
-        });
+        return $user->can('customers.read') && ! $user->organizationalScopes()->exists();
     }
 }

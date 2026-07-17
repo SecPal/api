@@ -9,9 +9,12 @@ namespace App\Policies;
 
 use App\Models\CustomerEstablishment;
 use App\Models\User;
+use App\Services\DomainAccessService;
 
 final class CustomerEstablishmentPolicy
 {
+    public function __construct(private readonly DomainAccessService $domainAccess) {}
+
     public function viewAny(User $user): bool
     {
         return ($user->can('customers.read') && ! $user->organizationalScopes()->exists())
@@ -20,7 +23,11 @@ final class CustomerEstablishmentPolicy
 
     public function view(User $user, CustomerEstablishment $customerEstablishment): bool
     {
-        return $user->can('view', $customerEstablishment->customer);
+        return $this->domainAccess->customerEstablishmentIsVisible(
+            $user,
+            $customerEstablishment->tenant_id,
+            $customerEstablishment,
+        );
     }
 
     public function create(User $user): bool

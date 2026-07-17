@@ -177,7 +177,7 @@ test('user agent auto-captured from request', function () {
     expect($log->user_agent)->not->toBeNull();
 });
 
-test('causer employee OU context is not inferred without a domain entitlement mapping', function () {
+test('causer employee OU context is not inferred without a domain entitlement mapping', function (): void {
     $orgUnit = OrganizationalUnit::factory()->create([
         'tenant_id' => $this->tenant->id,
     ]);

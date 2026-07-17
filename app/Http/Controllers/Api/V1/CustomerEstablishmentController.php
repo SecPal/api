@@ -84,10 +84,24 @@ final class CustomerEstablishmentController extends Controller
         ]);
     }
 
-    public function destroy(CustomerEstablishment $customerEstablishment): Response
+    public function destroy(CustomerEstablishment $customerEstablishment): Response|JsonResponse
     {
         $this->authorize('delete', $customerEstablishment);
-        $customerEstablishment->delete();
+        /** @var User $user */
+        $user = request()->user();
+
+        try {
+            $this->service->delete(
+                $user,
+                request()->integer('tenant_id'),
+                $customerEstablishment,
+            );
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            return response()->json([
+                'message' => __('A customer establishment used by sites cannot be deleted.'),
+                'errors' => $exception->errors(),
+            ], Response::HTTP_CONFLICT);
+        }
 
         return response()->noContent();
     }

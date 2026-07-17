@@ -36,13 +36,19 @@ trait InteractsWithEmployeeDomainValidation
             return;
         }
 
+        $touchesDomain = $employee === null
+            || $this->exists('legal_entity_id')
+            || $this->exists('establishment_id');
+
         try {
-            app(DomainAccessService::class)->ensureEmployeeDomainWritable(
-                $user,
-                $tenantId,
-                $legalEntityId,
-                $establishmentId,
-            );
+            if ($touchesDomain) {
+                app(DomainAccessService::class)->ensureEmployeeDomainWritable(
+                    $user,
+                    $tenantId,
+                    $legalEntityId,
+                    $establishmentId,
+                );
+            }
         } catch (ValidationException $exception) {
             foreach ($exception->errors() as $field => $messages) {
                 if (! is_string($field) || ! is_array($messages)) {

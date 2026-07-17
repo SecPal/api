@@ -44,4 +44,9 @@ final class CustomerRepository
 
         return $customer;
     }
+
+    public function hasEstablishmentLinks(Customer $customer): bool
+    {
+        return $customer->customerEstablishments()->withTrashed()->exists();
+    }
 }

@@ -6,6 +6,7 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Site;
+use App\Services\DomainAccessService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -83,7 +84,8 @@ class UpdateSiteRequest extends FormRequest
                 Rule::exists('customer_establishments', 'establishment_id')
                     ->where('tenant_id', $tenantId)
                     ->where('customer_id', $customerId)
-                    ->where('legal_entity_id', $legalEntityId),
+                    ->where('legal_entity_id', $legalEntityId)
+                    ->whereNull('deleted_at'),
             ],
             'type' => ['sometimes', 'in:permanent,temporary'],
             'address' => ['sometimes', 'array'],
@@ -114,7 +116,35 @@ class UpdateSiteRequest extends FormRequest
      */
     public function withValidator(\Illuminate\Validation\Validator $validator): void
     {
-        $validator->after(function (\Illuminate\Validation\Validator $validator) {
+        $validator->after(function (\Illuminate\Validation\Validator $validator): void {
+            $reassignsDomain = $this->exists('customer_id')
+                || $this->exists('legal_entity_id')
+                || $this->exists('establishment_id');
+
+            if ($reassignsDomain && ! $validator->errors()->hasAny([
+                'customer_id',
+                'legal_entity_id',
+                'establishment_id',
+            ])) {
+                /** @var Site $site */
+                $site = $this->route('site');
+                $customerId = $this->string('customer_id', $site->customer_id)->toString();
+                $legalEntityId = $this->string('legal_entity_id', $site->legal_entity_id)->toString();
+                $establishmentId = $this->string('establishment_id', $site->establishment_id)->toString();
+
+                if (! app(DomainAccessService::class)->siteDomainIsActive(
+                    $this->integer('tenant_id'),
+                    $customerId,
+                    $legalEntityId,
+                    $establishmentId,
+                )) {
+                    $validator->errors()->add(
+                        'establishment_id',
+                        __('The selected customer, legal entity, and establishment combination is invalid.'),
+                    );
+                }
+            }
+
             // Only validate if valid_until is provided but valid_from is not
             if ($this->has('valid_until') && ! $this->has('valid_from')) {
                 /** @var Site $site */

@@ -10,6 +10,7 @@ use App\Mail\WelcomeActiveMail;
 use App\Models\Employee;
 use App\Models\Establishment;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -729,6 +730,7 @@ class EmployeeLifecycleService
         $establishment = Establishment::withTrashed()
             ->where('tenant_id', $employee->tenant_id)
             ->where('legal_entity_id', $employee->legal_entity_id)
+            ->whereHas('legalEntity', fn (EloquentBuilder $query): EloquentBuilder => $query->where('is_active', true))
             ->find($employee->establishment_id);
 
         if ($establishment instanceof Establishment && ! $establishment->trashed() && $establishment->is_active) {

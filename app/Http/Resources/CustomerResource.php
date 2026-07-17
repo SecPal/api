@@ -5,7 +5,6 @@
 
 namespace App\Http\Resources;
 
-use App\Http\Resources\Api\V1\CustomerEstablishmentResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -42,10 +41,6 @@ class CustomerResource extends JsonResource
             'sites_count' => $this->whenCounted('sites'),
             'sites' => SiteResource::collection($this->whenLoaded('sites')),
             'assignments' => CustomerAssignmentResource::collection($this->whenLoaded('assignments')),
-            'customer_establishments' => CustomerEstablishmentResource::collection(
-                $this->whenLoaded('customerEstablishments')
-            ),
-
             // Timestamps
             'created_at' => \App\Support\ApiTimestamp::format($this->created_at),
             'updated_at' => \App\Support\ApiTimestamp::format($this->updated_at),

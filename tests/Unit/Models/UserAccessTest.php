@@ -297,7 +297,7 @@ test('has accessible customers returns true for direct customer assignments', fu
     expect($this->user->hasAccessibleCustomers())->toBeTrue();
 });
 
-test('OU scopes do not grant access to customers without an explicit domain entitlement', function () {
+test('OU scopes do not grant access to customers without an explicit domain entitlement', function (): void {
     $orgUnit = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();
     Site::factory()->for($this->tenant, 'tenant')->for($customer)->create();
@@ -390,7 +390,7 @@ test('has accessible sites returns false when no access exists', function () {
     expect($this->user->hasAccessibleSites())->toBeFalse();
 });
 
-test('OU scopes do not grant access to sites without an explicit domain entitlement', function () {
+test('OU scopes do not grant access to sites without an explicit domain entitlement', function (): void {
     $orgUnit1 = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $orgUnit2 = OrganizationalUnit::factory()->for($this->tenant, 'tenant')->create();
     $customer = Customer::factory()->for($this->tenant, 'tenant')->create();

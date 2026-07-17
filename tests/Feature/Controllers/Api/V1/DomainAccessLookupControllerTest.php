@@ -197,6 +197,8 @@ test('site-scoped access does not expose other establishments of the same custom
         'legal_entity_id' => $legalEntity->id,
         'establishment_id' => $visibleEstablishment->id,
         'customer_id' => $customer->id,
+        'contact_name_plain' => 'Hidden Contact',
+        'email_plain' => 'hidden@example.com',
     ]);
     $hiddenLink = CustomerEstablishment::factory()->create([
         'tenant_id' => $this->tenant->id,
@@ -220,6 +222,16 @@ test('site-scoped access does not expose other establishments of the same custom
         ->assertOk()
         ->assertJsonFragment(['id' => $visibleLink->id])
         ->assertJsonMissing(['id' => $hiddenLink->id]);
+
+    $this->withToken($this->token)->getJson('/v1/customers')
+        ->assertOk()
+        ->assertJsonMissingPath('data.0.customer_establishments');
+    $this->withToken($this->token)->getJson("/v1/customers/{$customer->id}")
+        ->assertOk()
+        ->assertJsonMissingPath('data.customer_establishments');
+    $this->withToken($this->token)
+        ->getJson("/v1/customer-establishments/{$hiddenLink->id}")
+        ->assertForbidden();
 
     $this->withToken($this->token)
         ->getJson("/v1/lookups/establishments/{$hiddenEstablishment->id}/customers")

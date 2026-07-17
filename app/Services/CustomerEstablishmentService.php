@@ -14,6 +14,7 @@ use App\Repositories\CustomerEstablishmentRepository;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 final class CustomerEstablishmentService
 {
@@ -49,6 +50,23 @@ final class CustomerEstablishmentService
                     $establishment,
                 );
 
+                $existing = $this->customerEstablishments->lockIncludingTrashed(
+                    $tenantId,
+                    $customer->id,
+                    $establishment->id,
+                );
+
+                if ($existing instanceof CustomerEstablishment) {
+                    if (! $existing->trashed()) {
+                        throw new DuplicateResourceException('A matching record already exists.');
+                    }
+
+                    return $this->customerEstablishments->restore(
+                        $existing,
+                        $this->plainContactAttributes($attributes),
+                    );
+                }
+
                 return $this->customerEstablishments->create([
                     'tenant_id' => $tenantId,
                     'legal_entity_id' => $customer->legal_entity_id,
@@ -79,6 +97,26 @@ final class CustomerEstablishmentService
             $customerEstablishment,
             $this->plainContactAttributes($attributes),
         );
+    }
+
+    public function delete(
+        User $user,
+        int $tenantId,
+        CustomerEstablishment $customerEstablishment,
+    ): void {
+        $this->domainAccess->ensureCustomerEstablishmentWritableRecord(
+            $user,
+            $tenantId,
+            $customerEstablishment,
+        );
+
+        if ($this->customerEstablishments->hasSites($customerEstablishment)) {
+            throw ValidationException::withMessages([
+                'customer_establishment' => [__('A customer establishment used by sites cannot be deleted.')],
+            ]);
+        }
+
+        $this->customerEstablishments->delete($customerEstablishment);
     }
 
     /** @param array<string, mixed> $attributes */

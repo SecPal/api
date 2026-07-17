@@ -1131,6 +1131,24 @@ describe('PATCH /v1/sites/{site}', function () {
         expect($response->json('data.is_active'))->toBeFalse();
     });
 
+    test('rejects a partial customer reassignment when the resulting domain tuple is invalid', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
+        ]);
+        $otherCustomer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/sites/{$site->id}", ['customer_id' => $otherCustomer->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        expect($site->refresh()->customer_id)->toBe($this->customer->id);
+    });
+
     test('validates address when provided', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 

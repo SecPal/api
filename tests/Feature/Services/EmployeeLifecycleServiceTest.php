@@ -12,6 +12,8 @@ use App\Models\Customer;
 use App\Models\CustomerAssignment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
+use App\Models\Establishment;
+use App\Models\LegalEntity;
 use App\Models\OnboardingFormSubmission;
 use App\Models\OnboardingFormTemplate;
 use App\Models\OnboardingSubmissionFile;
@@ -99,7 +101,7 @@ test('employee lifecycle RBAC bootstrap tolerates pre-seeded permissions and rol
     ]);
 });
 
-test('employee lifecycle service activates employee atomically', function () {
+test('employee lifecycle service activates employee atomically', function (): void {
     Mail::fake();
 
     $employee = Employee::factory()->create([
@@ -118,9 +120,35 @@ test('employee lifecycle service activates employee atomically', function () {
     expect($activatedEmployee->user_account_activated_at)->not->toBeNull();
     expect($activatedEmployee->user?->hasRole('Employee'))->toBeTrue();
 
-    Mail::assertQueued(WelcomeActiveMail::class, function ($mail) use ($activatedEmployee) {
+    Mail::assertQueued(WelcomeActiveMail::class, function ($mail) use ($activatedEmployee): bool {
         return $mail->employee->id === $activatedEmployee->id;
     });
+});
+
+test('employee lifecycle service rejects activation under an inactive legal entity', function (): void {
+    Mail::fake();
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'establishment_id' => $establishment->id,
+        'status' => Employee::STATUS_PRE_CONTRACT,
+        'onboarding_completed' => true,
+        'onboarding_workflow_status' => Employee::WORKFLOW_STATUS_READY_FOR_ACTIVATION,
+        'contract_start_date' => now()->subDay(),
+    ]);
+    $legalEntity->update(['is_active' => false]);
+
+    expect(fn () => $this->service->activate($employee))
+        ->toThrow(ValidationException::class);
+
+    expect($employee->refresh()->status)->toBe(Employee::STATUS_PRE_CONTRACT)
+        ->and($employee->user?->hasRole('Employee'))->toBeFalse();
+    Mail::assertNothingQueued();
 });
 
 test('employee lifecycle service rolls activation back when employee role is missing', function () {
@@ -302,7 +330,7 @@ test('employee lifecycle service restores the prior runtime access model when re
     expect($user->can('employee.delete'))->toBeTrue();
 });
 
-test('employee lifecycle service restores access independently of organizational unit assignability', function () {
+test('employee lifecycle service restores access independently of organizational unit assignability', function (): void {
     Mail::fake();
 
     $employee = Employee::factory()->create([
