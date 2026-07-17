@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- hardened the Legal Entity and establishment rollout so site creation rejects inactive domain links, scoped customer readers receive only effectively visible sites and counts, employee and site writes reject legacy organizational-unit input, domain lookups support the corresponding write permissions without widening scoped access, restored customer-establishment links clear omitted local contact data, and factories safely reuse soft-deleted links.
 - **Breaking:** Employee create/update/list/detail paths now use mandatory tenant-consistent Legal Entity and establishment assignments instead of organizational-unit fields; effective customer/site assignment access and the existing employee permissions, access levels, self-access setting, and management-level ranges jointly constrain scoped employee access (US-006).
 - removed obsolete API DDEV configuration, the OpenTimestamps DDEV build Dockerfile, the DDEV `.gitignore` allowlist, and the license-compatibility strict-path handling and regression coverage that existed only for that removed Dockerfile
 - made local API preflight run Composer, Pint, PHPStan, and enabled Laravel/Pest/PHPUnit tests directly in the native shell, removed DDEV command routing and guidance, and fail preflight when `PREFLIGHT_RUN_TESTS=1` exposes a failing test

@@ -6,8 +6,10 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Models\Site;
+use App\Services\DomainAccessService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 /**
  * Store Site Request validation.
@@ -81,6 +83,7 @@ class StoreSiteRequest extends FormRequest
                     ->where('legal_entity_id', $legalEntityId)
                     ->whereNull('deleted_at'),
             ],
+            'organizational_unit_id' => ['prohibited'],
             'type' => ['required', 'in:permanent,temporary'],
             'address' => ['required', 'array'],
             'address.street' => ['required', 'string', 'max:255'],
@@ -100,6 +103,31 @@ class StoreSiteRequest extends FormRequest
             'valid_from' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date', 'after:valid_from'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->hasAny([
+                'customer_id',
+                'legal_entity_id',
+                'establishment_id',
+            ])) {
+                return;
+            }
+
+            if (! app(DomainAccessService::class)->siteDomainIsActive(
+                $this->integer('tenant_id'),
+                $this->string('customer_id')->toString(),
+                $this->string('legal_entity_id')->toString(),
+                $this->string('establishment_id')->toString(),
+            )) {
+                $validator->errors()->add(
+                    'establishment_id',
+                    __('The selected customer, legal entity, and establishment combination is invalid.'),
+                );
+            }
+        });
     }
 
     /**

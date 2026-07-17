@@ -284,7 +284,11 @@ describe('GET /v1/customers', function () {
         expect($response->json('data')[0]['id'])->toBe($customer->id);
     });
 
-    test('user without permission only receives visible sites_count in customer list', function (): void {
+    test('scoped user with customer read permission only receives visible sites_count in customer list', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+        $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $scopeUnit, accessLevel: 'read');
+
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $visibleSite = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -749,6 +753,10 @@ describe('GET /v1/customers/{customer}', function () {
     });
 
     test('returns only independently visible sites in customer detail for scoped users', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+        $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $scopeUnit, accessLevel: 'read');
+
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $visibleSite = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
@@ -1181,6 +1189,10 @@ describe('GET /v1/customers/{customer}/sites', function () {
     });
 
     test('returns only independently visible customer sites for scoped users', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
+        $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $scopeUnit, accessLevel: 'read');
+
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
 
         $visibleSite = Site::factory()->create([

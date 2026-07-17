@@ -148,6 +148,27 @@ final class DomainAccessRepository
             ->first();
     }
 
+    /** @return Builder<Customer> */
+    public function writableCustomersForEstablishmentQuery(int $tenantId, string $establishmentId): Builder
+    {
+        return Customer::query()
+            ->where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->whereHas(
+                'customerEstablishments',
+                fn (Builder $query): Builder => $query->where('establishment_id', $establishmentId),
+            );
+    }
+
+    /** @return Builder<Establishment> */
+    public function writableEmployeeEstablishmentsQuery(User $user, int $tenantId): Builder
+    {
+        return $this->visibleEmployeeEstablishmentsQuery($user, $tenantId, true)
+            ->whereNull('establishments.deleted_at')
+            ->where('establishments.is_active', true)
+            ->whereHas('legalEntity', fn (Builder $query): Builder => $query->where('is_active', true));
+    }
+
     public function siteDomainIsActive(
         int $tenantId,
         string $customerId,

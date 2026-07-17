@@ -516,6 +516,81 @@ describe('POST /v1/sites', function () {
             ]);
     });
 
+    test('rejects inactive or deleted site domain assignments', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
+
+        $payload = [
+            'name' => 'Invalid Domain Site',
+            'customer_id' => $this->customer->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
+            'type' => 'permanent',
+            'address' => [
+                'street' => 'Main St 1',
+                'city' => 'Berlin',
+                'postal_code' => '10115',
+                'country' => 'DE',
+            ],
+        ];
+
+        $this->establishment->update(['is_active' => false]);
+        $this->withToken($this->token)->postJson('/v1/sites', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        $this->establishment->update(['is_active' => true]);
+        $this->customer->update(['is_active' => false]);
+        $this->withToken($this->token)->postJson('/v1/sites', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        $this->customer->update(['is_active' => true]);
+        $this->customer->legalEntity()->update(['is_active' => false]);
+        $this->withToken($this->token)->postJson('/v1/sites', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        $this->customer->legalEntity()->update(['is_active' => true]);
+        $this->establishment->delete();
+        $this->withToken($this->token)->postJson('/v1/sites', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['establishment_id']);
+
+        expect(Site::query()->where('name', 'Invalid Domain Site')->exists())->toBeFalse();
+    });
+
+    test('rejects the legacy organizational unit field on site writes', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+
+        $this->withToken($this->token)->postJson('/v1/sites', [
+            'name' => 'Legacy Domain Site',
+            'customer_id' => $this->customer->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
+            'organizational_unit_id' => $this->orgUnit->id,
+            'type' => 'permanent',
+            'address' => [
+                'street' => 'Main St 1',
+                'city' => 'Berlin',
+                'postal_code' => '10115',
+                'country' => 'DE',
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['organizational_unit_id']);
+
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
+        ]);
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/sites/{$site->id}", ['organizational_unit_id' => $this->orgUnit->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['organizational_unit_id']);
+    });
+
     test('returns 422 when address is incomplete', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
 

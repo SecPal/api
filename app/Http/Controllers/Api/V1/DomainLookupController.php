@@ -10,10 +10,13 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\DomainLookupResource;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
+use App\Models\Site;
 use App\Models\User;
 use App\Services\DomainAccessService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -23,7 +26,7 @@ final class DomainLookupController extends Controller
 
     public function legalEntities(Request $request): AnonymousResourceCollection
     {
-        $this->authorize('create', Customer::class);
+        $this->authorizeDomainWriteLookup($this->user($request));
 
         return DomainLookupResource::collection(
             $this->domainAccess->writableLegalEntities($this->user($request), $request->integer('tenant_id'))
@@ -32,7 +35,7 @@ final class DomainLookupController extends Controller
 
     public function establishments(Request $request, LegalEntity $legalEntity): AnonymousResourceCollection
     {
-        $this->authorize('create', Customer::class);
+        $this->authorizeDomainWriteLookup($this->user($request));
 
         return DomainLookupResource::collection($this->domainAccess->writableEstablishments(
             $this->user($request),
@@ -43,11 +46,14 @@ final class DomainLookupController extends Controller
 
     public function customers(Request $request, Establishment $establishment): AnonymousResourceCollection
     {
-        $this->authorize('create', Customer::class);
-        $this->authorize('viewAny', Customer::class);
+        $user = $this->user($request);
+        if (! $user->can('create', Site::class)) {
+            $this->authorize('create', Customer::class);
+            $this->authorize('viewAny', Customer::class);
+        }
 
         return DomainLookupResource::collection($this->domainAccess->visibleCustomersForEstablishment(
-            $this->user($request),
+            $user,
             $request->integer('tenant_id'),
             $establishment->id,
         ));
@@ -59,5 +65,16 @@ final class DomainLookupController extends Controller
         $user = $request->user();
 
         return $user;
+    }
+
+    private function authorizeDomainWriteLookup(User $user): void
+    {
+        if ($user->can('create', Customer::class)
+            || $user->can('create', Employee::class)
+            || $user->can('create', Site::class)) {
+            return;
+        }
+
+        throw new AuthorizationException;
     }
 }

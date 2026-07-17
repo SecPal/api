@@ -87,6 +87,7 @@ class UpdateSiteRequest extends FormRequest
                     ->where('legal_entity_id', $legalEntityId)
                     ->whereNull('deleted_at'),
             ],
+            'organizational_unit_id' => ['prohibited'],
             'type' => ['sometimes', 'in:permanent,temporary'],
             'address' => ['sometimes', 'array'],
             'address.street' => ['required_with:address', 'string', 'max:255'],

@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
 
 use App\Models\Customer;
+use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\Site;
@@ -48,6 +49,30 @@ test('site can be created with factory', function () {
     expect($site->name)->not->toBeNull();
     expect($site->address)->toBeArray();
     expect($site->is_active)->toBeTrue();
+});
+
+test('site factory restores an existing soft-deleted customer establishment link', function () {
+    $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $customer->legal_entity_id,
+    ]);
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $customer->legal_entity_id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $establishment->id,
+    ]);
+    $link->delete();
+
+    Site::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $customer->legal_entity_id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $establishment->id,
+    ]);
+
+    expect($link->fresh()?->trashed())->toBeFalse();
 });
 
 test('site number is auto generated with correct format', function () {

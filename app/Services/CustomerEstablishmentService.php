@@ -63,7 +63,7 @@ final class CustomerEstablishmentService
 
                     return $this->customerEstablishments->restore(
                         $existing,
-                        $this->plainContactAttributes($attributes),
+                        $this->plainContactAttributes($attributes, clearMissing: true),
                     );
                 }
 
@@ -135,13 +135,13 @@ final class CustomerEstablishmentService
      * @param  array<string, mixed>  $attributes
      * @return array<string, mixed>
      */
-    private function plainContactAttributes(array $attributes): array
+    private function plainContactAttributes(array $attributes, bool $clearMissing = false): array
     {
         $plainAttributes = [];
 
         foreach (['contact_name', 'phone', 'email', 'comments'] as $attribute) {
-            if (array_key_exists($attribute, $attributes)) {
-                $plainAttributes["{$attribute}_plain"] = $attributes[$attribute];
+            if ($clearMissing || array_key_exists($attribute, $attributes)) {
+                $plainAttributes["{$attribute}_plain"] = $attributes[$attribute] ?? null;
             }
         }
 

@@ -136,7 +136,7 @@ class CustomerController extends Controller
         $customer->load([
             'assignments.user',
             'sites' => function (HasMany $query) use ($user): void {
-                if ($user->can('customers.read')) {
+                if ($this->hasUnrestrictedCustomerReadAccess($user)) {
                     return;
                 }
 
@@ -225,7 +225,7 @@ class CustomerController extends Controller
         /** @var User $user */
         $user = $request->user();
         $perPage = $request->integer('per_page', 15);
-        $sites = $user->can('customers.read')
+        $sites = $this->hasUnrestrictedCustomerReadAccess($user)
             ? $customer->sites()->with(['legalEntity', 'establishment', 'assignments.user'])
             : $user->visibleSitesQuery()
                 ->where('customer_id', $customer->id)
@@ -260,7 +260,7 @@ class CustomerController extends Controller
      */
     private function visibleSitesCountDefinition(User $user): array
     {
-        if ($user->can('customers.read')) {
+        if ($this->hasUnrestrictedCustomerReadAccess($user)) {
             return ['sites'];
         }
 
@@ -269,5 +269,11 @@ class CustomerController extends Controller
                 $query->whereIn('sites.id', $user->visibleSitesQuery()->select('sites.id'));
             },
         ];
+    }
+
+    private function hasUnrestrictedCustomerReadAccess(User $user): bool
+    {
+        return $user->can('customers.read')
+            && ! $user->organizationalScopes()->exists();
     }
 }

@@ -93,6 +93,33 @@ test('employee create rejects an inactive establishment', function (): void {
         ->assertJsonValidationErrors(['establishment_id']);
 });
 
+test('employee writes reject the legacy organizational unit field', function (): void {
+    $organizationalUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+
+    $this->withToken($this->token)
+        ->postJson('/v1/employees', employeeDomainPayload([
+            'legal_entity_id' => $this->legalEntity->id,
+            'establishment_id' => $this->establishment->id,
+            'organizational_unit_id' => $organizationalUnit->id,
+        ]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['organizational_unit_id']);
+
+    $employee = Employee::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'establishment_id' => $this->establishment->id,
+        'management_level' => 0,
+    ]);
+
+    $this->withToken($this->token)
+        ->patchJson("/v1/employees/{$employee->id}", [
+            'organizational_unit_id' => $organizationalUnit->id,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['organizational_unit_id']);
+});
+
 test('scoped employee create accepts only effectively accessible establishments and assignable ranks', function (): void {
     $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
     grantEmployeeEstablishmentAccess(

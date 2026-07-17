@@ -12,6 +12,7 @@ use App\Models\CustomerEstablishment;
 use App\Models\Employee;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
+use App\Models\Site;
 use App\Models\User;
 use App\Models\UserInternalOrganizationalScope;
 use App\Repositories\DomainAccessRepository;
@@ -130,9 +131,18 @@ final class DomainAccessService
     /** @return Collection<int, LegalEntity> */
     public function writableLegalEntities(User $user, int $tenantId): Collection
     {
-        $this->ensureCanCreateCustomers($user, $tenantId);
+        $this->ensureCanUseDomainWriteLookups($user, $tenantId);
 
-        return $this->repository->writableLegalEntitiesQuery($tenantId)->orderBy('name')->get();
+        $query = $this->repository->writableLegalEntitiesQuery($tenantId);
+        if ($this->requiresScopedEmployeeDomainFiltering($user)) {
+            $query->whereIn(
+                'legal_entities.id',
+                $this->repository->writableEmployeeEstablishmentsQuery($user, $tenantId)
+                    ->select('establishments.legal_entity_id'),
+            );
+        }
+
+        return $query->orderBy('name')->get();
     }
 
     /** @return Collection<int, Establishment> */
@@ -141,12 +151,19 @@ final class DomainAccessService
         int $tenantId,
         string $legalEntityId,
     ): Collection {
-        $this->ensureCanCreateCustomers($user, $tenantId);
-        $this->findWritableLegalEntity($tenantId, $legalEntityId);
+        $this->ensureCanUseDomainWriteLookups($user, $tenantId);
+        $this->findWritableLegalEntity($user, $tenantId, $legalEntityId);
 
-        return $this->repository->writableEstablishmentsQuery($tenantId, $legalEntityId)
-            ->orderBy('name')
-            ->get();
+        $query = $this->repository->writableEstablishmentsQuery($tenantId, $legalEntityId);
+        if ($this->requiresScopedEmployeeDomainFiltering($user)) {
+            $query->whereIn(
+                'establishments.id',
+                $this->repository->writableEmployeeEstablishmentsQuery($user, $tenantId)
+                    ->select('establishments.id'),
+            );
+        }
+
+        return $query->orderBy('name')->get();
     }
 
     /** @return Collection<int, Customer> */
@@ -155,7 +172,12 @@ final class DomainAccessService
         int $tenantId,
         string $establishmentId,
     ): Collection {
-        $this->ensureCanCreateCustomers($user, $tenantId);
+        $this->ensureTenant($user, $tenantId);
+        $canCreateSites = $user->can('create', Site::class);
+        if (! $canCreateSites && ! $user->can('create', Customer::class)) {
+            throw new AuthorizationException;
+        }
+
         $establishment = $this->repository->findWritableEstablishment($tenantId, $establishmentId);
 
         if ($establishment === null) {
@@ -164,7 +186,13 @@ final class DomainAccessService
             ]);
         }
 
-        $this->findWritableLegalEntity($tenantId, $establishment->legal_entity_id);
+        $this->findWritableLegalEntity($user, $tenantId, $establishment->legal_entity_id);
+
+        if ($canCreateSites) {
+            return $this->repository->writableCustomersForEstablishmentQuery($tenantId, $establishmentId)
+                ->orderBy('name')
+                ->get();
+        }
 
         return $this->visibleCustomersQuery($user, $tenantId)
             ->where('legal_entity_id', $establishment->legal_entity_id)
@@ -291,6 +319,17 @@ final class DomainAccessService
         }
     }
 
+    private function ensureCanUseDomainWriteLookups(User $user, int $tenantId): void
+    {
+        $this->ensureTenant($user, $tenantId);
+
+        if (! $user->can('create', Customer::class)
+            && ! $user->can('create', Employee::class)
+            && ! $user->can('create', Site::class)) {
+            throw new AuthorizationException;
+        }
+    }
+
     private function ensureTenant(User $user, int $tenantId): void
     {
         if ($user->tenant_id !== $tenantId) {
@@ -298,11 +337,19 @@ final class DomainAccessService
         }
     }
 
-    private function findWritableLegalEntity(int $tenantId, string $legalEntityId): LegalEntity
+    private function findWritableLegalEntity(User $user, int $tenantId, string $legalEntityId): LegalEntity
     {
-        return $this->repository->writableLegalEntitiesQuery($tenantId)
-            ->whereKey($legalEntityId)
-            ->firstOrFail();
+        return $this->writableLegalEntities($user, $tenantId)
+            ->firstWhere('id', $legalEntityId)
+            ?? throw (new \Illuminate\Database\Eloquent\ModelNotFoundException)->setModel(LegalEntity::class, [$legalEntityId]);
+    }
+
+    private function requiresScopedEmployeeDomainFiltering(User $user): bool
+    {
+        return $user->can('create', Employee::class)
+            && ! $user->can('create', Customer::class)
+            && ! $user->can('create', Site::class)
+            && $user->organizationalScopes()->exists();
     }
 
     private function hasUnrestrictedCustomerReadAccess(User $user): bool

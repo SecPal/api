@@ -210,6 +210,7 @@ class StoreEmployeeRequest extends FormRequest
                         ->where('legal_entity_id', $this->input('legal_entity_id'));
                 })->whereNull('deleted_at'),
             ],
+            'organizational_unit_id' => ['prohibited'],
         ], $this->employeeAddressItemRules(), $this->certificationValidationRules());
     }
 

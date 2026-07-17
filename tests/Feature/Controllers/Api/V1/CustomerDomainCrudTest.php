@@ -254,6 +254,10 @@ test('a deleted customer establishment can be recreated but cannot authorize a s
         'legal_entity_id' => $this->legalEntity->id,
         'customer_id' => $customer->id,
         'establishment_id' => $this->establishment->id,
+        'contact_name_plain' => 'Stale Contact',
+        'phone_plain' => '+49 30 000000',
+        'email_plain' => 'stale@example.com',
+        'comments_plain' => 'Stale comments',
     ]);
     $link->delete();
 
@@ -279,7 +283,10 @@ test('a deleted customer establishment can be recreated but cannot authorize a s
     ])->assertCreated();
 
     expect($link->fresh()?->trashed())->toBeFalse()
-        ->and($link->fresh()?->contact_name)->toBe('Restored Contact');
+        ->and($link->fresh()?->contact_name)->toBe('Restored Contact')
+        ->and($link->fresh()?->phone)->toBeNull()
+        ->and($link->fresh()?->email)->toBeNull()
+        ->and($link->fresh()?->comments)->toBeNull();
 });
 
 test('customer establishment rejects cross-tenant and cross-legal-entity links', function (): void {

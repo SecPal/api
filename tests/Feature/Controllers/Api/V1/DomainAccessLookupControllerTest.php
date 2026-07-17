@@ -130,6 +130,99 @@ test('domain lookups reject foreign-tenant and ineffective organizational access
     $this->withToken($this->token)->getJson('/v1/lookups/legal-entities')->assertForbidden();
 });
 
+test('domain lookups support employee creation permission', function (): void {
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'establishment_id' => $establishment->id,
+        'customer_id' => $customer->id,
+    ]);
+
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+    $this->withToken($this->token)->getJson('/v1/lookups/legal-entities')
+        ->assertOk()
+        ->assertJsonFragment(['id' => $legalEntity->id]);
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/legal-entities/{$legalEntity->id}/establishments")
+        ->assertOk()
+        ->assertJsonFragment(['id' => $establishment->id]);
+
+});
+
+test('domain lookups support site creation permission', function (): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, 'sites.create');
+
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'establishment_id' => $establishment->id,
+        'customer_id' => $customer->id,
+    ]);
+
+    $this->withToken($this->token)->getJson('/v1/lookups/legal-entities')
+        ->assertOk()
+        ->assertJsonFragment(['id' => $legalEntity->id]);
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/legal-entities/{$legalEntity->id}/establishments")
+        ->assertOk()
+        ->assertJsonFragment(['id' => $establishment->id]);
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/establishments/{$establishment->id}/customers")
+        ->assertOk()
+        ->assertJsonFragment(['id' => $customer->id]);
+});
+
+test('scoped employee domain lookups expose only effectively accessible assignments', function (): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, 'employee.write');
+
+    $visibleLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $visibleEstablishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $visibleLegalEntity->id,
+    ]);
+    $hiddenLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $hiddenEstablishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $hiddenLegalEntity->id,
+    ]);
+    $scopeUnit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+    grantEmployeeEstablishmentAccess(
+        $this->user,
+        $this->tenant,
+        $visibleLegalEntity,
+        $visibleEstablishment,
+        $scopeUnit,
+    );
+
+    $this->withToken($this->token)->getJson('/v1/lookups/legal-entities')
+        ->assertOk()
+        ->assertJsonFragment(['id' => $visibleLegalEntity->id])
+        ->assertJsonMissing(['id' => $hiddenLegalEntity->id]);
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/legal-entities/{$visibleLegalEntity->id}/establishments")
+        ->assertOk()
+        ->assertJsonFragment(['id' => $visibleEstablishment->id])
+        ->assertJsonMissing(['id' => $hiddenEstablishment->id]);
+});
+
 test('customer and customer establishment lists share effective assignment visibility', function (): void {
     givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');
 

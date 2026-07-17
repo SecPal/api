@@ -45,12 +45,16 @@ class SiteFactory extends Factory
                 $site->establishment_id = $establishment->id;
             }
 
-            CustomerEstablishment::query()->firstOrCreate([
+            $customerEstablishment = CustomerEstablishment::withTrashed()->firstOrCreate([
                 'tenant_id' => $site->tenant_id,
                 'legal_entity_id' => $site->legal_entity_id,
                 'customer_id' => $site->customer_id,
                 'establishment_id' => $site->establishment_id,
             ]);
+
+            if ($customerEstablishment->trashed()) {
+                $customerEstablishment->restore();
+            }
         });
     }
 
