@@ -31,10 +31,10 @@ class CustomerEstablishmentFactory extends Factory
             'legal_entity_id' => $customer->legal_entity_id,
             'customer_id' => $customer->id,
             'establishment_id' => $establishment->id,
-            'contact_name' => fake()->optional()->name(),
-            'phone' => fake()->optional()->phoneNumber(),
-            'email' => fake()->optional()->safeEmail(),
-            'comments' => fake()->optional()->sentence(),
+            'contact_name_plain' => fake()->optional()->name(),
+            'phone_plain' => fake()->optional()->phoneNumber(),
+            'email_plain' => fake()->optional()->safeEmail(),
+            'comments_plain' => fake()->optional()->sentence(),
         ];
     }
 }

@@ -63,6 +63,10 @@ class StoreCustomerRequest extends FormRequest
             'billing_address.postal_code' => ['required', 'string', 'max:20'],
             'billing_address.country' => ['required', 'string', 'size:2'], // ISO 3166-1 alpha-2
             'is_active' => ['nullable', 'boolean'],
+            'organizational_unit_id' => ['prohibited'],
+            'contact' => ['prohibited'],
+            'notes' => ['prohibited'],
+            'metadata' => ['prohibited'],
         ];
     }
 

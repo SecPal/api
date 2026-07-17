@@ -136,6 +136,41 @@ test('concurrent customer creation requests produce distinct customer numbers', 
     expect(Customer::query()->where('tenant_id', $this->tenant->id)->count())->toBe($requestCount + 1);
 });
 
+test('concurrent matching customer creation requests persist exactly one customer', function (): void {
+    if (! function_exists('pcntl_fork')) {
+        $this->markTestSkipped('pcntl is required for the customer duplicate concurrency regression test.');
+    }
+
+    $requestCount = 8;
+    $baselineCount = Customer::query()->count();
+    $results = runConcurrentJsonPosts(
+        $this,
+        $requestCount,
+        '/v1/customers',
+        fn (): array => [
+            'name' => 'Concurrent Duplicate GmbH',
+            'vat_id' => 'DE 555-444-333',
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'billing_address' => [
+                'street' => 'Parallelstraße 1',
+                'city' => 'Berlin',
+                'postal_code' => '10115',
+                'country' => 'DE',
+            ],
+        ],
+        fn (array $body): array => [
+            'status' => $body['status'],
+            'code' => $body['body']['code'] ?? null,
+        ],
+    );
+
+    expect($results->where('status', 201))->toHaveCount(1)
+        ->and($results->where('status', 409))->toHaveCount($requestCount - 1)
+        ->and($results->where('status', 409)->pluck('code')->unique()->all())
+        ->toBe(['DUPLICATE_RESOURCE'])
+        ->and(Customer::query()->count())->toBe($baselineCount + 1);
+});
+
 test('concurrent site creation requests produce distinct site numbers', function (): void {
     if (! function_exists('pcntl_fork')) {
         $this->markTestSkipped('pcntl is required for the site number concurrency regression test.');

@@ -24,11 +24,11 @@ final class CustomerRepository
         if ($user->can('customers.read') && ! $user->organizationalScopes()->exists()) {
             return Customer::query()
                 ->where('tenant_id', $tenantId)
-                ->with(['assignments.user']);
+                ->with(['assignments.user', 'customerEstablishments']);
         }
 
         return $user->accessibleCustomersQuery()
-            ->with(['assignments.user']);
+            ->with(['assignments.user', 'customerEstablishments']);
     }
 
     public function nextCustomerNumber(int $tenantId): string

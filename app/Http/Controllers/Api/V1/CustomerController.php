@@ -157,6 +157,7 @@ class CustomerController extends Controller
 
         $customer->load([
             'assignments.user',
+            'customerEstablishments',
             'sites' => function (HasMany $query) use ($user): void {
                 if ($user->can('customers.read')) {
                     return;

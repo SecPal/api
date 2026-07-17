@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Exceptions\DuplicateResourceException;
 use App\Models\Customer;
 use App\Models\LegalEntity;
 use App\Models\User;
@@ -14,6 +15,7 @@ use App\Repositories\CustomerRepository;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -54,22 +56,26 @@ final class CustomerService
      */
     public function create(User $user, int $tenantId, array $attributes): Customer
     {
-        return DB::transaction(function () use ($user, $tenantId, $attributes): Customer {
-            $this->customers->lockTenant($tenantId);
-            $this->lockWritableLegalEntity($user, $tenantId, $this->legalEntityId($attributes));
+        try {
+            return DB::transaction(function () use ($user, $tenantId, $attributes): Customer {
+                $this->customers->lockTenant($tenantId);
+                $this->lockWritableLegalEntity($user, $tenantId, $this->legalEntityId($attributes));
 
-            $attributes['tenant_id'] = $tenantId;
+                $attributes['tenant_id'] = $tenantId;
 
-            if (! isset($attributes['customer_number'])) {
-                $attributes['customer_number'] = $this->customers->nextCustomerNumber($tenantId);
-            }
+                if (! isset($attributes['customer_number'])) {
+                    $attributes['customer_number'] = $this->customers->nextCustomerNumber($tenantId);
+                }
 
-            if (! isset($attributes['is_active'])) {
-                $attributes['is_active'] = true;
-            }
+                if (! isset($attributes['is_active'])) {
+                    $attributes['is_active'] = true;
+                }
 
-            return $this->customers->create($attributes);
-        });
+                return $this->customers->create($attributes);
+            });
+        } catch (QueryException $exception) {
+            throw DuplicateResourceException::fromQueryException($exception) ?? $exception;
+        }
     }
 
     /**
@@ -77,15 +83,18 @@ final class CustomerService
      */
     public function update(User $user, int $tenantId, Customer $customer, array $attributes): Customer
     {
-        if (! isset($attributes['legal_entity_id']) || $attributes['legal_entity_id'] === $customer->legal_entity_id) {
-            return $this->customers->update($customer, $attributes);
+        try {
+            return DB::transaction(function () use ($user, $tenantId, $customer, $attributes): Customer {
+                if (isset($attributes['legal_entity_id'])
+                    && $attributes['legal_entity_id'] !== $customer->legal_entity_id) {
+                    $this->lockWritableLegalEntity($user, $tenantId, $this->legalEntityId($attributes));
+                }
+
+                return $this->customers->update($customer, $attributes);
+            });
+        } catch (QueryException $exception) {
+            throw DuplicateResourceException::fromQueryException($exception) ?? $exception;
         }
-
-        return DB::transaction(function () use ($user, $tenantId, $customer, $attributes): Customer {
-            $this->lockWritableLegalEntity($user, $tenantId, $this->legalEntityId($attributes));
-
-            return $this->customers->update($customer, $attributes);
-        });
     }
 
     private function lockWritableLegalEntity(User $user, int $tenantId, string $legalEntityId): LegalEntity

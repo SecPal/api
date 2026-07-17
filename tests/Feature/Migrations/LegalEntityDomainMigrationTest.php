@@ -32,7 +32,7 @@ afterEach(function (): void {
 test('creates tenant-local legal entity domain tables and removes customer-local and OU columns', function (): void {
     expect(Schema::hasColumns('legal_entities', ['id', 'tenant_id', 'name', 'is_active', 'created_at', 'updated_at']))->toBeTrue()
         ->and(Schema::hasColumns('establishments', ['id', 'tenant_id', 'legal_entity_id', 'name', 'is_active', 'created_at', 'updated_at']))->toBeTrue()
-        ->and(Schema::hasColumns('customer_establishments', ['id', 'tenant_id', 'legal_entity_id', 'customer_id', 'establishment_id', 'contact_name', 'phone', 'email', 'comments', 'created_at', 'updated_at']))->toBeTrue()
+        ->and(Schema::hasColumns('customer_establishments', ['id', 'tenant_id', 'legal_entity_id', 'customer_id', 'establishment_id', 'contact_name_enc', 'phone_enc', 'email_enc', 'comments_enc', 'created_at', 'updated_at']))->toBeTrue()
         ->and(Schema::hasColumns('customers', ['tenant_id', 'legal_entity_id', 'customer_number', 'name', 'vat_id', 'billing_address', 'is_active']))->toBeTrue()
         ->and(Schema::hasColumn('customers', 'contact'))->toBeFalse()
         ->and(Schema::hasColumn('customers', 'notes'))->toBeFalse()

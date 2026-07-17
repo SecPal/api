@@ -11,6 +11,7 @@ use App\Contracts\WebPushTransportInterface;
 use App\Models\CostCenter;
 use App\Models\Customer;
 use App\Models\CustomerAssignment;
+use App\Models\CustomerEstablishment;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\EmployeeQualification;
@@ -25,6 +26,7 @@ use App\Observers\EmployeeObserver;
 use App\Observers\PersonObserver;
 use App\Policies\CostCenterPolicy;
 use App\Policies\CustomerAssignmentPolicy;
+use App\Policies\CustomerEstablishmentPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\EmployeeDocumentPolicy;
 use App\Policies\EmployeePolicy;
@@ -251,6 +253,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Register policies for Customer & Site Management (Epic #210)
         Gate::policy(Customer::class, CustomerPolicy::class);
+        Gate::policy(CustomerEstablishment::class, CustomerEstablishmentPolicy::class);
         Gate::policy(Site::class, SitePolicy::class);
         Gate::policy(CostCenter::class, CostCenterPolicy::class);
         Gate::policy(CustomerAssignment::class, CustomerAssignmentPolicy::class);

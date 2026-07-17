@@ -47,6 +47,19 @@ test('customers has tenant scoped identifiers and legal entity foreign key', fun
             && $foreignKey['columns'] === ['tenant_id', 'legal_entity_id']))->toBeTrue();
 });
 
+test('customers has atomic normalized duplicate guards per tenant and legal entity', function (): void {
+    $columns = collect(Schema::getColumns('customers'))->keyBy('name');
+    $indexes = collect(Schema::getIndexes('customers'))->keyBy('name');
+
+    expect($columns)->toHaveKeys(['vat_id_normalized', 'name_billing_address_normalized'])
+        ->and($indexes->get('customers_tenant_legal_entity_vat_normalized_unique')['unique'])->toBeTrue()
+        ->and($indexes->get('customers_tenant_legal_entity_vat_normalized_unique')['columns'])
+        ->toBe(['tenant_id', 'legal_entity_id', 'vat_id_normalized'])
+        ->and($indexes->get('customers_tenant_legal_entity_name_address_normalized_unique')['unique'])->toBeTrue()
+        ->and($indexes->get('customers_tenant_legal_entity_name_address_normalized_unique')['columns'])
+        ->toBe(['tenant_id', 'legal_entity_id', 'name_billing_address_normalized']);
+});
+
 test('customers rejects a legal entity from another tenant', function (): void {
     $tenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
     $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());

@@ -60,6 +60,10 @@ class UpdateCustomerRequest extends FormRequest
             'billing_address.postal_code' => ['required_with:billing_address', 'string', 'max:20'],
             'billing_address.country' => ['required_with:billing_address', 'string', 'size:2'],
             'is_active' => ['sometimes', 'boolean'],
+            'organizational_unit_id' => ['prohibited'],
+            'contact' => ['prohibited'],
+            'notes' => ['prohibited'],
+            'metadata' => ['prohibited'],
         ];
     }
 

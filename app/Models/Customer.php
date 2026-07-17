@@ -83,6 +83,12 @@ class Customer extends Model
         'is_active',
     ];
 
+    /** @var list<string> */
+    protected $hidden = [
+        'vat_id_normalized',
+        'name_billing_address_normalized',
+    ];
+
     /**
      * Get the attributes that should be cast.
      *

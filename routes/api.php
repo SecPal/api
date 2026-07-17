@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\BootstrapController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\CustomerAssignmentController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\CustomerEstablishmentController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
 use App\Http\Controllers\Api\V1\EmployeeQualificationController;
@@ -226,6 +227,12 @@ Route::prefix('v1')->group(function () {
                 Route::delete('/customers/{customer}', [CustomerController::class, 'destroy']);
                 // Nested resource: customer's sites
                 Route::get('/customers/{customer}/sites', [CustomerController::class, 'sites']);
+
+                Route::get('/customer-establishments', [CustomerEstablishmentController::class, 'index']);
+                Route::post('/customer-establishments', [CustomerEstablishmentController::class, 'store']);
+                Route::get('/customer-establishments/{customer_establishment}', [CustomerEstablishmentController::class, 'show']);
+                Route::patch('/customer-establishments/{customer_establishment}', [CustomerEstablishmentController::class, 'update']);
+                Route::delete('/customer-establishments/{customer_establishment}', [CustomerEstablishmentController::class, 'destroy']);
             });
 
             // Sites (physical locations where services are provided)
