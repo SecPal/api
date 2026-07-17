@@ -2009,7 +2009,6 @@ describe('Organizational Scopes Authorization', function () {
                 ],
             ]);
     });
-
 });
 
 describe('Tenant-Scoped Roles And Permissions In Authorization Data', function () {
