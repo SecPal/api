@@ -110,6 +110,7 @@ class CustomerController extends Controller
         $user = $request->user();
 
         $customer = $this->customerService->create($user, $tenantId, $request->validated());
+        $customer = $this->customerService->loadVisibleCustomerEstablishments($user, $tenantId, $customer);
 
         return response()->json([
             'data' => new CustomerResource($customer),
@@ -144,6 +145,11 @@ class CustomerController extends Controller
             },
         ]);
         $customer->loadCount($this->visibleSitesCountDefinition($user));
+        $customer = $this->customerService->loadVisibleCustomerEstablishments(
+            $user,
+            $customer->tenant_id,
+            $customer,
+        );
 
         return response()->json([
             'data' => new CustomerResource($customer),
@@ -175,6 +181,7 @@ class CustomerController extends Controller
             $customer,
             $request->validated()
         );
+        $customer = $this->customerService->loadVisibleCustomerEstablishments($user, $tenantId, $customer);
 
         return response()->json([
             'data' => new CustomerResource($customer),
