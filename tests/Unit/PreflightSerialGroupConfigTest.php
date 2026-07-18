@@ -60,6 +60,7 @@ function makePreflightFixture(int $parallelExitCode = 0, int $serialExitCode = 9
 echo php "$@" >> COMMAND_LOG
 case "$*" in
   *"artisan test --parallel --exclude-group=serial"*)
+    touch .env.testing.bootstrap.parallel-worker
     exit PARALLEL_EXIT_CODE
     ;;
   *"artisan test --group=serial"*)
@@ -146,6 +147,25 @@ test('preflight preserves a parallel test failure when serial tests pass', funct
         expect($exitCode)->toBe(7)
             ->and($commands)->toContain('php artisan test --parallel --exclude-group=serial')
             ->and($commands)->toContain('php artisan test --group=serial');
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
+test('preflight removes generated parallel test bootstrap environment files', function (): void {
+    $root = makePreflightFixture(parallelExitCode: 7, serialExitCode: 0);
+
+    try {
+        $command = sprintf(
+            'cd %s && PATH=%s:$PATH PREFLIGHT_RUN_TESTS=1 bash scripts/preflight.sh 2>&1',
+            escapeshellarg($root),
+            escapeshellarg($root.'/stubs'),
+        );
+
+        exec($command, $output, $exitCode);
+
+        expect($exitCode)->toBe(7)
+            ->and(is_file($root.'/.env.testing.bootstrap.parallel-worker'))->toBeFalse();
     } finally {
         File::deleteDirectory($root);
     }

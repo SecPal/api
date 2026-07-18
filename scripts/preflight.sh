@@ -7,6 +7,16 @@ set -euo pipefail
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 cd "$ROOT_DIR"
 
+cleanup_parallel_test_bootstrap_files() {
+  local bootstrap_environment_file
+
+  shopt -s nullglob
+  for bootstrap_environment_file in "$ROOT_DIR"/.env.testing.bootstrap.*; do
+    rm -f -- "$bootstrap_environment_file"
+  done
+  shopt -u nullglob
+}
+
 # Check if pushing from a protected branch
 CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
 PROTECTED_BRANCHES=("main" "master" "production")
@@ -140,6 +150,8 @@ if [ -f composer.json ]; then
       elif [ -x ./vendor/bin/phpunit ]; then
         ./vendor/bin/phpunit || TEST_EXIT=$?
       fi
+
+      cleanup_parallel_test_bootstrap_files
 
       if [ "$TEST_EXIT" -ne 0 ]; then
         echo "" >&2
