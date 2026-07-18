@@ -82,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- removed stale npm and npx Composer script commands that required an untracked Node manifest, so setup and development work with the repository's tracked PHP tooling only (fixes `api#1329`)
+- removed stale npm and npx Composer script commands that required an untracked Node manifest while preserving the PHP server, queue worker, and log viewer in the development workflow (fixes `api#1329`)
 - denied Employee Qualification attachment for callers with obsolete organizational-unit scopes, keeping the mutation fail closed until Legal Entity/establishment entitlements are available (fixes `api#1333`)
 - corrected tracked Laravel, Sanctum, and Spatie configuration-template SPDX provenance to retain their MIT licenses and upstream copyright notices, and documented the third-party license audit and distribution obligations (refs `api#1220`)
 - aligned OpenTimestamps calendar submission with the Python runtime's `DEFAULT_AGGREGATORS` list and added script-level regression coverage using the installed library's merge and proof-serialization implementations; submission remains sequential and requires one successful response (fixes `api#1277`)
