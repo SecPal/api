@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
  */
 
+use Illuminate\Support\Str;
 use Symfony\Component\Process\Process;
 
 it('keeps setup and development scripts independent of untracked Node assets', function (): void {
@@ -43,4 +44,44 @@ it('describes the PHP development services without starting them', function (): 
         ->toContain('Laravel development server')
         ->toContain('queue worker')
         ->toContain('log viewer');
+});
+
+it('describes the PHP development services without installed dependencies', function (): void {
+    $temporaryDirectory = storage_path('framework/testing/'.Str::uuid());
+    $temporaryScript = $temporaryDirectory.'/scripts/dev.php';
+    mkdir(dirname($temporaryScript), 0755, true);
+    copy(base_path('scripts/dev.php'), $temporaryScript);
+
+    try {
+        $process = new Process([PHP_BINARY, $temporaryScript, '--help'], $temporaryDirectory);
+        $process->setTimeout(2);
+        $process->run();
+
+        expect($process->isSuccessful())->toBeTrue()
+            ->and($process->getOutput())->toContain('Laravel development server');
+    } finally {
+        unlink($temporaryScript);
+        rmdir(dirname($temporaryScript));
+        rmdir($temporaryDirectory);
+    }
+});
+
+it('reports missing dependencies before starting the PHP development services', function (): void {
+    $temporaryDirectory = storage_path('framework/testing/'.Str::uuid());
+    $temporaryScript = $temporaryDirectory.'/scripts/dev.php';
+    mkdir(dirname($temporaryScript), 0755, true);
+    copy(base_path('scripts/dev.php'), $temporaryScript);
+
+    try {
+        $process = new Process([PHP_BINARY, $temporaryScript], $temporaryDirectory);
+        $process->setTimeout(2);
+        $process->run();
+
+        expect($process->getExitCode())->toBe(1)
+            ->and($process->getErrorOutput())->toContain('Dependencies are unavailable. Run composer install.');
+    } finally {
+        unlink($temporaryScript);
+        rmdir(dirname($temporaryScript));
+        rmdir($temporaryDirectory);
+    }
 });

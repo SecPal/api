@@ -11,8 +11,6 @@ declare(strict_types=1);
 use Symfony\Component\Process\PhpExecutableFinder;
 use Symfony\Component\Process\Process;
 
-require dirname(__DIR__).'/vendor/autoload.php';
-
 if (in_array('--help', $argv, true) || in_array('-h', $argv, true)) {
     fwrite(STDOUT, <<<'HELP'
 Starts the SecPal API development services together:
@@ -26,6 +24,16 @@ HELP);
 
     exit(0);
 }
+
+$autoloadPath = dirname(__DIR__).'/vendor/autoload.php';
+
+if (! is_file($autoloadPath)) {
+    fwrite(STDERR, "Dependencies are unavailable. Run composer install.\n");
+
+    exit(1);
+}
+
+require $autoloadPath;
 
 $php = (new PhpExecutableFinder)->find(false);
 
