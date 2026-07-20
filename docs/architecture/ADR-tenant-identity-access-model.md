@@ -5,12 +5,13 @@ SPDX-License-Identifier: CC0-1.0
 
 # ADR: Tenant, Identity, Employee, and Access Model
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-20
-- **Functional deciders:** SecPal product and domain owners; approval pending
+- **Decision authority:** SecPal Product and Domain Owner
+- **Decision date:** 2026-07-20
 - **Scope:** Cross-repository functional and technical baseline for the subsequent redesign
 
-Before the status changes to `Accepted`, the functional deciders must be named concretely or referenced through unambiguously defined responsible project roles. No person is inferred by this ADR. After explicit functional approval by those deciders, the status will be changed to `Accepted`.
+This ADR was accepted after functional and architectural review by the SecPal Product and Domain Owner.
 
 ## Context and problem statement
 
@@ -24,7 +25,7 @@ Existing-installation data migration, transitional tables, dual writes, deprecat
 
 The current state conflates global identity, tenant assignment, key ownership, employment status, and access. `app/Models/User.php` binds a user to `tenant_id`; `app/Http/Middleware/InjectTenantId.php` derives context from it; `app/Http/Middleware/SetTenant.php` also accepts a route value or `X-Tenant`. Functional foreign keys currently point to `tenant_keys`, and `app/Casts/EncryptedWithDek.php` resolves `TenantKey::findOrFail($attributes['tenant_id'])`. This incorrectly treats a cryptographic key container as the company itself. `LegalEntity`, `OrganizationalUnit`, its closure table, and `UserInternalOrganizationalScope` add further layers that conflict with the target model.
 
-For these subjects, this ADR supersedes `.github/docs/adr/20251219-user-based-tenant-resolution.md`, `20251126-organizational-structure-hierarchy.md`, `20251221-inheritance-blocking-and-leadership-access-control.md`, and `20251227-simplify-management-level-to-integer-field-adr011.md` once this ADR is accepted.
+For these subjects, this ADR supersedes `.github/docs/adr/20251219-user-based-tenant-resolution.md`, `20251126-organizational-structure-hierarchy.md`, `20251221-inheritance-blocking-and-leadership-access-control.md`, and `20251227-simplify-management-level-to-integer-field-adr011.md`.
 
 ## Binding domain boundaries
 
@@ -423,7 +424,7 @@ Negative consequences are new Tenant and membership context infrastructure, a se
 
 ### `SecPal/.github`
 
-- Mark superseded ADRs and `docs/adr/README.md` consistently after this ADR is accepted. Align `docs/openapi.md`, `docs/legal-compliance.md`, `docs/feature-requirements.md`, architecture guidance, and validation scripts.
+- Mark superseded ADRs and `docs/adr/README.md` consistently against this accepted baseline. Align `docs/openapi.md`, `docs/legal-compliance.md`, `docs/feature-requirements.md`, architecture guidance, and validation scripts.
 - Track the separate Global Identity Key security design/ADR and repository-specific implementation sub-issues before implementation begins.
 - Ensure reusable checks reject old TenantKey-as-Tenant assumptions, deprecated API surfaces, domain-policy drift, and unlicensed architecture documentation.
 
@@ -447,7 +448,7 @@ Negative consequences are new Tenant and membership context infrastructure, a se
 
 ## Implementation order
 
-1. Approve this ADR and complete the Global Identity Key security design.
+1. Complete the Global Identity Key security design.
 2. Define the clean Tenant/TenantKey, User, membership, Employee projection, access, encryption, and history schemas and API contracts.
 3. Implement API key resolution, context, membership lifecycle, authorization, encryption, BWR-export removal, and tests.
 4. Implement frontend context, cache clearing, search constraints, and new workflows against the contracts.
