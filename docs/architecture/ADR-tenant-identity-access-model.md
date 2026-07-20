@@ -25,7 +25,7 @@ Existing-installation data migration, transitional tables, dual writes, deprecat
 
 The current state conflates global identity, tenant assignment, key ownership, employment status, and access. `app/Models/User.php` binds a user to `tenant_id`; `app/Http/Middleware/InjectTenantId.php` derives context from it; `app/Http/Middleware/SetTenant.php` also accepts a route value or `X-Tenant`. Functional foreign keys currently point to `tenant_keys`, and `app/Casts/EncryptedWithDek.php` resolves `TenantKey::findOrFail($attributes['tenant_id'])`. This incorrectly treats a cryptographic key container as the company itself. `LegalEntity`, `OrganizationalUnit`, its closure table, and `UserInternalOrganizationalScope` add further layers that conflict with the target model.
 
-For these subjects, this ADR supersedes `.github/docs/adr/20251219-user-based-tenant-resolution.md`, `20251126-organizational-structure-hierarchy.md`, `20251221-inheritance-blocking-and-leadership-access-control.md`, and `20251227-simplify-management-level-to-integer-field-adr011.md`.
+For these subjects, this ADR supersedes `SecPal/.github/docs/adr/20251219-user-based-tenant-resolution.md`, `SecPal/.github/docs/adr/20251126-organizational-structure-hierarchy.md`, `SecPal/.github/docs/adr/20251221-inheritance-blocking-and-leadership-access-control.md`, and `SecPal/.github/docs/adr/20251227-simplify-management-level-to-integer-field-adr011.md`.
 
 ## Binding domain boundaries
 
@@ -87,7 +87,7 @@ Only `TenantMembership` assigns a User to a Tenant; `(user_id, tenant_id)` is un
 
 A TenantMembership establishes a functional Tenant assignment only while at least one current or future basis exists. When every basis disappears, the Tenant assignment ends. The membership record may remain in `ended` state for auditability, traceability, and legally required history. A historically retained membership record is not a current or future Tenant assignment.
 
-Personal data in historical membership records must support minimization or pseudonymization according to purpose and retention policy. An `ended` membership grants no access, is not a selectable Tenant context, and does not prevent deletion of the global User.
+Personal data in historical membership records must support minimization or pseudonymization according to purpose and retention policy. An `ended` membership grants no access, is not a selectable Tenant context, and does not prevent deletion of the global User. Before User deletion, the historical membership's direct User foreign key is set to `null`, or an equivalent non-blocking pseudonymous tombstone strategy is applied. The retained row must neither block User deletion nor be cascade-deleted with the User.
 
 In this ADR, an effective Access Grant means a complete, effective Access Assignment and its applicable scope targets. A current or future Tenant assignment requires at least one of these bases:
 
@@ -230,7 +230,7 @@ Audit records Tenant switches, invitations, rights grants/revocations, membershi
 erDiagram
     TENANT ||--|| TENANT_KEY : owns_key_container
     TENANT_GROUP o|--o{ TENANT : groups_organizationally
-    USER ||--o{ TENANT_MEMBERSHIP : has
+    USER o|--o{ TENANT_MEMBERSHIP : links_while_retained
     TENANT ||--o{ TENANT_MEMBERSHIP : contains
     TENANT ||--o{ ESTABLISHMENT : owns
     TENANT ||--o{ EMPLOYEE : owns_record
@@ -257,7 +257,7 @@ erDiagram
     }
     TENANT_MEMBERSHIP {
       uuid id
-      uuid user_id
+      uuid user_id_nullable
       uuid tenant_id
       uuid employee_id_nullable
       string state
@@ -282,7 +282,7 @@ erDiagram
     }
 ```
 
-The diagram is conceptual. `effective_contract_projection` is the one authoritative Employee projection: it may represent the agreed initial state before first employment begins, and otherwise represents only the currently effective state. Future changes remain effective-dated contractual evidence until transactionally applied. A membership row may persist in `ended` state as history without representing a current or future Tenant assignment. An Access Assignment can have several scope targets; the physical relational design remains open. Several historical invitations may activate or reactivate one membership, while each invitation activates at most one membership. `TenantGroup` intentionally has no edge to access. `LegalEntity`, `OrganizationalUnit`, closure tables, `UserInternalOrganizationalScope`, replacement hierarchies, reporting lines, and simultaneous current establishment assignments for one Employee are prohibited.
+The diagram is conceptual. `effective_contract_projection` is the one authoritative Employee projection: it may represent the agreed initial state before first employment begins, and otherwise represents only the currently effective state. Future changes remain effective-dated contractual evidence until transactionally applied. A membership row may persist in `ended` state as history without representing a current or future Tenant assignment. Its direct User link is nullable so User deletion can use `SET NULL`, or an equivalent pseudonymous tombstone design, without deleting the historical row. An Access Assignment can have several scope targets; the physical relational design remains open. Several historical invitations may activate or reactivate one membership, while each invitation activates at most one membership. `TenantGroup` intentionally has no edge to access. `LegalEntity`, `OrganizationalUnit`, closure tables, `UserInternalOrganizationalScope`, replacement hierarchies, reporting lines, and simultaneous current establishment assignments for one Employee are prohibited.
 
 ## Authentication and tenant-selection flow
 
@@ -393,7 +393,7 @@ Negative consequences are new Tenant and membership context infrastructure, a se
 - **Encryption to review and improve:** `app/Models/OnboardingFormSubmission.php` currently uses Laravel `encrypted:array` for `form_data`, which does not establish a Tenant-specific key boundary. Move it to Tenant-specific encryption. Review sensitive Employee and other JSON/array fields; insurance, contact, financial, health, and security fields; file metadata for unnecessary plaintext; export and temporary paths; and all new contract, termination, and personnel-record documents.
 - **Global identity encryption:** Add `users.email_enc` and globally unique `users.email_idx`, normalization and lookup services, and a separate Global Identity Key boundary. A separate security design/ADR must define concrete key hierarchy, rotation, recovery, backup, and operations before implementation.
 - **BWR export removal:** Delete `app/Services/BewacherregisterExportService.php`, `app/Exceptions/BewacherregisterExportNotReadyException.php`, `app/Http/Requests/ExportEmployeeBwrRequest.php`, export/download methods in `app/Http/Controllers/Api/V1/EmployeeController.php`, routes in `routes/api.php`, related permissions, `tests/Unit/Services/BewacherregisterExportServiceTest.php`, other export/download feature tests, OpenAPI contracts, and README/compliance/changelog/translation text. Preserve and reassess BWR ID, status, manual-reporting dates, authority decisions, state changes, compliance checks, and documented manual processing.
-- **Lifecycle/audit/retention:** Centralize Tenant-spanning basis checks, credential revocation, invitation locking, priority-based membership state, document visibility, retention classification, legal hold, historical membership minimization/pseudonymization, and audit redaction. Ended history does not preserve a User. Employee records and retained documents survive User deletion.
+- **Lifecycle/audit/retention:** Centralize Tenant-spanning basis checks, credential revocation, invitation locking, priority-based membership state, document visibility, retention classification, legal hold, historical membership minimization/pseudonymization, nullable or equivalent tombstoned historical User links, and audit redaction. Ended history does not preserve a User and is not cascade-deleted with one. Employee records and retained documents survive User deletion.
 - **High-risk tests:** Replace `tests/Feature/SetTenantMiddlewareTest.php`, `InjectTenantIdMiddlewareTest.php`, `UserTenantRelationshipTest.php`, LegalEntity/OrganizationalUnit tests, `RoleApiTest.php`, `UserPermissionAssignmentApiTest.php`, `TemporalRoleUserTest.php`, Employee lifecycle, contract-projection scheduling, membership-state priority, ended-history deletion, key-resolution, encryption, invitation-concurrency, credential-revocation, file-ciphertext, and cross-Tenant tests. Existing behavior tests are replaced as a breaking baseline, not carried through aliases.
 
 ### `SecPal/contracts`
