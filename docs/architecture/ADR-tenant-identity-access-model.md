@@ -37,9 +37,13 @@ A tenant represents exactly one legal entity or company. Legal entities exist on
 
 Tenants are provisioned exclusively through a privileged Artisan command. There is no user permission and no API endpoint for creating a tenant. The command creates the tenant and minimally required technical initial data, but no implicitly privileged membership.
 
+The same privileged operational ceremony must explicitly bootstrap the first authority. It creates a one-time invitation with an enumerated initial set of planned permissions and scopes after independently authorizing the operator. It creates neither a membership nor effective rights before acceptance. Acceptance creates the first membership and only the assignments named in that invitation. This auditable bootstrap invitation is the sole exception to membership-authorized inviting; all subsequent invitations and grants use the normal tenant-specific delegation rules.
+
 ### Global identity and membership
 
-`User` is global and may exist without a tenant assignment, for example until an invitation is accepted and registration completes successfully. Its data is limited to authentication, normalized email, MFA, passkeys, language, global blocking, and comparable identity characteristics. `users.tenant_id` is removed. No individual identity has a special status or policy bypass.
+`User` is global. A new user is persisted only when registration and invitation acceptance complete successfully and the membership is created in the same transaction; incomplete registration state is not a tenantless `User`. An existing user may have no active tenant context while membership selection is pending. User data is limited to authentication, email, MFA, passkeys, language, global blocking, and comparable identity characteristics. `users.tenant_id` is removed. No individual identity has a special status or policy bypass.
+
+Email remains protected personal data. Application writes use transient `email_plain`, storage uses `email_enc`, and normalized global lookup uses a globally unique `email_idx`; plaintext normalized email is never persisted or queried. Because `User` is tenant-independent, encryption and blind-index keys use a dedicated global identity-key boundary with rotation and audit controls rather than a tenant key. Application code never reads `email_enc` directly.
 
 Only `TenantMembership` assigns a user to a tenant; `(user_id, tenant_id)` is unique. It may optionally link to exactly one employee in the same tenant. A user may link to different employee records in different tenants. A membership is not a permission.
 
@@ -48,13 +52,13 @@ A membership exists only while at least one basis is current or future:
 1. a current or future employment relationship in the tenant; or
 2. at least one current or future rights assignment in the tenant.
 
-Without both bases, it ends. An external user may therefore exist without an employee; an employee may exist without a user or membership.
+An assignment owns only its own validity interval; its presence contributes a membership basis but does not store or replace membership lifecycle state. When neither basis is current or future, the membership ends. An external user may therefore exist without an employee; an employee may exist without a user or membership.
 
 ### Active tenant context
 
-The active context is the concrete valid `TenantMembership`, stored in the browser session or the access-token/device context. It is never resolved from a URL, `/tenants/{tenant}/…`, `X-Tenant` header, payload, query, or `users.tenant_id`. On every request, the server verifies that the stored membership remains valid and belongs to the authenticated user.
+The active context is the concrete valid `TenantMembership`, stored in the browser session or the access-token/device context. An ordinary functional request never resolves or overrides it from a URL, `/tenants/{tenant}/…`, `X-Tenant` header, payload, query, or `users.tenant_id`. A dedicated selection/switch command may carry a membership identifier only as the requested target; the server resolves it through the authenticated user's valid memberships and never trusts a supplied tenant identifier as authorization evidence. On every request, the server verifies that the stored membership remains valid and belongs to the authenticated user.
 
-When exactly one valid membership exists, the system activates it automatically. When several exist, the user chooses `ask` (choose after sign-in) or `resume_last` (open the last still-valid membership for that session/device) in their profile. Invalid or ended memberships require a new choice. Every switch revokes or clears tenant-dependent role, permission, scope, UI, offline, and server caches before data from the new context becomes visible.
+When exactly one valid membership exists, the system activates it automatically. When several exist, the user chooses `ask` (choose after sign-in) or `resume_last` (open the last still-valid membership for that session/device) in their profile. Invalid or ended memberships require a new choice. Every switch validates the target, invalidates the old context, and revokes or clears tenant-dependent role, permission, scope, UI, offline, and server caches before committing the new context and exposing its data. A failed switch leaves no mixed context. Bearer-token switching rotates or revokes the previous tenant-bound token, or atomically updates an equivalent server-side context reference.
 
 ### Permissions, scopes, and delegation
 
@@ -64,9 +68,9 @@ All functional roles and permissions are tenant-specific and assigned exclusivel
 - **Scope:** Which data/resources does that action apply to?
 - **Validity:** The assignment's `[valid_from, valid_until)` interval.
 
-Scopes support at least tenant-wide access, an individual establishment, an individual customer, and an individual `Site`; one assignment may contain several concrete target resources. Examples include `employees.read` for Bremen, `guardbook.write` for Airport, `site_documents.read` for selected customer sites, and explicitly assigned tenant-wide access. A permission without an applicable scope permits no functional action; a scope without a permission does not either. Employee status, establishment assignment, position, management level, and contract never grant rights automatically.
+Scopes support at least tenant-wide access, an individual establishment, an individual customer, and an individual `Site`; one assignment may contain several concrete target resources. Every concrete scope target must exist in the assignment membership's tenant when assigned and whenever authorization is evaluated. Tenant-wide scope is derived from that membership's tenant and never from a client-supplied tenant identifier. Cross-tenant targets are invalid; database constraints enforce this where representable, with mandatory service-level validation for polymorphic targets. Examples include `employees.read` for Bremen, `guardbook.write` for Airport, `site_documents.read` for selected customer sites, and explicitly assigned tenant-wide access. A permission without an applicable scope permits no functional action; a scope without a permission does not either. Employee status, establishment assignment, position, management level, and contract never grant rights automatically.
 
-Inviting requires an explicit tenant-specific permission. Assigning roles, permissions, or scopes requires separate explicit permissions; `memberships.invite` alone must not grant arbitrary rights. Delegation is limited to the assigner's own membership and tenant. The first membership receives no implicit special position.
+Except for the audited operational bootstrap invitation, inviting requires an explicit tenant-specific permission. Assigning roles, permissions, or scopes requires separate explicit permissions; `memberships.invite` alone must not grant arbitrary rights. Delegation is limited to the assigner's own valid membership and tenant and to an explicit catalog of rights that permission allows the assigner to grant. No generic assignment permission permits arbitrary privilege amplification; scope and validity may not exceed the applicable delegation boundary. The first membership receives no implicit special position: its authority consists solely of the bootstrap invitation's explicit assignments.
 
 ### Employee, employment, contract, and establishment
 
@@ -78,15 +82,15 @@ Termination workflows have separate states for draft, approval, printing, signat
 
 ### Invitations, membership end, and deletion
 
-An invitation is tenant-bound, one-time, time-limited, and token-based; tokens are stored only as hashes. It is not an active membership. Inviting performs a global normalized-email lookup without unnecessarily disclosing to the inviter whether an account exists. An existing user accepts using their account; a new user receives a registration link and is only created after successful completion. Acceptance atomically creates/reactivates the membership and planned rights. Invitations and planned rights may have separate validity periods.
+An invitation is tenant-bound, one-time, time-limited, and token-based; tokens are stored only as unique hashes. It is not an active membership. Inviting normalizes the supplied email at the application boundary and performs the global lookup only through `users.email_idx`, without persisting the normalized plaintext or unnecessarily disclosing to the inviter whether an account exists. An existing user accepts using their account; a new user receives a registration link and is only created after successful completion. Acceptance locks and atomically consumes the invitation, revalidates its tenant, planned rights, scopes, and validity, and creates/reactivates the membership and planned rights exactly once. Concurrent or replayed acceptance cannot create duplicate memberships or assignments. Invitations and planned rights may have separate validity periods.
 
-When the last current or future employment relationship ends and no current or future rights remain, the membership ends. When no current or future membership basis remains across all tenants, the global user is deleted. Before deletion, sessions, access and reset tokens, MFA, passkeys, and other credentials are revoked or deleted. Personnel records, agreements, establishment history, and legally retained documents remain. The check is centralized and tenant-spanning; one expiring personnel record must not delete a user who still has a basis elsewhere.
+When the last current or future employment relationship ends and no current or future rights remain, the membership ends. When no current or future membership basis remains across all tenants, the global user is deleted. Every flow that adds, changes, accepts, revokes, or expires a basis acquires the same identity lifecycle lock. The tenant-spanning decision then rechecks every basis in the same transaction so concurrent employment, invitation acceptance, or rights changes cannot race with deletion. Ended memberships are denied immediately; credential cleanup is idempotent and fail-closed. Before deletion, sessions, access and reset tokens, MFA, passkeys, and other credentials are revoked or deleted. Personnel records, agreements, establishment history, and legally retained documents remain. One expiring personnel record must not delete a user who still has a basis elsewhere. A pending invitation is not a membership basis; if its target account was deleted before acceptance, the neutral acceptance flow requires successful registration and recreates the identity and membership atomically.
 
 A future customer user remains a global user with membership in the security company's tenant and Customer/Site scopes. A customer does not thereby become a tenant. Scopes do not make documents generally visible; explicit approval or visibility classification is additionally required.
 
 ## Tenant provisioning through Shell
 
-Provisioning is an exclusively privileged operational process and runs only through an Artisan command. The command name, parameters, operational authorization, and seed content remain open and are intentionally not pre-decided. Binding requirements are: the command creates one tenant as the sole legal entity and audits execution; neither a functional permission nor an HTTP interface may create a tenant. It automatically grants no rights to a user identity or membership.
+Provisioning is an exclusively privileged operational process and runs only through an Artisan command. The command name, parameters, operational authorization, and technical seed content remain open and are intentionally not pre-decided. Binding requirements are: the command creates one tenant as the sole legal entity, records the independently authorized operator, and audits execution; neither a functional permission nor an HTTP interface may create a tenant. It automatically grants no effective rights to a user identity or membership. Instead, it stores the explicitly requested, one-time bootstrap invitation and its enumerated planned assignments for atomic activation on acceptance.
 
 ## Domain overview
 
@@ -107,10 +111,11 @@ erDiagram
     TENANT ||--o{ CUSTOMER : owns
     CUSTOMER ||--o{ SITE : owns
     TENANT ||--o{ INVITATION : issues
-    INVITATION o|--o| TENANT_MEMBERSHIP : activates_on_acceptance
+    INVITATION }o--o| TENANT_MEMBERSHIP : activates_on_acceptance
     USER {
       uuid id
-      string normalized_email
+      text email_enc
+      string email_idx
       string auth_identity
     }
     TENANT_MEMBERSHIP {
@@ -134,7 +139,7 @@ erDiagram
     }
 ```
 
-`TenantGroup` intentionally has no edge to `ACCESS_ASSIGNMENT`. `LegalEntity`, `OrganizationalUnit`, the closure table, `UserInternalOrganizationalScope`, reporting relations, and simultaneous current establishment assignments for one employee are not modeled and are prohibited.
+Several historical invitations may activate or reactivate the same membership, while each invitation activates at most one membership. `TenantGroup` intentionally has no edge to `ACCESS_ASSIGNMENT`. `LegalEntity`, `OrganizationalUnit`, the closure table, `UserInternalOrganizationalScope`, reporting relations, and simultaneous current establishment assignments for one employee are not modeled and are prohibited.
 
 ## Authentication and tenant-selection flow
 
@@ -182,8 +187,9 @@ sequenceDiagram
     participant S as Invitation service
     participant U as Global user
     participant R as Registration
+    Note over I,S: Normal flow; bootstrap uses the privileged command and explicit planned assignments
     I->>S: invite with tenant-specific permission
-    S->>S: normalize email; hash token; store expiry
+    S->>S: normalize email; derive email_idx; hash token; store expiry
     alt User exists
         S-->>U: neutral acceptance message
         U->>S: accept using existing account
@@ -191,7 +197,7 @@ sequenceDiagram
         S-->>R: registration link
         R->>S: complete registration successfully
     end
-    S->>S: atomically create/reactivate membership + planned rights
+    S->>S: lock + consume invitation; revalidate and atomically create/reactivate membership + planned rights
     S-->>U: membership can now become active
 ```
 
@@ -278,17 +284,17 @@ Negative consequences are new central context infrastructure, more explicit assi
 
 ## Open detail decisions before implementation phases
 
-1. Physical names, key types, constraints, and delete/soft-delete semantics of new tables.
+1. Physical names, key types, constraints, and delete/soft-delete semantics of new tables, except the binding personal-data pattern (`*_plain` input, `*_enc` storage, and `*_idx` lookup).
 2. Whether roles are only bundles of tenant-specific permissions and how their templates are provisioned; no global functional role.
-3. Exact scope representation (polymorphic target versus separate tables) and rules for several scope targets per assignment.
+3. Exact scope representation (polymorphic target versus separate tables) and rules for several scope targets per assignment, while preserving the binding same-tenant invariant.
 4. Exact meaning of “current” for time zones, jobs, `valid_until`, and future invitations/rights.
-5. Token/session model: membership ID in token, server-side context reference, or both; rotation and revocation propagation.
+5. Token/session model: membership ID in token, server-side context reference, or both; exact rotation and revocation propagation while preserving atomic, fail-closed switching.
 6. Behaviour of open sessions/offline data on switching and on subsequent rights revocation.
-7. Minimum set of delegable permissions and whether an assigner may grant only equally or more narrowly scoped rights.
+7. Concrete delegable-permission catalog, role packaging, and scope/validity ceilings within the binding no-arbitrary-amplification rule.
 8. Complete Employment state machine and authoritative evidence for termination receipt, notice expiry, and employment end.
 9. Data categories, visibility classifications, legal bases, retention rules, and legal-hold process after compliance validation.
 10. Public invitation/registration URLs and UX, rate limits, and abuse prevention without disclosing account existence.
-11. Tenant-command interface, operational authorization, seed content, and provisioning audit.
+11. Tenant-command interface, operational authorization mechanism, technical seed content, bootstrap-invitation parameters, and provisioning audit shape.
 12. Concrete customer-portal document approvals and whether customer users may access additional tenants.
 
 ## Implementation order
