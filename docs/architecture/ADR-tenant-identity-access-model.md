@@ -5,117 +5,237 @@ SPDX-License-Identifier: CC0-1.0
 
 # ADR: Tenant, Identity, Employee, and Access Model
 
-- **Status:** Accepted — binding target architecture
+- **Status:** Proposed
 - **Date:** 2026-07-20
+- **Functional deciders:** SecPal product and domain owners; approval pending
 - **Scope:** Cross-repository functional and technical baseline for the subsequent redesign
+
+After functional approval, the status will be changed to `Accepted`.
 
 ## Context and problem statement
 
-SecPal is at version 0.x and has neither production data nor compatibility requirements. The redesign will therefore establish a clean baseline using `migrate:fresh --seed`. Existing-installation migrations, transitional tables, dual writes, and old API aliases are explicitly excluded.
+SecPal is at version 0.x and has neither production data nor compatibility requirements. The redesign therefore establishes a clean baseline using:
 
-The current state conflates global identity, tenant assignment, employment, and access. For example, `api/app/Models/User.php` requires `tenant_id` on the user, while `api/app/Http/Middleware/InjectTenantId.php` derives context from it. In parallel, `api/app/Http/Middleware/SetTenant.php` accepts tenant values from a route or `X-Tenant`. `LegalEntity`, `OrganizationalUnit`, its closure table, and `UserInternalOrganizationalScope` add further layers that conflict with the target model. For these subjects, this ADR supersedes `.github/docs/adr/20251219-user-based-tenant-resolution.md`, `20251126-organizational-structure-hierarchy.md`, `20251221-inheritance-blocking-and-leadership-access-control.md`, and `20251227-simplify-management-level-to-integer-field-adr011.md`.
+```bash
+php artisan migrate:fresh --seed
+```
 
-## Binding decisions
+Existing-installation data migration, transitional tables, dual writes, deprecated aliases, and compatibility endpoints are explicitly excluded. Deprecated code will be removed without replacement in later implementation changes.
 
-### Domain boundaries
+The current state conflates global identity, tenant assignment, key ownership, employment status, and access. `app/Models/User.php` binds a user to `tenant_id`; `app/Http/Middleware/InjectTenantId.php` derives context from it; `app/Http/Middleware/SetTenant.php` also accepts a route value or `X-Tenant`. Functional foreign keys currently point to `tenant_keys`, and `app/Casts/EncryptedWithDek.php` resolves `TenantKey::findOrFail($attributes['tenant_id'])`. This incorrectly treats a cryptographic key container as the company itself. `LegalEntity`, `OrganizationalUnit`, its closure table, and `UserInternalOrganizationalScope` add further layers that conflict with the target model.
 
-| Layer                 | Binding meaning                                 | Must not mean                                 |
-| --------------------- | ----------------------------------------------- | --------------------------------------------- |
-| Global User           | Global authentication identity                  | Tenant, functional role, permission, or scope |
-| Tenant                | Exactly one legal entity/company                | Group of legal entities or an establishment   |
-| TenantMembership      | Only User–Tenant assignment and context carrier | Automatic functional authorization            |
-| Permission Assignment | Permits an action for a membership              | Data scope or membership lifetime             |
-| Scope                 | Limits a permitted action to data/resources     | Permission or hierarchy                       |
-| Employee              | Tenant-bound personnel record                   | Global identity or source of authorization    |
-| Employment            | Current/future employment relationship          | Legal termination based on a draft alone      |
-| Establishment         | Tenant establishment                            | Separate tenant or legal entity               |
-| Customer/Site         | Tenant customer and customer site               | Automatic document access                     |
+For these subjects, this ADR supersedes `.github/docs/adr/20251219-user-based-tenant-resolution.md`, `20251126-organizational-structure-hierarchy.md`, `20251221-inheritance-blocking-and-leadership-access-control.md`, and `20251227-simplify-management-level-to-integer-field-adr011.md` once this ADR is accepted.
 
-### Tenant, legal entity, and provisioning
+## Binding domain boundaries
 
-A tenant represents exactly one legal entity or company. Legal entities exist only at tenant level. `LegalEntity` and every `legal_entity_id` reference are removed completely. An optional `TenantGroup` may group tenants for organizational purposes only; it creates neither rights nor inheritance.
+| Layer             | Binding meaning                                                                               | Must not mean                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Global User       | Tenant-independent authentication identity                                                    | Tenant, employee record, functional role, permission, or scope |
+| Tenant            | Exactly one legal entity/company                                                              | Cryptographic key, group of legal entities, or establishment   |
+| TenantKey         | Cryptographic key container in a 1:1 relationship with Tenant                                 | Functional tenant identity or target of domain foreign keys    |
+| TenantMembership  | Only User–Tenant assignment and active-context carrier                                        | Automatic functional authorization                             |
+| Access Assignment | Permission or role, applicable scope targets, validity, and revocation state for a membership | Employee property or global authorization                      |
+| Employee          | Tenant-bound personnel record and current/planned contract projection                         | Global identity or source of automatic authorization           |
+| Establishment     | Tenant establishment/branch                                                                   | Separate tenant or legal entity                                |
+| Customer/Site     | Tenant customer and customer site                                                             | Automatic document access                                      |
 
-Tenants are provisioned exclusively through a privileged Artisan command. There is no user permission and no API endpoint for creating a tenant. The command creates the tenant and minimally required technical initial data, but no implicitly privileged membership.
+## Tenant, TenantKey, legal entity, and provisioning
 
-The same privileged operational ceremony must explicitly bootstrap the first authority. It creates a one-time invitation with an enumerated initial set of planned permissions and scopes after independently authorizing the operator. It creates neither a membership nor effective rights before acceptance. Acceptance creates the first membership and only the assignments named in that invitation. This auditable bootstrap invitation is the sole exception to membership-authorized inviting; all subsequent invitations and grants use the normal tenant-specific delegation rules.
+`Tenant` is the functional legal entity or company. One tenant represents exactly one legal entity. Legal entities exist only at tenant level; `LegalEntity` and every `legal_entity_id` reference are removed completely. An optional `TenantGroup` may group tenants for organizational purposes only and creates neither rights nor inheritance.
 
-### Global identity and membership
+`TenantKey` is exclusively a cryptographic key container. Each tenant has exactly one TenantKey and each TenantKey belongs to exactly one tenant. `tenant_keys.tenant_id` is a unique foreign key to `tenants.id`. Every functional `tenant_id` foreign key points to `tenants.id`; no domain model uses `tenant_keys.id` as a tenant identifier. The current equivalence between `tenant_keys.id` and tenant identity is removed completely.
 
-`User` is global. A new user is persisted only when registration and invitation acceptance complete successfully and the membership is created in the same transaction; incomplete registration state is not a tenantless `User`. An existing user may have no active tenant context while membership selection is pending. User data is limited to authentication, email, MFA, passkeys, language, global blocking, and comparable identity characteristics. `users.tenant_id` is removed. No individual identity has a special status or policy bypass.
+Tenants are provisioned exclusively through a privileged Artisan command. There is no user permission and no HTTP endpoint for creating a tenant. The command creates the Tenant, its TenantKey, and minimally required technical initial data. It grants no implicit rights and creates no implicitly privileged membership.
 
-Email remains protected personal data. Application writes use transient `email_plain`, storage uses `email_enc`, and normalized global lookup uses a globally unique `email_idx`; plaintext normalized email is never persisted or queried. Because `User` is tenant-independent, encryption and blind-index keys use a dedicated global identity-key boundary with rotation and audit controls rather than a tenant key. Application code never reads `email_enc` directly.
+The same privileged operational ceremony explicitly bootstraps the first authority. After independently authorizing the operator, it creates a one-time invitation with an enumerated initial set of planned permissions and scopes. It creates neither a membership nor effective rights before acceptance. Acceptance creates the first membership and only the assignments named in the invitation. This audited bootstrap invitation is the sole exception to membership-authorized inviting; all later invitations and grants follow the normal tenant-specific delegation rules.
 
-Only `TenantMembership` assigns a user to a tenant; `(user_id, tenant_id)` is unique. It may optionally link to exactly one employee in the same tenant. A user may link to different employee records in different tenants. A membership is not a permission.
+## Global identity and encrypted email
 
-A membership exists only while at least one basis is current or future:
+`User` is a global, tenant-independent authentication identity. A new user is persisted only when registration and invitation acceptance complete successfully and user, membership, and planned rights are created atomically. Incomplete registration state is not a tenantless persisted User. An existing user may have no active tenant context while membership selection is pending.
 
-1. a current or future employment relationship in the tenant; or
-2. at least one current or future rights assignment in the tenant.
+User data is limited to authentication, email, MFA, passkeys, language, global blocking, and comparable identity characteristics. `users.tenant_id` is removed. No identity has a special status or policy bypass. There are no global functional roles or permissions.
 
-An assignment owns only its own validity interval; its presence contributes a membership basis but does not store or replace membership lifecycle state. When neither basis is current or future, the membership ends. An external user may therefore exist without an employee; an employee may exist without a user or membership.
+Email addresses are globally unique, normalized consistently before comparison, and compared case-insensitively. Login, invitation, and registration flows must not unnecessarily disclose whether an account exists. The target persistence model is:
 
-### Active tenant context
+- `email_enc`: application-encrypted original email address;
+- `email_idx`: globally unique keyed blind index of the normalized email address.
 
-The active context is the concrete valid `TenantMembership`, stored in the browser session or the access-token/device context. An ordinary functional request never resolves or overrides it from a URL, `/tenants/{tenant}/…`, `X-Tenant` header, payload, query, or `users.tenant_id`. A dedicated selection/switch command may carry a membership identifier only as the requested target; the server resolves it through the authenticated user's valid memberships and never trusts a supplied tenant identifier as authorization evidence. On every request, the server verifies that the stored membership remains valid and belongs to the authenticated user.
+No persistent plaintext column stores the normalized email. Login and global account lookup use `email_idx`; application code never queries ciphertext or reads `email_enc` directly. Global User data is never encrypted with a TenantKey. It uses a dedicated Global Identity Key boundary separated from every TenantKey.
 
-When exactly one valid membership exists, the system activates it automatically. When several exist, the user chooses `ask` (choose after sign-in) or `resume_last` (open the last still-valid membership for that session/device) in their profile. Invalid or ended memberships require a new choice. Every switch validates the target, invalidates the old context, and revokes or clears tenant-dependent role, permission, scope, UI, offline, and server caches before committing the new context and exposing its data. A failed switch leaves no mixed context. Bearer-token switching rotates or revokes the previous tenant-bound token, or atomically updates an equivalent server-side context reference.
+The precise Global Identity Key hierarchy, root protection, rotation, recovery, backup, and operational controls remain to be defined before implementation in a separate security design or ADR. This ADR binds the separation and security properties, not a complete key implementation.
 
-### Permissions, scopes, and delegation
+## Employee, contract, and establishment model
 
-All functional roles and permissions are tenant-specific and assigned exclusively to a membership. Assignments may be current, future, time-limited, revoked, or expired. The model strictly separates:
+An Employee is exactly one personnel record in exactly one Tenant and remains when a linked global User is deleted. The current and planned contract and employment status is stored directly on Employee as the current projection. An Employee has exactly one current contract state at a time. Contract documents, amendments, and other agreements are historical or documentary records. No general table for several simultaneously active employment contracts is introduced.
+
+A current or future employment basis for membership lifecycle is derived from the Employee's current or planned contract projection. Rehire and representation of several employment periods remain an open detail decision and must not be pre-decided through a separate domain entity in this ADR.
+
+During a current employment relationship, an Employee has exactly one current establishment assignment. During a future relationship, one matching future assignment must be schedulable. Assignments use `[valid_from, valid_until)`, must not overlap for the same Employee, and historical assignments never create current rights. Establishments belong to exactly one Tenant, are not legal entities or tenants, and may be closed or deactivated but must not be hard-deleted when relevant history exists.
+
+Historical assignments must reproduce the state at the historical point in time even after the establishment is renamed, re-addressed, recoded, or closed. The implementation may use versioned establishment master data or snapshots of relevant values in the historical assignment structure; that physical choice remains open.
+
+Termination workflows have separate states for draft, approval, printing, signature, dispatch, receipt, notice expiry, and employment end. A digital draft alone never establishes legal employment termination. A scan of the signed original may be added later. The draft, signed original, dispatch, receipt, notice expiry, and employment end remain independently auditable steps.
+
+## Membership bases and states
+
+Only `TenantMembership` assigns a User to a Tenant; `(user_id, tenant_id)` is unique. A membership may optionally link to exactly one Employee in the same Tenant. A User may link to different Employee records in different Tenants. A membership itself grants no functional action.
+
+A membership exists only while at least one basis is current or future. In this ADR, an effective Access Grant means a complete, effective Access Assignment and its applicable scope targets.
+
+1. a current or future employment relationship derived from the linked Employee's current or planned contract projection; or
+2. at least one effective current or future Access Grant.
+
+An Access Grant counts as a membership basis only when the complete combination is effective:
+
+- a valid permission, or a role containing at least one effective permission;
+- at least one applicable scope;
+- a current or future validity interval;
+- a non-revoked state; and
+- every referenced scope target exists in the same Tenant.
+
+A permission without scope, scope without permission, empty role, expired or revoked assignment, invalid target, or cross-tenant target does not preserve a membership.
+
+Membership has exactly these states:
+
+- `planned`: only future bases exist;
+- `active`: at least one currently effective basis exists;
+- `suspended`: an explicit security suspension applies;
+- `ended`: neither a current nor future basis exists.
+
+A planned membership prevents premature deletion of the global User and is visible as a future assignment, but cannot be selected as an active tenant context before `valid_from`. Already-current, explicitly assigned onboarding or self-service permission, scope, and validity combinations make the membership active and may provide a restricted context. A suspended membership cannot be used as an active context regardless of otherwise effective bases. Ending a suspension restores the state derived from the then-effective bases.
+
+State evaluation is centralized and runs after every relevant contract-projection, invitation, Access Grant, or suspension change and on schedule. Assignments own only their own validity intervals; they do not replace membership lifecycle state.
+
+## Active tenant context
+
+The active context is a concrete active `TenantMembership`, stored in the browser session or access-token/device context. Ordinary functional requests never resolve or override it from a URL, `/tenants/{tenant}/…`, `X-Tenant`, payload, query, or `users.tenant_id`. A dedicated selection/switch command may carry only a membership identifier as its requested target. The server resolves that identifier through the authenticated User's selectable memberships and never trusts a supplied tenant identifier as authorization evidence.
+
+When exactly one active membership exists, the system activates it automatically. When several active memberships exist, the User chooses `ask` (choose after sign-in) or `resume_last` (open the last still-valid membership for that session/device). Planned, suspended, invalid, or ended memberships cannot be resumed or selected. If no active membership exists, only global flows remain available.
+
+Every switch validates the target, invalidates the old context, and clears tenant-dependent role, permission, scope, UI, offline, and server caches before committing the new context and exposing its data. A failed switch leaves no mixed context. Bearer-token switching rotates or revokes the previous tenant-bound token, or atomically updates an equivalent server-side context reference.
+
+## Permission, scope, validity, and delegation
+
+All functional roles and permissions are Tenant-specific and assigned exclusively to a TenantMembership. Assignments may be current, future, time-limited, revoked, or expired. Authorization always combines:
 
 - **Permission:** Which action is allowed?
-- **Scope:** Which data/resources does that action apply to?
-- **Validity:** The assignment's `[valid_from, valid_until)` interval.
+- **Scope:** Which data or resources does the action apply to?
+- **Validity:** When is the assignment effective, using `[valid_from, valid_until)`?
 
-Scopes support at least tenant-wide access, an individual establishment, an individual customer, and an individual `Site`; one assignment may contain several concrete target resources. Every concrete scope target must exist in the assignment membership's tenant when assigned and whenever authorization is evaluated. Tenant-wide scope is derived from that membership's tenant and never from a client-supplied tenant identifier. Cross-tenant targets are invalid; database constraints enforce this where representable, with mandatory service-level validation for polymorphic targets. Examples include `employees.read` for Bremen, `guardbook.write` for Airport, `site_documents.read` for selected customer sites, and explicitly assigned tenant-wide access. A permission without an applicable scope permits no functional action; a scope without a permission does not either. Employee status, establishment assignment, position, management level, and contract never grant rights automatically.
+Scopes support at least:
 
-Except for the audited operational bootstrap invitation, inviting requires an explicit tenant-specific permission. Assigning roles, permissions, or scopes requires separate explicit permissions; `memberships.invite` alone must not grant arbitrary rights. Delegation is limited to the assigner's own valid membership and tenant and to an explicit catalog of rights that permission allows the assigner to grant. No generic assignment permission permits arbitrary privilege amplification; scope and validity may not exceed the applicable delegation boundary. The first membership receives no implicit special position: its authority consists solely of the bootstrap invitation's explicit assignments.
+- the entire Tenant;
+- an individual Establishment;
+- an individual Customer;
+- an individual `Site`;
+- `linked_employee`, covering only the Employee linked to the current membership.
 
-### Employee, employment, contract, and establishment
+Self-service examples are `employee.profile.read + linked_employee`, `onboarding.self.read + linked_employee`, and `onboarding.self.update + linked_employee`. The scope grants no implicit action. Without an explicitly assigned permission and effective validity, no self-service access exists.
 
-An employee is exactly one personnel record in exactly one tenant and remains when its linked global user is deleted. The current projection may keep current contract data directly on the employee. Multiple contract documents, amendments, and other agreements are historical/documentary records; there is no general table for several simultaneously active employment contracts.
+One functional Access Assignment may have several concrete targets when they share the same permission or role, validity, and delegation basis. This functional multiplicity is binding. The physical representation remains open: a separate scope-target table, resource-specific scope tables, or another relational design with enforceable foreign keys may be used. Free polymorphic resource references without robust Tenant integrity are not the target design.
 
-During a current employment relationship, an employee has exactly one current establishment assignment. It is historized, may not overlap for an employee, and uses `[valid_from, valid_until)`. During a future relationship, a suitable future assignment must be schedulable. History creates no current rights. Establishments belong to exactly one tenant, are not legal entities, and may be closed/deactivated but must not be hard-deleted when relevant history exists.
+Every concrete target must exist in the assignment membership's Tenant when assigned and whenever authorization is evaluated. Tenant-wide scope is derived from the membership's Tenant. Cross-tenant targets are invalid. Database constraints enforce Tenant integrity wherever representable; mandatory service-level checks cover invariants that cannot be expressed fully in the schema.
 
-Termination workflows have separate states for draft, approval, printing, signature, dispatch, receipt, notice expiry, and employment end. A digital draft alone never establishes legal employment termination. A scan of the signed original may be added to the personnel record later.
+Examples include `employees.read` for Bremen, `guardbook.write` for Airport, `site_documents.read` for selected customer sites, and explicitly assigned tenant-wide access. Employee status, establishment assignment, position, management level, and contract never grant rights automatically.
 
-### Invitations, membership end, and deletion
+Except for the audited bootstrap invitation, inviting requires an explicit Tenant-specific permission. Assigning roles, permissions, or scopes requires separate permissions; `memberships.invite` alone cannot grant arbitrary rights. Delegation is limited to the assigner's own active membership and Tenant and to an explicit catalog of grantable rights. No generic assignment permission permits arbitrary privilege amplification; granted scope and validity cannot exceed the applicable delegation boundary. The first membership has no implicit special position: its authority consists solely of explicit bootstrap assignments.
 
-An invitation is tenant-bound, one-time, time-limited, and token-based; tokens are stored only as unique hashes. It is not an active membership. Inviting normalizes the supplied email at the application boundary and performs the global lookup only through `users.email_idx`, without persisting the normalized plaintext or unnecessarily disclosing to the inviter whether an account exists. An existing user accepts using their account; a new user receives a registration link and is only created after successful completion. Acceptance locks and atomically consumes the invitation, revalidates its tenant, planned rights, scopes, and validity, and creates/reactivates the membership and planned rights exactly once. Concurrent or replayed acceptance cannot create duplicate memberships or assignments. Invitations and planned rights may have separate validity periods.
+## Invitation, membership-end, and user-deletion lifecycles
 
-When the last current or future employment relationship ends and no current or future rights remain, the membership ends. When no current or future membership basis remains across all tenants, the global user is deleted. Every flow that adds, changes, accepts, revokes, or expires a basis acquires the same identity lifecycle lock. The tenant-spanning decision then rechecks every basis in the same transaction so concurrent employment, invitation acceptance, or rights changes cannot race with deletion. Ended memberships are denied immediately; credential cleanup is idempotent and fail-closed. Before deletion, sessions, access and reset tokens, MFA, passkeys, and other credentials are revoked or deleted. Personnel records, agreements, establishment history, and legally retained documents remain. One expiring personnel record must not delete a user who still has a basis elsewhere. A pending invitation is not a membership basis; if its target account was deleted before acceptance, the neutral acceptance flow requires successful registration and recreates the identity and membership atomically.
+An invitation is Tenant-bound, one-time, time-limited, and token-based; only a unique token hash is stored. It is not a membership. The supplied email is normalized at the application boundary and looked up only through `users.email_idx`, without persisting normalized plaintext or unnecessarily disclosing account existence to the inviter.
 
-A future customer user remains a global user with membership in the security company's tenant and Customer/Site scopes. A customer does not thereby become a tenant. Scopes do not make documents generally visible; explicit approval or visibility classification is additionally required.
+An existing User accepts with the existing account. A new User receives a registration link and is created only on successful completion. Acceptance locks and atomically consumes the invitation, revalidates its Tenant, planned rights, scopes, and validity, and creates or reactivates User, membership, and planned rights exactly once. Concurrent or replayed acceptance cannot create duplicates. Invitation validity and planned-rights validity are separate.
 
-## Tenant provisioning through Shell
+When the last current or future contract basis ends and no effective current or future Access Grant remains, the membership becomes `ended`. Every flow that adds, changes, accepts, revokes, or expires a basis acquires the same identity lifecycle lock. The Tenant-spanning decision rechecks all bases in the same transaction so concurrent contract, invitation, or Access Grant changes cannot race with deletion.
 
-Provisioning is an exclusively privileged operational process and runs only through an Artisan command. The command name, parameters, operational authorization, and technical seed content remain open and are intentionally not pre-decided. Binding requirements are: the command creates one tenant as the sole legal entity, records the independently authorized operator, and audits execution; neither a functional permission nor an HTTP interface may create a tenant. It automatically grants no effective rights to a user identity or membership. Instead, it stores the explicitly requested, one-time bootstrap invitation and its enumerated planned assignments for atomic activation on acceptance.
+When no current or future membership basis remains across all Tenants, the global User is deleted. Ended memberships are denied immediately; credential cleanup is idempotent and fail-closed. Before deletion, sessions, access and reset tokens, MFA, passkeys, and other credentials are revoked or deleted. Employee records, agreements, establishment history, and legally retained documents remain. One ending Employee record must not delete a User with another current or future basis. A pending invitation is not itself a membership basis; acceptance by a deleted target account requires successful registration and recreates identity and membership atomically.
+
+A future customer user remains a global User with membership in the security company's Tenant and Customer/Site scopes. A Customer does not become a Tenant. A resource scope does not make every document visible; explicit approval or visibility classification is additionally required.
+
+## Encryption at Rest and Key Boundaries
+
+Sensitive personal, financial, health-related, and security-relevant data is application-encrypted before persistent storage. Tenant-specific sensitive data uses Tenant-specific key material resolved through `Tenant → TenantKey`. Non-sensitive reference, status, and relationship data does not require blanket encryption. Foreign keys, UUIDs, and technical identifiers required for joins generally remain plaintext.
+
+Audit logs contain no decrypted sensitive values. Ciphertext must not be exposed accidentally through API serialization, errors, or logs. Infrastructure encryption for disks, databases, object storage, and backups is additionally required and does not replace application encryption. Key rotation, key recovery, backups, and loss of the root KEK are mandatory operational concerns.
+
+### Schema-defined sensitive fields
+
+A sensitive field uses `field_enc`. When a necessary equality search exists, it uses `field_enc` plus `field_idx`. The blind index is an HMAC or comparably keyed index, uses Tenant-specific index-key material for Tenant data, contains no plaintext, and is created only for an explicitly required search.
+
+Global User email follows the same encrypted-value/blind-index pattern but uses the separate Global Identity Key boundary. It does not use a TenantKey.
+
+### Dynamic sensitive data
+
+Sensitive JSON, array, and form data must not be persisted unencrypted. Tenant-specific dynamic data is encrypted with a Tenant-specific boundary. Shared `APP_KEY` encryption alone is not the target for highly sensitive Tenant data. The concrete Tenant-specific JSON/blob encryption format is an implementation detail.
+
+### Sensitive files
+
+Tenant-specific sensitive files are encrypted before storage, including Employee documents, onboarding files, contract documents, amendments and agreements, termination letters and scans, receipt/delivery evidence, and other personnel-record documents. Storage contains only ciphertext and necessary technical metadata. Plaintext temporary files should be avoided and, when unavoidable, deleted reliably immediately after use.
+
+## Searching encrypted data
+
+Ciphertext is never searched directly. Exact equality searches use normalized keyed blind indexes. Blind indexes preserve exact, normalized, case-insensitive lookup where required and do not enable general decryption.
+
+Typical supported searches include exact normalized surname, exact forename, exact date of birth, normalized phone number, global normalized User email, and other explicitly defined equality searches.
+
+Without additional specialized search indexes, the model does not support `LIKE`, arbitrary substring search, fuzzy search, full-text search, sorting by the encrypted value, or range queries over encrypted numbers or dates. Blind indexes are created only where functionally necessary because deterministic indexes reveal equality relationships between records.
+
+## Establishment, Customer, Site, and customer-portal boundaries
+
+Each Establishment, Customer, and Site belongs to exactly one Tenant. Establishments are internal branches; Customers and Sites represent customer-facing operational resources. None is a legal entity inside the Tenant and none becomes a Tenant automatically.
+
+Customer-portal capability remains possible through global Users, TenantMemberships, and Customer/Site scopes. The portal itself is not part of the first implementation. Scope alone never makes all data or documents visible; explicit release or visibility classification remains required.
+
+## BWR target model
+
+The existing CSV/XML BWR file export is deprecated and will be removed without replacement. There is no evidenced functional import path at the Bewacherregister that requires these files. No deprecated endpoint or compatibility response is retained.
+
+Removal includes:
+
+- `app/Services/BewacherregisterExportService.php`;
+- `app/Exceptions/BewacherregisterExportNotReadyException.php`;
+- BWR export and download methods in `app/Http/Controllers/Api/V1/EmployeeController.php`;
+- BWR export and download routes in `routes/api.php`;
+- `app/Http/Requests/ExportEmployeeBwrRequest.php`;
+- related permissions, unit and feature tests, OpenAPI contracts, and README, compliance, changelog, and translation text for file export.
+
+The removal does not automatically remove the BWR ID, BWR status, manual-notification date, authority-decision date and result, status changes, BWR-related compliance checks, or documented manual processing in the Bewacherregister. The file export ends; the functional BWR process may remain.
+
+## Audit, data protection, and retention boundaries
+
+Retention is modeled per document/data category, at minimum with `retention_class`, `retention_until`, `legal_basis`, and optionally `legal_hold_until`. No single retention period may delete an entire personnel record indiscriminately. Detailed legal retention periods must be separately validated as compliance requirements; this ADR defines none.
+
+Audit records Tenant switches, invitations, rights grants/revocations, membership state changes, User deletion, key operations, and termination-workflow state transitions without unnecessarily duplicating sensitive content. Records reference actors and objects, not plaintext secrets, decrypted values, or complete personnel documents.
 
 ## Domain overview
 
 ```mermaid
 erDiagram
+    TENANT ||--|| TENANT_KEY : owns_key_container
+    TENANT_GROUP o|--o{ TENANT : groups_organizationally
     USER ||--o{ TENANT_MEMBERSHIP : has
     TENANT ||--o{ TENANT_MEMBERSHIP : contains
-    TENANT_GROUP o|--o{ TENANT : groups_organizationally
     TENANT ||--o{ ESTABLISHMENT : owns
-    TENANT ||--o{ EMPLOYEE : employs
+    TENANT ||--o{ EMPLOYEE : owns_record
     TENANT_MEMBERSHIP o|--o| EMPLOYEE : optionally_links
-    EMPLOYEE ||--o{ EMPLOYMENT : has
     EMPLOYEE ||--o{ EMPLOYEE_ESTABLISHMENT_ASSIGNMENT : assigned_over_time
     ESTABLISHMENT ||--o{ EMPLOYEE_ESTABLISHMENT_ASSIGNMENT : receives
-    EMPLOYEE ||--o{ AGREEMENT_DOCUMENT : evidences
+    EMPLOYEE ||--o{ AGREEMENT_DOCUMENT : evidences_history
     TENANT_MEMBERSHIP ||--o{ ACCESS_ASSIGNMENT : receives
-    ACCESS_ASSIGNMENT ||--o{ ACCESS_SCOPE : limits
+    ACCESS_ASSIGNMENT ||--o{ ACCESS_SCOPE_TARGET : limits
     TENANT ||--o{ CUSTOMER : owns
     CUSTOMER ||--o{ SITE : owns
     TENANT ||--o{ INVITATION : issues
     INVITATION }o--o| TENANT_MEMBERSHIP : activates_on_acceptance
+    TENANT_KEY {
+      uuid id
+      uuid tenant_id UK_FK
+      binary encrypted_key_material
+    }
     USER {
       uuid id
       text email_enc
-      string email_idx
+      string email_idx UK
       string auth_identity
     }
     TENANT_MEMBERSHIP {
@@ -123,23 +243,29 @@ erDiagram
       uuid user_id
       uuid tenant_id
       uuid employee_id_nullable
+      string state
+    }
+    EMPLOYEE {
+      uuid id
+      uuid tenant_id
+      string current_or_planned_contract_state
     }
     ACCESS_ASSIGNMENT {
       uuid id
       uuid membership_id
-      string permission
+      string permission_or_role
       datetime valid_from
       datetime valid_until_nullable
+      datetime revoked_at_nullable
     }
-    ACCESS_SCOPE {
-      uuid id
+    ACCESS_SCOPE_TARGET {
       uuid access_assignment_id
       string scope_type
       uuid resource_id_nullable
     }
 ```
 
-Several historical invitations may activate or reactivate the same membership, while each invitation activates at most one membership. `TenantGroup` intentionally has no edge to `ACCESS_ASSIGNMENT`. `LegalEntity`, `OrganizationalUnit`, the closure table, `UserInternalOrganizationalScope`, reporting relations, and simultaneous current establishment assignments for one employee are not modeled and are prohibited.
+The diagram is conceptual. An Access Assignment can have several scope targets; the physical relational design remains open. Several historical invitations may activate or reactivate one membership, while each invitation activates at most one membership. `TenantGroup` intentionally has no edge to access. `LegalEntity`, `OrganizationalUnit`, closure tables, `UserInternalOrganizationalScope`, replacement hierarchies, reporting lines, and simultaneous current establishment assignments for one Employee are prohibited.
 
 ## Authentication and tenant-selection flow
 
@@ -151,158 +277,165 @@ sequenceDiagram
     participant M as Membership service
     participant S as Session/Token context
     U->>C: sign in
-    C->>A: authenticate
-    A->>M: determine valid memberships
-    alt exactly one
-        M-->>S: store that membership as active
-    else several + ask
-        M-->>C: offer selection
+    C->>A: authenticate through email_idx lookup
+    A->>M: determine active memberships
+    alt exactly one active membership
+        M-->>S: store membership as active context
+    else several active memberships + ask
+        M-->>C: offer active memberships
         U->>C: choose membership
-        C->>S: activate selected membership
-    else several + resume_last
-        M->>S: check last valid membership
-        alt valid
-            S-->>C: last membership active
-        else invalid
-            M-->>C: offer selection
+        C->>S: validate and activate membership
+    else several active memberships + resume_last
+        M->>S: validate last membership
+        alt still active
+            S-->>C: resume last membership
+        else invalid, planned, suspended, or ended
+            M-->>C: require new selection
         end
-    else none
+    else no active membership
         M-->>C: no tenant context; global flows only
     end
     C->>A: functional request
     A->>S: validate active membership
     A->>M: validate permission + scope + validity
-    M-->>A: allow/deny
+    M-->>A: allow or deny
     A-->>C: tenant-isolated response
-    Note over C,S: Switching clears all tenant-dependent caches
+    Note over C,S: A switch clears every tenant-dependent cache before exposing data
 ```
 
-## Invitation, membership, and deletion lifecycles
-
-### Invitation flow
+## Invitation flow
 
 ```mermaid
 sequenceDiagram
     participant I as Inviting membership
     participant S as Invitation service
-    participant U as Global user
+    participant U as Global User
     participant R as Registration
-    Note over I,S: Normal flow; bootstrap uses the privileged command and explicit planned assignments
+    Note over I,S: Bootstrap uses the privileged command and explicit planned assignments
     I->>S: invite with tenant-specific permission
     S->>S: normalize email; derive email_idx; hash token; store expiry
     alt User exists
         S-->>U: neutral acceptance message
-        U->>S: accept using existing account
+        U->>S: accept with existing account
     else User does not exist
         S-->>R: registration link
         R->>S: complete registration successfully
     end
-    S->>S: lock + consume invitation; revalidate and atomically create/reactivate membership + planned rights
-    S-->>U: membership can now become active
+    S->>S: lock and consume invitation; revalidate all planned grants
+    S->>S: atomically create/reactivate User, membership, and planned rights
+    S-->>U: membership state derives from effective bases
 ```
 
-### Membership lifecycle
-
-`planned → active` occurs only after successful acceptance and within the applicable validity windows. A central lifecycle service evaluates the two bases after every Employment or Access Assignment change and on schedule. If neither is current nor future, it sets `ended`, invalidates context, and revokes cached data. Reactivation is possible only through a new/accepted invitation or a newly existing basis and is audited.
-
-### User-deletion lifecycle
+## User-deletion lifecycle
 
 ```mermaid
 flowchart TD
-  A[Membership/employment/rights change] --> B{Any current or future basis across all tenants?}
-  B -- yes --> C[Keep user and remaining memberships]
-  B -- no --> D[Revoke/delete all sessions, tokens, MFA, passkeys, and reset tokens]
-  D --> E[Delete global user]
-  E --> F[Retain personnel records, agreements, history, and legally retained documents]
+  A[Contract projection or Access Grant changes] --> B[Acquire identity lifecycle lock]
+  B --> C{Any current or future effective basis across all Tenants?}
+  C -- yes --> D[Keep User and derive membership states]
+  C -- no --> E[Revoke/delete sessions, tokens, MFA, passkeys, and reset tokens]
+  E --> F[Delete global User]
+  F --> G[Retain Employee records, agreements, history, and legally retained documents]
 ```
-
-## Data protection, audit, and retention boundaries
-
-Retention is modeled per document/data category, at minimum with `retention_class`, `retention_until`, `legal_basis`, and optionally `legal_hold_until`. No global retention period may delete a whole personnel record indiscriminately. Data-protection retention details must be separately validated as compliance requirements before implementation; this ADR defines no retention periods.
-
-Audit records tenant switches, invitations, rights grants/revocations, membership end, user deletion, and termination-workflow state transitions without unnecessarily duplicating sensitive content. Records reference actors and objects, not plaintext secrets or complete personnel documents.
 
 ## Consequences
 
-Positive consequences are clear tenant isolation, multi-tenant identities without duplicates, no implicit rights derivation, time-resilient authorization, and legally separated HR lifecycles. Customer-portal capability remains possible without a separate customer tenant.
+Positive consequences are clear Tenant isolation, multi-Tenant identities without duplicates, separation between companies and key containers, no implicit rights derivation, time-bound authorization, searchable encrypted equality fields, and legally separated HR lifecycles. Customer-portal capability remains possible without a separate Customer Tenant.
 
-Negative consequences are new central context infrastructure, more explicit assignment and deletion checks, demanding atomic invitation transactions, and compulsory cache invalidation on context switch. These costs are accepted because they keep the functional layers separate.
+Negative consequences are new Tenant and membership context infrastructure, a separate global identity key boundary, explicit blind-index and key operations, more lifecycle checks, demanding atomic invitation transactions, and compulsory cache invalidation on context switch. Restricted encrypted search is an intentional confidentiality trade-off. These costs are accepted because they preserve Tenant isolation and clear functional boundaries.
 
 ## Explicitly rejected alternatives
 
-- A user with exactly one tenant or `users.tenant_id` as primary context.
-- Tenant resolution from a route, subdomain, `X-Tenant`, request payload, or query.
-- Global functional roles/permissions or special roles/statuses.
-- `LegalEntity` or several legal entities within one tenant.
-- `OrganizationalUnit`, replacement hierarchies, closure table, `UserInternalOrganizationalScope`, management/reporting lines.
-- Parallel current establishment assignments for an employee or rights derived from employee properties.
+- A User with exactly one Tenant or `users.tenant_id` as primary context.
+- Tenant resolution from route, subdomain, `X-Tenant`, request payload, or query.
+- Treating `tenant_keys.id` as a functional Tenant identifier.
+- Encrypting global identity data with a TenantKey.
+- `Admin`, `Tenant-Admin`, `Superuser`, global functional roles/permissions, or any equivalent special privileged role/status.
+- `LegalEntity` or several legal entities within one Tenant.
+- `OrganizationalUnit`, replacement hierarchies, closure tables, `UserInternalOrganizationalScope`, management/reporting lines.
+- A separate general domain entity for contract periods or multiple simultaneously active employment contracts.
+- Parallel current establishment assignments or rights derived from Employee properties.
+- Permission without scope, scope without permission, empty role, or invalid target as a membership basis.
 - An invitation as an immediately effective membership.
-- User deletion because of one employee record.
+- User deletion because one Employee record ends.
+- Plaintext sensitive dynamic data or Tenant-sensitive data protected only by a shared `APP_KEY`.
+- Retaining the BWR CSV/XML export through deprecated endpoints or compatibility responses.
 - Backward-compatibility layers, transitional tables, dual writes, and deprecated aliases.
 
 ## Cross-repository impact inventory
 
 ### `SecPal/api`
 
-- **Current state/domains affected:** `app/Models/User.php`, `TenantKey.php`, `LegalEntity.php`, `OrganizationalUnit.php`, `OrganizationalUnitClosure.php`, `UserInternalOrganizationalScope.php`, `Employee.php`, `Establishment.php`, `Customer.php`, `Site.php`, `TemporalRoleUser.php`, `CustomerAssignment.php`, and `SiteAssignment.php` partly conflate users, tenants, organizational units, and domain scope.
-- **API/authentication:** `routes/api.php`, `app/Http/Middleware/InjectTenantId.php`, `SetTenant.php`, and `AuthController.php` must move to membership context. `/tenants/{tenant}` routes and `X-Tenant` resolution are removed. `app/Policies/*`, `RoleController.php`, `Api/V1/UserPermissionController.php`, and `config/permission.php` must authorize memberships rather than users.
-- **Deprecated components to remove:** Models, migrations, factories, seeders, requests, resources, policies, services, and endpoints for legal entities/organizational units/closure/organizational scope; especially `OrganizationalUnitAccessService.php`, `OrganizationalScopeEntitlementService.php`, `OrganizationalUnitAssignmentService.php`, `CheckOrganizationalScope.php`, and `AssignableOrganizationalUnit.php`. `legal_entity_id` is also removed from Employee/Customer/Establishment.
-- **New components expected:** TenantMembership, Access Assignment/Scope, Invitation, Employment, EmployeeEstablishmentAssignment, contract/agreement and termination workflow, central tenant-spanning lifecycle service, and membership context for session, Sanctum token, and device.
-- **Risk/tests:** `tests/Feature/SetTenantMiddlewareTest.php`, `InjectTenantIdMiddlewareTest.php`, `UserTenantRelationshipTest.php`, organizational-unit/legal-entity migration and policy tests, `RoleApiTest.php`, `UserPermissionAssignmentApiTest.php`, `TemporalRoleUserTest.php`, employee lifecycle, and cross-tenant tests must be replaced. Context confusion, atomic invitations, and credential revocation are the primary risks.
+- **Tenant/key split:** Introduce a functional Tenant model/table; change all functional `tenant_id` foreign keys to `tenants.id`; change TenantKey to a 1:1 key container with unique `tenant_keys.tenant_id`; remove every `TenantKey::find(tenant_id)` assumption. `app/Models/TenantKey.php`, Tenant factories, seeders, provisioning commands, key commands, migrations, and tenant-isolation tests are affected.
+- **Identity/membership/context:** `app/Models/User.php`, `routes/api.php`, `app/Http/Middleware/InjectTenantId.php`, `SetTenant.php`, and `AuthController.php` move to global User plus membership context. `/tenants/{tenant}` and `X-Tenant` context resolution are removed. New components include TenantMembership, membership-state evaluation, Invitation, Access Assignment/scope targets, lifecycle locking, and session/Sanctum/device membership context.
+- **Authorization:** `app/Policies/*`, `RoleController.php`, `Api/V1/UserPermissionController.php`, `TemporalRoleUser.php`, `CustomerAssignment.php`, `SiteAssignment.php`, and `config/permission.php` must authorize active memberships and effective permission/scope/validity combinations. Tests must cover planned, active, suspended, and ended states; empty/expired/revoked grants; invalid or cross-Tenant targets; `linked_employee`; delegation ceilings; and cache invalidation.
+- **Employee/contracts/establishments:** Keep current/planned contract projection directly on `app/Models/Employee.php`; add historical agreement/document and establishment-assignment concepts without a separate contract-period domain entity. Replace overlapping or mutable establishment assumptions and test historical snapshots/versioning, non-overlap, current assignment, and future scheduling.
+- **Deprecated legal/hierarchy code:** Remove `LegalEntity.php`, `OrganizationalUnit.php`, `OrganizationalUnitClosure.php`, `UserInternalOrganizationalScope.php`, their migrations/factories/seeders/requests/resources/policies/controllers/routes/tests, `OrganizationalUnitAccessService.php`, `OrganizationalScopeEntitlementService.php`, `CheckOrganizationalScope.php`, and `AssignableOrganizationalUnit.php`. Remove every `legal_entity_id`. No replacement hierarchy is introduced.
+- **Site assignment service:** Do not delete `app/Services/OrganizationalUnitAssignmentService.php` wholesale. Analyze its Site/SiteAssignment validity and coverage logic, remove actual OrganizationalUnit and `legal_entity_id` dependencies, and rename or move retained behavior into an appropriate Site-assignment or Site-access service.
+- **Encryption to retain and adapt:** Keep `app/Casts/EncryptedWithDek.php`, existing encrypted Employee and EmployeeAddress fields, Tenant-specific blind-index logic, existing key-rotation mechanisms, `app/Services/EmployeeDocumentStorageService.php`, and `app/Services/OnboardingSubmissionFileStorageService.php`. Resolve keys through `Tenant → TenantKey`; never call `TenantKey::find(tenant_id)`.
+- **Encryption to review and improve:** `app/Models/OnboardingFormSubmission.php` currently uses Laravel `encrypted:array` for `form_data`, which does not establish a Tenant-specific key boundary. Move it to Tenant-specific encryption. Review sensitive Employee and other JSON/array fields; insurance, contact, financial, health, and security fields; file metadata for unnecessary plaintext; export and temporary paths; and all new contract, termination, and personnel-record documents.
+- **Global identity encryption:** Add `users.email_enc` and globally unique `users.email_idx`, normalization and lookup services, and a separate Global Identity Key boundary. A separate security design/ADR must define concrete key hierarchy, rotation, recovery, backup, and operations before implementation.
+- **BWR export removal:** Delete `app/Services/BewacherregisterExportService.php`, `app/Exceptions/BewacherregisterExportNotReadyException.php`, `app/Http/Requests/ExportEmployeeBwrRequest.php`, export/download methods in `app/Http/Controllers/Api/V1/EmployeeController.php`, routes in `routes/api.php`, related permissions, `tests/Unit/Services/BewacherregisterExportServiceTest.php`, other export/download feature tests, OpenAPI contracts, and README/compliance/changelog/translation text. Preserve and reassess BWR ID, status, manual-reporting dates, authority decisions, state changes, compliance checks, and documented manual processing.
+- **Lifecycle/audit/retention:** Centralize Tenant-spanning basis checks, credential revocation, invitation locking, membership state, document visibility, retention classification, legal hold, and audit redaction. Employee records and retained documents survive User deletion.
+- **High-risk tests:** Replace `tests/Feature/SetTenantMiddlewareTest.php`, `InjectTenantIdMiddlewareTest.php`, `UserTenantRelationshipTest.php`, LegalEntity/OrganizationalUnit tests, `RoleApiTest.php`, `UserPermissionAssignmentApiTest.php`, `TemporalRoleUserTest.php`, Employee lifecycle, key-resolution, encryption, invitation-concurrency, credential-revocation, file-ciphertext, and cross-Tenant tests. Existing behavior tests are replaced as a breaking baseline, not carried through aliases.
 
 ### `SecPal/contracts`
 
-- **Current state/schema:** `docs/openapi.yaml` describes `tenant_id`, `legal_entity_id`, organizational units, user roles/permissions, and legacy employee/customer/site assignments, including `EmployeeCreateRequest`, `Employee`, `Customer`, and organizational-unit schemas.
-- **API endpoints:** Documented organizational-unit, legal-entity lookup, user-role/permission, and tenant-path endpoints are removed or replaced by membership, context-switch, invitation, and scoped-access endpoints; exact operation names remain open.
-- **New components expected:** Contracts for active membership, selection/switching, invitation acceptance, time-bound Access Assignments with scopes, employment/establishment history, document visibility, and termination states.
-- **Risk/tests:** Generators and drift checks in `scripts/check-domain-contracts.mjs`, `scripts/check-openapi-verified-endpoints.mjs`, and their tests must express the breaking baseline. No alias is retained for old fields or endpoints.
+- `docs/openapi.yaml` currently describes `tenant_id`, `legal_entity_id`, Organizational Units, User roles/permissions, BWR file export, and legacy Employee/Customer/Site assignments. Remove obsolete schemas and endpoints without aliases.
+- Add contracts for active membership, membership states and selection/switching, invitation acceptance, effective time-bound Access Grants with multiple targets, `linked_employee`, Employee contract projection, establishment history, document visibility, and termination states.
+- Never expose encrypted storage fields, blind-index fields, key identifiers, or decrypted values beyond explicitly authorized resource fields. Document equality-search capabilities and unsupported search behavior where relevant.
+- Update `scripts/check-domain-contracts.mjs`, `scripts/check-openapi-verified-endpoints.mjs`, and their tests for the breaking baseline.
 
 ### `SecPal/frontend`
 
-- **Current state:** `src/types/api/openapi.generated.ts` contains organizational-unit and legal-entity contracts; `src/components/Organizational*`, `src/hooks/useOrganizationalUnitsWithOffline.ts`, `src/pages/Organization/OrganizationPage.tsx`, and their tests must be removed. Employee, Customer, and Site pages contain legal-entity/organizational-unit assumptions, for example `src/components/CustomerEstablishmentFields.tsx` and `src/components/DomainAssignmentFields.tsx`.
-- **Authentication/context:** `src/contexts/AuthContext.tsx`, `src/lib/offlineSessionState.ts`, `src/lib/clientStateCleanup.ts`, `src/components/PermissionRoute.tsx`, and `src/components/OrganizationalRoute.tsx` require membership selection, context switching, and complete tenant-dependent cache clearing.
-- **New components expected:** Profile UI for `ask`/`resume_last`, membership selection, invitation/registration, rights/scope management with validity periods, establishment history, and secure document visibility.
-- **Risk/tests:** Offline vault and IndexedDB must show no data after a tenant switch. AuthContext, offline-session, cache-cleanup, guard, and removed organizational-unit tests must be replaced by context-isolation, switching, and scope tests.
+- Remove OrganizationalUnit and LegalEntity contracts/components, including `src/components/Organizational*`, `src/hooks/useOrganizationalUnitsWithOffline.ts`, `src/pages/Organization/OrganizationPage.tsx`, and relevant generated types/tests. Remove BWR file-export UI and copy.
+- Update `src/contexts/AuthContext.tsx`, `src/lib/offlineSessionState.ts`, `src/lib/clientStateCleanup.ts`, route guards, and offline storage for membership states, `ask`/`resume_last`, restricted onboarding/self-service context, switch invalidation, and complete Tenant cache clearing.
+- Add UI for invitation/registration, explicit grant/scope/validity management, `linked_employee` self-service, establishment history, document visibility, and only supported encrypted-field searches.
+- Test that planned/suspended/ended memberships cannot be selected, switches expose no stale Tenant data, account-existence disclosure is neutral, and IndexedDB/offline vault boundaries hold.
 
 ### `SecPal/android`
 
-- **Current state:** `docs/ANDROID_AUTH_ARCHITECTURE.md` requires bearer tokens and `GET /v1/me`; `android/app/src/main/java/app/secpal/KeystoreTokenStorage.java`, `NativeAuthHttpClient.java`, `SecPalNativeAuthPlugin.java`, `ProvisioningBootstrapCoordinator.java`, and `src/secpal/native-auth-bridge.ts` manage tokens, bootstrap, and logout.
-- **Impact:** The token/device-context format must securely bind or reference an active membership; switching and revocation clear token- and tenant-dependent native/browser caches. Provisioning remains permission-gated but must not treat tenant context from QR/URL as authorization evidence.
-- **Risk/tests:** Keystore-token, native-auth, bootstrap, and logout tests must prove membership switches, invalid memberships, and credential revocation. The native security boundary remains intact; tokens are never made available to JavaScript.
+- `docs/ANDROID_AUTH_ARCHITECTURE.md`, `KeystoreTokenStorage.java`, `NativeAuthHttpClient.java`, `SecPalNativeAuthPlugin.java`, `ProvisioningBootstrapCoordinator.java`, and `src/secpal/native-auth-bridge.ts` must bind bearer-token/device context to an active membership.
+- Membership switching and revocation clear token- and Tenant-dependent native/browser caches. Planned, suspended, and ended memberships cannot become device context. Provisioning QR/URL data is never authorization evidence.
+- Extend Keystore-token, native-auth, bootstrap, and logout tests for context switching, invalid membership, credential revocation, and redaction. Raw tokens and sensitive decrypted values remain outside JavaScript.
 
 ### `SecPal/secpal.app`
 
-- **Current state:** The public website has no functional tenant/HR domain; relevant files are only references and privacy text, including `src/components/Nav.astro`, `src/i18n/de.ts`, `src/i18n/en.ts`, `src/pages/de/privacy.astro`, and `src/pages/en/privacy.astro`.
-- **Impact:** This ADR requires no application redesign here. Before a public invitation/registration page is built, it must be decided whether it remains on `app.secpal.dev`; the public site must disclose neither tenant context nor account existence.
-- **Risk/tests:** Domain and copy tests must not introduce impermissible tenant resolution or data-protection promises.
+- The public site has no functional Tenant/HR domain. Relevant future touchpoints are invitation/registration links and privacy/security text in `src/i18n/*` and privacy pages.
+- Decide before implementation whether public invitation/registration stays on `app.secpal.dev`. Public behavior must disclose neither Tenant context nor account existence and must describe encryption/retention accurately.
+- Domain and copy tests must prevent unsupported privacy claims or impermissible Tenant resolution.
 
 ### `SecPal/.github`
 
-- **Current state:** The earlier ADRs named above and `docs/adr/README.md` describe superseded decisions. `docs/openapi.md`, `docs/legal-compliance.md`, `docs/feature-requirements.md`, and checks such as `scripts/check-openapi-verified-endpoints.mjs` may contain references.
-- **Impact:** After API/contract implementation, the ADR index and superseded references must be marked consistently and architecture/compliance documentation and validation rules updated. No change is made there in this work item.
-- **Risk/tests:** Contradictory old ADRs and CI checks must not reject the new baseline.
+- Mark superseded ADRs and `docs/adr/README.md` consistently after this ADR is accepted. Align `docs/openapi.md`, `docs/legal-compliance.md`, `docs/feature-requirements.md`, architecture guidance, and validation scripts.
+- Track the separate Global Identity Key security design/ADR and repository-specific implementation sub-issues before implementation begins.
+- Ensure reusable checks reject old TenantKey-as-Tenant assumptions, deprecated API surfaces, domain-policy drift, and unlicensed architecture documentation.
 
 ## Open detail decisions before implementation phases
 
-1. Physical names, key types, constraints, and delete/soft-delete semantics of new tables, except the binding personal-data pattern (`*_plain` input, `*_enc` storage, and `*_idx` lookup).
-2. Whether roles are only bundles of tenant-specific permissions and how their templates are provisioned; no global functional role.
-3. Exact scope representation (polymorphic target versus separate tables) and rules for several scope targets per assignment, while preserving the binding same-tenant invariant.
-4. Exact meaning of “current” for time zones, jobs, `valid_until`, and future invitations/rights.
-5. Token/session model: membership ID in token, server-side context reference, or both; exact rotation and revocation propagation while preserving atomic, fail-closed switching.
-6. Behaviour of open sessions/offline data on switching and on subsequent rights revocation.
-7. Concrete delegable-permission catalog, role packaging, and scope/validity ceilings within the binding no-arbitrary-amplification rule.
-8. Complete Employment state machine and authoritative evidence for termination receipt, notice expiry, and employment end.
-9. Data categories, visibility classifications, legal bases, retention rules, and legal-hold process after compliance validation.
-10. Public invitation/registration URLs and UX, rate limits, and abuse prevention without disclosing account existence.
-11. Tenant-command interface, operational authorization mechanism, technical seed content, bootstrap-invitation parameters, and provisioning audit shape.
-12. Concrete customer-portal document approvals and whether customer users may access additional tenants.
+1. Names, key types, constraints, and delete/soft-delete semantics of new tables beyond the binding Tenant/TenantKey and personal-data invariants.
+2. Concrete Global Identity Key hierarchy, root protection, rotation, recovery, backup, and operational ownership in a separate security design/ADR.
+3. Concrete Tenant key hierarchy and operational recovery/rotation processes while preserving the `Tenant → TenantKey` boundary.
+4. Role packaging and the concrete delegable-permission catalog within the no-arbitrary-amplification rule.
+5. Physical scope-target representation while preserving multiple targets, enforceable Tenant integrity, and no unsafe free polymorphic references.
+6. Exact meaning of “current” for time zones, scheduled evaluation, `valid_until`, and future invitations/grants.
+7. Token/session representation, rotation, and revocation propagation while preserving atomic fail-closed switching.
+8. Rehire and representation of several employment periods without pre-deciding a separate domain entity or parallel active contracts.
+9. Versioned Establishment master data versus snapshots in historical assignments.
+10. Detailed contract/termination state machine and authoritative evidence for receipt, notice expiry, and employment end.
+11. Data categories, visibility classifications, legal bases, retention periods, and legal-hold process after compliance validation.
+12. Public invitation/registration URLs, rate limits, and abuse protection without account-existence disclosure.
+13. Tenant-command interface, operator authorization, seed content, bootstrap invitation parameters, and audit shape.
+14. Customer-portal document-release model and whether Customer users may access additional Tenants.
+15. Specialized encrypted search requirements beyond the binding equality searches, including leakage analysis for any additional index.
 
 ## Implementation order
 
-1. Define target contracts and data model as the new baseline.
-2. Implement and isolate-test API context, membership/lifecycle, and authorization.
-3. Implement frontend context, cache clearing, and new flows against the contracts.
-4. Adapt Android token/device context and revocation.
-5. Align documentation, older ADRs, checks, and public text.
+1. Approve this ADR and complete the Global Identity Key security design.
+2. Define the clean Tenant/TenantKey, User, membership, Employee projection, access, encryption, and history schemas and API contracts.
+3. Implement API key resolution, context, membership lifecycle, authorization, encryption, BWR-export removal, and tests.
+4. Implement frontend context, cache clearing, search constraints, and new workflows against the contracts.
+5. Adapt Android token/device context and revocation.
+6. Align superseded ADRs, documentation, checks, and public text.
 
 None of these phases introduces compatibility mechanisms for concepts rejected by this ADR.
