@@ -46,7 +46,7 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                 ],
                 'compatibility' => [
                     'bootstrap_version' => 'v1',
-                    'schema_version' => 3,
+                    'schema_version' => 4,
                     'minimum_supported_app_version' => '1.4.0',
                     'minimum_supported_app_build' => 10400,
                 ],
@@ -95,7 +95,10 @@ test('bootstrap and route registry expose no Android enrollment or provisioning 
         ->filter(static fn (string $uri): bool => str_contains($uri, 'android-enrollment') || str_contains($uri, 'android/bootstrap/exchange'))
         ->all())
         ->toBe([])
-        ->and(Permission::query()->where('name', 'like', 'android_enrollment.%')->exists())->toBeFalse()
+        ->and(Permission::query()->whereIn('name', [
+            'android_enrollment.read',
+            'android_enrollment.write',
+        ])->exists())->toBeFalse()
         ->and(Schema::hasTable('android_enrollment_sessions'))->toBeFalse();
 });
 
@@ -119,7 +122,7 @@ test('public bootstrap returns web push runtime metadata for browser clients wit
     $response->assertOk()
         ->assertJsonPath('data.client_platform', 'browser')
         ->assertJsonPath('data.compatibility.bootstrap_version', 'v1')
-        ->assertJsonPath('data.compatibility.schema_version', 3)
+        ->assertJsonPath('data.compatibility.schema_version', 4)
         ->assertJsonPath('data.legal.source_url', 'https://api.secpal.dev/v1/source')
         ->assertJsonPath('data.legal.license.spdx_id', 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution')
         ->assertJsonPath('data.legal.license.url', 'https://github.com/SecPal/api/blob/main/LICENSES/LicenseRef-SecPal-Attribution.txt')

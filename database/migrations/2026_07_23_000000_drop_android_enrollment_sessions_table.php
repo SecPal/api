@@ -20,7 +20,7 @@ return new class extends Migration
         $rolePermissionsTable = $this->permissionTableName('role_has_permissions');
 
         $permissionIds = DB::table($permissionsTable)
-            ->where('name', 'like', 'android_enrollment.%')
+            ->whereIn('name', ['android_enrollment.read', 'android_enrollment.write'])
             ->pluck('id');
 
         if ($permissionIds->isEmpty()) {
@@ -42,7 +42,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        // Intentionally irreversible in 0.x: obsolete enrollment data and bootstrap-token material are not retained.
+        throw new RuntimeException('The Android enrollment removal is intentionally irreversible.');
     }
 
     private function permissionTableName(string $key): string

@@ -61,7 +61,7 @@ function createWebPushDeliveryRegistration(TenantKey $tenant, User $user, ?strin
         'subscription_auth_plain' => 'AgICAgICAgICAgICAgICAg',
         'subscription_expires_at' => $expiresAt,
         'bootstrap_version' => 'v1',
-        'schema_version' => 3,
+        'schema_version' => 4,
         'push_metadata_revision' => 5,
     ]);
 }

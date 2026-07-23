@@ -12,7 +12,23 @@ use Illuminate\Support\Facades\Schema;
 
 uses(RefreshDatabase::class);
 
-test('Android enrollment removal migration drops enrollment data and stale grants from configured permission tables', function (): void {
+test('fresh schema contains no obsolete Android enrollment migration or configuration surface', function (): void {
+    $obsoleteMigrations = [
+        '2026_04_06_100007_create_android_enrollment_sessions_table',
+        '2026_06_29_160000_preserve_android_enrollment_history_on_user_delete',
+    ];
+    $environmentExample = file_get_contents(base_path('.env.example'));
+
+    expect(DB::table('migrations')->whereIn('migration', $obsoleteMigrations)->exists())->toBeFalse()
+        ->and(collect($obsoleteMigrations)
+            ->contains(static fn (string $migration): bool => is_file(database_path("migrations/{$migration}.php"))))
+        ->toBeFalse()
+        ->and(Schema::hasTable('android_enrollment_sessions'))->toBeFalse()
+        ->and($environmentExample)->toBeString()
+        ->not->toContain('BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED');
+});
+
+test('the removal migration drops existing enrollment data and configured permission grants', function (): void {
     config([
         'permission.table_names.permissions' => 'tenant_permissions',
         'permission.table_names.model_has_permissions' => 'tenant_model_permissions',
@@ -25,8 +41,6 @@ test('Android enrollment removal migration drops enrollment data and stale grant
     Schema::create('tenant_permissions', function (Blueprint $table): void {
         $table->bigIncrements('id');
         $table->string('name');
-        $table->string('guard_name');
-        $table->timestamps();
     });
     Schema::create('tenant_model_permissions', function (Blueprint $table): void {
         $table->unsignedBigInteger('permission_id');
@@ -35,18 +49,9 @@ test('Android enrollment removal migration drops enrollment data and stale grant
         $table->unsignedBigInteger('permission_id');
     });
 
-    $permissionId = DB::table('tenant_permissions')->insertGetId([
-        'name' => 'android_enrollment.read',
-        'guard_name' => 'sanctum',
-        'created_at' => now(),
-        'updated_at' => now(),
-    ]);
-    DB::table('tenant_model_permissions')->insert([
-        'permission_id' => $permissionId,
-    ]);
-    DB::table('tenant_role_permissions')->insert([
-        'permission_id' => $permissionId,
-    ]);
+    $permissionId = DB::table('tenant_permissions')->insertGetId(['name' => 'android_enrollment.read']);
+    DB::table('tenant_model_permissions')->insert(['permission_id' => $permissionId]);
+    DB::table('tenant_role_permissions')->insert(['permission_id' => $permissionId]);
 
     $migration = require database_path('migrations/2026_07_23_000000_drop_android_enrollment_sessions_table.php');
     $migration->up();

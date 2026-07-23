@@ -240,7 +240,7 @@ curl --fail-with-body \
     "lifecycle_event": "registered",
     "runtime": {
       "bootstrap_version": "v1",
-      "schema_version": 3,
+      "schema_version": 4,
       "metadata_revision": 3
     },
     "registration": {

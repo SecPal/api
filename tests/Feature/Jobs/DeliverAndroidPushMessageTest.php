@@ -61,7 +61,7 @@ function createQueuedAndroidPushRegistration(TenantKey $tenant, User $user): Pus
         'android_version' => '16',
         'sdk_int' => 36,
         'bootstrap_version' => 'v1',
-        'schema_version' => 3,
+        'schema_version' => 4,
         'push_metadata_revision' => 3,
     ]);
 }
