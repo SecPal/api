@@ -10,8 +10,10 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\EnforcesTenantRouteBinding;
+use App\Relations\HistoricalActivityMorphTo;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -74,6 +76,27 @@ class Activity extends SpatieActivity
 {
     /** @use HasFactory<\Database\Factories\ActivityFactory> */
     use EnforcesTenantRouteBinding, HasFactory;
+
+    /**
+     * Preserve immutable activity records whose historical morph class no longer exists.
+     *
+     * @template TRelatedModel of Model
+     * @template TDeclaringModel of Model
+     *
+     * @param  Builder<TRelatedModel>  $query
+     * @param  TDeclaringModel  $parent
+     * @return HistoricalActivityMorphTo<TRelatedModel, TDeclaringModel>
+     */
+    protected function newMorphTo(
+        Builder $query,
+        Model $parent,
+        $foreignKey,
+        $ownerKey,
+        $type,
+        $relation
+    ): HistoricalActivityMorphTo {
+        return new HistoricalActivityMorphTo($query, $parent, $foreignKey, $ownerKey, $type, $relation);
+    }
 
     /**
      * The table associated with the model.
@@ -256,12 +279,12 @@ class Activity extends SpatieActivity
 
             // If relation not loaded, try to query the database
             if (! $subjectModel && $activity->subject_type && $activity->subject_id) {
-                /** @var class-string<\Illuminate\Database\Eloquent\Model> $subjectType */
+                /** @var class-string<Model> $subjectType */
                 $subjectType = $activity->subject_type;
                 if (class_exists($subjectType)) {
                     // Use withTrashed() to find soft-deleted models (e.g., during 'deleted' event)
                     if (method_exists($subjectType, 'withTrashed')) {
-                        /** @var Builder<\Illuminate\Database\Eloquent\Model> $query */
+                        /** @var Builder<Model> $query */
                         $query = $subjectType::withTrashed();
                         $subjectModel = $query->find($activity->subject_id);
                     } else {
@@ -271,7 +294,7 @@ class Activity extends SpatieActivity
             }
 
             if (
-                $subjectModel instanceof \Illuminate\Database\Eloquent\Model
+                $subjectModel instanceof Model
                 && is_string($activity->event)
                 && method_exists($subjectModel, 'beforeActivityLogged')
             ) {
@@ -279,7 +302,7 @@ class Activity extends SpatieActivity
             }
 
             // Now extract tenant_id from the subject model
-            if ($subjectModel instanceof \Illuminate\Database\Eloquent\Model) {
+            if ($subjectModel instanceof Model) {
                 /** @var mixed $subjectTenantId */
                 $subjectTenantId = $subjectModel->getAttribute('tenant_id');
                 if (is_int($subjectTenantId)) {
@@ -817,7 +840,7 @@ class Activity extends SpatieActivity
     /**
      * Get the model that caused the activity (polymorphic UUID support).
      *
-     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<\Illuminate\Database\Eloquent\Model, $this>
+     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<Model, $this>
      */
     public function causer(): \Illuminate\Database\Eloquent\Relations\MorphTo
     {
@@ -827,7 +850,7 @@ class Activity extends SpatieActivity
     /**
      * Get the subject of the activity (polymorphic UUID support).
      *
-     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<\Illuminate\Database\Eloquent\Model, $this>
+     * @return \Illuminate\Database\Eloquent\Relations\MorphTo<Model, $this>
      */
     public function subject(): \Illuminate\Database\Eloquent\Relations\MorphTo
     {

@@ -34,6 +34,18 @@ it('keeps the PHP development services running together', function (): void {
         ->toContain("[\$php, 'artisan', 'pail', '--timeout=0']");
 });
 
+it('runs the complete test suite with the supported parallel and serial split', function (): void {
+    $composer = json_decode((string) file_get_contents(base_path('composer.json')), true, flags: JSON_THROW_ON_ERROR);
+    $testScripts = $composer['scripts']['test'];
+
+    expect($testScripts[0] ?? null)
+        ->toBe('Composer\\Config::disableProcessTimeout')
+        ->and($testScripts)
+        ->toContain('@php artisan test --parallel --exclude-group=serial')
+        ->toContain('@php artisan test --group=serial')
+        ->not->toContain('@php artisan test');
+});
+
 it('describes the PHP development services without starting them', function (): void {
     $process = new Process([PHP_BINARY, base_path('scripts/dev.php'), '--help'], base_path());
     $process->setTimeout(2);

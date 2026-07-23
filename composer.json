@@ -61,9 +61,12 @@
       "@php scripts/dev.php"
     ],
     "test": [
+      "Composer\\Config::disableProcessTimeout",
       "@php artisan config:clear --ansi",
-      "@php artisan test"
+      "@php artisan test --parallel --exclude-group=serial",
+      "@php artisan test --group=serial"
     ],
+    "analyse": "@php -d memory_limit=512M ./vendor/bin/phpstan analyse",
     "post-autoload-dump": [
       "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
       "@php artisan package:discover --ansi"

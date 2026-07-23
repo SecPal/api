@@ -1,7 +1,7 @@
 <?php
 
 /**
- * SPDX-FileCopyrightText: 2025 SecPal Contributors
+ * SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
  */
 
@@ -113,7 +113,8 @@ test('upgrade returns null if not yet confirmed', function () {
             return count($command) === 3
                 && $command[0] === 'ots'
                 && $command[1] === 'upgrade'
-                && str_starts_with($command[2], '/tmp/ots_upgrade_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_upgrade_')
                 && $stdin === null
                 && $timeout === 10;
         })
@@ -156,7 +157,8 @@ test('upgrade returns confirmed proof when available', function () {
             return count($command) === 3
                 && $command[0] === 'ots'
                 && $command[1] === 'upgrade'
-                && str_starts_with($command[2], '/tmp/ots_upgrade_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_upgrade_')
                 && $stdin === null
                 && $timeout === 10;
         })

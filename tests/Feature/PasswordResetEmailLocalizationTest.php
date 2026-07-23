@@ -25,6 +25,21 @@ test('password reset translation strings exist in German', function (): void {
         ->and(__('Reset Password'))->toBe('Passwort zurücksetzen');
 });
 
+test('locale changes override an inherited gettext language', function (): void {
+    $inheritedLanguage = getenv('LANGUAGE');
+    putenv('LANGUAGE=en');
+
+    try {
+        App::setLocale('de');
+
+        expect(__('Reset Your Password'))->toBe('Passwort zurücksetzen');
+    } finally {
+        $inheritedLanguage === false
+            ? putenv('LANGUAGE')
+            : putenv('LANGUAGE='.$inheritedLanguage);
+    }
+});
+
 test('password reset translation with parameters works in English', function (): void {
     App::setLocale('en');
 

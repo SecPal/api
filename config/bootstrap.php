@@ -45,7 +45,6 @@ return [
     'features' => [
         'password_login' => filter_var(env('BOOTSTRAP_PASSWORD_LOGIN_ENABLED', true), FILTER_VALIDATE_BOOL),
         'passkey_login' => filter_var(env('BOOTSTRAP_PASSKEY_LOGIN_ENABLED', true), FILTER_VALIDATE_BOOL),
-        'managed_android_enrollment' => filter_var(env('BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED', false), FILTER_VALIDATE_BOOL),
         'notification_channels' => [
             'android_fcm' => filter_var(env('BOOTSTRAP_ANDROID_PUSH_ENABLED', false), FILTER_VALIDATE_BOOL),
             'web_push' => filter_var(env('BOOTSTRAP_WEB_PUSH_ENABLED', false), FILTER_VALIDATE_BOOL),

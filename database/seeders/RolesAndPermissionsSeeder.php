@@ -159,10 +159,6 @@ class RolesAndPermissionsSeeder extends Seeder
                 'approve',
                 'confirm',
             ],
-            'android_enrollment' => [
-                'read',
-                'write',
-            ],
             'onboarding_template' => [
                 'read',
                 'write',
@@ -332,8 +328,6 @@ class RolesAndPermissionsSeeder extends Seeder
                     'activity_log.read_system', // View activities from privileged or system actors (Issue #440)
                     'onboarding.read',
                     'onboarding.write',
-                    'android_enrollment.read',
-                    'android_enrollment.write',
                 ],
             ],
             'Guard' => [

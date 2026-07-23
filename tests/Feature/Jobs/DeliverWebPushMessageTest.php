@@ -61,7 +61,7 @@ function createQueuedWebPushRegistration(TenantKey $tenant, User $user, string $
         'subscription_auth_plain' => 'AgICAgICAgICAgICAgICAg',
         'subscription_expires_at' => '2026-06-26T12:00:00Z',
         'bootstrap_version' => 'v1',
-        'schema_version' => 3,
+        'schema_version' => 4,
         'push_metadata_revision' => 5,
     ]);
 }
@@ -86,7 +86,7 @@ function createQueuedAndroidRegistration(TenantKey $tenant, User $user, string $
         'android_version' => '16',
         'sdk_int' => 36,
         'bootstrap_version' => 'v1',
-        'schema_version' => 3,
+        'schema_version' => 4,
         'push_metadata_revision' => 3,
     ]);
 }

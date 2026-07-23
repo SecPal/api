@@ -621,7 +621,8 @@ test('opentimestamp verification works with valid proof', function () {
             return count($command) === 4
                 && $command[0] === 'python3'
                 && str_ends_with($command[1], 'scripts/ots-verify.py')
-                && str_starts_with($command[2], '/tmp/ots_verify_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_verify_')
                 && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;

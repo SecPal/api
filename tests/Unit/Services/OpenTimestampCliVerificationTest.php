@@ -87,7 +87,8 @@ test('verify returns true for valid proof when python verifier succeeds', functi
             return count($command) === 4
                 && $command[0] === 'python3'
                 && str_ends_with($command[1], 'scripts/ots-verify.py')
-                && str_starts_with($command[2], '/tmp/ots_verify_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_verify_')
                 && $command[3] === $merkleRoot
                 && $stdin === null // No stdin, proof is in tempfile
                 && $timeout === 10;
@@ -118,7 +119,8 @@ test('verify returns false for invalid proof when python verifier fails', functi
             return count($command) === 4
                 && $command[0] === 'python3'
                 && str_ends_with($command[1], 'scripts/ots-verify.py')
-                && str_starts_with($command[2], '/tmp/ots_verify_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_verify_')
                 && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
@@ -168,7 +170,8 @@ test('verify returns false when script times out', function () {
             return count($command) === 4
                 && $command[0] === 'python3'
                 && str_ends_with($command[1], 'scripts/ots-verify.py')
-                && str_starts_with($command[2], '/tmp/ots_verify_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_verify_')
                 && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
@@ -218,7 +221,8 @@ test('verify normalizes uppercase digest to lowercase', function () {
             return count($command) === 4
                 && $command[0] === 'python3'
                 && str_ends_with($command[1], 'scripts/ots-verify.py')
-                && str_starts_with($command[2], '/tmp/ots_verify_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_verify_')
                 && $command[3] === strtolower($merkleRoot)
                 && $stdin === null
                 && $timeout === 10;
@@ -249,7 +253,8 @@ test('verify handles empty proof gracefully', function () {
             return count($command) === 4
                 && $command[0] === 'python3'
                 && str_ends_with($command[1], 'scripts/ots-verify.py')
-                && str_starts_with($command[2], '/tmp/ots_verify_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_verify_')
                 && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
@@ -280,7 +285,8 @@ test('verify caches successful verification', function () {
             return count($command) === 4
                 && $command[0] === 'python3'
                 && str_ends_with($command[1], 'scripts/ots-verify.py')
-                && str_starts_with($command[2], '/tmp/ots_verify_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_verify_')
                 && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;
@@ -424,7 +430,8 @@ test('verify does not cache failed verification', function () {
             return count($command) === 4
                 && $command[0] === 'python3'
                 && str_ends_with($command[1], 'scripts/ots-verify.py')
-                && str_starts_with($command[2], '/tmp/ots_verify_')
+                && dirname($command[2]) === sys_get_temp_dir()
+                && str_starts_with(basename($command[2]), 'ots_verify_')
                 && $command[3] === $merkleRoot
                 && $stdin === null
                 && $timeout === 10;

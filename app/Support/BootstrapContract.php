@@ -11,7 +11,7 @@ final class BootstrapContract
 {
     public const VERSION = 'v1';
 
-    public const SCHEMA_VERSION = 3;
+    public const SCHEMA_VERSION = 4;
 
     public const CLIENT_PLATFORM_ANDROID = 'android';
 

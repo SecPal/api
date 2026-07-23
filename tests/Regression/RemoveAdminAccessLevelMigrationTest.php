@@ -79,7 +79,7 @@ test('sqlite-backed migrate:fresh stops at the PostgreSQL-only domain migration'
         $output = $process->getErrorOutput().$process->getOutput();
 
         expect($process->isSuccessful())->toBeFalse($output)
-            ->and($output)->toContain('2026_06_29_160000_preserve_android_enrollment_history_on_user_delete')
+            ->and($output)->not->toContain('android_enrollment')
             ->and($output)->toContain('2026_07_17_120000_create_legal_entity_domain_model')
             ->and($output)->toContain('requires PostgreSQL');
     } finally {

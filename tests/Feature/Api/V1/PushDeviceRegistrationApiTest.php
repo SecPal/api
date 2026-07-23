@@ -98,7 +98,7 @@ function androidNotificationInstallationPayload(string $pushToken, string $lifec
         'lifecycle_event' => $lifecycleEvent,
         'runtime' => [
             'bootstrap_version' => 'v1',
-            'schema_version' => 3,
+            'schema_version' => 4,
             'metadata_revision' => 3,
         ],
         'registration' => [
@@ -126,7 +126,7 @@ function webPushPayload(string $endpoint, string $lifecycleEvent = 'registered')
         'lifecycle_event' => $lifecycleEvent,
         'runtime' => [
             'bootstrap_version' => 'v1',
-            'schema_version' => 3,
+            'schema_version' => 4,
             'metadata_revision' => 5,
         ],
         'registration' => [
@@ -174,7 +174,7 @@ test('authenticated user can create android notification installation', function
         ->assertJsonPath('data.registration.device.android_version', '16')
         ->assertJsonPath('data.registration.device.sdk_int', 36)
         ->assertJsonPath('data.runtime.bootstrap_version', 'v1')
-        ->assertJsonPath('data.runtime.schema_version', 3)
+        ->assertJsonPath('data.runtime.schema_version', 4)
         ->assertJsonPath('data.runtime.metadata_revision', 3)
         ->assertJsonPath('data.created_at', '2026-05-30T12:34:56Z')
         ->assertJsonPath('data.updated_at', '2026-05-30T12:34:56Z');
@@ -192,7 +192,7 @@ test('authenticated user can create android notification installation', function
         'package_version_name' => '1.5.0',
         'package_version_code' => 10500,
         'bootstrap_version' => 'v1',
-        'schema_version' => 3,
+        'schema_version' => 4,
         'push_metadata_revision' => 3,
     ]);
 
@@ -241,7 +241,7 @@ test('session-authenticated browser user can create a web push notification inst
         ->assertJsonPath('data.registration.subscription_endpoint_origin', 'https://fcm.googleapis.com')
         ->assertJsonPath('data.registration.subscription_expires_at', '2026-06-26T12:00:00Z')
         ->assertJsonPath('data.runtime.bootstrap_version', 'v1')
-        ->assertJsonPath('data.runtime.schema_version', 3)
+        ->assertJsonPath('data.runtime.schema_version', 4)
         ->assertJsonPath('data.runtime.metadata_revision', 5);
 
     expect($response->json('data.credential_reference'))->toBeString()->toHaveLength(8);
@@ -263,7 +263,7 @@ test('session-authenticated browser user can create a web push notification inst
         'service_worker_scope' => '/',
         'subscription_endpoint_origin' => 'https://fcm.googleapis.com',
         'bootstrap_version' => 'v1',
-        'schema_version' => 3,
+        'schema_version' => 4,
         'push_metadata_revision' => 5,
     ]);
 
@@ -378,14 +378,14 @@ test('android notification installation accepts integer-like numeric strings', f
         ],
         'runtime' => [
             'bootstrap_version' => 'v1',
-            'schema_version' => '3',
+            'schema_version' => '4',
             'metadata_revision' => '3',
         ],
     ])
         ->assertCreated()
         ->assertJsonPath('data.registration.app.package_version_code', 10500)
         ->assertJsonPath('data.registration.device.sdk_int', 36)
-        ->assertJsonPath('data.runtime.schema_version', 3)
+        ->assertJsonPath('data.runtime.schema_version', 4)
         ->assertJsonPath('data.runtime.metadata_revision', 3);
 
     $this->assertDatabaseHas('push_device_registrations', [
@@ -394,7 +394,7 @@ test('android notification installation accepts integer-like numeric strings', f
         'installation_id' => $installationId,
         'package_version_code' => 10500,
         'sdk_int' => 36,
-        'schema_version' => 3,
+        'schema_version' => 4,
         'push_metadata_revision' => 3,
     ]);
 });
@@ -648,7 +648,7 @@ test('android notification installation rejects stale bootstrap metadata', funct
         ),
         'runtime' => [
             'bootstrap_version' => 'v1',
-            'schema_version' => 3,
+            'schema_version' => 4,
             'metadata_revision' => 2,
         ],
     ])
@@ -658,7 +658,7 @@ test('android notification installation rejects stale bootstrap metadata', funct
             'code' => 'NOTIFICATION_RUNTIME_STATE_INVALID',
             'details' => [
                 'bootstrap_version' => 'v1',
-                'schema_version' => 3,
+                'schema_version' => 4,
                 'channel' => 'android_fcm',
                 'provided_metadata_revision' => 2,
                 'expected_metadata_revision' => 3,
@@ -676,7 +676,7 @@ test('web push notification installation rejects stale bootstrap metadata', func
         ...webPushPayload('https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890'),
         'runtime' => [
             'bootstrap_version' => 'v1',
-            'schema_version' => 3,
+            'schema_version' => 4,
             'metadata_revision' => 4,
         ],
     ])
@@ -686,7 +686,7 @@ test('web push notification installation rejects stale bootstrap metadata', func
             'code' => 'NOTIFICATION_RUNTIME_STATE_INVALID',
             'details' => [
                 'bootstrap_version' => 'v1',
-                'schema_version' => 3,
+                'schema_version' => 4,
                 'channel' => 'web_push',
                 'provided_metadata_revision' => 4,
                 'expected_metadata_revision' => 5,

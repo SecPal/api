@@ -241,10 +241,7 @@ class ExpiredEmployeeDeletionService
 
     private function anonymizeLinkedUser(User $user): void
     {
-        $this->userDeviceAccessCleanupService->revokePendingAndroidEnrollmentSessionsAndDeletePushRegistrations(
-            $user,
-            'User account anonymized during employee retention deletion.',
-        );
+        $this->userDeviceAccessCleanupService->deletePushRegistrations($user);
 
         $raw = config('permission.table_names.model_has_roles', 'model_has_roles');
         $modelHasRolesTable = is_string($raw) ? $raw : 'model_has_roles';
