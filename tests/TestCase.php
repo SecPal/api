@@ -19,6 +19,8 @@ abstract class TestCase extends BaseTestCase
 {
     private const TEST_APP_KEY = 'base64:nRWNo2CgugcDYn5VJsEzigv2nowyJLSArqfRhlB+USo=';
 
+    private const TEST_LOCALE = 'en';
+
     private const TEST_BOOTSTRAP_ENVIRONMENT_FILE = '.env.testing.bootstrap';
 
     private const TEST_DATABASE_BASE_ENVIRONMENT_KEY = 'SECPAL_TEST_DATABASE_BASE';
@@ -80,6 +82,7 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
         self::normalizeParallelWorkerDatabaseConfiguration($this->app);
+        $this->app->setLocale(self::TEST_LOCALE);
 
         // Prevent real network calls to HIBP so Password::uncompromised() always
         // passes for test passwords without coupling tests to an external service.

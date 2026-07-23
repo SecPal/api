@@ -18,6 +18,7 @@ return new class extends Migration
         $permissionsTable = $this->permissionTableName('permissions');
         $modelPermissionsTable = $this->permissionTableName('model_has_permissions');
         $rolePermissionsTable = $this->permissionTableName('role_has_permissions');
+        $permissionPivotKey = $this->permissionPivotKey();
 
         $permissionIds = DB::table($permissionsTable)
             ->whereIn('name', ['android_enrollment.read', 'android_enrollment.write'])
@@ -28,11 +29,11 @@ return new class extends Migration
         }
 
         DB::table($modelPermissionsTable)
-            ->whereIn('permission_id', $permissionIds)
+            ->whereIn($permissionPivotKey, $permissionIds)
             ->delete();
 
         DB::table($rolePermissionsTable)
-            ->whereIn('permission_id', $permissionIds)
+            ->whereIn($permissionPivotKey, $permissionIds)
             ->delete();
 
         DB::table($permissionsTable)
@@ -54,5 +55,12 @@ return new class extends Migration
         }
 
         return $tableName;
+    }
+
+    private function permissionPivotKey(): string
+    {
+        $pivotKey = config('permission.column_names.permission_pivot_key', 'permission_id');
+
+        return is_string($pivotKey) && $pivotKey !== '' ? $pivotKey : 'permission_id';
     }
 };

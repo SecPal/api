@@ -5,9 +5,9 @@
 
 declare(strict_types=1);
 
+use App\Models\Permission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
-use Spatie\Permission\Models\Permission;
 
 use function Pest\Laravel\getJson;
 
