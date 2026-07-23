@@ -98,7 +98,6 @@ class BootstrapController extends Controller
             'features' => [
                 'password_login' => $this->booleanConfig('bootstrap.features.password_login', true),
                 'passkey_login' => $this->booleanConfig('bootstrap.features.passkey_login', true),
-                'managed_android_enrollment' => $this->booleanConfig('bootstrap.features.managed_android_enrollment', false),
                 'notification_channels' => $notificationChannelRuntimeConfiguration->featureFlags(),
             ],
         ];

@@ -15,17 +15,20 @@ This guide covers deploying SecPal API to production with Sanctum authentication
 ### Security
 
 - [ ] **HTTPS/TLS enabled** on production domain
+
   - Valid SSL certificate (Let's Encrypt, purchased cert)
   - HTTP automatically redirects to HTTPS
   - Test with: `curl -I https://api.secpal.dev`
 
 - [ ] **Environment Variables Secured**
+
   - `APP_KEY` generated: `php artisan key:generate`
   - `APP_DEBUG=false` in production
   - `.env` file has restrictive permissions: `chmod 600 .env`
   - `.env` excluded from version control
 
 - [ ] **Database Secured**
+
   - Strong database password
   - Database not exposed to public internet
   - Backup strategy in place
@@ -325,7 +328,6 @@ BOOTSTRAP_API_RELEASE_VERSION=api-2026-07-03
 BOOTSTRAP_API_RELEASE_SOURCE_URL=https://github.com/SecPal/api/releases/download/api-2026-07-03/source.tar.gz
 BOOTSTRAP_PASSWORD_LOGIN_ENABLED=true
 BOOTSTRAP_PASSKEY_LOGIN_ENABLED=true
-BOOTSTRAP_MANAGED_ANDROID_ENROLLMENT_ENABLED=false
 BOOTSTRAP_ANDROID_PUSH_ENABLED=true
 BOOTSTRAP_ANDROID_PUSH_METADATA_REVISION=3
 BOOTSTRAP_ANDROID_PUSH_PUBLIC_API_KEY=public-client-api-key-demo-1234567890

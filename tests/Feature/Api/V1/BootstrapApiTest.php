@@ -6,6 +6,8 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Permission;
 
 use function Pest\Laravel\getJson;
 
@@ -22,7 +24,6 @@ beforeEach(function (): void {
         'bootstrap.minimum_supported_app_build' => 10400,
         'bootstrap.features.password_login' => true,
         'bootstrap.features.passkey_login' => true,
-        'bootstrap.features.managed_android_enrollment' => true,
         'bootstrap.features.notification_channels.android_fcm' => true,
         'bootstrap.features.notification_channels.web_push' => false,
         'bootstrap.notification_channels.android_fcm.metadata_revision' => 3,
@@ -61,7 +62,6 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                 'features' => [
                     'password_login' => true,
                     'passkey_login' => true,
-                    'managed_android_enrollment' => true,
                     'notification_channels' => [
                         'android_fcm' => true,
                         'web_push' => false,
@@ -81,6 +81,22 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                 ],
             ],
         ]);
+});
+
+test('bootstrap and route registry expose no Android enrollment or provisioning surface', function (): void {
+    getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400')
+        ->assertOk()
+        ->assertJsonMissingPath('data.features.managed_android_enrollment');
+
+    $this->artisan('db:seed', ['--class' => 'RolesAndPermissionsSeeder'])->assertSuccessful();
+
+    expect(collect(app('router')->getRoutes()->getRoutes())
+        ->pluck('uri')
+        ->filter(static fn (string $uri): bool => str_contains($uri, 'android-enrollment') || str_contains($uri, 'android/bootstrap/exchange'))
+        ->all())
+        ->toBe([])
+        ->and(Permission::query()->where('name', 'like', 'android_enrollment.%')->exists())->toBeFalse()
+        ->and(Schema::hasTable('android_enrollment_sessions'))->toBeFalse();
 });
 
 test('public bootstrap returns web push runtime metadata for browser clients without requiring android app version fields', function (): void {

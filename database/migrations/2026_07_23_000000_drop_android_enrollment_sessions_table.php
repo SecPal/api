@@ -1,0 +1,58 @@
+<?php
+
+// SPDX-FileCopyrightText: 2026 SecPal Contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+
+declare(strict_types=1);
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::dropIfExists('android_enrollment_sessions');
+
+        $permissionsTable = $this->permissionTableName('permissions');
+        $modelPermissionsTable = $this->permissionTableName('model_has_permissions');
+        $rolePermissionsTable = $this->permissionTableName('role_has_permissions');
+
+        $permissionIds = DB::table($permissionsTable)
+            ->where('name', 'like', 'android_enrollment.%')
+            ->pluck('id');
+
+        if ($permissionIds->isEmpty()) {
+            return;
+        }
+
+        DB::table($modelPermissionsTable)
+            ->whereIn('permission_id', $permissionIds)
+            ->delete();
+
+        DB::table($rolePermissionsTable)
+            ->whereIn('permission_id', $permissionIds)
+            ->delete();
+
+        DB::table($permissionsTable)
+            ->whereIn('id', $permissionIds)
+            ->delete();
+    }
+
+    public function down(): void
+    {
+        // Intentionally irreversible in 0.x: obsolete enrollment data and bootstrap-token material are not retained.
+    }
+
+    private function permissionTableName(string $key): string
+    {
+        $tableName = config("permission.table_names.{$key}");
+
+        if (! is_string($tableName) || $tableName === '') {
+            throw new RuntimeException("Permission table name [{$key}] is not configured.");
+        }
+
+        return $tableName;
+    }
+};
