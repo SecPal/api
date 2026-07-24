@@ -429,6 +429,45 @@ test('android notification installation rejects non-canonical and malformed sche
     'object schema' => (object) ['version' => 4],
 ]);
 
+test('session-authenticated browser notification installation rejects schema 3 without modifying an existing registration', function (): void {
+    ['tenant' => $tenant, 'user' => $user] = createBrowserPushContext();
+
+    enableWebPushNotificationChannel();
+    loginBrowserSession($this, $user);
+
+    $installationId = 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c';
+    $originalEndpoint = 'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890';
+    $replacementEndpoint = 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABoQnRhdGVkLWtleS0xMjM0NTY3ODkw';
+
+    $this->withHeaders(spaCsrfHeaders($this))
+        ->putJson('/v1/me/notification-installations/'.$installationId, webPushPayload($originalEndpoint))
+        ->assertCreated();
+
+    $payload = webPushPayload($replacementEndpoint);
+    $payload['lifecycle_event'] = 'credential_rotated';
+    $payload['runtime']['schema_version'] = 3;
+
+    $this->withHeaders(spaCsrfHeaders($this))
+        ->putJson('/v1/me/notification-installations/'.$installationId, $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('runtime.schema_version');
+
+    $this->assertDatabaseHas('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+        'token_last_eight' => substr(hash('sha256', $originalEndpoint), 0, 8),
+        'last_lifecycle_event' => 'registered',
+        'schema_version' => 4,
+    ]);
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+        'token_last_eight' => substr(hash('sha256', $replacementEndpoint), 0, 8),
+    ]);
+});
+
 test('repeating put updates the existing android notification installation', function (): void {
     ['tenant' => $tenant, 'user' => $user] = createPushDeviceContext();
 
