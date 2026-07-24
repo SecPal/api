@@ -400,11 +400,19 @@ test('android notification installation accepts integer-like numeric strings for
 });
 
 test('android notification installation rejects non-canonical and malformed schema versions without persistence', function (mixed $schemaVersion): void {
-    ['user' => $user] = createPushDeviceContext();
+    ['tenant' => $tenant, 'user' => $user] = createPushDeviceContext();
+    ['user' => $otherUser] = createPushDeviceContext();
+
+    $installationId = 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b';
+
+    actingAs($otherUser, 'sanctum');
+
+    putJson('/v1/me/notification-installations/'.$installationId, androidNotificationInstallationPayload(
+        'other-tenant-token-1234567890-abcdefghijklmnopqrstuvwxyz'
+    ))->assertCreated();
 
     actingAs($user, 'sanctum');
 
-    $installationId = 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b';
     $payload = androidNotificationInstallationPayload(
         'e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'
     );
@@ -415,6 +423,8 @@ test('android notification installation rejects non-canonical and malformed sche
         ->assertJsonValidationErrors('runtime.schema_version');
 
     $this->assertDatabaseMissing('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
         'installation_id' => $installationId,
     ]);
 })->with([
