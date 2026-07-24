@@ -21,7 +21,7 @@ final class BootstrapContract
      */
     public const NOTIFICATION_REGISTRATION_SCHEMA_VERSIONS = [
         3,
-        4,
+        self::SCHEMA_VERSION,
     ];
 
     public const CLIENT_PLATFORM_ANDROID = 'android';
