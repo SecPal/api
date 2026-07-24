@@ -216,29 +216,6 @@ test('authenticated user can create android notification installation', function
     Carbon::setTestNow();
 });
 
-test('authenticated android client can register notifications with rollout schema 3', function (): void {
-    ['tenant' => $tenant, 'user' => $user] = createPushDeviceContext();
-
-    actingAs($user, 'sanctum');
-
-    $installationId = 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b';
-    $payload = androidNotificationInstallationPayload(
-        'e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'
-    );
-    $payload['runtime']['schema_version'] = 3;
-
-    putJson('/v1/me/notification-installations/'.$installationId, $payload)
-        ->assertCreated()
-        ->assertJsonPath('data.runtime.schema_version', 3);
-
-    $this->assertDatabaseHas('push_device_registrations', [
-        'tenant_id' => $tenant->id,
-        'user_id' => $user->id,
-        'installation_id' => $installationId,
-        'schema_version' => 3,
-    ]);
-});
-
 test('session-authenticated browser user can create a web push notification installation on the canonical surface', function (): void {
     ['tenant' => $tenant, 'user' => $user] = createBrowserPushContext();
 
@@ -422,8 +399,17 @@ test('android notification installation accepts integer-like numeric strings for
     ]);
 });
 
-test('android notification installation rejects schema versions outside the rollout allowlist and non-integer values', function (mixed $schemaVersion): void {
-    ['user' => $user] = createPushDeviceContext();
+test('android notification installation rejects non-canonical and malformed schema versions without persistence', function (mixed $schemaVersion): void {
+    ['tenant' => $tenant, 'user' => $user] = createPushDeviceContext();
+    ['user' => $otherUser] = createPushDeviceContext();
+
+    $installationId = 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b';
+
+    actingAs($otherUser, 'sanctum');
+
+    putJson('/v1/me/notification-installations/'.$installationId, androidNotificationInstallationPayload(
+        'other-tenant-token-1234567890-abcdefghijklmnopqrstuvwxyz'
+    ))->assertCreated();
 
     actingAs($user, 'sanctum');
 
@@ -432,19 +418,65 @@ test('android notification installation rejects schema versions outside the roll
     );
     $payload['runtime']['schema_version'] = $schemaVersion;
 
-    putJson('/v1/me/notification-installations/a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b', $payload)
+    putJson('/v1/me/notification-installations/'.$installationId, $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors('runtime.schema_version');
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+    ]);
 })->with([
+    'previous schema' => 3,
     'unsupported lower schema' => 2,
     'unsupported higher schema' => 5,
-    'fractional schema' => 3.5,
-    'string schema' => '3',
+    'fractional schema' => 4.5,
+    'string schema' => '4',
     'null schema' => null,
     'boolean schema' => true,
-    'array schema' => [[]],
-    'object schema' => (object) ['version' => 3],
+    'array schema' => [[4]],
+    'object schema' => (object) ['version' => 4],
 ]);
+
+test('session-authenticated browser notification installation rejects schema 3 without modifying an existing registration', function (): void {
+    ['tenant' => $tenant, 'user' => $user] = createBrowserPushContext();
+
+    enableWebPushNotificationChannel();
+    loginBrowserSession($this, $user);
+
+    $installationId = 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c';
+    $originalEndpoint = 'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890';
+    $replacementEndpoint = 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABoQnRhdGVkLWtleS0xMjM0NTY3ODkw';
+
+    $this->withHeaders(spaCsrfHeaders($this))
+        ->putJson('/v1/me/notification-installations/'.$installationId, webPushPayload($originalEndpoint))
+        ->assertCreated();
+
+    $payload = webPushPayload($replacementEndpoint);
+    $payload['lifecycle_event'] = 'credential_rotated';
+    $payload['runtime']['schema_version'] = 3;
+
+    $this->withHeaders(spaCsrfHeaders($this))
+        ->putJson('/v1/me/notification-installations/'.$installationId, $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('runtime.schema_version');
+
+    $this->assertDatabaseHas('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+        'token_last_eight' => substr(hash('sha256', $originalEndpoint), 0, 8),
+        'last_lifecycle_event' => 'registered',
+        'schema_version' => 4,
+    ]);
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+        'token_last_eight' => substr(hash('sha256', $replacementEndpoint), 0, 8),
+    ]);
+});
 
 test('repeating put updates the existing android notification installation', function (): void {
     ['tenant' => $tenant, 'user' => $user] = createPushDeviceContext();
