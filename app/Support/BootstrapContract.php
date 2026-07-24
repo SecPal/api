@@ -16,7 +16,8 @@ final class BootstrapContract
     /**
      * Remove schema 3 only after the minimum supported Android release no
      * longer restores or submits schema-3 runtime state. Remove it from the
-     * frontend allowlist and update the Android runtime contract at the same time.
+     * frontend allowlist and update the Android runtime contract at the same
+     * time. Tracked by SecPal/api#1359 under SecPal/.github#589.
      */
     public const NOTIFICATION_REGISTRATION_SCHEMA_VERSIONS = [
         3,
