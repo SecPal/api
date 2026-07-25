@@ -10,6 +10,7 @@ namespace App\Services;
 use App\Contracts\WebPushTransportInterface;
 use App\Support\WebPushDeliveryConfiguration;
 use App\Support\WebPushTransportResult;
+use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
@@ -48,12 +49,12 @@ final class WebPushTransport implements WebPushTransportInterface
         try {
             $webPush = new WebPush([
                 'VAPID' => $vapidConfig,
-            ], [], null, [
+            ], [], new Client([
                 RequestOptions::ALLOW_REDIRECTS => false,
                 RequestOptions::CONNECT_TIMEOUT => $this->configuration->connectTimeout(),
                 RequestOptions::TIMEOUT => $this->configuration->timeout(),
                 RequestOptions::HTTP_ERRORS => false,
-            ]);
+            ]));
 
             $report = $webPush->sendOneNotification(
                 Subscription::create($subscription),

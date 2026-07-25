@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 use App\Services\WebPushTransport;
 use App\Support\WebPushTransportResult;
+use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use Minishlink\WebPush\MessageSentReport;
@@ -55,6 +56,16 @@ test('transport preserves non-successful provider responses from the web push li
     );
 
     Mockery::mock('overload:Minishlink\\WebPush\\WebPush')
+        ->shouldReceive('__construct')
+        ->once()
+        ->withArgs(function (array $authentication, array $defaultOptions, Client $client): bool {
+            return $authentication['VAPID']['subject'] === 'mailto:notifications@secpal.dev'
+                && $defaultOptions === []
+                && $client->getConfig('allow_redirects') === false
+                && $client->getConfig('connect_timeout') === 5
+                && $client->getConfig('timeout') === 20
+                && $client->getConfig('http_errors') === false;
+        })
         ->shouldReceive('sendOneNotification')
         ->once()
         ->andReturn($report);
