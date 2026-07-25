@@ -353,7 +353,7 @@ test('session-authenticated browser user can rotate an existing web push notific
         ->count())->toBe(1);
 });
 
-test('android notification installation accepts integer-like numeric strings', function (): void {
+test('android notification installation accepts integer-like numeric strings for non-schema fields', function (): void {
     ['tenant' => $tenant, 'user' => $user] = createPushDeviceContext();
 
     actingAs($user, 'sanctum');
@@ -378,7 +378,7 @@ test('android notification installation accepts integer-like numeric strings', f
         ],
         'runtime' => [
             'bootstrap_version' => 'v1',
-            'schema_version' => '4',
+            'schema_version' => 4,
             'metadata_revision' => '3',
         ],
     ])
@@ -396,6 +396,85 @@ test('android notification installation accepts integer-like numeric strings', f
         'sdk_int' => 36,
         'schema_version' => 4,
         'push_metadata_revision' => 3,
+    ]);
+});
+
+test('android notification installation rejects non-canonical and malformed schema versions without persistence', function (mixed $schemaVersion): void {
+    ['tenant' => $tenant, 'user' => $user] = createPushDeviceContext();
+    ['user' => $otherUser] = createPushDeviceContext();
+
+    $installationId = 'a0b1c2d3-e4f5-4a67-89ab-0c1d2e3f4a5b';
+
+    actingAs($otherUser, 'sanctum');
+
+    putJson('/v1/me/notification-installations/'.$installationId, androidNotificationInstallationPayload(
+        'other-tenant-token-1234567890-abcdefghijklmnopqrstuvwxyz'
+    ))->assertCreated();
+
+    actingAs($user, 'sanctum');
+
+    $payload = androidNotificationInstallationPayload(
+        'e6pGmJq4Yk12:APA91bH8mP7rQ6sT5uV4wX3yZ2aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdef'
+    );
+    $payload['runtime']['schema_version'] = $schemaVersion;
+
+    putJson('/v1/me/notification-installations/'.$installationId, $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('runtime.schema_version');
+
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+    ]);
+})->with([
+    'previous schema' => 3,
+    'unsupported lower schema' => 2,
+    'unsupported higher schema' => 5,
+    'fractional schema' => 4.5,
+    'string schema' => '4',
+    'null schema' => null,
+    'boolean schema' => true,
+    'array schema' => [[4]],
+    'object schema' => (object) ['version' => 4],
+]);
+
+test('session-authenticated browser notification installation rejects schema 3 without modifying an existing registration', function (): void {
+    ['tenant' => $tenant, 'user' => $user] = createBrowserPushContext();
+
+    enableWebPushNotificationChannel();
+    loginBrowserSession($this, $user);
+
+    $installationId = 'b1c2d3e4-f5a6-4789-8abc-1d2e3f4a5b6c';
+    $originalEndpoint = 'https://fcm.googleapis.com/fcm/send/cVJmVnB1c2g6MTIzNDU2Nzg5MA:APA91bHabcdefghijklmno1234567890';
+    $replacementEndpoint = 'https://updates.push.services.mozilla.com/wpush/v2/gAAAAABoQnRhdGVkLWtleS0xMjM0NTY3ODkw';
+
+    $this->withHeaders(spaCsrfHeaders($this))
+        ->putJson('/v1/me/notification-installations/'.$installationId, webPushPayload($originalEndpoint))
+        ->assertCreated();
+
+    $payload = webPushPayload($replacementEndpoint);
+    $payload['lifecycle_event'] = 'credential_rotated';
+    $payload['runtime']['schema_version'] = 3;
+
+    $this->withHeaders(spaCsrfHeaders($this))
+        ->putJson('/v1/me/notification-installations/'.$installationId, $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('runtime.schema_version');
+
+    $this->assertDatabaseHas('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+        'token_last_eight' => substr(hash('sha256', $originalEndpoint), 0, 8),
+        'last_lifecycle_event' => 'registered',
+        'schema_version' => 4,
+    ]);
+    $this->assertDatabaseMissing('push_device_registrations', [
+        'tenant_id' => $tenant->id,
+        'user_id' => $user->id,
+        'installation_id' => $installationId,
+        'token_last_eight' => substr(hash('sha256', $replacementEndpoint), 0, 8),
     ]);
 });
 

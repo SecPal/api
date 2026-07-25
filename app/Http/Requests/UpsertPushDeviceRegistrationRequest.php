@@ -26,7 +26,6 @@ class UpsertPushDeviceRegistrationRequest extends FormRequest
         $this->setNestedInteger($payload, ['registration', 'app', 'package_version_code']);
         $this->setNestedInteger($payload, ['registration', 'device', 'sdk_int']);
         $this->setNestedInteger($payload, ['registration', 'subscription', 'expiration_time']);
-        $this->setNestedInteger($payload, ['runtime', 'schema_version']);
         $this->setNestedInteger($payload, ['runtime', 'metadata_revision']);
 
         $this->replace($payload);
@@ -47,7 +46,7 @@ class UpsertPushDeviceRegistrationRequest extends FormRequest
             'lifecycle_event' => ['required', 'string', Rule::in(BootstrapContract::NOTIFICATION_INSTALLATION_LIFECYCLE_EVENTS)],
             'runtime' => ['required', 'array'],
             'runtime.bootstrap_version' => ['required', 'string', Rule::in([BootstrapContract::VERSION])],
-            'runtime.schema_version' => ['required', 'integer', Rule::in([BootstrapContract::SCHEMA_VERSION])],
+            'runtime.schema_version' => ['required', 'integer:strict', Rule::in([BootstrapContract::SCHEMA_VERSION])],
             'runtime.metadata_revision' => ['required', 'integer', 'min:1'],
             'registration' => ['required', 'array'],
             'registration.push_token' => [Rule::requiredIf($androidChannelRequested), 'string', 'min:32', 'max:4096'],
