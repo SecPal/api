@@ -86,8 +86,19 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:password-reset');
     Route::post('/auth/password/reset', [AuthController::class, 'passwordReset'])
         ->middleware('throttle:password-reset');
+
+    // The signed URL is the complete authorization proof for email verification.
+    // Verification neither reads nor establishes browser identity, so keep the
+    // route outside session, CSRF, remember-cookie, and bearer-token resolution.
+    // Global locale, CORS, JSON, and security-header middleware still apply.
     Route::get('/auth/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
-        ->middleware(['signed', 'throttle:6,1'])
+        ->withoutMiddleware([
+            EnsureFrontendRequestsAreStateful::class,
+            RestoreSessionFromRememberToken::class,
+            SetLocaleFromHeader::class,
+            InjectTenantId::class,
+        ])
+        ->middleware(['signed', 'throttle:email-verification'])
         ->whereUuid('id')
         ->name('verification.verify');
 
