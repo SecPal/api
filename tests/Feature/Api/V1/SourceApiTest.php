@@ -86,6 +86,42 @@ test('public source endpoint returns license and corresponding source metadata',
         ]);
 });
 
+test('public source response remains stateless for the configured spa origin', function (): void {
+    $response = $this->withHeaders(spaHeaders())
+        ->getJson('/v1/source');
+
+    $response->assertOk()
+        ->assertHeader('Access-Control-Allow-Origin', spaOrigin())
+        ->assertHeader('X-Frame-Options', 'DENY');
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('invalid public source state remains stateless for the configured spa origin', function (): void {
+    config(['app.url' => 'http://localhost']);
+
+    $response = $this->withHeaders(spaHeaders())
+        ->getJson('/v1/source');
+
+    $response->assertInternalServerError()
+        ->assertJsonPath('code', 'SOURCE_STATE_INVALID');
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('public source does not refresh synthetic incoming cookies', function (): void {
+    $response = $this->withCredentials()
+        ->withCookies([
+            (string) config('session.cookie') => 'synthetic-session-cookie',
+            SPA_XSRF_COOKIE_NAME => 'synthetic-xsrf-cookie',
+        ])->withHeaders(spaHeaders())
+        ->getJson('/v1/source');
+
+    $response->assertOk();
+
+    expectNoSetCookieHeaders($response);
+});
+
 test('public source endpoint is reachable without authentication and contains the expected source offer references', function (): void {
     getJson('/v1/source')
         ->assertOk()

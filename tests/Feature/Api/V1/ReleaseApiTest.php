@@ -40,6 +40,44 @@ test('public release endpoint returns the configured api release metadata', func
         ]);
 });
 
+test('public release response remains stateless for the configured spa origin', function (): void {
+    $response = $this->withHeaders(spaHeaders())
+        ->getJson('/v1/release');
+
+    $response->assertOk()
+        ->assertHeader('Access-Control-Allow-Origin', spaOrigin())
+        ->assertHeader('X-Frame-Options', 'DENY');
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('invalid public release state remains stateless for the configured spa origin', function (): void {
+    config([
+        'bootstrap.api_release.version' => " \n ",
+    ]);
+
+    $response = $this->withHeaders(spaHeaders())
+        ->getJson('/v1/release');
+
+    $response->assertInternalServerError()
+        ->assertJsonPath('code', 'RELEASE_STATE_INVALID');
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('public release does not refresh synthetic incoming cookies', function (): void {
+    $response = $this->withCredentials()
+        ->withCookies([
+            (string) config('session.cookie') => 'synthetic-session-cookie',
+            SPA_XSRF_COOKIE_NAME => 'synthetic-xsrf-cookie',
+        ])->withHeaders(spaHeaders())
+        ->getJson('/v1/release');
+
+    $response->assertOk();
+
+    expectNoSetCookieHeaders($response);
+});
+
 test('public release endpoint fails closed when the release version is missing', function (): void {
     config([
         'bootstrap.api_release.version' => " \n ",

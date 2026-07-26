@@ -103,6 +103,11 @@ function spaHeaders(array $headers = []): array
 
 const SPA_XSRF_COOKIE_NAME = 'XSRF-TOKEN';
 
+function expectNoSetCookieHeaders(Illuminate\Testing\TestResponse $response): void
+{
+    expect($response->headers->all('set-cookie'))->toHaveCount(0);
+}
+
 function issueSpaCsrfToken(Tests\TestCase $testCase): string
 {
     $response = $testCase->withHeaders(spaHeaders())

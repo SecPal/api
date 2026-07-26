@@ -6,8 +6,13 @@
 declare(strict_types=1);
 
 use App\Models\Permission;
+use App\Models\User;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\Events\TokenAuthenticated;
 
 use function Pest\Laravel\getJson;
 
@@ -135,6 +140,152 @@ test('public bootstrap returns web push runtime metadata for browser clients wit
         ->assertJsonMissingPath('data.notification_channels.android_fcm');
 
     expect($response->getContent())->not->toContain('public-client-api-key-demo-1234567890');
+});
+
+test('public browser bootstrap remains stateless for the configured spa origin', function (): void {
+    $response = $this->withHeaders(spaHeaders([
+        'Accept' => 'application/json',
+        'Accept-Language' => 'de',
+    ]))->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertOk()
+        ->assertHeader('Access-Control-Allow-Origin', spaOrigin())
+        ->assertHeader('X-Frame-Options', 'DENY')
+        ->assertHeader('X-Content-Type-Options', 'nosniff')
+        ->assertHeader('Content-Type', 'application/json');
+
+    expect($response->headers->get('Access-Control-Allow-Origin'))->not->toBe('*');
+    expect(app()->getLocale())->toBe('de');
+    expectNoSetCookieHeaders($response);
+});
+
+test('public android bootstrap remains stateless for the configured spa origin', function (): void {
+    $response = $this->withHeaders(spaHeaders([
+        'Accept' => 'application/json',
+    ]))->getJson('/v1/bootstrap?client_platform=android&app_version=1.4.0&app_build=10400');
+
+    $response->assertOk()
+        ->assertHeader('Access-Control-Allow-Origin', spaOrigin());
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('unavailable public bootstrap remains stateless for the configured spa origin', function (): void {
+    config([
+        'bootstrap.public_enabled' => false,
+        'bootstrap.retryable' => true,
+        'bootstrap.retry_after_seconds' => 120,
+    ]);
+
+    $response = $this->withHeaders(spaHeaders())
+        ->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertStatus(503)
+        ->assertJsonPath('code', 'BOOTSTRAP_CONFIG_UNAVAILABLE');
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('unsupported public bootstrap client remains stateless for the configured spa origin', function (): void {
+    $response = $this->withHeaders(spaHeaders())
+        ->getJson('/v1/bootstrap?client_platform=android&app_version=1.3.2&app_build=10302');
+
+    $response->assertStatus(426)
+        ->assertJsonPath('code', 'UNSUPPORTED_CLIENT_VERSION');
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('invalid public bootstrap state remains stateless for the configured spa origin', function (): void {
+    config([
+        'app.name' => '',
+        'app.url' => '',
+        'bootstrap.minimum_supported_app_version' => null,
+        'bootstrap.minimum_supported_app_build' => null,
+    ]);
+
+    $response = $this->withHeaders(spaHeaders())
+        ->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertInternalServerError()
+        ->assertJsonPath('code', 'BOOTSTRAP_STATE_INVALID');
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('public bootstrap remains stateless for a stateful referer without an origin', function (): void {
+    $response = $this->withHeaders([
+        'Referer' => spaReferer(),
+        'Accept' => 'application/json',
+    ])->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertOk();
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('public bootstrap does not refresh synthetic incoming session or xsrf cookies', function (): void {
+    $response = $this->withCredentials()
+        ->withCookies([
+            (string) config('session.cookie') => 'synthetic-session-cookie',
+            SPA_XSRF_COOKIE_NAME => 'synthetic-xsrf-cookie',
+        ])->withHeaders(spaHeaders())
+        ->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertOk();
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('public bootstrap does not resolve an encrypted remember-token identity', function (): void {
+    $rememberToken = 'public-discovery-remember-token';
+    $user = User::factory()->create([
+        'remember_token' => $rememberToken,
+    ]);
+    $rememberCookieName = 'remember_web_'.sha1(SessionGuard::class);
+
+    Event::fake([Login::class]);
+
+    $response = $this->withCredentials()
+        ->withCookies([
+            $rememberCookieName => $user->getAuthIdentifier().'|'.$rememberToken.'|unused-password-hash',
+        ])->withHeaders(spaHeaders())
+        ->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertOk();
+
+    Event::assertNotDispatched(Login::class);
+    expectNoSetCookieHeaders($response);
+});
+
+test('public bootstrap does not authenticate or touch a bearer token', function (): void {
+    $user = User::factory()->create();
+    $accessToken = $user->createToken('public-discovery');
+
+    Event::fake([TokenAuthenticated::class]);
+
+    $response = $this->withToken($accessToken->plainTextToken)
+        ->withHeaders(spaHeaders())
+        ->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertOk();
+
+    Event::assertNotDispatched(TokenAuthenticated::class);
+    expect($accessToken->accessToken->fresh()->last_used_at)->toBeNull();
+    expectNoSetCookieHeaders($response);
+});
+
+test('public bootstrap does not allow an unconfigured cors origin', function (): void {
+    $response = $this->withHeaders([
+        'Origin' => 'https://untrusted.secpal.dev',
+        'Referer' => 'https://untrusted.secpal.dev/',
+        'Accept' => 'application/json',
+    ])->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertOk()
+        ->assertHeaderMissing('Access-Control-Allow-Origin');
+
+    expectNoSetCookieHeaders($response);
 });
 
 test('public bootstrap omits notification channel metadata when authenticated installation registration is disabled', function (): void {
