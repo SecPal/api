@@ -30,8 +30,10 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
 use App\Http\Middleware\EnsureBrowserSessionLoginContext;
+use App\Http\Middleware\RestoreSessionFromRememberToken;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 /*
 |--------------------------------------------------------------------------
@@ -46,12 +48,17 @@ use Illuminate\Support\Facades\Route;
 
 // API v1 routes
 Route::prefix('v1')->group(function () {
-    Route::get('/bootstrap', [BootstrapController::class, 'show'])
-        ->middleware('throttle:bootstrap');
-    Route::get('/release', [ReleaseController::class, 'show'])
-        ->middleware('throttle:release');
-    Route::get('/source', [SourceController::class, 'show'])
-        ->middleware('throttle:source-offer');
+    Route::withoutMiddleware([
+        EnsureFrontendRequestsAreStateful::class,
+        RestoreSessionFromRememberToken::class,
+    ])->group(function (): void {
+        Route::get('/bootstrap', [BootstrapController::class, 'show'])
+            ->middleware('throttle:bootstrap');
+        Route::get('/release', [ReleaseController::class, 'show'])
+            ->middleware('throttle:release');
+        Route::get('/source', [SourceController::class, 'show'])
+            ->middleware('throttle:source-offer');
+    });
 
     // Authentication routes (public)
     // SPA Login (session-based, for web browsers)
