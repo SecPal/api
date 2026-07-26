@@ -68,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- kept public onboarding token validation stateless for SPA-origin requests because token and email are its complete authorization context, preventing validation responses from creating or refreshing session/CSRF cookies, restoring remembered users, or authenticating bearer tokens while preserving stateful onboarding completion (fixes `api#1363`).
 - kept public bootstrap, release, and source responses outside identity-resolving API middleware, preventing discovery requests from creating cookies, restoring sessions, or authenticating and touching bearer tokens while leaving SPA and protected-route authentication unchanged (fixes `api#1362`).
 - normalized customer identifiers are enforced by database-generated values and tenant/Legal-Entity-scoped unique indexes, preventing concurrent duplicate creation; duplicate conflicts intentionally disclose neither the matched field nor an existing customer identifier (US-003).
 - pinned the shared Dependabot auto-merge reusable workflow to immutable commit `d90b56d4bca7c0d6e7fe1520d69b1f98eca22f5e`, preventing later movement of its `v1` tag from changing API automation without a reviewed dependency update (fixes `api#1300`)

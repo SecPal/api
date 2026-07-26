@@ -5,11 +5,26 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\ForceJsonResponse;
+use App\Http\Middleware\InjectTenantId;
+use App\Http\Middleware\RestoreSessionFromRememberToken;
+use App\Http\Middleware\SetLocaleFromHeader;
 use App\Models\Employee;
 use App\Models\EmployeeOnboardingToken;
 use App\Models\TenantKey;
 use App\Models\User;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\SessionGuard;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Routing\Router;
+use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
+use Laravel\Sanctum\Events\TokenAuthenticated;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 use function Pest\Laravel\getJson;
 
@@ -45,14 +60,48 @@ test('validates token with correct email and returns minimal data only', functio
     $tokenData = EmployeeOnboardingToken::generate($employee);
     $plainToken = $tokenData['plain'];
 
-    $response = getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('test@secpal.dev'));
+    $response = $this->withHeaders(spaHeaders())
+        ->getJson('/v1/onboarding/validate-token?token='.urlencode($plainToken).'&email='.urlencode('test@secpal.dev'));
 
     $response->assertOk()
+        ->assertHeader('Access-Control-Allow-Origin', spaOrigin())
+        ->assertHeader('X-Frame-Options', 'DENY')
         ->assertExactJson([
             'data' => [
                 'valid' => true,
             ],
         ]);
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('token validation excludes browser identity middleware while completion keeps its session and csrf lifecycle', function (): void {
+    /** @var Router $router */
+    $router = app('router');
+
+    $validationRoute = $router->getRoutes()->match(
+        Request::create('/v1/onboarding/validate-token', 'GET')
+    );
+    $validationMiddleware = $router->gatherRouteMiddleware($validationRoute);
+
+    expect($validationMiddleware)
+        ->not->toContain(EnsureFrontendRequestsAreStateful::class)
+        ->not->toContain(RestoreSessionFromRememberToken::class)
+        ->not->toContain(SetLocaleFromHeader::class)
+        ->not->toContain(InjectTenantId::class)
+        ->toContain(ForceJsonResponse::class)
+        ->toContain(ThrottleRequests::class.':onboarding-validate');
+
+    $completionRoute = $router->getRoutes()->match(
+        Request::create('/v1/onboarding/complete', 'POST')
+    );
+
+    expect($router->gatherRouteMiddleware($completionRoute))
+        ->toContain(EnsureFrontendRequestsAreStateful::class)
+        ->toContain(RestoreSessionFromRememberToken::class)
+        ->toContain(StartSession::class)
+        ->toContain(PreventRequestForgery::class)
+        ->toContain(ThrottleRequests::class.':onboarding-complete');
 });
 
 test('SECURITY: validate-token does not leak personal data even when token is valid', function () {
@@ -177,6 +226,74 @@ test('rejects invalid token with localized message when german locale is request
         ->assertJson([
             'message' => 'Ungültiger oder abgelaufener Onboarding-Link. Bitte fordern Sie eine neue Einladung an.',
         ]);
+});
+
+test('validation errors remain stateless for the configured spa origin', function (): void {
+    $response = $this->withHeaders(spaHeaders([
+        'Accept-Language' => 'de',
+    ]))->getJson('/v1/onboarding/validate-token?email=synthetic-invitee@secpal.dev');
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors(['token'])
+        ->assertHeader('Access-Control-Allow-Origin', spaOrigin())
+        ->assertHeader('X-Frame-Options', 'DENY')
+        ->assertHeader('Content-Type', 'application/json');
+
+    expect(app()->getLocale())->toBe('de');
+    expectNoSetCookieHeaders($response);
+});
+
+test('token validation does not refresh synthetic incoming session or xsrf cookies', function (): void {
+    $response = $this->withCredentials()
+        ->withCookies([
+            (string) config('session.cookie') => 'synthetic-session-cookie',
+            SPA_XSRF_COOKIE_NAME => 'synthetic-xsrf-cookie',
+        ])->withHeaders(spaHeaders())
+        ->getJson('/v1/onboarding/validate-token?token=synthetic-invalid-token&email=synthetic-invitee@secpal.dev');
+
+    $response->assertUnprocessable();
+
+    expectNoSetCookieHeaders($response);
+});
+
+test('token validation does not restore a synthetic remember-token identity', function (): void {
+    $rememberToken = 'synthetic-onboarding-remember-token';
+    $user = User::factory()->create([
+        'remember_token' => $rememberToken,
+    ]);
+    /** @var SessionGuard $guard */
+    $guard = Auth::guard('web');
+    $rememberCookieName = $guard->getRecallerName();
+
+    Event::fake([Login::class]);
+
+    $response = $this->withCredentials()
+        ->withCookies([
+            $rememberCookieName => $user->getAuthIdentifier().'|'.$rememberToken.'|synthetic-password-hash',
+        ])->withHeaders(spaHeaders())
+        ->getJson('/v1/onboarding/validate-token?token=synthetic-invalid-token&email=synthetic-invitee@secpal.dev');
+
+    $response->assertUnprocessable();
+
+    Event::assertNotDispatched(Login::class);
+    expectNoSetCookieHeaders($response);
+});
+
+test('token validation does not authenticate or touch a synthetic bearer token', function (): void {
+    $user = User::factory()->create();
+    $accessToken = $user->createToken('synthetic-onboarding-validation');
+
+    Event::fake([TokenAuthenticated::class]);
+
+    $response = $this->withToken($accessToken->plainTextToken)
+        ->withHeaders(spaHeaders())
+        ->getJson('/v1/onboarding/validate-token?token=synthetic-invalid-token&email=synthetic-invitee@secpal.dev');
+
+    $response->assertUnprocessable();
+
+    Event::assertNotDispatched(TokenAuthenticated::class);
+    expect($accessToken->accessToken->fresh()->last_used_at)->toBeNull();
+    expectNoSetCookieHeaders($response);
 });
 
 test('rejects expired token', function () {

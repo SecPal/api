@@ -91,9 +91,21 @@ Route::prefix('v1')->group(function () {
         ->whereUuid('id')
         ->name('verification.verify');
 
-    // Onboarding completion (public, token-authenticated)
+    // Token validation is public and stateless: token + email are the complete
+    // authorization context, so browser identity/session middleware must not run.
+    // The global locale, CORS, JSON, security-header, and API throttle middleware
+    // still apply.
     Route::get('/onboarding/validate-token', [OnboardingController::class, 'validateToken'])
+        ->withoutMiddleware([
+            EnsureFrontendRequestsAreStateful::class,
+            RestoreSessionFromRememberToken::class,
+            SetLocaleFromHeader::class,
+            InjectTenantId::class,
+        ])
         ->middleware('throttle:onboarding-validate');
+
+    // Completion intentionally stays stateful because a successful identity proof
+    // logs the invitee into the browser session and rotates the session identifier.
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])
         ->middleware(['throttle:onboarding-complete', 'web']);
 
