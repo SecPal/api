@@ -6,8 +6,13 @@
 declare(strict_types=1);
 
 use App\Models\Permission;
+use App\Models\User;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\Events\TokenAuthenticated;
 
 use function Pest\Laravel\getJson;
 
@@ -140,6 +145,7 @@ test('public bootstrap returns web push runtime metadata for browser clients wit
 test('public browser bootstrap remains stateless for the configured spa origin', function (): void {
     $response = $this->withHeaders(spaHeaders([
         'Accept' => 'application/json',
+        'Accept-Language' => 'de',
     ]))->getJson('/v1/bootstrap?client_platform=browser');
 
     $response->assertOk()
@@ -149,6 +155,7 @@ test('public browser bootstrap remains stateless for the configured spa origin',
         ->assertHeader('Content-Type', 'application/json');
 
     expect($response->headers->get('Access-Control-Allow-Origin'))->not->toBe('*');
+    expect(app()->getLocale())->toBe('de');
     expectNoSetCookieHeaders($response);
 });
 
@@ -218,14 +225,53 @@ test('public bootstrap remains stateless for a stateful referer without an origi
 });
 
 test('public bootstrap does not refresh synthetic incoming session or xsrf cookies', function (): void {
-    $response = $this->withCookies([
-        (string) config('session.cookie') => 'synthetic-session-cookie',
-        SPA_XSRF_COOKIE_NAME => 'synthetic-xsrf-cookie',
-    ])->withHeaders(spaHeaders())
+    $response = $this->withCredentials()
+        ->withCookies([
+            (string) config('session.cookie') => 'synthetic-session-cookie',
+            SPA_XSRF_COOKIE_NAME => 'synthetic-xsrf-cookie',
+        ])->withHeaders(spaHeaders())
         ->getJson('/v1/bootstrap?client_platform=browser');
 
     $response->assertOk();
 
+    expectNoSetCookieHeaders($response);
+});
+
+test('public bootstrap does not resolve a plaintext remember-token identity', function (): void {
+    $rememberToken = 'public-discovery-remember-token';
+    $user = User::factory()->create([
+        'remember_token' => $rememberToken,
+    ]);
+    $rememberCookieName = 'remember_web_'.sha1(SessionGuard::class);
+
+    Event::fake([Login::class]);
+
+    $response = $this->withCredentials()
+        ->withUnencryptedCookies([
+            $rememberCookieName => $user->getAuthIdentifier().'|'.$rememberToken.'|unused-password-hash',
+        ])->withHeaders(spaHeaders())
+        ->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertOk();
+
+    Event::assertNotDispatched(Login::class);
+    expectNoSetCookieHeaders($response);
+});
+
+test('public bootstrap does not authenticate or touch a bearer token', function (): void {
+    $user = User::factory()->create();
+    $accessToken = $user->createToken('public-discovery');
+
+    Event::fake([TokenAuthenticated::class]);
+
+    $response = $this->withToken($accessToken->plainTextToken)
+        ->withHeaders(spaHeaders())
+        ->getJson('/v1/bootstrap?client_platform=browser');
+
+    $response->assertOk();
+
+    Event::assertNotDispatched(TokenAuthenticated::class);
+    expect($accessToken->accessToken->fresh()->last_used_at)->toBeNull();
     expectNoSetCookieHeaders($response);
 });
 

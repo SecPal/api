@@ -14,7 +14,7 @@ use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Routing\Router;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
-test('public discovery routes exclude stateful middleware while retaining api behavior', function (string $path, string $throttleName): void {
+test('public discovery routes exclude identity-resolving middleware while retaining public api behavior', function (string $path, string $throttleName): void {
     /** @var Router $router */
     $router = app('router');
     $route = $router->getRoutes()->match(Request::create($path, 'GET'));
@@ -23,9 +23,9 @@ test('public discovery routes exclude stateful middleware while retaining api be
     expect($middleware)
         ->not->toContain(EnsureFrontendRequestsAreStateful::class)
         ->not->toContain(RestoreSessionFromRememberToken::class)
+        ->not->toContain(SetLocaleFromHeader::class)
+        ->not->toContain(InjectTenantId::class)
         ->toContain(ForceJsonResponse::class)
-        ->toContain(SetLocaleFromHeader::class)
-        ->toContain(InjectTenantId::class)
         ->toContain(ThrottleRequests::class.':'.$throttleName);
 })->with([
     'bootstrap' => ['/v1/bootstrap', 'bootstrap'],

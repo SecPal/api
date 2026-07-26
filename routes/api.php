@@ -30,7 +30,9 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PersonController;
 use App\Http\Controllers\RoleController;
 use App\Http\Middleware\EnsureBrowserSessionLoginContext;
+use App\Http\Middleware\InjectTenantId;
 use App\Http\Middleware\RestoreSessionFromRememberToken;
+use App\Http\Middleware\SetLocaleFromHeader;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
@@ -51,6 +53,8 @@ Route::prefix('v1')->group(function () {
     Route::withoutMiddleware([
         EnsureFrontendRequestsAreStateful::class,
         RestoreSessionFromRememberToken::class,
+        SetLocaleFromHeader::class,
+        InjectTenantId::class,
     ])->group(function (): void {
         Route::get('/bootstrap', [BootstrapController::class, 'show'])
             ->middleware('throttle:bootstrap');

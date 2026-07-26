@@ -66,10 +66,11 @@ test('invalid public release state remains stateless for the configured spa orig
 });
 
 test('public release does not refresh synthetic incoming cookies', function (): void {
-    $response = $this->withCookies([
-        (string) config('session.cookie') => 'synthetic-session-cookie',
-        SPA_XSRF_COOKIE_NAME => 'synthetic-xsrf-cookie',
-    ])->withHeaders(spaHeaders())
+    $response = $this->withCredentials()
+        ->withCookies([
+            (string) config('session.cookie') => 'synthetic-session-cookie',
+            SPA_XSRF_COOKIE_NAME => 'synthetic-xsrf-cookie',
+        ])->withHeaders(spaHeaders())
         ->getJson('/v1/release');
 
     $response->assertOk();
