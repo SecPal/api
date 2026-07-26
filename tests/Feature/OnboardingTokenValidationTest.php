@@ -21,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Routing\Router;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Event;
 use Laravel\Sanctum\Events\TokenAuthenticated;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
@@ -260,7 +261,9 @@ test('token validation does not restore a synthetic remember-token identity', fu
     $user = User::factory()->create([
         'remember_token' => $rememberToken,
     ]);
-    $rememberCookieName = 'remember_web_'.sha1(SessionGuard::class);
+    /** @var SessionGuard $guard */
+    $guard = Auth::guard('web');
+    $rememberCookieName = $guard->getRecallerName();
 
     Event::fake([Login::class]);
 
