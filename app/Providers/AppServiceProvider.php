@@ -97,6 +97,13 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinutes(60, 5)->by($request->ip());
         });
 
+        // A signed verification URL is its own authorization proof. Keying only
+        // by source IP preserves the existing six-per-minute limit without
+        // resolving session or bearer-token identity on this public route.
+        RateLimiter::for('email-verification', function (Request $request) {
+            return Limit::perMinute(6)->by($request->ip());
+        });
+
         RateLimiter::for('bootstrap', function (Request $request) {
             return Limit::perMinutes(5, 5)
                 ->by($this->bootstrapThrottleKey($request))
