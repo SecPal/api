@@ -237,7 +237,7 @@ test('public bootstrap does not refresh synthetic incoming session or xsrf cooki
     expectNoSetCookieHeaders($response);
 });
 
-test('public bootstrap does not resolve a plaintext remember-token identity', function (): void {
+test('public bootstrap does not resolve an encrypted remember-token identity', function (): void {
     $rememberToken = 'public-discovery-remember-token';
     $user = User::factory()->create([
         'remember_token' => $rememberToken,
@@ -247,7 +247,7 @@ test('public bootstrap does not resolve a plaintext remember-token identity', fu
     Event::fake([Login::class]);
 
     $response = $this->withCredentials()
-        ->withUnencryptedCookies([
+        ->withCookies([
             $rememberCookieName => $user->getAuthIdentifier().'|'.$rememberToken.'|unused-password-hash',
         ])->withHeaders(spaHeaders())
         ->getJson('/v1/bootstrap?client_platform=browser');
