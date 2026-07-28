@@ -17,11 +17,11 @@ permissions:
 jobs:
   lint:
     name: Laravel Pint (PSR-12)
-    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@20aa4f8b32a7e480aeeeca0b2e029aca04b6fecd
+    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@1c0affce5e2af1ad9c2ab3cd8cebe4accf810ed1
 
   static-analysis:
     name: PHPStan (Larastan)
-    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@20aa4f8b32a7e480aeeeca0b2e029aca04b6fecd
+    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@1c0affce5e2af1ad9c2ab3cd8cebe4accf810ed1
 
   test:
     name: PEST Tests
