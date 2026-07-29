@@ -30,13 +30,13 @@ permissions:
 jobs:
   project-automation:
     name: Project automation
-    uses: SecPal/.github/.github/workflows/project-automation-core.yml@1c0affce5e2af1ad9c2ab3cd8cebe4accf810ed1
+    uses: SecPal/.github/.github/workflows/project-automation-core.yml@7f5d24a599c03cdc59998c22578c345c518b755d
     secrets: inherit
 
   draft-reminder:
     name: Draft PR Reminder
     if: github.event_name == 'pull_request'
-    uses: SecPal/.github/.github/workflows/draft-pr-reminder.yml@1c0affce5e2af1ad9c2ab3cd8cebe4accf810ed1
+    uses: SecPal/.github/.github/workflows/draft-pr-reminder.yml@7f5d24a599c03cdc59998c22578c345c518b755d
     permissions:
       issues: write
       pull-requests: write
