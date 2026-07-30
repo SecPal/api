@@ -140,7 +140,8 @@ foreach ($http_response_header ?? [] as $header) {
 exit(1);
 ' "http://${api}:8080/health/live"
 log_marker="container-log-probe-${suffix}"
-assert_http "/v1/onboarding/validate-token?token=${log_marker}&email=${log_marker}%40secpal.dev" 422
+email_domain=secpal.app
+assert_http "/v1/onboarding/validate-token?token=${log_marker}&email=${log_marker}%40${email_domain}" 422
 docker logs "$api" >"${tmp_dir}/api.log" 2>&1
 if grep -q "$log_marker" "${tmp_dir}/api.log" || ! grep -q REDACTED "${tmp_dir}/api.log"; then
     echo "Sensitive onboarding query values were not redacted from access logs" >&2

@@ -24,6 +24,7 @@ it('defines the production API image contract', function (): void {
     }
 
     $dockerfile = file_get_contents($root.'/Dockerfile');
+    $dockerignore = file_get_contents($root.'/.dockerignore');
     $caddyfile = file_get_contents($root.'/docker/frankenphp/Caddyfile');
     $productionIni = file_get_contents($root.'/docker/php/conf.d/production.ini');
     $workflow = file_get_contents($root.'/.github/workflows/container-image.yml');
@@ -54,6 +55,6 @@ it('defines the production API image contract', function (): void {
 
     expect($productionIni)->toContain('upload_max_filesize=10M', 'post_max_size=12M');
     expect($workflow)->toContain('"storage/**"', '"artisan"', '"LICENSE"', '"THIRD-PARTY-NOTICES.md"', '"LICENSES/**"');
-    expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent');
+    expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent')->and($dockerignore)->toMatch('/^storage\/app$/m');
     expect($proxyConfig)->toContain('TRUSTED_PROXIES');
 });

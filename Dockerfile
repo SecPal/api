@@ -98,5 +98,4 @@ USER secpal
 EXPOSE 8080
 
 HEALTHCHECK NONE
-
 CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile"]
