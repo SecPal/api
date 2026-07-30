@@ -44,3 +44,5 @@ Composer dependencies are not copied source. Release artifacts that bundle a
 `vendor/` tree must preserve each dependency's license and notice files. See
 the release checklist in
 [`docs/THIRD_PARTY_LICENSE_AUDIT.md`](docs/THIRD_PARTY_LICENSE_AUDIT.md).
+
+The API container also installs `opentimestamps-client` 0.7.2 and its Python dependencies from their package distributions. Their package metadata, including the upstream LGPL-3.0 license files, remains installed in the image. The client source is available from <https://github.com/opentimestamps/opentimestamps-client>.

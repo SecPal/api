@@ -32,6 +32,7 @@ SecPal API is the Laravel 13 backend for SecPal — the operations software for 
 SecPal uses **Laravel Sanctum** with dual authentication modes:
 
 1. **httpOnly Cookie Authentication (SPA Mode)** - Recommended for browser-based SPAs
+
    - XSS-resistant with httpOnly cookies
    - CSRF protection via Laravel's built-in middleware
    - Session-based authentication for React PWA
@@ -289,6 +290,9 @@ php artisan idx:rebuild {tenant_id}
 
 **For production deployment**, see the comprehensive guides:
 
+- 🐳 [API Container](docs/containers.md) - Production image preparation with
+  FrankenPHP Classic and PhpRedis; Valkey remains a separate future backend,
+  and the complete reference stack will follow in `SecPal/deployment`
 - 📖 [Production Deployment Guide](docs/deployment.md) - Complete setup instructions
 - ✅ [Deployment Checklist](docs/deployment-checklist.md) - Quick reference checklist
 - 🌐 [Uberspace Deployment](docs/deployment-uberspace.md) - Uberspace-specific guide

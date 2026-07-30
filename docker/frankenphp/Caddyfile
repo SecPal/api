@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+
+{
+	admin off
+	auto_https off
+	frankenphp
+}
+
+:8080 {
+	root * /app/public
+	encode zstd br gzip
+
+	log {
+		output stdout
+		format json
+	}
+
+	php_server {
+		root /app/public
+	}
+}
