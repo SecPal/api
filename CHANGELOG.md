@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- changed local and hosted pull-request size reporting to treat 600 changed
+  lines as an advisory reviewability threshold, with no override file, approval
+  label, or size-triggered push failure
+
 ### Added
 
 - added a production-oriented, single-role-neutral API container image based on FrankenPHP Classic and PHP 8.4, including native PhpRedis/Valkey compatibility, rootless runtime permissions, digest-pinned build images, hash-locked OpenTimestamps dependencies, query-credential redaction, local-database exclusion, opt-in trusted proxies, explicit PostgreSQL, persistent-file, and secret handling, Docker integration smoke coverage, CI, and operator documentation
@@ -507,6 +513,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Onboarding Completion Detection System** (Issue #498, Epic #469)
+
   - **IMPLEMENTED** Automatic detection and tracking of onboarding completion
   - **`OnboardingCompletionService`**: Service class for completion logic
     - `checkCompletion(Employee)`: Detects when all required templates approved, auto-updates `employee.onboarding_completed` and `employee.onboarding_completed_at`
@@ -523,6 +530,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tests**: 29 comprehensive Pest tests (18 unit + 11 feature) covering all edge cases
 
 - **Standard Onboarding Form Templates Seeder** (Issue #497, Epic #469)
+
   - **IMPLEMENTED** 4 pre-configured onboarding form templates (system-wide)
   - **Templates Created**:
     1. **Personal Information Form** (Required): BewachV § 16 required fields (gender, nationalities, intended activities)
@@ -540,6 +548,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tests**: 20+ comprehensive Pest tests validating structure, validation rules, and data integrity
 
 - **Magic Link Employee Onboarding System** (Issue #486, Epic #469)
+
   - **IMPLEMENTED** Secure single-use tokens for pre-contract employee onboarding
   - **`employee_onboarding_tokens` Table**: UUID primary key, bcrypt-hashed tokens, 7-day expiry, single-use enforcement, audit trail (IP, user agent)
   - **`EmployeeOnboardingToken` Model**:
@@ -567,6 +576,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tests**: 16 unit tests (all passing), 7 feature tests (E2E flow validated, 2 pending User accounts)
 
 - **BewachV § 16 Employee Data Fields for BWR Registration** (Issue #468, Epic #469)
+
   - **IMPLEMENTED** Complete BewachV compliance for Bewacherregister (BWR) employee data management
   - **30+ New Fields** across 7 categories:
     - **BWR Tracking**: `bwr_id` (7-digit unique ID), `bwr_status` (5-state enum), `bwr_registered_at`, `bwr_submission_date`, `bwr_notes`
@@ -619,6 +629,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: Foundation for Issues #471 (BWR Workflow Export), #470 (Automated Data Deletion), #472 (Work Permit Tracking)
 
 - **Activity Log REST API with Scoped Filtering** (Issue #394, Epic #385)
+
   - **IMPLEMENTED** ActivityLogController with 3 RESTful endpoints for activity log access
   - Endpoints:
     - `GET /v1/activity-logs` - Paginated listing with comprehensive filtering
@@ -654,6 +665,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact:** Completes Epic #385 Phase 6, unblocks Issue #395 (Frontend Activity Log Viewer), enables BewachV § 21 Abs. 4 compliance
 
 - **ActivityPolicy with Leadership Level Filtering** (Issue #396, Epic #385)
+
   - **IMPLEMENTED** authorization policy for hierarchical activity log access
   - Architecture:
     - `view()` method enforces tenant isolation + organizational scope + leadership filtering
@@ -716,6 +728,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **BWR-ID Format and Validation** (Issue #468)
+
   - **BREAKING CHANGE**: BWR-ID format now strictly enforces 7-digit numeric range: `0000000` - `9999999`
   - Changed from `string(50)` to `string(7)` with regex validation: `/^[0-9]{7}$/`
   - String storage preserves leading zeros (e.g., "0012345") for legal compliance
@@ -733,6 +746,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ⚠️ **BewachV Employee Data Changes** (Issue #468) - Version 0.x.x allows breaking changes to avoid technical debt
 
 - **Address Structure Change**:
+
   - Old: Single `address_encrypted` field with free-text format
   - New: 7 structured fields (`address_street_enc`, `address_house_number_enc`, `address_postal_code_enc`, `address_city_enc`, `address_supplement_enc`, `address_country`, `address_state`)
   - Impact: API responses now include 7 separate address fields instead of 1
@@ -740,6 +754,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Code Changes Required: Update API clients to handle new address structure
 
 - **BWR-ID Validation Change**:
+
   - Old: `string(50)` with no format validation
   - New: Exactly 7 digits (`size:7`, `regex:/^[0-9]{7}$/`), unique constraint
   - Impact: Existing BWR-IDs with ≠7 digits will fail validation
@@ -747,6 +762,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Code Changes Required: Update any hardcoded BWR-ID test data to 7-digit format
 
 - **Sachkunde Expiry Removal**:
+
   - Old: `sachkunde_expiry` date field for tracking qualification expiry
   - New: No expiry field (Sachkunde valid for life)
   - Impact: `sachkunde_expiry` no longer exists in model/database/API
@@ -763,6 +779,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **Enhanced Encryption for Personal Data** (Issue #468)
+
   - All new BewachV § 16 identity fields use `EncryptedWithDek` cast (encryption at rest)
   - Encrypted fields: `birth_name_enc`, `address_street_enc`, `address_house_number_enc`, `address_postal_code_enc`, `address_city_enc`, `address_supplement_enc`, `id_document_number_enc`
   - Blind indexes maintained for unique constraints (BWR-ID, email, etc.)
@@ -830,12 +847,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Legal Compliance
 
 - **BewachV § 16 Implementation** (Issue #468)
+
   - **Full Compliance**: All mandatory registration fields per BewachV § 16 Bewacherregister
   - Required fields: BWR-ID (7 digits), gender, structured address, nationality, identity documents, Sachkunde (if applicable)
   - Conditional validation: Gender + address required when `bwr_status` is 'pending' or 'active'
   - 5-year address history tracked per BewachV § 16 Abs. 2 Nr. 6
 
 - **BewachV § 21 Abs. 4 Retention** (Issue #468)
+
   - **Automated Retention**: Calculates 3-year retention from end of calendar year
   - Formula: `END_OF_YEAR(termination_date) + 3 years`
   - Auto-calculated via Observer on status change to 'terminated'
@@ -843,12 +862,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Future: Batch deletion queries will use `retention_period_end` for GDPR compliance
 
 - **BewachV § 34a Sachkunde** (Issue #468)
+
   - **Clarification**: Sachkunde qualification valid for life (no expiry per IHK)
   - Tracking: IHK number, exam date, issued date
   - Field removed: `sachkunde_expiry` (incorrect assumption)
   - Compliance: Accurate representation of German security guard qualification rules
 
 - **GDPR Art. 5(1)(e) Storage Limitation** (Issue #468)
+
   - **Auto-Deletion System**: ID document copies automatically deleted when BWR registration complete
   - Trigger: `bwr_status` change to 'active'
   - Action: Physical file deletion + `id_document_copy_deleted_at` timestamp
@@ -865,6 +886,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - **BewachV Compliance Documentation** (Issue #468)
+
   - Created `docs/BEWACHV_COMPLIANCE.md` (500+ lines)
   - Sections:
     - Legal Framework: BewachV §16/§21/§34a full text with translations
@@ -908,12 +930,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - **Deprecated Employee Address Fields** (Issue #468)
+
   - **BREAKING CHANGE**: Removed `address_encrypted` single-field storage
   - Replaced by 7 structured address fields: `address_street_enc`, `address_house_number_enc`, `address_postal_code_enc`, `address_city_enc`, `address_supplement_enc`, `address_country`, `address_state`
   - Migration provides backward compatibility via data extraction
   - Computed property `structured_address` provides comma-separated format for backward compatibility
 
 - **Sachkunde Expiry Field** (Issue #468)
+
   - **BREAKING CHANGE**: Removed `sachkunde_expiry` from Employee model
   - Sachkunde qualification never expires (valid for life per IHK)
   - Database column not created in new migrations
@@ -938,6 +962,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **BREAKING: User → Tenant Relationship** (Issue #358, Epic #357)
+
   - Added `users.tenant_id` foreign key to `tenant_keys` table (NOT NULL)
   - Migration includes 3-step process: add nullable column → backfill data → make NOT NULL
   - All existing users automatically assigned to first tenant (backward-compatible for single-tenant deployments)
@@ -950,6 +975,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `2025_12_18_193808_make_user_tenant_id_not_nullable.php`
 
 - **BREAKING: InjectTenantId Middleware - User-Based Resolution** (Issue #359, Epic #357)
+
   - Replaced hardcoded `TenantKey::oldest('id')` with user-based resolution: `$user->tenant_id`
   - Middleware now requires authenticated user (returns 401 for unauthenticated requests to tenant-scoped routes)
   - Security hardening: Client-provided `tenant_id` parameters (query string or request body) are **always removed**
@@ -958,6 +984,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact:** All API routes using `tenant.inject` middleware now require authentication and resolve tenant from user
 
 - **BREAKING: Registration/User Creation - Tenant Assignment** (Issue #360, Epic #357)
+
   - User registration now requires or auto-assigns `tenant_id`
   - If no `tenant_id` provided, defaults to first available tenant (MVP behavior)
   - Admin user creation validates that tenant_id matches admin's tenant (cannot create users in other tenants)
@@ -986,6 +1013,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Site CRUD API endpoints** (#314, Phase 4.2 of Epic #210, PR #356)
+
   - Implemented 6 RESTful endpoints for Site management:
     - `GET /v1/sites` - Paginated list with comprehensive filtering
       - Filters: customer_id, organizational_unit_id, type (permanent/temporary), is_active, currently_valid, search
@@ -1014,6 +1042,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Full integration with Customer & Assignment APIs
 
 - **Assignment API endpoints** (#315, Phase 4.3 of Epic #210, PR #363)
+
   - Customer Assignments: Flexible user-to-customer role assignments with tenant-specific terminology
     - `GET /v1/customers/{customer}/assignments` - List assignments for customer (filters: role, active_only)
     - `POST /v1/customers/{customer}/assignments` - Create assignment (prevents duplicates with 409)
@@ -1032,6 +1061,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Full SiteResource implementation replacing placeholder
 
 - **CostCenter API endpoints** (#316, Phase 4.4 of Epic #210, PR #368)
+
   - Implemented 5 RESTful endpoints for CostCenter management (nested under sites):
     - `GET /v1/sites/{site}/cost-centers` - List cost centers for site (filter: active_only)
     - `POST /v1/sites/{site}/cost-centers` - Create cost center
@@ -1079,6 +1109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Employee Management RESTful API Endpoints** (#323, Phase 5 of Epic #211)
+
   - Implemented 5 REST controllers with 30+ endpoints for complete employee lifecycle management:
     - `EmployeeController`: 7 methods (index, store, show, update, destroy, activate, terminate)
       - GET /v1/employees: Paginated list with filters (status, organizational_unit_id, search)
@@ -1142,6 +1173,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - File upload/download functionality
 
 - **Employee Management Authorization Policies & Middleware** (#322, Phase 4 of Epic #211)
+
   - Implemented 6 authorization policies for employee management resources:
     - `EmployeePolicy`: Scope-based authorization for employee CRUD operations
       - Admin: Full access to all employees
@@ -1188,6 +1220,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Status-based operations (activate, terminate)
 
 - **Employee Management Database Schema** (#319, Phase 1 of Epic #211)
+
   - Created 6 new database tables for comprehensive employee management system:
     - `employees`: Core employee data with encrypted personal information (TenantKey)
     - `qualifications`: System-wide and tenant-specific qualifications (14 predefined)
@@ -1222,6 +1255,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Comprehensive indexes and foreign keys for optimal query performance
 
 - **Organizational Unit Hierarchy Validation** (#301, Part of Epic #283)
+
   - Added backend validation to enforce organizational hierarchy rules
   - Hierarchy ranking: Holding(1) → Company(2) → Region(3) → Branch(4) → Division(5) → Department(6) → Custom(7)
   - Child units must be **lower** in the hierarchy than their parent (child rank > parent rank)
@@ -1242,6 +1276,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Employee Creation Encryption Issue** (#323, resolves #339)
+
   - Fixed NULL constraint violation on encrypted fields (`first_name_enc`, `last_name_enc`) during employee creation
   - Root cause: `$fillable` array only contained `_enc` field names, preventing plaintext mutators from triggering
   - Solution: Added plaintext field names (`first_name`, `last_name`, `date_of_birth`, `address`, `hourly_rate`, `tax_id`, `social_security_number`) to `$fillable` array in Employee model
@@ -1249,16 +1284,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All 30 EmployeeControllerTest tests now pass (previously 9/30 failing on creation)
 
 - **Newly Created Root Unit Not Visible** (#299, Part of Epic #283)
+
   - Root organizational units created without a parent were not visible to the creator
   - Creator now automatically receives `manage` scope with `include_descendants=true` on new root units
   - Child units continue to inherit access from parent's scope settings
   - Added 3 new tests covering auto-scope assignment and visibility
 
 - **Organizational Unit Eager Loading** (#282, Part of Epic #280)
+
   - Added missing `parent()` relation to `OrganizationalUnit` model for eager loading support
   - Fixes N+1 query issues when loading organizational units with parent relationships
 
 - **PWA Session Restoration After Long Inactivity** (#271)
+
   - Added `RestoreSessionFromRememberToken` middleware to restore sessions from remember token
   - Fixes 401 logout when accessing protected endpoints after hours of inactivity
   - Laravel's remember token functionality only works with SessionGuard on web routes,
@@ -1268,6 +1306,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added tests verifying middleware registration and behavior
 
 - **PWA Session Expiry Handling** (#270)
+
   - SPA login now uses `remember: true` for long-lived sessions (PWA requirement)
   - Users stay logged in until explicit logout instead of 120-minute session timeout
   - Works via Laravel's remember_token cookie for automatic session extension
@@ -1282,6 +1321,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Deployment Documentation** (#245)
+
   - `docs/deployment.md`: Complete production deployment guide with prerequisites, environment setup, KEK generation, database setup, tenant key initialization, health checks, and troubleshooting
   - `docs/deployment-checklist.md`: Quick reference checklist for deployment operators with step-by-step verification
   - `docs/deployment-uberspace.md`: Uberspace shared hosting specific deployment guide with platform-specific commands and service configuration
@@ -1289,6 +1329,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
 
 - **Tenant Key Setup Command** (#244)
+
   - `php artisan tenant:setup` command for guided tenant key initialization during new deployments
   - Interactive validation of KEK file existence and secure permissions (0600)
   - Idempotent design prevents duplicate tenant key creation
@@ -1297,6 +1338,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
 
 - **Setup Validation Command** (#243)
+
   - `php artisan app:validate-setup` command for deployment readiness checks
   - Validates database connectivity, tenant keys, KEK file, storage permissions, and PHP extensions
   - Colored console output with ✅/❌ indicators and actionable error messages
@@ -1304,12 +1346,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
 
 - **Health Check Endpoints** (#242)
+
   - `/health/live` endpoint for liveness probes (minimal process check)
   - `/health/ready` endpoint for readiness probes (database, tenant keys, KEK file)
   - Kubernetes-compatible response format with 200 OK (ready) or 503 Service Unavailable (not ready)
   - Part of Epic: Application Setup & Health Check System (SecPal/api#241)
 
 - **Production Deployment Guide** (#219)
+
   - Complete production deployment checklist with security requirements
   - Nginx and Apache configuration examples with TLS/SSL
   - Rate limiting configuration for login and API endpoints
@@ -1321,6 +1365,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: httpOnly Cookie Authentication Migration (SecPal/api#217)
 
 - **Integration Tests for Sanctum Authentication** (#219)
+
   - 8 comprehensive integration tests in `tests/Feature/Auth/SanctumIntegrationTest.php`
   - CORS credentials and preflight request testing
   - Session performance and concurrent device tests
@@ -1329,6 +1374,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: httpOnly Cookie Authentication Migration (SecPal/api#217)
 
 - **Sanctum SPA Authentication Guide** (#218)
+
   - Comprehensive documentation for httpOnly cookie authentication
   - Architecture diagrams and authentication flow
   - Configuration guide for both development and production
@@ -1339,6 +1385,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of Epic: httpOnly Cookie Authentication Migration (SecPal/api#217, SecPal/frontend#205)
 
 - **httpOnly Cookie Authentication Tests & Documentation** (#208)
+
   - Comprehensive test suite in `tests/Feature/Auth/SanctumCookieAuthTest.php`
   - 14 integration tests covering Sanctum authentication configuration
   - Tests verify session cookie configuration (httpOnly, secure, sameSite=lax)
@@ -1384,6 +1431,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **User Language Preference** (#86)
+
   - New `preferred_locale` column in `users` table (VARCHAR(5), nullable)
   - PATCH `/v1/me/language` endpoint to update user's preferred language
   - Supports `en` (English) and `de` (German)
@@ -1413,6 +1461,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Role Management CRUD API** (#108, Phase 4)
+
   - New endpoint: `GET /v1/roles` - List all roles with permission count and user count
   - New endpoint: `POST /v1/roles` - Create new role with permissions
   - New endpoint: `GET /v1/roles/{id}` - Get role details with assigned permissions
@@ -1426,6 +1475,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), completes role management capabilities
 
 - **Predefined Roles Seeder** (#108, Phase 4)
+
   - New seeder: `RolesAndPermissionsSeeder` - Creates 5 predefined roles with permissions
   - Predefined roles: Admin, Manager, Guard, Client, Works Council
   - Idempotent design: Safe to run multiple times, uses `firstOrCreate`
@@ -1436,6 +1486,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), provides production-ready role foundation
 
 - **RBAC Documentation** (#108, Phase 4)
+
   - New guide: `docs/guides/role-management.md` - How to create/manage roles (872 lines)
   - New guide: `docs/guides/permission-system.md` - Permission naming conventions and organization (716 lines)
   - New guide: `docs/guides/temporal-roles.md` - Temporal role assignment patterns
@@ -1447,6 +1498,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), completes RBAC documentation requirements
 
 - **User Direct Permission Assignment API** (#138)
+
   - New endpoint: `GET /v1/users/{user}/permissions` - List all user permissions (direct + inherited from roles)
   - New endpoint: `POST /v1/users/{user}/permissions` - Assign direct permission(s) to user with temporal tracking (audit trail)
   - New endpoint: `DELETE /v1/users/{user}/permissions/{permission}` - Revoke direct permission from user
@@ -1459,6 +1511,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), enables fine-grained permission control bypassing roles
 
 - **Permission Management CRUD API** (#137)
+
   - New endpoint: `GET /v1/permissions` - List all permissions grouped by resource
   - New endpoint: `POST /v1/permissions` - Create new permission with strict naming validation (resource.action)
   - New endpoint: `GET /v1/permissions/{id}` - Get permission details with assigned roles
@@ -1471,6 +1524,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Part of RBAC Phase 4 Epic (#108), enables Issue #138 (User Direct Permission Assignment)
 
 - **RBAC Architecture Documentation** (#143)
+
   - New file: `docs/rbac-architecture.md` - Central RBAC system documentation
   - System architecture: High-level component diagrams (Users → Roles → Permissions + Direct Permissions)
   - Core concepts: Roles, Permissions, Direct Permissions, Temporal Assignments
