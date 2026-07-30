@@ -12,8 +12,17 @@
 
 	log {
 		output stdout
-		format json
+		format filter {
+			request>uri query {
+				replace token REDACTED
+				replace email REDACTED
+			}
+			wrap json
+		}
 	}
+
+	@internalFiles path /.htaccess /*.license
+	respond @internalFiles 404
 
 	php_server {
 		root /app/public

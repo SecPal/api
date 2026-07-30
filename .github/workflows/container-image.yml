@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: CC0-1.0
 
 name: Container Image
-
 on:
   push:
     branches: [main]
@@ -23,22 +22,24 @@ on:
       - "public/**"
       - "resources/**"
       - "routes/**"
+      - "storage/**"
       - "scripts/ots-*.py"
+      - "artisan"
+      - "LICENSE"
+      - "THIRD-PARTY-NOTICES.md"
+      - "LICENSES/**"
       - ".github/workflows/container-image.yml"
 
 permissions:
   contents: read
-
 jobs:
   build-and-test:
     name: Build and integration smoke
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
       - name: Lint Dockerfile
         run: docker run --rm -i hadolint/hadolint:v2.14.0-debian < Dockerfile
 

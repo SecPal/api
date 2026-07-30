@@ -3,9 +3,8 @@
 # SPDX-License-Identifier: CC0-1.0
 
 ARG FRANKENPHP_IMAGE=dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:79b347211bfec90d6a1373c4956a7d3832c8248a2ff2d76bd0b677f37284d32f
-
 FROM ${FRANKENPHP_IMAGE} AS extensions
-
+COPY docker/python/opentimestamps-requirements.txt /tmp/opentimestamps-requirements.txt
 # hadolint ignore=DL3008
 RUN install-php-extensions \
         bcmath \
@@ -23,17 +22,14 @@ RUN install-php-extensions \
         zip \
     && apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-pip \
-    && pip3 install --break-system-packages --no-cache-dir opentimestamps-client==0.7.2 \
+    && pip3 install --break-system-packages --no-cache-dir --only-binary=:all: \
+        --require-hashes -r /tmp/opentimestamps-requirements.txt \
+    && rm /tmp/opentimestamps-requirements.txt \
     && rm -rf /var/lib/apt/lists/*
-
 FROM extensions AS dependencies
-
 COPY --from=composer:2.10.2 /usr/bin/composer /usr/local/bin/composer
-
 WORKDIR /app
-
 COPY composer.json composer.lock ./
-
 RUN --mount=type=cache,target=/tmp/composer-cache \
     COMPOSER_CACHE_DIR=/tmp/composer-cache composer install \
         --no-dev \
@@ -41,7 +37,6 @@ RUN --mount=type=cache,target=/tmp/composer-cache \
         --no-progress \
         --no-scripts \
         --prefer-dist
-
 COPY app ./app
 COPY bootstrap ./bootstrap
 COPY config ./config
@@ -54,14 +49,12 @@ COPY scripts/ots-stamp-hash.py scripts/ots-verify.py ./scripts/
 COPY storage ./storage
 COPY artisan LICENSE THIRD-PARTY-NOTICES.md ./
 COPY LICENSES ./LICENSES
-
 RUN rm -f bootstrap/cache/*.php && composer dump-autoload \
         --classmap-authoritative \
         --no-dev \
         --no-interaction \
         --no-scripts \
     && php artisan package:discover --ansi
-
 FROM extensions AS runtime
 
 ARG APP_UID=10001
@@ -103,5 +96,7 @@ RUN cp "${PHP_INI_DIR}/php.ini-production" "${PHP_INI_DIR}/php.ini" \
 USER secpal
 
 EXPOSE 8080
+
+HEALTHCHECK NONE
 
 CMD ["frankenphp", "run", "--config", "/etc/frankenphp/Caddyfile"]
