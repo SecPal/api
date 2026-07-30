@@ -11,12 +11,18 @@ network="secpal-api-smoke-${suffix}"
 postgres="secpal-postgres-${suffix}"
 valkey="secpal-valkey-${suffix}"
 api="secpal-api-${suffix}"
+sqlite_probe="database/container-smoke-${suffix}.sqlite"
+if test -e "$sqlite_probe"; then
+    echo "Refusing to overwrite existing SQLite smoke probe: ${sqlite_probe}" >&2
+    exit 1
+fi
 tmp_dir=$(mktemp -d)
 kek_file="${tmp_dir}/kek"
 api_env="${tmp_dir}/api.env"
 cleanup() {
     docker rm -f "$api" "$valkey" "$postgres" >/dev/null 2>&1 || true
     docker network rm "$network" >/dev/null 2>&1 || true
+    rm -f "$sqlite_probe"
     rm -rf "$tmp_dir"
 }
 trap cleanup EXIT HUP INT TERM
@@ -49,6 +55,7 @@ wait_for_http() {
     return 1
 }
 
+printf 'container build-context exclusion probe\n' >"$sqlite_probe"
 docker build --tag "$image" .
 docker run --rm "$image" php -v | grep -q '^PHP 8\.4\.23'
 docker run --rm "$image" frankenphp version | grep -q 'FrankenPHP v1\.12\.6'
@@ -74,6 +81,7 @@ docker run --rm "$image" sh -eu -c '
     test ! -e /app/.git
     test ! -d /app/vendor/pestphp
     test ! -d /app/vendor/phpunit
+    test -z "$(find /app/database -type f -name "*.sqlite*" -print -quit)"
     ! command -v node >/dev/null
     ! command -v redis-server >/dev/null
     ! command -v valkey-server >/dev/null

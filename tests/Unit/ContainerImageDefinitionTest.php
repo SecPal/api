@@ -30,6 +30,7 @@ it('defines the production API image contract', function (): void {
     $workflow = file_get_contents($root.'/.github/workflows/container-image.yml');
     $documentation = file_get_contents($root.'/docs/containers.md');
     $proxyConfig = file_get_contents($root.'/config/trustedproxy.php');
+    $smokeScript = file_get_contents($root.'/tests/docker/smoke.sh');
 
     expect($dockerfile)
         ->toContain('dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:')
@@ -63,6 +64,8 @@ it('defines the production API image contract', function (): void {
     expect($productionIni)->toContain('upload_max_filesize=10M', 'post_max_size=12M');
     expect($workflow)->toContain('"storage/**"', '"artisan"', '"LICENSE"', '"THIRD-PARTY-NOTICES.md"', '"LICENSES/**"');
     expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent')->and($dockerignore)->toMatch('/^storage\/app$/m');
+    expect($dockerignore)->toMatch('/^\*\*\/\*\.sqlite\*$/m');
+    expect($smokeScript)->toContain('if test -e "$sqlite_probe"; then');
     expect($proxyConfig)->toContain('TRUSTED_PROXIES');
 });
 

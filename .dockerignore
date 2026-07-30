@@ -9,7 +9,9 @@
 polyscope*.json
 *.log
 *.key
+*.sqlite*
 **/*.key
+**/*.sqlite*
 **/secrets
 auth.json
 build
