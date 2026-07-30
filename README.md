@@ -291,8 +291,7 @@ php artisan idx:rebuild {tenant_id}
 **For production deployment**, see the comprehensive guides:
 
 - 🐳 [API Container](docs/containers.md) - Production image preparation with
-  FrankenPHP Classic and PhpRedis; Valkey remains a separate future backend,
-  and the complete reference stack will follow in `SecPal/deployment`
+  FrankenPHP Classic, native PhpRedis, and validated Valkey compatibility
 - 📖 [Production Deployment Guide](docs/deployment.md) - Complete setup instructions
 - ✅ [Deployment Checklist](docs/deployment-checklist.md) - Quick reference checklist
 - 🌐 [Uberspace Deployment](docs/deployment-uberspace.md) - Uberspace-specific guide

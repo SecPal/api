@@ -9,7 +9,7 @@ SecPal uses one production API image for HTTP, queues, scheduling, and administr
 
 ## Architecture
 
-The pinned base is `dunglas/frankenphp:1.12.6-php8.4.23-bookworm` at multi-architecture digest `sha256:79b347211bfec90d6a1373c4956a7d3832c8248a2ff2d76bd0b677f37284d32f`. It provides FrankenPHP 1.12.6, PHP 8.4.23, Debian 12, and verified `amd64`/`arm64` manifests. The Debian variant avoids Alpine/musl compatibility differences.
+The pinned base is `dunglas/frankenphp:1.12.6-php8.4.23-bookworm` at multi-architecture digest `sha256:79b347211bfec90d6a1373c4956a7d3832c8248a2ff2d76bd0b677f37284d32f`. It provides FrankenPHP 1.12.6, PHP 8.4.23, Debian 12, and verified `amd64`/`arm64` manifests. The Composer 2.10.2 build stage is also pinned to its multi-architecture digest. The Debian variant avoids Alpine/musl compatibility differences.
 
 FrankenPHP serves only `/app/public` in Classic Mode on HTTP port `8080`. Worker Mode, Octane, automatic HTTPS, ACME, and Caddy's admin API are disabled. The base image's OCI metadata still declares ports 80, 443, and 2019, but no process listens there. The `secpal` user (UID/GID `10001`) runs without extra capabilities; root owns source, while `storage` and `bootstrap/cache` are writable by that UID/GID.
 
@@ -49,7 +49,7 @@ Migration is an explicit deployment operation after a backup or restore point, n
 
 ## PostgreSQL, Valkey, and secrets
 
-PostgreSQL remains the persistent primary database and is external to the image; normal `DB_*` variables configure it. PhpRedis communicates over RESP with Redis-compatible servers. Valkey is the preferred future backend but remains optional and external. Existing `REDIS_*` variables remain the contract, and database-backed queue, cache, and session defaults do not change.
+PostgreSQL remains the persistent primary database and is external to the image; normal `DB_*` variables configure it. PhpRedis communicates over RESP with Redis-compatible servers, including the validated Valkey version. Redis-compatible services remain optional and external. Existing `REDIS_*` variables remain the contract, and database-backed queue, cache, and session defaults do not change.
 
 The KEK is an external raw 32-byte secret. Configure `KEK_PATH`, mount the file read-only where practical, make it readable by UID `10001`, and set mode `0600`. The default is `storage/app/keys/kek.key`; `/run/secrets/secpal-kek` is optional. Never place the KEK, `APP_KEY`, `.env`, credentials, tokens, private certificates, or API keys in the image; it creates none of them.
 
@@ -61,4 +61,4 @@ Run `tests/docker/smoke.sh` for build, CLI, permissions, PostgreSQL, Valkey, HTT
 
 ## Boundaries
 
-This milestone excludes a frontend image, Compose/deployment repository, persistent services, edge proxy, public TLS, CrowdSec, Falco, GHCR/multi-architecture publishing, backup/restore, updates, and customer provisioning. Nginx, Apache, PHP-FPM, Kubernetes, and hosting-panel stacks are not reference deployments.
+This repository supplies only the API image; it does not define frontend delivery, persistent services, edge proxy and public TLS, image registry and publishing, security monitoring, backup and restore, updates, or customer provisioning. Operators must provide and validate the components their deployment requires. Nginx, Apache, PHP-FPM, Kubernetes, and hosting-panel stacks are not reference deployments.

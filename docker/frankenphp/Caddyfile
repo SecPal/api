@@ -16,6 +16,8 @@
 			request>uri query {
 				replace token REDACTED
 				replace email REDACTED
+				replace expires REDACTED
+				replace signature REDACTED
 			}
 			wrap json
 		}

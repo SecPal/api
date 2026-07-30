@@ -142,16 +142,16 @@ exit(1);
 log_marker="container-log-probe-${suffix}"
 email_domain=secpal.app
 assert_http "/v1/onboarding/validate-token?token=${log_marker}&email=${log_marker}%40${email_domain}" 422
+assert_http "/v1/auth/email/verify/00000000-0000-4000-8000-000000000001/synthetic-hash?expires=2000000000&signature=${log_marker}" 403
 docker logs "$api" >"${tmp_dir}/api.log" 2>&1
 if grep -q "$log_marker" "${tmp_dir}/api.log" || ! grep -q REDACTED "${tmp_dir}/api.log"; then
-    echo "Sensitive onboarding query values were not redacted from access logs" >&2
+    echo "Sensitive query credentials were not redacted from access logs" >&2
     exit 1
 fi
 for closed_port in 80 443 2019; do
-    docker run --rm --network "$network" "$image" php -r '
-$context = stream_context_create(["http" => ["timeout" => 1]]);
-exit(@file_get_contents($argv[1], false, $context) === false ? 0 : 1);
-' "http://${api}:${closed_port}/"
+    docker run --rm --network "$network" \
+        -v "$(pwd)/tests/docker/assert-port-closed.php:/tmp/assert-port-closed.php:ro" \
+        "$image" php /tmp/assert-port-closed.php "$api" "$closed_port"
 done
 docker stop --time 10 "$api" >/dev/null
 test "$(docker inspect --format '{{.State.ExitCode}}' "$api")" -eq 0

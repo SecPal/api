@@ -2,7 +2,9 @@
 # SPDX-FileCopyrightText: 2026 SecPal Contributors
 # SPDX-License-Identifier: CC0-1.0
 
+ARG COMPOSER_IMAGE=composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760
 ARG FRANKENPHP_IMAGE=dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:79b347211bfec90d6a1373c4956a7d3832c8248a2ff2d76bd0b677f37284d32f
+FROM ${COMPOSER_IMAGE} AS composer
 FROM ${FRANKENPHP_IMAGE} AS extensions
 COPY docker/python/opentimestamps-requirements.txt /tmp/opentimestamps-requirements.txt
 # hadolint ignore=DL3008
@@ -27,7 +29,7 @@ RUN install-php-extensions \
     && rm /tmp/opentimestamps-requirements.txt \
     && rm -rf /var/lib/apt/lists/*
 FROM extensions AS dependencies
-COPY --from=composer:2.10.2 /usr/bin/composer /usr/local/bin/composer
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN --mount=type=cache,target=/tmp/composer-cache \

@@ -18,7 +18,7 @@ it('defines the production API image contract', function (): void {
     $root = dirname(__DIR__, 2);
     $artifacts = ['Dockerfile', '.dockerignore', 'docker/frankenphp/Caddyfile', 'docker/php/conf.d/production.ini',
         'docker/python/opentimestamps-requirements.txt', 'docker/healthchecks/http-live.sh', 'tests/docker/smoke.sh',
-        '.github/workflows/container-image.yml', 'config/trustedproxy.php'];
+        'tests/docker/assert-port-closed.php', '.github/workflows/container-image.yml', 'config/trustedproxy.php'];
     foreach ($artifacts as $path) {
         expect(is_file($root.'/'.$path))->toBeTrue("Missing container artifact: {$path}");
     }
@@ -33,6 +33,7 @@ it('defines the production API image contract', function (): void {
 
     expect($dockerfile)
         ->toContain('dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:')
+        ->toContain('composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760')
         ->toContain('composer install')
         ->toContain('--no-dev')
         ->toContain('--no-scripts')
@@ -49,7 +50,13 @@ it('defines the production API image contract', function (): void {
         ->toContain('admin off', 'auto_https off', ':8080')
         ->toContain('root * /app/public')
         ->toContain('php_server')
-        ->toContain('request>uri query', 'replace token REDACTED', 'replace email REDACTED')
+        ->toContain(
+            'request>uri query',
+            'replace token REDACTED',
+            'replace email REDACTED',
+            'replace expires REDACTED',
+            'replace signature REDACTED',
+        )
         ->toContain('/.htaccess', '/*.license')
         ->not->toContain('worker');
 
@@ -57,4 +64,35 @@ it('defines the production API image contract', function (): void {
     expect($workflow)->toContain('"storage/**"', '"artisan"', '"LICENSE"', '"THIRD-PARTY-NOTICES.md"', '"LICENSES/**"');
     expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent')->and($dockerignore)->toMatch('/^storage\/app$/m');
     expect($proxyConfig)->toContain('TRUSTED_PROXIES');
+});
+
+it('distinguishes a listening TCP port from a closed port', function (): void {
+    $helper = dirname(__DIR__, 2).'/tests/docker/assert-port-closed.php';
+    expect(is_file($helper))->toBeTrue('Missing closed-port assertion helper.');
+
+    $errorCode = 0;
+    $errorMessage = '';
+    $server = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
+    expect($server)->not->toBeFalse("Unable to open local TCP listener: {$errorMessage} ({$errorCode})");
+    assert(is_resource($server));
+
+    $address = stream_socket_get_name($server, false);
+    expect($address)->toBeString();
+    $port = (string) substr($address, (int) strrpos($address, ':') + 1);
+
+    try {
+        $listeningProbe = new Symfony\Component\Process\Process([PHP_BINARY, $helper, '127.0.0.1', $port]);
+        $listeningProbe->run();
+        expect($listeningProbe->getExitCode())->toBe(1, $listeningProbe->getErrorOutput());
+    } finally {
+        fclose($server);
+    }
+
+    $closedProbe = new Symfony\Component\Process\Process([PHP_BINARY, $helper, '127.0.0.1', $port]);
+    $closedProbe->run();
+    expect($closedProbe->getExitCode())->toBe(0, $closedProbe->getErrorOutput());
+
+    $unresolvedProbe = new Symfony\Component\Process\Process([PHP_BINARY, $helper, 'unresolvable.invalid', $port]);
+    $unresolvedProbe->run();
+    expect($unresolvedProbe->getExitCode())->toBe(2, $unresolvedProbe->getErrorOutput());
 });
