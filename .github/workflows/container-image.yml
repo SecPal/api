@@ -1,0 +1,55 @@
+---
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+
+name: Container Image
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "docker/**"
+      - "tests/docker/**"
+      - "composer.*"
+      - "app/**"
+      - "bootstrap/**"
+      - "config/**"
+      - "database/**"
+      - "lang/**"
+      - "public/**"
+      - "resources/**"
+      - "routes/**"
+      - "storage/**"
+      - "scripts/ots-*.py"
+      - "artisan"
+      - "LICENSE"
+      - "THIRD-PARTY-NOTICES.md"
+      - "LICENSES/**"
+      - ".github/workflows/container-image.yml"
+
+permissions:
+  contents: read
+jobs:
+  build-and-test:
+    name: Build and integration smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Lint Dockerfile
+        run: docker run --rm -i hadolint/hadolint:v2.14.0-debian < Dockerfile
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Lint container scripts
+        run: shellcheck docker/healthchecks/http-live.sh tests/docker/smoke.sh
+
+      - name: Build and test the API image
+        run: tests/docker/smoke.sh

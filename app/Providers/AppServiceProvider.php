@@ -43,7 +43,9 @@ use App\Services\SystemProcessExecutor;
 use App\Services\WebPushDeliveryService;
 use App\Services\WebPushTransport;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Console\Events\ScheduledTaskStarting;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobFailed;
@@ -276,6 +278,12 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(EmployeeQualification::class, EmployeeQualificationPolicy::class);
         Gate::policy(OnboardingFormTemplate::class, OnboardingFormTemplatePolicy::class);
         Gate::policy(OnboardingFormSubmission::class, OnboardingFormSubmissionPolicy::class);
+
+        Event::listen(CommandStarting::class, function (CommandStarting $event): void {
+            if ($event->command === 'schedule:list') {
+                app(Schedule::class)->useCache('array');
+            }
+        });
 
         // Register gates for user permission management
         $this->registerUserPermissionGates();
