@@ -55,7 +55,7 @@ COPY storage ./storage
 COPY artisan LICENSE THIRD-PARTY-NOTICES.md ./
 COPY LICENSES ./LICENSES
 
-RUN composer dump-autoload \
+RUN rm -f bootstrap/cache/*.php && composer dump-autoload \
         --classmap-authoritative \
         --no-dev \
         --no-interaction \
@@ -79,7 +79,7 @@ RUN groupadd --gid "${APP_GID}" secpal \
     && useradd --uid "${APP_UID}" --gid "${APP_GID}" --create-home \
         --home-dir /home/secpal --shell /usr/sbin/nologin secpal \
     && if [ -n "$(getcap /usr/local/bin/frankenphp)" ]; then setcap -r /usr/local/bin/frankenphp; fi \
-    && install -d -m 0750 -o secpal -g secpal /config/caddy /data/caddy
+    && install -d -m 0750 -o secpal -g secpal /config/caddy /config/psysh /data/caddy
 
 COPY --from=dependencies --chown=root:root /app /app
 COPY docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile

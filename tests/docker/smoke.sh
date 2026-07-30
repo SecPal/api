@@ -66,6 +66,7 @@ docker run --rm "$image" php artisan queue:work --help >/dev/null
 docker run --rm "$image" php artisan schedule:work --help >/dev/null
 docker run --rm "$image" ots --version | grep -q 'v0\.7\.2'
 docker run --rm "$image" python3 -c 'import opentimestamps'
+docker run --rm "$image" frankenphp fmt --diff --config /etc/frankenphp/Caddyfile >/dev/null
 docker run --rm "$image" frankenphp validate --config /etc/frankenphp/Caddyfile
 
 docker run --rm "$image" sh -eu -c '

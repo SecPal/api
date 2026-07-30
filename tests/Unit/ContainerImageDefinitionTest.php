@@ -33,6 +33,7 @@ it('defines the production API image contract', function (): void {
         ->toContain('composer install')
         ->toContain('--no-dev')
         ->toContain('--no-scripts')
+        ->toContain('rm -f bootstrap/cache/*.php', '/config/caddy /config/psysh')
         ->toContain('redis-6.3.0')
         ->toContain('USER secpal')
         ->toContain('EXPOSE 8080')
