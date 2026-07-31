@@ -45,6 +45,24 @@ grep -Fq "PR size: 601 changed lines (601 insertions, 0 deletions; advisory thre
   "$fixture/stderr"
 grep -Fq "WARNING: PR size advisory threshold exceeded." "$fixture/stderr"
 
+mkdir -p "$fixture/LICENSES"
+printf '^LICENSES/.*\\.txt$\n' >"$fixture/.preflight-exclude"
+awk 'BEGIN { for (line = 1; line <= 601; line++) print "license " line }' \
+  >"$fixture/LICENSES/license.txt"
+(
+  cd "$fixture"
+  git add .preflight-exclude LICENSES/license.txt
+  git commit --quiet -m "test: exclude anchored license path"
+)
+set +e
+(cd "$fixture" && PATH="$fixture/bin:/usr/bin:/bin" bash scripts/preflight.sh) \
+  >"$fixture/excluded-stdout" 2>"$fixture/excluded-stderr"
+excluded_status=$?
+set -e
+test "$excluded_status" -eq 0
+grep -Fq "PR size: 602 changed lines (602 insertions, 0 deletions; advisory threshold: 600)" \
+  "$fixture/excluded-stderr"
+
 printf '[\n' >"$fixture/.preflight-exclude"
 (
   cd "$fixture"
@@ -73,5 +91,7 @@ if ! grep -Fqx \
   echo "Hosted PR-size workflow must use the reviewed SecPal/.github#596 revision" >&2
   exit 1
 fi
+
+grep -Fqx 'LICENSES/.*\.txt' "$repo_root/.preflight-exclude"
 
 echo "tests/pr-size-advisory.sh: advisory PR-size reporting verified."
