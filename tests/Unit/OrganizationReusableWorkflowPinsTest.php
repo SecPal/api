@@ -41,3 +41,13 @@ test('the Dependabot auto-merge reusable workflow reference uses the approved im
         '/^\\s*uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/reusable-dependabot-auto-merge\\.yml@d90b56d4bca7c0d6e7fe1520d69b1f98eca22f5e\\s*$/m',
     );
 });
+
+test('the advisory PR-size regression is part of the regular Pest suite', function (): void {
+    exec(
+        'bash '.escapeshellarg(base_path('tests/pr-size-advisory.sh')).' 2>&1',
+        $output,
+        $exitCode,
+    );
+
+    expect($exitCode)->toBe(0, implode("\n", $output));
+});

@@ -37,7 +37,6 @@ _ide_helper_models.php
 .phpstorm.meta.php
 
 # Preflight bypass files (local override)
-.preflight-allow-large-pr
 
 storage/testing/
 .pr-body.md
@@ -64,5 +63,3 @@ storage/testing/
 /ui-*.php
 /verify-edge-cases.php
 /visualize-merkle-tree.php
-
-.preflight-allow-large-pr*

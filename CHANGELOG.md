@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- changed local and hosted pull-request size reporting to treat 600 changed
+  lines as an advisory reviewability threshold, with no override file, approval
+  label, or size-triggered push failure
+
 ### Added
 
 - added a production-oriented, single-role-neutral API container image based on FrankenPHP Classic and PHP 8.4, including native PhpRedis/Valkey compatibility, rootless runtime permissions, digest-pinned build images, hash-locked OpenTimestamps dependencies, query-credential redaction, local-database exclusion, opt-in trusted proxies, explicit PostgreSQL, persistent-file, and secret handling, Docker integration smoke coverage, CI, and operator documentation
