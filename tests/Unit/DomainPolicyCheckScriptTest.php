@@ -74,6 +74,22 @@ test('domain policy check rejects the retired standalone changelog host', functi
     }
 });
 
+test('domain policy check rejects the retired host when an allowed host shares its line', function (): void {
+    $root = makeDomainPolicyCheckFixture();
+
+    try {
+        $host = retiredChangelogHost();
+        file_put_contents($root.'/README.md', 'https://secpal.app https://'.$host.'/releases');
+
+        $result = runDomainPolicyCheck($root);
+
+        expect($result['exit_code'])->toBe(1)
+            ->and($result['stdout'])->toContain($host);
+    } finally {
+        File::deleteDirectory($root);
+    }
+});
+
 test('domain policy check allows active SecPal hosts', function (): void {
     $root = makeDomainPolicyCheckFixture();
 
