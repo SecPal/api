@@ -16,10 +16,9 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== Domain Policy Check ===${NC}"
-echo "Allowed: secpal.app, changelog.secpal.app, apk.secpal.app, secpal.dev"
+echo "Allowed: secpal.app, apk.secpal.app, secpal.dev"
 echo "Active web hosts: api.secpal.dev, app.secpal.dev"
 echo "Android artifact host: apk.secpal.app"
-echo "Changelog site: changelog.secpal.app"
 echo "Identifier-only: app.secpal (Android application ID)"
 echo "Deprecated web hosts: api.secpal.app"
 echo "Forbidden: secpal.com, secpal.org, secpal.net, secpal.io, secpal.example, ANY other"
@@ -53,7 +52,7 @@ matches=$(grep -r -n -E "secpal\.[A-Za-z0-9.-]+" \
 # api.secpal.app (reported separately below).
 # This catches unknown domains (e.g. secpal.xyz) that a denylist-only check would miss.
 violations=$(printf '%s\n' "$matches" | \
-    grep -Ev '(^|[^A-Za-z0-9.-])secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)|(^|[^A-Za-z0-9.-])changelog\.secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)|(^|[^A-Za-z0-9.-])apk\.secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)|(^|[^A-Za-z0-9.-])(\*\.|\.)?([A-Za-z0-9-]+\.)*secpal\.dev(\.[A-Za-z0-9_-]+)*($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)|(^|[^A-Za-z0-9.-])api\.secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)' | \
+    grep -Ev '(^|[^A-Za-z0-9.-])secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)|(^|[^A-Za-z0-9.-])apk\.secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)|(^|[^A-Za-z0-9.-])(\*\.|\.)?([A-Za-z0-9-]+\.)*secpal\.dev(\.[A-Za-z0-9_-]+)*($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)|(^|[^A-Za-z0-9.-])api\.secpal\.app($|[^A-Za-z0-9._-]|\.[^A-Za-z0-9_-]|\.$)' | \
     grep -v -- '.evil.example' | \
     grep -E 'secpal\.' || true)
 
@@ -104,7 +103,6 @@ else
     fi
     echo -e "${YELLOW}Policy:${NC}"
     echo "  - secpal.app: public homepage and real email addresses"
-    echo "  - changelog.secpal.app: public changelog site"
     echo "  - apk.secpal.app: canonical Android artifact and release-metadata host"
     echo "  - api.secpal.dev: live API host"
     echo "  - app.secpal.dev: live PWA/frontend host"
