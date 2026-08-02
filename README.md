@@ -315,8 +315,11 @@ run-unique candidate with `412 Precondition Failed`, proving create-only
 manifest-write enforcement before the final tag is touched. Only then does it
 promote the exact unchanged OCI index digest to
 `ghcr.io/secpal/api:sha-<full-commit-SHA>`. Candidates are not official
-consumption references and may remain as internal registry artifacts; their
-cleanup is outside this change.
+consumption references. They remain as internal registry artifacts until the
+[candidate-retention follow-up](https://github.com/SecPal/api/issues/1387)
+proves a tag-only cleanup path that cannot delete or move the final SHA tag,
+shared OCI index, or associated attestations. Package deletion is deliberately
+excluded from this publisher.
 
 The canonical reference is always
 `ghcr.io/secpal/api@sha256:<manifest-digest>`; there is no `latest` or SemVer
@@ -334,7 +337,11 @@ index by digest; the `arm64` execution uses the pinned QEMU helper.
 The first successful publish still requires a repository administrator to make
 the GHCR package public before anonymous digest pulls are available. See the
 [container contract](docs/containers.md#immutable-registry-publishing) for
-verification commands and rollout boundaries.
+verification commands and rollout boundaries. The
+[supply-chain epic](https://github.com/SecPal/api/issues/1383) remains open
+until the first authenticated GHCR publish, conditional promotion,
+registry-backed attestation, package linkage, and anonymous digest pull are
+verified after merge.
 
 Official SecPal API container images are published exclusively as
 `ghcr.io/secpal/api`. The Docker Hub namespace `secpal`, including shortened

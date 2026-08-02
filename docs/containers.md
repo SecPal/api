@@ -71,8 +71,12 @@ same bytes to the already existing run-unique candidate. Only the expected
 an unsupported or ignored precondition fails before the final tag is touched.
 The workflow then registers the exact unchanged OCI index bytes under the final
 full-SHA tag and verifies the final tag and attestation again. The candidate is
-not an official consumption reference and can remain as an internal registry
-artifact; package cleanup is outside this publishing contract.
+not an official consumption reference. It remains as an internal registry
+artifact until the
+[candidate-retention follow-up](https://github.com/SecPal/api/issues/1387)
+proves a tag-only cleanup path that cannot delete or move the final SHA tag,
+shared OCI index, BuildKit attachments, or registry-backed GitHub Artifact
+Attestation. Package deletion is deliberately excluded from this publisher.
 
 An existing final full-SHA tag is never rebuilt, moved, promoted, or newly
 attested. It is accepted only after the complete image contract and an existing
@@ -112,7 +116,10 @@ implied. GHCR packages are private by default. After that publish succeeds, a
 repository administrator must verify the package link and change the package
 visibility to public once. Anonymous pulls are supported only after that
 separate administrative step. No personal access token, long-lived signing
-key, or Cosign key secret is part of this contract.
+key, or Cosign key secret is part of this contract. The
+[supply-chain epic](https://github.com/SecPal/api/issues/1383) remains open
+until the authenticated GHCR conditional write, registry-backed attestation,
+package linkage, visibility change, and anonymous digest pull are verified.
 
 While the package is private, authenticate to GHCR before verification. After
 it is public, the image and its BuildKit attestations can be inspected
