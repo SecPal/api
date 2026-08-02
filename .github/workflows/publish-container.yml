@@ -1,0 +1,476 @@
+---
+# SPDX-FileCopyrightText: 2026 SecPal Contributors
+# SPDX-License-Identifier: CC0-1.0
+
+name: Publish Container
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: publish-container-${{ github.repository }}-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  GHCR_HOST: ghcr.io
+  GHCR_REPOSITORY_PATH: secpal/api
+  CANONICAL_IMAGE: ghcr.io/secpal/api
+
+jobs:
+  validate:
+    name: Validate API Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout publishing commit
+        id: checkout
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up PHP
+        # 2.37.2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        with:
+          php-version: "8.4"
+          coverage: none
+          tools: composer:2.10.2
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run container policy tests
+        run: php artisan test tests/Unit/ContainerImageDefinitionTest.php tests/Unit/ContainerPublishingWorkflowTest.php
+
+      - name: Lint Dockerfile
+        run: >-
+          docker run --rm -i
+          hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
+          < Dockerfile
+
+      - name: Lint container scripts
+        run: >-
+          docker run --rm -v "$PWD:/mnt:ro" -w /mnt
+          koalaman/shellcheck:v0.10.0@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb
+          docker/healthchecks/http-live.sh
+          scripts/promote-ghcr-index.sh
+          tests/container/promote-ghcr-index-contract.sh
+          tests/docker/smoke.sh
+          tests/fixtures/fake-ghcr-curl.sh
+
+      - name: Test GHCR index promotion contract
+        run: tests/container/promote-ghcr-index-contract.sh
+
+      - name: Build and test the API image
+        run: tests/docker/smoke.sh
+
+  publish:
+    name: Publish API Image
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_digest: ${{ steps.image.outputs.digest }}
+      image_created: ${{ steps.metadata.outputs.created }}
+      final_exists: ${{ steps.existing-image.outputs.exists }}
+      candidate_tag: ${{ steps.candidate.outputs.tag }}
+    steps:
+      - name: Checkout publishing commit
+        id: checkout
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        id: registry-login
+        # v4.6.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ${{ env.GHCR_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve deterministic image metadata
+        id: metadata
+        run: printf 'created=%s\n' "$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve immutable SHA tag
+        id: existing-image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MANIFEST_ACCEPT: >-
+            application/vnd.oci.image.index.v1+json,
+            application/vnd.oci.image.manifest.v1+json,
+            application/vnd.docker.distribution.manifest.list.v2+json,
+            application/vnd.docker.distribution.manifest.v2+json,
+            application/vnd.docker.distribution.manifest.v1+json,
+            application/vnd.docker.distribution.manifest.v1+prettyjws
+        run: |
+          set -euo pipefail
+          image_tag="sha-${GITHUB_SHA}"
+          manifest_file=$(mktemp)
+          headers_file=$(mktemp)
+          trap 'rm -f "$manifest_file" "$headers_file"' EXIT
+          registry_token=$(curl --fail --silent --show-error \
+            --user "${GITHUB_ACTOR}:${GHCR_TOKEN}" \
+            --get \
+            --data-urlencode "scope=repository:${GHCR_REPOSITORY_PATH}:pull" \
+            --data-urlencode "service=${GHCR_HOST}" \
+            "https://${GHCR_HOST}/token" | jq -er '.token')
+          status=$(curl --silent --show-error \
+            --output "$manifest_file" \
+            --dump-header "$headers_file" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${registry_token}" \
+            --header "Accept: ${MANIFEST_ACCEPT}" \
+            "https://${GHCR_HOST}/v2/${GHCR_REPOSITORY_PATH}/manifests/${image_tag}")
+          case "$status" in
+            200)
+              jq -e '.mediaType == "application/vnd.oci.image.index.v1+json"' "$manifest_file"
+              digest="sha256:$(sha256sum "$manifest_file" | awk '{print $1}')"
+              registry_digest=$(awk '
+                index(tolower($0), "docker-content-digest:") == 1 {
+                  sub("^[^:]+:[[:space:]]*", "")
+                  sub("\\r$", "")
+                  value = $0
+                }
+                END { print value }
+              ' "$headers_file")
+              printf '%s\n' "$registry_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+              test "$registry_digest" = "$digest"
+              printf 'exists=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              printf 'exists=false\ndigest=\n' >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              printf 'GHCR manifest lookup failed with HTTP status %s\n' "$status" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Resolve unique candidate tag
+        id: candidate
+        if: steps.existing-image.outputs.exists == 'false'
+        run: >-
+          printf 'tag=candidate-%s-%s-%s\n'
+          "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+          >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        if: steps.existing-image.outputs.exists == 'false'
+        # v4.2.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
+        with:
+          image: >-
+            docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        if: steps.existing-image.outputs.exists == 'false'
+        # v4.2.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+        with:
+          version: v0.36.0
+          driver-opts: >-
+            image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
+
+      - name: Build and push unique candidate image
+        id: build
+        if: steps.existing-image.outputs.exists == 'false'
+        # v7.3.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+        with:
+          context: https://github.com/SecPal/api.git#${{ github.sha }}
+          push: true
+          pull: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.CANONICAL_IMAGE }}:candidate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/SecPal/api
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=SecPal API
+            org.opencontainers.image.description=Production API for SecPal operations software
+            org.opencontainers.image.licenses=AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+            org.opencontainers.image.created=${{ steps.metadata.outputs.created }}
+          sbom: >-
+            generator=docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68
+          provenance: mode=max
+
+      - name: Select published image digest
+        id: image
+        env:
+          EXISTING_IMAGE_DIGEST: ${{ steps.existing-image.outputs.digest }}
+          BUILT_IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.existing-image.outputs.exists }}" = true ]; then
+            digest=$EXISTING_IMAGE_DIGEST
+          else
+            digest=$BUILT_IMAGE_DIGEST
+          fi
+          printf '%s\n' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: Verify Published API Image
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
+    env:
+      IMAGE_DIGEST: ${{ needs.publish.outputs.image_digest }}
+      IMAGE_CREATED: ${{ needs.publish.outputs.image_created }}
+      FINAL_EXISTS: ${{ needs.publish.outputs.final_exists }}
+      CANDIDATE_TAG: ${{ needs.publish.outputs.candidate_tag }}
+    steps:
+      - name: Checkout publishing commit
+        id: checkout
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up QEMU for runtime verification
+        # v4.2.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
+        with:
+          image: >-
+            docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        # v4.2.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+        with:
+          version: v0.36.0
+          driver-opts: >-
+            image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
+
+      - name: Log in to GHCR
+        id: registry-login
+        # v4.6.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ${{ env.GHCR_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify existing final attestation before use
+        if: needs.publish.outputs.final_exists == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
+          gh attestation verify "oci://$DIGEST_REF" \
+            --bundle-from-oci \
+            --repo SecPal/api \
+            --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
+            --signer-digest "$GITHUB_SHA" \
+            --source-ref refs/heads/main \
+            --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners
+
+      - name: Verify remote index and BuildKit attestations
+        run: |
+          set -euo pipefail
+          DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
+          if [ "$FINAL_EXISTS" = true ]; then
+            REFERENCE_TAG="sha-${GITHUB_SHA}"
+          else
+            printf '%s\n' "$CANDIDATE_TAG" \
+              | grep -Eq "^candidate-${GITHUB_SHA}-[0-9]+-[0-9]+$"
+            REFERENCE_TAG=$CANDIDATE_TAG
+          fi
+          tag_digest="sha256:$(docker buildx imagetools inspect "$CANONICAL_IMAGE:$REFERENCE_TAG" --raw \
+            | sha256sum | awk '{print $1}')"
+          test "$tag_digest" = "$IMAGE_DIGEST"
+          tag_manifest=$(docker buildx imagetools inspect "$CANONICAL_IMAGE:$REFERENCE_TAG" \
+            --format '{{json .Manifest}}')
+          printf '%s\n' "$tag_manifest" | jq -e '
+            .mediaType == "application/vnd.oci.image.index.v1+json"
+            and ([.manifests[]
+              | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest")
+              | "\(.platform.os)/\(.platform.architecture)"] | sort)
+              == ["linux/amd64", "linux/arm64"]
+            and ([.manifests[]
+              | select((.annotations["vnd.docker.reference.type"] // "") == "attestation-manifest")]
+              | length) == 2
+            and all(.manifests[]
+              | select((.annotations["vnd.docker.reference.type"] // "") == "attestation-manifest");
+              .platform.os == "unknown" and .platform.architecture == "unknown")
+          '
+          for platform in linux/amd64 linux/arm64; do
+            image_config=$(docker buildx imagetools inspect "$DIGEST_REF" \
+              --format "{{json (index .Image \"${platform}\")}}")
+            printf '%s\n' "$image_config" | jq -e \
+              --arg source 'https://github.com/SecPal/api' \
+              --arg revision "$GITHUB_SHA" \
+              --arg title 'SecPal API' \
+              --arg description 'Production API for SecPal operations software' \
+              --arg licenses 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution' \
+              --arg created "$IMAGE_CREATED" '
+                .config.Labels["org.opencontainers.image.source"] == $source
+                and .config.Labels["org.opencontainers.image.revision"] == $revision
+                and .config.Labels["org.opencontainers.image.title"] == $title
+                and .config.Labels["org.opencontainers.image.description"] == $description
+                and .config.Labels["org.opencontainers.image.licenses"] == $licenses
+                and .config.Labels["org.opencontainers.image.created"] == $created
+              '
+            docker buildx imagetools inspect "$DIGEST_REF" \
+              --format "{{json (index .SBOM \"${platform}\").SPDX}}" \
+              | jq -e '.SPDXID == "SPDXRef-DOCUMENT" and (.packages | length) > 0'
+            docker buildx imagetools inspect "$DIGEST_REF" \
+              --format "{{json (index .Provenance \"${platform}\").SLSA}}" \
+              | jq -e \
+                --arg source "https://github.com/SecPal/api.git#${GITHUB_SHA}" \
+                --arg revision "$GITHUB_SHA" '
+                .buildDefinition.buildType
+                  == "https://github.com/moby/buildkit/blob/master/docs/attestations/slsa-definitions.md"
+                and .runDetails.metadata.buildkit_completeness.request == true
+                and .runDetails.metadata.buildkit_completeness.resolvedDependencies == true
+                and any(.buildDefinition.resolvedDependencies[];
+                  .uri == $source and .digest.sha1 == $revision)
+              '
+          done
+
+      - name: Smoke-test the published digest
+        run: |
+          set -euo pipefail
+          DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
+          index_manifest=$(docker buildx imagetools inspect "$DIGEST_REF" \
+            --format '{{json .Manifest}}')
+          for platform in linux/amd64 linux/arm64; do
+            os=${platform%/*}
+            architecture=${platform#*/}
+            platform_digest=$(printf '%s\n' "$index_manifest" | jq -er \
+              --arg os "$os" \
+              --arg architecture "$architecture" '
+                [.manifests[]
+                  | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest")
+                  | select(.platform.os == $os and .platform.architecture == $architecture)
+                  | .digest]
+                  | if length == 1 then .[0] else empty end
+              ')
+            printf '%s\n' "$platform_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+            PLATFORM_REF="${CANONICAL_IMAGE}@${platform_digest}"
+            docker pull --platform "$platform" "$PLATFORM_REF"
+            SKIP_BUILD=1 IMAGE_TAG="$PLATFORM_REF" tests/docker/smoke.sh
+          done
+
+  attest:
+    name: Attest Verified API Image
+    needs: [publish, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    env:
+      IMAGE_DIGEST: ${{ needs.publish.outputs.image_digest }}
+      FINAL_EXISTS: ${{ needs.publish.outputs.final_exists }}
+      CANDIDATE_TAG: ${{ needs.publish.outputs.candidate_tag }}
+    steps:
+      - name: Checkout publishing commit
+        id: checkout
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        id: registry-login
+        # v4.6.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ${{ env.GHCR_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate GitHub artifact attestation
+        id: attest
+        if: needs.publish.outputs.final_exists == 'false'
+        # v4.2.1
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
+        with:
+          subject-name: ${{ env.CANONICAL_IMAGE }}
+          subject-digest: ${{ needs.publish.outputs.image_digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Verify selected GitHub artifact attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
+          gh attestation verify "oci://$DIGEST_REF" \
+            --bundle-from-oci \
+            --repo SecPal/api \
+            --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
+            --signer-digest "$GITHUB_SHA" \
+            --source-ref refs/heads/main \
+            --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners
+
+      - name: Promote verified candidate to final SHA tag
+        if: needs.publish.outputs.final_exists == 'false'
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          scripts/promote-ghcr-index.sh
+          ghcr.io
+          secpal/api
+          "sha-${GITHUB_SHA}"
+          "$IMAGE_DIGEST"
+          "$CANDIDATE_TAG"
+
+      - name: Set up Docker Buildx for final verification
+        # v4.2.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+        with:
+          version: v0.36.0
+          driver-opts: >-
+            image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
+
+      - name: Verify final SHA tag and artifact attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          FINAL_REF="${CANONICAL_IMAGE}:sha-${GITHUB_SHA}"
+          DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
+          final_digest="sha256:$(docker buildx imagetools inspect "$FINAL_REF" --raw \
+            | sha256sum | awk '{print $1}')"
+          test "$final_digest" = "$IMAGE_DIGEST"
+          final_manifest=$(docker buildx imagetools inspect "$FINAL_REF" \
+            --format '{{json .Manifest}}')
+          printf '%s\n' "$final_manifest" \
+            | jq -e '.mediaType == "application/vnd.oci.image.index.v1+json"'
+          gh attestation verify "oci://$DIGEST_REF" \
+            --bundle-from-oci \
+            --repo SecPal/api \
+            --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
+            --signer-digest "$GITHUB_SHA" \
+            --source-ref refs/heads/main \
+            --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners

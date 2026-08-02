@@ -13,6 +13,9 @@ on:
       - ".dockerignore"
       - "docker/**"
       - "tests/docker/**"
+      - "tests/container/**"
+      - "tests/fixtures/**"
+      - "tests/Unit/ContainerPublishingWorkflowTest.php"
       - "composer.*"
       - "app/**"
       - "bootstrap/**"
@@ -24,11 +27,13 @@ on:
       - "routes/**"
       - "storage/**"
       - "scripts/ots-*.py"
+      - "scripts/promote-ghcr-index.sh"
       - "artisan"
       - "LICENSE"
       - "THIRD-PARTY-NOTICES.md"
       - "LICENSES/**"
       - ".github/workflows/container-image.yml"
+      - ".github/workflows/publish-container.yml"
 
 permissions:
   contents: read
@@ -39,17 +44,26 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Lint Dockerfile
-        run: docker run --rm -i hadolint/hadolint:v2.14.0-debian < Dockerfile
-
-      - name: Install ShellCheck
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
+        run: >-
+          docker run --rm -i
+          hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2
+          < Dockerfile
 
       - name: Lint container scripts
-        run: shellcheck docker/healthchecks/http-live.sh tests/docker/smoke.sh
+        run: >-
+          docker run --rm -v "$PWD:/mnt:ro" -w /mnt
+          koalaman/shellcheck:v0.10.0@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb
+          docker/healthchecks/http-live.sh
+          scripts/promote-ghcr-index.sh
+          tests/container/promote-ghcr-index-contract.sh
+          tests/docker/smoke.sh
+          tests/fixtures/fake-ghcr-curl.sh
+
+      - name: Test GHCR index promotion contract
+        run: tests/container/promote-ghcr-index-contract.sh
 
       - name: Build and test the API image
         run: tests/docker/smoke.sh

@@ -4,8 +4,8 @@
 set -eu
 
 image=${IMAGE_TAG:-secpal-api:test}
-postgres_image=${POSTGRES_IMAGE:-postgres:16.10-bookworm}
-valkey_image=${VALKEY_IMAGE:-valkey/valkey:9.1.1-trixie}
+postgres_image=${POSTGRES_IMAGE:-postgres:16.10-bookworm@sha256:38471f330eb885e04de130b768d6db4e10469e2311879c7e5c699f6d2d8a1c74}
+valkey_image=${VALKEY_IMAGE:-valkey/valkey:9.1.1-trixie@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd}
 suffix=$$
 network="secpal-api-smoke-${suffix}"
 postgres="secpal-postgres-${suffix}"
@@ -19,6 +19,9 @@ fi
 tmp_dir=$(mktemp -d)
 kek_file="${tmp_dir}/kek"
 api_env="${tmp_dir}/api.env"
+port_probe="${tmp_dir}/assert-port-closed.php"
+cp tests/docker/assert-port-closed.php "$port_probe"
+chmod 0444 "$port_probe"
 cleanup() {
     docker rm -f "$api" "$valkey" "$postgres" >/dev/null 2>&1 || true
     docker network rm "$network" >/dev/null 2>&1 || true
@@ -56,7 +59,11 @@ wait_for_http() {
 }
 
 printf 'container build-context exclusion probe\n' >"$sqlite_probe"
-docker build --tag "$image" .
+if [ "${SKIP_BUILD:-0}" = 1 ]; then
+    docker image inspect "$image" >/dev/null
+else
+    docker build --tag "$image" .
+fi
 docker run --rm "$image" php -v | grep -q '^PHP 8\.4\.23'
 docker run --rm "$image" frankenphp version | grep -q 'FrankenPHP v1\.12\.6'
 docker run --rm "$image" php -m | grep -qx redis
@@ -74,6 +81,7 @@ docker run --rm "$image" frankenphp validate --config /etc/frankenphp/Caddyfile
 test "$(docker image inspect --format '{{index .Config.Healthcheck.Test 0}}' "$image")" = NONE
 docker run --rm "$image" sh -eu -c '
     test "$(id -u)" -eq 10001
+    test "$(id -g)" -eq 10001
     test -w /app/storage
     test -w /app/bootstrap/cache
     test ! -w /app/artisan
@@ -158,7 +166,7 @@ if grep -q "$log_marker" "${tmp_dir}/api.log" || ! grep -q REDACTED "${tmp_dir}/
 fi
 for closed_port in 80 443 2019; do
     docker run --rm --network "$network" \
-        -v "$(pwd)/tests/docker/assert-port-closed.php:/tmp/assert-port-closed.php:ro" \
+        -v "${port_probe}:/tmp/assert-port-closed.php:ro" \
         "$image" php /tmp/assert-port-closed.php "$api" "$closed_port"
 done
 docker stop --time 10 "$api" >/dev/null

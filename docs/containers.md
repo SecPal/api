@@ -28,6 +28,127 @@ The default command is `frankenphp run --config /etc/frankenphp/Caddyfile`. No s
 
 Set `TRUSTED_PROXIES` to a comma-separated allowlist of proxy IP addresses or CIDRs only when deployed behind trusted proxies. It is empty by default.
 
+## Immutable registry publishing
+
+Official SecPal API container images are published exclusively as
+`ghcr.io/secpal/api`. The Docker Hub namespace `secpal`, including shortened
+references such as `secpal/api`, is not controlled or endorsed by SecPal.
+There are no registry fallbacks, and official pull or inspect commands must not
+use shortened image names. Local test tags use the non-namespace name
+`secpal-api`, such as `secpal-api:test`.
+
+After this publishing workflow reaches `main`, each push to `main` will build
+and publish `ghcr.io/secpal/api` as an OCI image index for `linux/amd64` and
+`linux/arm64`. Phase C.1 publishes exactly one discovery tag per commit:
+`sha-<full-40-character-commit-SHA>`. It does not publish `latest`, a branch
+tag, a SemVer tag, or a release tag.
+
+The canonical consumption reference is always the returned index digest:
+
+```text
+ghcr.io/secpal/api@sha256:<manifest-digest>
+```
+
+The SHA tag is only a discovery alias for finding that digest. Production and
+deployment consumers must resolve the tag once and pin the canonical GHCR
+digest rather than treating any tag as the deployment identity. Publishing
+does not create a deployment contract or perform a deployment.
+
+The publisher checks the final full-SHA tag before building. The authenticated
+lookup accepts the relevant OCI and Docker manifest representations before
+interpreting `404` as absence, so an existing Docker manifest list or
+single-platform manifest fails the strict OCI index validation instead of
+authorizing an overwrite.
+
+When the final tag is absent, the build publishes only a unique internal
+`candidate-<full-SHA>-<run-ID>-<run-attempt>` tag. The workflow verifies the
+candidate's exact digest, OCI index, runtime platforms, OCI labels, BuildKit
+SBOM and provenance, source material, and both runtime manifests before it
+creates and verifies the registry-backed GitHub Artifact Attestation. It then
+proves that GHCR enforces `If-None-Match: *` by conditionally re-sending the
+same bytes to the already existing run-unique candidate. Only the expected
+`412 Precondition Failed` response authorizes the create-only final-tag write;
+an unsupported or ignored precondition fails before the final tag is touched.
+The workflow then registers the exact unchanged OCI index bytes under the final
+full-SHA tag and verifies the final tag and attestation again. The candidate is
+not an official consumption reference. It remains as an internal registry
+artifact until the
+[candidate-retention follow-up](https://github.com/SecPal/api/issues/1387)
+proves a tag-only cleanup path that cannot delete or move the final SHA tag,
+shared OCI index, BuildKit attachments, or registry-backed GitHub Artifact
+Attestation. Package deletion is deliberately excluded from this publisher.
+
+An existing final full-SHA tag is never rebuilt, moved, promoted, or newly
+attested. Before either runtime manifest is inspected, pulled, or executed, its
+existing registry-backed GitHub Artifact Attestation must verify for the exact
+repository, workflow, source reference, source commit, image name, and digest.
+Only then does the workflow run the complete technical and runtime image
+contract, followed by the existing final defense-in-depth attestation check. A
+missing, foreign, or invalid attestation fails closed before untrusted image
+code can run.
+
+Each runtime image config records the source repository, full revision,
+deterministic commit timestamp, title, description, and the repository's
+effective SPDX license expression. The source label is
+`https://github.com/SecPal/api`, and the license label is
+`AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`.
+
+The published index has four distinct supply-chain concepts:
+
+- the `linux/amd64` and `linux/arm64` manifests are executable runtime images;
+- the BuildKit SPDX SBOM describes packages in each runtime image;
+- the BuildKit SLSA provenance uses `mode=max`, builds from the exact remote Git
+  commit rather than an untracked runner directory, and records complete
+  materials plus the invocation for each runtime image;
+- the GitHub Artifact Attestation signs the untagged image name plus the
+  published index digest through workload OIDC, tying it to `SecPal/api`, this
+  workflow, and the source commit.
+
+BuildKit stores the SBOM and provenance as attestation manifests associated
+with the runtime manifests. Their `unknown/unknown` platform descriptors are
+attachments, not extra runtime platforms. Remote verification excludes those
+attachments when asserting the exact two-platform runtime set, then inspects
+the SBOM and provenance separately. Buildx, its privileged BuildKit daemon, the
+SBOM scanner, and the privileged QEMU `binfmt` helper are independently
+version- or digest-pinned instead of inheriting moving defaults from their
+wrapper actions.
+
+Before the first successful post-merge publish, no registry availability is
+implied. GHCR packages are private by default. After that publish succeeds, a
+repository administrator must verify the package link and change the package
+visibility to public once. Anonymous pulls are supported only after that
+separate administrative step. No personal access token, long-lived signing
+key, or Cosign key secret is part of this contract. The
+[supply-chain epic](https://github.com/SecPal/api/issues/1383) remains open
+until the authenticated GHCR conditional write, registry-backed attestation,
+package linkage, visibility change, and anonymous digest pull are verified.
+
+While the package is private, authenticate to GHCR before verification. After
+it is public, the image and its BuildKit attestations can be inspected
+anonymously by digest. GitHub Artifact Attestation verification uses the
+registry-backed OCI bundle and may still require GitHub CLI authentication
+while the package is private:
+
+```bash
+docker buildx imagetools inspect \
+  ghcr.io/secpal/api@sha256:<manifest-digest>
+gh attestation verify \
+  oci://ghcr.io/secpal/api@sha256:<manifest-digest> \
+  --bundle-from-oci \
+  --repo SecPal/api
+docker pull ghcr.io/secpal/api@sha256:<manifest-digest>
+```
+
+The publishing workflow additionally proves that the selected tag resolves to
+the reported digest, the runtime platform set and all OCI labels are exact,
+both BuildKit attestations are readable, provenance materials contain the exact
+source commit, and both runtime manifests pass the complete container smoke
+contract by digest. For a new candidate, only then does it create and verify the
+GitHub attestation for this workflow, commit, `main`, and a GitHub-hosted runner
+before promoting the unchanged digest to the final tag. The `arm64`
+runtime executes through the independently pinned QEMU `binfmt` helper, which
+is registered before each Buildx builder that needs it starts.
+
 ## Roles
 
 Override the default command for the non-HTTP roles:
@@ -57,8 +178,8 @@ The KEK is an external raw 32-byte secret. Configure `KEK_PATH`, mount the file 
 
 `GET /health/live` needs neither PostgreSQL nor Valkey. `GET /health/ready` checks the configured database, tenant key, KEK readability, scheduler heartbeat, and relevant worker heartbeats. `secpal-http-live` is the reusable liveness probe. `HEALTHCHECK NONE` clears the base probe so deployment can assign role-specific checks.
 
-Run `tests/docker/smoke.sh` for build, CLI, permissions, PostgreSQL, Valkey, HTTP isolation, proxy-header, log-redaction, and SIGTERM validation. It uses temporary `postgres:16.10-bookworm` and `valkey/valkey:9.1.1-trixie` containers on an isolated network, without published service ports or persistent test volumes.
+Run `tests/docker/smoke.sh` for build, CLI, permissions, PostgreSQL, Valkey, HTTP isolation, proxy-header, log-redaction, and SIGTERM validation. It uses digest-pinned `postgres:16.10-bookworm` and `valkey/valkey:9.1.1-trixie` containers on an isolated network, without published service ports or persistent test volumes. The publishing verifier resolves and pulls both immutable platform-manifest digests from the verified index and sets `SKIP_BUILD=1` so the same checks exercise each remote runtime artifact without rebuilding it.
 
 ## Boundaries
 
-This repository supplies only the API image; it does not define frontend delivery, persistent services, edge proxy and public TLS, image registry and publishing, security monitoring, backup and restore, updates, or customer provisioning. Operators must provide and validate the components their deployment requires. Nginx, Apache, PHP-FPM, Kubernetes, and hosting-panel stacks are not reference deployments.
+This repository supplies and publishes only the API image; it does not define frontend delivery, persistent services, edge proxy and public TLS, deployment, security monitoring, backup and restore, updates, or customer provisioning. Operators must provide and validate the components their deployment requires. Nginx, Apache, PHP-FPM, Kubernetes, and hosting-panel stacks are not reference deployments.

@@ -291,7 +291,8 @@ php artisan idx:rebuild {tenant_id}
 **For production deployment**, see the comprehensive guides:
 
 - 🐳 [API Container](docs/containers.md) - Production image preparation with
-  FrankenPHP Classic, native PhpRedis, and validated Valkey compatibility
+  FrankenPHP Classic, native PhpRedis, validated Valkey compatibility, and the
+  post-merge immutable GHCR publishing contract
 - 📖 [Production Deployment Guide](docs/deployment.md) - Complete setup instructions
 - ✅ [Deployment Checklist](docs/deployment-checklist.md) - Quick reference checklist
 - 🌐 [Uberspace Deployment](docs/deployment-uberspace.md) - Uberspace-specific guide
@@ -304,6 +305,53 @@ php artisan idx:rebuild {tenant_id}
 - Run `php artisan tenant:setup` for tenant key initialization
 - Verify deployment with `php artisan app:validate-setup`
 - Monitor health checks: `/health/ready` and `/health/live`
+
+After the Phase C.1 workflow is merged, pushes to `main` will publish a unique
+internal candidate for `linux/amd64` and `linux/arm64`, including BuildKit SBOM
+and max-mode provenance. The workflow fully verifies both runtime manifests and
+their metadata before creating and verifying a GitHub Artifact Attestation. It
+then requires GHCR to reject a harmless conditional rewrite of the existing
+run-unique candidate with `412 Precondition Failed`, proving create-only
+manifest-write enforcement before the final tag is touched. Only then does it
+promote the exact unchanged OCI index digest to
+`ghcr.io/secpal/api:sha-<full-commit-SHA>`. Candidates are not official
+consumption references. They remain as internal registry artifacts until the
+[candidate-retention follow-up](https://github.com/SecPal/api/issues/1387)
+proves a tag-only cleanup path that cannot delete or move the final SHA tag,
+shared OCI index, or associated attestations. Package deletion is deliberately
+excluded from this publisher.
+
+The canonical reference is always
+`ghcr.io/secpal/api@sha256:<manifest-digest>`; there is no `latest` or SemVer
+tag and publishing does not deploy the image. Workflow reruns never rebuild,
+move, or newly attest an existing full-SHA tag. Such a tag is accepted only if
+its existing registry-backed GitHub Artifact Attestation verifies for the
+expected repository, workflow, source reference, commit, image name, and digest
+before either runtime manifest is inspected, pulled, or executed. The complete
+technical and runtime contract then runs, followed by the existing final
+defense-in-depth attestation check. An unattested final tag fails closed before
+untrusted image code can run.
+The authenticated existence lookup accepts the relevant OCI and Docker
+manifest representations, so an existing wrong-format SHA tag fails validation
+instead of being mistaken for an absent tag.
+Remote verification runs the complete container smoke contract against both the
+`linux/amd64` and `linux/arm64` runtime manifests selected from the published
+index by digest; the `arm64` execution uses the pinned QEMU helper.
+The first successful publish still requires a repository administrator to make
+the GHCR package public before anonymous digest pulls are available. See the
+[container contract](docs/containers.md#immutable-registry-publishing) for
+verification commands and rollout boundaries. The
+[supply-chain epic](https://github.com/SecPal/api/issues/1383) remains open
+until the first authenticated GHCR publish, conditional promotion,
+registry-backed attestation, package linkage, and anonymous digest pull are
+verified after merge.
+
+Official SecPal API container images are published exclusively as
+`ghcr.io/secpal/api`. The Docker Hub namespace `secpal`, including shortened
+references such as `secpal/api`, is not controlled or endorsed by SecPal.
+There are no registry fallbacks: production consumption is digest-only, the
+full-SHA tag is a discovery alias, and local test tags use `secpal-api` rather
+than an official-image namespace.
 
 ## Development
 
