@@ -208,7 +208,9 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->and($build['with']['push'])->toBeTrue()
         ->and($build['with']['platforms'])->toBe('linux/amd64,linux/arm64')
         ->and($build['with']['tags'])->toBe('${{ env.CANONICAL_IMAGE }}:sha-${{ github.sha }}')
-        ->and($build['with']['sbom'])->toBeTrue()
+        ->and($build['with']['sbom'])->toBe(
+            'generator=docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68',
+        )
         ->and($build['with']['provenance'])->toBe('mode=max')
         ->and($build['with']['labels'])->toContain(
             'org.opencontainers.image.source=https://github.com/SecPal/api',
@@ -276,7 +278,13 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         ->toContain('(index .SBOM \"${platform}\").SPDX')
         ->toContain('(index .Provenance \"${platform}\").SLSA')
         ->toContain('https://github.com/SecPal/api.git#${GITHUB_SHA}')
+        ->toContain('.buildDefinition.buildType')
+        ->toContain('.runDetails.metadata.buildkit_hermetic == true')
+        ->toContain('.runDetails.metadata.buildkit_completeness.request == true')
+        ->toContain('.runDetails.metadata.buildkit_completeness.resolvedDependencies == true')
+        ->toContain('any(.buildDefinition.resolvedDependencies[];')
         ->toContain('.digest.sha1 == $revision')
+        ->not->toContain('.metadata.completeness', 'any(.materials[];')
         ->toContain('gh attestation verify "oci://$DIGEST_REF"')
         ->toContain('--bundle-from-oci')
         ->toContain('--repo SecPal/api')

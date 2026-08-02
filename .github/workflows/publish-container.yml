@@ -208,7 +208,8 @@ jobs:
             org.opencontainers.image.description=Production API for SecPal operations software
             org.opencontainers.image.licenses=AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
             org.opencontainers.image.created=${{ steps.metadata.outputs.created }}
-          sbom: true
+          sbom: >-
+            generator=docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68
           provenance: mode=max
 
       - name: Select published image digest
@@ -321,11 +322,13 @@ jobs:
               | jq -e \
                 --arg source "https://github.com/SecPal/api.git#${GITHUB_SHA}" \
                 --arg revision "$GITHUB_SHA" '
-                .buildType == "https://mobyproject.org/buildkit@v1"
-                and .metadata.completeness.parameters == true
-                and .metadata.completeness.environment == true
-                and .metadata.completeness.materials == true
-                and any(.materials[]; .uri == $source and .digest.sha1 == $revision)
+                .buildDefinition.buildType
+                  == "https://github.com/moby/buildkit/blob/master/docs/attestations/slsa-definitions.md"
+                and .runDetails.metadata.buildkit_hermetic == true
+                and .runDetails.metadata.buildkit_completeness.request == true
+                and .runDetails.metadata.buildkit_completeness.resolvedDependencies == true
+                and any(.buildDefinition.resolvedDependencies[];
+                  .uri == $source and .digest.sha1 == $revision)
               '
           done
 

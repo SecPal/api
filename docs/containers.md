@@ -88,9 +88,10 @@ BuildKit stores the SBOM and provenance as attestation manifests associated
 with the runtime manifests. Their `unknown/unknown` platform descriptors are
 attachments, not extra runtime platforms. Remote verification excludes those
 attachments when asserting the exact two-platform runtime set, then inspects
-the SBOM and provenance separately. Buildx, its privileged BuildKit daemon, and
-the privileged QEMU `binfmt` helper are independently version- or digest-pinned
-instead of inheriting moving defaults from their wrapper actions.
+the SBOM and provenance separately. Buildx, its privileged BuildKit daemon, the
+SBOM scanner, and the privileged QEMU `binfmt` helper are independently
+version- or digest-pinned instead of inheriting moving defaults from their
+wrapper actions.
 
 Before the first successful post-merge publish, no registry availability is
 implied. GHCR packages are private by default. After that publish succeeds, a
