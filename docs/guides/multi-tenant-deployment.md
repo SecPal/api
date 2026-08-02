@@ -748,11 +748,13 @@ Before going live:
 After successful multi-tenant deployment:
 
 1. **Phase 2 Enhancements (Optional):**
+
    - Subdomain-based tenant resolution (`tenant1.secpal.dev`)
    - Tenant management API (CRUD, usage stats)
    - Multi-tenant user access (consultant scenario)
 
 2. **Operational Excellence:**
+
    - Tenant-aware monitoring dashboards
    - Automated tenant provisioning pipeline
    - Data export/migration tools (GDPR)

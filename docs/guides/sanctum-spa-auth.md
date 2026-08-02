@@ -501,18 +501,22 @@ curl -b cookies.txt \
 ### Checklist
 
 - [ ] **HTTPS Enabled**
+
   - `SESSION_SECURE_COOKIE=true`
   - `APP_URL=https://api.secpal.dev`
 
 - [ ] **Domain Configuration**
+
   - `SESSION_DOMAIN=.secpal.dev` (for subdomains)
   - `SANCTUM_STATEFUL_DOMAINS=app.secpal.dev`
 
 - [ ] **CORS Configuration**
+
   - `CORS_ALLOWED_ORIGINS=https://app.secpal.dev`
   - `CORS_SUPPORTS_CREDENTIALS=true`
 
 - [ ] **Session Security**
+
   - `SESSION_DRIVER=database` (or redis for scale)
   - `SESSION_LIFETIME=120` (or as required)
   - `SESSION_ENCRYPT=true` (encrypt the stored session payload)
