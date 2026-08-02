@@ -29,6 +29,7 @@ on:
       - "THIRD-PARTY-NOTICES.md"
       - "LICENSES/**"
       - ".github/workflows/container-image.yml"
+      - ".github/workflows/publish-container.yml"
 
 permissions:
   contents: read
@@ -39,7 +40,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Lint Dockerfile
         run: docker run --rm -i hadolint/hadolint:v2.14.0-debian < Dockerfile
 

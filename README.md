@@ -291,7 +291,8 @@ php artisan idx:rebuild {tenant_id}
 **For production deployment**, see the comprehensive guides:
 
 - 🐳 [API Container](docs/containers.md) - Production image preparation with
-  FrankenPHP Classic, native PhpRedis, and validated Valkey compatibility
+  FrankenPHP Classic, native PhpRedis, validated Valkey compatibility, and the
+  post-merge immutable GHCR publishing contract
 - 📖 [Production Deployment Guide](docs/deployment.md) - Complete setup instructions
 - ✅ [Deployment Checklist](docs/deployment-checklist.md) - Quick reference checklist
 - 🌐 [Uberspace Deployment](docs/deployment-uberspace.md) - Uberspace-specific guide
@@ -304,6 +305,17 @@ php artisan idx:rebuild {tenant_id}
 - Run `php artisan tenant:setup` for tenant key initialization
 - Verify deployment with `php artisan app:validate-setup`
 - Monitor health checks: `/health/ready` and `/health/live`
+
+After the Phase C.1 workflow is merged, pushes to `main` will publish the
+multi-architecture API image as `ghcr.io/secpal/api:sha-<full-commit-SHA>` for
+`linux/amd64` and `linux/arm64`, with BuildKit SBOM, max-mode provenance, and a
+GitHub Artifact Attestation. The canonical reference is always
+`ghcr.io/secpal/api@sha256:<manifest-digest>`; there is no `latest` or SemVer
+tag and publishing does not deploy the image. The first successful publish
+still requires a repository administrator to make the GHCR package public
+before anonymous digest pulls are available. See the
+[container contract](docs/containers.md#immutable-registry-publishing) for
+verification commands and rollout boundaries.
 
 ## Development
 

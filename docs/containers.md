@@ -28,6 +28,74 @@ The default command is `frankenphp run --config /etc/frankenphp/Caddyfile`. No s
 
 Set `TRUSTED_PROXIES` to a comma-separated allowlist of proxy IP addresses or CIDRs only when deployed behind trusted proxies. It is empty by default.
 
+## Immutable registry publishing
+
+After this publishing workflow reaches `main`, each push to `main` will build
+and publish `ghcr.io/secpal/api` as an OCI image index for `linux/amd64` and
+`linux/arm64`. Phase C.1 publishes exactly one discovery tag per commit:
+`sha-<full-40-character-commit-SHA>`. It does not publish `latest`, a branch
+tag, a SemVer tag, or a release tag.
+
+The canonical consumption reference is always the returned index digest:
+
+```text
+ghcr.io/secpal/api@sha256:<manifest-digest>
+```
+
+The SHA tag is only an alias for finding that digest. Consumers must resolve
+the tag once and pin the digest rather than treating any tag as the deployment
+identity. Publishing does not create a deployment contract or perform a
+deployment.
+
+Each runtime image config records the source repository, full revision,
+creation timestamp, title, description, and the repository's effective SPDX
+license expression. The source label is
+`https://github.com/SecPal/api`, and the license label is
+`AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`.
+
+The published index has four distinct supply-chain concepts:
+
+- the `linux/amd64` and `linux/arm64` manifests are executable runtime images;
+- the BuildKit SPDX SBOM describes packages in each runtime image;
+- the BuildKit SLSA provenance uses `mode=max` and records the build inputs and
+  invocation for each runtime image;
+- the GitHub Artifact Attestation signs the untagged image name plus the
+  published index digest through workload OIDC, tying it to `SecPal/api`, this
+  workflow, and the source commit.
+
+BuildKit stores the SBOM and provenance as attestation manifests associated
+with the runtime manifests. Their `unknown/unknown` platform descriptors are
+attachments, not extra runtime platforms. Remote verification excludes those
+attachments when asserting the exact two-platform runtime set, then inspects
+the SBOM and provenance separately.
+
+Before the first successful post-merge publish, no registry availability is
+implied. GHCR packages are private by default. After that publish succeeds, a
+repository administrator must verify the package link and change the package
+visibility to public once. Anonymous pulls are supported only after that
+separate administrative step. No personal access token, long-lived signing
+key, or Cosign key secret is part of this contract.
+
+While the package is private, authenticate to GHCR before verification. After
+it is public, the image and its BuildKit attestations can be inspected
+anonymously by digest. GitHub Artifact Attestation verification uses the
+GitHub attestation API and may still require GitHub CLI authentication:
+
+```bash
+docker buildx imagetools inspect \
+  ghcr.io/secpal/api@sha256:<manifest-digest>
+gh attestation verify \
+  oci://ghcr.io/secpal/api@sha256:<manifest-digest> \
+  --repo SecPal/api
+docker pull ghcr.io/secpal/api@sha256:<manifest-digest>
+```
+
+The publishing workflow additionally proves that the SHA tag resolves to the
+reported digest, the runtime platform set is exact, source and revision labels
+match, both BuildKit attestations are readable, the GitHub attestation verifies
+for `SecPal/api`, and the existing container smoke contract passes against an
+image pulled only by digest.
+
 ## Roles
 
 Override the default command for the non-HTTP roles:
@@ -57,8 +125,8 @@ The KEK is an external raw 32-byte secret. Configure `KEK_PATH`, mount the file 
 
 `GET /health/live` needs neither PostgreSQL nor Valkey. `GET /health/ready` checks the configured database, tenant key, KEK readability, scheduler heartbeat, and relevant worker heartbeats. `secpal-http-live` is the reusable liveness probe. `HEALTHCHECK NONE` clears the base probe so deployment can assign role-specific checks.
 
-Run `tests/docker/smoke.sh` for build, CLI, permissions, PostgreSQL, Valkey, HTTP isolation, proxy-header, log-redaction, and SIGTERM validation. It uses temporary `postgres:16.10-bookworm` and `valkey/valkey:9.1.1-trixie` containers on an isolated network, without published service ports or persistent test volumes.
+Run `tests/docker/smoke.sh` for build, CLI, permissions, PostgreSQL, Valkey, HTTP isolation, proxy-header, log-redaction, and SIGTERM validation. It uses temporary `postgres:16.10-bookworm` and `valkey/valkey:9.1.1-trixie` containers on an isolated network, without published service ports or persistent test volumes. The publishing verifier first pulls the immutable digest and sets `SKIP_BUILD=1` so the same checks exercise the remote artifact without rebuilding it.
 
 ## Boundaries
 
-This repository supplies only the API image; it does not define frontend delivery, persistent services, edge proxy and public TLS, image registry and publishing, security monitoring, backup and restore, updates, or customer provisioning. Operators must provide and validate the components their deployment requires. Nginx, Apache, PHP-FPM, Kubernetes, and hosting-panel stacks are not reference deployments.
+This repository supplies and publishes only the API image; it does not define frontend delivery, persistent services, edge proxy and public TLS, deployment, security monitoring, backup and restore, updates, or customer provisioning. Operators must provide and validate the components their deployment requires. Nginx, Apache, PHP-FPM, Kubernetes, and hosting-panel stacks are not reference deployments.

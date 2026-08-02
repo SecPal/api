@@ -56,7 +56,11 @@ wait_for_http() {
 }
 
 printf 'container build-context exclusion probe\n' >"$sqlite_probe"
-docker build --tag "$image" .
+if [ "${SKIP_BUILD:-0}" = 1 ]; then
+    docker image inspect "$image" >/dev/null
+else
+    docker build --tag "$image" .
+fi
 docker run --rm "$image" php -v | grep -q '^PHP 8\.4\.23'
 docker run --rm "$image" frankenphp version | grep -q 'FrankenPHP v1\.12\.6'
 docker run --rm "$image" php -m | grep -qx redis
