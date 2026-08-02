@@ -41,6 +41,11 @@ it('defines the production API image contract', function (): void {
         ->toContain('--require-hashes', '--only-binary=:all:', 'opentimestamps-requirements.txt')
         ->toContain('rm -f bootstrap/cache/*.php', '/config/caddy /config/psysh')
         ->toContain('redis-6.3.0')
+        ->toContain('COPY --chmod=0644 docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile')
+        ->toContain('COPY --chmod=0644 docker/php/conf.d/production.ini /usr/local/etc/php/conf.d/zz-secpal-production.ini')
+        ->toContain('COPY --chmod=0755 docker/healthchecks/http-live.sh /usr/local/bin/secpal-http-live')
+        ->toContain('find /app -xdev -type d -exec chmod 0755 {} +')
+        ->toContain('find /app -xdev -type f -exec chmod 0644 {} +')
         ->toContain('USER secpal')
         ->toContain('EXPOSE 8080')
         ->toContain('HEALTHCHECK NONE')
@@ -65,7 +70,10 @@ it('defines the production API image contract', function (): void {
     expect($workflow)->toContain('"storage/**"', '"artisan"', '"LICENSE"', '"THIRD-PARTY-NOTICES.md"', '"LICENSES/**"');
     expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent')->and($dockerignore)->toMatch('/^storage\/app$/m');
     expect($dockerignore)->toMatch('/^\*\*\/\*\.sqlite\*$/m');
-    expect($smokeScript)->toContain('if test -e "$sqlite_probe"; then');
+    expect($smokeScript)
+        ->toContain('if test -e "$sqlite_probe"; then')
+        ->toContain('chmod 0444 "$port_probe"')
+        ->toContain('-v "${port_probe}:/tmp/assert-port-closed.php:ro"');
     expect($proxyConfig)->toContain('TRUSTED_PROXIES');
 });
 

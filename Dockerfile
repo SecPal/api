@@ -77,11 +77,13 @@ RUN groupadd --gid "${APP_GID}" secpal \
     && install -d -m 0750 -o secpal -g secpal /config/caddy /config/psysh /data/caddy
 
 COPY --from=dependencies --chown=root:root /app /app
-COPY docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile
-COPY docker/php/conf.d/production.ini /usr/local/etc/php/conf.d/zz-secpal-production.ini
-COPY docker/healthchecks/http-live.sh /usr/local/bin/secpal-http-live
+COPY --chmod=0644 docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile
+COPY --chmod=0644 docker/php/conf.d/production.ini /usr/local/etc/php/conf.d/zz-secpal-production.ini
+COPY --chmod=0755 docker/healthchecks/http-live.sh /usr/local/bin/secpal-http-live
 
 RUN cp "${PHP_INI_DIR}/php.ini-production" "${PHP_INI_DIR}/php.ini" \
+    && find /app -xdev -type d -exec chmod 0755 {} + \
+    && find /app -xdev -type f -exec chmod 0644 {} + \
     && install -d -m 0750 -o secpal -g secpal \
         storage/app/private \
         storage/app/public \
@@ -92,8 +94,7 @@ RUN cp "${PHP_INI_DIR}/php.ini-production" "${PHP_INI_DIR}/php.ini" \
         bootstrap/cache \
     && chown -R secpal:secpal storage bootstrap/cache \
     && find storage bootstrap/cache -type d -exec chmod 0750 {} + \
-    && find storage bootstrap/cache -type f -exec chmod 0640 {} + \
-    && chmod 0755 /usr/local/bin/secpal-http-live
+    && find storage bootstrap/cache -type f -exec chmod 0640 {} +
 
 USER secpal
 

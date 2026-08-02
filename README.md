@@ -311,9 +311,10 @@ multi-architecture API image as `ghcr.io/secpal/api:sha-<full-commit-SHA>` for
 `linux/amd64` and `linux/arm64`, with BuildKit SBOM, max-mode provenance, and a
 GitHub Artifact Attestation. The canonical reference is always
 `ghcr.io/secpal/api@sha256:<manifest-digest>`; there is no `latest` or SemVer
-tag and publishing does not deploy the image. The first successful publish
-still requires a repository administrator to make the GHCR package public
-before anonymous digest pulls are available. See the
+tag and publishing does not deploy the image. Workflow reruns validate and
+reuse an existing full-SHA tag rather than pushing it again. The first
+successful publish still requires a repository administrator to make the GHCR
+package public before anonymous digest pulls are available. See the
 [container contract](docs/containers.md#immutable-registry-publishing) for
 verification commands and rollout boundaries.
 

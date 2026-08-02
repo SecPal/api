@@ -47,6 +47,15 @@ the tag once and pin the digest rather than treating any tag as the deployment
 identity. Publishing does not create a deployment contract or perform a
 deployment.
 
+The publisher creates a SHA tag only after a registry lookup has confirmed
+that it is absent. A workflow rerun reuses the existing digest after checking
+the exact runtime platform set plus the source and revision labels; it never
+pushes the same SHA tag again. Only an authenticated `404` authorizes the first
+publish. Authentication, network, or other registry lookup failures stop the
+job instead of being treated as permission to overwrite the tag. This makes
+post-push attestation or verification failures safely retryable without moving
+the discovery alias.
+
 Each runtime image config records the source repository, full revision,
 creation timestamp, title, description, and the repository's effective SPDX
 license expression. The source label is

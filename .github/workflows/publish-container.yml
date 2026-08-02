@@ -75,7 +75,7 @@ jobs:
       group: publish-container-${{ github.repository }}
       cancel-in-progress: false
     outputs:
-      image_digest: ${{ steps.build.outputs.digest }}
+      image_digest: ${{ steps.image.outputs.digest }}
     steps:
       - name: Checkout publishing commit
         id: checkout
@@ -84,12 +84,6 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-
-      - name: Set up QEMU
-        # v4.2.0
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
-        with:
-          platforms: arm64
 
       - name: Set up Docker Buildx
         # v4.2.0
@@ -104,12 +98,76 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve immutable SHA tag
+        id: existing-image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          image_tag="sha-${GITHUB_SHA}"
+          manifest_file=$(mktemp)
+          trap 'rm -f "$manifest_file"' EXIT
+          registry_token=$(curl --fail --silent --show-error \
+            --user "${GITHUB_ACTOR}:${GHCR_TOKEN}" \
+            --get \
+            --data-urlencode "scope=repository:${IMAGE_NAME}:pull" \
+            --data-urlencode "service=${REGISTRY}" \
+            "https://${REGISTRY}/token" | jq -er '.token')
+          status=$(curl --silent --show-error \
+            --output "$manifest_file" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${registry_token}" \
+            --header 'Accept: application/vnd.oci.image.index.v1+json' \
+            "https://${REGISTRY}/v2/${IMAGE_NAME}/manifests/${image_tag}")
+          case "$status" in
+            200)
+              jq -e '.mediaType == "application/vnd.oci.image.index.v1+json"' "$manifest_file"
+              digest="sha256:$(sha256sum "$manifest_file" | awk '{print $1}')"
+              digest_ref="${IMAGE_FQDN}@${digest}"
+              existing_manifest=$(docker buildx imagetools inspect "$digest_ref" \
+                --format '{{json .Manifest}}')
+              printf '%s\n' "$existing_manifest" | jq -e '
+                ([.manifests[]
+                  | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest")
+                  | "\(.platform.os)/\(.platform.architecture)"] | sort)
+                  == ["linux/amd64", "linux/arm64"]
+              '
+              for platform in linux/amd64 linux/arm64; do
+                image_config=$(docker buildx imagetools inspect "$digest_ref" \
+                  --format "{{json (index .Image \"${platform}\")}}")
+                printf '%s\n' "$image_config" | jq -e \
+                  --arg source 'https://github.com/SecPal/api' \
+                  --arg revision "$GITHUB_SHA" '
+                    .config.Labels["org.opencontainers.image.source"] == $source
+                    and .config.Labels["org.opencontainers.image.revision"] == $revision
+                  '
+              done
+              printf 'exists=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              printf 'exists=false\ndigest=\n' >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              printf 'GHCR manifest lookup failed with HTTP status %s\n' "$status" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Set up QEMU
+        if: steps.existing-image.outputs.exists == 'false'
+        # v4.2.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
+        with:
+          platforms: arm64
+
       - name: Record creation timestamp
         id: metadata
+        if: steps.existing-image.outputs.exists == 'false'
         run: printf 'created=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Build and push immutable image
         id: build
+        if: steps.existing-image.outputs.exists == 'false'
         # v7.3.0
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
@@ -128,13 +186,28 @@ jobs:
           sbom: true
           provenance: mode=max
 
+      - name: Select published image digest
+        id: image
+        env:
+          EXISTING_IMAGE_DIGEST: ${{ steps.existing-image.outputs.digest }}
+          BUILT_IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.existing-image.outputs.exists }}" = true ]; then
+            digest=$EXISTING_IMAGE_DIGEST
+          else
+            digest=$BUILT_IMAGE_DIGEST
+          fi
+          printf '%s\n' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+
       - name: Generate GitHub artifact attestation
         id: attest
         # v4.2.1
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
         with:
           subject-name: ghcr.io/secpal/api
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-digest: ${{ steps.image.outputs.digest }}
           push-to-registry: true
 
   verify:

@@ -43,6 +43,11 @@ function containerPublishingRunScripts(array $job): string
     ));
 }
 
+function containerPublishingForbiddenCommandPattern(): string
+{
+    return '/(?:\bdocker\h+(?:[a-z-]+\h+)*prune\b|\bdocker\h+(?:push|manifest\h+push|buildx\h+(?:(?:build|bake)\b[^\r\n]*--push|imagetools\h+create))\b|\b(?:oras|podman)\h+(?:push|cp|copy)\b|\bcrane\h+(?:push|copy)\b|\bskopeo\h+(?:copy|sync)\b|\bregctl\h+(?:image|manifest)\h+(?:copy|put)\b|\bcurl\b[^\r\n]*(?:(?:-X|--request)\h*(?:PUT|POST|PATCH|DELETE)\b|(?:-T|--upload-file|--form|-F)\b))/i';
+}
+
 it('defines a main-only publish workflow with isolated least-privilege jobs', function (): void {
     expect(is_file(containerPublishingWorkflowPath()))->toBeTrue('Missing immutable container publishing workflow.');
 
@@ -116,10 +121,23 @@ it('validates before publishing without registry credentials or write operations
 it('publishes one full-SHA multi-architecture tag with exact OCI metadata and attestations', function (): void {
     $workflow = containerPublishingWorkflow();
     $publish = $workflow['jobs']['publish'];
+    $existingImage = containerPublishingStep($publish, 'existing-image');
     $build = containerPublishingStep($publish, 'build');
+    $image = containerPublishingStep($publish, 'image');
     $attest = containerPublishingStep($publish, 'attest');
 
-    expect($build['with']['context'])->toBe('.')
+    expect($existingImage['env'])->toBe([
+        'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
+    ])->and($existingImage['run'])
+        ->toContain('https://${REGISTRY}/v2/${IMAGE_NAME}/manifests/${image_tag}')
+        ->toContain('case "$status" in')
+        ->toContain('200)')
+        ->toContain('404)')
+        ->toContain('exit 1')
+        ->toContain('org.opencontainers.image.source')
+        ->toContain('org.opencontainers.image.revision')
+        ->and($build['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
+        ->and($build['with']['context'])->toBe('.')
         ->and($build['with']['push'])->toBeTrue()
         ->and($build['with']['platforms'])->toBe('linux/amd64,linux/arm64')
         ->and($build['with']['tags'])->toBe('${{ env.IMAGE_FQDN }}:sha-${{ github.sha }}')
@@ -133,12 +151,19 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
             'org.opencontainers.image.licenses=AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution',
             'org.opencontainers.image.created=${{ steps.metadata.outputs.created }}',
         )
+        ->and($image['env'])->toBe([
+            'EXISTING_IMAGE_DIGEST' => '${{ steps.existing-image.outputs.digest }}',
+            'BUILT_IMAGE_DIGEST' => '${{ steps.build.outputs.digest }}',
+        ])->and($image['run'])
+        ->toContain('digest=$EXISTING_IMAGE_DIGEST')
+        ->toContain('digest=$BUILT_IMAGE_DIGEST')
+        ->toContain("grep -Eq '^sha256:[0-9a-f]{64}$'")
         ->and($attest['with'])->toBe([
             'subject-name' => 'ghcr.io/secpal/api',
-            'subject-digest' => '${{ steps.build.outputs.digest }}',
+            'subject-digest' => '${{ steps.image.outputs.digest }}',
             'push-to-registry' => true,
         ])
-        ->and($publish['outputs']['image_digest'])->toBe('${{ steps.build.outputs.digest }}');
+        ->and($publish['outputs']['image_digest'])->toBe('${{ steps.image.outputs.digest }}');
 
     $checkout = containerPublishingStep($publish, 'checkout');
     $login = containerPublishingStep($publish, 'registry-login');
@@ -179,13 +204,18 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         ->toContain('docker pull "$DIGEST_REF"')
         ->toContain('SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh')
         ->not->toContain('docker pull "$IMAGE_FQDN:$IMAGE_TAG"')
-        ->and($smokeScript)->toContain('if [ "${SKIP_BUILD:-0}" = 1 ]; then');
+        ->and($smokeScript)
+        ->toContain('if [ "${SKIP_BUILD:-0}" = 1 ]; then')
+        ->toContain('test "$(id -u)" -eq 10001')
+        ->toContain('test "$(id -g)" -eq 10001');
 });
 
 it('pins every action to a full commit SHA with an adjacent version comment', function (): void {
     $workflow = containerPublishingWorkflow();
     $rawWorkflow = file_get_contents(containerPublishingWorkflowPath());
     $actionCount = 0;
+    $actionNames = [];
+    $loginSteps = [];
     $allowedActions = [
         'actions/checkout',
         'actions/attest',
@@ -203,13 +233,29 @@ it('pins every action to a full commit SHA with an adjacent version comment', fu
             }
 
             $actionCount++;
+            $actionName = explode('@', $step['uses'], 2)[0];
+            $actionNames[] = $actionName;
+            if ($actionName === 'docker/login-action') {
+                $loginSteps[] = $step;
+            }
             expect($step['uses'])->toMatch('/^[^@\s]+@[0-9a-f]{40}$/')
-                ->and(explode('@', $step['uses'], 2)[0])->toBeIn($allowedActions);
+                ->and($actionName)->toBeIn($allowedActions);
         }
     }
 
     preg_match_all('/^\s+# v?\d+\.\d+\.\d+\R\s+uses: [^@\s]+@[0-9a-f]{40}$/m', $rawWorkflow, $pinnedLines);
-    expect(count($pinnedLines[0]))->toBe($actionCount);
+    expect(count($pinnedLines[0]))->toBe($actionCount)
+        ->and(array_count_values($actionNames)['docker/build-push-action'] ?? 0)->toBe(1)
+        ->and(array_count_values($actionNames)['actions/attest'] ?? 0)->toBe(1)
+        ->and(count($loginSteps))->toBe(2);
+
+    foreach ($loginSteps as $loginStep) {
+        expect($loginStep['with'])->toBe([
+            'registry' => 'ghcr.io',
+            'username' => '${{ github.actor }}',
+            'password' => '${{ secrets.GITHUB_TOKEN }}',
+        ]);
+    }
 });
 
 it('rejects moving tags, broad credentials, destructive registry operations, and deployment', function (): void {
@@ -226,10 +272,32 @@ it('rejects moving tags, broad credentials, destructive registry operations, and
         ->not->toMatch('/sha-\$\{\{\s*github\.sha\s*\}\}.*(?:cut|substr|0:7|0,\s*7)/i')
         ->not->toMatch('/\$\{\{\s*secrets\.(?!GITHUB_TOKEN\b)/')
         ->not->toContain('docker.io', 'quay.io', 'gcr.io', 'delete:packages', 'packages: delete')
-        ->not->toMatch('/docker\s+(?:system|image|builder)\s+prune/i')
+        ->not->toMatch(containerPublishingForbiddenCommandPattern())
         ->not->toMatch('/\bdeploy(?:ment|ments)?\b/i')
         ->not->toContain('workflow_dispatch', 'pull_request', 'pull_request_target', 'environment:');
 });
+
+it('recognizes prohibited registry writes and every Docker prune family', function (string $command): void {
+    expect($command)->toMatch(containerPublishingForbiddenCommandPattern());
+})->with([
+    'docker push ghcr.io/secpal/api:test',
+    'docker manifest push ghcr.io/secpal/api:test',
+    'docker buildx build --push --tag registry.example/secpal/api:test .',
+    'docker buildx bake release --push',
+    'docker buildx imagetools create --tag registry.example/secpal/api:test source',
+    'oras copy ghcr.io/secpal/api:test registry.example/secpal/api:test',
+    'crane push image.tar registry.example/secpal/api:test',
+    'skopeo sync --src docker --dest docker source destination',
+    'regctl manifest put registry.example/secpal/api:test',
+    'curl --request PUT --upload-file manifest.json https://registry.example/v2/api/manifests/test',
+    'docker container prune --force',
+    'docker image prune --force',
+    'docker network prune --force',
+    'docker system prune --force',
+    'docker volume prune --force',
+    'docker builder prune --force',
+    'docker buildx prune --force',
+]);
 
 it('keeps the pull-request container workflow read-only', function (): void {
     $workflow = Yaml::parseFile(dirname(__DIR__, 2).'/.github/workflows/container-image.yml');

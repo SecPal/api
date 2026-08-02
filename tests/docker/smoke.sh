@@ -19,6 +19,9 @@ fi
 tmp_dir=$(mktemp -d)
 kek_file="${tmp_dir}/kek"
 api_env="${tmp_dir}/api.env"
+port_probe="${tmp_dir}/assert-port-closed.php"
+cp tests/docker/assert-port-closed.php "$port_probe"
+chmod 0444 "$port_probe"
 cleanup() {
     docker rm -f "$api" "$valkey" "$postgres" >/dev/null 2>&1 || true
     docker network rm "$network" >/dev/null 2>&1 || true
@@ -78,6 +81,7 @@ docker run --rm "$image" frankenphp validate --config /etc/frankenphp/Caddyfile
 test "$(docker image inspect --format '{{index .Config.Healthcheck.Test 0}}' "$image")" = NONE
 docker run --rm "$image" sh -eu -c '
     test "$(id -u)" -eq 10001
+    test "$(id -g)" -eq 10001
     test -w /app/storage
     test -w /app/bootstrap/cache
     test ! -w /app/artisan
@@ -162,7 +166,7 @@ if grep -q "$log_marker" "${tmp_dir}/api.log" || ! grep -q REDACTED "${tmp_dir}/
 fi
 for closed_port in 80 443 2019; do
     docker run --rm --network "$network" \
-        -v "$(pwd)/tests/docker/assert-port-closed.php:/tmp/assert-port-closed.php:ro" \
+        -v "${port_probe}:/tmp/assert-port-closed.php:ro" \
         "$image" php /tmp/assert-port-closed.php "$api" "$closed_port"
 done
 docker stop --time 10 "$api" >/dev/null
