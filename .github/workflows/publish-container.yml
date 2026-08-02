@@ -112,6 +112,7 @@ jobs:
         id: existing-image
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           EXPECTED_CREATED: ${{ steps.metadata.outputs.created }}
         run: |
           set -euo pipefail
@@ -135,6 +136,14 @@ jobs:
               jq -e '.mediaType == "application/vnd.oci.image.index.v1+json"' "$manifest_file"
               digest="sha256:$(sha256sum "$manifest_file" | awk '{print $1}')"
               digest_ref="${CANONICAL_IMAGE}@${digest}"
+              gh attestation verify "oci://$digest_ref" \
+                --bundle-from-oci \
+                --repo SecPal/api \
+                --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
+                --signer-digest "$GITHUB_SHA" \
+                --source-ref refs/heads/main \
+                --source-digest "$GITHUB_SHA" \
+                --deny-self-hosted-runners
               existing_manifest=$(docker buildx imagetools inspect "$digest_ref" \
                 --format '{{json .Manifest}}')
               printf '%s\n' "$existing_manifest" | jq -e '
@@ -220,11 +229,12 @@ jobs:
 
       - name: Generate GitHub artifact attestation
         id: attest
+        if: steps.existing-image.outputs.exists == 'false'
         # v4.2.1
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
         with:
           subject-name: ${{ env.CANONICAL_IMAGE }}
-          subject-digest: ${{ steps.image.outputs.digest }}
+          subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
           create-storage-record: false
 
@@ -314,7 +324,6 @@ jobs:
                 --arg revision "$GITHUB_SHA" '
                 .buildDefinition.buildType
                   == "https://github.com/moby/buildkit/blob/master/docs/attestations/slsa-definitions.md"
-                and .runDetails.metadata.buildkit_hermetic == true
                 and .runDetails.metadata.buildkit_completeness.request == true
                 and .runDetails.metadata.buildkit_completeness.resolvedDependencies == true
                 and any(.buildDefinition.resolvedDependencies[];

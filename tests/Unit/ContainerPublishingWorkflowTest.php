@@ -181,6 +181,7 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
 
     expect($existingImage['env'])->toBe([
         'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
+        'GH_TOKEN' => '${{ github.token }}',
         'EXPECTED_CREATED' => '${{ steps.metadata.outputs.created }}',
     ])->and($existingImage['run'])
         ->toContain('scope=repository:${GHCR_REPOSITORY_PATH}:pull')
@@ -196,7 +197,8 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->toContain('org.opencontainers.image.description')
         ->toContain('org.opencontainers.image.licenses')
         ->toContain('org.opencontainers.image.created')
-        ->not->toContain('gh attestation verify', '--bundle-from-oci', 'actions/attest')
+        ->toContain('gh attestation verify "oci://$digest_ref"')
+        ->toContain('--bundle-from-oci')
         ->and($metadata['run'])->toContain('git show -s --format=%cI "$GITHUB_SHA"')
         ->and($build['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
         ->and($build['with']['context'])->toBe('https://github.com/SecPal/api.git#${{ github.sha }}')
@@ -222,10 +224,10 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->toContain('digest=$EXISTING_IMAGE_DIGEST')
         ->toContain('digest=$BUILT_IMAGE_DIGEST')
         ->toContain("grep -Eq '^sha256:[0-9a-f]{64}$'")
-        ->and(array_key_exists('if', $attest))->toBeFalse()
+        ->and($attest['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
         ->and($attest['with'])->toBe([
             'subject-name' => '${{ env.CANONICAL_IMAGE }}',
-            'subject-digest' => '${{ steps.image.outputs.digest }}',
+            'subject-digest' => '${{ steps.build.outputs.digest }}',
             'push-to-registry' => true,
             'create-storage-record' => false,
         ])
@@ -247,7 +249,7 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
     ]);
 });
 
-it('repairs a missing attestation without rebuilding or moving the SHA tag', function (): void {
+it('reuses only an already-attested image without rebuilding or moving the SHA tag', function (): void {
     $workflow = containerPublishingWorkflow();
     $publish = $workflow['jobs']['publish'];
     $existingImage = containerPublishingStep($publish, 'existing-image');
@@ -259,6 +261,7 @@ it('repairs a missing attestation without rebuilding or moving the SHA tag', fun
 
     expect($existingImage['env'])->toBe([
         'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
+        'GH_TOKEN' => '${{ github.token }}',
         'EXPECTED_CREATED' => '${{ steps.metadata.outputs.created }}',
     ])->and($existingImage['run'])
         ->toContain('set -euo pipefail')
@@ -273,7 +276,14 @@ it('repairs a missing attestation without rebuilding or moving the SHA tag', fun
         ->toContain('org.opencontainers.image.licenses')
         ->toContain('org.opencontainers.image.created')
         ->toContain('200)', '404)', 'exit 1')
-        ->not->toContain('gh attestation verify', '--bundle-from-oci', 'actions/attest')
+        ->toContain('gh attestation verify "oci://$digest_ref"')
+        ->toContain('--bundle-from-oci')
+        ->toContain('--repo SecPal/api')
+        ->toContain('--signer-workflow SecPal/api/.github/workflows/publish-container.yml')
+        ->toContain('--signer-digest "$GITHUB_SHA"')
+        ->toContain('--source-ref refs/heads/main')
+        ->toContain('--source-digest "$GITHUB_SHA"')
+        ->toContain('--deny-self-hosted-runners')
         ->and($build['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
         ->and($build['with']['push'])->toBeTrue()
         ->and($build['with']['tags'])->toBe('${{ env.CANONICAL_IMAGE }}:sha-${{ github.sha }}')
@@ -285,14 +295,13 @@ it('repairs a missing attestation without rebuilding or moving the SHA tag', fun
         ->toContain('digest=$EXISTING_IMAGE_DIGEST')
         ->toContain('digest=$BUILT_IMAGE_DIGEST')
         ->toContain("grep -Eq '^sha256:[0-9a-f]{64}$'")
-        ->and(array_key_exists('if', $attest))->toBeFalse()
+        ->and($attest['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
         ->and($attest['with'])->toBe([
             'subject-name' => '${{ env.CANONICAL_IMAGE }}',
-            'subject-digest' => '${{ steps.image.outputs.digest }}',
+            'subject-digest' => '${{ steps.build.outputs.digest }}',
             'push-to-registry' => true,
             'create-storage-record' => false,
-        ])->and($attest['with']['subject-digest'])
-        ->not->toBe('${{ steps.build.outputs.digest }}')
+        ])
         ->and($workflow['jobs']['verify']['needs'])->toBe('publish')
         ->and(array_count_values($uses)['docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a'] ?? 0)->toBe(1)
         ->and(array_count_values($uses)['actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d'] ?? 0)->toBe(1)
@@ -326,7 +335,7 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         ->toContain('(index .Provenance \"${platform}\").SLSA')
         ->toContain('https://github.com/SecPal/api.git#${GITHUB_SHA}')
         ->toContain('.buildDefinition.buildType')
-        ->toContain('.runDetails.metadata.buildkit_hermetic == true')
+        ->not->toContain('.runDetails.metadata.buildkit_hermetic == true')
         ->toContain('.runDetails.metadata.buildkit_completeness.request == true')
         ->toContain('.runDetails.metadata.buildkit_completeness.resolvedDependencies == true')
         ->toContain('any(.buildDefinition.resolvedDependencies[];')

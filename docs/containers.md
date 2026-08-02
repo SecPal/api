@@ -57,16 +57,18 @@ does not create a deployment contract or perform a deployment.
 The publisher creates a SHA tag only after a registry lookup has confirmed
 that it is absent. A workflow rerun never rebuilds or moves an existing
 full-SHA image tag. It reuses the existing digest only after validating the OCI
-index, exact runtime platform set, and every required OCI label. An invalid
-existing image fails closed and cannot be legitimized by a new attestation.
+index, exact runtime platform set, every required OCI label, and a pre-existing
+registry-backed GitHub Artifact Attestation bound to the same workflow and
+source commit. An invalid or unattested existing image fails closed and cannot
+be legitimized by a new attestation.
 
-After selecting either the validated existing digest or the newly built
-digest, the workflow creates a registry-backed GitHub Artifact Attestation for
-that selected digest before remote verification. This repairs an interrupted
-run where the image push completed but the original attestation step did not.
-Only an authenticated `404` authorizes the first build and publish;
-authentication, network, metadata, and all other lookup or validation failures
-stop the job without moving the SHA tag.
+The workflow creates a new registry-backed GitHub Artifact Attestation only for
+the digest produced by its current build. An interrupted first run where the
+image push completed but attestation did not must be recovered explicitly by a
+repository administrator; reruns never reconstruct trust from unsigned
+registry metadata. Only an authenticated `404` authorizes the first build and
+publish. Authentication, network, metadata, attestation, and all other lookup
+or validation failures stop the job without moving the SHA tag.
 
 Each runtime image config records the source repository, full revision,
 deterministic commit timestamp, title, description, and the repository's
