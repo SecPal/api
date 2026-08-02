@@ -365,7 +365,7 @@ it('promotes only a verified and attested candidate digest', function (): void {
         ->and($attestation['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
         ->and($promotion['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
         ->and($promotion['run'])->toContain(
-            'scripts/promote-ghcr-index.sh ghcr.io secpal/api "sha-${GITHUB_SHA}" "$IMAGE_DIGEST"',
+            'scripts/promote-ghcr-index.sh ghcr.io secpal/api "sha-${GITHUB_SHA}" "$IMAGE_DIGEST" "$CANDIDATE_TAG"',
         )->and(array_search($attestation, $attest['steps'], true))
         ->toBeLessThan(array_search($attestationVerification, $attest['steps'], true))
         ->and(array_search($attestationVerification, $attest['steps'], true))
@@ -652,7 +652,7 @@ it('allows registry writes only through the candidate build, attestation, and au
         ->and(containerPublishingRunScripts($workflow['jobs']['attest']))
         ->not->toMatch(containerPublishingForbiddenCommandPattern())
         ->and($promotion['run'])->toBe(
-            'scripts/promote-ghcr-index.sh ghcr.io secpal/api "sha-${GITHUB_SHA}" "$IMAGE_DIGEST"',
+            'scripts/promote-ghcr-index.sh ghcr.io secpal/api "sha-${GITHUB_SHA}" "$IMAGE_DIGEST" "$CANDIDATE_TAG"',
         )
         ->and(substr_count($promotionScript, '--request PUT'))->toBe(1)
         ->and($promotionScript)
@@ -660,6 +660,10 @@ it('allows registry writes only through the candidate build, attestation, and au
             'test "$host" = ghcr.io',
             'test "$repository" = secpal/api',
             'scope=repository:${repository}:pull,push',
+            'probe_status=$(conditional_put "$candidate_tag" "$probe_headers")',
+            'test "$probe_status" = 412',
+            'validate_index_response "$probe_body" "$probe_headers" "$source_digest"',
+            'put_status=$(conditional_put "$target_tag" "$put_headers")',
             "--header 'If-None-Match: *'",
             '--header "Content-Type: ${source_content_type}"',
             '--data-binary "@${source_body}"',
@@ -674,6 +678,23 @@ it('allows registry writes only through the candidate build, attestation, and au
             'skopeo ',
             'regctl ',
             'podman ',
+        );
+});
+
+it('proves create-only registry semantics before writing the final SHA tag', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $attest = $workflow['jobs']['attest'];
+    $promotion = containerPublishingNamedStep($attest, 'Promote verified candidate to final SHA tag');
+    $promotionScript = file_get_contents(dirname(__DIR__, 2).'/scripts/promote-ghcr-index.sh');
+
+    expect($attest['env']['CANDIDATE_TAG'])->toBe('${{ needs.publish.outputs.candidate_tag }}')
+        ->and($promotion['run'])->toContain('"$IMAGE_DIGEST" "$CANDIDATE_TAG"')
+        ->and(strpos($promotionScript, 'conditional_put "$candidate_tag"'))
+        ->toBeLessThan(strpos($promotionScript, 'conditional_put "$target_tag"'))
+        ->and($promotionScript)
+        ->toContain(
+            'test "$probe_status" = 412',
+            'validate_index_response "$probe_body" "$probe_headers" "$source_digest"',
         );
 });
 

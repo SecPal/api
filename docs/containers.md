@@ -65,10 +65,14 @@ When the final tag is absent, the build publishes only a unique internal
 candidate's exact digest, OCI index, runtime platforms, OCI labels, BuildKit
 SBOM and provenance, source material, and both runtime manifests before it
 creates and verifies the registry-backed GitHub Artifact Attestation. It then
-registers the exact unchanged OCI index bytes under the final full-SHA tag and
-verifies the final tag and attestation again. The candidate is not an official
-consumption reference and can remain as an internal registry artifact; package
-cleanup is outside this publishing contract.
+proves that GHCR enforces `If-None-Match: *` by conditionally re-sending the
+same bytes to the already existing run-unique candidate. Only the expected
+`412 Precondition Failed` response authorizes the create-only final-tag write;
+an unsupported or ignored precondition fails before the final tag is touched.
+The workflow then registers the exact unchanged OCI index bytes under the final
+full-SHA tag and verifies the final tag and attestation again. The candidate is
+not an official consumption reference and can remain as an internal registry
+artifact; package cleanup is outside this publishing contract.
 
 An existing final full-SHA tag is never rebuilt, moved, promoted, or newly
 attested. It is accepted only after the complete image contract and an existing

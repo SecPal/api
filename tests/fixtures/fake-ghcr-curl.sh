@@ -97,6 +97,21 @@ case "$url" in
         ;;
     esac
     ;;
+  */manifests/candidate-*)
+    if [ "$method" = PUT ]; then
+      test -n "$data_file"
+      cmp "$data_file" "$FAKE_MANIFEST_FILE"
+      test "$request_precondition" = 'If-None-Match: *'
+      if [ "$FAKE_SCENARIO" = precondition-ignored ]; then
+        status=201
+      else
+        status=412
+        digest=
+      fi
+    elif [ "$FAKE_SCENARIO" = candidate-moved ]; then
+      digest="sha256:$(printf '5%.0s' {1..64})"
+    fi
+    ;;
   */manifests/sha-*)
     if [ "$method" = PUT ]; then
       test -n "$data_file"

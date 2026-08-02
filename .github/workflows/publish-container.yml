@@ -372,6 +372,7 @@ jobs:
     env:
       IMAGE_DIGEST: ${{ needs.publish.outputs.image_digest }}
       FINAL_EXISTS: ${{ needs.publish.outputs.final_exists }}
+      CANDIDATE_TAG: ${{ needs.publish.outputs.candidate_tag }}
     steps:
       - name: Checkout publishing commit
         id: checkout
@@ -427,6 +428,7 @@ jobs:
           secpal/api
           "sha-${GITHUB_SHA}"
           "$IMAGE_DIGEST"
+          "$CANDIDATE_TAG"
 
       - name: Set up Docker Buildx for final verification
         # v4.2.0

@@ -310,7 +310,10 @@ After the Phase C.1 workflow is merged, pushes to `main` will publish a unique
 internal candidate for `linux/amd64` and `linux/arm64`, including BuildKit SBOM
 and max-mode provenance. The workflow fully verifies both runtime manifests and
 their metadata before creating and verifying a GitHub Artifact Attestation. It
-then promotes the exact unchanged OCI index digest to
+then requires GHCR to reject a harmless conditional rewrite of the existing
+run-unique candidate with `412 Precondition Failed`, proving create-only
+manifest-write enforcement before the final tag is touched. Only then does it
+promote the exact unchanged OCI index digest to
 `ghcr.io/secpal/api:sha-<full-commit-SHA>`. Candidates are not official
 consumption references and may remain as internal registry artifacts; their
 cleanup is outside this change.

@@ -48,17 +48,21 @@ validate_index_response() {
     || fail 'manifest mediaType is not an OCI image index'
 }
 
-test "$#" -eq 4 || fail 'expected host, repository, target tag, and source digest'
+test "$#" -eq 5 \
+  || fail 'expected host, repository, target tag, source digest, and candidate tag'
 
 host=$1
 repository=$2
 target_tag=$3
 source_digest=$4
+candidate_tag=$5
 
 test "$host" = ghcr.io || fail 'host must be ghcr.io'
 test "$repository" = secpal/api || fail 'repository must be secpal/api'
 [[ "$target_tag" =~ ^sha-[0-9a-f]{40}$ ]] || fail 'target must be a full lowercase SHA tag'
 [[ "$source_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || fail 'source must be a lowercase SHA-256 digest'
+[[ "$candidate_tag" =~ ^candidate-${target_tag#sha-}-[0-9]+-[0-9]+$ ]] \
+  || fail 'candidate must include the target SHA, run ID, and run attempt'
 test -n "${GHCR_USERNAME:-}" || fail 'GHCR_USERNAME is required'
 test -n "${GHCR_TOKEN:-}" || fail 'GHCR_TOKEN is required'
 
@@ -70,6 +74,8 @@ source_headers="$tmp_dir/source.headers"
 target_body="$tmp_dir/target.json"
 target_headers="$tmp_dir/target.headers"
 put_headers="$tmp_dir/put.headers"
+probe_body="$tmp_dir/probe.json"
+probe_headers="$tmp_dir/probe.headers"
 registry_url="https://${host}/v2/${repository}/manifests"
 manifest_accept=application/vnd.oci.image.index.v1+json
 
@@ -90,6 +96,39 @@ source_status=$(curl --silent --show-error \
 test "$source_status" = 200 || fail "source manifest returned HTTP ${source_status}"
 validate_index_response "$source_body" "$source_headers" "$source_digest"
 source_content_type=$(header_value Content-Type "$source_headers")
+
+conditional_put() {
+  local reference=$1
+  local headers_file=$2
+
+  curl --silent --show-error \
+    --output /dev/null \
+    --dump-header "$headers_file" \
+    --write-out '%{http_code}' \
+    --request PUT \
+    --header "Authorization: Bearer ${registry_token}" \
+    --header "Content-Type: ${source_content_type}" \
+    --header 'If-None-Match: *' \
+    --data-binary "@${source_body}" \
+    "${registry_url}/${reference}"
+}
+
+# Prove that this GHCR endpoint enforces create-only manifest writes before the
+# final tag is touched. Re-sending the same bytes to the already existing,
+# run-unique candidate is harmless even if the precondition is ignored.
+probe_status=$(conditional_put "$candidate_tag" "$probe_headers")
+test "$probe_status" = 412 \
+  || fail "registry did not enforce the conditional-write probe (HTTP ${probe_status})"
+
+probe_status=$(curl --silent --show-error \
+  --output "$probe_body" \
+  --dump-header "$probe_headers" \
+  --write-out '%{http_code}' \
+  --header "Authorization: Bearer ${registry_token}" \
+  --header "Accept: ${manifest_accept}" \
+  "${registry_url}/${candidate_tag}")
+test "$probe_status" = 200 || fail "candidate verification returned HTTP ${probe_status}"
+validate_index_response "$probe_body" "$probe_headers" "$source_digest"
 
 read_target() {
   curl --silent --show-error \
@@ -115,16 +154,7 @@ case "$target_status" in
     ;;
 esac
 
-put_status=$(curl --silent --show-error \
-  --output /dev/null \
-  --dump-header "$put_headers" \
-  --write-out '%{http_code}' \
-  --request PUT \
-  --header "Authorization: Bearer ${registry_token}" \
-  --header "Content-Type: ${source_content_type}" \
-  --header 'If-None-Match: *' \
-  --data-binary "@${source_body}" \
-  "${registry_url}/${target_tag}")
+put_status=$(conditional_put "$target_tag" "$put_headers")
 
 case "$put_status" in
   201)
