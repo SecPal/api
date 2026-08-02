@@ -59,20 +59,21 @@ that it is absent. A workflow rerun never rebuilds or moves an existing
 full-SHA image tag. The authenticated lookup accepts the relevant OCI and
 Docker manifest representations before interpreting `404` as absence, so an
 existing Docker manifest list or single-platform manifest fails the strict OCI
-index validation instead of authorizing an overwrite. The workflow reuses an
-existing digest only after validating the OCI index, exact runtime platform
-set, every required OCI label, and a pre-existing registry-backed GitHub
-Artifact Attestation bound to the same workflow and source commit. An invalid
-or unattested existing image fails closed and cannot be legitimized by a new
-attestation.
+index validation instead of authorizing an overwrite. The workflow selects the
+existing or newly built digest, then validates the OCI index, exact runtime
+platform set, every required OCI label, BuildKit attestations, and both runtime
+manifests before creating a registry-backed GitHub Artifact Attestation for
+that selected digest. An invalid existing image therefore fails closed before
+it can be attested.
 
-The workflow creates a new registry-backed GitHub Artifact Attestation only for
-the digest produced by its current build. An interrupted first run where the
-image push completed but attestation did not must be recovered explicitly by a
-repository administrator; reruns never reconstruct trust from unsigned
-registry metadata. Only an authenticated `404` authorizes the first build and
-publish. Authentication, network, metadata, attestation, and all other lookup
-or validation failures stop the job without moving the SHA tag.
+After successful image verification, the workflow always creates and verifies
+the registry-backed GitHub Artifact Attestation for the selected digest. This
+repairs an interrupted first run where the image push completed but the
+attestation step did not. A rerun neither rebuilds the image nor moves its SHA
+tag, and a repeated valid OCI attestation does not change the runtime index
+digest. Only an authenticated `404` authorizes the first build and publish.
+Authentication, network, metadata, and all other lookup or validation failures
+stop the workflow before attestation without moving the SHA tag.
 
 Each runtime image config records the source repository, full revision,
 deterministic commit timestamp, title, description, and the repository's
@@ -126,11 +127,11 @@ docker pull ghcr.io/secpal/api@sha256:<manifest-digest>
 The publishing workflow additionally proves that the SHA tag resolves to the
 reported digest, the runtime platform set and all OCI labels are exact, both
 BuildKit attestations are readable, provenance materials contain the exact
-source commit, the GitHub attestation verifies for this workflow, commit,
-`main`, and a GitHub-hosted runner. It then resolves the `linux/amd64` and
-`linux/arm64` runtime manifest digests from that verified index and runs the
-complete container smoke contract against each digest. The `arm64` runtime
-executes through the independently pinned QEMU `binfmt` helper.
+source commit, and both runtime manifests pass the complete container smoke
+contract by digest. Only then does it create and verify the GitHub attestation
+for this workflow, commit, `main`, and a GitHub-hosted runner. The `arm64`
+runtime executes through the independently pinned QEMU `binfmt` helper, which
+is registered before each Buildx builder that needs it starts.
 
 ## Roles
 

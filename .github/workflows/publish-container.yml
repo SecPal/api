@@ -70,8 +70,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      attestations: write
-      id-token: write
     concurrency:
       group: publish-container-${{ github.repository }}-${{ github.sha }}
       cancel-in-progress: false
@@ -86,14 +84,6 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-
-      - name: Set up Docker Buildx
-        # v4.2.0
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
-        with:
-          version: v0.36.0
-          driver-opts: >-
-            image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
 
       - name: Log in to GHCR
         id: registry-login
@@ -112,8 +102,6 @@ jobs:
         id: existing-image
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
-          EXPECTED_CREATED: ${{ steps.metadata.outputs.created }}
           MANIFEST_ACCEPT: >-
             application/vnd.oci.image.index.v1+json,
             application/vnd.oci.image.manifest.v1+json,
@@ -142,41 +130,6 @@ jobs:
             200)
               jq -e '.mediaType == "application/vnd.oci.image.index.v1+json"' "$manifest_file"
               digest="sha256:$(sha256sum "$manifest_file" | awk '{print $1}')"
-              digest_ref="${CANONICAL_IMAGE}@${digest}"
-              gh attestation verify "oci://$digest_ref" \
-                --bundle-from-oci \
-                --repo SecPal/api \
-                --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
-                --signer-digest "$GITHUB_SHA" \
-                --source-ref refs/heads/main \
-                --source-digest "$GITHUB_SHA" \
-                --deny-self-hosted-runners
-              existing_manifest=$(docker buildx imagetools inspect "$digest_ref" \
-                --format '{{json .Manifest}}')
-              printf '%s\n' "$existing_manifest" | jq -e '
-                ([.manifests[]
-                  | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest")
-                  | "\(.platform.os)/\(.platform.architecture)"] | sort)
-                  == ["linux/amd64", "linux/arm64"]
-              '
-              for platform in linux/amd64 linux/arm64; do
-                image_config=$(docker buildx imagetools inspect "$digest_ref" \
-                  --format "{{json (index .Image \"${platform}\")}}")
-                printf '%s\n' "$image_config" | jq -e \
-                  --arg source 'https://github.com/SecPal/api' \
-                  --arg revision "$GITHUB_SHA" \
-                  --arg title 'SecPal API' \
-                  --arg description 'Production API for SecPal operations software' \
-                  --arg licenses 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution' \
-                  --arg created "$EXPECTED_CREATED" '
-                    .config.Labels["org.opencontainers.image.source"] == $source
-                    and .config.Labels["org.opencontainers.image.revision"] == $revision
-                    and .config.Labels["org.opencontainers.image.title"] == $title
-                    and .config.Labels["org.opencontainers.image.description"] == $description
-                    and .config.Labels["org.opencontainers.image.licenses"] == $licenses
-                    and .config.Labels["org.opencontainers.image.created"] == $created
-                  '
-              done
               printf 'exists=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
               ;;
             404)
@@ -196,6 +149,15 @@ jobs:
           image: >-
             docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
           platforms: arm64
+
+      - name: Set up Docker Buildx
+        if: steps.existing-image.outputs.exists == 'false'
+        # v4.2.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+        with:
+          version: v0.36.0
+          driver-opts: >-
+            image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
 
       - name: Build and push immutable image
         id: build
@@ -234,17 +196,6 @@ jobs:
           printf '%s\n' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Generate GitHub artifact attestation
-        id: attest
-        if: steps.existing-image.outputs.exists == 'false'
-        # v4.2.1
-        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
-        with:
-          subject-name: ${{ env.CANONICAL_IMAGE }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
-          create-storage-record: false
-
   verify:
     name: Verify Published API Image
     needs: publish
@@ -265,6 +216,14 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+
+      - name: Set up QEMU for runtime verification
+        # v4.2.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
+        with:
+          image: >-
+            docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
 
       - name: Set up Docker Buildx
         # v4.2.0
@@ -338,29 +297,6 @@ jobs:
               '
           done
 
-      - name: Verify GitHub artifact attestation
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
-          gh attestation verify "oci://$DIGEST_REF" \
-            --bundle-from-oci \
-            --repo SecPal/api \
-            --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
-            --signer-digest "$GITHUB_SHA" \
-            --source-ref refs/heads/main \
-            --source-digest "$GITHUB_SHA" \
-            --deny-self-hosted-runners
-
-      - name: Set up QEMU for runtime verification
-        # v4.2.0
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
-        with:
-          image: >-
-            docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
-          platforms: arm64
-
       - name: Smoke-test the published digest
         run: |
           set -euo pipefail
@@ -384,3 +320,50 @@ jobs:
             docker pull --platform "$platform" "$PLATFORM_REF"
             SKIP_BUILD=1 IMAGE_TAG="$PLATFORM_REF" tests/docker/smoke.sh
           done
+
+  attest:
+    name: Attest Verified API Image
+    needs: [publish, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    env:
+      IMAGE_DIGEST: ${{ needs.publish.outputs.image_digest }}
+    steps:
+      - name: Log in to GHCR
+        id: registry-login
+        # v4.6.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ${{ env.GHCR_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate GitHub artifact attestation
+        id: attest
+        # v4.2.1
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
+        with:
+          subject-name: ${{ env.CANONICAL_IMAGE }}
+          subject-digest: ${{ needs.publish.outputs.image_digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Verify GitHub artifact attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
+          gh attestation verify "oci://$DIGEST_REF" \
+            --bundle-from-oci \
+            --repo SecPal/api \
+            --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
+            --signer-digest "$GITHUB_SHA" \
+            --source-ref refs/heads/main \
+            --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners

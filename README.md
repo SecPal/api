@@ -311,12 +311,12 @@ multi-architecture API image as `ghcr.io/secpal/api:sha-<full-commit-SHA>` for
 `linux/amd64` and `linux/arm64`, with BuildKit SBOM, max-mode provenance, and a
 GitHub Artifact Attestation. The canonical reference is always
 `ghcr.io/secpal/api@sha256:<manifest-digest>`; there is no `latest` or SemVer
-tag and publishing does not deploy the image. Workflow reruns reuse an existing
-full-SHA tag only after its registry-backed GitHub Artifact Attestation verifies
-for the same workflow and source commit. A new attestation is issued only for
-the digest built by the current workflow run. An interrupted first publish that
-did not complete attestation therefore fails closed and requires explicit
-registry recovery instead of trusting unsigned registry metadata.
+tag and publishing does not deploy the image. Workflow reruns never rebuild or
+move an existing full-SHA tag. The selected existing or newly built digest is
+fully verified before the workflow creates and verifies its registry-backed
+GitHub Artifact Attestation. This repairs an interrupted first publish whose
+image push completed before attestation without trusting unverified registry
+metadata.
 The authenticated existence lookup accepts the relevant OCI and Docker
 manifest representations, so an existing wrong-format SHA tag fails validation
 instead of being mistaken for an absent tag.
