@@ -312,11 +312,12 @@ multi-architecture API image as `ghcr.io/secpal/api:sha-<full-commit-SHA>` for
 GitHub Artifact Attestation. The canonical reference is always
 `ghcr.io/secpal/api@sha256:<manifest-digest>`; there is no `latest` or SemVer
 tag and publishing does not deploy the image. Workflow reruns validate and
-reuse an existing full-SHA tag only when it already has the exact metadata and
-a trusted attestation from this workflow for the same `main` commit; they never
-re-attest registry-controlled content. The first successful publish still
-requires a repository administrator to make the GHCR package public before
-anonymous digest pulls are available. See the
+reuse an existing full-SHA tag without rebuilding or moving it. After selecting
+the validated existing or newly built digest, the workflow always creates a
+registry-backed GitHub Artifact Attestation before remote verification. This
+repairs a run where the image push succeeded but attestation did not complete.
+The first successful publish still requires a repository administrator to make
+the GHCR package public before anonymous digest pulls are available. See the
 [container contract](docs/containers.md#immutable-registry-publishing) for
 verification commands and rollout boundaries.
 

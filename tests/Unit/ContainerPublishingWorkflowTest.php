@@ -181,7 +181,6 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
 
     expect($existingImage['env'])->toBe([
         'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
-        'GH_TOKEN' => '${{ github.token }}',
         'EXPECTED_CREATED' => '${{ steps.metadata.outputs.created }}',
     ])->and($existingImage['run'])
         ->toContain('scope=repository:${GHCR_REPOSITORY_PATH}:pull')
@@ -197,11 +196,7 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->toContain('org.opencontainers.image.description')
         ->toContain('org.opencontainers.image.licenses')
         ->toContain('org.opencontainers.image.created')
-        ->toContain('gh attestation verify "oci://$digest_ref"')
-        ->toContain('--bundle-from-oci')
-        ->toContain('--signer-digest "$GITHUB_SHA"')
-        ->toContain('--source-digest "$GITHUB_SHA"')
-        ->toContain('--deny-self-hosted-runners')
+        ->not->toContain('gh attestation verify', '--bundle-from-oci', 'actions/attest')
         ->and($metadata['run'])->toContain('git show -s --format=%cI "$GITHUB_SHA"')
         ->and($build['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
         ->and($build['with']['context'])->toBe('https://github.com/SecPal/api.git#${{ github.sha }}')
@@ -227,10 +222,10 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->toContain('digest=$EXISTING_IMAGE_DIGEST')
         ->toContain('digest=$BUILT_IMAGE_DIGEST')
         ->toContain("grep -Eq '^sha256:[0-9a-f]{64}$'")
-        ->and($attest['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
+        ->and(array_key_exists('if', $attest))->toBeFalse()
         ->and($attest['with'])->toBe([
             'subject-name' => '${{ env.CANONICAL_IMAGE }}',
-            'subject-digest' => '${{ steps.build.outputs.digest }}',
+            'subject-digest' => '${{ steps.image.outputs.digest }}',
             'push-to-registry' => true,
             'create-storage-record' => false,
         ])
@@ -250,6 +245,58 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         'username' => '${{ github.actor }}',
         'password' => '${{ secrets.GITHUB_TOKEN }}',
     ]);
+});
+
+it('repairs a missing attestation without rebuilding or moving the SHA tag', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $publish = $workflow['jobs']['publish'];
+    $existingImage = containerPublishingStep($publish, 'existing-image');
+    $build = containerPublishingStep($publish, 'build');
+    $image = containerPublishingStep($publish, 'image');
+    $attest = containerPublishingStep($publish, 'attest');
+    $publishScripts = containerPublishingRunScripts($publish);
+    $uses = array_column($publish['steps'], 'uses');
+
+    expect($existingImage['env'])->toBe([
+        'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
+        'EXPECTED_CREATED' => '${{ steps.metadata.outputs.created }}',
+    ])->and($existingImage['run'])
+        ->toContain('set -euo pipefail')
+        ->toContain('.mediaType == "application/vnd.oci.image.index.v1+json"')
+        ->toContain('digest="sha256:$(sha256sum "$manifest_file"')
+        ->toContain('digest_ref="${CANONICAL_IMAGE}@${digest}"')
+        ->toContain('== ["linux/amd64", "linux/arm64"]')
+        ->toContain('org.opencontainers.image.source')
+        ->toContain('org.opencontainers.image.revision')
+        ->toContain('org.opencontainers.image.title')
+        ->toContain('org.opencontainers.image.description')
+        ->toContain('org.opencontainers.image.licenses')
+        ->toContain('org.opencontainers.image.created')
+        ->toContain('200)', '404)', 'exit 1')
+        ->not->toContain('gh attestation verify', '--bundle-from-oci', 'actions/attest')
+        ->and($build['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
+        ->and($build['with']['push'])->toBeTrue()
+        ->and($build['with']['tags'])->toBe('${{ env.CANONICAL_IMAGE }}:sha-${{ github.sha }}')
+        ->and($image['env'])->toBe([
+            'EXISTING_IMAGE_DIGEST' => '${{ steps.existing-image.outputs.digest }}',
+            'BUILT_IMAGE_DIGEST' => '${{ steps.build.outputs.digest }}',
+        ])->and($image['run'])
+        ->toContain('if [ "${{ steps.existing-image.outputs.exists }}" = true ]; then')
+        ->toContain('digest=$EXISTING_IMAGE_DIGEST')
+        ->toContain('digest=$BUILT_IMAGE_DIGEST')
+        ->toContain("grep -Eq '^sha256:[0-9a-f]{64}$'")
+        ->and(array_key_exists('if', $attest))->toBeFalse()
+        ->and($attest['with'])->toBe([
+            'subject-name' => '${{ env.CANONICAL_IMAGE }}',
+            'subject-digest' => '${{ steps.image.outputs.digest }}',
+            'push-to-registry' => true,
+            'create-storage-record' => false,
+        ])->and($attest['with']['subject-digest'])
+        ->not->toBe('${{ steps.build.outputs.digest }}')
+        ->and($workflow['jobs']['verify']['needs'])->toBe('publish')
+        ->and(array_count_values($uses)['docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a'] ?? 0)->toBe(1)
+        ->and(array_count_values($uses)['actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d'] ?? 0)->toBe(1)
+        ->and($publishScripts)->not->toMatch(containerPublishingForbiddenCommandPattern());
 });
 
 it('verifies the remote digest, runtime platforms, labels, BuildKit attestations, GitHub attestation, and runtime contract', function (): void {

@@ -55,17 +55,18 @@ digest rather than treating any tag as the deployment identity. Publishing
 does not create a deployment contract or perform a deployment.
 
 The publisher creates a SHA tag only after a registry lookup has confirmed
-that it is absent. A workflow rerun reuses the existing digest only after
-checking the exact runtime platform set, every required OCI label, and a
-pre-existing GitHub Artifact Attestation issued by this workflow for the same
-`main` commit. It never pushes or newly attests the same SHA tag again. Only an
-authenticated `404` authorizes the first build and publish. Authentication,
-network, missing-attestation, metadata, or other registry lookup failures stop
-the job instead of being treated as permission to overwrite or bless the tag.
-If the first run pushes the image but fails before creating its attestation,
-reruns therefore fail closed and require explicit administrator recovery; the
-publisher does not infer trust from registry-controlled labels or unsigned
-BuildKit metadata.
+that it is absent. A workflow rerun never rebuilds or moves an existing
+full-SHA image tag. It reuses the existing digest only after validating the OCI
+index, exact runtime platform set, and every required OCI label. An invalid
+existing image fails closed and cannot be legitimized by a new attestation.
+
+After selecting either the validated existing digest or the newly built
+digest, the workflow creates a registry-backed GitHub Artifact Attestation for
+that selected digest before remote verification. This repairs an interrupted
+run where the image push completed but the original attestation step did not.
+Only an authenticated `404` authorizes the first build and publish;
+authentication, network, metadata, and all other lookup or validation failures
+stop the job without moving the SHA tag.
 
 Each runtime image config records the source repository, full revision,
 deterministic commit timestamp, title, description, and the repository's
@@ -103,13 +104,15 @@ key, or Cosign key secret is part of this contract.
 While the package is private, authenticate to GHCR before verification. After
 it is public, the image and its BuildKit attestations can be inspected
 anonymously by digest. GitHub Artifact Attestation verification uses the
-GitHub attestation API and may still require GitHub CLI authentication:
+registry-backed OCI bundle and may still require GitHub CLI authentication
+while the package is private:
 
 ```bash
 docker buildx imagetools inspect \
   ghcr.io/secpal/api@sha256:<manifest-digest>
 gh attestation verify \
   oci://ghcr.io/secpal/api@sha256:<manifest-digest> \
+  --bundle-from-oci \
   --repo SecPal/api
 docker pull ghcr.io/secpal/api@sha256:<manifest-digest>
 ```

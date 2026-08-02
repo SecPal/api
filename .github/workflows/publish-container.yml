@@ -112,7 +112,6 @@ jobs:
         id: existing-image
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
           EXPECTED_CREATED: ${{ steps.metadata.outputs.created }}
         run: |
           set -euo pipefail
@@ -162,14 +161,6 @@ jobs:
                     and .config.Labels["org.opencontainers.image.created"] == $created
                   '
               done
-              gh attestation verify "oci://$digest_ref" \
-                --bundle-from-oci \
-                --repo SecPal/api \
-                --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
-                --signer-digest "$GITHUB_SHA" \
-                --source-ref refs/heads/main \
-                --source-digest "$GITHUB_SHA" \
-                --deny-self-hosted-runners
               printf 'exists=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
               ;;
             404)
@@ -229,12 +220,11 @@ jobs:
 
       - name: Generate GitHub artifact attestation
         id: attest
-        if: steps.existing-image.outputs.exists == 'false'
         # v4.2.1
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
         with:
           subject-name: ${{ env.CANONICAL_IMAGE }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-digest: ${{ steps.image.outputs.digest }}
           push-to-registry: true
           create-storage-record: false
 
