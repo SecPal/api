@@ -289,6 +289,10 @@ it('reuses only an already-attested final image without rebuilding or moving the
         'Verify selected GitHub artifact attestation',
     );
     $promotion = containerPublishingNamedStep($attestJob, 'Promote verified candidate to final SHA tag');
+    $earlyAttestation = containerPublishingNamedStep(
+        $workflow['jobs']['verify'],
+        'Verify existing final attestation before use',
+    );
     $verifyScripts = containerPublishingRunScripts($workflow['jobs']['verify']);
     $publishScripts = containerPublishingRunScripts($publish);
     $uses = array_merge(...array_values(array_map(
@@ -327,7 +331,8 @@ it('reuses only an already-attested final image without rebuilding or moving the
         ->and($selectedAttestation['run'])->toContain('gh attestation verify "oci://$DIGEST_REF"')
         ->and($promotion['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
         ->and($workflow['jobs']['verify']['needs'])->toBe('publish')
-        ->and($verifyScripts)->not->toContain('gh attestation verify')
+        ->and($earlyAttestation['if'])->toBe("needs.publish.outputs.final_exists == 'true'")
+        ->and(substr_count($verifyScripts, 'gh attestation verify'))->toBe(1)
         ->and(array_count_values($uses)['docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a'] ?? 0)->toBe(1)
         ->and(array_count_values($uses)['actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d'] ?? 0)->toBe(1)
         ->and($publishScripts)->not->toMatch(containerPublishingForbiddenCommandPattern());
@@ -349,6 +354,82 @@ it('never signs an existing unattested final SHA tag', function (): void {
         ->and($attestation['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
         ->and($selectedAttestation)->not->toHaveKey('if')
         ->and($promotion['if'])->toBe("needs.publish.outputs.final_exists == 'false'");
+});
+
+it('never executes an existing final image before its trusted attestation verifies', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $verify = $workflow['jobs']['verify'];
+    $stepNames = array_column($verify['steps'], 'name');
+    $earlyAttestation = containerPublishingNamedStep(
+        $verify,
+        'Verify existing final attestation before use',
+    );
+    $earlyAttestationIndex = array_search(
+        'Verify existing final attestation before use',
+        $stepNames,
+        true,
+    );
+    $remoteVerificationIndex = array_search(
+        'Verify remote index and BuildKit attestations',
+        $stepNames,
+        true,
+    );
+    $runtimeSmokeIndex = array_search(
+        'Smoke-test the published digest',
+        $stepNames,
+        true,
+    );
+    $scriptsBeforeAttestation = containerPublishingRunScripts([
+        'steps' => array_slice($verify['steps'], 0, $earlyAttestationIndex),
+    ]);
+
+    expect($earlyAttestation['if'])->toBe("needs.publish.outputs.final_exists == 'true'")
+        ->and($earlyAttestation['env'])->toBe(['GH_TOKEN' => '${{ github.token }}'])
+        ->and($earlyAttestation['run'])
+        ->toContain(
+            'DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"',
+            'gh attestation verify "oci://$DIGEST_REF"',
+            '--bundle-from-oci',
+            '--repo SecPal/api',
+            '--signer-workflow SecPal/api/.github/workflows/publish-container.yml',
+            '--signer-digest "$GITHUB_SHA"',
+            '--source-ref refs/heads/main',
+            '--source-digest "$GITHUB_SHA"',
+            '--deny-self-hosted-runners',
+        )
+        ->and($earlyAttestationIndex)->toBeInt()
+        ->and($remoteVerificationIndex)->toBeInt()
+        ->and($runtimeSmokeIndex)->toBeInt()
+        ->and($earlyAttestationIndex)->toBeLessThan($remoteVerificationIndex)
+        ->and($remoteVerificationIndex)->toBeLessThan($runtimeSmokeIndex)
+        ->and($scriptsBeforeAttestation)
+        ->not->toMatch('/\bdocker\h+(?:pull|run)\b/')
+        ->not->toContain('tests/docker/smoke.sh');
+});
+
+it('preserves candidate verification before candidate attestation', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $verify = $workflow['jobs']['verify'];
+    $attest = $workflow['jobs']['attest'];
+    $earlyAttestation = containerPublishingNamedStep(
+        $verify,
+        'Verify existing final attestation before use',
+    );
+    $remoteVerification = containerPublishingNamedStep(
+        $verify,
+        'Verify remote index and BuildKit attestations',
+    );
+    $runtimeSmoke = containerPublishingNamedStep($verify, 'Smoke-test the published digest');
+    $candidateAttestation = containerPublishingStep($attest, 'attest');
+
+    expect($verify['needs'])->toBe('publish')
+        ->and($earlyAttestation['if'])->toBe("needs.publish.outputs.final_exists == 'true'")
+        ->and($remoteVerification)->not->toHaveKey('if')
+        ->and($runtimeSmoke)->not->toHaveKey('if')
+        ->and($attest['needs'])->toBe(['publish', 'verify'])
+        ->and($candidateAttestation['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
+        ->and($candidateAttestation['with']['subject-digest'])
+        ->toBe('${{ needs.publish.outputs.image_digest }}');
 });
 
 it('promotes only a verified and attested candidate digest', function (): void {
@@ -395,6 +476,10 @@ it('verifies every selected digest before conditionally creating its artifact at
     $verify = $workflow['jobs']['verify'];
     $attest = $workflow['jobs']['attest'];
     $existingImage = containerPublishingStep($publish, 'existing-image');
+    $earlyAttestation = containerPublishingNamedStep(
+        $verify,
+        'Verify existing final attestation before use',
+    );
     $attestation = containerPublishingStep($attest, 'attest');
     $attestationVerification = containerPublishingNamedStep(
         $attest,
@@ -410,7 +495,8 @@ it('verifies every selected digest before conditionally creating its artifact at
         ->and($existingImage['run'])
         ->not->toContain('gh attestation verify', 'docker buildx imagetools inspect')
         ->and($verify['needs'])->toBe('publish')
-        ->and(containerPublishingRunScripts($verify))->not->toContain('gh attestation verify')
+        ->and($earlyAttestation['if'])->toBe("needs.publish.outputs.final_exists == 'true'")
+        ->and($earlyAttestation['run'])->toContain('gh attestation verify "oci://$DIGEST_REF"')
         ->and($attest['needs'])->toBe(['publish', 'verify'])
         ->and($attest['permissions'])->toBe([
             'contents' => 'read',
@@ -467,6 +553,14 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
     $workflow = containerPublishingWorkflow();
     $verify = $workflow['jobs']['verify'];
     $scripts = containerPublishingRunScripts($verify);
+    $earlyAttestation = containerPublishingNamedStep(
+        $verify,
+        'Verify existing final attestation before use',
+    );
+    $remoteVerification = containerPublishingNamedStep(
+        $verify,
+        'Verify remote index and BuildKit attestations',
+    );
     $attestationScripts = containerPublishingRunScripts($workflow['jobs']['attest']);
     $smokeScript = file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
 
@@ -501,7 +595,7 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         ->toContain('any(.buildDefinition.resolvedDependencies[];')
         ->toContain('.digest.sha1 == $revision')
         ->not->toContain('.metadata.completeness', 'any(.materials[];')
-        ->not->toContain('gh attestation verify')
+        ->toContain('gh attestation verify "oci://$DIGEST_REF"')
         ->toContain('docker pull --platform "$platform" "$PLATFORM_REF"')
         ->toContain('SKIP_BUILD=1 IMAGE_TAG="$PLATFORM_REF" tests/docker/smoke.sh')
         ->not->toContain('docker pull "$CANONICAL_IMAGE:$IMAGE_TAG"')
@@ -509,6 +603,9 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         ->toContain('if [ "${SKIP_BUILD:-0}" = 1 ]; then')
         ->toContain('test "$(id -u)" -eq 10001')
         ->toContain('test "$(id -g)" -eq 10001');
+
+    expect($earlyAttestation['if'])->toBe("needs.publish.outputs.final_exists == 'true'")
+        ->and($remoteVerification['run'])->not->toContain('gh attestation verify');
 
     expect($attestationScripts)
         ->toContain('gh attestation verify "oci://$DIGEST_REF"')

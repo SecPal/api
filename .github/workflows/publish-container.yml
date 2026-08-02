@@ -270,6 +270,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify existing final attestation before use
+        if: needs.publish.outputs.final_exists == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
+          gh attestation verify "oci://$DIGEST_REF" \
+            --bundle-from-oci \
+            --repo SecPal/api \
+            --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
+            --signer-digest "$GITHUB_SHA" \
+            --source-ref refs/heads/main \
+            --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners
+
       - name: Verify remote index and BuildKit attestations
         run: |
           set -euo pipefail

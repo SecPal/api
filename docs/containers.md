@@ -79,11 +79,13 @@ shared OCI index, BuildKit attachments, or registry-backed GitHub Artifact
 Attestation. Package deletion is deliberately excluded from this publisher.
 
 An existing final full-SHA tag is never rebuilt, moved, promoted, or newly
-attested. It is accepted only after the complete image contract and an existing
-trusted GitHub Artifact Attestation verify for the exact repository, workflow,
-source reference, source commit, image name, and digest. A missing, foreign, or
-invalid attestation fails closed. This prevents an untrusted pre-existing
-registry digest from being legitimized by a rerun.
+attested. Before either runtime manifest is inspected, pulled, or executed, its
+existing registry-backed GitHub Artifact Attestation must verify for the exact
+repository, workflow, source reference, source commit, image name, and digest.
+Only then does the workflow run the complete technical and runtime image
+contract, followed by the existing final defense-in-depth attestation check. A
+missing, foreign, or invalid attestation fails closed before untrusted image
+code can run.
 
 Each runtime image config records the source repository, full revision,
 deterministic commit timestamp, title, description, and the repository's

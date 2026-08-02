@@ -325,9 +325,12 @@ The canonical reference is always
 `ghcr.io/secpal/api@sha256:<manifest-digest>`; there is no `latest` or SemVer
 tag and publishing does not deploy the image. Workflow reruns never rebuild,
 move, or newly attest an existing full-SHA tag. Such a tag is accepted only if
-its complete image contract and existing registry-backed GitHub Artifact
-Attestation already verify for the expected repository, workflow, source
-reference, commit, image name, and digest. An unattested final tag fails closed.
+its existing registry-backed GitHub Artifact Attestation verifies for the
+expected repository, workflow, source reference, commit, image name, and digest
+before either runtime manifest is inspected, pulled, or executed. The complete
+technical and runtime contract then runs, followed by the existing final
+defense-in-depth attestation check. An unattested final tag fails closed before
+untrusted image code can run.
 The authenticated existence lookup accepts the relevant OCI and Docker
 manifest representations, so an existing wrong-format SHA tag fails validation
 instead of being mistaken for an absent tag.
