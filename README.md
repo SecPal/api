@@ -317,6 +317,9 @@ for the same workflow and source commit. A new attestation is issued only for
 the digest built by the current workflow run. An interrupted first publish that
 did not complete attestation therefore fails closed and requires explicit
 registry recovery instead of trusting unsigned registry metadata.
+The authenticated existence lookup accepts the relevant OCI and Docker
+manifest representations, so an existing wrong-format SHA tag fails validation
+instead of being mistaken for an absent tag.
 Remote verification runs the complete container smoke contract against both the
 `linux/amd64` and `linux/arm64` runtime manifests selected from the published
 index by digest; the `arm64` execution uses the pinned QEMU helper.

@@ -56,11 +56,15 @@ does not create a deployment contract or perform a deployment.
 
 The publisher creates a SHA tag only after a registry lookup has confirmed
 that it is absent. A workflow rerun never rebuilds or moves an existing
-full-SHA image tag. It reuses the existing digest only after validating the OCI
-index, exact runtime platform set, every required OCI label, and a pre-existing
-registry-backed GitHub Artifact Attestation bound to the same workflow and
-source commit. An invalid or unattested existing image fails closed and cannot
-be legitimized by a new attestation.
+full-SHA image tag. The authenticated lookup accepts the relevant OCI and
+Docker manifest representations before interpreting `404` as absence, so an
+existing Docker manifest list or single-platform manifest fails the strict OCI
+index validation instead of authorizing an overwrite. The workflow reuses an
+existing digest only after validating the OCI index, exact runtime platform
+set, every required OCI label, and a pre-existing registry-backed GitHub
+Artifact Attestation bound to the same workflow and source commit. An invalid
+or unattested existing image fails closed and cannot be legitimized by a new
+attestation.
 
 The workflow creates a new registry-backed GitHub Artifact Attestation only for
 the digest produced by its current build. An interrupted first run where the

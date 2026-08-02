@@ -114,6 +114,13 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           EXPECTED_CREATED: ${{ steps.metadata.outputs.created }}
+          MANIFEST_ACCEPT: >-
+            application/vnd.oci.image.index.v1+json,
+            application/vnd.oci.image.manifest.v1+json,
+            application/vnd.docker.distribution.manifest.list.v2+json,
+            application/vnd.docker.distribution.manifest.v2+json,
+            application/vnd.docker.distribution.manifest.v1+json,
+            application/vnd.docker.distribution.manifest.v1+prettyjws
         run: |
           set -euo pipefail
           image_tag="sha-${GITHUB_SHA}"
@@ -129,7 +136,7 @@ jobs:
             --output "$manifest_file" \
             --write-out '%{http_code}' \
             --header "Authorization: Bearer ${registry_token}" \
-            --header 'Accept: application/vnd.oci.image.index.v1+json' \
+            --header "Accept: ${MANIFEST_ACCEPT}" \
             "https://${GHCR_HOST}/v2/${GHCR_REPOSITORY_PATH}/manifests/${image_tag}")
           case "$status" in
             200)

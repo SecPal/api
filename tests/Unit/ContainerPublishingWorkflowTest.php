@@ -62,6 +62,18 @@ function containerPublishingForbiddenCommandPattern(): string
     return '/(?:\bdocker\h+(?:[a-z-]+\h+)*prune\b|\bdocker\h+(?:push|manifest\h+push|buildx\h+(?:(?:build|bake)\b[^\r\n]*(?:--push\b|(?:--output|-o)(?:=|\h+)type=registry\b)|imagetools\h+create))\b|\b(?:oras|podman)\h+(?:push|cp|copy)\b|\bcrane\h+(?:push|copy)\b|\bskopeo\h+(?:copy|sync)\b|\bregctl\h+(?:image|manifest)\h+(?:copy|put)\b|\bcurl\b[^\r\n]*(?:(?:-X|--request)\h*(?:PUT|POST|PATCH|DELETE)\b|(?:-T|--upload-file|--form|-F)\b))/i';
 }
 
+function containerPublishingManifestAccept(): string
+{
+    return implode(', ', [
+        'application/vnd.oci.image.index.v1+json',
+        'application/vnd.oci.image.manifest.v1+json',
+        'application/vnd.docker.distribution.manifest.list.v2+json',
+        'application/vnd.docker.distribution.manifest.v2+json',
+        'application/vnd.docker.distribution.manifest.v1+json',
+        'application/vnd.docker.distribution.manifest.v1+prettyjws',
+    ]);
+}
+
 function secPalApiImageReferenceIsCanonical(string $reference, bool $digestOnly = false): bool
 {
     if ($reference === '' || preg_match('/[\x00-\x20\x7f]/', $reference) === 1) {
@@ -183,6 +195,7 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
         'GH_TOKEN' => '${{ github.token }}',
         'EXPECTED_CREATED' => '${{ steps.metadata.outputs.created }}',
+        'MANIFEST_ACCEPT' => containerPublishingManifestAccept(),
     ])->and($existingImage['run'])
         ->toContain('scope=repository:${GHCR_REPOSITORY_PATH}:pull')
         ->toContain('https://${GHCR_HOST}/v2/${GHCR_REPOSITORY_PATH}/manifests/${image_tag}')
@@ -263,6 +276,7 @@ it('reuses only an already-attested image without rebuilding or moving the SHA t
         'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
         'GH_TOKEN' => '${{ github.token }}',
         'EXPECTED_CREATED' => '${{ steps.metadata.outputs.created }}',
+        'MANIFEST_ACCEPT' => containerPublishingManifestAccept(),
     ])->and($existingImage['run'])
         ->toContain('set -euo pipefail')
         ->toContain('.mediaType == "application/vnd.oci.image.index.v1+json"')
@@ -306,6 +320,20 @@ it('reuses only an already-attested image without rebuilding or moving the SHA t
         ->and(array_count_values($uses)['docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a'] ?? 0)->toBe(1)
         ->and(array_count_values($uses)['actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d'] ?? 0)->toBe(1)
         ->and($publishScripts)->not->toMatch(containerPublishingForbiddenCommandPattern());
+});
+
+it('distinguishes an absent SHA tag from every relevant manifest representation', function (): void {
+    $publish = containerPublishingWorkflow()['jobs']['publish'];
+    $existingImage = containerPublishingStep($publish, 'existing-image');
+
+    expect($existingImage['env']['MANIFEST_ACCEPT'])->toBe(containerPublishingManifestAccept())
+        ->and($existingImage['run'])
+        ->toContain('--header "Accept: ${MANIFEST_ACCEPT}"')
+        ->not->toContain("--header 'Accept: application/vnd.oci.image.index.v1+json'")
+        ->toContain('200)')
+        ->toContain('jq -e \'.mediaType == "application/vnd.oci.image.index.v1+json"\' "$manifest_file"')
+        ->toContain('404)')
+        ->toContain('printf \'exists=false\\ndigest=\\n\' >> "$GITHUB_OUTPUT"');
 });
 
 it('verifies the remote digest, runtime platforms, labels, BuildKit attestations, GitHub attestation, and runtime contract', function (): void {
