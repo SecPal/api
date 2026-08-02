@@ -96,6 +96,10 @@ it('defines a main-only publish workflow with isolated least-privilege jobs', fu
     expect($workflow['name'])->toBe('Publish Container')
         ->and($workflow['on'])->toBe(['push' => ['branches' => ['main']]])
         ->and($workflow['permissions'])->toBe([])
+        ->and($workflow['concurrency'])->toBe([
+            'group' => 'publish-container-${{ github.repository }}-${{ github.sha }}',
+            'cancel-in-progress' => false,
+        ])
         ->and($workflow['env'])->toBe([
             'GHCR_HOST' => 'ghcr.io',
             'GHCR_REPOSITORY_PATH' => 'secpal/api',
@@ -110,10 +114,7 @@ it('defines a main-only publish workflow with isolated least-privilege jobs', fu
 
     expect($validate['permissions'])->toBe(['contents' => 'read'])
         ->and($validate['runs-on'])->toBe('ubuntu-latest')
-        ->and($validate['concurrency'])->toBe([
-            'group' => 'publish-container-validate-${{ github.repository }}-${{ github.sha }}',
-            'cancel-in-progress' => false,
-        ])
+        ->and($validate)->not->toHaveKey('concurrency')
         ->and($publish['name'])->toBe('Publish API Image')
         ->and($publish['needs'])->toBe('validate')
         ->and($publish['permissions'])->toBe([
@@ -121,10 +122,7 @@ it('defines a main-only publish workflow with isolated least-privilege jobs', fu
             'packages' => 'write',
         ])
         ->and($publish['runs-on'])->toBe('ubuntu-latest')
-        ->and($publish['concurrency'])->toBe([
-            'group' => 'publish-container-${{ github.repository }}-${{ github.sha }}',
-            'cancel-in-progress' => false,
-        ])
+        ->and($publish)->not->toHaveKey('concurrency')
         ->and($verify['needs'])->toBe('publish')
         ->and($verify['permissions'])->toBe([
             'contents' => 'read',
@@ -529,6 +527,7 @@ it('smoke-tests both runtime platforms from the published index digest', functio
     $verify = containerPublishingWorkflow()['jobs']['verify'];
     $qemu = containerPublishingNamedStep($verify, 'Set up QEMU for runtime verification');
     $smoke = containerPublishingNamedStep($verify, 'Smoke-test the published digest');
+    $smokeScript = file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
 
     expect($qemu['uses'])->toBe('docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8')
         ->and($qemu['with'])->toBe([
@@ -542,7 +541,13 @@ it('smoke-tests both runtime platforms from the published index digest', functio
         ->toContain('PLATFORM_REF="${CANONICAL_IMAGE}@${platform_digest}"')
         ->toContain('docker pull --platform "$platform" "$PLATFORM_REF"')
         ->toContain('SKIP_BUILD=1 IMAGE_TAG="$PLATFORM_REF" tests/docker/smoke.sh')
-        ->not->toContain('SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh');
+        ->not->toContain('SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh')
+        ->and($smokeScript)
+        ->toContain(
+            'postgres_image=${POSTGRES_IMAGE:-postgres:16.10-bookworm@sha256:38471f330eb885e04de130b768d6db4e10469e2311879c7e5c699f6d2d8a1c74}',
+            'valkey_image=${VALKEY_IMAGE:-valkey/valkey:9.1.1-trixie@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd}',
+        )
+        ->not->toMatch('/(?:postgres|valkey)_image=\$\{[A-Z_]+:-[^}\s@]+\}/');
 });
 
 it('pins every action to a full commit SHA with an adjacent version comment', function (): void {

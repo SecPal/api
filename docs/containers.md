@@ -176,7 +176,7 @@ The KEK is an external raw 32-byte secret. Configure `KEK_PATH`, mount the file 
 
 `GET /health/live` needs neither PostgreSQL nor Valkey. `GET /health/ready` checks the configured database, tenant key, KEK readability, scheduler heartbeat, and relevant worker heartbeats. `secpal-http-live` is the reusable liveness probe. `HEALTHCHECK NONE` clears the base probe so deployment can assign role-specific checks.
 
-Run `tests/docker/smoke.sh` for build, CLI, permissions, PostgreSQL, Valkey, HTTP isolation, proxy-header, log-redaction, and SIGTERM validation. It uses temporary `postgres:16.10-bookworm` and `valkey/valkey:9.1.1-trixie` containers on an isolated network, without published service ports or persistent test volumes. The publishing verifier resolves and pulls both immutable platform-manifest digests from the verified index and sets `SKIP_BUILD=1` so the same checks exercise each remote runtime artifact without rebuilding it.
+Run `tests/docker/smoke.sh` for build, CLI, permissions, PostgreSQL, Valkey, HTTP isolation, proxy-header, log-redaction, and SIGTERM validation. It uses digest-pinned `postgres:16.10-bookworm` and `valkey/valkey:9.1.1-trixie` containers on an isolated network, without published service ports or persistent test volumes. The publishing verifier resolves and pulls both immutable platform-manifest digests from the verified index and sets `SKIP_BUILD=1` so the same checks exercise each remote runtime artifact without rebuilding it.
 
 ## Boundaries
 

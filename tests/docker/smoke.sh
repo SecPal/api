@@ -4,8 +4,8 @@
 set -eu
 
 image=${IMAGE_TAG:-secpal-api:test}
-postgres_image=${POSTGRES_IMAGE:-postgres:16.10-bookworm}
-valkey_image=${VALKEY_IMAGE:-valkey/valkey:9.1.1-trixie}
+postgres_image=${POSTGRES_IMAGE:-postgres:16.10-bookworm@sha256:38471f330eb885e04de130b768d6db4e10469e2311879c7e5c699f6d2d8a1c74}
+valkey_image=${VALKEY_IMAGE:-valkey/valkey:9.1.1-trixie@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd}
 suffix=$$
 network="secpal-api-smoke-${suffix}"
 postgres="secpal-postgres-${suffix}"

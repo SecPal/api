@@ -9,6 +9,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: publish-container-${{ github.repository }}-${{ github.sha }}
+  cancel-in-progress: false
+
 env:
   GHCR_HOST: ghcr.io
   GHCR_REPOSITORY_PATH: secpal/api
@@ -21,9 +25,6 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
-    concurrency:
-      group: publish-container-validate-${{ github.repository }}-${{ github.sha }}
-      cancel-in-progress: false
     steps:
       - name: Checkout publishing commit
         id: checkout
@@ -77,9 +78,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    concurrency:
-      group: publish-container-${{ github.repository }}-${{ github.sha }}
-      cancel-in-progress: false
     outputs:
       image_digest: ${{ steps.image.outputs.digest }}
       image_created: ${{ steps.metadata.outputs.created }}
