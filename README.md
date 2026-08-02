@@ -306,17 +306,22 @@ php artisan idx:rebuild {tenant_id}
 - Verify deployment with `php artisan app:validate-setup`
 - Monitor health checks: `/health/ready` and `/health/live`
 
-After the Phase C.1 workflow is merged, pushes to `main` will publish the
-multi-architecture API image as `ghcr.io/secpal/api:sha-<full-commit-SHA>` for
-`linux/amd64` and `linux/arm64`, with BuildKit SBOM, max-mode provenance, and a
-GitHub Artifact Attestation. The canonical reference is always
+After the Phase C.1 workflow is merged, pushes to `main` will publish a unique
+internal candidate for `linux/amd64` and `linux/arm64`, including BuildKit SBOM
+and max-mode provenance. The workflow fully verifies both runtime manifests and
+their metadata before creating and verifying a GitHub Artifact Attestation. It
+then promotes the exact unchanged OCI index digest to
+`ghcr.io/secpal/api:sha-<full-commit-SHA>`. Candidates are not official
+consumption references and may remain as internal registry artifacts; their
+cleanup is outside this change.
+
+The canonical reference is always
 `ghcr.io/secpal/api@sha256:<manifest-digest>`; there is no `latest` or SemVer
-tag and publishing does not deploy the image. Workflow reruns never rebuild or
-move an existing full-SHA tag. The selected existing or newly built digest is
-fully verified before the workflow creates and verifies its registry-backed
-GitHub Artifact Attestation. This repairs an interrupted first publish whose
-image push completed before attestation without trusting unverified registry
-metadata.
+tag and publishing does not deploy the image. Workflow reruns never rebuild,
+move, or newly attest an existing full-SHA tag. Such a tag is accepted only if
+its complete image contract and existing registry-backed GitHub Artifact
+Attestation already verify for the expected repository, workflow, source
+reference, commit, image name, and digest. An unattested final tag fails closed.
 The authenticated existence lookup accepts the relevant OCI and Docker
 manifest representations, so an existing wrong-format SHA tag fails validation
 instead of being mistaken for an absent tag.

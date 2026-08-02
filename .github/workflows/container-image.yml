@@ -13,6 +13,9 @@ on:
       - ".dockerignore"
       - "docker/**"
       - "tests/docker/**"
+      - "tests/container/**"
+      - "tests/fixtures/**"
+      - "tests/Unit/ContainerPublishingWorkflowTest.php"
       - "composer.*"
       - "app/**"
       - "bootstrap/**"
@@ -24,6 +27,7 @@ on:
       - "routes/**"
       - "storage/**"
       - "scripts/ots-*.py"
+      - "scripts/promote-ghcr-index.sh"
       - "artisan"
       - "LICENSE"
       - "THIRD-PARTY-NOTICES.md"
@@ -52,7 +56,14 @@ jobs:
         run: >-
           docker run --rm -v "$PWD:/mnt:ro" -w /mnt
           koalaman/shellcheck:v0.10.0@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb
-          docker/healthchecks/http-live.sh tests/docker/smoke.sh
+          docker/healthchecks/http-live.sh
+          scripts/promote-ghcr-index.sh
+          tests/container/promote-ghcr-index-contract.sh
+          tests/docker/smoke.sh
+          tests/fixtures/fake-ghcr-curl.sh
+
+      - name: Test GHCR index promotion contract
+        run: tests/container/promote-ghcr-index-contract.sh
 
       - name: Build and test the API image
         run: tests/docker/smoke.sh

@@ -154,7 +154,10 @@ it('validates before publishing without registry credentials or write operations
         ->toContain('tests/docker/smoke.sh')
         ->toContain('hadolint/hadolint:v2.14.0-debian')
         ->toContain('koalaman/shellcheck:v0.10.0@sha256:')
-        ->toContain('docker/healthchecks/http-live.sh tests/docker/smoke.sh')
+        ->toContain('docker/healthchecks/http-live.sh')
+        ->toContain('scripts/promote-ghcr-index.sh')
+        ->toContain('tests/container/promote-ghcr-index-contract.sh')
+        ->toContain('tests/fixtures/fake-ghcr-curl.sh')
         ->toContain('php artisan test tests/Unit/ContainerImageDefinitionTest.php tests/Unit/ContainerPublishingWorkflowTest.php')
         ->not->toContain('docker login')
         ->not->toContain('docker push')
@@ -182,14 +185,18 @@ it('pins every container validation tool to an immutable version or image digest
         expect($scripts)
             ->toContain("docker run --rm -i {$hadolint} < Dockerfile")
             ->toContain("docker run --rm -v \"\$PWD:/mnt:ro\" -w /mnt {$shellcheck}")
-            ->toContain('docker/healthchecks/http-live.sh tests/docker/smoke.sh')
+            ->toContain('docker/healthchecks/http-live.sh')
+            ->toContain('scripts/promote-ghcr-index.sh')
+            ->toContain('tests/container/promote-ghcr-index-contract.sh')
+            ->toContain('tests/docker/smoke.sh')
+            ->toContain('tests/fixtures/fake-ghcr-curl.sh')
             ->not->toContain('apt-get', 'composer:v2')
             ->not->toMatch('/hadolint\/hadolint:[^\s@]+(?:\s|$)/')
             ->not->toMatch('/koalaman\/shellcheck:[^\s@]+(?:\s|$)/');
     }
 });
 
-it('publishes one full-SHA multi-architecture tag with exact OCI metadata and attestations', function (): void {
+it('publishes one unique multi-architecture candidate with exact OCI metadata and attestations', function (): void {
     $workflow = containerPublishingWorkflow();
     $publish = $workflow['jobs']['publish'];
     $existingImage = containerPublishingStep($publish, 'existing-image');
@@ -197,6 +204,7 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
     $image = containerPublishingStep($publish, 'image');
     $attest = containerPublishingStep($workflow['jobs']['attest'], 'attest');
     $metadata = containerPublishingStep($publish, 'metadata');
+    $candidate = containerPublishingStep($publish, 'candidate');
 
     expect($existingImage['env'])->toBe([
         'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
@@ -208,13 +216,22 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->toContain('200)')
         ->toContain('404)')
         ->toContain('exit 1')
+        ->toContain('--dump-header "$headers_file"')
+        ->toContain('docker-content-digest:')
+        ->toContain('test "$registry_digest" = "$digest"')
         ->not->toContain('gh attestation verify', 'docker buildx imagetools inspect')
         ->and($metadata['run'])->toContain('git show -s --format=%cI "$GITHUB_SHA"')
+        ->and($candidate['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
+        ->and($candidate['run'])->toContain(
+            'printf \'tag=candidate-%s-%s-%s\\n\' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"',
+        )
         ->and($build['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
         ->and($build['with']['context'])->toBe('https://github.com/SecPal/api.git#${{ github.sha }}')
         ->and($build['with']['push'])->toBeTrue()
         ->and($build['with']['platforms'])->toBe('linux/amd64,linux/arm64')
-        ->and($build['with']['tags'])->toBe('${{ env.CANONICAL_IMAGE }}:sha-${{ github.sha }}')
+        ->and($build['with']['tags'])->toBe(
+            '${{ env.CANONICAL_IMAGE }}:candidate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}',
+        )
         ->and($build['with']['sbom'])->toBe(
             'generator=docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68',
         )
@@ -240,9 +257,12 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
             'push-to-registry' => true,
             'create-storage-record' => false,
         ])
+        ->and($attest['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
         ->and($publish['outputs'])->toBe([
             'image_digest' => '${{ steps.image.outputs.digest }}',
             'image_created' => '${{ steps.metadata.outputs.created }}',
+            'final_exists' => '${{ steps.existing-image.outputs.exists }}',
+            'candidate_tag' => '${{ steps.candidate.outputs.tag }}',
         ]);
 
     $checkout = containerPublishingStep($publish, 'checkout');
@@ -258,7 +278,7 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
     ]);
 });
 
-it('repairs a missing attestation without rebuilding or moving the SHA tag', function (): void {
+it('reuses only an already-attested final image without rebuilding or moving the SHA tag', function (): void {
     $workflow = containerPublishingWorkflow();
     $publish = $workflow['jobs']['publish'];
     $existingImage = containerPublishingStep($publish, 'existing-image');
@@ -266,6 +286,11 @@ it('repairs a missing attestation without rebuilding or moving the SHA tag', fun
     $image = containerPublishingStep($publish, 'image');
     $attestJob = $workflow['jobs']['attest'];
     $attest = containerPublishingStep($attestJob, 'attest');
+    $selectedAttestation = containerPublishingNamedStep(
+        $attestJob,
+        'Verify selected GitHub artifact attestation',
+    );
+    $promotion = containerPublishingNamedStep($attestJob, 'Promote verified candidate to final SHA tag');
     $verifyScripts = containerPublishingRunScripts($workflow['jobs']['verify']);
     $publishScripts = containerPublishingRunScripts($publish);
     $uses = array_merge(...array_values(array_map(
@@ -284,7 +309,7 @@ it('repairs a missing attestation without rebuilding or moving the SHA tag', fun
         ->not->toContain('gh attestation verify', 'docker buildx imagetools inspect')
         ->and($build['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
         ->and($build['with']['push'])->toBeTrue()
-        ->and($build['with']['tags'])->toBe('${{ env.CANONICAL_IMAGE }}:sha-${{ github.sha }}')
+        ->and($build['with']['tags'])->toContain(':candidate-${{ github.sha }}-')
         ->and($image['env'])->toBe([
             'EXISTING_IMAGE_DIGEST' => '${{ steps.existing-image.outputs.digest }}',
             'BUILT_IMAGE_DIGEST' => '${{ steps.build.outputs.digest }}',
@@ -299,12 +324,54 @@ it('repairs a missing attestation without rebuilding or moving the SHA tag', fun
             'push-to-registry' => true,
             'create-storage-record' => false,
         ])
+        ->and($attest['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
+        ->and($selectedAttestation)->not->toHaveKey('if')
+        ->and($selectedAttestation['run'])->toContain('gh attestation verify "oci://$DIGEST_REF"')
+        ->and($promotion['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
         ->and($workflow['jobs']['verify']['needs'])->toBe('publish')
         ->and($verifyScripts)->not->toContain('gh attestation verify')
-        ->and($attestJob)->not->toHaveKey('if')
         ->and(array_count_values($uses)['docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a'] ?? 0)->toBe(1)
         ->and(array_count_values($uses)['actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d'] ?? 0)->toBe(1)
         ->and($publishScripts)->not->toMatch(containerPublishingForbiddenCommandPattern());
+});
+
+it('never signs an existing unattested final SHA tag', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $publish = $workflow['jobs']['publish'];
+    $attest = $workflow['jobs']['attest'];
+    $build = containerPublishingStep($publish, 'build');
+    $attestation = containerPublishingStep($attest, 'attest');
+    $selectedAttestation = containerPublishingNamedStep($attest, 'Verify selected GitHub artifact attestation');
+    $promotion = containerPublishingNamedStep($attest, 'Promote verified candidate to final SHA tag');
+
+    expect($publish['outputs']['final_exists'])->toBe('${{ steps.existing-image.outputs.exists }}')
+        ->and($build['with']['tags'])->toBe(
+            '${{ env.CANONICAL_IMAGE }}:candidate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}',
+        )->and($build['with']['tags'])->not->toContain(':sha-${{ github.sha }}')
+        ->and($attestation['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
+        ->and($selectedAttestation)->not->toHaveKey('if')
+        ->and($promotion['if'])->toBe("needs.publish.outputs.final_exists == 'false'");
+});
+
+it('promotes only a verified and attested candidate digest', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $attest = $workflow['jobs']['attest'];
+    $attestation = containerPublishingStep($attest, 'attest');
+    $attestationVerification = containerPublishingNamedStep($attest, 'Verify selected GitHub artifact attestation');
+    $promotion = containerPublishingNamedStep($attest, 'Promote verified candidate to final SHA tag');
+    $finalVerification = containerPublishingNamedStep($attest, 'Verify final SHA tag and artifact attestation');
+
+    expect($attest['needs'])->toBe(['publish', 'verify'])
+        ->and($attestation['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
+        ->and($promotion['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
+        ->and($promotion['run'])->toContain(
+            'scripts/promote-ghcr-index.sh ghcr.io secpal/api "sha-${GITHUB_SHA}" "$IMAGE_DIGEST"',
+        )->and(array_search($attestation, $attest['steps'], true))
+        ->toBeLessThan(array_search($attestationVerification, $attest['steps'], true))
+        ->and(array_search($attestationVerification, $attest['steps'], true))
+        ->toBeLessThan(array_search($promotion, $attest['steps'], true))
+        ->and(array_search($promotion, $attest['steps'], true))
+        ->toBeLessThan(array_search($finalVerification, $attest['steps'], true));
 });
 
 it('distinguishes an absent SHA tag from every relevant manifest representation', function (): void {
@@ -321,7 +388,7 @@ it('distinguishes an absent SHA tag from every relevant manifest representation'
         ->toContain('printf \'exists=false\\ndigest=\\n\' >> "$GITHUB_OUTPUT"');
 });
 
-it('verifies every selected digest before creating its artifact attestation', function (): void {
+it('verifies every selected digest before conditionally creating its artifact attestation', function (): void {
     $workflow = containerPublishingWorkflow();
 
     expect($workflow['jobs'])->toHaveKey('attest');
@@ -331,7 +398,11 @@ it('verifies every selected digest before creating its artifact attestation', fu
     $attest = $workflow['jobs']['attest'];
     $existingImage = containerPublishingStep($publish, 'existing-image');
     $attestation = containerPublishingStep($attest, 'attest');
-    $attestationVerification = containerPublishingNamedStep($attest, 'Verify GitHub artifact attestation');
+    $attestationVerification = containerPublishingNamedStep(
+        $attest,
+        'Verify selected GitHub artifact attestation',
+    );
+    $promotion = containerPublishingNamedStep($attest, 'Promote verified candidate to final SHA tag');
 
     expect($publish['permissions'])->toBe([
         'contents' => 'read',
@@ -343,7 +414,6 @@ it('verifies every selected digest before creating its artifact attestation', fu
         ->and($verify['needs'])->toBe('publish')
         ->and(containerPublishingRunScripts($verify))->not->toContain('gh attestation verify')
         ->and($attest['needs'])->toBe(['publish', 'verify'])
-        ->and($attest)->not->toHaveKey('if')
         ->and($attest['permissions'])->toBe([
             'contents' => 'read',
             'packages' => 'write',
@@ -354,8 +424,12 @@ it('verifies every selected digest before creating its artifact attestation', fu
             'subject-digest' => '${{ needs.publish.outputs.image_digest }}',
             'push-to-registry' => true,
             'create-storage-record' => false,
-        ])->and(array_search($attestation, $attest['steps'], true))
-        ->toBeLessThan(array_search($attestationVerification, $attest['steps'], true));
+        ])->and($attestation['if'])->toBe("needs.publish.outputs.final_exists == 'false'")
+        ->and($attestationVerification)->not->toHaveKey('if')
+        ->and(array_search($attestation, $attest['steps'], true))
+        ->toBeLessThan(array_search($attestationVerification, $attest['steps'], true))
+        ->and(array_search($attestationVerification, $attest['steps'], true))
+        ->toBeLessThan(array_search($promotion, $attest['steps'], true));
 });
 
 it('registers QEMU before booting every Buildx builder that uses arm64', function (): void {
@@ -401,10 +475,13 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
     expect($verify['env'])->toBe([
         'IMAGE_DIGEST' => '${{ needs.publish.outputs.image_digest }}',
         'IMAGE_CREATED' => '${{ needs.publish.outputs.image_created }}',
-        'IMAGE_TAG' => 'sha-${{ github.sha }}',
+        'FINAL_EXISTS' => '${{ needs.publish.outputs.final_exists }}',
+        'CANDIDATE_TAG' => '${{ needs.publish.outputs.candidate_tag }}',
     ])->and($scripts)
         ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"')
-        ->toContain('docker buildx imagetools inspect "$CANONICAL_IMAGE:$IMAGE_TAG" --raw')
+        ->toContain('REFERENCE_TAG="sha-${GITHUB_SHA}"')
+        ->toContain('REFERENCE_TAG=$CANDIDATE_TAG')
+        ->toContain('docker buildx imagetools inspect "$CANONICAL_IMAGE:$REFERENCE_TAG" --raw')
         ->toContain("sha256sum | awk '{print $1}'")
         ->toContain('test "$tag_digest" = "$IMAGE_DIGEST"')
         ->toContain('vnd.docker.reference.type')
@@ -442,7 +519,10 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         ->toContain('--signer-workflow SecPal/api/.github/workflows/publish-container.yml')
         ->toContain('--signer-digest "$GITHUB_SHA"')
         ->toContain('--source-digest "$GITHUB_SHA"')
-        ->toContain('--deny-self-hosted-runners');
+        ->toContain('--deny-self-hosted-runners')
+        ->toContain('scripts/promote-ghcr-index.sh ghcr.io secpal/api "sha-${GITHUB_SHA}" "$IMAGE_DIGEST"')
+        ->toContain('docker buildx imagetools inspect "$FINAL_REF" --raw')
+        ->toContain('test "$final_digest" = "$IMAGE_DIGEST"');
 });
 
 it('smoke-tests both runtime platforms from the published index digest', function (): void {
@@ -546,7 +626,9 @@ it('rejects moving tags, broad credentials, destructive registry operations, and
         flags: PREG_SPLIT_NO_EMPTY,
     );
 
-    expect($publishedTags)->toBe(['${{ env.CANONICAL_IMAGE }}:sha-${{ github.sha }}'])
+    expect($publishedTags)->toBe([
+        '${{ env.CANONICAL_IMAGE }}:candidate-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}',
+    ])
         ->and($rawWorkflow)
         ->not->toMatch('/sha-\$\{\{\s*github\.sha\s*\}\}.*(?:cut|substr|0:7|0,\s*7)/i')
         ->not->toMatch('/\$\{\{\s*secrets\.(?!GITHUB_TOKEN\b)/')
@@ -557,12 +639,54 @@ it('rejects moving tags, broad credentials, destructive registry operations, and
         ->not->toContain('workflow_dispatch', 'pull_request', 'pull_request_target', 'environment:');
 });
 
+it('allows registry writes only through the candidate build, attestation, and audited promotion script', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $promotionScript = file_get_contents(dirname(__DIR__, 2).'/scripts/promote-ghcr-index.sh');
+    $promotion = containerPublishingNamedStep(
+        $workflow['jobs']['attest'],
+        'Promote verified candidate to final SHA tag',
+    );
+
+    expect(containerPublishingRunScripts($workflow['jobs']['publish']))
+        ->not->toMatch(containerPublishingForbiddenCommandPattern())
+        ->and(containerPublishingRunScripts($workflow['jobs']['attest']))
+        ->not->toMatch(containerPublishingForbiddenCommandPattern())
+        ->and($promotion['run'])->toBe(
+            'scripts/promote-ghcr-index.sh ghcr.io secpal/api "sha-${GITHUB_SHA}" "$IMAGE_DIGEST"',
+        )
+        ->and(substr_count($promotionScript, '--request PUT'))->toBe(1)
+        ->and($promotionScript)
+        ->toContain(
+            'test "$host" = ghcr.io',
+            'test "$repository" = secpal/api',
+            'scope=repository:${repository}:pull,push',
+            "--header 'If-None-Match: *'",
+            '--header "Content-Type: ${source_content_type}"',
+            '--data-binary "@${source_body}"',
+        )
+        ->not->toMatch('/--request\h+(?:DELETE|PATCH|POST)\b/i')
+        ->not->toContain(
+            'docker push',
+            'docker manifest push',
+            'docker buildx imagetools create',
+            'oras ',
+            'crane ',
+            'skopeo ',
+            'regctl ',
+            'podman ',
+        );
+});
+
 it('binds every publisher reference to the non-configurable GHCR identity', function (): void {
     $workflow = containerPublishingWorkflow();
     $publish = $workflow['jobs']['publish'];
     $verifyScripts = containerPublishingRunScripts($workflow['jobs']['verify']);
     $existingImageScript = containerPublishingStep($publish, 'existing-image')['run'];
     $attest = containerPublishingStep($workflow['jobs']['attest'], 'attest');
+    $promotion = containerPublishingNamedStep(
+        $workflow['jobs']['attest'],
+        'Promote verified candidate to final SHA tag',
+    );
 
     expect($workflow['env'])->toBe([
         'GHCR_HOST' => 'ghcr.io',
@@ -577,6 +701,7 @@ it('binds every publisher reference to the non-configurable GHCR identity', func
         ->toContain('https://${GHCR_HOST}/v2/${GHCR_REPOSITORY_PATH}/manifests/${image_tag}')
         ->not->toMatch('/docker[^\r\n]*GHCR_REPOSITORY_PATH/')
         ->and($attest['with']['subject-name'])->toBe('${{ env.CANONICAL_IMAGE }}')
+        ->and($promotion['run'])->toContain('scripts/promote-ghcr-index.sh ghcr.io secpal/api')
         ->and($verifyScripts)
         ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"')
         ->toContain('PLATFORM_REF="${CANONICAL_IMAGE}@${platform_digest}"')
@@ -670,6 +795,15 @@ it('keeps the pull-request container workflow read-only', function (): void {
 
     expect($workflow['name'])->toBe('Container Image')
         ->and($workflow['permissions'])->toBe(['contents' => 'read'])
-        ->and($workflow['on']['pull_request']['paths'])->toContain('.github/workflows/publish-container.yml')
+        ->and($workflow['on']['pull_request']['paths'])->toContain(
+            '.github/workflows/publish-container.yml',
+            'scripts/promote-ghcr-index.sh',
+            'tests/container/**',
+            'tests/fixtures/**',
+            'tests/Unit/ContainerPublishingWorkflowTest.php',
+        )
+        ->and(containerPublishingRunScripts($workflow['jobs']['build-and-test']))
+        ->toContain('tests/container/promote-ghcr-index-contract.sh')
+        ->toContain('scripts/promote-ghcr-index.sh')
         ->and($checkout['uses'])->toBe('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1');
 });
