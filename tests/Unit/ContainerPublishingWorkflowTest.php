@@ -348,13 +348,33 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         ->toContain('--signer-digest "$GITHUB_SHA"')
         ->toContain('--source-digest "$GITHUB_SHA"')
         ->toContain('--deny-self-hosted-runners')
-        ->toContain('docker pull "$DIGEST_REF"')
-        ->toContain('SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh')
+        ->toContain('docker pull --platform "$platform" "$PLATFORM_REF"')
+        ->toContain('SKIP_BUILD=1 IMAGE_TAG="$PLATFORM_REF" tests/docker/smoke.sh')
         ->not->toContain('docker pull "$CANONICAL_IMAGE:$IMAGE_TAG"')
         ->and($smokeScript)
         ->toContain('if [ "${SKIP_BUILD:-0}" = 1 ]; then')
         ->toContain('test "$(id -u)" -eq 10001')
         ->toContain('test "$(id -g)" -eq 10001');
+});
+
+it('smoke-tests both runtime platforms from the published index digest', function (): void {
+    $verify = containerPublishingWorkflow()['jobs']['verify'];
+    $qemu = containerPublishingNamedStep($verify, 'Set up QEMU for runtime verification');
+    $smoke = containerPublishingNamedStep($verify, 'Smoke-test the published digest');
+
+    expect($qemu['uses'])->toBe('docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8')
+        ->and($qemu['with'])->toBe([
+            'image' => 'docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0',
+            'platforms' => 'arm64',
+        ])
+        ->and($smoke['run'])
+        ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"')
+        ->toContain('for platform in linux/amd64 linux/arm64; do')
+        ->toContain('select(.platform.os == $os and .platform.architecture == $architecture)')
+        ->toContain('PLATFORM_REF="${CANONICAL_IMAGE}@${platform_digest}"')
+        ->toContain('docker pull --platform "$platform" "$PLATFORM_REF"')
+        ->toContain('SKIP_BUILD=1 IMAGE_TAG="$PLATFORM_REF" tests/docker/smoke.sh')
+        ->not->toContain('SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh');
 });
 
 it('pins every action to a full commit SHA with an adjacent version comment', function (): void {
@@ -419,11 +439,14 @@ it('pins every action to a full commit SHA with an adjacent version comment', fu
         ]);
     }
 
-    expect($setupQemuSteps)->toHaveCount(1)
-        ->and($setupQemuSteps[0]['with'])->toBe([
+    expect($setupQemuSteps)->toHaveCount(2);
+
+    foreach ($setupQemuSteps as $setupQemuStep) {
+        expect($setupQemuStep['with'])->toBe([
             'image' => 'docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0',
             'platforms' => 'arm64',
         ]);
+    }
 });
 
 it('rejects moving tags, broad credentials, destructive registry operations, and deployment', function (): void {
@@ -468,8 +491,9 @@ it('binds every publisher reference to the non-configurable GHCR identity', func
         ->and($attest['with']['subject-name'])->toBe('${{ env.CANONICAL_IMAGE }}')
         ->and($verifyScripts)
         ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"')
-        ->toContain('docker pull "$DIGEST_REF"')
-        ->toContain('SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh')
+        ->toContain('PLATFORM_REF="${CANONICAL_IMAGE}@${platform_digest}"')
+        ->toContain('docker pull --platform "$platform" "$PLATFORM_REF"')
+        ->toContain('SKIP_BUILD=1 IMAGE_TAG="$PLATFORM_REF" tests/docker/smoke.sh')
         ->not->toMatch('/docker[^\r\n]*GHCR_REPOSITORY_PATH/');
 });
 

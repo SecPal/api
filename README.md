@@ -317,6 +317,9 @@ for the same workflow and source commit. A new attestation is issued only for
 the digest built by the current workflow run. An interrupted first publish that
 did not complete attestation therefore fails closed and requires explicit
 registry recovery instead of trusting unsigned registry metadata.
+Remote verification runs the complete container smoke contract against both the
+`linux/amd64` and `linux/arm64` runtime manifests selected from the published
+index by digest; the `arm64` execution uses the pinned QEMU helper.
 The first successful publish still requires a repository administrator to make
 the GHCR package public before anonymous digest pulls are available. See the
 [container contract](docs/containers.md#immutable-registry-publishing) for

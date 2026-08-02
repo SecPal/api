@@ -346,9 +346,34 @@ jobs:
             --source-digest "$GITHUB_SHA" \
             --deny-self-hosted-runners
 
+      - name: Set up QEMU for runtime verification
+        # v4.2.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
+        with:
+          image: >-
+            docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
+
       - name: Smoke-test the published digest
         run: |
           set -euo pipefail
           DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
-          docker pull "$DIGEST_REF"
-          SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh
+          index_manifest=$(docker buildx imagetools inspect "$DIGEST_REF" \
+            --format '{{json .Manifest}}')
+          for platform in linux/amd64 linux/arm64; do
+            os=${platform%/*}
+            architecture=${platform#*/}
+            platform_digest=$(printf '%s\n' "$index_manifest" | jq -er \
+              --arg os "$os" \
+              --arg architecture "$architecture" '
+                [.manifests[]
+                  | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest")
+                  | select(.platform.os == $os and .platform.architecture == $architecture)
+                  | .digest]
+                  | if length == 1 then .[0] else empty end
+              ')
+            printf '%s\n' "$platform_digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+            PLATFORM_REF="${CANONICAL_IMAGE}@${platform_digest}"
+            docker pull --platform "$platform" "$PLATFORM_REF"
+            SKIP_BUILD=1 IMAGE_TAG="$PLATFORM_REF" tests/docker/smoke.sh
+          done
