@@ -48,6 +48,20 @@ function containerPublishingForbiddenCommandPattern(): string
     return '/(?:\bdocker\h+(?:[a-z-]+\h+)*prune\b|\bdocker\h+(?:push|manifest\h+push|buildx\h+(?:(?:build|bake)\b[^\r\n]*--push|imagetools\h+create))\b|\b(?:oras|podman)\h+(?:push|cp|copy)\b|\bcrane\h+(?:push|copy)\b|\bskopeo\h+(?:copy|sync)\b|\bregctl\h+(?:image|manifest)\h+(?:copy|put)\b|\bcurl\b[^\r\n]*(?:(?:-X|--request)\h*(?:PUT|POST|PATCH|DELETE)\b|(?:-T|--upload-file|--form|-F)\b))/i';
 }
 
+function secPalApiImageReferenceIsCanonical(string $reference, bool $digestOnly = false): bool
+{
+    if ($reference === '' || preg_match('/[\x00-\x20\x7f]/', $reference) === 1) {
+        return false;
+    }
+
+    if (preg_match('/\Aghcr\.io\/secpal\/api@sha256:[0-9a-f]{64}\z/', $reference) === 1) {
+        return true;
+    }
+
+    return ! $digestOnly
+        && preg_match('/\Aghcr\.io\/secpal\/api:sha-[0-9a-f]{40}\z/', $reference) === 1;
+}
+
 it('defines a main-only publish workflow with isolated least-privilege jobs', function (): void {
     expect(is_file(containerPublishingWorkflowPath()))->toBeTrue('Missing immutable container publishing workflow.');
 
@@ -57,9 +71,9 @@ it('defines a main-only publish workflow with isolated least-privilege jobs', fu
         ->and($workflow['on'])->toBe(['push' => ['branches' => ['main']]])
         ->and($workflow['permissions'])->toBe([])
         ->and($workflow['env'])->toBe([
-            'REGISTRY' => 'ghcr.io',
-            'IMAGE_NAME' => 'secpal/api',
-            'IMAGE_FQDN' => 'ghcr.io/secpal/api',
+            'GHCR_HOST' => 'ghcr.io',
+            'GHCR_REPOSITORY_PATH' => 'secpal/api',
+            'CANONICAL_IMAGE' => 'ghcr.io/secpal/api',
         ])
         ->and(array_keys($workflow['jobs']))->toBe(['validate', 'publish', 'verify']);
 
@@ -129,7 +143,9 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
     expect($existingImage['env'])->toBe([
         'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
     ])->and($existingImage['run'])
-        ->toContain('https://${REGISTRY}/v2/${IMAGE_NAME}/manifests/${image_tag}')
+        ->toContain('scope=repository:${GHCR_REPOSITORY_PATH}:pull')
+        ->toContain('https://${GHCR_HOST}/v2/${GHCR_REPOSITORY_PATH}/manifests/${image_tag}')
+        ->toContain('digest_ref="${CANONICAL_IMAGE}@${digest}"')
         ->toContain('case "$status" in')
         ->toContain('200)')
         ->toContain('404)')
@@ -140,7 +156,7 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->and($build['with']['context'])->toBe('.')
         ->and($build['with']['push'])->toBeTrue()
         ->and($build['with']['platforms'])->toBe('linux/amd64,linux/arm64')
-        ->and($build['with']['tags'])->toBe('${{ env.IMAGE_FQDN }}:sha-${{ github.sha }}')
+        ->and($build['with']['tags'])->toBe('${{ env.CANONICAL_IMAGE }}:sha-${{ github.sha }}')
         ->and($build['with']['sbom'])->toBeTrue()
         ->and($build['with']['provenance'])->toBe('mode=max')
         ->and($build['with']['labels'])->toContain(
@@ -159,7 +175,7 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->toContain('digest=$BUILT_IMAGE_DIGEST')
         ->toContain("grep -Eq '^sha256:[0-9a-f]{64}$'")
         ->and($attest['with'])->toBe([
-            'subject-name' => 'ghcr.io/secpal/api',
+            'subject-name' => '${{ env.CANONICAL_IMAGE }}',
             'subject-digest' => '${{ steps.image.outputs.digest }}',
             'push-to-registry' => true,
         ])
@@ -172,7 +188,7 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         'ref' => '${{ github.sha }}',
         'persist-credentials' => false,
     ])->and($login['with'])->toBe([
-        'registry' => 'ghcr.io',
+        'registry' => '${{ env.GHCR_HOST }}',
         'username' => '${{ github.actor }}',
         'password' => '${{ secrets.GITHUB_TOKEN }}',
     ]);
@@ -187,7 +203,8 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         'IMAGE_DIGEST' => '${{ needs.publish.outputs.image_digest }}',
         'IMAGE_TAG' => 'sha-${{ github.sha }}',
     ])->and($scripts)
-        ->toContain('docker buildx imagetools inspect "$IMAGE_FQDN:$IMAGE_TAG" --raw')
+        ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"')
+        ->toContain('docker buildx imagetools inspect "$CANONICAL_IMAGE:$IMAGE_TAG" --raw')
         ->toContain("sha256sum | awk '{print $1}'")
         ->toContain('test "$tag_digest" = "$IMAGE_DIGEST"')
         ->toContain('vnd.docker.reference.type')
@@ -203,7 +220,7 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         ->toContain('--source-digest "$GITHUB_SHA"')
         ->toContain('docker pull "$DIGEST_REF"')
         ->toContain('SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh')
-        ->not->toContain('docker pull "$IMAGE_FQDN:$IMAGE_TAG"')
+        ->not->toContain('docker pull "$CANONICAL_IMAGE:$IMAGE_TAG"')
         ->and($smokeScript)
         ->toContain('if [ "${SKIP_BUILD:-0}" = 1 ]; then')
         ->toContain('test "$(id -u)" -eq 10001')
@@ -251,7 +268,7 @@ it('pins every action to a full commit SHA with an adjacent version comment', fu
 
     foreach ($loginSteps as $loginStep) {
         expect($loginStep['with'])->toBe([
-            'registry' => 'ghcr.io',
+            'registry' => '${{ env.GHCR_HOST }}',
             'username' => '${{ github.actor }}',
             'password' => '${{ secrets.GITHUB_TOKEN }}',
         ]);
@@ -267,7 +284,7 @@ it('rejects moving tags, broad credentials, destructive registry operations, and
         flags: PREG_SPLIT_NO_EMPTY,
     );
 
-    expect($publishedTags)->toBe(['${{ env.IMAGE_FQDN }}:sha-${{ github.sha }}'])
+    expect($publishedTags)->toBe(['${{ env.CANONICAL_IMAGE }}:sha-${{ github.sha }}'])
         ->and($rawWorkflow)
         ->not->toMatch('/sha-\$\{\{\s*github\.sha\s*\}\}.*(?:cut|substr|0:7|0,\s*7)/i')
         ->not->toMatch('/\$\{\{\s*secrets\.(?!GITHUB_TOKEN\b)/')
@@ -275,6 +292,88 @@ it('rejects moving tags, broad credentials, destructive registry operations, and
         ->not->toMatch(containerPublishingForbiddenCommandPattern())
         ->not->toMatch('/\bdeploy(?:ment|ments)?\b/i')
         ->not->toContain('workflow_dispatch', 'pull_request', 'pull_request_target', 'environment:');
+});
+
+it('binds every publisher reference to the non-configurable GHCR identity', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $publish = $workflow['jobs']['publish'];
+    $verifyScripts = containerPublishingRunScripts($workflow['jobs']['verify']);
+    $existingImageScript = containerPublishingStep($publish, 'existing-image')['run'];
+    $attest = containerPublishingStep($publish, 'attest');
+
+    expect($workflow['env'])->toBe([
+        'GHCR_HOST' => 'ghcr.io',
+        'GHCR_REPOSITORY_PATH' => 'secpal/api',
+        'CANONICAL_IMAGE' => 'ghcr.io/secpal/api',
+    ])->and(implode("\n", $workflow['env']))
+        ->not->toContain('${{', 'vars.', 'inputs.', 'secrets.')
+        ->and($existingImageScript)
+        ->toContain('scope=repository:${GHCR_REPOSITORY_PATH}:pull')
+        ->toContain('service=${GHCR_HOST}')
+        ->toContain('https://${GHCR_HOST}/token')
+        ->toContain('https://${GHCR_HOST}/v2/${GHCR_REPOSITORY_PATH}/manifests/${image_tag}')
+        ->not->toMatch('/docker[^\r\n]*GHCR_REPOSITORY_PATH/')
+        ->and($attest['with']['subject-name'])->toBe('${{ env.CANONICAL_IMAGE }}')
+        ->and($verifyScripts)
+        ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"')
+        ->toContain('docker pull "$DIGEST_REF"')
+        ->toContain('SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh')
+        ->not->toMatch('/docker[^\r\n]*GHCR_REPOSITORY_PATH/');
+});
+
+it('accepts only canonical resolved SecPal API artifact references', function (string $reference): void {
+    expect(secPalApiImageReferenceIsCanonical($reference))->toBeTrue();
+})->with([
+    'ghcr.io/secpal/api:sha-0123456789abcdef0123456789abcdef01234567',
+    'ghcr.io/secpal/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+]);
+
+it('accepts only the canonical digest for deployment consumption', function (): void {
+    expect(secPalApiImageReferenceIsCanonical(
+        'ghcr.io/secpal/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        digestOnly: true,
+    ))->toBeTrue()
+        ->and(secPalApiImageReferenceIsCanonical(
+            'ghcr.io/secpal/api:sha-0123456789abcdef0123456789abcdef01234567',
+            digestOnly: true,
+        ))->toBeFalse();
+});
+
+it('rejects ambiguous or non-canonical resolved SecPal API references', function (string $reference): void {
+    expect(secPalApiImageReferenceIsCanonical($reference))->toBeFalse();
+})->with([
+    'secpal'.'/api:sha-0123456789abcdef0123456789abcdef01234567',
+    'docker'.'.io/'.'secpal'.'/api:sha-0123456789abcdef0123456789abcdef01234567',
+    'index'.'.docker'.'.io/'.'secpal'.'/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    'registry-1'.'.docker'.'.io/'.'secpal'.'/api:latest',
+    'GHCR.io/secpal/api:sha-0123456789abcdef0123456789abcdef01234567',
+    'ghcr.io/SecPal/api:sha-0123456789abcdef0123456789abcdef01234567',
+    'ghcr.io/other/api:sha-0123456789abcdef0123456789abcdef01234567',
+    'ghcr.io/secpal/frontend:sha-0123456789abcdef0123456789abcdef01234567',
+    'ghcr.io/secpal/api:sha-0123456',
+    'ghcr.io/secpal/api:latest',
+    'ghcr.io/secpal/api:main',
+    'ghcr.io/secpal/api:',
+    'ghcr.io/secpal/api',
+    'ghcr.io/secpal/api@sha256:0123456',
+    'ghcr.io/secpal/api@sha256:0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef',
+    'ghcr.io/secpal/api@sha256:g123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    'ghcr.io/secpal/api:sha-0123456789abcdef0123456789abcdef01234567@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    ' ghcr.io/secpal/api:sha-0123456789abcdef0123456789abcdef01234567',
+    "ghcr.io/secpal/api:sha-0123456789abcdef0123456789abcdef01234567\n",
+    'https://ghcr.io/secpal/api:sha-0123456789abcdef0123456789abcdef01234567',
+    '${CANONICAL_IMAGE}@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    '$(printf ghcr.io/secpal/api):sha-0123456789abcdef0123456789abcdef01234567',
+    'secpal-api:test',
+    'secpal-api:phase-c-pr',
+]);
+
+it('keeps non-namespace local image tags in the smoke contract', function (): void {
+    $smokeScript = file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
+
+    expect($smokeScript)->toContain('image=${IMAGE_TAG:-secpal-api:test}')
+        ->and(secPalApiImageReferenceIsCanonical('secpal-api:test'))->toBeFalse()
+        ->and(secPalApiImageReferenceIsCanonical('secpal-api:phase-c-pr'))->toBeFalse();
 });
 
 it('recognizes prohibited registry writes and every Docker prune family', function (string $command): void {

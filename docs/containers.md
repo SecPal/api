@@ -30,6 +30,13 @@ Set `TRUSTED_PROXIES` to a comma-separated allowlist of proxy IP addresses or CI
 
 ## Immutable registry publishing
 
+Official SecPal API container images are published exclusively as
+`ghcr.io/secpal/api`. The Docker Hub namespace `secpal`, including shortened
+references such as `secpal/api`, is not controlled or endorsed by SecPal.
+There are no registry fallbacks, and official pull or inspect commands must not
+use shortened image names. Local test tags use the non-namespace name
+`secpal-api`, such as `secpal-api:test`.
+
 After this publishing workflow reaches `main`, each push to `main` will build
 and publish `ghcr.io/secpal/api` as an OCI image index for `linux/amd64` and
 `linux/arm64`. Phase C.1 publishes exactly one discovery tag per commit:
@@ -42,10 +49,10 @@ The canonical consumption reference is always the returned index digest:
 ghcr.io/secpal/api@sha256:<manifest-digest>
 ```
 
-The SHA tag is only an alias for finding that digest. Consumers must resolve
-the tag once and pin the digest rather than treating any tag as the deployment
-identity. Publishing does not create a deployment contract or perform a
-deployment.
+The SHA tag is only a discovery alias for finding that digest. Production and
+deployment consumers must resolve the tag once and pin the canonical GHCR
+digest rather than treating any tag as the deployment identity. Publishing
+does not create a deployment contract or perform a deployment.
 
 The publisher creates a SHA tag only after a registry lookup has confirmed
 that it is absent. A workflow rerun reuses the existing digest after checking

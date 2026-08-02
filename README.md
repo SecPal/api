@@ -318,6 +318,13 @@ package public before anonymous digest pulls are available. See the
 [container contract](docs/containers.md#immutable-registry-publishing) for
 verification commands and rollout boundaries.
 
+Official SecPal API container images are published exclusively as
+`ghcr.io/secpal/api`. The Docker Hub namespace `secpal`, including shortened
+references such as `secpal/api`, is not controlled or endorsed by SecPal.
+There are no registry fallbacks: production consumption is digest-only, the
+full-SHA tag is a discovery alias, and local test tags use `secpal-api` rather
+than an official-image namespace.
+
 ## Development
 
 ### Running the development server
