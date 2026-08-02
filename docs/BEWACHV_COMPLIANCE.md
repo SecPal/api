@@ -745,18 +745,21 @@ if ($employee->retention_period_end < now()) {
 For production deployment, verify:
 
 1. **Database**
+
    - [ ] All 30+ BewachV fields present in `employees` table
    - [ ] Indexes created: `bwr_status`, `retention_period_end`, `bwr_registered_at`
    - [ ] Enum constraint on `bwr_status` allows only 5 valid values
    - [ ] `sachkunde_expiry` column does NOT exist
 
 2. **Observer Logic**
+
    - [ ] Create employee with ID document → Change bwr_status to 'active' → File deleted
    - [ ] Activity log contains "ID document copy automatically deleted (BWR active)"
    - [ ] Terminate employee → `retention_period_end` auto-calculated correctly
    - [ ] Activity log contains "Retention period calculated (BewachV §21..."
 
 3. **Validation**
+
    - [ ] BWR-ID with 6 digits rejected
    - [ ] BWR-ID with letters rejected
    - [ ] Duplicate BWR-ID rejected
@@ -765,6 +768,7 @@ For production deployment, verify:
    - [ ] Address fields required when bwr_status = 'pending' or 'active'
 
 4. **API Response**
+
    - [ ] `/api/employees/{id}` includes all BewachV fields
    - [ ] `structured_address` computed property present
    - [ ] Encrypted field names (\_enc suffix) NOT exposed
