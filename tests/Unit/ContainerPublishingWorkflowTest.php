@@ -34,6 +34,20 @@ function containerPublishingStep(array $job, string $id): array
     throw new RuntimeException("Missing workflow step: {$id}");
 }
 
+/** @param array<string, mixed> $job
+ * @return array<string, mixed>
+ */
+function containerPublishingNamedStep(array $job, string $name): array
+{
+    foreach ($job['steps'] as $step) {
+        if (($step['name'] ?? null) === $name) {
+            return $step;
+        }
+    }
+
+    throw new RuntimeException("Missing workflow step: {$name}");
+}
+
 /** @param array<string, mixed> $job */
 function containerPublishingRunScripts(array $job): string
 {
@@ -121,7 +135,8 @@ it('validates before publishing without registry credentials or write operations
     expect($scripts)
         ->toContain('tests/docker/smoke.sh')
         ->toContain('hadolint/hadolint:v2.14.0-debian')
-        ->toContain('shellcheck docker/healthchecks/http-live.sh tests/docker/smoke.sh')
+        ->toContain('koalaman/shellcheck:v0.10.0@sha256:')
+        ->toContain('docker/healthchecks/http-live.sh tests/docker/smoke.sh')
         ->toContain('php artisan test tests/Unit/ContainerImageDefinitionTest.php tests/Unit/ContainerPublishingWorkflowTest.php')
         ->not->toContain('docker login')
         ->not->toContain('docker push')
@@ -130,6 +145,30 @@ it('validates before publishing without registry credentials or write operations
             'docker/build-push-action',
             'actions/attest',
         );
+});
+
+it('pins every container validation tool to an immutable version or image digest', function (): void {
+    $hadolint = 'hadolint/hadolint:v2.14.0-debian@sha256:158cd0184dcaa18bd8ec20b61f4c1cabdf8b32a592d062f57bdcb8e4c1d312e2';
+    $shellcheck = 'koalaman/shellcheck:v0.10.0@sha256:2097951f02e735b613f4a34de20c40f937a6c8f18ecb170612c88c34517221fb';
+    $publishingWorkflow = containerPublishingWorkflow();
+    $publishingValidate = $publishingWorkflow['jobs']['validate'];
+    $pullRequestWorkflow = Yaml::parseFile(dirname(__DIR__, 2).'/.github/workflows/container-image.yml');
+    $pullRequestValidate = $pullRequestWorkflow['jobs']['build-and-test'];
+    $setupPhp = containerPublishingNamedStep($publishingValidate, 'Set up PHP');
+
+    expect($setupPhp['with']['tools'])->toBe('composer:2.10.2');
+
+    foreach ([$publishingValidate, $pullRequestValidate] as $job) {
+        $scripts = containerPublishingRunScripts($job);
+
+        expect($scripts)
+            ->toContain("docker run --rm -i {$hadolint} < Dockerfile")
+            ->toContain("docker run --rm -v \"\$PWD:/mnt:ro\" -w /mnt {$shellcheck}")
+            ->toContain('docker/healthchecks/http-live.sh tests/docker/smoke.sh')
+            ->not->toContain('apt-get', 'composer:v2')
+            ->not->toMatch('/hadolint\/hadolint:[^\s@]+(?:\s|$)/')
+            ->not->toMatch('/koalaman\/shellcheck:[^\s@]+(?:\s|$)/');
+    }
 });
 
 it('publishes one full-SHA multi-architecture tag with exact OCI metadata and attestations', function (): void {
