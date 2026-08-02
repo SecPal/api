@@ -59,7 +59,7 @@ function containerPublishingRunScripts(array $job): string
 
 function containerPublishingForbiddenCommandPattern(): string
 {
-    return '/(?:\bdocker\h+(?:[a-z-]+\h+)*prune\b|\bdocker\h+(?:push|manifest\h+push|buildx\h+(?:(?:build|bake)\b[^\r\n]*--push|imagetools\h+create))\b|\b(?:oras|podman)\h+(?:push|cp|copy)\b|\bcrane\h+(?:push|copy)\b|\bskopeo\h+(?:copy|sync)\b|\bregctl\h+(?:image|manifest)\h+(?:copy|put)\b|\bcurl\b[^\r\n]*(?:(?:-X|--request)\h*(?:PUT|POST|PATCH|DELETE)\b|(?:-T|--upload-file|--form|-F)\b))/i';
+    return '/(?:\bdocker\h+(?:[a-z-]+\h+)*prune\b|\bdocker\h+(?:push|manifest\h+push|buildx\h+(?:(?:build|bake)\b[^\r\n]*(?:--push\b|(?:--output|-o)(?:=|\h+)type=registry\b)|imagetools\h+create))\b|\b(?:oras|podman)\h+(?:push|cp|copy)\b|\bcrane\h+(?:push|copy)\b|\bskopeo\h+(?:copy|sync)\b|\bregctl\h+(?:image|manifest)\h+(?:copy|put)\b|\bcurl\b[^\r\n]*(?:(?:-X|--request)\h*(?:PUT|POST|PATCH|DELETE)\b|(?:-T|--upload-file|--form|-F)\b))/i';
 }
 
 function secPalApiImageReferenceIsCanonical(string $reference, bool $digestOnly = false): bool
@@ -98,8 +98,8 @@ it('defines a main-only publish workflow with isolated least-privilege jobs', fu
     expect($validate['permissions'])->toBe(['contents' => 'read'])
         ->and($validate['runs-on'])->toBe('ubuntu-latest')
         ->and($validate['concurrency'])->toBe([
-            'group' => 'publish-container-validate-${{ github.repository }}',
-            'cancel-in-progress' => true,
+            'group' => 'publish-container-validate-${{ github.repository }}-${{ github.sha }}',
+            'cancel-in-progress' => false,
         ])
         ->and($publish['name'])->toBe('Publish API Image')
         ->and($publish['needs'])->toBe('validate')
@@ -111,14 +111,13 @@ it('defines a main-only publish workflow with isolated least-privilege jobs', fu
         ])
         ->and($publish['runs-on'])->toBe('ubuntu-latest')
         ->and($publish['concurrency'])->toBe([
-            'group' => 'publish-container-${{ github.repository }}',
+            'group' => 'publish-container-${{ github.repository }}-${{ github.sha }}',
             'cancel-in-progress' => false,
         ])
         ->and($verify['needs'])->toBe('publish')
         ->and($verify['permissions'])->toBe([
             'contents' => 'read',
             'packages' => 'read',
-            'attestations' => 'read',
         ])
         ->and($verify['runs-on'])->toBe('ubuntu-latest');
 
@@ -178,9 +177,12 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
     $build = containerPublishingStep($publish, 'build');
     $image = containerPublishingStep($publish, 'image');
     $attest = containerPublishingStep($publish, 'attest');
+    $metadata = containerPublishingStep($publish, 'metadata');
 
     expect($existingImage['env'])->toBe([
         'GHCR_TOKEN' => '${{ secrets.GITHUB_TOKEN }}',
+        'GH_TOKEN' => '${{ github.token }}',
+        'EXPECTED_CREATED' => '${{ steps.metadata.outputs.created }}',
     ])->and($existingImage['run'])
         ->toContain('scope=repository:${GHCR_REPOSITORY_PATH}:pull')
         ->toContain('https://${GHCR_HOST}/v2/${GHCR_REPOSITORY_PATH}/manifests/${image_tag}')
@@ -191,8 +193,18 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->toContain('exit 1')
         ->toContain('org.opencontainers.image.source')
         ->toContain('org.opencontainers.image.revision')
+        ->toContain('org.opencontainers.image.title')
+        ->toContain('org.opencontainers.image.description')
+        ->toContain('org.opencontainers.image.licenses')
+        ->toContain('org.opencontainers.image.created')
+        ->toContain('gh attestation verify "oci://$digest_ref"')
+        ->toContain('--bundle-from-oci')
+        ->toContain('--signer-digest "$GITHUB_SHA"')
+        ->toContain('--source-digest "$GITHUB_SHA"')
+        ->toContain('--deny-self-hosted-runners')
+        ->and($metadata['run'])->toContain('git show -s --format=%cI "$GITHUB_SHA"')
         ->and($build['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
-        ->and($build['with']['context'])->toBe('.')
+        ->and($build['with']['context'])->toBe('https://github.com/SecPal/api.git#${{ github.sha }}')
         ->and($build['with']['push'])->toBeTrue()
         ->and($build['with']['platforms'])->toBe('linux/amd64,linux/arm64')
         ->and($build['with']['tags'])->toBe('${{ env.CANONICAL_IMAGE }}:sha-${{ github.sha }}')
@@ -213,12 +225,17 @@ it('publishes one full-SHA multi-architecture tag with exact OCI metadata and at
         ->toContain('digest=$EXISTING_IMAGE_DIGEST')
         ->toContain('digest=$BUILT_IMAGE_DIGEST')
         ->toContain("grep -Eq '^sha256:[0-9a-f]{64}$'")
+        ->and($attest['if'])->toBe("steps.existing-image.outputs.exists == 'false'")
         ->and($attest['with'])->toBe([
             'subject-name' => '${{ env.CANONICAL_IMAGE }}',
-            'subject-digest' => '${{ steps.image.outputs.digest }}',
+            'subject-digest' => '${{ steps.build.outputs.digest }}',
             'push-to-registry' => true,
+            'create-storage-record' => false,
         ])
-        ->and($publish['outputs']['image_digest'])->toBe('${{ steps.image.outputs.digest }}');
+        ->and($publish['outputs'])->toBe([
+            'image_digest' => '${{ steps.image.outputs.digest }}',
+            'image_created' => '${{ steps.metadata.outputs.created }}',
+        ]);
 
     $checkout = containerPublishingStep($publish, 'checkout');
     $login = containerPublishingStep($publish, 'registry-login');
@@ -240,6 +257,7 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
 
     expect($verify['env'])->toBe([
         'IMAGE_DIGEST' => '${{ needs.publish.outputs.image_digest }}',
+        'IMAGE_CREATED' => '${{ needs.publish.outputs.image_created }}',
         'IMAGE_TAG' => 'sha-${{ github.sha }}',
     ])->and($scripts)
         ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"')
@@ -251,12 +269,21 @@ it('verifies the remote digest, runtime platforms, labels, BuildKit attestations
         ->toContain('(index .Image \"${platform}\")')
         ->toContain('org.opencontainers.image.source')
         ->toContain('org.opencontainers.image.revision')
+        ->toContain('org.opencontainers.image.title')
+        ->toContain('org.opencontainers.image.description')
+        ->toContain('org.opencontainers.image.licenses')
+        ->toContain('org.opencontainers.image.created')
         ->toContain('(index .SBOM \"${platform}\").SPDX')
         ->toContain('(index .Provenance \"${platform}\").SLSA')
+        ->toContain('https://github.com/SecPal/api.git#${GITHUB_SHA}')
+        ->toContain('.digest.sha1 == $revision')
         ->toContain('gh attestation verify "oci://$DIGEST_REF"')
+        ->toContain('--bundle-from-oci')
         ->toContain('--repo SecPal/api')
         ->toContain('--signer-workflow SecPal/api/.github/workflows/publish-container.yml')
+        ->toContain('--signer-digest "$GITHUB_SHA"')
         ->toContain('--source-digest "$GITHUB_SHA"')
+        ->toContain('--deny-self-hosted-runners')
         ->toContain('docker pull "$DIGEST_REF"')
         ->toContain('SKIP_BUILD=1 IMAGE_TAG="$DIGEST_REF" tests/docker/smoke.sh')
         ->not->toContain('docker pull "$CANONICAL_IMAGE:$IMAGE_TAG"')
@@ -272,6 +299,8 @@ it('pins every action to a full commit SHA with an adjacent version comment', fu
     $actionCount = 0;
     $actionNames = [];
     $loginSteps = [];
+    $setupBuildxSteps = [];
+    $setupQemuSteps = [];
     $allowedActions = [
         'actions/checkout',
         'actions/attest',
@@ -294,6 +323,12 @@ it('pins every action to a full commit SHA with an adjacent version comment', fu
             if ($actionName === 'docker/login-action') {
                 $loginSteps[] = $step;
             }
+            if ($actionName === 'docker/setup-buildx-action') {
+                $setupBuildxSteps[] = $step;
+            }
+            if ($actionName === 'docker/setup-qemu-action') {
+                $setupQemuSteps[] = $step;
+            }
             expect($step['uses'])->toMatch('/^[^@\s]+@[0-9a-f]{40}$/')
                 ->and($actionName)->toBeIn($allowedActions);
         }
@@ -312,6 +347,19 @@ it('pins every action to a full commit SHA with an adjacent version comment', fu
             'password' => '${{ secrets.GITHUB_TOKEN }}',
         ]);
     }
+
+    foreach ($setupBuildxSteps as $setupBuildxStep) {
+        expect($setupBuildxStep['with'])->toBe([
+            'version' => 'v0.36.0',
+            'driver-opts' => 'image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec',
+        ]);
+    }
+
+    expect($setupQemuSteps)->toHaveCount(1)
+        ->and($setupQemuSteps[0]['with'])->toBe([
+            'image' => 'docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0',
+            'platforms' => 'arm64',
+        ]);
 });
 
 it('rejects moving tags, broad credentials, destructive registry operations, and deployment', function (): void {
@@ -327,7 +375,8 @@ it('rejects moving tags, broad credentials, destructive registry operations, and
         ->and($rawWorkflow)
         ->not->toMatch('/sha-\$\{\{\s*github\.sha\s*\}\}.*(?:cut|substr|0:7|0,\s*7)/i')
         ->not->toMatch('/\$\{\{\s*secrets\.(?!GITHUB_TOKEN\b)/')
-        ->not->toContain('docker.io', 'quay.io', 'gcr.io', 'delete:packages', 'packages: delete')
+        ->not->toContain('docker.io/secpal', 'quay.io', 'gcr.io', 'delete:packages', 'packages: delete')
+        ->not->toMatch('/docker\.io\/(?:tonistiigi\/binfmt|moby\/buildkit):[^@\s]+(?:\s|$)/')
         ->not->toMatch(containerPublishingForbiddenCommandPattern())
         ->not->toMatch('/\bdeploy(?:ment|ments)?\b/i')
         ->not->toContain('workflow_dispatch', 'pull_request', 'pull_request_target', 'environment:');
@@ -421,6 +470,8 @@ it('recognizes prohibited registry writes and every Docker prune family', functi
     'docker push ghcr.io/secpal/api:test',
     'docker manifest push ghcr.io/secpal/api:test',
     'docker buildx build --push --tag registry.example/secpal/api:test .',
+    'docker buildx build --output type=registry,name=registry.example/secpal/api:test .',
+    'docker buildx build -o type=registry,name=registry.example/secpal/api:test .',
     'docker buildx bake release --push',
     'docker buildx imagetools create --tag registry.example/secpal/api:test source',
     'oras copy ghcr.io/secpal/api:test registry.example/secpal/api:test',

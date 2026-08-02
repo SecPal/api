@@ -22,8 +22,8 @@ jobs:
     permissions:
       contents: read
     concurrency:
-      group: publish-container-validate-${{ github.repository }}
-      cancel-in-progress: true
+      group: publish-container-validate-${{ github.repository }}-${{ github.sha }}
+      cancel-in-progress: false
     steps:
       - name: Checkout publishing commit
         id: checkout
@@ -73,10 +73,11 @@ jobs:
       attestations: write
       id-token: write
     concurrency:
-      group: publish-container-${{ github.repository }}
+      group: publish-container-${{ github.repository }}-${{ github.sha }}
       cancel-in-progress: false
     outputs:
       image_digest: ${{ steps.image.outputs.digest }}
+      image_created: ${{ steps.metadata.outputs.created }}
     steps:
       - name: Checkout publishing commit
         id: checkout
@@ -89,6 +90,10 @@ jobs:
       - name: Set up Docker Buildx
         # v4.2.0
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+        with:
+          version: v0.36.0
+          driver-opts: >-
+            image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
 
       - name: Log in to GHCR
         id: registry-login
@@ -99,10 +104,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve deterministic image metadata
+        id: metadata
+        run: printf 'created=%s\n' "$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
       - name: Resolve immutable SHA tag
         id: existing-image
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_CREATED: ${{ steps.metadata.outputs.created }}
         run: |
           set -euo pipefail
           image_tag="sha-${GITHUB_SHA}"
@@ -138,11 +149,27 @@ jobs:
                   --format "{{json (index .Image \"${platform}\")}}")
                 printf '%s\n' "$image_config" | jq -e \
                   --arg source 'https://github.com/SecPal/api' \
-                  --arg revision "$GITHUB_SHA" '
+                  --arg revision "$GITHUB_SHA" \
+                  --arg title 'SecPal API' \
+                  --arg description 'Production API for SecPal operations software' \
+                  --arg licenses 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution' \
+                  --arg created "$EXPECTED_CREATED" '
                     .config.Labels["org.opencontainers.image.source"] == $source
                     and .config.Labels["org.opencontainers.image.revision"] == $revision
+                    and .config.Labels["org.opencontainers.image.title"] == $title
+                    and .config.Labels["org.opencontainers.image.description"] == $description
+                    and .config.Labels["org.opencontainers.image.licenses"] == $licenses
+                    and .config.Labels["org.opencontainers.image.created"] == $created
                   '
               done
+              gh attestation verify "oci://$digest_ref" \
+                --bundle-from-oci \
+                --repo SecPal/api \
+                --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
+                --signer-digest "$GITHUB_SHA" \
+                --source-ref refs/heads/main \
+                --source-digest "$GITHUB_SHA" \
+                --deny-self-hosted-runners
               printf 'exists=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
               ;;
             404)
@@ -159,12 +186,9 @@ jobs:
         # v4.2.0
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8
         with:
+          image: >-
+            docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
           platforms: arm64
-
-      - name: Record creation timestamp
-        id: metadata
-        if: steps.existing-image.outputs.exists == 'false'
-        run: printf 'created=%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Build and push immutable image
         id: build
@@ -172,7 +196,7 @@ jobs:
         # v7.3.0
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
-          context: .
+          context: https://github.com/SecPal/api.git#${{ github.sha }}
           push: true
           pull: true
           platforms: linux/amd64,linux/arm64
@@ -204,12 +228,14 @@ jobs:
 
       - name: Generate GitHub artifact attestation
         id: attest
+        if: steps.existing-image.outputs.exists == 'false'
         # v4.2.1
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d
         with:
           subject-name: ${{ env.CANONICAL_IMAGE }}
-          subject-digest: ${{ steps.image.outputs.digest }}
+          subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+          create-storage-record: false
 
   verify:
     name: Verify Published API Image
@@ -219,9 +245,9 @@ jobs:
     permissions:
       contents: read
       packages: read
-      attestations: read
     env:
       IMAGE_DIGEST: ${{ needs.publish.outputs.image_digest }}
+      IMAGE_CREATED: ${{ needs.publish.outputs.image_created }}
       IMAGE_TAG: sha-${{ github.sha }}
     steps:
       - name: Checkout publishing commit
@@ -235,6 +261,10 @@ jobs:
       - name: Set up Docker Buildx
         # v4.2.0
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
+        with:
+          version: v0.36.0
+          driver-opts: >-
+            image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
 
       - name: Log in to GHCR
         id: registry-login
@@ -271,20 +301,31 @@ jobs:
               --format "{{json (index .Image \"${platform}\")}}")
             printf '%s\n' "$image_config" | jq -e \
               --arg source 'https://github.com/SecPal/api' \
-              --arg revision "$GITHUB_SHA" '
+              --arg revision "$GITHUB_SHA" \
+              --arg title 'SecPal API' \
+              --arg description 'Production API for SecPal operations software' \
+              --arg licenses 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution' \
+              --arg created "$IMAGE_CREATED" '
                 .config.Labels["org.opencontainers.image.source"] == $source
                 and .config.Labels["org.opencontainers.image.revision"] == $revision
+                and .config.Labels["org.opencontainers.image.title"] == $title
+                and .config.Labels["org.opencontainers.image.description"] == $description
+                and .config.Labels["org.opencontainers.image.licenses"] == $licenses
+                and .config.Labels["org.opencontainers.image.created"] == $created
               '
             docker buildx imagetools inspect "$DIGEST_REF" \
               --format "{{json (index .SBOM \"${platform}\").SPDX}}" \
               | jq -e '.SPDXID == "SPDXRef-DOCUMENT" and (.packages | length) > 0'
             docker buildx imagetools inspect "$DIGEST_REF" \
               --format "{{json (index .Provenance \"${platform}\").SLSA}}" \
-              | jq -e '
+              | jq -e \
+                --arg source "https://github.com/SecPal/api.git#${GITHUB_SHA}" \
+                --arg revision "$GITHUB_SHA" '
                 .buildType == "https://mobyproject.org/buildkit@v1"
                 and .metadata.completeness.parameters == true
                 and .metadata.completeness.environment == true
                 and .metadata.completeness.materials == true
+                and any(.materials[]; .uri == $source and .digest.sha1 == $revision)
               '
           done
 
@@ -295,10 +336,13 @@ jobs:
           set -euo pipefail
           DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"
           gh attestation verify "oci://$DIGEST_REF" \
+            --bundle-from-oci \
             --repo SecPal/api \
             --signer-workflow SecPal/api/.github/workflows/publish-container.yml \
+            --signer-digest "$GITHUB_SHA" \
             --source-ref refs/heads/main \
-            --source-digest "$GITHUB_SHA"
+            --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners
 
       - name: Smoke-test the published digest
         run: |

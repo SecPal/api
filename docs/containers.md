@@ -55,17 +55,21 @@ digest rather than treating any tag as the deployment identity. Publishing
 does not create a deployment contract or perform a deployment.
 
 The publisher creates a SHA tag only after a registry lookup has confirmed
-that it is absent. A workflow rerun reuses the existing digest after checking
-the exact runtime platform set plus the source and revision labels; it never
-pushes the same SHA tag again. Only an authenticated `404` authorizes the first
-publish. Authentication, network, or other registry lookup failures stop the
-job instead of being treated as permission to overwrite the tag. This makes
-post-push attestation or verification failures safely retryable without moving
-the discovery alias.
+that it is absent. A workflow rerun reuses the existing digest only after
+checking the exact runtime platform set, every required OCI label, and a
+pre-existing GitHub Artifact Attestation issued by this workflow for the same
+`main` commit. It never pushes or newly attests the same SHA tag again. Only an
+authenticated `404` authorizes the first build and publish. Authentication,
+network, missing-attestation, metadata, or other registry lookup failures stop
+the job instead of being treated as permission to overwrite or bless the tag.
+If the first run pushes the image but fails before creating its attestation,
+reruns therefore fail closed and require explicit administrator recovery; the
+publisher does not infer trust from registry-controlled labels or unsigned
+BuildKit metadata.
 
 Each runtime image config records the source repository, full revision,
-creation timestamp, title, description, and the repository's effective SPDX
-license expression. The source label is
+deterministic commit timestamp, title, description, and the repository's
+effective SPDX license expression. The source label is
 `https://github.com/SecPal/api`, and the license label is
 `AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`.
 
@@ -73,8 +77,9 @@ The published index has four distinct supply-chain concepts:
 
 - the `linux/amd64` and `linux/arm64` manifests are executable runtime images;
 - the BuildKit SPDX SBOM describes packages in each runtime image;
-- the BuildKit SLSA provenance uses `mode=max` and records the build inputs and
-  invocation for each runtime image;
+- the BuildKit SLSA provenance uses `mode=max`, builds from the exact remote Git
+  commit rather than an untracked runner directory, and records complete
+  materials plus the invocation for each runtime image;
 - the GitHub Artifact Attestation signs the untagged image name plus the
   published index digest through workload OIDC, tying it to `SecPal/api`, this
   workflow, and the source commit.
@@ -83,7 +88,9 @@ BuildKit stores the SBOM and provenance as attestation manifests associated
 with the runtime manifests. Their `unknown/unknown` platform descriptors are
 attachments, not extra runtime platforms. Remote verification excludes those
 attachments when asserting the exact two-platform runtime set, then inspects
-the SBOM and provenance separately.
+the SBOM and provenance separately. Buildx, its privileged BuildKit daemon, and
+the privileged QEMU `binfmt` helper are independently version- or digest-pinned
+instead of inheriting moving defaults from their wrapper actions.
 
 Before the first successful post-merge publish, no registry availability is
 implied. GHCR packages are private by default. After that publish succeeds, a
@@ -107,10 +114,11 @@ docker pull ghcr.io/secpal/api@sha256:<manifest-digest>
 ```
 
 The publishing workflow additionally proves that the SHA tag resolves to the
-reported digest, the runtime platform set is exact, source and revision labels
-match, both BuildKit attestations are readable, the GitHub attestation verifies
-for `SecPal/api`, and the existing container smoke contract passes against an
-image pulled only by digest.
+reported digest, the runtime platform set and all OCI labels are exact, both
+BuildKit attestations are readable, provenance materials contain the exact
+source commit, the GitHub attestation verifies for this workflow, commit,
+`main`, and a GitHub-hosted runner, and the existing container smoke contract
+passes against an image pulled only by digest.
 
 ## Roles
 
