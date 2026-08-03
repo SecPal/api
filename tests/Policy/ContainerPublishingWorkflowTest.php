@@ -61,6 +61,14 @@ function containerPublishingRunScripts(array $job): string
     ));
 }
 
+/** @param array<array-key, mixed>|string $haystack */
+function expectContainerPublishingNotToContain(array|string $haystack, string ...$needles): void
+{
+    foreach ($needles as $needle) {
+        expect($haystack)->not->toContain($needle);
+    }
+}
+
 /** @return list<string> */
 function containerPublishingActionNames(array $workflow): array
 {
@@ -168,6 +176,7 @@ it('keeps static container policy validation independent from PostgreSQL', funct
     $pullRequestWorkflow = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
     $publishValidate = $publishWorkflow['jobs']['validate'];
     $pullRequestValidate = $pullRequestWorkflow['jobs']['build-and-test'];
+    $publishLint = containerPublishingNamedStep($publishValidate, 'Lint container scripts');
     $definitions = json_encode([$publishWorkflow, $pullRequestWorkflow], JSON_THROW_ON_ERROR);
 
     expect(containerPolicyComposerScript())->toBe([
@@ -175,8 +184,11 @@ it('keeps static container policy validation independent from PostgreSQL', funct
     ])->and($publishValidate)->not->toHaveKeys(['services', 'env'])
         ->and($pullRequestValidate)->not->toHaveKeys(['services', 'env'])
         ->and(containerPublishingRunScripts($publishValidate))
-        ->toContain('composer test:container-policy')
-        ->not->toContain('php artisan test', 'tests/docker/smoke.sh', 'docker login')
+        ->toContain('composer test:container-policy', 'tests/docker/smoke.sh')
+        ->not->toContain('php artisan test')
+        ->not->toContain('docker login')
+        ->and($publishLint['run'])
+        ->toContain('koalaman/shellcheck:', 'tests/docker/smoke.sh')
         ->and(containerPublishingRunScripts($pullRequestValidate))
         ->toContain('composer test:container-policy', 'tests/docker/smoke.sh')
         ->and($definitions)->not->toMatch('/DB_[A-Z_]+/');
@@ -192,13 +204,14 @@ it('keeps validation tools pinned and promotion-free', function (): void {
         expect($scripts)
             ->toContain('hadolint/hadolint:v2.14.0-debian@sha256:')
             ->toContain('koalaman/shellcheck:v0.10.0@sha256:')
-            ->toContain('docker/healthchecks/http-live.sh', 'tests/docker/smoke.sh')
-            ->not->toContain(
-                'promote-ghcr'.'-index',
-                'tests/container/',
-                'tests/fixtures/',
-                'Test GHCR index promotion contract',
-            );
+            ->toContain('docker/healthchecks/http-live.sh', 'tests/docker/smoke.sh');
+        expectContainerPublishingNotToContain(
+            $scripts,
+            'promote-ghcr'.'-index',
+            'tests/container/',
+            'tests/fixtures/',
+            'Test GHCR index promotion contract',
+        );
     }
 });
 
@@ -225,16 +238,17 @@ it('uses the OCI index digest as the only canonical image identity', function ()
     $workflow = (string) file_get_contents(containerPublishingWorkflowPath());
 
     expect($workflow)
-        ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"')
-        ->not->toContain(
-            'FINAL_REF=',
-            ':sha-${GITHUB_SHA}',
-            ':latest',
-            ':main',
-            'semver',
-        )->and(secPalApiImageReferenceIsCanonical(
-            'ghcr.io/secpal/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-        ))->toBeTrue()
+        ->toContain('DIGEST_REF="${CANONICAL_IMAGE}@${IMAGE_DIGEST}"');
+    expectContainerPublishingNotToContain(
+        $workflow,
+        'FINAL_REF=',
+        ':sha-${GITHUB_SHA}',
+        ':main',
+        'semver',
+    );
+    expect(secPalApiImageReferenceIsCanonical(
+        'ghcr.io/secpal/api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    ))->toBeTrue()
         ->and(secPalApiImageReferenceIsCanonical(
             'ghcr.io/secpal/api:build-0123456789abcdef0123456789abcdef01234567-123-1',
         ))->toBeFalse();
@@ -250,15 +264,16 @@ it('never promotes or conditionally creates a stable registry tag', function ():
 
     expect(is_file($root.'/scripts/'.$promotionScript))->toBeFalse()
         ->and(is_file($root.'/tests/container/'.$promotionContract))->toBeFalse()
-        ->and(is_file($root.'/tests/fixtures/'.$fakeRegistry))->toBeFalse()
-        ->and($activeFiles)->not->toContain(
-            'If-None'.'-Match',
-            'promote-ghcr'.'-index',
-            'fake-ghcr'.'-curl',
-            'Promote verified'.' candidate',
-            'final SHA'.' tag',
-            'candidate-'.'${{',
-        );
+        ->and(is_file($root.'/tests/fixtures/'.$fakeRegistry))->toBeFalse();
+    expectContainerPublishingNotToContain(
+        $activeFiles,
+        'If-None'.'-Match',
+        'promote-ghcr'.'-index',
+        'fake-ghcr'.'-curl',
+        'Promote verified'.' candidate',
+        'final SHA'.' tag',
+        'candidate-'.'${{',
+    );
 });
 
 it('verifies the workflow-built digest before attesting it', function (): void {
@@ -281,14 +296,16 @@ it('never reuses a registry-sourced image for a new workflow run', function (): 
     $scripts = containerPublishingRunScripts($publish);
     $stepIds = array_filter(array_column($publish['steps'], 'id'));
 
-    expect($stepIds)->not->toContain('existing'.'-image', 'image', 'candidate')
-        ->and($publish['outputs'])->not->toHaveKeys(['final_'.'exists', 'candidate_'.'tag'])
-        ->and($scripts)->not->toContain(
-            'manifests/${image_tag}',
-            'EXISTING_IMAGE_DIGEST',
-            'exists=true',
-            'exists=false',
-        )->and(containerPublishingStep($publish, 'build'))->not->toHaveKey('if');
+    expectContainerPublishingNotToContain($stepIds, 'existing'.'-image', 'image', 'candidate');
+    expect($publish['outputs'])->not->toHaveKeys(['final_'.'exists', 'candidate_'.'tag'])
+        ->and(containerPublishingStep($publish, 'build'))->not->toHaveKey('if');
+    expectContainerPublishingNotToContain(
+        $scripts,
+        'manifests/${image_tag}',
+        'EXISTING_IMAGE_DIGEST',
+        'exists=true',
+        'exists=false',
+    );
 });
 
 it('verifies the published run tag and attestation after signing', function (): void {
@@ -324,8 +341,8 @@ it('permits only the build and attestation registry writes', function (): void {
         ->and($actionNames['actions/attest'] ?? 0)->toBe(1)
         ->and(substr_count($serialized, 'push: true'))->toBe(1)
         ->and(substr_count($serialized, 'push-to-registry: true'))->toBe(1)
-        ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern())
-        ->not->toContain('package delete', 'tag delete');
+        ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern());
+    expectContainerPublishingNotToContain($serialized, 'package delete', 'tag delete');
 });
 
 it('derives the complete platform inventory from the exact verified index bytes', function (): void {
@@ -567,13 +584,25 @@ it('keeps the pull-request container workflow read-only and path-aware', functio
             'composer.json',
             'composer.lock',
             'phpunit.xml',
-        )->not->toContain('scripts/'.'promote-ghcr'.'-index.sh', 'tests/container/**', 'tests/fixtures/**')
-        ->and($scripts)->toContain(
-            'composer test:container-policy',
-            'hadolint/hadolint:',
-            'koalaman/shellcheck:',
-            'tests/docker/smoke.sh',
-        )->not->toContain('docker login', 'actions/attest', 'promote-ghcr'.'-index');
+        );
+    expectContainerPublishingNotToContain(
+        $paths,
+        'scripts/'.'promote-ghcr'.'-index.sh',
+        'tests/container/**',
+        'tests/fixtures/**',
+    );
+    expect($scripts)->toContain(
+        'composer test:container-policy',
+        'hadolint/hadolint:',
+        'koalaman/shellcheck:',
+        'tests/docker/smoke.sh',
+    );
+    expectContainerPublishingNotToContain(
+        $scripts,
+        'docker login',
+        'actions/attest',
+        'promote-ghcr'.'-index',
+    );
 });
 
 it('recognizes prohibited registry writes and every Docker prune family', function (string $command): void {
