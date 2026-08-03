@@ -185,7 +185,7 @@ it('validates before publishing without registry credentials or write operations
         );
 });
 
-it('keeps container policy validation independent from PostgreSQL', function (): void {
+it('keeps static container policy validation independent from Laravel PostgreSQL bootstrap', function (): void {
     $root = dirname(__DIR__, 2);
     $publishWorkflow = containerPublishingWorkflow();
     $pullRequestWorkflow = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
