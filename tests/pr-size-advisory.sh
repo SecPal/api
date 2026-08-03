@@ -86,9 +86,9 @@ if grep -Fq ".preflight-allow-large-pr" "$repo_root/scripts/preflight.sh" ||
 fi
 
 if ! grep -Fqx \
-  '    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@190904b9870fb4cb8e6034938337debd454fb2c6' \
+  '    uses: SecPal/.github/.github/workflows/reusable-pr-size.yml@23286a32bd5bb97b81f86b59a1435eaef061c291' \
   "$repo_root/.github/workflows/pr-size.yml"; then
-  echo "Hosted PR-size workflow must use the reviewed SecPal/.github#596 revision" >&2
+  echo "Hosted PR-size workflow must use the reviewed SecPal/.github#608 revision" >&2
   exit 1
 fi
 
