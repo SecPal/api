@@ -67,9 +67,6 @@ jobs:
       - name: Test GHCR index promotion contract
         run: tests/container/promote-ghcr-index-contract.sh
 
-      - name: Build and test the API image
-        run: tests/docker/smoke.sh
-
   publish:
     name: Publish API Image
     needs: validate

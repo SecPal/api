@@ -191,6 +191,8 @@ it('keeps container policy validation independent from PostgreSQL', function ():
     $pullRequestWorkflow = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
     $publishValidate = $publishWorkflow['jobs']['validate'];
     $pullRequestValidate = $pullRequestWorkflow['jobs']['build-and-test'];
+    $publishValidateRuns = array_column($publishValidate['steps'], 'run');
+    $pullRequestValidateRuns = array_column($pullRequestValidate['steps'], 'run');
     $pestConfiguration = (string) file_get_contents($root.'/tests/Pest.php');
     $phpunitConfiguration = (string) file_get_contents($root.'/phpunit.xml');
     $workflowDefinitions = json_encode(
@@ -209,6 +211,10 @@ it('keeps container policy validation independent from PostgreSQL', function ():
         ->and(containerPublishingRunScripts($pullRequestValidate))
         ->toContain('composer test:container-policy')
         ->not->toContain('php artisan test')
+        ->and($publishValidateRuns)
+        ->not->toContain('tests/docker/smoke.sh')
+        ->and($pullRequestValidateRuns)
+        ->toContain('tests/docker/smoke.sh')
         ->and($workflowDefinitions)
         ->not->toMatch('/DB_[A-Z_]+/')
         ->not->toContain(
