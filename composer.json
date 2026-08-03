@@ -66,6 +66,9 @@
       "@php artisan test --parallel --exclude-group=serial",
       "@php artisan test --group=serial"
     ],
+    "test:container-policy": [
+      "pest --no-coverage tests/Policy/ContainerImageDefinitionTest.php tests/Policy/ContainerPublishingWorkflowTest.php"
+    ],
     "analyse": "@php -d memory_limit=512M ./vendor/bin/phpstan analyse",
     "post-autoload-dump": [
       "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

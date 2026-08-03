@@ -45,8 +45,8 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      - name: Run container policy tests
-        run: php artisan test tests/Unit/ContainerImageDefinitionTest.php tests/Unit/ContainerPublishingWorkflowTest.php
+      - name: Run database-free container policy tests
+        run: composer test:container-policy
 
       - name: Lint Dockerfile
         run: >-
@@ -66,9 +66,6 @@ jobs:
 
       - name: Test GHCR index promotion contract
         run: tests/container/promote-ghcr-index-contract.sh
-
-      - name: Build and test the API image
-        run: tests/docker/smoke.sh
 
   publish:
     name: Publish API Image

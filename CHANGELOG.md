@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- isolated the publisher's static container policy suite from Laravel's
+  PostgreSQL-backed test case and made pull-request container validation run
+  the same database-free policy command before any post-merge registry write
 - removed the retired standalone changelog host from repository domain policy
   and AI-instruction guidance
 - changed local and hosted pull-request size reporting to treat 600 changed

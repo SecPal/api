@@ -5,6 +5,10 @@
 
 use Symfony\Component\Yaml\Yaml;
 
+it('does not use the Laravel database test case', function (): void {
+    expect($this)->not->toBeInstanceOf(Tests\TestCase::class);
+});
+
 function containerPublishingWorkflowPath(): string
 {
     return dirname(__DIR__, 2).'/.github/workflows/publish-container.yml';
@@ -55,6 +59,20 @@ function containerPublishingRunScripts(array $job): string
         static fn (array $step): string => (string) ($step['run'] ?? ''),
         $job['steps'],
     ));
+}
+
+/** @return list<string> */
+function containerPolicyComposerScript(): array
+{
+    $composer = json_decode(
+        (string) file_get_contents(dirname(__DIR__, 2).'/composer.json'),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+
+    expect($composer)->toBeArray();
+
+    return $composer['scripts']['test:container-policy'] ?? [];
 }
 
 function containerPublishingForbiddenCommandPattern(): string
@@ -156,7 +174,8 @@ it('validates before publishing without registry credentials or write operations
         ->toContain('scripts/promote-ghcr-index.sh')
         ->toContain('tests/container/promote-ghcr-index-contract.sh')
         ->toContain('tests/fixtures/fake-ghcr-curl.sh')
-        ->toContain('php artisan test tests/Unit/ContainerImageDefinitionTest.php tests/Unit/ContainerPublishingWorkflowTest.php')
+        ->toContain('composer test:container-policy')
+        ->not->toContain('php artisan test')
         ->not->toContain('docker login')
         ->not->toContain('docker push')
         ->and($uses)->not->toContain(
@@ -164,6 +183,50 @@ it('validates before publishing without registry credentials or write operations
             'docker/build-push-action',
             'actions/attest',
         );
+});
+
+it('keeps static container policy validation independent from Laravel PostgreSQL bootstrap', function (): void {
+    $root = dirname(__DIR__, 2);
+    $publishWorkflow = containerPublishingWorkflow();
+    $pullRequestWorkflow = Yaml::parseFile($root.'/.github/workflows/container-image.yml');
+    $publishValidate = $publishWorkflow['jobs']['validate'];
+    $pullRequestValidate = $pullRequestWorkflow['jobs']['build-and-test'];
+    $publishValidateRuns = array_column($publishValidate['steps'], 'run');
+    $pullRequestValidateRuns = array_column($pullRequestValidate['steps'], 'run');
+    $pestConfiguration = (string) file_get_contents($root.'/tests/Pest.php');
+    $phpunitConfiguration = (string) file_get_contents($root.'/phpunit.xml');
+    $workflowDefinitions = json_encode(
+        [$publishWorkflow, $pullRequestWorkflow],
+        JSON_THROW_ON_ERROR,
+    );
+
+    expect(containerPolicyComposerScript())->toBe([
+        'pest --no-coverage tests/Policy/ContainerImageDefinitionTest.php tests/Policy/ContainerPublishingWorkflowTest.php',
+    ])->and($publishValidate)
+        ->not->toHaveKeys(['services', 'env'])
+        ->and($pullRequestValidate)->not->toHaveKeys(['services', 'env'])
+        ->and(containerPublishingRunScripts($publishValidate))
+        ->toContain('composer test:container-policy')
+        ->not->toContain('php artisan test')
+        ->and(containerPublishingRunScripts($pullRequestValidate))
+        ->toContain('composer test:container-policy')
+        ->not->toContain('php artisan test')
+        ->and($publishValidateRuns)
+        ->not->toContain('tests/docker/smoke.sh')
+        ->and($pullRequestValidateRuns)
+        ->toContain('tests/docker/smoke.sh')
+        ->and($workflowDefinitions)
+        ->not->toMatch('/DB_[A-Z_]+/')
+        ->not->toContain(
+            'tests/Unit/ContainerImageDefinitionTest.php',
+            'tests/Unit/ContainerPublishingWorkflowTest.php',
+        )
+        ->and($phpunitConfiguration)
+        ->toContain('<testsuite name="Policy">', '<directory>tests/Policy</directory>')
+        ->and($pestConfiguration)
+        ->not->toMatch('/->in\([^;]*[\'\"]Policy[\'\"]/s')
+        ->and($pullRequestWorkflow['permissions'])->toBe(['contents' => 'read'])
+        ->and($pullRequestValidate)->not->toHaveKey('permissions');
 });
 
 it('pins every container validation tool to an immutable version or image digest', function (): void {
@@ -174,8 +237,15 @@ it('pins every container validation tool to an immutable version or image digest
     $pullRequestWorkflow = Yaml::parseFile(dirname(__DIR__, 2).'/.github/workflows/container-image.yml');
     $pullRequestValidate = $pullRequestWorkflow['jobs']['build-and-test'];
     $setupPhp = containerPublishingNamedStep($publishingValidate, 'Set up PHP');
+    $pullRequestSetupPhp = containerPublishingNamedStep($pullRequestValidate, 'Set up PHP');
 
-    expect($setupPhp['with']['tools'])->toBe('composer:2.10.2');
+    expect($setupPhp['with']['tools'])->toBe('composer:2.10.2')
+        ->and($pullRequestSetupPhp['uses'])->toBe('shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240')
+        ->and($pullRequestSetupPhp['with'])->toBe([
+            'php-version' => '8.4',
+            'coverage' => 'none',
+            'tools' => 'composer:2.10.2',
+        ]);
 
     foreach ([$publishingValidate, $pullRequestValidate] as $job) {
         $scripts = containerPublishingRunScripts($job);
@@ -923,10 +993,18 @@ it('keeps the pull-request container workflow read-only', function (): void {
             'scripts/promote-ghcr-index.sh',
             'tests/container/**',
             'tests/fixtures/**',
-            'tests/Unit/ContainerPublishingWorkflowTest.php',
+            'tests/Policy/**',
+            'tests/Feature/Console/ScheduleListWithoutDatabaseTest.php',
+            'tests/Regression/ContainerPolicyIsolationTest.php',
+            'composer.json',
+            'composer.lock',
+            'phpunit.xml',
+            'tests/Pest.php',
         )
+        ->not->toContain('tests/Unit/ContainerPublishingWorkflowTest.php')
         ->and(containerPublishingRunScripts($workflow['jobs']['build-and-test']))
         ->toContain('tests/container/promote-ghcr-index-contract.sh')
         ->toContain('scripts/promote-ghcr-index.sh')
+        ->toContain('composer test:container-policy')
         ->and($checkout['uses'])->toBe('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1');
 });
