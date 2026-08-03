@@ -224,9 +224,8 @@ jobs:
           ' "$headers_file")
           test "$byte_digest" = "$IMAGE_DIGEST"
           test "$registry_digest" = "$IMAGE_DIGEST"
-          tag_manifest=$(docker buildx imagetools inspect "$TAG_REF" \
-            --format '{{json .Manifest}}')
-          printf '%s\n' "$tag_manifest" | jq -e '
+          printf 'Verified discovery snapshot %s at %s\n' "$TAG_REF" "$DIGEST_REF"
+          jq -e '
             .mediaType == "application/vnd.oci.image.index.v1+json"
             and ([.manifests[]
               | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest")
@@ -238,7 +237,7 @@ jobs:
             and all(.manifests[]
               | select((.annotations["vnd.docker.reference.type"] // "") == "attestation-manifest");
               .platform.os == "unknown" and .platform.architecture == "unknown")
-          '
+          ' "$manifest_file"
           for platform in linux/amd64 linux/arm64; do
             image_config=$(docker buildx imagetools inspect "$DIGEST_REF" \
               --format "{{json (index .Image \"${platform}\")}}")

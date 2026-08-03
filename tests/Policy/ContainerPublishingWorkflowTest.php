@@ -62,6 +62,49 @@ function containerPublishingRunScripts(array $job): string
 }
 
 /** @return list<string> */
+function containerPublishingActionNames(array $workflow): array
+{
+    $names = [];
+
+    foreach ($workflow['jobs'] as $job) {
+        foreach ($job['steps'] as $step) {
+            if (isset($step['uses'])) {
+                $names[] = explode('@', $step['uses'], 2)[0];
+            }
+        }
+    }
+
+    return $names;
+}
+
+function containerPublishingContractContents(): string
+{
+    $root = dirname(__DIR__, 2);
+    $files = [];
+
+    foreach (['.github', 'tests', 'scripts', 'docs'] as $directory) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($root.'/'.$directory, FilesystemIterator::SKIP_DOTS),
+        );
+
+        foreach ($iterator as $file) {
+            if ($file->isFile() && ! $file->isLink()) {
+                $files[] = $file->getPathname();
+            }
+        }
+    }
+
+    $files[] = $root.'/README.md';
+    $files[] = $root.'/CHANGELOG.md';
+    sort($files);
+
+    return implode("\n", array_map(
+        static fn (string $file): string => (string) file_get_contents($file),
+        $files,
+    ));
+}
+
+/** @return list<string> */
 function containerPolicyComposerScript(): array
 {
     $composer = json_decode(
@@ -199,18 +242,7 @@ it('uses the OCI index digest as the only canonical image identity', function ()
 
 it('never promotes or conditionally creates a stable registry tag', function (): void {
     $root = dirname(__DIR__, 2);
-    $activeFiles = implode("\n", array_map(
-        static fn (string $path): string => (string) file_get_contents($root.'/'.$path),
-        [
-            '.github/workflows/container-image.yml',
-            '.github/workflows/publish-container.yml',
-            'tests/Policy/ContainerImageDefinitionTest.php',
-            'tests/Policy/ContainerPublishingWorkflowTest.php',
-            'README.md',
-            'docs/containers.md',
-            'CHANGELOG.md',
-        ],
-    ));
+    $activeFiles = containerPublishingContractContents();
 
     $promotionScript = 'promote-ghcr'.'-index.sh';
     $promotionContract = 'promote-ghcr'.'-index-contract.sh';
@@ -225,6 +257,7 @@ it('never promotes or conditionally creates a stable registry tag', function ():
             'fake-ghcr'.'-curl',
             'Promote verified'.' candidate',
             'final SHA'.' tag',
+            'candidate-'.'${{',
         );
 });
 
@@ -285,17 +318,26 @@ it('verifies the published run tag and attestation after signing', function (): 
 it('permits only the build and attestation registry writes', function (): void {
     $workflow = containerPublishingWorkflow();
     $serialized = (string) file_get_contents(containerPublishingWorkflowPath());
-    $uses = array_merge(...array_values(array_map(
-        static fn (array $job): array => array_column($job['steps'], 'uses'),
-        $workflow['jobs'],
-    )));
+    $actionNames = array_count_values(containerPublishingActionNames($workflow));
 
-    expect(array_count_values($uses)['docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a'] ?? 0)->toBe(1)
-        ->and(array_count_values($uses)['actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d'] ?? 0)->toBe(1)
+    expect($actionNames['docker/build-push-action'] ?? 0)->toBe(1)
+        ->and($actionNames['actions/attest'] ?? 0)->toBe(1)
         ->and(substr_count($serialized, 'push: true'))->toBe(1)
         ->and(substr_count($serialized, 'push-to-registry: true'))->toBe(1)
         ->and($serialized)->not->toMatch(containerPublishingForbiddenCommandPattern())
         ->not->toContain('package delete', 'tag delete');
+});
+
+it('derives the complete platform inventory from the exact verified index bytes', function (): void {
+    $verification = containerPublishingNamedStep(
+        containerPublishingWorkflow()['jobs']['verify'],
+        'Verify workflow-built digest and BuildKit attestations',
+    );
+
+    expect($verification['run'])
+        ->toContain('jq -e \'')
+        ->toContain('\' "$manifest_file"')
+        ->not->toContain('docker buildx imagetools inspect "$TAG_REF"');
 });
 
 it('preserves multi-architecture metadata SBOM provenance and exact index verification', function (): void {
@@ -395,6 +437,21 @@ it('records the verified canonical digest and warns against discovery-tag consum
 
 it('registers QEMU before Buildx and pins every action to a full SHA', function (): void {
     $workflow = containerPublishingWorkflow();
+    $rawWorkflow = (string) file_get_contents(containerPublishingWorkflowPath());
+    $actionNames = [];
+    $loginSteps = [];
+    $buildxSteps = [];
+    $qemuSteps = [];
+    $checkoutSteps = [];
+    $allowedActions = [
+        'actions/checkout',
+        'actions/attest',
+        'docker/setup-qemu-action',
+        'docker/setup-buildx-action',
+        'docker/login-action',
+        'docker/build-push-action',
+        'shivammathur/setup-php',
+    ];
 
     foreach (['publish', 'verify'] as $jobId) {
         $uses = array_column($workflow['jobs'][$jobId]['steps'], 'uses');
@@ -418,9 +475,80 @@ it('registers QEMU before Buildx and pins every action to a full SHA', function 
                 continue;
             }
 
-            expect($step['uses'])->toMatch('/\A[^@]+@[0-9a-f]{40}\z/');
+            $actionName = explode('@', $step['uses'], 2)[0];
+            $actionNames[] = $actionName;
+            expect($step['uses'])->toMatch('/\A[^@\s]+@[0-9a-f]{40}\z/')
+                ->and($actionName)->toBeIn($allowedActions);
+
+            match ($actionName) {
+                'actions/checkout' => $checkoutSteps[] = $step,
+                'docker/login-action' => $loginSteps[] = $step,
+                'docker/setup-buildx-action' => $buildxSteps[] = $step,
+                'docker/setup-qemu-action' => $qemuSteps[] = $step,
+                default => null,
+            };
         }
     }
+
+    preg_match_all(
+        '/^\s+# v?\d+\.\d+\.\d+\R\s+uses: [^@\s]+@[0-9a-f]{40}$/m',
+        $rawWorkflow,
+        $pinnedLines,
+    );
+
+    expect($pinnedLines[0])->toHaveCount(count($actionNames))
+        ->and($checkoutSteps)->toHaveCount(4)
+        ->and($loginSteps)->toHaveCount(3)
+        ->and($buildxSteps)->toHaveCount(2)
+        ->and($qemuSteps)->toHaveCount(2);
+
+    foreach ($checkoutSteps as $checkoutStep) {
+        expect($checkoutStep['with'])->toBe([
+            'ref' => '${{ github.sha }}',
+            'persist-credentials' => false,
+        ]);
+    }
+
+    foreach ($loginSteps as $loginStep) {
+        expect($loginStep['with'])->toBe([
+            'registry' => '${{ env.GHCR_HOST }}',
+            'username' => '${{ github.actor }}',
+            'password' => '${{ secrets.GITHUB_TOKEN }}',
+        ]);
+    }
+
+    foreach ($buildxSteps as $buildxStep) {
+        expect($buildxStep['with'])->toBe([
+            'version' => 'v0.36.0',
+            'driver-opts' => 'image=docker.io/moby/buildkit:buildx-stable-1@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec',
+        ]);
+    }
+
+    foreach ($qemuSteps as $qemuStep) {
+        expect($qemuStep['with'])->toBe([
+            'image' => 'docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0',
+            'platforms' => 'arm64',
+        ]);
+    }
+});
+
+it('preserves deterministic metadata and the complete runtime smoke contract', function (): void {
+    $workflow = containerPublishingWorkflow();
+    $metadata = containerPublishingStep($workflow['jobs']['publish'], 'metadata');
+    $smokeScript = (string) file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
+
+    expect($metadata['run'])->toBe(
+        'printf \'created=%s\\n\' "$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"',
+    )->and($smokeScript)
+        ->toContain(
+            'if [ "${SKIP_BUILD:-0}" = 1 ]; then',
+            'test "$(id -u)" -eq 10001',
+            'test "$(id -g)" -eq 10001',
+            'postgres_image=${POSTGRES_IMAGE:-postgres:16.10-bookworm@sha256:38471f330eb885e04de130b768d6db4e10469e2311879c7e5c699f6d2d8a1c74}',
+            'valkey_image=${VALKEY_IMAGE:-valkey/valkey:9.1.1-trixie@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd}',
+            'assert_http /health/live 200',
+            'assert_http /health/ready 200',
+        )->not->toMatch('/(?:postgres|valkey)_image=\$\{[A-Z_]+:-[^}\s@]+\}/');
 });
 
 it('keeps the pull-request container workflow read-only and path-aware', function (): void {
