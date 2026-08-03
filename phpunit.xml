@@ -21,6 +21,9 @@ SPDX-License-Identifier: CC0-1.0
         <testsuite name="Regression">
             <directory>tests/Regression</directory>
         </testsuite>
+        <testsuite name="Policy">
+            <directory>tests/Policy</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

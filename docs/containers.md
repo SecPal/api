@@ -43,6 +43,11 @@ and publish `ghcr.io/secpal/api` as an OCI image index for `linux/amd64` and
 `sha-<full-40-character-commit-SHA>`. It does not publish `latest`, a branch
 tag, a SemVer tag, or a release tag.
 
+The publisher's static container policy suite is isolated from the Laravel
+database test case and runs without PostgreSQL. Pull-request validation runs
+the same database-free policy command used by the post-merge publisher before
+any registry write is permitted.
+
 The canonical consumption reference is always the returned index digest:
 
 ```text
