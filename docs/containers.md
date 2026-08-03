@@ -28,7 +28,7 @@ The default command is `frankenphp run --config /etc/frankenphp/Caddyfile`. No s
 
 Set `TRUSTED_PROXIES` to a comma-separated allowlist of proxy IP addresses or CIDRs only when deployed behind trusted proxies. It is empty by default.
 
-## Immutable registry publishing
+## Digest-only registry publishing
 
 Official SecPal API container images are published exclusively as
 `ghcr.io/secpal/api`. The Docker Hub namespace `secpal`, including shortened
@@ -37,11 +37,18 @@ There are no registry fallbacks, and official pull or inspect commands must not
 use shortened image names. Local test tags use the non-namespace name
 `secpal-api`, such as `secpal-api:test`.
 
-After this publishing workflow reaches `main`, each push to `main` will build
-and publish `ghcr.io/secpal/api` as an OCI image index for `linux/amd64` and
-`linux/arm64`. Phase C.1 publishes exactly one discovery tag per commit:
-`sha-<full-40-character-commit-SHA>`. It does not publish `latest`, a branch
-tag, a SemVer tag, or a release tag.
+After this publishing workflow reaches `main`, every run builds and publishes
+`ghcr.io/secpal/api` as an OCI image index for `linux/amd64` and `linux/arm64`.
+Each run writes exactly one run-scoped discovery tag:
+
+```text
+ghcr.io/secpal/api:build-<full-SHA>-<run-ID>-<run-attempt>
+```
+
+SecPal does not reuse that run-specific tag for another run. This workflow
+rule does not imply registry-enforced tag immutability. The publisher does not
+write `latest`, a branch tag, a SemVer tag, a release tag, or a stable
+full-commit-SHA tag.
 
 The publisher's static container policy suite is isolated from the Laravel
 database test case and runs without PostgreSQL. Pull-request validation runs
@@ -51,46 +58,38 @@ any registry write is permitted.
 The canonical consumption reference is always the returned index digest:
 
 ```text
-ghcr.io/secpal/api@sha256:<manifest-digest>
+Official canonical reference:
+ghcr.io/secpal/api@sha256:<digest>
+
+Non-canonical discovery only:
+ghcr.io/secpal/api:build-<sha>-<run-id>-<attempt>
+
+Not operated or endorsed by SecPal:
+secpal/api
+docker.io/secpal/api
 ```
 
-The SHA tag is only a discovery alias for finding that digest. Production and
-deployment consumers must resolve the tag once and pin the canonical GHCR
-digest rather than treating any tag as the deployment identity. Publishing
-does not create a deployment contract or perform a deployment.
+Registry tags are mutable, non-authoritative pointers. Production and
+deployment configuration must never accept a tag as an image identity or trust
+anchor. The run-scoped tag exists only to discover the index produced by that
+workflow run; the logged digest remains canonical even if the tag later moves.
+Publishing does not create a deployment contract or perform a deployment.
 
-The publisher checks the final full-SHA tag before building. The authenticated
-lookup accepts the relevant OCI and Docker manifest representations before
-interpreting `404` as absence, so an existing Docker manifest list or
-single-platform manifest fails the strict OCI index validation instead of
-authorizing an overwrite.
+Every run builds its own image. A rerun receives a new run or attempt identity,
+publishes a new run-scoped tag, verifies its newly built digest, and creates a
+new GitHub Artifact Attestation. The publisher performs no registry lookup to
+reuse a previous image, never adopts a registry-sourced digest, and never skips
+the build because another tag exists.
 
-When the final tag is absent, the build publishes only a unique internal
-`candidate-<full-SHA>-<run-ID>-<run-attempt>` tag. The workflow verifies the
-candidate's exact digest, OCI index, runtime platforms, OCI labels, BuildKit
-SBOM and provenance, source material, and both runtime manifests before it
-creates and verifies the registry-backed GitHub Artifact Attestation. It then
-proves that GHCR enforces `If-None-Match: *` by conditionally re-sending the
-same bytes to the already existing run-unique candidate. Only the expected
-`412 Precondition Failed` response authorizes the create-only final-tag write;
-an unsupported or ignored precondition fails before the final tag is touched.
-The workflow then registers the exact unchanged OCI index bytes under the final
-full-SHA tag and verifies the final tag and attestation again. The candidate is
-not an official consumption reference. It remains as an internal registry
-artifact until the
-[candidate-retention follow-up](https://github.com/SecPal/api/issues/1387)
-proves a tag-only cleanup path that cannot delete or move the final SHA tag,
-shared OCI index, BuildKit attachments, or registry-backed GitHub Artifact
-Attestation. Package deletion is deliberately excluded from this publisher.
-
-An existing final full-SHA tag is never rebuilt, moved, promoted, or newly
-attested. Before either runtime manifest is inspected, pulled, or executed, its
-existing registry-backed GitHub Artifact Attestation must verify for the exact
-repository, workflow, source reference, source commit, image name, and digest.
-Only then does the workflow run the complete technical and runtime image
-contract, followed by the existing final defense-in-depth attestation check. A
-missing, foreign, or invalid attestation fails closed before untrusted image
-code can run.
+Before attestation, the workflow reads the exact OCI index bytes through the
+run tag and proves that their SHA-256 digest, the registry digest header, the
+run-tag target, and the build action's reported digest all match. It verifies
+the exact runtime platform set, OCI labels, BuildKit SBOM and provenance,
+source material, and both platform-specific runtime manifests by digest. Only
+then does it create and verify the registry-backed GitHub Artifact Attestation.
+The final snapshot repeats the run-tag byte digest, registry header, OCI media
+type, and attestation checks. This snapshot does not claim that the discovery
+tag will remain unchanged.
 
 Each runtime image config records the source repository, full revision,
 deterministic commit timestamp, title, description, and the repository's
@@ -125,8 +124,8 @@ visibility to public once. Anonymous pulls are supported only after that
 separate administrative step. No personal access token, long-lived signing
 key, or Cosign key secret is part of this contract. The
 [supply-chain epic](https://github.com/SecPal/api/issues/1383) remains open
-until the authenticated GHCR conditional write, registry-backed attestation,
-package linkage, visibility change, and anonymous digest pull are verified.
+until the digest-only GHCR publish, registry-backed attestation, package
+linkage, visibility change, and anonymous digest pull are verified.
 
 While the package is private, authenticate to GHCR before verification. After
 it is public, the image and its BuildKit attestations can be inspected
@@ -144,13 +143,12 @@ gh attestation verify \
 docker pull ghcr.io/secpal/api@sha256:<manifest-digest>
 ```
 
-The publishing workflow additionally proves that the selected tag resolves to
-the reported digest, the runtime platform set and all OCI labels are exact,
+The publishing workflow additionally proves that the run-scoped tag resolves
+to the reported digest, the runtime platform set and all OCI labels are exact,
 both BuildKit attestations are readable, provenance materials contain the exact
 source commit, and both runtime manifests pass the complete container smoke
-contract by digest. For a new candidate, only then does it create and verify the
-GitHub attestation for this workflow, commit, `main`, and a GitHub-hosted runner
-before promoting the unchanged digest to the final tag. The `arm64`
+contract by digest. Only then does it create and verify the GitHub attestation
+for this workflow, commit, `main`, and a GitHub-hosted runner. The `arm64`
 runtime executes through the independently pinned QEMU `binfmt` helper, which
 is registered before each Buildx builder that needs it starts.
 
