@@ -17,11 +17,11 @@ permissions:
 jobs:
   lint:
     name: Laravel Pint (PSR-12)
-    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@177beb19b9f20978480bf96f1ada74e8bbbaccee
+    uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@eb4001ca178929496be476e2639c4acf28111f8f
 
   static-analysis:
     name: PHPStan (Larastan)
-    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@177beb19b9f20978480bf96f1ada74e8bbbaccee
+    uses: SecPal/.github/.github/workflows/reusable-php-stan.yml@eb4001ca178929496be476e2639c4acf28111f8f
 
   test:
     name: PEST Tests
@@ -46,10 +46,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        # 2.37.2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
         with:
           php-version: "8.4"
           extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_pgsql
@@ -60,7 +62,8 @@ jobs:
         run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v6
+        # v6.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -144,7 +147,8 @@ jobs:
           echo "✅ app:validate-setup command is callable"
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
+        # v7.0.0
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
         with:
           # Token is optional for public repos (tokenless uploads supported)
           # Dependabot PRs cannot access secrets, so token may be empty

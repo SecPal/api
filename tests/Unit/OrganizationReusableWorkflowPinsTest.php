@@ -5,12 +5,28 @@
 
 declare(strict_types=1);
 
-test('the six organization reusable workflow references use immutable commit SHAs', function (): void {
+function organizationReusableWorkflowReferencePattern(string $workflowName): string
+{
+    return sprintf(
+        '/^\\s*uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/%s@[0-9a-f]{40}\\s*$/m',
+        preg_quote($workflowName, '/'),
+    );
+}
+
+test('organization reusable workflow references use expected paths and immutable commit SHAs', function (): void {
     $workflowReferences = [
         '.github/workflows/check-conflict-markers.yml' => ['reusable-check-conflict-markers.yml'],
+        '.github/workflows/dependabot-auto-merge.yml' => ['reusable-dependabot-auto-merge.yml'],
         '.github/workflows/php-ci.yml' => ['reusable-php-lint.yml', 'reusable-php-stan.yml'],
         '.github/workflows/pr-size.yml' => ['reusable-pr-size.yml'],
         '.github/workflows/project-automation.yml' => ['project-automation-core.yml', 'draft-pr-reminder.yml'],
+        '.github/workflows/quality.yml' => [
+            'reusable-reuse.yml',
+            'reusable-markdown-lint.yml',
+            'reusable-ai-instructions.yml',
+            'reusable-php-lint.yml',
+            'reusable-php-stan.yml',
+        ],
     ];
 
     foreach ($workflowReferences as $workflowPath => $reusableWorkflowNames) {
@@ -21,24 +37,16 @@ test('the six organization reusable workflow references use immutable commit SHA
         }
 
         foreach ($reusableWorkflowNames as $reusableWorkflowName) {
-            expect($contents)->toMatch(sprintf(
-                '/^\\s*uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/%s@[A-Fa-f0-9]{40}\\s*$/m',
-                preg_quote($reusableWorkflowName, '/'),
-            ));
+            expect($contents)->toMatch(
+                organizationReusableWorkflowReferencePattern($reusableWorkflowName),
+            );
         }
     }
 });
 
-test('the Dependabot auto-merge reusable workflow reference uses the approved immutable commit SHA', function (): void {
-    $workflowPath = '.github/workflows/dependabot-auto-merge.yml';
-    $contents = file_get_contents(base_path($workflowPath));
-
-    if ($contents === false) {
-        throw new RuntimeException("Unable to read workflow: {$workflowPath}");
-    }
-
-    expect($contents)->toMatch(
-        '/^\\s*uses:\\s*SecPal\\/\\.github\\/\\.github\\/workflows\\/reusable-dependabot-auto-merge\\.yml@d90b56d4bca7c0d6e7fe1520d69b1f98eca22f5e\\s*$/m',
+test('organization reusable workflow references allow immutable SHA updates', function (): void {
+    expect('uses: SecPal/.github/.github/workflows/reusable-php-lint.yml@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')->toMatch(
+        organizationReusableWorkflowReferencePattern('reusable-php-lint.yml'),
     );
 });
 
