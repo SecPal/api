@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- upgraded the production image's hash-locked GitPython dependency to 3.1.58,
+  resolving the five high- and one moderate-severity advisories affecting
+  3.1.57, and added policy coverage that rejects regression below the patched
+  version (fixes `api#1405`)
 - made container smoke command-output checks consume complete output before
   asserting it, eliminating successful-run broken-pipe diagnostics (fixes
   `api#1381`)

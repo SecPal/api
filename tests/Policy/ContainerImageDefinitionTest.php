@@ -80,6 +80,15 @@ it('defines the production API image contract', function (): void {
     expect($proxyConfig)->toContain('TRUSTED_PROXIES');
 });
 
+it('pins GitPython to a version containing the OpenTimestamps dependency security fixes', function (): void {
+    $requirements = (string) file_get_contents(
+        dirname(__DIR__, 2).'/docker/python/opentimestamps-requirements.txt',
+    );
+
+    expect(preg_match('/^gitpython==(?<version>[^ ]+) /m', $requirements, $matches))->toBe(1)
+        ->and(version_compare($matches['version'], '3.1.58', '>='))->toBeTrue();
+});
+
 it('checks container command output without early-terminating pipelines', function (): void {
     $smokeScript = (string) file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
 
