@@ -70,6 +70,26 @@ docker run --rm "$image" php -m | grep -qx redis
 docker run --rm "$image" php --ri redis | grep -q 'Redis Version => 6\.3\.0'
 docker run --rm "$image" php -r 'exit(extension_loaded("redis") ? 0 : 1);'
 docker run --rm "$image" php -r 'exit(ini_get("upload_max_filesize") === "10M" && ini_get("post_max_size") === "12M" ? 0 : 1);'
+docker run --rm "$image" php --ini | grep -Fq "/usr/local/etc/php/conf.d/zz-secpal-production.ini"
+docker run --rm "$image" sh -eu -c '
+    ini=/usr/local/etc/php/conf.d/zz-secpal-production.ini
+    test -r "$ini"
+    test ! -w "$ini"
+    test "$(stat -c "%U:%G %a" "$ini")" = "root:root 644"
+'
+docker run --rm "$image" sh -eu -c '
+    caddyfile=/etc/frankenphp/Caddyfile
+    test -r "$caddyfile"
+    test ! -w "$caddyfile"
+    test "$(stat -c "%U:%G %a" "$caddyfile")" = "root:root 644"
+'
+docker run --rm "$image" sh -eu -c '
+    healthcheck=/usr/local/bin/secpal-http-live
+    test -r "$healthcheck"
+    test -x "$healthcheck"
+    test ! -w "$healthcheck"
+    test "$(stat -c "%U:%G %a" "$healthcheck")" = "root:root 755"
+'
 docker run --rm "$image" php artisan --version
 docker run --rm "$image" php artisan schedule:list
 docker run --rm "$image" php artisan queue:work --help >/dev/null
