@@ -169,6 +169,36 @@ describe('GET /v1/employees', function () {
         expect($response->json('data'))->toHaveCount(1);
     });
 
+    test('rejects compliance status filtering on the standard employee collection', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees?compliance_status=warning');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['compliance_status']);
+    });
+
+    test('rejects an empty compliance status parameter on the standard employee collection', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees?compliance_status=');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['compliance_status']);
+    });
+
+    test('rejects an array compliance status parameter on the standard employee collection', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees?compliance_status[]=warning');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['compliance_status']);
+    });
+
     test('filters employees by establishment_id', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
@@ -375,6 +405,20 @@ describe('GET /v1/employees', function () {
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['compliance_status']);
+    });
+
+    test('rejects empty or non-scalar employee compliance alert status filters', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        foreach ([
+            '/v1/employees/compliance-alerts?compliance_status=',
+            '/v1/employees/compliance-alerts?compliance_status[]=warning',
+        ] as $url) {
+            $response = $this->withToken($this->token)->getJson($url);
+
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors(['compliance_status']);
+        }
     });
 
     test('compliance alerts endpoint paginates results and respects per_page', function (): void {

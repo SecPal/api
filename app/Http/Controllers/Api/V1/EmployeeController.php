@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Exceptions\BewacherregisterExportNotReadyException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ExportEmployeeBwrRequest;
+use App\Http\Requests\IndexEmployeeComplianceAlertsRequest;
 use App\Http\Requests\IndexEmployeeRequest;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeBwrStatusRequest;
@@ -69,7 +70,7 @@ class EmployeeController extends Controller
     /**
      * Display employees with active compliance alerts for overview use cases.
      */
-    public function complianceAlerts(IndexEmployeeRequest $request, EmployeeComplianceService $complianceService): AnonymousResourceCollection
+    public function complianceAlerts(IndexEmployeeComplianceAlertsRequest $request, EmployeeComplianceService $complianceService): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Employee::class);
 

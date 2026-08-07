@@ -6,7 +6,6 @@
 namespace App\Http\Requests;
 
 use App\Models\Employee;
-use App\Services\EmployeeComplianceService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -32,7 +31,7 @@ class IndexEmployeeRequest extends FormRequest
     {
         return [
             'status' => ['nullable', Rule::in(Employee::VALID_STATUSES)],
-            'compliance_status' => ['nullable', Rule::in(EmployeeComplianceService::ALERT_STATUSES)],
+            'compliance_status' => ['missing'],
             'legal_entity_id' => [
                 'nullable',
                 'uuid',
@@ -57,9 +56,7 @@ class IndexEmployeeRequest extends FormRequest
             'status.in' => __('Status filter must be one of: :statuses.', [
                 'statuses' => implode(', ', Employee::VALID_STATUSES),
             ]),
-            'compliance_status.in' => __('Compliance status filter must be one of: :statuses.', [
-                'statuses' => implode(', ', EmployeeComplianceService::ALERT_STATUSES),
-            ]),
+            'compliance_status.missing' => __('Compliance status filtering is only supported by the compliance alerts endpoint.'),
         ];
     }
 }
