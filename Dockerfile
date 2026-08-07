@@ -77,11 +77,14 @@ RUN groupadd --gid "${APP_GID}" secpal \
     && install -d -m 0750 -o secpal -g secpal /config/caddy /config/psysh /data/caddy
 
 COPY --from=dependencies --chown=root:root /app /app
-COPY --chmod=0644 docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile
-COPY --chmod=0644 docker/php/conf.d/production.ini /usr/local/etc/php/conf.d/zz-secpal-production.ini
-COPY --chmod=0755 docker/healthchecks/http-live.sh /usr/local/bin/secpal-http-live
+COPY --chown=root:root --chmod=0644 docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile
+COPY --chown=root:root --chmod=0644 docker/php/conf.d/production.ini /usr/local/etc/php/conf.d/zz-secpal-production.ini
+COPY --chown=root:root --chmod=0755 docker/healthchecks/http-live.sh /usr/local/bin/secpal-http-live
 
 RUN cp "${PHP_INI_DIR}/php.ini-production" "${PHP_INI_DIR}/php.ini" \
+    && chmod 0644 /etc/frankenphp/Caddyfile \
+    && chmod 0644 "${PHP_INI_DIR}/conf.d/zz-secpal-production.ini" \
+    && chmod 0755 /usr/local/bin/secpal-http-live \
     && find /app -xdev -type d -exec chmod 0755 {} + \
     && find /app -xdev -type f -exec chmod 0644 {} + \
     && install -d -m 0750 -o secpal -g secpal \

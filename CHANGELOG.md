@@ -111,6 +111,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- restored explicit final-layer modes for the root-owned production PHP
+  configuration, FrankenPHP Caddyfile, and live-healthcheck script so the
+  rootless runtime can load both configurations and execute its healthcheck
+  without modifying those artifacts (fixes `api#1402`, `api#1403`, and
+  `api#1404`)
 - made the PR-size workflow guard accept routine Dependabot updates while still
   requiring the approved reusable workflow to use a full immutable commit SHA
 - restored Web Push delivery after `minishlink/web-push` 11 moved HTTP client configuration to PSR-18; outbound push calls retain disabled redirects, explicit timeouts, and non-throwing HTTP error handling
