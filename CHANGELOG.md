@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- made container smoke command-output checks consume complete output before
+  asserting it, eliminating successful-run broken-pipe diagnostics (fixes
+  `api#1381`)
 - pinned the remaining in-scope GitHub Actions and third-party Actions to
   immutable commit SHAs with adjacent release-version comments, and added
   workflow policy coverage that rejects future moving tags; advanced PHP and
