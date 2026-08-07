@@ -22,7 +22,12 @@ class IndexEmployeeComplianceAlertsRequest extends IndexEmployeeRequest
     {
         return [
             ...parent::rules(),
-            'compliance_status' => ['nullable', Rule::in(EmployeeComplianceService::ALERT_STATUSES)],
+            'compliance_status' => [
+                'sometimes',
+                'required',
+                'string',
+                Rule::in(EmployeeComplianceService::ALERT_STATUSES),
+            ],
         ];
     }
 
@@ -33,11 +38,15 @@ class IndexEmployeeComplianceAlertsRequest extends IndexEmployeeRequest
      */
     public function messages(): array
     {
+        $complianceStatusMessage = __('Compliance status filter must be one of: :statuses.', [
+            'statuses' => implode(', ', EmployeeComplianceService::ALERT_STATUSES),
+        ]);
+
         return [
             ...parent::messages(),
-            'compliance_status.in' => __('Compliance status filter must be one of: :statuses.', [
-                'statuses' => implode(', ', EmployeeComplianceService::ALERT_STATUSES),
-            ]),
+            'compliance_status.required' => $complianceStatusMessage,
+            'compliance_status.string' => $complianceStatusMessage,
+            'compliance_status.in' => $complianceStatusMessage,
         ];
     }
 }
