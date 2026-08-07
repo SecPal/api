@@ -57,6 +57,28 @@ wait_for_http() {
     docker logs "$api" >&2
     return 1
 }
+assert_output_starts_with() {
+    case "$1" in
+        "$2"*) ;;
+        *) return 1 ;;
+    esac
+}
+assert_output_contains() {
+    case "$1" in
+        *"$2"*) ;;
+        *) return 1 ;;
+    esac
+}
+assert_output_has_line() {
+    case "
+$1
+" in
+        *"
+$2
+"*) ;;
+        *) return 1 ;;
+    esac
+}
 
 printf 'container build-context exclusion probe\n' >"$sqlite_probe"
 if [ "${SKIP_BUILD:-0}" = 1 ]; then
@@ -64,13 +86,18 @@ if [ "${SKIP_BUILD:-0}" = 1 ]; then
 else
     docker build --tag "$image" .
 fi
-docker run --rm "$image" php -v | grep -q '^PHP 8\.4\.23'
-docker run --rm "$image" frankenphp version | grep -q 'FrankenPHP v1\.12\.6'
-docker run --rm "$image" php -m | grep -qx redis
-docker run --rm "$image" php --ri redis | grep -q 'Redis Version => 6\.3\.0'
+php_version=$(docker run --rm "$image" php -v)
+assert_output_starts_with "$php_version" 'PHP 8.4.23'
+frankenphp_version=$(docker run --rm "$image" frankenphp version)
+assert_output_contains "$frankenphp_version" 'FrankenPHP v1.12.6'
+php_modules=$(docker run --rm "$image" php -m)
+assert_output_has_line "$php_modules" redis
+redis_info=$(docker run --rm "$image" php --ri redis)
+assert_output_contains "$redis_info" 'Redis Version => 6.3.0'
 docker run --rm "$image" php -r 'exit(extension_loaded("redis") ? 0 : 1);'
 docker run --rm "$image" php -r 'exit(ini_get("upload_max_filesize") === "10M" && ini_get("post_max_size") === "12M" ? 0 : 1);'
-docker run --rm "$image" php --ini | grep -Fq "/usr/local/etc/php/conf.d/zz-secpal-production.ini"
+php_ini_output=$(docker run --rm "$image" php --ini)
+assert_output_contains "$php_ini_output" '/usr/local/etc/php/conf.d/zz-secpal-production.ini'
 docker run --rm "$image" sh -eu -c '
     ini=/usr/local/etc/php/conf.d/zz-secpal-production.ini
     test -r "$ini"
@@ -94,7 +121,8 @@ docker run --rm "$image" php artisan --version
 docker run --rm "$image" php artisan schedule:list
 docker run --rm "$image" php artisan queue:work --help >/dev/null
 docker run --rm "$image" php artisan schedule:work --help >/dev/null
-docker run --rm "$image" ots --version | grep -q 'v0\.7\.2'
+ots_version=$(docker run --rm "$image" ots --version)
+assert_output_contains "$ots_version" v0.7.2
 docker run --rm "$image" python3 -c 'import opentimestamps'
 docker run --rm "$image" frankenphp fmt --diff --config /etc/frankenphp/Caddyfile >/dev/null
 docker run --rm "$image" frankenphp validate --config /etc/frankenphp/Caddyfile

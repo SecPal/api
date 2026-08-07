@@ -63,7 +63,7 @@ it('defines the production API image contract', function (): void {
     expect($documentation)->toContain('/app/storage/app/private')->toContain('persistent')->and($dockerignore)->toMatch('/^storage\/app$/m');
     expect($dockerignore)->toMatch('/^\*\*\/\*\.sqlite\*$/m');
     expect($smokeScript)
-        ->toContain('php --ini | grep -Fq "/usr/local/etc/php/conf.d/zz-secpal-production.ini"')
+        ->toContain('assert_output_contains "$php_ini_output" \'/usr/local/etc/php/conf.d/zz-secpal-production.ini\'')
         ->toContain('test -r "$ini"')
         ->toContain('test ! -w "$ini"')
         ->toContain('test "$(stat -c "%U:%G %a" "$ini")" = "root:root 644"')
@@ -78,6 +78,19 @@ it('defines the production API image contract', function (): void {
         ->toContain('chmod 0444 "$port_probe"')
         ->toContain('-v "${port_probe}:/tmp/assert-port-closed.php:ro"');
     expect($proxyConfig)->toContain('TRUSTED_PROXIES');
+});
+
+it('checks container command output without early-terminating pipelines', function (): void {
+    $smokeScript = (string) file_get_contents(dirname(__DIR__, 2).'/tests/docker/smoke.sh');
+
+    expect($smokeScript)
+        ->toContain('php_version=$(docker run --rm "$image" php -v)')
+        ->toContain('frankenphp_version=$(docker run --rm "$image" frankenphp version)')
+        ->toContain('php_modules=$(docker run --rm "$image" php -m)')
+        ->toContain('redis_info=$(docker run --rm "$image" php --ri redis)')
+        ->toContain('php_ini_output=$(docker run --rm "$image" php --ini)')
+        ->toContain('ots_version=$(docker run --rm "$image" ots --version)')
+        ->not->toMatch('/docker run[^\n]*\\|[ \t]*grep\\b/');
 });
 
 it('distinguishes a listening TCP port from a closed port', function (): void {
