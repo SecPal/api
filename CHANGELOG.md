@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- pinned the remaining in-scope GitHub Actions and third-party Actions to
+  immutable commit SHAs with adjacent release-version comments, and added
+  workflow policy coverage that rejects future moving tags
 - replaced mutable-tag promotion in the post-merge API image publisher with a
   digest-only contract: every run now builds under a unique run-scoped
   discovery tag, verifies the exact OCI index and both platform runtimes before
