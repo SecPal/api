@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- restricted `compliance_status` validation to
+  `GET /v1/employees/compliance-alerts`; the standard employee collection now
+  rejects that unsupported filter instead of silently returning unfiltered
+  results (fixes `api#1337`)
 - upgraded the production image's hash-locked GitPython dependency to 3.1.58,
   resolving the five high- and one moderate-severity advisories affecting
   3.1.57 (fixes `api#1405`)

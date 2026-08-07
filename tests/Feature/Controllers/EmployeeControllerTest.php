@@ -169,6 +169,26 @@ describe('GET /v1/employees', function () {
         expect($response->json('data'))->toHaveCount(1);
     });
 
+    test('rejects compliance status filtering on the standard employee collection', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees?compliance_status=warning');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['compliance_status']);
+    });
+
+    test('rejects an empty compliance status parameter on the standard employee collection', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
+
+        $response = $this->withToken($this->token)
+            ->getJson('/v1/employees?compliance_status=');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['compliance_status']);
+    });
+
     test('filters employees by establishment_id', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'employee.read');
 
