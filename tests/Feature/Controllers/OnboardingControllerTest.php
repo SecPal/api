@@ -2502,6 +2502,45 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
         expect(Storage::disk('local')->allFiles())->toHaveCount(1);
     });
 
+    test('rejects reuse of an idempotency key after the original upload is deleted', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+        $idempotencyKey = str_repeat('e', 32);
+        $payload = [
+            'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+            'document_type' => 'contract',
+            'idempotency_key' => $idempotencyKey,
+        ];
+
+        $first = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", $payload)
+            ->assertCreated();
+
+        $this->withToken($this->token)
+            ->delete("/v1/onboarding/submissions/{$submission->id}/files/{$first->json('data.id')}")
+            ->assertNoContent();
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                ...$payload,
+                'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'The upload idempotency key was already used for a different upload.');
+
+        expect(OnboardingSubmissionFile::query()->count())->toBe(0)
+            ->and(OnboardingSubmissionFile::withTrashed()->count())->toBe(1)
+            ->and(Storage::disk('local')->allFiles())->toHaveCount(0);
+    });
+
     test('rejects reuse of an idempotency key for a different upload', function (): void {
         Storage::fake('local');
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
