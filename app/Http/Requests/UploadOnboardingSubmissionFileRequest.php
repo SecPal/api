@@ -31,6 +31,7 @@ class UploadOnboardingSubmissionFileRequest extends FormRequest
 
         return [
             'file' => ['bail', 'required', 'file', "max:{$maxKilobytes}", 'mimes:pdf,jpg,jpeg,png', 'mimetypes:application/pdf,image/jpeg,image/png'],
+            'idempotency_key' => ['nullable', 'string', 'min:32', 'max:64', 'regex:/\A[A-Za-z0-9_-]+\z/'],
             'document_type' => ['required', Rule::in([
                 'contract',
                 'id_document',

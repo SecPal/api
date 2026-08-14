@@ -6,6 +6,7 @@
 namespace App\Services;
 
 use App\Models\OnboardingFormSubmission;
+use App\Models\TenantKey;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -13,23 +14,15 @@ use Illuminate\Support\Str;
 class OnboardingSubmissionFileStorageService
 {
     /**
-     * @return array{file_path: string, file_name: string, mime_type: string, file_size: int}
+     * @return array{file_path: string, file_name: string, mime_type: string, file_size: int, blob: string}
      */
-    public function store(UploadedFile $file, OnboardingFormSubmission $submission): array
+    public function prepare(UploadedFile $file, OnboardingFormSubmission $submission): array
     {
-        $content = file_get_contents($file->getRealPath());
-        if ($content === false) {
-            throw new \RuntimeException('Failed to read uploaded onboarding submission file');
-        }
-
+        $content = $this->readContent($file);
+        $tenant = $this->resolveTenant($submission);
         $employee = $submission->employee;
         if ($employee === null) {
             throw new \RuntimeException('Onboarding submission is missing its employee relation');
-        }
-
-        $tenant = $employee->tenant;
-        if ($tenant === null) {
-            throw new \RuntimeException('Onboarding submission employee must belong to a tenant');
         }
 
         $mimeType = $file->getMimeType();
@@ -50,17 +43,84 @@ class OnboardingSubmissionFileStorageService
             'nonce' => base64_encode($encrypted['nonce']),
         ], JSON_THROW_ON_ERROR);
 
-        $stored = Storage::disk('local')->put($path, $blob);
-        if ($stored === false) {
-            throw new \RuntimeException('Failed to store encrypted onboarding submission file blob');
-        }
-
         return [
             'file_path' => $path,
-            'file_name' => $this->sanitizeFilename($file->getClientOriginalName()),
+            'file_name' => $this->sanitizedFilename($file),
             'mime_type' => $mimeType,
             'file_size' => $fileSize,
+            'blob' => $blob,
         ];
+    }
+
+    /**
+     * @param  array{file_path: string, file_name: string, mime_type: string, file_size: int, blob: string}  $preparedFile
+     */
+    public function persist(array $preparedFile): void
+    {
+        if (Storage::disk('local')->put($preparedFile['file_path'], $preparedFile['blob']) === false) {
+            throw new \RuntimeException('Failed to store encrypted onboarding submission file blob');
+        }
+    }
+
+    public function fingerprint(
+        UploadedFile $file,
+        OnboardingFormSubmission $submission,
+        string $idempotencyKey,
+    ): string {
+        $fingerprintPayload = $this->encodeFingerprintComponents([
+            'onboarding-submission-file:v1',
+            (string) $submission->id,
+            $idempotencyKey,
+            $file->getClientOriginalName(),
+            $this->readContent($file),
+        ]);
+        $tenant = $this->resolveTenant($submission);
+
+        return bin2hex($tenant->generateBlindIndex($fingerprintPayload));
+    }
+
+    public function sanitizedFilename(UploadedFile $file): string
+    {
+        return $this->sanitizeFilename($file->getClientOriginalName());
+    }
+
+    private function readContent(UploadedFile $file): string
+    {
+        $content = file_get_contents($file->getRealPath());
+        if ($content === false) {
+            throw new \RuntimeException('Failed to read uploaded onboarding submission file');
+        }
+
+        return $content;
+    }
+
+    /**
+     * @param  list<string>  $components
+     */
+    private function encodeFingerprintComponents(array $components): string
+    {
+        $payload = '';
+
+        foreach ($components as $component) {
+            $payload .= strlen($component).':'.$component;
+        }
+
+        return $payload;
+    }
+
+    private function resolveTenant(OnboardingFormSubmission $submission): TenantKey
+    {
+        $employee = $submission->employee;
+        if ($employee === null) {
+            throw new \RuntimeException('Onboarding submission is missing its employee relation');
+        }
+
+        $tenant = $employee->tenant;
+        if ($tenant === null) {
+            throw new \RuntimeException('Onboarding submission employee must belong to a tenant');
+        }
+
+        return $tenant;
     }
 
     private function sanitizeFilename(string $fileName): string

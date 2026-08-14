@@ -425,6 +425,7 @@ test('employee lifecycle service deletes a linked user while preserving employee
     ]);
 
     $submissionFile = OnboardingSubmissionFile::create([
+        'tenant_id' => $this->tenant->id,
         'onboarding_form_submission_id' => $submission->id,
         'uploaded_by' => $linkedUser->id,
         'document_type' => 'contract',
