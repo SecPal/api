@@ -72,6 +72,7 @@ test('it deletes expired terminated employees, removes local files, and anonymiz
     ]);
 
     $submissionFile = OnboardingSubmissionFile::create([
+        'tenant_id' => $employee->tenant_id,
         'onboarding_form_submission_id' => $submission->id,
         'uploaded_by' => $user->id,
         'document_type' => 'contract',

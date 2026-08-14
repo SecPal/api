@@ -122,6 +122,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made onboarding file upload retries idempotent with tenant-scoped keys and
+  exact payload matching so interrupted Android requests cannot create
+  duplicate encrypted blobs (issue #1422).
+
 - restored explicit final-layer modes for the root-owned production PHP
   configuration, FrankenPHP Caddyfile, and live-healthcheck script so the
   rootless runtime can load both configurations and execute its healthcheck

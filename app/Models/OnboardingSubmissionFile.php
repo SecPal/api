@@ -16,10 +16,13 @@ class OnboardingSubmissionFile extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'tenant_id',
         'onboarding_form_submission_id',
         'uploaded_by',
         'document_type',
         'document_subtype',
+        'idempotency_key',
+        'content_fingerprint',
         'file_path',
         'file_name',
         'mime_type',

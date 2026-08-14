@@ -22,7 +22,7 @@ use App\Services\OnboardingCompletionService;
 use App\Services\OnboardingFormDataSchemaValidationService;
 use App\Services\OnboardingResidentialAddressHistorySyncService;
 use App\Services\OnboardingSchemaLocalizationService;
-use App\Services\OnboardingSubmissionFileStorageService;
+use App\Services\OnboardingSubmissionFileUploadService;
 use App\Services\OnboardingTaxIdentificationSyncService;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
@@ -77,7 +77,7 @@ class OnboardingController extends Controller
     ];
 
     public function __construct(
-        private readonly OnboardingSubmissionFileStorageService $submissionFileStorageService,
+        private readonly OnboardingSubmissionFileUploadService $submissionFileUploadService,
         private readonly OnboardingSchemaLocalizationService $onboardingSchemaLocalizationService,
         private readonly OnboardingFormDataSchemaValidationService $onboardingFormDataSchemaValidationService,
         private readonly OnboardingCompletionService $onboardingCompletionService,
@@ -915,12 +915,6 @@ class OnboardingController extends Controller
     {
         $this->authorize('uploadFile', $submission);
 
-        if (! in_array($submission->status, ['draft', 'rejected'], true)) {
-            throw ValidationException::withMessages([
-                'status' => __('Files can only be uploaded while the onboarding submission is editable'),
-            ]);
-        }
-
         /** @var array<string, mixed> $validated */
         $validated = $request->validated();
 
@@ -930,36 +924,39 @@ class OnboardingController extends Controller
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        $storedFilePath = null;
-
-        try {
-            $storedFile = $this->submissionFileStorageService->store($file, $submission);
-            $storedFilePath = $storedFile['file_path'];
-
-            $uploadedFile = DB::transaction(fn () => OnboardingSubmissionFile::create([
-                'onboarding_form_submission_id' => $submission->id,
-                'uploaded_by' => $user->id,
-                'document_type' => $validated['document_type'],
-                'document_subtype' => $validated['document_subtype'] ?? null,
-                'file_path' => $storedFile['file_path'],
-                'file_name' => $storedFile['file_name'],
-                'mime_type' => $storedFile['mime_type'],
-                'file_size' => $storedFile['file_size'],
-            ]));
-        } catch (\Throwable $e) {
-            if ($storedFilePath !== null) {
-                Storage::disk('local')->delete($storedFilePath);
-            }
-
-            throw $e;
+        $uploadResult = $this->submissionFileUploadService->upload(
+            $file,
+            $submission,
+            $user->id,
+            $validated,
+        );
+        if ($uploadResult['conflict']) {
+            return response()->json([
+                'message' => __('The upload idempotency key was already used for a different upload.'),
+            ], Response::HTTP_CONFLICT);
         }
 
+        $uploadedFile = $uploadResult['file'];
+        if ($uploadedFile === null) {
+            throw new \LogicException('Onboarding upload completed without a file result');
+        }
+
+        return $this->submissionFileUploadResponse(
+            $uploadedFile,
+            $uploadResult['replayed'] ? Response::HTTP_OK : Response::HTTP_CREATED,
+        );
+    }
+
+    private function submissionFileUploadResponse(
+        OnboardingSubmissionFile $uploadedFile,
+        int $status
+    ): JsonResponse {
         return response()->json([
             'data' => [
                 'id' => $uploadedFile->id,
                 'filename' => $uploadedFile->file_name,
             ],
-        ], Response::HTTP_CREATED);
+        ], $status);
     }
 
     /**

@@ -28,6 +28,11 @@ function loadDropLegacyEmployeeAddressColumnsMigration(): object
     return require database_path('migrations/2026_05_10_120001_drop_legacy_employee_address_columns_from_employees_table.php');
 }
 
+function loadLegalEntityDomainMigration(): object
+{
+    return require database_path('migrations/2026_07_17_120000_create_legal_entity_domain_model.php');
+}
+
 function encryptLegacyAddressValue(int $tenantId, ?string $value): ?string
 {
     if ($value === null) {
@@ -99,7 +104,7 @@ test('the breaking legal entity migration prevents rollback into an unsupported 
     expect(Schema::hasColumn('employees', 'birth_state'))->toBeFalse();
     expect(Schema::hasColumn('employee_addresses', 'state'))->toBeFalse();
 
-    expect(fn () => $this->artisan('migrate:rollback', ['--step' => 1]))
+    expect(fn () => loadLegalEntityDomainMigration()->down())
         ->toThrow(RuntimeException::class, 'intentionally irreversible');
 });
 

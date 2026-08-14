@@ -1124,6 +1124,7 @@ describe('POST /v1/onboarding/submissions', function () {
         ]);
 
         OnboardingSubmissionFile::create([
+            'tenant_id' => $this->tenant->id,
             'onboarding_form_submission_id' => $submission->id,
             'uploaded_by' => $this->user->id,
             'document_type' => 'id_document',
@@ -2429,6 +2430,186 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
         $this->assertNotEmpty($decoded['nonce']);
     });
 
+    test('returns the original upload when an idempotency key is retried', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+        $idempotencyKey = str_repeat('a', 32);
+        $payload = [
+            'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+            'document_type' => 'contract',
+            'idempotency_key' => $idempotencyKey,
+        ];
+
+        $first = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", $payload);
+        $retry = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                ...$payload,
+                'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+            ]);
+
+        $first->assertCreated();
+        $retry->assertOk()->assertJsonPath('data.id', $first->json('data.id'));
+        expect(OnboardingSubmissionFile::query()->count())->toBe(1);
+        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+        $storedFile = OnboardingSubmissionFile::query()->sole();
+        expect($storedFile->content_fingerprint)
+            ->toBeString()
+            ->toHaveLength(64)
+            ->not->toBe(hash('sha256', 'same-contract'));
+    });
+
+    test('returns the original upload when a retry arrives after the submission is no longer editable', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+        $idempotencyKey = str_repeat('b', 32);
+
+        $first = $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ]);
+
+        $submission->update(['status' => 'submitted']);
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.id', $first->json('data.id'));
+
+        expect(OnboardingSubmissionFile::query()->count())->toBe(1);
+        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+    });
+
+    test('rejects reuse of an idempotency key for a different upload', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+        $idempotencyKey = (string) Str::uuid();
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'first-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ])
+            ->assertCreated();
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'different-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'The upload idempotency key was already used for a different upload.');
+
+        expect(OnboardingSubmissionFile::query()->count())->toBe(1);
+        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+    });
+
+    test('rejects reuse of an idempotency key for a differently named upload', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+        $idempotencyKey = str_repeat('c', 32);
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ])
+            ->assertCreated();
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent('renamed.pdf', 'same-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ])
+            ->assertStatus(409);
+
+        expect(OnboardingSubmissionFile::query()->count())->toBe(1);
+        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+    });
+
+    test('rejects reuse of an idempotency key for a different submission in the same tenant', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $firstSubmission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+        $secondTemplate = OnboardingFormTemplate::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
+        $secondSubmission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $secondTemplate->id,
+            'status' => 'draft',
+        ]);
+        $idempotencyKey = str_repeat('d', 32);
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$firstSubmission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ])
+            ->assertCreated();
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$secondSubmission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ])
+            ->assertStatus(409);
+
+        expect(OnboardingSubmissionFile::query()->count())->toBe(1);
+        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+    });
+
     test('requires a document_subtype when uploading id_document files', function (): void {
         Storage::fake('local');
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
@@ -2577,6 +2758,7 @@ describe('DELETE /v1/onboarding/submissions/{submission}/files/{file}', function
         Storage::disk('local')->put($path, '{"ciphertext":"abc","nonce":"def"}');
 
         $uploadedFile = OnboardingSubmissionFile::create([
+            'tenant_id' => $this->tenant->id,
             'onboarding_form_submission_id' => $submission->id,
             'uploaded_by' => $this->user->id,
             'document_type' => 'id_document',
@@ -2614,6 +2796,7 @@ describe('DELETE /v1/onboarding/submissions/{submission}/files/{file}', function
         ]);
 
         $uploadedFile = OnboardingSubmissionFile::create([
+            'tenant_id' => $this->tenant->id,
             'onboarding_form_submission_id' => $otherSubmission->id,
             'uploaded_by' => $this->user->id,
             'document_type' => 'id_document',
