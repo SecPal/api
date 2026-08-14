@@ -2467,6 +2467,35 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
             ->not->toBe(hash('sha256', 'same-contract'));
     });
 
+    test('does not expose equal content fingerprints across distinct upload operations', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+
+        foreach ([str_repeat('f', 32), str_repeat('g', 32)] as $idempotencyKey) {
+            $this->withToken($this->token)
+                ->withHeaders(['Accept' => 'application/json'])
+                ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                    'file' => UploadedFile::fake()->createWithContent('contract.pdf', 'same-contract'),
+                    'document_type' => 'contract',
+                    'idempotency_key' => $idempotencyKey,
+                ])
+                ->assertCreated();
+        }
+
+        $fingerprints = OnboardingSubmissionFile::query()
+            ->orderBy('created_at')
+            ->pluck('content_fingerprint');
+
+        expect($fingerprints)->toHaveCount(2)
+            ->and($fingerprints->unique())->toHaveCount(2);
+    });
+
     test('returns the original upload when a retry arrives after the submission is no longer editable', function (): void {
         Storage::fake('local');
         givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
@@ -2603,6 +2632,41 @@ describe('POST /v1/onboarding/submissions/{submission}/files', function () {
                 'idempotency_key' => $idempotencyKey,
             ])
             ->assertStatus(409);
+
+        expect(OnboardingSubmissionFile::query()->count())->toBe(1);
+        expect(Storage::disk('local')->allFiles())->toHaveCount(1);
+    });
+
+    test('rejects reuse of an idempotency key when distinct original filenames sanitize identically', function (): void {
+        Storage::fake('local');
+        givePermissionWithTenant($this->user, $this->tenant->id, 'onboarding.write');
+
+        $submission = OnboardingFormSubmission::factory()->create([
+            'employee_id' => $this->employee->id,
+            'form_template_id' => $this->template->id,
+            'status' => 'draft',
+        ]);
+        $idempotencyKey = str_repeat('h', 32);
+        $sharedPrefix = str_repeat('a', 251);
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent($sharedPrefix.'first.pdf', 'same-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ])
+            ->assertCreated();
+
+        $this->withToken($this->token)
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post("/v1/onboarding/submissions/{$submission->id}/files", [
+                'file' => UploadedFile::fake()->createWithContent($sharedPrefix.'second.pdf', 'same-contract'),
+                'document_type' => 'contract',
+                'idempotency_key' => $idempotencyKey,
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'The upload idempotency key was already used for a different upload.');
 
         expect(OnboardingSubmissionFile::query()->count())->toBe(1);
         expect(Storage::disk('local')->allFiles())->toHaveCount(1);

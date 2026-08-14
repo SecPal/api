@@ -40,7 +40,10 @@ test('resolves the winning upload when the tenant idempotency constraint loses a
     ]);
 
     $storageService = Mockery::mock(OnboardingSubmissionFileStorageService::class);
-    $storageService->shouldReceive('fingerprint')->once()->andReturn(str_repeat('f', 64));
+    $storageService->shouldReceive('fingerprint')
+        ->once()
+        ->with($file, $submission, str_repeat('a', 32))
+        ->andReturn(str_repeat('f', 64));
     $storageService->shouldReceive('sanitizedFilename')->once()->andReturn('contract.pdf');
     $storageService->shouldReceive('prepare')->once()->andReturn([
         'file_path' => 'employees/employee-1/onboarding-submissions/submission-1/file.enc',
@@ -88,7 +91,10 @@ test('fails instead of reporting success when a persisted blob cannot be cleaned
     $storedPath = 'employees/employee-1/onboarding-submissions/submission-1/file.enc';
 
     $storageService = Mockery::mock(OnboardingSubmissionFileStorageService::class);
-    $storageService->shouldReceive('fingerprint')->once()->andReturn(str_repeat('f', 64));
+    $storageService->shouldReceive('fingerprint')
+        ->once()
+        ->with($file, $submission, str_repeat('a', 32))
+        ->andReturn(str_repeat('f', 64));
     $storageService->shouldReceive('sanitizedFilename')->once()->andReturn('contract.pdf');
     $storageService->shouldReceive('prepare')->once()->andReturn([
         'file_path' => $storedPath,
@@ -132,7 +138,10 @@ test('does not treat unrelated database failures as upload races', function (): 
     $exception = onboardingUploadQueryException('23505', 'other_unique_constraint');
 
     $storageService = Mockery::mock(OnboardingSubmissionFileStorageService::class);
-    $storageService->shouldReceive('fingerprint')->once()->andReturn(str_repeat('f', 64));
+    $storageService->shouldReceive('fingerprint')
+        ->once()
+        ->with($file, $submission, str_repeat('a', 32))
+        ->andReturn(str_repeat('f', 64));
     $storageService->shouldReceive('sanitizedFilename')->once()->andReturn('contract.pdf');
     $storageService->shouldReceive('prepare')->once()->andReturn([
         'file_path' => 'employees/employee-1/onboarding-submissions/submission-1/file.enc',

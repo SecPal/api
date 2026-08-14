@@ -34,7 +34,7 @@ class OnboardingSubmissionFileUploadService
         $idempotencyKey = $validated['idempotency_key'] ?? null;
         $tenantId = $this->submissionFileRepository->tenantId($submission);
         $contentFingerprint = is_string($idempotencyKey)
-            ? $this->storageService->fingerprint($file, $submission)
+            ? $this->storageService->fingerprint($file, $submission, $idempotencyKey)
             : null;
         $fileName = is_string($idempotencyKey)
             ? $this->storageService->sanitizedFilename($file)

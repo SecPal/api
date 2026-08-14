@@ -62,12 +62,21 @@ class OnboardingSubmissionFileStorageService
         }
     }
 
-    public function fingerprint(UploadedFile $file, OnboardingFormSubmission $submission): string
-    {
-        $content = $this->readContent($file);
+    public function fingerprint(
+        UploadedFile $file,
+        OnboardingFormSubmission $submission,
+        string $idempotencyKey,
+    ): string {
+        $fingerprintPayload = $this->encodeFingerprintComponents([
+            'onboarding-submission-file:v1',
+            (string) $submission->id,
+            $idempotencyKey,
+            $file->getClientOriginalName(),
+            $this->readContent($file),
+        ]);
         $tenant = $this->resolveTenant($submission);
 
-        return bin2hex($tenant->generateBlindIndex($content));
+        return bin2hex($tenant->generateBlindIndex($fingerprintPayload));
     }
 
     public function sanitizedFilename(UploadedFile $file): string
@@ -83,6 +92,20 @@ class OnboardingSubmissionFileStorageService
         }
 
         return $content;
+    }
+
+    /**
+     * @param  list<string>  $components
+     */
+    private function encodeFingerprintComponents(array $components): string
+    {
+        $payload = '';
+
+        foreach ($components as $component) {
+            $payload .= strlen($component).':'.$component;
+        }
+
+        return $payload;
     }
 
     private function resolveTenant(OnboardingFormSubmission $submission): TenantKey
