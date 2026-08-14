@@ -29,11 +29,11 @@ test('non-eu work permit core migration applies on sqlite-backed setups', functi
     }
 
     expect(preg_match(
-        '/2026_04_12_150000_add_non_eu_work_permit_core_to_employees_table\s+\d+\.\d+ms DONE/',
+        '/2026_04_12_150000_add_non_eu_work_permit_core_to_employees_table\s+\d+(?:\.\d+)?(?:ms|s) DONE/',
         $output,
     ))->toBe(1, $output)
         ->and(preg_match(
-            '/2026_04_12_150000_add_non_eu_work_permit_core_to_employees_table\s+\d+\.\d+ms FAIL/',
+            '/2026_04_12_150000_add_non_eu_work_permit_core_to_employees_table\s+\d+(?:\.\d+)?(?:ms|s) FAIL/',
             $output,
         ))->toBe(0, $output);
 });
