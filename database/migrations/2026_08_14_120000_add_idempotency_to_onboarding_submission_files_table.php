@@ -32,17 +32,20 @@ return new class extends Migration
                 ->references('id')
                 ->on('tenant_keys')
                 ->cascadeOnDelete();
-            $table->unique(
-                ['tenant_id', 'idempotency_key'],
-                'onboarding_submission_files_idempotency_unique'
-            );
         });
+
+        DB::statement(<<<'SQL'
+            CREATE UNIQUE INDEX onboarding_submission_files_idempotency_unique
+            ON onboarding_submission_files (tenant_id, idempotency_key)
+            WHERE idempotency_key IS NOT NULL
+            SQL);
     }
 
     public function down(): void
     {
+        DB::statement('DROP INDEX IF EXISTS onboarding_submission_files_idempotency_unique');
+
         Schema::table('onboarding_submission_files', function (Blueprint $table): void {
-            $table->dropUnique('onboarding_submission_files_idempotency_unique');
             $table->dropForeign(['tenant_id']);
             $table->dropColumn(['tenant_id', 'idempotency_key', 'content_fingerprint']);
         });
