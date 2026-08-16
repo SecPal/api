@@ -6,7 +6,7 @@ SPDX-FileCopyrightText = "SecPal Contributors"
 
 [[annotations]]
 path = "app/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
 path = [
@@ -21,7 +21,7 @@ path = [
   "config/polyglot.php",
   "config/two-factor.php",
 ]
-SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
 path = [
@@ -48,23 +48,23 @@ SPDX-FileCopyrightText = "Spatie bvba <info@spatie.be>"
 
 [[annotations]]
 path = "database/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
 path = "routes/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
 path = "tests/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
 path = "public/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
 path = "bootstrap/**"
-SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
 path = "composer.json"
@@ -163,4 +163,4 @@ SPDX-License-Identifier = "MIT"
 
 [[annotations]]
 path = "artisan"
-SPDX-License-Identifier = "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution"
+SPDX-License-Identifier = "AGPL-3.0-or-later"

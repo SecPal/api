@@ -1,7 +1,7 @@
 <?php
 
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
@@ -51,7 +51,7 @@ function runLicenseCompatibilityScript(string $spdxContents): array
     ];
 }
 
-test('license compatibility script accepts the secpal attribution expression', function (): void {
+test('license compatibility script accepts plain AGPL for SecPal-owned application code', function (): void {
     $result = runLicenseCompatibilityScript(<<<'SPDX'
 SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0
@@ -62,13 +62,12 @@ DocumentNamespace: https://secpal.dev/spdxdocs/sample
 FileName: app/Models/User.php
 SPDXID: SPDXRef-File
 LicenseInfoInFile: AGPL-3.0-or-later
-LicenseInfoInFile: LicenseRef-SecPal-Attribution
-LicenseConcluded: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+LicenseConcluded: AGPL-3.0-or-later
 SPDX
     );
 
     expect($result['exit_code'])->toBe(0)
-        ->and($result['stderr'])->not->toContain('incompatible');
+        ->and($result['stderr'])->toBe('');
 });
 
 test('license compatibility script rejects permissive or-licensing on application code', function (): void {
@@ -91,7 +90,7 @@ SPDX
         ->and($result['stderr'])->toContain('incompatible license expression');
 });
 
-test('license compatibility script rejects strict-path files that omit the secpal attribution pair', function (): void {
+test('license compatibility script rejects strict-path files that are not plain AGPL', function (): void {
     $result = runLicenseCompatibilityScript(<<<'SPDX'
 SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0
@@ -107,7 +106,7 @@ SPDX
     );
 
     expect($result['exit_code'])->toBe(1)
-        ->and($result['stderr'])->toContain('strict-path files must use exactly AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution');
+        ->and($result['stderr'])->toContain('strict-path files must use exactly AGPL-3.0-or-later');
 });
 
 test('license compatibility script rejects strict-path or-licensing when license concluded is noassertion', function (): void {
@@ -127,7 +126,7 @@ SPDX
     );
 
     expect($result['exit_code'])->toBe(1)
-        ->and($result['stderr'])->toContain('strict-path files must use exactly AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution');
+        ->and($result['stderr'])->toContain('strict-path files must use exactly AGPL-3.0-or-later');
 });
 
 test('license compatibility script allows documented public cc0 assets', function (): void {
@@ -242,7 +241,7 @@ SPDX
         ->and($result['stderr'])->toBe('');
 });
 
-test('license compatibility script rejects the attribution addendum in documentation', function (): void {
+test('license compatibility script rejects unsupported license atoms', function (): void {
     $result = runLicenseCompatibilityScript(<<<'SPDX'
 SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0
@@ -253,78 +252,16 @@ DocumentNamespace: https://secpal.dev/spdxdocs/sample
 FileName: docs/rbac-architecture.md
 SPDXID: SPDXRef-File
 LicenseInfoInFile: AGPL-3.0-or-later
-LicenseInfoInFile: LicenseRef-SecPal-Attribution
-LicenseConcluded: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+LicenseInfoInFile: LicenseRef-Unsupported
+LicenseConcluded: AGPL-3.0-or-later
 SPDX
     );
 
     expect($result['exit_code'])->toBe(1)
-        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
+        ->and($result['stderr'])->toContain('incompatible license atom');
 });
 
-test('license compatibility script rejects concluded documentation attribution despite a cc0 example', function (): void {
-    $result = runLicenseCompatibilityScript(<<<'SPDX'
-SPDXVersion: SPDX-2.3
-DataLicense: CC0-1.0
-SPDXID: SPDXRef-DOCUMENT
-DocumentName: sample
-DocumentNamespace: https://secpal.dev/spdxdocs/sample
-
-FileName: docs/rbac-architecture.md
-SPDXID: SPDXRef-File
-LicenseInfoInFile: AGPL-3.0-or-later
-LicenseInfoInFile: LicenseRef-SecPal-Attribution
-LicenseInfoInFile: CC0-1.0
-LicenseConcluded: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
-SPDX
-    );
-
-    expect($result['exit_code'])->toBe(1)
-        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
-});
-
-test('license compatibility script rejects concluded documentation attribution paired with cc0', function (): void {
-    $result = runLicenseCompatibilityScript(<<<'SPDX'
-SPDXVersion: SPDX-2.3
-DataLicense: CC0-1.0
-SPDXID: SPDXRef-DOCUMENT
-DocumentName: sample
-DocumentNamespace: https://secpal.dev/spdxdocs/sample
-
-FileName: docs/rbac-architecture.md
-SPDXID: SPDXRef-File
-LicenseInfoInFile: CC0-1.0
-LicenseInfoInFile: LicenseRef-SecPal-Attribution
-LicenseConcluded: CC0-1.0 AND LicenseRef-SecPal-Attribution
-SPDX
-    );
-
-    expect($result['exit_code'])->toBe(1)
-        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
-});
-
-test('license compatibility script rejects documentation attribution when concluded is noassertion', function (): void {
-    $result = runLicenseCompatibilityScript(<<<'SPDX'
-SPDXVersion: SPDX-2.3
-DataLicense: CC0-1.0
-SPDXID: SPDXRef-DOCUMENT
-DocumentName: sample
-DocumentNamespace: https://secpal.dev/spdxdocs/sample
-
-FileName: docs/rbac-architecture.md
-SPDXID: SPDXRef-File
-LicenseInfoInFile: CC0-1.0
-LicenseInfoInFile: AGPL-3.0-or-later
-LicenseInfoInFile: LicenseRef-SecPal-Attribution
-LicenseConcluded: NOASSERTION
-SPDX
-    );
-
-    expect($result['exit_code'])->toBe(1)
-        ->and($result['stderr'])->toContain('attribution addendum is only permitted for SecPal-owned AGPL code and assets');
-});
-
-test('license compatibility script allows ci concluded documentation after ignoring attribution examples', function (): void {
+test('license compatibility script allows CC0 documentation', function (): void {
     $result = runLicenseCompatibilityScript(<<<'SPDX'
 SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0

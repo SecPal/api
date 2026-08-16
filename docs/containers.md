@@ -95,7 +95,7 @@ Each runtime image config records the source repository, full revision,
 deterministic commit timestamp, title, description, and the repository's
 effective SPDX license expression. The source label is
 `https://github.com/SecPal/api`, and the license label is
-`AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution`.
+`AGPL-3.0-or-later`.
 
 The published index has four distinct supply-chain concepts:
 

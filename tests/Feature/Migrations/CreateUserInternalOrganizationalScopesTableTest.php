@@ -2,7 +2,7 @@
 
 // SPDX-FileCopyrightText: 2025 SecPal Contributors
 //
-// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Models\TenantKey;
 use App\Models\User;

@@ -7,7 +7,7 @@
     "laravel",
     "framework"
   ],
-  "license": "AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution",
+  "license": "AGPL-3.0-or-later",
   "require": {
     "php": "^8.4",
     "codewiser/polyglot": "^2.1",

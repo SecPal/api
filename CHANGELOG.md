@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- migrated active SecPal-owned API code and asset metadata from the historical
+  attribution-addendum expression to plain `AGPL-3.0-or-later`, while
+  preserving the repository's mixed-license and third-party boundaries (refs
+  `api#1425`)
 - restricted `compliance_status` validation to
   `GET /v1/employees/compliance-alerts`; the standard employee collection now
   rejects that unsupported filter instead of silently returning unfiltered
