@@ -1,7 +1,7 @@
 <?php
 
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 return [
     'device_admin_component_name' => (string) env('ANDROID_DEVICE_ADMIN_COMPONENT_NAME', 'app.secpal/.SecPalDeviceAdminReceiver'),

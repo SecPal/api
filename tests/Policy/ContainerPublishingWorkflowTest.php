@@ -1,7 +1,7 @@
 <?php
 
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Symfony\Component\Yaml\Yaml;
 
@@ -376,7 +376,7 @@ it('preserves multi-architecture metadata SBOM provenance and exact index verifi
             'org.opencontainers.image.revision=${{ github.sha }}',
             'org.opencontainers.image.title=SecPal API',
             'org.opencontainers.image.description=Production API for SecPal operations software',
-            'org.opencontainers.image.licenses=AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution',
+            'org.opencontainers.image.licenses=AGPL-3.0-or-later',
             'org.opencontainers.image.created=${{ steps.metadata.outputs.created }}',
         )->and($verification['run'])->toContain(
             'TAG_REF="${CANONICAL_IMAGE}:${PUBLISHED_TAG}"',
@@ -392,7 +392,7 @@ it('preserves multi-architecture metadata SBOM provenance and exact index verifi
             'buildkit_completeness.request == true',
             'buildkit_completeness.resolvedDependencies == true',
             '.uri == $source and .digest.sha1 == $revision',
-        );
+        )->and($build['with']['labels'])->not->toContain('LicenseRef-');
 });
 
 it('smoke-tests exactly both runtime platform digests before attestation', function (): void {

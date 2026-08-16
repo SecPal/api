@@ -133,7 +133,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.title=SecPal API
             org.opencontainers.image.description=Production API for SecPal operations software
-            org.opencontainers.image.licenses=AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
             org.opencontainers.image.created=${{ steps.metadata.outputs.created }}
           sbom: >-
             generator=docker.io/docker/buildkit-syft-scanner:stable-1@sha256:79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68
@@ -246,7 +246,7 @@ jobs:
               --arg revision "$GITHUB_SHA" \
               --arg title 'SecPal API' \
               --arg description 'Production API for SecPal operations software' \
-              --arg licenses 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution' \
+              --arg licenses 'AGPL-3.0-or-later' \
               --arg created "$IMAGE_CREATED" '
                 .config.Labels["org.opencontainers.image.source"] == $source
                 and .config.Labels["org.opencontainers.image.revision"] == $revision

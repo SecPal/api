@@ -1,7 +1,7 @@
 <?php
 
 // SPDX-FileCopyrightText: 2026 SecPal Contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
@@ -57,9 +57,9 @@ test('public bootstrap returns deployment-derived runtime metadata for a support
                 ],
                 'legal' => [
                     'license' => [
-                        'spdx_id' => 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution',
-                        'name' => 'GNU Affero General Public License v3.0 or later with SecPal attribution additional terms',
-                        'url' => 'https://github.com/SecPal/api/blob/main/LICENSES/LicenseRef-SecPal-Attribution.txt',
+                        'spdx_id' => 'AGPL-3.0-or-later',
+                        'name' => 'GNU Affero General Public License v3.0 or later',
+                        'url' => 'https://github.com/SecPal/api/blob/main/LICENSES/AGPL-3.0-or-later.txt',
                         'base_license_url' => 'https://www.gnu.org/licenses/agpl-3.0.html',
                     ],
                     'source_url' => 'https://api.secpal.dev/v1/source',
@@ -129,8 +129,8 @@ test('public bootstrap returns web push runtime metadata for browser clients wit
         ->assertJsonPath('data.compatibility.bootstrap_version', 'v1')
         ->assertJsonPath('data.compatibility.schema_version', 4)
         ->assertJsonPath('data.legal.source_url', 'https://api.secpal.dev/v1/source')
-        ->assertJsonPath('data.legal.license.spdx_id', 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution')
-        ->assertJsonPath('data.legal.license.url', 'https://github.com/SecPal/api/blob/main/LICENSES/LicenseRef-SecPal-Attribution.txt')
+        ->assertJsonPath('data.legal.license.spdx_id', 'AGPL-3.0-or-later')
+        ->assertJsonPath('data.legal.license.url', 'https://github.com/SecPal/api/blob/main/LICENSES/AGPL-3.0-or-later.txt')
         ->assertJsonPath('data.legal.license.base_license_url', 'https://www.gnu.org/licenses/agpl-3.0.html')
         ->assertJsonPath('data.features.notification_channels.android_fcm', true)
         ->assertJsonPath('data.features.notification_channels.web_push', true)

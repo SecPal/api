@@ -16,7 +16,6 @@ in this repository are present in `LICENSES/`:
 - `AGPL-3.0-or-later.txt`
 - `CC-BY-4.0.txt`
 - `CC0-1.0.txt`
-- `LicenseRef-SecPal-Attribution.txt`
 - `MIT.txt`
 - `ODbL-1.0.txt`
 
@@ -56,11 +55,13 @@ distribution obligation.
   `config/queue.php`, `config/services.php`, and `config/session.php`, plus
   the Laravel Sanctum template `config/sanctum.php`, retain the MIT license and
   `Taylor Otwell` copyright notice. Their SecPal-specific configuration values
-  do not apply the AGPL attribution addendum to the third-party templates.
+  do not replace the third-party templates' MIT licensing with the
+  repository-owned AGPL license.
 - `config/permission.php` is an adapted published configuration from
   `spatie/laravel-permission`. Its SPDX metadata preserves the package's MIT
   license and `Spatie bvba <info@spatie.be>` copyright notice. SecPal changes
-  do not apply the AGPL attribution addendum to this third-party derivative.
+  do not replace this third-party derivative's MIT license with the
+  repository-owned AGPL license.
 - `tests/fixtures/address_data/sample_streets.csv` is ODbL-1.0 reference data.
   Its sidecar and `docs/ADDRESS_DATA.md` preserve the data license and the
   required OpenPLZ/OpenStreetMap/OpenPotato attribution context. Runtime
@@ -75,10 +76,10 @@ distribution obligation.
   corresponding-source obligations separately.
 
 The concise provenance record for committed third-party material is in
-`THIRD-PARTY-NOTICES.md`. The remaining AGPL, CC0, MIT, and custom-license
-metadata was reviewed as project-owned material or explicitly documented
-data/notice material. No other copied third-party source or replaced
-third-party copyright notice was identified in tracked files.
+`THIRD-PARTY-NOTICES.md`. The remaining repository-file license metadata was
+reviewed as project-owned material or explicitly documented data/notice
+material. No other copied third-party source or replaced third-party copyright
+notice was identified in tracked files.
 
 ## Release checklist
 

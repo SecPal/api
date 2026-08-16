@@ -24,7 +24,6 @@ compatible_licenses=(
   "ISC"
   "OFL-1.1"
   "ODbL-1.0"
-  "LicenseRef-SecPal-Attribution"
 )
 
 is_allowed_atom() {
@@ -140,13 +139,6 @@ validate_current_file() {
     return 0
   fi
 
-  if ! is_strict_path "$path" \
-    && ([[ "$concluded" == *'LicenseRef-SecPal-Attribution'* ]] \
-      || has_license 'LicenseRef-SecPal-Attribution' "${licenses[@]}"); then
-    echo "ERROR: attribution addendum is only permitted for SecPal-owned AGPL code and assets in $path" >&2
-    return 1
-  fi
-
   if ! is_strict_path "$path"; then
     return 0
   fi
@@ -156,16 +148,14 @@ validate_current_file() {
     return 1
   fi
 
-  if [[ "${#licenses[@]}" -ne 2 ]] \
-    || ! printf '%s\n' "${licenses[@]}" | grep -Fxq 'AGPL-3.0-or-later' \
-    || ! printf '%s\n' "${licenses[@]}" | grep -Fxq 'LicenseRef-SecPal-Attribution'; then
-    echo "ERROR: strict-path files must use exactly AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution in $path" >&2
+  if [[ "${#licenses[@]}" -ne 1 ]] \
+    || ! has_license 'AGPL-3.0-or-later' "${licenses[@]}"; then
+    echo "ERROR: strict-path files must use exactly AGPL-3.0-or-later in $path" >&2
     return 1
   fi
 
   if [[ "$concluded" != "NOASSERTION" ]] \
-    && [[ "$concluded" != 'AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution' ]] \
-    && [[ "$concluded" != 'LicenseRef-SecPal-Attribution AND AGPL-3.0-or-later' ]]; then
+    && [[ "$concluded" != 'AGPL-3.0-or-later' ]]; then
     echo "ERROR: incompatible license expression in $path: $concluded" >&2
     return 1
   fi

@@ -1,7 +1,7 @@
 <?php
 
 // SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later AND LicenseRef-SecPal-Attribution
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 test('router only registers live custom middleware aliases', function (): void {
     $aliases = app('router')->getMiddleware();
