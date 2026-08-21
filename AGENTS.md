@@ -152,9 +152,9 @@ on the first failed item:
   lifecycle, and error handling have corresponding evidence;
 - verify commits are cryptographically signed and no bypass was used.
 
-Create the first pull request as Draft. Use a body file for multiline `gh pr
-create` or `gh pr edit` content. Follow the canonical contract for issue-closing
-and parent references; an implementation pull request must never close an epic.
+Use a body file for multiline `gh pr create` or `gh pr edit` content. Follow the
+canonical work-graph contract for pull-request delivery, issue-closing, and
+parent-reference semantics.
 
 After a merge, return the repository to a ready state: switch to `main`, pull
 with fast-forward only, delete the merged topic branch, prune remotes, refresh

@@ -48,7 +48,8 @@ contract and security detail, not graph sequence, readiness, or progress.
   framework lifecycle APIs before custom equivalents.
 - Use `config()` in application code and `env()` only in config files.
 - Resolve framework-managed collaborators through the Laravel container when
-  application wiring matters.
+  application wiring matters. Preserve the `AGENTS.md` presentation-boundary
+  rule: do not resolve application services inside API Resources or serializers.
 - Preserve tenant isolation, active-membership/context boundaries,
   authorization, lifecycle ordering, transactional atomicity, and database
   constraints.
