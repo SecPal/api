@@ -68,8 +68,9 @@ contract and security detail, not graph sequence, readiness, or progress.
   and `git diff --check`.
 - Update `CHANGELOG.md` for real product changes, not automatically for
   governance-only prose.
-- Keep commits cryptographically signed and create the first PR as Draft.
-- Follow the canonical contract for delivery references; no PR closes an epic.
+- Keep commits cryptographically signed.
+- Follow the canonical work-graph contract for pull-request delivery and
+  reference semantics.
 - Keep GitHub communication in English, SPDX years current, and project
   artifacts free of AI attribution or generated-by wording unless explicitly
   required.
