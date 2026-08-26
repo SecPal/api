@@ -23,12 +23,15 @@ RUN install-php-extensions \
         xml \
         zip \
     && apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-pip unzip \
+    && apt-get install -y --no-install-recommends python3 python3-pip \
     && pip3 install --break-system-packages --no-cache-dir --only-binary=:all: \
         --require-hashes -r /tmp/opentimestamps-requirements.txt \
     && rm /tmp/opentimestamps-requirements.txt \
     && rm -rf /var/lib/apt/lists/*
 FROM extensions AS dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 WORKDIR /app
 COPY composer.json composer.lock ./

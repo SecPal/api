@@ -20,12 +20,15 @@ it('defines the production API image contract', function (): void {
     $documentation = file_get_contents($root.'/docs/containers.md');
     $proxyConfig = file_get_contents($root.'/config/trustedproxy.php');
     $smokeScript = file_get_contents($root.'/tests/docker/smoke.sh');
+    $extensionsStage = explode('FROM extensions AS dependencies', $dockerfile, 2)[0];
+    $dependenciesStage = explode('FROM extensions AS dependencies', $dockerfile, 2)[1];
+    $dependenciesStage = explode('FROM extensions AS runtime', $dependenciesStage, 2)[0];
 
     expect($dockerfile)
         ->toContain('dunglas/frankenphp:1.12.6-php8.4.23-bookworm@sha256:')
         ->toContain('composer:2.10.2@sha256:5946476338742b200bb9ff88f8be56275ddae4b3949c72305cb0dbf10cfcb760')
         ->toContain('composer install')
-        ->toContain('python3 python3-pip unzip')
+        ->toContain('python3 python3-pip')
         ->toContain('--no-dev')
         ->toContain('--no-scripts')
         ->toContain('--require-hashes', '--only-binary=:all:', 'opentimestamps-requirements.txt')
@@ -44,6 +47,11 @@ it('defines the production API image contract', function (): void {
         ->toContain('HEALTHCHECK NONE')
         ->not->toContain('artisan migrate')
         ->not->toContain('octane');
+
+    expect($extensionsStage)->not->toContain('unzip');
+    expect($dependenciesStage)
+        ->toContain('apt-get install -y --no-install-recommends unzip')
+        ->toContain('rm -rf /var/lib/apt/lists/*');
 
     expect($caddyfile)
         ->toContain('admin off', 'auto_https off', ':8080')
