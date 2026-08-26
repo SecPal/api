@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- installed `unzip` only in the dependency-build stage so Composer preserves
+  archive-defined Unix permissions without expanding the shipped runtime image
 - migrated active SecPal-owned API code and asset metadata from the historical
   attribution-addendum expression to plain `AGPL-3.0-or-later`, while
   preserving the repository's mixed-license and third-party boundaries (refs

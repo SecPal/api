@@ -29,6 +29,10 @@ RUN install-php-extensions \
     && rm /tmp/opentimestamps-requirements.txt \
     && rm -rf /var/lib/apt/lists/*
 FROM extensions AS dependencies
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=composer /usr/bin/composer /usr/local/bin/composer
 WORKDIR /app
 COPY composer.json composer.lock ./
