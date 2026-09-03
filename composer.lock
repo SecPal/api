@@ -3807,16 +3807,16 @@
         },
         {
             "name": "phpstan/phpdoc-parser",
-            "version": "2.3.3",
+            "version": "2.3.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/phpstan/phpdoc-parser.git",
-                "reference": "fb19eedd2bb67ff8cf7a5502ad329e701d6398a3"
+                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/fb19eedd2bb67ff8cf7a5502ad329e701d6398a3",
-                "reference": "fb19eedd2bb67ff8cf7a5502ad329e701d6398a3",
+                "url": "https://api.github.com/repos/phpstan/phpdoc-parser/zipball/148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
+                "reference": "148cefffaf0233e4c08cc13db8a195a56dd6dfe9",
                 "shasum": ""
             },
             "require": {
@@ -3848,9 +3848,9 @@
             "description": "PHPDoc parser with support for nullable, intersection and generic types",
             "support": {
                 "issues": "https://github.com/phpstan/phpdoc-parser/issues",
-                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.3"
+                "source": "https://github.com/phpstan/phpdoc-parser/tree/2.3.5"
             },
-            "time": "2026-07-08T07:01:06+00:00"
+            "time": "2026-08-31T16:05:28+00:00"
         },
         {
             "name": "psr/clock",
@@ -4860,16 +4860,16 @@
         },
         {
             "name": "spomky-labs/cbor-php",
-            "version": "3.3.2",
+            "version": "3.3.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Spomky-Labs/cbor-php.git",
-                "reference": "3b491dca4bd7e8ae2b14b892cf3c9740f1ba4339"
+                "reference": "1cac24eeae4be47122d505542a170623b2a35ea3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Spomky-Labs/cbor-php/zipball/3b491dca4bd7e8ae2b14b892cf3c9740f1ba4339",
-                "reference": "3b491dca4bd7e8ae2b14b892cf3c9740f1ba4339",
+                "url": "https://api.github.com/repos/Spomky-Labs/cbor-php/zipball/1cac24eeae4be47122d505542a170623b2a35ea3",
+                "reference": "1cac24eeae4be47122d505542a170623b2a35ea3",
                 "shasum": ""
             },
             "require": {
@@ -4915,7 +4915,7 @@
             ],
             "support": {
                 "issues": "https://github.com/Spomky-Labs/cbor-php/issues",
-                "source": "https://github.com/Spomky-Labs/cbor-php/tree/3.3.2"
+                "source": "https://github.com/Spomky-Labs/cbor-php/tree/3.3.4"
             },
             "funding": [
                 {
@@ -4927,7 +4927,7 @@
                     "type": "patreon"
                 }
             ],
-            "time": "2026-08-30T13:54:28+00:00"
+            "time": "2026-08-31T18:59:25+00:00"
         },
         {
             "name": "spomky-labs/pki-framework",
@@ -8301,7 +8301,7 @@
         },
         {
             "name": "web-auth/webauthn-lib",
-            "version": "5.3.7",
+            "version": "5.3.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/web-auth/webauthn-lib.git",
@@ -8371,7 +8371,7 @@
                 "webauthn"
             ],
             "support": {
-                "source": "https://github.com/web-auth/webauthn-lib/tree/5.3.7"
+                "source": "https://github.com/web-auth/webauthn-lib/tree/5.3.8"
             },
             "funding": [
                 {
