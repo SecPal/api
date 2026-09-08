@@ -156,7 +156,7 @@ class OpenTimestampService
         // Check if ots CLI is installed
         if (! $this->processExecutor->commandExists('ots')) {
             Log::error('OpenTimestamp: ots CLI not installed for upgrade', [
-                'message' => 'Install with: pip install opentimestamps-client',
+                'message' => 'Rebuild the image with the reviewed, pinned OpenTimestamp dependency.',
             ]);
 
             return null;

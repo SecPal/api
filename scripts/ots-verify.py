@@ -32,7 +32,7 @@ try:
 except ImportError as e:
     print("Error: Failed to import the 'opentimestamps' library or required submodules.", file=sys.stderr)
     print(f"Details: {e}", file=sys.stderr)
-    print("A common fix is to install or update it with: pip install --upgrade opentimestamps-client", file=sys.stderr)
+    print("Rebuild the image with the reviewed, pinned OpenTimestamp dependency.", file=sys.stderr)
     sys.exit(2)
 
 DEFAULT_BITCOIN_HEADER_API_BASES = (

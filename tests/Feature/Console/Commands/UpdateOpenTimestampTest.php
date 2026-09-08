@@ -82,6 +82,22 @@ test('command exits when no update available', function () {
         ->assertExitCode(0);
 });
 
+test('package-index discovery failure is reported as maintenance-only failure', function (): void {
+    $this->executor
+        ->shouldReceive('execute')
+        ->with(['python3', '-c', 'import opentimestamps; print(opentimestamps.__version__)'], null, 5)
+        ->andReturn(['exitCode' => 0, 'stdout' => '0.7.2', 'stderr' => '']);
+
+    $this->executor
+        ->shouldReceive('execute')
+        ->with(['pip', 'list', '--outdated', '--format=json'], null, 10)
+        ->andReturn(['exitCode' => 1, 'stdout' => '', 'stderr' => 'Package index unavailable']);
+
+    $this->artisan(UpdateOpenTimestamp::class)
+        ->expectsOutputToContain('maintenance-only')
+        ->assertExitCode(1);
+});
+
 test('command can be cancelled with no confirmation', function () {
     $this->executor
         ->shouldReceive('execute')
@@ -157,4 +173,12 @@ test('command performs upgrade with confirmation', function () {
         ->expectsQuestion('Do you want to update OpenTimestamp now?', true)
         ->expectsOutputToContain('Successfully updated to version 0.5.0')
         ->assertExitCode(0);
+});
+
+test('command refuses to mutate the immutable production image', function (): void {
+    $this->app->detectEnvironment(fn (): string => 'production');
+
+    $this->artisan(UpdateOpenTimestamp::class)
+        ->expectsOutputToContain('disabled in production')
+        ->assertExitCode(1);
 });

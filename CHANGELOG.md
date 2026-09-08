@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- removed scheduled OpenTimestamp package-index update discovery; production
+  health monitoring now checks the installed pinned client and configured
+  calendar/provider operations without treating package-index availability as
+  readiness, and immutable production images refuse runtime updates (fixes
+  `api#1410`)
 - **Breaking:** made PostgreSQL the sole supported production relational and
   shared-state authority for sessions, durable queues, cache, and scheduler
   locks; removed active Redis/Valkey and generic adapter configuration plus
