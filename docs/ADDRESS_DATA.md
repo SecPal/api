@@ -64,7 +64,9 @@ Remote commands read the reviewed URL and digest from configuration. A local
 command may supply its digest with `--expected-sha256`; otherwise it uses
 `ADDRESS_DATA_EXPECTED_SHA256`. `--dry-run` and `--force` never bypass source or
 digest admission. Local paths are trusted operator CLI/configuration inputs, not
-automatically trusted content.
+automatically trusted content. SecPal copies a local file to a private temporary
+snapshot, then hashes and parses that same snapshot so later path changes cannot
+change the admitted bytes.
 
 ## Reviewing an OpenPLZ update
 
