@@ -67,6 +67,20 @@ test('production boot requires verified PostgreSQL server identity', function (a
     'trusted CA input' => [['DB_SSLROOTCERT' => ''], 'DB_SSLROOTCERT'],
 ]);
 
+test('production package discovery works before deployment trust material is mounted', function (): void {
+    $process = new Process(
+        [PHP_BINARY, 'artisan', 'package:discover', '--ansi'],
+        base_path(),
+        array_merge(productionRuntimeEnvironment(), [
+            'DB_SSLMODE' => 'prefer',
+            'DB_SSLROOTCERT' => '',
+        ]),
+    );
+    $process->setTimeout(20)->run();
+
+    expect($process->isSuccessful())->toBeTrue();
+});
+
 /**
  * @return array<string, string>
  */

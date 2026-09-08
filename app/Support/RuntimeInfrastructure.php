@@ -56,6 +56,13 @@ final class RuntimeInfrastructure
         self::assertConfiguredValue('queue.default', self::QUEUE_CONNECTION, 'queue connection');
         self::assertConfiguredValue('session.driver', self::SESSION_DRIVER, 'session driver');
 
+        // Composer's package-discovery build step boots the application before
+        // deployment-owned trust material exists. It cannot open a connection;
+        // adapter selection above remains constrained even on this path.
+        if (self::isPackageDiscovery($application)) {
+            return;
+        }
+
         if (config('database.connections.pgsql.sslmode') !== 'verify-full') {
             throw new RuntimeException('Production PostgreSQL requires DB_SSLMODE=verify-full.');
         }
@@ -65,6 +72,15 @@ final class RuntimeInfrastructure
         if (! is_string($trustedCa) || trim($trustedCa) === '') {
             throw new RuntimeException('Production PostgreSQL requires a non-empty DB_SSLROOTCERT trusted CA path.');
         }
+    }
+
+    private static function isPackageDiscovery(Application $application): bool
+    {
+        /** @var list<string> $arguments */
+        $arguments = $_SERVER['argv'] ?? [];
+
+        return $application->runningInConsole()
+            && ($arguments[1] ?? null) === 'package:discover';
     }
 
     private static function assertConfiguredValue(string $key, string $expected, string $label): void
