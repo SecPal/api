@@ -49,7 +49,7 @@ class HealthThrottle
      */
     private function evaluateThrottleWithFallback(Request $request): array
     {
-        $preferredStore = $this->preferredCacheStoreName();
+        $preferredStore = $this->preferredCacheStoreName($request);
 
         try {
             return $this->evaluateThrottle($request, $this->cacheStore($preferredStore));
@@ -115,8 +115,14 @@ class HealthThrottle
         return $this->cacheFactory->store($store);
     }
 
-    private function preferredCacheStoreName(): string
+    private function preferredCacheStoreName(Request $request): string
     {
+        // Liveness must remain a process check during a PostgreSQL outage. A
+        // per-host file counter still bounds abuse without touching shared state.
+        if ($request->is('health/live')) {
+            return 'file';
+        }
+
         $defaultStore = config('cache.default');
 
         if (! is_string($defaultStore) || $defaultStore === '') {

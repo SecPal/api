@@ -34,6 +34,19 @@ test('active runtime configuration exposes only the supported adapters and bound
         ->and($exampleEnvironment)->not->toMatch('/^(?:REDIS|MEMCACHED|SQS|DYNAMODB|BEANSTALKD)_/m');
 });
 
+test('maintained production entry points match the database runtime contract', function (): void {
+    foreach (['docs/deployment.md', 'docs/deployment-uberspace.md', 'docs/deployment-checklist.md'] as $path) {
+        $guide = (string) file_get_contents(base_path($path));
+
+        expect($guide)->toContain('DB_SSLMODE=verify-full', 'DB_SSLROOTCERT=');
+    }
+
+    $sanctumGuide = (string) file_get_contents(base_path('docs/guides/sanctum-spa-auth.md'));
+
+    expect($sanctumGuide)
+        ->not->toContain("use 'cookie' for simpler setups", "or 'cookie' for file-based sessions", 'SESSION_DRIVER=cookie');
+});
+
 test('production boot rejects unsupported runtime infrastructure', function (array $environment, string $configuration): void {
     $process = new Process(
         [PHP_BINARY, 'artisan', 'about', '--only=environment'],

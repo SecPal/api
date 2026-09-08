@@ -79,6 +79,8 @@ Quick reference checklist for SecPal API production deployment.
 - [ ] Create PostgreSQL database: `CREATE DATABASE secpal_production;`
 - [ ] Create database user: `CREATE USER secpal_user WITH ENCRYPTED PASSWORD '...';`
 - [ ] Grant privileges: `GRANT ALL PRIVILEGES ON DATABASE secpal_production TO secpal_user;`
+- [ ] Set `DB_SSLMODE=verify-full` and obtain the deployment-owned trusted CA.
+- [ ] Set `DB_SSLROOTCERT=/deployment/path/postgresql-ca.crt` to that readable CA file.
 - [ ] Run migrations: `php artisan migrate --force`
 - [ ] Verify migrations: `php artisan migrate:status`
 - [ ] Seed predefined roles: `php artisan db:seed --class=RolesAndPermissionsSeeder`

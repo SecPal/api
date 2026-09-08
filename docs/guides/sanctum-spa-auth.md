@@ -136,7 +136,7 @@ CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN
 
 ```php
 // config/session.php
-'driver' => env('SESSION_DRIVER', 'database'), // default: database, use 'cookie' for simpler setups
+'driver' => env('SESSION_DRIVER', 'database'), // supported production driver
 'lifetime' => 120,
 'http_only' => true,
 'secure' => env('SESSION_SECURE_COOKIE'),
@@ -147,7 +147,7 @@ CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,X-XSRF-TOKEN
 
 ```env
 # .env
-SESSION_DRIVER=database  # or 'cookie' for file-based sessions
+SESSION_DRIVER=database
 SESSION_LIFETIME=120
 SESSION_HTTP_ONLY=true
 SESSION_SAME_SITE=lax
@@ -446,7 +446,7 @@ curl -b cookies.txt \
 1. **Check Session Configuration**
 
    ```env
-   SESSION_DRIVER=cookie  # Not 'array' in production!
+   SESSION_DRIVER=database
    SESSION_LIFETIME=120   # Minutes
    SESSION_DOMAIN=null    # Or .yourdomain.com for subdomains
    ```

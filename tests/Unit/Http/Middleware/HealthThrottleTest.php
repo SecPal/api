@@ -29,6 +29,24 @@ it('uses the configured database cache so production health throttling stays sha
     expect($response->getStatusCode())->toBe(200);
 });
 
+it('keeps liveness independent from the database cache', function (): void {
+    config([
+        'cache.default' => 'database',
+        'cache.stores.database.driver' => 'database',
+    ]);
+
+    $cacheFactory = Mockery::mock(CacheFactory::class);
+    $fileStore = healthThrottleCacheRepositoryMock();
+
+    $cacheFactory->shouldReceive('store')->once()->with('file')->andReturn($fileStore);
+    $cacheFactory->shouldNotReceive('store')->with('database');
+
+    $response = app(HealthThrottle::class, ['cacheFactory' => $cacheFactory])
+        ->handle(Request::create('/health/live', 'GET'), fn (): Response => new Response('ok'));
+
+    expect($response->getStatusCode())->toBe(200);
+});
+
 it('falls back explicitly to file throttling when the database cache is unavailable', function (): void {
     config([
         'cache.default' => 'database',
