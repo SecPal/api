@@ -1381,6 +1381,14 @@ class AuthController extends Controller
             throw $this->passkeyCredentialValidationException($exception);
         } catch (Throwable $exception) {
             $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
+            $this->securityEventRecorder->record(
+                $request,
+                SecurityEventName::AuthenticationPasskeyFailed,
+                [
+                    'authentication_method' => 'passkey',
+                    'login_context' => $expectedLoginContext,
+                ],
+            );
 
             report($exception);
 

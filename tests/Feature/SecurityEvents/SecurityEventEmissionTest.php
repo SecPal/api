@@ -262,6 +262,50 @@ it('emits a passkey-specific failure without challenge or credential material', 
         );
 });
 
+it('emits a passkey-specific failure when malformed assertion data causes an unexpected exception', function (): void {
+    $events = [];
+    captureSecurityEvents($events);
+
+    $challenge = app(PasskeyChallengeService::class)->createAuthenticationChallenge([
+        'challenge' => 'synthetic-passkey-challenge',
+        'rp_id' => 'app.secpal.dev',
+        'timeout' => 60000,
+        'user_verification' => 'preferred',
+    ], 'conditional');
+
+    /** @var PasskeyService&MockInterface $passkeyService */
+    $passkeyService = $this->mock(PasskeyService::class);
+    $passkeyService->shouldReceive('verifyAuthentication')
+        ->once()
+        ->andThrow(new RuntimeException('Synthetic malformed assertion.'));
+
+    $this->withHeaders(spaCsrfHeaders($this))
+        ->postJson('/v1/auth/passkeys/challenges/'.$challenge['challenge_id'].'/verify', [
+            'credential' => [
+                'id' => 'synthetic-credential-id',
+                'raw_id' => 'synthetic-raw-credential-id',
+                'type' => 'public-key',
+                'response' => [
+                    'client_data_json' => 'synthetic-client-data',
+                    'authenticator_data' => 'synthetic-authenticator-data',
+                    'signature' => 'synthetic-signature',
+                ],
+            ],
+        ])->assertUnprocessable()
+        ->assertJsonValidationErrors(['credential']);
+
+    expect($events)->toHaveCount(1)
+        ->and($events[0]->toArray())->toMatchArray([
+            'event_name' => 'authentication.passkey_failed',
+            'outcome' => 'failure',
+            'reason' => 'invalid_passkey_credential',
+            'metadata' => [
+                'authentication_method' => 'passkey',
+                'login_context' => 'session',
+            ],
+        ]);
+});
+
 it('emits one explicit defensive signal when application login throttling denies a request', function (): void {
     $email = 'throttled-person@example.test';
     clearLoginRateLimiter($email);

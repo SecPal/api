@@ -43,7 +43,7 @@ The v1 object is closed: unknown top-level or metadata fields are invalid.
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------- |
 | `authentication.failed`         | The final primary password check rejects a validated login or token request. It intentionally does not claim credential-stuffing intent; consumers may correlate repeated events. | `failure` / `invalid_credentials`        | `authentication_method=password`; `login_context=session\|token`            |
 | `authentication.mfa_failed`     | A pending login challenge reaches the final MFA-code check and the submitted TOTP or recovery code is invalid.                                                                    | `failure` / `invalid_mfa_code`           | `authentication_method=totp\|recovery_code`; `login_context=session\|token` |
-| `authentication.passkey_failed` | A browser or token login challenge reaches WebAuthn verification and the assertion is invalid.                                                                                    | `failure` / `invalid_passkey_credential` | `authentication_method=passkey`; `login_context=session\|token`             |
+| `authentication.passkey_failed` | A browser or token login challenge reaches WebAuthn verification and the assertion is invalid, malformed, or cannot be verified.                                                  | `failure` / `invalid_passkey_credential` | `authentication_method=passkey`; `login_context=session\|token`             |
 | `authentication.token_rejected` | Sanctum rejects a request that presented a bearer token. Expired, revoked, unknown, and malformed tokens are deliberately not distinguished after lookup failure.                 | `denied` / `invalid_or_expired`          | `authentication_method=bearer_token`                                        |
 | `authentication.rate_limited`   | The existing login limiter denies a request after counted credential failures. This reports the application control; it does not implement another lockout.                       | `denied` / `rate_limited`                | `authentication_method=password`; `login_context=session\|token`            |
 | `password_reset.token_rejected` | Password-reset confirmation rejects an unknown, missing, expired, invalid, or concurrently consumed token. Those internal cases intentionally share one reason.                   | `denied` / `invalid_or_expired`          | `reset_phase=confirmation`                                                  |
@@ -93,18 +93,25 @@ The event emitter keeps application security controls separate from telemetry
 volume control. In each 60-second window it writes at most five events for one
 `schema version + event name + source IP + actor reference` fingerprint and at
 most 300 events application-wide. Limits are enforced through the application's
-shared Laravel rate-limiter cache. The first events remain available as a
-detection signal; excess repeats are suppressed until the window expires.
-Suppression never changes login, MFA, token, reset, or authorization behavior.
+shared Laravel rate-limiter cache. Admission compares each cache backend's
+atomic increment result with both limits and rolls back rejected admissions, so
+one exhausted quota does not consume the other quota. The first events remain
+available as a detection signal; excess repeats are suppressed until the window
+expires. Suppression never changes login, MFA, token, reset, or authorization
+behavior.
 
 ## Consumer and versioning rules
 
 Consumers must validate each JSON object against
 [`v1/schema.json`](security-events/v1/schema.json) before interpretation and
 must reject malformed events, unknown fields, unknown names or reasons, and
-unknown schema versions. [`v1/events.jsonl`](security-events/v1/events.jsonl)
-contains one synthetic example per supported event and uses only documentation
-addresses and non-secret placeholders.
+unknown schema versions. Validators must enable draft 2020-12 `format`
+assertions so the timestamp's calendar semantics are checked in addition to its
+exact millisecond UTC pattern. Source-IP branches also carry explicit structural
+patterns for validators that treat `format` as annotation-only.
+[`v1/events.jsonl`](security-events/v1/events.jsonl) contains one synthetic
+example per supported event and uses only documentation addresses and
+non-secret placeholders.
 
 The PHP enums and event definition are the producer's authoritative invariant;
 the JSON Schema independently enforces the downstream trust boundary. Maintained

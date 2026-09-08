@@ -116,11 +116,11 @@ it('makes the published schema reject unknown versions and undeclared fields', f
     );
     $payload = validSecurityEventPayload();
 
-    if ($mutation === 'version') {
-        $payload['schema_version'] = 2;
-    } else {
-        $payload['authorization'] = 'synthetic-secret';
-    }
+    match ($mutation) {
+        'version' => $payload['schema_version'] = 2,
+        'field' => $payload['authorization'] = 'synthetic-secret',
+        'timestamp' => $payload['occurred_at'] = '2026-99-99T25:61:61.000Z',
+    };
 
     $data = json_decode(json_encode($payload, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
 
@@ -128,7 +128,38 @@ it('makes the published schema reject unknown versions and undeclared fields', f
 })->with([
     'unknown version' => 'version',
     'undeclared field' => 'field',
+    'impossible timestamp' => 'timestamp',
 ]);
+
+it('keeps source IP validation effective when format is annotation-only', function (): void {
+    $schema = json_decode(
+        (string) file_get_contents(securityEventFixtureDirectory().'/schema.json'),
+        false,
+        512,
+        JSON_THROW_ON_ERROR,
+    );
+
+    unset(
+        $schema->properties->source_ip->oneOf[0]->format,
+        $schema->properties->source_ip->oneOf[1]->format,
+    );
+
+    foreach (['192.0.2.10', '2001:db8::10', '::ffff:192.0.2.10'] as $sourceIp) {
+        $payload = validSecurityEventPayload();
+        $payload['source_ip'] = $sourceIp;
+        $data = json_decode(json_encode($payload, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
+
+        expect((new Validator(null, 100, false))->validate($data, $schema)->isValid())->toBeTrue();
+    }
+
+    foreach (['not-an-ip', '999.999.999.999', '2001:::10', '::::'] as $sourceIp) {
+        $payload = validSecurityEventPayload();
+        $payload['source_ip'] = $sourceIp;
+        $data = json_decode(json_encode($payload, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
+
+        expect((new Validator(null, 100, false))->validate($data, $schema)->isValid())->toBeFalse();
+    }
+});
 
 it('uses deferred local logging without an external security backend dependency', function (): void {
     $channel = config('logging.channels.security_events');
@@ -247,4 +278,55 @@ it('applies a global output bound when an attacker varies event fingerprints', f
     }
 
     expect($written)->toBe(4);
+});
+
+it('does not consume a fingerprint budget when the global bound suppresses an event', function (): void {
+    config()->set('security-events.rate_bound.per_fingerprint', 1);
+    config()->set('security-events.rate_bound.global', 1);
+    config()->set('security-events.rate_bound.decay_seconds', 60);
+
+    $written = 0;
+    $logger = Mockery::mock(LoggerInterface::class);
+    $logger->shouldReceive('info')->times(2)->andReturnUsing(function () use (&$written): void {
+        $written++;
+    });
+
+    $logs = Mockery::mock(LogManager::class);
+    $logs->shouldReceive('channel')->times(2)->andReturn($logger);
+
+    $rateLimiter = app(Illuminate\Cache\RateLimiter::class);
+    $emitter = new BoundedSecurityEventEmitter($logs, $rateLimiter);
+    $first = SecurityEvent::forRequest(
+        Request::create('/v1/auth/token', 'POST', server: ['REMOTE_ADDR' => '192.0.2.201']),
+        SecurityEventName::AuthenticationTokenRejected,
+        SecurityEventReason::InvalidOrExpired,
+        ['authentication_method' => 'bearer_token'],
+    );
+    $second = SecurityEvent::forRequest(
+        Request::create('/v1/auth/token', 'POST', server: ['REMOTE_ADDR' => '192.0.2.202']),
+        SecurityEventName::AuthenticationTokenRejected,
+        SecurityEventReason::InvalidOrExpired,
+        ['authentication_method' => 'bearer_token'],
+    );
+    $globalKey = 'security-events:v1:global';
+    $firstKey = 'security-events:v1:fingerprint:'.$first->rateBoundFingerprint();
+    $secondKey = 'security-events:v1:fingerprint:'.$second->rateBoundFingerprint();
+
+    try {
+        $rateLimiter->clear($globalKey);
+        $rateLimiter->clear($firstKey);
+        $rateLimiter->clear($secondKey);
+
+        $emitter->emit($first);
+        $emitter->emit($second);
+
+        $rateLimiter->clear($globalKey);
+        $emitter->emit($second);
+
+        expect($written)->toBe(2);
+    } finally {
+        $rateLimiter->clear($globalKey);
+        $rateLimiter->clear($firstKey);
+        $rateLimiter->clear($secondKey);
+    }
 });

@@ -45,23 +45,26 @@ final readonly class BoundedSecurityEventEmitter implements SecurityEventEmitter
         $global = $this->boundedConfigInteger('security-events.rate_bound.global', 300, 1, 10_000);
         $decaySeconds = $this->boundedConfigInteger('security-events.rate_bound.decay_seconds', 60, 1, 3600);
 
-        $fingerprintAllowed = $this->rateLimiter->attempt(
-            self::RATE_KEY_PREFIX.'fingerprint:'.$event->rateBoundFingerprint(),
-            $perFingerprint,
-            static fn (): bool => true,
-            $decaySeconds,
-        );
+        $fingerprintKey = self::RATE_KEY_PREFIX.'fingerprint:'.$event->rateBoundFingerprint();
+        $fingerprintHits = $this->rateLimiter->hit($fingerprintKey, $decaySeconds);
 
-        if (! $fingerprintAllowed) {
+        if ($fingerprintHits > $perFingerprint) {
+            $this->rateLimiter->decrement($fingerprintKey, $decaySeconds);
+
             return false;
         }
 
-        return $this->rateLimiter->attempt(
-            self::RATE_KEY_PREFIX.'global',
-            $global,
-            static fn (): bool => true,
-            $decaySeconds,
-        ) === true;
+        $globalKey = self::RATE_KEY_PREFIX.'global';
+        $globalHits = $this->rateLimiter->hit($globalKey, $decaySeconds);
+
+        if ($globalHits > $global) {
+            $this->rateLimiter->decrement($globalKey, $decaySeconds);
+            $this->rateLimiter->decrement($fingerprintKey, $decaySeconds);
+
+            return false;
+        }
+
+        return true;
     }
 
     private function boundedConfigInteger(string $key, int $default, int $minimum, int $maximum): int
