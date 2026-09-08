@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- completed domain lookup coverage for customer, site, and employee create and
+  relationship-reassignment workflows, and added the distinct tenant-safe
+  customer-establishment link-candidate lookup (fixes `api#1336`)
 - required the dedicated `sites.update` permission for supplied Site domain
   relationship fields and `customers.update` for customer-establishment update
   or deletion, while preserving assignment-based ordinary edits and tenant and

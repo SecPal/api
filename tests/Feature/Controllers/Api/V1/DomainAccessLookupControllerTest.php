@@ -38,6 +38,143 @@ afterEach(function (): void {
     TenantKey::setKekPath(null);
 });
 
+test('legal entity lookups allow every domain create and reassignment capability', function (string $permission): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, $permission);
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+
+    $this->withToken($this->token)->getJson('/v1/lookups/legal-entities')
+        ->assertOk()
+        ->assertJsonFragment(['id' => $legalEntity->id]);
+})->with([
+    'customer creation' => 'customers.create',
+    'customer reassignment' => 'customers.update',
+    'site creation' => 'sites.create',
+    'site reassignment' => 'sites.update',
+    'employee write' => 'employee.write',
+    'employee creation' => 'employee.create',
+    'employee reassignment' => 'employee.update',
+]);
+
+test('establishment lookups allow every domain consumer capability', function (string $permission): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, $permission);
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/legal-entities/{$legalEntity->id}/establishments")
+        ->assertOk()
+        ->assertJsonFragment(['id' => $establishment->id]);
+})->with([
+    'customer relationship mutation' => 'customers.update',
+    'site creation' => 'sites.create',
+    'site reassignment' => 'sites.update',
+    'employee write' => 'employee.write',
+    'employee creation' => 'employee.create',
+    'employee reassignment' => 'employee.update',
+]);
+
+test('domain write lookups reject read-only and scope-only authority', function (string $permission, bool $withScope): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, $permission);
+    if ($withScope) {
+        $unit = OrganizationalUnit::factory()->forTenant((string) $this->tenant->id)->create();
+        giveOrganizationalScope($this->user, $unit, accessLevel: 'write');
+    }
+
+    $this->withToken($this->token)->getJson('/v1/lookups/legal-entities')->assertForbidden();
+})->with([
+    'read-only' => ['customers.read', false],
+    'assigned customer editing cannot reassign a domain' => ['customers.update', true],
+    'assigned site editing cannot reassign a domain' => ['sites.update', true],
+]);
+
+test('customer link candidates are active, same-domain, unlinked, and information-poor', function (): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $candidate = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'name' => 'Link Candidate',
+    ]);
+    $linked = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'customer_id' => $linked->id,
+        'establishment_id' => $establishment->id,
+    ]);
+    $inactive = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'is_active' => false,
+    ]);
+    $deleted = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $deleted->delete();
+    $otherLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $wrongLegalEntity = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $otherLegalEntity->id,
+    ]);
+    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $foreignTenant->id)->create();
+    $foreignCustomer = Customer::factory()->create([
+        'tenant_id' => $foreignTenant->id,
+        'legal_entity_id' => $foreignLegalEntity->id,
+    ]);
+
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/establishments/{$establishment->id}/customer-candidates")
+        ->assertOk()
+        ->assertExactJson(['data' => [[
+            'id' => $candidate->id,
+            'name' => 'Link Candidate',
+        ]]])
+        ->assertJsonMissing(['id' => $linked->id])
+        ->assertJsonMissing(['id' => $inactive->id])
+        ->assertJsonMissing(['id' => $deleted->id])
+        ->assertJsonMissing(['id' => $wrongLegalEntity->id])
+        ->assertJsonMissing(['id' => $foreignCustomer->id]);
+
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/establishments/{$establishment->id}/customers")
+        ->assertForbidden();
+});
+
+test('customer link candidates fail without relationship authority and hide foreign establishments', function (): void {
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $foreignTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $foreignLegalEntity = LegalEntity::factory()->forTenant((string) $foreignTenant->id)->create();
+    $foreignEstablishment = Establishment::factory()->create([
+        'tenant_id' => $foreignTenant->id,
+        'legal_entity_id' => $foreignLegalEntity->id,
+    ]);
+
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/establishments/{$establishment->id}/customer-candidates")
+        ->assertForbidden();
+
+    givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/establishments/{$foreignEstablishment->id}/customer-candidates")
+        ->assertNotFound();
+});
+
 test('domain lookups cascade through authorized same-tenant records with minimal payloads', function (): void {
     givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
     givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');

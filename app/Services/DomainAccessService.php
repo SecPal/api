@@ -203,6 +203,28 @@ final class DomainAccessService
             ->get();
     }
 
+    /** @return Collection<int, Customer> */
+    public function customerLinkCandidatesForEstablishment(
+        User $user,
+        int $tenantId,
+        string $establishmentId,
+    ): Collection {
+        $this->ensureCanCreateCustomerEstablishments($user, $tenantId);
+
+        $establishment = $this->repository->findWritableEstablishment($tenantId, $establishmentId);
+        if ($establishment === null) {
+            throw (new \Illuminate\Database\Eloquent\ModelNotFoundException)->setModel(Establishment::class, [$establishmentId]);
+        }
+
+        $this->findWritableLegalEntity($user, $tenantId, $establishment->legal_entity_id);
+
+        return $this->repository->customerLinkCandidatesForEstablishmentQuery(
+            $tenantId,
+            $establishment->legal_entity_id,
+            $establishmentId,
+        )->orderBy('name')->get();
+    }
+
     public function ensureCustomerCreatable(User $user, int $tenantId, string $legalEntityId): LegalEntity
     {
         $this->ensureCanCreateCustomers($user, $tenantId);
@@ -325,9 +347,16 @@ final class DomainAccessService
     {
         $this->ensureTenant($user, $tenantId);
 
-        if (! $user->can('create', Customer::class)
-            && ! $user->can('create', Employee::class)
-            && ! $user->can('create', Site::class)) {
+        if (! $this->canUseDomainWriteLookups($user)) {
+            throw new AuthorizationException;
+        }
+    }
+
+    private function ensureCanCreateCustomerEstablishments(User $user, int $tenantId): void
+    {
+        $this->ensureTenant($user, $tenantId);
+
+        if (! $this->canMutateCustomerEstablishments($user)) {
             throw new AuthorizationException;
         }
     }
@@ -348,10 +377,40 @@ final class DomainAccessService
 
     private function requiresScopedEmployeeDomainFiltering(User $user): bool
     {
-        return $user->can('create', Employee::class)
-            && ! $user->can('create', Customer::class)
-            && ! $user->can('create', Site::class)
+        return $this->canManageEmployees($user)
+            && ! $this->canCreateOrReassignCustomers($user)
+            && ! $this->canCreateOrReassignSites($user)
             && $user->organizationalScopes()->exists();
+    }
+
+    private function canUseDomainWriteLookups(User $user): bool
+    {
+        return $this->canCreateOrReassignCustomers($user)
+            || $this->canCreateOrReassignSites($user)
+            || $this->canManageEmployees($user);
+    }
+
+    private function canCreateOrReassignCustomers(User $user): bool
+    {
+        return $user->can('create', Customer::class) || $this->canMutateCustomerEstablishments($user);
+    }
+
+    private function canMutateCustomerEstablishments(User $user): bool
+    {
+        return $user->can('customers.update') && ! $user->organizationalScopes()->exists();
+    }
+
+    private function canCreateOrReassignSites(User $user): bool
+    {
+        return $user->can('create', Site::class)
+            || ($user->can('sites.update') && ! $user->organizationalScopes()->exists());
+    }
+
+    private function canManageEmployees(User $user): bool
+    {
+        return $user->can('employee.write')
+            || $user->can('employee.create')
+            || $user->can('employee.update');
     }
 
     private function hasUnrestrictedCustomerReadAccess(User $user): bool
