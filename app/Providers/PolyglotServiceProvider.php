@@ -23,6 +23,13 @@ class PolyglotServiceProvider extends PolyglotApplicationServiceProvider
         }
 
         Event::listen(LocaleUpdated::class, static function (LocaleUpdated $event): void {
+            // GNU gettext selects catalogs from LANGUAGE only when LC_MESSAGES
+            // has a usable non-C locale. Keep the application-selected locale
+            // authoritative without changing unrelated process categories.
+            putenv('LC_ALL');
+            putenv('LC_MESSAGES');
+            $locales = (array) config("polyglot.locales.{$event->locale}", [$event->locale]);
+            setlocale(LC_MESSAGES, [...$locales, 'C.UTF-8', 'C.utf8']);
             putenv("LANGUAGE={$event->locale}");
         });
     }
