@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 use App\Models\Customer;
+use App\Models\CustomerAssignment;
 use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
@@ -228,6 +229,83 @@ test('customer establishment CRUD exposes local contacts through customer and de
         ->deleteJson("/v1/customer-establishments/{$linkId}")
         ->assertNoContent();
     expect(CustomerEstablishment::query()->find($linkId))->toBeNull();
+});
+
+test('assigned customer editors need customers.update to update customer establishment links', function (): void {
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+    ]);
+    $assignedUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    CustomerAssignment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_id' => $customer->id,
+        'user_id' => $assignedUser->id,
+    ]);
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $this->establishment->id,
+        'contact_name_plain' => 'Original Contact',
+    ]);
+
+    $this->withToken($assignedUser->createToken('assigned-editor')->plainTextToken)
+        ->patchJson("/v1/customer-establishments/{$link->id}", ['contact_name' => 'Unauthorized Change'])
+        ->assertForbidden();
+
+    expect($link->refresh()->contact_name)->toBe('Original Contact');
+});
+
+test('assigned customer editors need customers.update to delete customer establishment links', function (): void {
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+    ]);
+    $assignedUser = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    CustomerAssignment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'customer_id' => $customer->id,
+        'user_id' => $assignedUser->id,
+    ]);
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $this->legalEntity->id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $this->establishment->id,
+    ]);
+
+    $this->withToken($assignedUser->createToken('assigned-editor')->plainTextToken)
+        ->deleteJson("/v1/customer-establishments/{$link->id}")
+        ->assertForbidden();
+
+    expect($link->fresh()?->trashed())->toBeFalse();
+});
+
+test('customer establishment mutations fail closed for another tenant', function (): void {
+    $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+    $otherCustomer = Customer::factory()->create(['tenant_id' => $otherTenant->id]);
+    $otherEstablishment = Establishment::factory()->create([
+        'tenant_id' => $otherTenant->id,
+        'legal_entity_id' => $otherCustomer->legal_entity_id,
+    ]);
+    $link = CustomerEstablishment::factory()->create([
+        'tenant_id' => $otherTenant->id,
+        'legal_entity_id' => $otherCustomer->legal_entity_id,
+        'customer_id' => $otherCustomer->id,
+        'establishment_id' => $otherEstablishment->id,
+        'contact_name_plain' => 'Other Tenant Contact',
+    ]);
+
+    $this->withToken($this->token)
+        ->patchJson("/v1/customer-establishments/{$link->id}", ['contact_name' => 'Unauthorized Change'])
+        ->assertNotFound();
+    $this->withToken($this->token)
+        ->deleteJson("/v1/customer-establishments/{$link->id}")
+        ->assertNotFound();
+
+    expect($link->refresh()->contact_name)->toBe('Other Tenant Contact')
+        ->and($link->fresh()?->trashed())->toBeFalse();
 });
 
 test('duplicate customer establishment pair uses the neutral conflict response', function (): void {

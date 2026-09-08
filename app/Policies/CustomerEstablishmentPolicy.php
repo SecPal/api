@@ -37,11 +37,18 @@ final class CustomerEstablishmentPolicy
 
     public function update(User $user, CustomerEstablishment $customerEstablishment): bool
     {
-        return $user->can('update', $customerEstablishment->customer);
+        return $this->canMutate($user, $customerEstablishment);
     }
 
     public function delete(User $user, CustomerEstablishment $customerEstablishment): bool
     {
-        return $user->can('update', $customerEstablishment->customer);
+        return $this->canMutate($user, $customerEstablishment);
+    }
+
+    private function canMutate(User $user, CustomerEstablishment $customerEstablishment): bool
+    {
+        return $user->can('customers.update')
+            && ! $user->organizationalScopes()->exists()
+            && $user->can('update', $customerEstablishment->customer);
     }
 }

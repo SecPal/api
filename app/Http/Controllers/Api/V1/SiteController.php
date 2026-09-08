@@ -172,6 +172,7 @@ class SiteController extends Controller
      * Requires:
      * - Direct assignment to site (currently active) OR
      * - 'sites.update' permission
+     * Domain relationship fields additionally require 'sites.update' and no organizational scope.
      *
      * @return JsonResponse Updated site
      */
