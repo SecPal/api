@@ -24,31 +24,44 @@ final class AddressDataDownloader
             }
         };
 
-        if ($forceFromPath !== null && $forceFromPath !== '') {
-            if (! is_readable($forceFromPath)) {
-                throw new RuntimeException("Address data source file is not readable: {$forceFromPath}");
-            }
-
-            $emit('Using local CSV: '.$forceFromPath);
-
-            $sha256 = hash_file('sha256', $forceFromPath);
-            if ($sha256 === false) {
-                throw new RuntimeException('Could not hash address data file.');
-            }
-
-            return [
-                'path' => $forceFromPath,
-                'sha256' => $sha256,
-                'etag' => null,
-                'last_modified' => null,
-            ];
-        }
-
         $disk = Storage::disk('local');
         $disk->makeDirectory('address-data/tmp');
 
         $tempRelative = 'address-data/tmp/'.uniqid('streets_', true).'.csv';
         $fullPath = $disk->path($tempRelative);
+
+        if ($forceFromPath !== null && $forceFromPath !== '') {
+            if (! is_file($forceFromPath) || ! is_readable($forceFromPath)) {
+                throw new RuntimeException(
+                    "Address data source file is not readable or is not a regular file: {$forceFromPath}",
+                );
+            }
+
+            $emit('Using local CSV: '.$forceFromPath);
+
+            try {
+                if (! copy($forceFromPath, $fullPath)) {
+                    throw new RuntimeException('Could not create a private snapshot of the address data file.');
+                }
+
+                $sha256 = hash_file('sha256', $fullPath);
+                if ($sha256 === false) {
+                    throw new RuntimeException('Could not hash the address data snapshot.');
+                }
+
+                $emit('Checksum: '.$sha256);
+
+                return [
+                    'path' => $fullPath,
+                    'sha256' => $sha256,
+                    'etag' => null,
+                    'last_modified' => null,
+                ];
+            } catch (\Throwable $e) {
+                @unlink($fullPath);
+                throw $e;
+            }
+        }
 
         $timeout = AddressDataConfig::int('address_data.download_timeout', 600);
 

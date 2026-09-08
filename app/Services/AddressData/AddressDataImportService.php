@@ -17,6 +17,7 @@ final class AddressDataImportService
         private AddressDataDownloader $downloader,
         private AddressStreetCsvImporter $csvImporter,
         private AddressSuggestionService $suggestionService,
+        private AddressDataSourceAdmission $sourceAdmission,
     ) {}
 
     /**
@@ -27,6 +28,7 @@ final class AddressDataImportService
         bool $force,
         bool $dryRun,
         ?string $sourcePath,
+        ?string $expectedSha256,
         bool $ifEmpty,
         bool $setupOnly,
         int $keepImports,
@@ -52,10 +54,14 @@ final class AddressDataImportService
             return ['status' => 'skipped', 'message' => 'An activated address import already exists.'];
         }
 
-        $sourceUrl = AddressDataConfig::string(
-            'address_data.source_url',
-            'https://github.com/openpotato/openplzapi.data/raw/refs/heads/main/src/de/osm/streets.updated.csv',
-        );
+        try {
+            $expectedSha256 = $this->sourceAdmission->expectedSha256($expectedSha256);
+            $sourceUrl = $sourcePath === null
+                ? $this->sourceAdmission->remoteSourceUrl($this->configuredSourceUrl())
+                : '';
+        } catch (Throwable $e) {
+            return ['status' => 'failed', 'message' => $e->getMessage()];
+        }
 
         $emit('Resolving address data source (download or local file)…');
 
@@ -68,9 +74,17 @@ final class AddressDataImportService
         $path = $downloaded['path'];
         $sha256 = $downloaded['sha256'];
 
+        try {
+            $this->sourceAdmission->assertMatches($expectedSha256, $sha256);
+        } catch (Throwable $e) {
+            $this->cleanupTempDownload($path);
+
+            return ['status' => 'failed', 'message' => $e->getMessage()];
+        }
+
         $active = $this->latestActivatedImport($countryCode);
         if (! $force && $active !== null && $active->source_sha256 !== null && hash_equals($active->source_sha256, $sha256)) {
-            $this->cleanupTempDownload($path, $sourcePath);
+            $this->cleanupTempDownload($path);
             $emit('Skipped: source unchanged (SHA-256 matches active import). Use --force to re-import.');
 
             return ['status' => 'skipped', 'message' => 'Source unchanged (SHA-256 matches active import).'];
@@ -82,11 +96,11 @@ final class AddressDataImportService
             try {
                 $rows = $this->csvImporter->importFile($path, $dummy, true, $onProgress);
             } catch (Throwable $e) {
-                $this->cleanupTempDownload($path, $sourcePath);
+                $this->cleanupTempDownload($path);
 
                 return ['status' => 'failed', 'message' => $e->getMessage()];
             }
-            $this->cleanupTempDownload($path, $sourcePath);
+            $this->cleanupTempDownload($path);
 
             return ['status' => 'dry_run', 'message' => "Validated CSV; {$rows} rows would be imported."];
         }
@@ -99,7 +113,7 @@ final class AddressDataImportService
         $import = AddressDataImport::query()->create([
             'country_code' => $countryCode,
             'source_name' => AddressDataConfig::string('address_data.source_name', 'OpenPLZ API Data'),
-            'source_url' => $sourceUrl,
+            'source_url' => $sourcePath === null ? $sourceUrl : 'file://'.$sourcePath,
             'status' => AddressDataImport::STATUS_RUNNING,
             'started_at' => now(),
             'license' => $license,
@@ -115,7 +129,7 @@ final class AddressDataImportService
                 'error_message' => $e->getMessage(),
             ]);
             AddressStreet::query()->where('import_id', $import->id)->delete();
-            $this->cleanupTempDownload($path, $sourcePath);
+            $this->cleanupTempDownload($path);
 
             return ['status' => 'failed', 'message' => $e->getMessage(), 'import_id' => $import->id];
         }
@@ -128,7 +142,7 @@ final class AddressDataImportService
                 'error_message' => $message,
             ]);
             AddressStreet::query()->where('import_id', $import->id)->delete();
-            $this->cleanupTempDownload($path, $sourcePath);
+            $this->cleanupTempDownload($path);
 
             return ['status' => 'failed', 'message' => $message, 'import_id' => $import->id];
         }
@@ -172,12 +186,12 @@ final class AddressDataImportService
             ]);
             AddressStreet::query()->where('import_id', $import->id)->delete();
 
-            $this->cleanupTempDownload($path, $sourcePath);
+            $this->cleanupTempDownload($path);
 
             return ['status' => 'failed', 'message' => $e->getMessage(), 'import_id' => $import->id];
         }
 
-        $this->cleanupTempDownload($path, $sourcePath);
+        $this->cleanupTempDownload($path);
 
         $this->suggestionService->forgetActiveImportCache($countryCode);
 
@@ -194,6 +208,13 @@ final class AddressDataImportService
             ->where('country_code', $countryCode)
             ->whereNotNull('activated_at')
             ->exists();
+    }
+
+    private function configuredSourceUrl(): ?string
+    {
+        $sourceUrl = config('address_data.source_url');
+
+        return is_string($sourceUrl) && $sourceUrl !== '' ? $sourceUrl : null;
     }
 
     private function latestActivatedImport(string $countryCode): ?AddressDataImport
@@ -248,12 +269,8 @@ final class AddressDataImportService
             ->delete();
     }
 
-    private function cleanupTempDownload(string $path, ?string $sourcePath): void
+    private function cleanupTempDownload(string $path): void
     {
-        if ($sourcePath !== null && $sourcePath !== '') {
-            return;
-        }
-
         if (is_file($path)
             && str_contains($path, DIRECTORY_SEPARATOR.'address-data'.DIRECTORY_SEPARATOR.'tmp'.DIRECTORY_SEPARATOR)) {
             @unlink($path);

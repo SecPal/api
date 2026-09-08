@@ -17,6 +17,7 @@ test('address data seeder imports fixture data when setup import is enabled', fu
     config([
         'address_data.import_on_setup' => true,
         'address_data.setup_source_path' => base_path('tests/fixtures/address_data/sample_streets.csv'),
+        'address_data.expected_sha256' => hash_file('sha256', base_path('tests/fixtures/address_data/sample_streets.csv')),
     ]);
 
     artisan('db:seed', ['--class' => AddressDataSeeder::class])->assertSuccessful();
@@ -44,6 +45,7 @@ test('address data seeder skips gracefully when address data tables are missing'
     config([
         'address_data.import_on_setup' => true,
         'address_data.setup_source_path' => base_path('tests/fixtures/address_data/sample_streets.csv'),
+        'address_data.expected_sha256' => hash_file('sha256', base_path('tests/fixtures/address_data/sample_streets.csv')),
     ]);
 
     DB::statement('ALTER TABLE address_data_imports RENAME TO address_data_imports_hidden');

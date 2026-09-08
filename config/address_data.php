@@ -11,20 +11,19 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'source_url' => env(
-        'ADDRESS_DATA_SOURCE_URL',
-        'https://github.com/openpotato/openplzapi.data/raw/refs/heads/main/src/de/osm/streets.updated.csv',
-    ),
+    'source_url' => env('ADDRESS_DATA_SOURCE_URL'),
+
+    'expected_sha256' => env('ADDRESS_DATA_EXPECTED_SHA256'),
 
     'country' => env('ADDRESS_DATA_COUNTRY', 'DE'),
 
     /*
     |--------------------------------------------------------------------------
-    | Schedule hint (documented default; actual schedule is in routes/console.php)
+    | Production schedule (actual cadence is in routes/console.php)
     |--------------------------------------------------------------------------
     */
 
-    'update_schedule' => env('ADDRESS_DATA_UPDATE_FREQUENCY', 'weekly'),
+    'schedule_enabled' => filter_var(env('ADDRESS_DATA_SCHEDULE_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN),
 
     'download_timeout' => (int) env('ADDRESS_DATA_DOWNLOAD_TIMEOUT', 600),
 
@@ -37,11 +36,12 @@ return [
     /*
     |--------------------------------------------------------------------------
     | First-time import during composer setup (see composer.json)
-    | Set ADDRESS_DATA_IMPORT_ON_SETUP=false for offline installs or CI without network.
+    | Disabled by default. A local or immutable remote source still requires the
+    | exact expected SHA-256 when explicitly enabled.
     |--------------------------------------------------------------------------
     */
 
-    'import_on_setup' => filter_var(env('ADDRESS_DATA_IMPORT_ON_SETUP', 'true'), FILTER_VALIDATE_BOOLEAN),
+    'import_on_setup' => filter_var(env('ADDRESS_DATA_IMPORT_ON_SETUP', 'false'), FILTER_VALIDATE_BOOLEAN),
 
     'setup_source_path' => env('ADDRESS_DATA_SETUP_SOURCE_PATH'),
 

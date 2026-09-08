@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** disabled scheduled and setup address-data imports by default;
+  remote imports now require a reviewed commit-pinned GitHub raw URL and exact
+  expected SHA-256, while local imports require the same digest admission before
+  parsing or activation (fixes `api#1411`)
 - removed scheduled OpenTimestamp package-index update discovery; production
   health monitoring now checks the installed pinned client and configured
   calendar/provider operations without treating package-index availability as

@@ -96,13 +96,14 @@ Schedule::command('ots:monitor')
     ->name('ots-health-monitor')
     ->onOneServer();
 
-// OpenPLZ German street reference data (ODbL). Hash-based runs skip quickly when unchanged.
-// OVERLAP_PROTECTED: download/import mutates the shared reference dataset; the
-// persisted source hash makes a later run recoverable and skips unchanged data.
-Schedule::command('addresses:import')
-    ->weekly()
-    ->mondays()
-    ->at('03:30')
-    ->name('address-data-update')
-    ->onOneServer()
-    ->withoutOverlapping(180);
+if (config('address_data.schedule_enabled') === true) {
+    // OVERLAP_PROTECTED: an authorized download/import mutates the shared
+    // reference dataset; the persisted source hash supports safe deduplication.
+    Schedule::command('addresses:import')
+        ->weekly()
+        ->mondays()
+        ->at('03:30')
+        ->name('address-data-update')
+        ->onOneServer()
+        ->withoutOverlapping(180);
+}
