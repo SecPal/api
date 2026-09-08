@@ -68,7 +68,6 @@ test('the PostgreSQL 18 fixture exercises SecPal database persistence and lockin
     $primary->commit();
 
     expect((bool) $probe->scalar('SELECT pg_try_advisory_xact_lock(?)', [$advisoryLock]))->toBeTrue();
-    $probe->select('SELECT pg_advisory_unlock(?)', [$advisoryLock]);
     DB::disconnect('pg18_fixture_primary');
     DB::disconnect('pg18_fixture_probe');
 
