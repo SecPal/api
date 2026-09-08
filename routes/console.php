@@ -89,7 +89,7 @@ Schedule::command('employees:delete-expired')
 
 // Schedule: Monitor OpenTimestamp health every 6 hours
 // Checks library version, calendar server availability, and functionality
-// Logs warnings if servers are down or updates are available
+// Logs warnings if configured calendar/provider operations are unavailable
 // DEPLOYMENT_WIDE_SINGLE_LAUNCH: one shared external health observation is enough.
 Schedule::command('ots:monitor')
     ->everySixHours()

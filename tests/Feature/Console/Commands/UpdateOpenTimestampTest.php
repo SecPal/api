@@ -176,7 +176,7 @@ test('command performs upgrade with confirmation', function () {
 });
 
 test('command refuses to mutate the immutable production image', function (): void {
-    app()->instance('env', 'production');
+    $this->app->detectEnvironment(fn (): string => 'production');
 
     $this->artisan(UpdateOpenTimestamp::class)
         ->expectsOutputToContain('disabled in production')
