@@ -30,3 +30,9 @@ test('php ci uses the precreated worker database public schema for parallel pest
         ->toContain('SECPAL_TEST_SCHEMA: public')
         ->toContain('php artisan test --parallel --exclude-group=serial --coverage-clover coverage.xml');
 });
+
+test('php ci pins its current PostgreSQL 18 service fixture', function (): void {
+    expect(phpCiWorkflowContents())
+        ->toContain('image: postgres:18-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af')
+        ->not->toMatch('/image: postgres:(?:16|17)(?:[-@:]|$)/');
+});

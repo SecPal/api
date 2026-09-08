@@ -51,7 +51,7 @@ This guide covers:
 
 - PHP 8.4+
 - Composer 2.x
-- PostgreSQL 16+
+- PostgreSQL 18
 - VS Code (recommended)
 
 ## Installation

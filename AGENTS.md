@@ -87,7 +87,7 @@ governs API-specific technical detail.
 
 ## Laravel Architecture
 
-- Stack: Laravel 13, PHP 8.4, Pest 4, PostgreSQL 16, and native PHP shell usage.
+- Stack: Laravel 13, PHP 8.4, Pest 4, PostgreSQL 18, and native PHP shell usage.
 - Follow `Request -> Controller -> Service -> Repository -> Model`.
 - Prefer Form Requests, policies and gates, API Resources, Eloquent
   relationships, queued jobs, database constraints and transactions, and
