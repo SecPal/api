@@ -38,7 +38,8 @@ class UpdateSiteRequest extends FormRequest
             || $this->exists('legal_entity_id')
             || $this->exists('establishment_id');
 
-        return ! $reassignsDomain || ! $user->organizationalScopes()->exists();
+        return ! $reassignsDomain
+            || ($user->can('sites.update') && ! $user->organizationalScopes()->exists());
     }
 
     /**

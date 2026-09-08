@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- required dedicated `sites.update` permission for supplied Site domain
+  relationship fields and `customers.update` for customer-establishment update
+  or deletion, while preserving assignment-based ordinary edits and tenant and
+  organizational-scope boundaries (fixes `api#1334`)
 - **Breaking:** disabled scheduled and setup address-data imports by default;
   remote imports now require a reviewed commit-pinned GitHub raw URL and exact
   expected SHA-256, while local imports require the same digest admission before

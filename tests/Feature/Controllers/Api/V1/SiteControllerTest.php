@@ -1250,6 +1250,49 @@ describe('PATCH /v1/sites/{site}', function () {
         expect($response->json('data.name'))->toBe('Updated via Assignment');
     });
 
+    test('assigned users need sites.update when a domain relationship field is supplied', function (string $field): void {
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
+        ]);
+        SiteAssignment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'site_id' => $site->id,
+            'user_id' => $this->user->id,
+        ]);
+        $originalDomain = $site->only(['customer_id', 'legal_entity_id', 'establishment_id']);
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/sites/{$site->id}", [$field => $site->getAttribute($field)])
+            ->assertForbidden();
+
+        expect($site->refresh()->only(array_keys($originalDomain)))->toBe($originalDomain);
+    })->with(['customer_id', 'legal_entity_id', 'establishment_id']);
+
+    test('sites.update does not override the organizational scope restriction for domain fields', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+        $this->user->organizationalScopes()->create([
+            'organizational_unit_id' => $this->orgUnit->id,
+            'include_descendants' => false,
+            'access_level' => 'write',
+        ]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $this->customer->id,
+            'legal_entity_id' => $this->customer->legal_entity_id,
+            'establishment_id' => $this->establishment->id,
+        ]);
+        $originalDomain = $site->only(['customer_id', 'legal_entity_id', 'establishment_id']);
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/sites/{$site->id}", ['customer_id' => $site->customer_id])
+            ->assertForbidden();
+
+        expect($site->refresh()->only(array_keys($originalDomain)))->toBe($originalDomain);
+    });
+
     test('allows partial updates', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
 
