@@ -18,20 +18,26 @@ class UpdateOpenTimestamp extends Command
     protected $signature = 'ots:update
                           {--dry-run : Show what would be updated without actually updating}';
 
-    protected $description = 'Update OpenTimestamp library to the latest version';
+    protected $description = 'Update OpenTimestamp library outside the immutable production image';
 
     /**
      * Execute the console command.
      *
      * This command checks the installed OpenTimestamp (opentimestamps-client) Python
-     * package for available updates, optionally performs the upgrade using pip, and
-     * then runs a follow-up health check on the configured calendar servers via the
-     * ots:check command.
+     * package for available updates and, outside production only, optionally
+     * performs the upgrade using pip before running a follow-up calendar health
+     * check via the ots:check command.
      *
      * @return int Symfony console exit code (Command::SUCCESS or Command::FAILURE)
      */
     public function handle(): int
     {
+        if (app()->environment('production')) {
+            $this->error('OpenTimestamp updates are disabled in production. Rebuild and publish a reviewed immutable image instead.');
+
+            return self::FAILURE;
+        }
+
         $executor = app(\App\Contracts\ProcessExecutor::class);
         $this->info('Checking for OpenTimestamp updates...');
 
@@ -42,6 +48,13 @@ class UpdateOpenTimestamp extends Command
 
         // 2. Check for updates
         $updateResult = $executor->execute(['pip', 'list', '--outdated', '--format=json'], null, 10);
+        if ($updateResult['exitCode'] !== 0) {
+            $details = trim($updateResult['stderr'] ?: $updateResult['stdout'] ?: 'Unknown error');
+            $this->error("Unable to discover OpenTimestamp updates (maintenance-only): {$details}");
+
+            return self::FAILURE;
+        }
+
         $outdated = json_decode($updateResult['stdout'] ?: '[]', true);
         /** @var array<int, array{name: string, version: string, latest_version: string}> $outdatedList */
         $outdatedList = is_array($outdated) ? $outdated : [];

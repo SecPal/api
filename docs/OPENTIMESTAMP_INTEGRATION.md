@@ -41,7 +41,7 @@ OpenTimestamps (OTS) creates tamper-proof timestamps by anchoring document diges
    - `UpgradeOpenTimestampProofs`: Polls for Bitcoin-anchored proofs
 
 4. **Runtime installation guidance**
-   - Documents how to install `opentimestamps-client` in local shells, containers, and production environments
+   - The production image contains the reviewed, hash-pinned `opentimestamps-client` dependency
 
 ### Calendar Submission and Proof Merging
 
@@ -135,22 +135,31 @@ If you use a containerized local environment, install the package into that cont
 
 ### Production
 
-Install the OpenTimestamps Python client on your server:
+The immutable production image contains the reviewed, hash-pinned OpenTimestamps
+client. Change its dependency only through a reviewed source/image update and
+publish a new immutable image. Do not install, upgrade, or discover replacement
+packages from a running production container.
 
-```bash
-# Debian/Ubuntu
-apt-get update && apt-get install -y python3-pip
-pip3 install --break-system-packages opentimestamps-client
+`php artisan ots:update` refuses to run in production. It remains an explicit
+operator command for non-production maintenance only; it is not scheduled and
+must not be used as a production deployment mechanism.
 
-# Alpine
-apk add --no-cache python3 py3-pip
-pip3 install opentimestamps-client
+## Runtime Egress and Health
 
-# Verify installation
-ots --version
-```
+The normal scheduler runs `ots:monitor` every six hours. It invokes `ots:check`,
+which verifies that the installed Python client is callable and submits a bounded
+test digest through the installed client's configured OpenTimestamp calendar
+providers. Calendar destinations are the installed client's `DEFAULT_AGGREGATORS`.
+Proof verification may also contact the configured HTTPS Bitcoin-header API bases.
 
-**Security Note**: Using `--break-system-packages` is safe in Docker containers and necessary for Python 3.11+ (PEP 668). For system-wide installations, consider using a virtual environment.
+Calendar or provider failure is represented as a failed operational health check
+and is logged by the monitor; it does not cause package replacement or update
+discovery. Normal production runtime never queries Python package-index metadata,
+runs `pip list --outdated`, or installs packages. Package-index availability is
+not an application readiness authority. The retained explicit non-production
+maintenance command may query package metadata; failure of that discovery is
+reported as a maintenance-only command failure and never changes application
+readiness.
 
 ## Configuration
 
@@ -283,10 +292,9 @@ Cache::flush(); // ⚠️ Clears ALL cache, use with caution
 python3 -m pip install --user --upgrade opentimestamps-client
 # Ensure python3 can import the installed opentimestamps package.
 
-# Production
-sudo -H python3 -m pip install --upgrade opentimestamps-client
+# Production: rebuild and publish the reviewed immutable image after updating
+# the pinned dependency source. Do not run pip in a production container.
 python3 -c 'import opentimestamps'
-pip3 list | grep opentimestamps  # Should show opentimestamps-client
 ```
 
 ### Verification Always Returns False

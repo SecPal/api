@@ -96,17 +96,6 @@ Schedule::command('ots:monitor')
     ->name('ots-health-monitor')
     ->onOneServer();
 
-// Schedule: Check for OpenTimestamp library updates weekly
-// Runs every Monday at 03:00 to check for new versions
-// Manual update with: php artisan ots:update
-// DEPLOYMENT_WIDE_SINGLE_LAUNCH: one external version check is enough per interval.
-Schedule::command('ots:check --update-check')
-    ->weekly()
-    ->mondays()
-    ->at('03:00')
-    ->name('ots-update-check')
-    ->onOneServer();
-
 // OpenPLZ German street reference data (ODbL). Hash-based runs skip quickly when unchanged.
 // OVERLAP_PROTECTED: download/import mutates the shared reference dataset; the
 // persisted source hash makes a later run recoverable and skips unchanged data.

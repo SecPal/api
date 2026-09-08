@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\File;
 
 class CheckOpenTimestampStatus extends Command
 {
-    protected $signature = 'ots:check {--json} {--update-check}';
+    protected $signature = 'ots:check {--json}';
 
     protected $description = 'Check OpenTimestamp library version, calendar servers, and availability';
 
@@ -45,7 +45,7 @@ class CheckOpenTimestampStatus extends Command
 
         if (! $executor->commandExists('ots')) {
             $this->error('  ✗ Missing required command: ots');
-            $this->line('    Hint: Run: pip3 install opentimestamps');
+            $this->line('    Hint: Rebuild the image with the reviewed, pinned OpenTimestamp dependency.');
 
             return self::FAILURE;
         }
@@ -60,7 +60,7 @@ class CheckOpenTimestampStatus extends Command
                 : '  ✗ Unable to import Python module: opentimestamps'
             );
             if ($isMissing) {
-                $this->line('    Hint: Run: pip3 install opentimestamps');
+                $this->line('    Hint: Rebuild the image with the reviewed, pinned OpenTimestamp dependency.');
             }
             if ($details !== '') {
                 $this->line("    {$details}");
@@ -99,44 +99,6 @@ class CheckOpenTimestampStatus extends Command
             $this->error('  ✗ OTS submission failed: '.$e->getMessage());
 
             return self::FAILURE;
-        }
-
-        if ($this->option('update-check')) {
-            $this->newLine();
-            $this->info('Checking for updates...');
-
-            $pipCommand = null;
-            if ($executor->commandExists('pip3')) {
-                $pipCommand = 'pip3';
-            } elseif ($executor->commandExists('pip')) {
-                $pipCommand = 'pip';
-            }
-
-            if ($pipCommand === null) {
-                $this->error('  ✗ Missing required command: pip3 or pip');
-
-                return self::FAILURE;
-            }
-
-            $updateResult = $executor->execute([$pipCommand, 'list', '--outdated', '--format=json'], null, 10);
-
-            if ($updateResult['exitCode'] !== 0) {
-                $this->warn('  ⚠ Unable to check for updates: '.trim($updateResult['stderr'] ?: $updateResult['stdout'] ?: 'Unknown error'));
-                $this->newLine();
-                $this->info('✓ All checks passed');
-
-                return self::SUCCESS;
-            }
-
-            $outdated = json_decode($updateResult['stdout'] ?: '[]', true);
-            /** @var array<int, array{name: string, version: string, latest_version: string}> $outdatedList */
-            $outdatedList = is_array($outdated) ? $outdated : [];
-            $otsUpdate = collect($outdatedList)->firstWhere('name', 'opentimestamps-client');
-            if ($otsUpdate && is_array($otsUpdate)) {
-                $this->warn("  ⚠ Update available: {$otsUpdate['version']} → {$otsUpdate['latest_version']}");
-            } else {
-                $this->line('  ✓ Up to date');
-            }
         }
 
         $this->newLine();
