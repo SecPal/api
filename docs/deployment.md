@@ -138,6 +138,8 @@ DB_PORT=5432
 DB_DATABASE=secpal_production
 DB_USERNAME=secpal_user
 DB_PASSWORD=YOUR_SECURE_PASSWORD_HERE
+DB_SSLMODE=verify-full
+DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt
 
 # Envelope Encryption (configure after KEK generation)
 KEK_PATH=/var/www/secpal-api/storage/keys/kek.key

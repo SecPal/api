@@ -18,7 +18,6 @@ RUN install-php-extensions \
         pcntl \
         pdo_pgsql \
         pgsql \
-        redis-6.3.0 \
         sodium \
         xml \
         zip \

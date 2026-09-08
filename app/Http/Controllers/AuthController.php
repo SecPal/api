@@ -875,12 +875,10 @@ class AuthController extends Controller
      * spam and storage growth without strengthening the client-side anti-
      * enumeration guarantee that this endpoint protects.
      *
-     * The DB transaction wraps only the token DELETE+INSERT so the row
-     * replacement is atomic. The mail enqueue runs after the transaction
-     * commits — keeping it inside the transaction would race against
-     * non-database queue backends (redis, sqs, beanstalkd) whose
-     * `after_commit` flag is `false` and whose workers would otherwise pick
-     * up the job before the outer DB transaction is visible. The whole
+     * The DB transaction owns the token replacement and dispatch intent.
+     * The supported database queue has `after_commit=true`, so the job is
+     * materialized only after the token row commits and is discarded on
+     * rollback. The whole
      * existing-user block is wrapped in a try/catch that reports failures
      * but still returns the uniform 200 response, so an infrastructure
      * incident on the existing-user branch cannot leak a 500 / 200 status
@@ -904,7 +902,7 @@ class AuthController extends Controller
 
         if ($user) {
             try {
-                DB::transaction(function () use ($user, $hashedToken): void {
+                DB::transaction(function () use ($user, $hashedToken, $token): void {
                     DB::table('password_reset_tokens')
                         ->where('email', $user->email)
                         ->delete();
@@ -914,13 +912,9 @@ class AuthController extends Controller
                         'token' => $hashedToken,
                         'created_at' => now(),
                     ]);
-                });
 
-                // Enqueue the mail only after the token row is committed so
-                // that out-of-process queue backends (redis, sqs, beanstalkd)
-                // cannot deliver an email referencing a token that the worker
-                // would not yet (or never) see in the database.
-                Mail::to($user)->queue(new PasswordResetMail($user, $token));
+                    Mail::to($user)->queue(new PasswordResetMail($user, $token));
+                });
             } catch (Throwable $exception) {
                 // Log at error level so monitoring can surface users that
                 // received a generic 200 without an actual delivery attempt.

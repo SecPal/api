@@ -5,11 +5,9 @@ set -eu
 
 image=${IMAGE_TAG:-secpal-api:test}
 postgres_image=${POSTGRES_IMAGE:-postgres:18-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af}
-valkey_image=${VALKEY_IMAGE:-valkey/valkey:9.1.1-trixie@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd}
 suffix=$$
 network="secpal-api-smoke-${suffix}"
 postgres="secpal-postgres-${suffix}"
-valkey="secpal-valkey-${suffix}"
 api="secpal-api-${suffix}"
 sqlite_probe="database/container-smoke-${suffix}.sqlite"
 if test -e "$sqlite_probe"; then
@@ -19,11 +17,12 @@ fi
 tmp_dir=$(mktemp -d)
 kek_file="${tmp_dir}/kek"
 api_env="${tmp_dir}/api.env"
+cert_dir="${tmp_dir}/postgres-certs"
 port_probe="${tmp_dir}/assert-port-closed.php"
 cp tests/docker/assert-port-closed.php "$port_probe"
 chmod 0444 "$port_probe"
 cleanup() {
-    docker rm -f "$api" "$valkey" "$postgres" >/dev/null 2>&1 || true
+    docker rm -f "$api" "$postgres" >/dev/null 2>&1 || true
     docker network rm "$network" >/dev/null 2>&1 || true
     rm -f "$sqlite_probe"
     rm -rf "$tmp_dir"
@@ -91,10 +90,11 @@ assert_output_starts_with "$php_version" 'PHP 8.4.23'
 frankenphp_version=$(docker run --rm "$image" frankenphp version)
 assert_output_contains "$frankenphp_version" 'FrankenPHP v1.12.6'
 php_modules=$(docker run --rm "$image" php -m)
-assert_output_has_line "$php_modules" redis
-redis_info=$(docker run --rm "$image" php --ri redis)
-assert_output_contains "$redis_info" 'Redis Version => 6.3.0'
-docker run --rm "$image" php -r 'exit(extension_loaded("redis") ? 0 : 1);'
+if assert_output_has_line "$php_modules" redis; then
+    echo "Unsupported PhpRedis extension is installed" >&2
+    exit 1
+fi
+docker run --rm "$image" php -r 'exit(extension_loaded("redis") ? 1 : 0);'
 docker run --rm "$image" php -r 'exit(ini_get("upload_max_filesize") === "10M" && ini_get("post_max_size") === "12M" ? 0 : 1);'
 php_ini_output=$(docker run --rm "$image" php --ini)
 assert_output_contains "$php_ini_output" '/usr/local/etc/php/conf.d/zz-secpal-production.ini'
@@ -117,10 +117,16 @@ docker run --rm "$image" sh -eu -c '
     test ! -w "$healthcheck"
     test "$(stat -c "%U:%G %a" "$healthcheck")" = "root:root 755"
 '
-docker run --rm "$image" php artisan --version
-docker run --rm "$image" php artisan schedule:list
-docker run --rm "$image" php artisan queue:work --help >/dev/null
-docker run --rm "$image" php artisan schedule:work --help >/dev/null
+run_runtime_cli() {
+    docker run --rm \
+        -e DB_SSLMODE=verify-full \
+        -e DB_SSLROOTCERT=/tmp/production-ca-contract.crt \
+        "$image" "$@"
+}
+run_runtime_cli php artisan --version
+run_runtime_cli php artisan schedule:list
+run_runtime_cli php artisan queue:work --help >/dev/null
+run_runtime_cli php artisan schedule:work --help >/dev/null
 ots_version=$(docker run --rm "$image" ots --version)
 assert_output_contains "$ots_version" v0.7.2
 docker run --rm "$image" python3 -c 'import opentimestamps'
@@ -145,7 +151,7 @@ docker run --rm "$image" sh -eu -c '
 '
 docker image inspect "$image" >"${tmp_dir}/inspect.json"
 docker history --no-trunc "$image" >"${tmp_dir}/history.txt"
-if grep -Eq 'APP_KEY=|DB_PASSWORD=|REDIS_PASSWORD=|KEK_PATH=' "${tmp_dir}/inspect.json" "${tmp_dir}/history.txt"; then
+if grep -Eq 'APP_KEY=|DB_PASSWORD=|KEK_PATH=' "${tmp_dir}/inspect.json" "${tmp_dir}/history.txt"; then
     echo "Image metadata contains a runtime secret setting" >&2
     exit 1
 fi
@@ -153,7 +159,23 @@ fi
 docker network create "$network" >/dev/null
 db_password=$(openssl rand -hex 24)
 app_key="base64:$(openssl rand -base64 32 | tr -d '\n')"
-valkey_password=$(openssl rand -hex 24)
+mkdir -m 0700 "$cert_dir"
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+    -subj '/CN=SecPal container smoke CA' \
+    -keyout "${cert_dir}/ca.key" -out "${cert_dir}/ca.crt" >/dev/null 2>&1
+openssl req -newkey rsa:2048 -nodes \
+    -subj "/CN=${postgres}" \
+    -keyout "${cert_dir}/server.key" -out "${cert_dir}/server.csr" >/dev/null 2>&1
+printf 'subjectAltName=DNS:%s\nextendedKeyUsage=serverAuth\n' "$postgres" >"${cert_dir}/server.ext"
+openssl x509 -req -days 1 -sha256 \
+    -in "${cert_dir}/server.csr" \
+    -CA "${cert_dir}/ca.crt" -CAkey "${cert_dir}/ca.key" -CAcreateserial \
+    -extfile "${cert_dir}/server.ext" -out "${cert_dir}/server.crt" >/dev/null 2>&1
+chmod 0755 "$cert_dir"
+chmod 0644 "${cert_dir}/ca.crt" "${cert_dir}/server.crt"
+chmod 0600 "${cert_dir}/server.key"
+docker run --rm --user 0 -v "${cert_dir}:/certs" "$postgres_image" \
+    chown postgres:postgres /certs/server.key /certs/server.crt /certs/ca.crt
 dd if=/dev/urandom of="$kek_file" bs=32 count=1 status=none
 chmod 0600 "$kek_file"
 docker run --rm --user 0 -v "${kek_file}:/kek" "$image" chown 10001:10001 /kek
@@ -161,12 +183,19 @@ docker run --rm --user 0 -v "${kek_file}:/kek" "$image" chown 10001:10001 /kek
     printf 'APP_KEY=%s\n' "$app_key"
     printf 'TRUSTED_PROXIES=0.0.0.0/0\nDB_CONNECTION=pgsql\nDB_HOST=%s\nDB_PORT=5432\n' "$postgres"
     printf 'DB_DATABASE=secpal\nDB_USERNAME=secpal\nDB_PASSWORD=%s\n' "$db_password"
+    printf 'DB_SSLMODE=verify-full\nDB_SSLROOTCERT=/run/secrets/postgresql-ca.crt\n'
     printf 'KEK_PATH=/run/secrets/secpal-kek\n'
 } >"$api_env"
 chmod 0600 "$api_env"
 docker run -d --name "$postgres" --network "$network" \
     -e POSTGRES_DB=secpal -e POSTGRES_USER=secpal -e POSTGRES_PASSWORD="$db_password" \
-    "$postgres_image" >/dev/null
+    -e POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256' \
+    -v "${cert_dir}:/var/lib/postgresql/certs:ro" \
+    "$postgres_image" \
+    -c ssl=on \
+    -c ssl_cert_file=/var/lib/postgresql/certs/server.crt \
+    -c ssl_key_file=/var/lib/postgresql/certs/server.key \
+    -c password_encryption=scram-sha-256 >/dev/null
 attempt=0
 until docker exec "$postgres" pg_isready -U secpal -d secpal >/dev/null 2>&1; do
     attempt=$((attempt + 1))
@@ -175,12 +204,15 @@ until docker exec "$postgres" pg_isready -U secpal -d secpal >/dev/null 2>&1; do
 done
 run_api() {
     docker run --rm --network "$network" --env-file "$api_env" \
+        -v "${cert_dir}/ca.crt:/run/secrets/postgresql-ca.crt:ro" \
         -v "${kek_file}:/run/secrets/secpal-kek:ro" "$image" "$@"
 }
 run_api php artisan migrate --force
+run_api php artisan tinker --execute='throw_unless(DB::scalar("SHOW password_encryption") === "scram-sha-256"); throw_unless(DB::scalar("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()") === true);'
 run_api php artisan tenant:setup
 run_api php artisan tinker --execute='app(\App\Services\RuntimeHeartbeatService::class)->recordSchedulerHeartbeat();'
 docker run -d --name "$api" --network "$network" --env-file "$api_env" \
+    -v "${cert_dir}/ca.crt:/run/secrets/postgresql-ca.crt:ro" \
     -v "${kek_file}:/run/secrets/secpal-kek:ro" "$image" >/dev/null
 wait_for_http
 docker exec "$api" secpal-http-live
@@ -221,27 +253,4 @@ docker stop --time 10 "$api" >/dev/null
 test "$(docker inspect --format '{{.State.ExitCode}}' "$api")" -eq 0
 test "$(docker inspect --format '{{.State.OOMKilled}}' "$api")" = false
 
-docker run -d --name "$valkey" --network "$network" \
-    "$valkey_image" valkey-server --requirepass "$valkey_password" --save "" --appendonly no >/dev/null
-attempt=0
-until docker exec "$valkey" valkey-cli -a "$valkey_password" --no-auth-warning ping >/dev/null 2>&1; do
-    attempt=$((attempt + 1))
-    [ "$attempt" -lt 30 ] || exit 1
-    sleep 1
-done
-docker run --rm --network "$network" -e REDIS_HOST="$valkey" -e REDIS_PORT=6379 \
-    -e REDIS_PASSWORD="$valkey_password" "$image" php -r '
-$client = new Redis();
-$client->connect(getenv("REDIS_HOST"), (int) getenv("REDIS_PORT"), 3.0);
-$client->auth((string) getenv("REDIS_PASSWORD"));
-$pong = $client->ping();
-if ($pong !== true && $pong !== "+PONG") {
-    exit(1);
-}
-$key = "secpal:container-smoke:".bin2hex(random_bytes(8));
-if ($client->setex($key, 30, "ok") !== true || $client->get($key) !== "ok") {
-    exit(1);
-}
-$client->del($key);
-'
 echo "Container smoke and integration tests passed for ${image}"

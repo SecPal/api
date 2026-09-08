@@ -4,25 +4,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Http\Middleware\HealthThrottle;
-use Illuminate\Cache\RedisStore;
 use Illuminate\Cache\Repository as LaravelCacheRepository;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Contracts\Cache\Store;
 use Illuminate\Http\Request;
-use Illuminate\Redis\Connections\PhpRedisConnection;
 use Symfony\Component\HttpFoundation\Response;
 
-it('uses a configured non-database cache store so production health throttling stays shared', function (): void {
+it('uses the configured database cache so production health throttling stays shared', function (): void {
     config([
-        'cache.default' => 'redis',
-        'cache.stores.redis.driver' => 'redis',
+        'cache.default' => 'database',
+        'cache.stores.database.driver' => 'database',
     ]);
 
     $cacheFactory = Mockery::mock(CacheFactory::class);
-    $redisStore = healthThrottleCacheRepositoryMock();
+    $databaseStore = healthThrottleCacheRepositoryMock();
 
-    $cacheFactory->shouldReceive('store')->once()->with('redis')->andReturn($redisStore);
+    $cacheFactory->shouldReceive('store')->once()->with('database')->andReturn($databaseStore);
     $cacheFactory->shouldNotReceive('store')->with('file');
 
     $response = app(HealthThrottle::class, ['cacheFactory' => $cacheFactory])
@@ -31,7 +29,7 @@ it('uses a configured non-database cache store so production health throttling s
     expect($response->getStatusCode())->toBe(200);
 });
 
-it('falls back to the file cache when the default cache store depends on the database', function (): void {
+it('keeps liveness independent from the database cache', function (): void {
     config([
         'cache.default' => 'database',
         'cache.stores.database.driver' => 'database',
@@ -44,25 +42,24 @@ it('falls back to the file cache when the default cache store depends on the dat
     $cacheFactory->shouldNotReceive('store')->with('database');
 
     $response = app(HealthThrottle::class, ['cacheFactory' => $cacheFactory])
-        ->handle(Request::create('/health', 'GET'), fn (): Response => new Response('ok'));
+        ->handle(Request::create('/health/live', 'GET'), fn (): Response => new Response('ok'));
 
     expect($response->getStatusCode())->toBe(200);
 });
 
-it('falls back to the file cache when a failover store includes a database-backed store', function (): void {
+it('falls back explicitly to file throttling when the database cache is unavailable', function (): void {
     config([
-        'cache.default' => 'failover',
-        'cache.stores.failover.driver' => 'failover',
-        'cache.stores.failover.stores' => ['database', 'array'],
+        'cache.default' => 'database',
         'cache.stores.database.driver' => 'database',
-        'cache.stores.array.driver' => 'array',
     ]);
 
     $cacheFactory = Mockery::mock(CacheFactory::class);
+    $databaseStore = Mockery::mock(CacheRepository::class);
     $fileStore = healthThrottleCacheRepositoryMock();
 
+    $cacheFactory->shouldReceive('store')->once()->with('database')->andReturn($databaseStore);
     $cacheFactory->shouldReceive('store')->once()->with('file')->andReturn($fileStore);
-    $cacheFactory->shouldNotReceive('store')->with('failover');
+    $databaseStore->shouldReceive('get')->once()->andThrow(new RuntimeException('Database unavailable.'));
 
     $response = app(HealthThrottle::class, ['cacheFactory' => $cacheFactory])
         ->handle(Request::create('/health', 'GET'), fn (): Response => new Response('ok'));
@@ -70,53 +67,26 @@ it('falls back to the file cache when a failover store includes a database-backe
     expect($response->getStatusCode())->toBe(200);
 });
 
-it('falls back to the file cache when a configured non-database store is unavailable', function (): void {
+it('keeps liveness available when both throttle stores are unavailable', function (): void {
     config([
-        'cache.default' => 'redis',
-        'cache.stores.redis.driver' => 'redis',
+        'cache.default' => 'database',
+        'cache.stores.database.driver' => 'database',
     ]);
 
     $cacheFactory = Mockery::mock(CacheFactory::class);
-    $redisStore = Mockery::mock(CacheRepository::class);
-    $fileStore = healthThrottleCacheRepositoryMock();
+    $databaseStore = Mockery::mock(CacheRepository::class);
+    $fileStore = Mockery::mock(CacheRepository::class);
 
-    $cacheFactory->shouldReceive('store')->once()->with('redis')->andReturn($redisStore);
+    $cacheFactory->shouldReceive('store')->once()->with('database')->andReturn($databaseStore);
     $cacheFactory->shouldReceive('store')->once()->with('file')->andReturn($fileStore);
-    $redisStore->shouldReceive('get')->once()->andThrow(new RuntimeException('Redis unavailable.'));
+    $databaseStore->shouldReceive('get')->once()->andThrow(new RuntimeException('Database unavailable.'));
+    $fileStore->shouldReceive('get')->once()->andThrow(new RuntimeException('File cache unavailable.'));
 
     $response = app(HealthThrottle::class, ['cacheFactory' => $cacheFactory])
         ->handle(Request::create('/health', 'GET'), fn (): Response => new Response('ok'));
 
-    expect($response->getStatusCode())->toBe(200);
-});
-
-it('initializes redis-backed counters without serialization or compression', function (): void {
-    config([
-        'cache.default' => 'redis',
-        'cache.stores.redis.driver' => 'redis',
-    ]);
-
-    $cacheFactory = Mockery::mock(CacheFactory::class);
-    $store = Mockery::mock(RedisStore::class);
-    $connection = Mockery::mock(PhpRedisConnection::class);
-    $redisStore = new LaravelCacheRepository($store);
-
-    $cacheFactory->shouldReceive('store')->once()->with('redis')->andReturn($redisStore);
-    $cacheFactory->shouldNotReceive('store')->with('file');
-
-    $store->shouldReceive('connection')->twice()->andReturn($connection);
-    $store->shouldReceive('get')->with(Mockery::type('string'))->andReturn(0);
-    $store->shouldReceive('forget')->with(Mockery::type('string'))->andReturn(true);
-    $store->shouldReceive('add')->with(Mockery::type('string'), Mockery::any(), 60)->andReturn(true);
-    $store->shouldReceive('increment')->with(Mockery::type('string'), 1)->andReturn(1);
-    $connection->shouldReceive('withoutSerializationOrCompression')
-        ->twice()
-        ->andReturnUsing(static fn (callable $callback): mixed => $callback());
-
-    $response = app(HealthThrottle::class, ['cacheFactory' => $cacheFactory])
-        ->handle(Request::create('/health', 'GET'), fn (): Response => new Response('ok'));
-
-    expect($response->getStatusCode())->toBe(200);
+    expect($response->getStatusCode())->toBe(200)
+        ->and($response->headers->has('X-RateLimit-Limit'))->toBeFalse();
 });
 
 function healthThrottleCacheRepositoryMock(): CacheRepository

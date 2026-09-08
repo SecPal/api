@@ -6,12 +6,10 @@
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Cache\RedisStore;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Redis\Connections\PhpRedisConnection;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -51,7 +49,7 @@ class HealthThrottle
      */
     private function evaluateThrottleWithFallback(Request $request): array
     {
-        $preferredStore = $this->preferredCacheStoreName();
+        $preferredStore = $this->preferredCacheStoreName($request);
 
         try {
             return $this->evaluateThrottle($request, $this->cacheStore($preferredStore));
@@ -84,26 +82,18 @@ class HealthThrottle
             $retryAt = 0;
         }
 
-        $attempts = $this->integerCacheValue(
-            $this->withoutSerializationOrCompression($cache, fn (): mixed => $cache->get($key, 0))
-        );
+        $attempts = $this->integerCacheValue($cache->get($key, 0));
 
         if ($attempts >= self::MAX_ATTEMPTS && $retryAt > $now) {
             return [$this->buildLimitedResponse($retryAt - $now), $attempts];
         }
 
         $cache->add($timerKey, $now + self::DECAY_SECONDS, self::DECAY_SECONDS);
-        $added = $this->withoutSerializationOrCompression(
-            $cache,
-            fn (): bool => $cache->add($key, 0, self::DECAY_SECONDS),
-        );
+        $added = $cache->add($key, 0, self::DECAY_SECONDS);
         $attempts = $this->integerCacheValue($cache->increment($key));
 
         if (! $added && $attempts === 1) {
-            $this->withoutSerializationOrCompression(
-                $cache,
-                fn (): bool => $cache->put($key, 1, self::DECAY_SECONDS),
-            );
+            $cache->put($key, 1, self::DECAY_SECONDS);
         }
 
         return [null, $attempts];
@@ -125,53 +115,21 @@ class HealthThrottle
         return $this->cacheFactory->store($store);
     }
 
-    private function preferredCacheStoreName(): string
+    private function preferredCacheStoreName(Request $request): string
     {
+        // Liveness must remain a process check during a PostgreSQL outage. A
+        // per-host file counter still bounds abuse without touching shared state.
+        if ($request->is('health/live')) {
+            return 'file';
+        }
+
         $defaultStore = config('cache.default');
 
         if (! is_string($defaultStore) || $defaultStore === '') {
             return 'file';
         }
 
-        return $this->cacheStoreUsesDatabase($defaultStore)
-            ? 'file'
-            : $defaultStore;
-    }
-
-    /**
-     * @param  array<string, bool>  $visited
-     */
-    private function cacheStoreUsesDatabase(string $store, array $visited = []): bool
-    {
-        if (isset($visited[$store])) {
-            return false;
-        }
-
-        $driver = config("cache.stores.{$store}.driver");
-
-        if ($driver === 'database') {
-            return true;
-        }
-
-        if ($driver !== 'failover') {
-            return false;
-        }
-
-        $fallbackStores = config("cache.stores.{$store}.stores", []);
-
-        if (! is_array($fallbackStores)) {
-            return false;
-        }
-
-        $visited[$store] = true;
-
-        foreach ($fallbackStores as $fallbackStore) {
-            if (is_string($fallbackStore) && $this->cacheStoreUsesDatabase($fallbackStore, $visited)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $defaultStore;
     }
 
     private function key(Request $request): string
@@ -192,32 +150,5 @@ class HealthThrottle
         }
 
         return 0;
-    }
-
-    /**
-     * @template TReturn
-     *
-     * @param  callable(): TReturn  $callback
-     * @return TReturn
-     */
-    private function withoutSerializationOrCompression(CacheRepository $cache, callable $callback): mixed
-    {
-        if (! is_callable([$cache, 'getStore'])) {
-            return $callback();
-        }
-
-        $store = $cache->getStore();
-
-        if (! $store instanceof RedisStore) {
-            return $callback();
-        }
-
-        $connection = $store->connection();
-
-        if (! $connection instanceof PhpRedisConnection) {
-            return $callback();
-        }
-
-        return $connection->withoutSerializationOrCompression($callback);
     }
 }

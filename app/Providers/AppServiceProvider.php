@@ -42,6 +42,7 @@ use App\Services\RuntimeHeartbeatService;
 use App\Services\SystemProcessExecutor;
 use App\Services\WebPushDeliveryService;
 use App\Services\WebPushTransport;
+use App\Support\RuntimeInfrastructure;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Console\Events\ScheduledTaskStarting;
@@ -76,6 +77,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RuntimeInfrastructure::normalizeConfiguration();
+        RuntimeInfrastructure::assertProductionConfiguration($this->app);
+        $this->app->make(Schedule::class)->useCache(RuntimeInfrastructure::SCHEDULER_LOCK_STORE);
+
         Person::observe(PersonObserver::class);
         Employee::observe(EmployeeObserver::class);
 
@@ -85,7 +90,7 @@ class AppServiceProvider extends ServiceProvider
             ->symbols()
             ->uncompromised());
 
-        // Define rate limiters (using cache, not Redis)
+        // Define rate limiters on the supported shared cache.
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });

@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** made PostgreSQL the sole supported production relational and
+  shared-state authority for sessions, durable queues, cache, and scheduler
+  locks; removed active Redis/Valkey and generic adapter configuration plus
+  PhpRedis from the API image; required verified PostgreSQL TLS inputs in
+  production; deferred database queue writes until commit; and classified all
+  recurring work for multi-scheduler coordination (fixes `api#1452`)
 - installed `unzip` only in the dependency-build stage so Composer preserves
   archive-defined Unix permissions without expanding the shipped runtime image
 - migrated active SecPal-owned API code and asset metadata from the historical

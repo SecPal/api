@@ -168,6 +168,8 @@ DB_PORT=5432
 DB_DATABASE=<username>_secpal
 DB_USERNAME=<username>_secpal
 DB_PASSWORD=<password_from_uberspace_tools>
+DB_SSLMODE=verify-full
+DB_SSLROOTCERT=/path/from_postgresql_provider/ca.crt
 
 # KEK Path (absolute path in /var/www/virtual)
 KEK_PATH=/var/www/virtual/<username>/secpal-api/storage/keys/kek.key

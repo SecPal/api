@@ -39,7 +39,7 @@ This guide covers deploying SecPal API to production with Sanctum authentication
   SESSION_SECURE_COOKIE=true     # HTTPS only
   SESSION_HTTP_ONLY=true         # XSS protection
   SESSION_SAME_SITE=lax          # CSRF protection
-  SESSION_DRIVER=database        # or redis for scale
+  SESSION_DRIVER=database
   ```
 
 - [ ] **CORS Configuration**
@@ -354,12 +354,14 @@ BOOTSTRAP_RETRYABLE=true
 BOOTSTRAP_RETRY_AFTER_SECONDS=60
 
 # Database
-DB_CONNECTION=mysql
+DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
-DB_PORT=3306
+DB_PORT=5432
 DB_DATABASE=secpal_production
 DB_USERNAME=secpal_user
 DB_PASSWORD=STRONG_RANDOM_PASSWORD
+DB_SSLMODE=verify-full
+DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt
 
 # Session & Cache
 SESSION_DRIVER=database
@@ -372,13 +374,10 @@ SESSION_SECURE_COOKIE=true
 SESSION_HTTP_ONLY=true
 SESSION_SAME_SITE=lax
 
-CACHE_STORE=redis
-REDIS_HOST=127.0.0.1
-REDIS_PASSWORD=null
-REDIS_PORT=6379
+CACHE_STORE=database
 
 # Queue
-QUEUE_CONNECTION=redis
+QUEUE_CONNECTION=database
 
 # Sanctum
 SANCTUM_STATEFUL_DOMAINS=app.secpal.dev
@@ -613,9 +612,10 @@ php artisan view:cache
 # 2. Optimize autoloader
 composer install --optimize-autoloader --no-dev
 
-# 3. Use Redis for sessions/cache
-SESSION_DRIVER=redis
-CACHE_STORE=redis
+# 3. Use the supported shared PostgreSQL-backed stores
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
 
 # 4. Enable OPcache in php.ini
 opcache.enable=1

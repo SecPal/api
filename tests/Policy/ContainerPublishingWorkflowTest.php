@@ -562,10 +562,12 @@ it('preserves deterministic metadata and the complete runtime smoke contract', f
             'test "$(id -u)" -eq 10001',
             'test "$(id -g)" -eq 10001',
             'postgres_image=${POSTGRES_IMAGE:-postgres:18-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af}',
-            'valkey_image=${VALKEY_IMAGE:-valkey/valkey:9.1.1-trixie@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd}',
+            'DB_SSLMODE=verify-full',
+            "POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256'",
             'assert_http /health/live 200',
             'assert_http /health/ready 200',
-        )->not->toMatch('/(?:postgres|valkey)_image=\$\{[A-Z_]+:-[^}\s@]+\}/');
+        )->not->toMatch('/postgres_image=\$\{[A-Z_]+:-[^}\s@]+\}/')
+        ->not->toContain('valkey_image=');
 });
 
 it('keeps the pull-request container workflow read-only and path-aware', function (): void {

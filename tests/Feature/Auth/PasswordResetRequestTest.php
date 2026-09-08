@@ -412,7 +412,7 @@ it('does not write password reset side effects for unknown emails', function () 
     )->toBe(0);
 });
 
-it('preserves the generic response when the mail queue write fails so a queue outage cannot enumerate accounts', function () {
+it('rolls back the reset token when mail dispatch registration fails without creating an enumeration oracle', function () {
     config()->set('auth.password_reset_min_response_time_ms', 0);
 
     $user = User::factory()->create([
@@ -429,18 +429,14 @@ it('preserves the generic response when the mail queue write fails so a queue ou
         'message' => 'Password reset email sent if account exists',
     ]);
 
-    // The token row is committed before the mail enqueue runs. Keeping the
-    // token persisted is the intended trade-off: a transient queue outage
-    // leaves the user able to retry without re-requesting a reset, and
-    // avoids the queue-vs-transaction races that would arise if the mail
-    // dispatch were placed inside the DB transaction (out-of-process queue
-    // backends with `after_commit=false` could otherwise deliver an email
-    // for a token that was not yet — or never — visible to the worker).
+    // Dispatch registration belongs to the token transaction. A synchronous
+    // registration failure rolls the token back; production database queue
+    // insertion remains deferred until a successful commit.
     expect(
         DB::table('password_reset_tokens')
             ->where('email', $user->email)
             ->count()
-    )->toBe(1);
+    )->toBe(0);
 });
 
 it('preserves the generic response when the token write fails so a database outage cannot enumerate accounts', function () {
