@@ -119,6 +119,10 @@ msgstr "Rolle dem Benutzer nicht zugewiesen"
 msgid "Cannot delete customer with active sites."
 msgstr "Kunde mit aktiven Standorten kann nicht gelöscht werden."
 
+#: /app/Exceptions/CustomerDomainDependencyConflictException.php:14
+msgid "The request cannot be completed in the current resource state."
+msgstr "Die Anfrage kann im aktuellen Ressourcenstatus nicht abgeschlossen werden."
+
 #: /app/Http/Controllers/Api/V1/EmployeeController.php:209
 msgid "Employee must be in pre_contract status to activate"
 msgstr "Mitarbeiter muss sich zum Aktivieren im Status pre_contract befinden"

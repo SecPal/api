@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Exceptions\CustomerDomainDependencyConflictException;
 use App\Exceptions\DuplicateResourceException;
 use App\Models\Customer;
 use App\Models\User;
@@ -15,7 +16,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 final class CustomerService
 {
@@ -101,6 +101,7 @@ final class CustomerService
     {
         try {
             return DB::transaction(function () use ($user, $tenantId, $customer, $attributes): Customer {
+                $customer = $this->customers->lock($customer);
                 $this->domainAccess->ensureCustomerWritable($user, $tenantId, $customer);
 
                 if (isset($attributes['legal_entity_id'])
@@ -112,10 +113,8 @@ final class CustomerService
                         $this->legalEntityId($attributes),
                     );
 
-                    if ($this->customers->hasEstablishmentLinks($customer)) {
-                        throw ValidationException::withMessages([
-                            'legal_entity_id' => [__('A customer with establishment links cannot change legal entity.')],
-                        ]);
+                    if ($this->customers->hasDomainDependencies($customer)) {
+                        throw new CustomerDomainDependencyConflictException;
                     }
                 }
 
@@ -124,6 +123,19 @@ final class CustomerService
         } catch (QueryException $exception) {
             throw DuplicateResourceException::fromQueryException($exception) ?? $exception;
         }
+    }
+
+    public function delete(Customer $customer): void
+    {
+        DB::transaction(function () use ($customer): void {
+            $customer = $this->customers->lock($customer);
+
+            if ($this->customers->hasDomainDependencies($customer)) {
+                throw new CustomerDomainDependencyConflictException;
+            }
+
+            $this->customers->delete($customer);
+        });
     }
 
     /**

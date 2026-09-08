@@ -45,8 +45,22 @@ final class CustomerRepository
         return $customer;
     }
 
-    public function hasEstablishmentLinks(Customer $customer): bool
+    public function lock(Customer $customer): Customer
     {
-        return $customer->customerEstablishments()->withTrashed()->exists();
+        return Customer::query()
+            ->whereKey($customer->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+    }
+
+    public function hasDomainDependencies(Customer $customer): bool
+    {
+        return $customer->customerEstablishments()->withTrashed()->exists()
+            || $customer->sites()->exists();
+    }
+
+    public function delete(Customer $customer): void
+    {
+        $customer->delete();
     }
 }

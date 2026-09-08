@@ -983,14 +983,14 @@ describe('PATCH /v1/customers/{customer}', function () {
             ->toBe($originalLegalEntityId);
     });
 
-    test('rejects legal entity reassignment while establishment links exist', function (): void {
+    test('returns 409 without reassigning legal entity while establishment links exist', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $establishment = Establishment::factory()->create([
             'tenant_id' => $this->tenant->id,
             'legal_entity_id' => $customer->legal_entity_id,
         ]);
-        CustomerEstablishment::factory()->create([
+        $link = CustomerEstablishment::factory()->create([
             'tenant_id' => $this->tenant->id,
             'legal_entity_id' => $customer->legal_entity_id,
             'customer_id' => $customer->id,
@@ -1002,10 +1002,38 @@ describe('PATCH /v1/customers/{customer}', function () {
             ->patchJson("/v1/customers/{$customer->id}", [
                 'legal_entity_id' => $targetLegalEntity->id,
             ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['legal_entity_id']);
+            ->assertConflict()
+            ->assertExactJson([
+                'message' => 'The request cannot be completed in the current resource state.',
+                'code' => 'CONFLICT',
+            ]);
 
-        expect($customer->refresh()->legal_entity_id)->not->toBe($targetLegalEntity->id);
+        expect($customer->refresh()->legal_entity_id)->not->toBe($targetLegalEntity->id)
+            ->and($link->fresh()?->trashed())->toBeFalse();
+    });
+
+    test('returns 409 without reassigning legal entity while sites exist', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.update');
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $site = Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'is_active' => false,
+        ]);
+        $targetLegalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+
+        $this->withToken($this->token)
+            ->patchJson("/v1/customers/{$customer->id}", [
+                'legal_entity_id' => $targetLegalEntity->id,
+            ])
+            ->assertConflict()
+            ->assertExactJson([
+                'message' => 'The request cannot be completed in the current resource state.',
+                'code' => 'CONFLICT',
+            ]);
+
+        expect($customer->refresh()->legal_entity_id)->not->toBe($targetLegalEntity->id)
+            ->and($site->fresh()?->customer_id)->toBe($customer->id);
     });
 
     test('rejects changing a customer legal entity to another tenant', function (): void {
@@ -1096,9 +1124,16 @@ describe('DELETE /v1/customers/{customer}', function () {
 
     test('returns 403 when user lacks customers.delete permission', function (): void {
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        Site::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'customer_id' => $customer->id,
+            'is_active' => false,
+        ]);
 
         $response = $this->withToken($this->token)->deleteJson("/v1/customers/{$customer->id}");
         $response->assertStatus(403);
+
+        expect(Customer::find($customer->id))->not->toBeNull();
     });
 
     test('soft deletes customer when authorized', function (): void {
@@ -1114,7 +1149,7 @@ describe('DELETE /v1/customers/{customer}', function () {
         expect(Customer::find($customer->id))->toBeNull();
     });
 
-    test('returns 409 when customer has active sites', function (): void {
+    test('returns 409 without deleting customer when it has active sites', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.delete');
 
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -1128,21 +1163,22 @@ describe('DELETE /v1/customers/{customer}', function () {
 
         $response = $this->withToken($this->token)->deleteJson("/v1/customers/{$customer->id}");
 
-        $response->assertStatus(409)
-            ->assertJson([
-                'message' => 'Cannot delete customer with active sites.',
+        $response->assertConflict()
+            ->assertExactJson([
+                'message' => 'The request cannot be completed in the current resource state.',
+                'code' => 'CONFLICT',
             ]);
 
         expect(Customer::find($customer->id))->not->toBeNull();
     });
 
-    test('allows deletion when customer has only inactive sites', function (): void {
+    test('returns 409 without deleting customer when it has inactive sites', function (): void {
         givePermissionWithTenant($this->user, $this->tenant->id, 'customers.delete');
 
         $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
 
         // Create inactive site
-        Site::factory()->create([
+        $site = Site::factory()->create([
             'tenant_id' => $this->tenant->id,
             'customer_id' => $customer->id,
             'is_active' => false,
@@ -1150,8 +1186,40 @@ describe('DELETE /v1/customers/{customer}', function () {
 
         $response = $this->withToken($this->token)->deleteJson("/v1/customers/{$customer->id}");
 
-        $response->assertNoContent();
-        expect(Customer::find($customer->id))->toBeNull();
+        $response->assertConflict()
+            ->assertExactJson([
+                'message' => 'The request cannot be completed in the current resource state.',
+                'code' => 'CONFLICT',
+            ]);
+
+        expect(Customer::find($customer->id))->not->toBeNull()
+            ->and($customer->sites()->whereKey($site->id)->exists())->toBeTrue();
+    });
+
+    test('returns 409 without deleting customer when establishment links exist', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.delete');
+        $customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+        $establishment = Establishment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $customer->legal_entity_id,
+        ]);
+        $link = CustomerEstablishment::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'legal_entity_id' => $customer->legal_entity_id,
+            'customer_id' => $customer->id,
+            'establishment_id' => $establishment->id,
+        ]);
+
+        $this->withToken($this->token)
+            ->deleteJson("/v1/customers/{$customer->id}")
+            ->assertConflict()
+            ->assertExactJson([
+                'message' => 'The request cannot be completed in the current resource state.',
+                'code' => 'CONFLICT',
+            ]);
+
+        expect(Customer::find($customer->id))->not->toBeNull()
+            ->and($link->fresh()?->trashed())->toBeFalse();
     });
 
     test('returns 404 for non-existent customer', function (): void {
@@ -1161,6 +1229,28 @@ describe('DELETE /v1/customers/{customer}', function () {
         $response = $this->withToken($this->token)->deleteJson("/v1/customers/{$fakeId}");
 
         $response->assertStatus(404);
+    });
+
+    test('does not disclose cross-tenant dependencies', function (): void {
+        givePermissionWithTenant($this->user, $this->tenant->id, 'customers.delete');
+        $otherTenant = TenantKey::create(TenantKey::generateEnvelopeKeys());
+        $customer = Customer::factory()->forTenant($otherTenant->id)->create();
+        $establishment = Establishment::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'legal_entity_id' => $customer->legal_entity_id,
+        ]);
+        CustomerEstablishment::factory()->create([
+            'tenant_id' => $otherTenant->id,
+            'legal_entity_id' => $customer->legal_entity_id,
+            'customer_id' => $customer->id,
+            'establishment_id' => $establishment->id,
+        ]);
+
+        $this->withToken($this->token)
+            ->deleteJson("/v1/customers/{$customer->id}")
+            ->assertNotFound();
+
+        expect(Customer::query()->withoutGlobalScopes()->find($customer->id))->not->toBeNull();
     });
 });
 

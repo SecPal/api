@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use App\Exceptions\CustomerDomainDependencyConflictException;
 use App\Exceptions\DuplicateResourceException;
 use App\SecurityEvents\SecurityEventName;
 use App\Services\SecurityEventRecorder;
@@ -122,6 +123,17 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'message' => __('A matching record already exists.'),
                 'code' => 'DUPLICATE_RESOURCE',
+            ], 409);
+        });
+
+        $exceptions->render(function (CustomerDomainDependencyConflictException $e, Request $request) use ($shouldRenderApiJson) {
+            if (! $shouldRenderApiJson($request)) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => __('The request cannot be completed in the current resource state.'),
+                'code' => 'CONFLICT',
             ], 409);
         });
 

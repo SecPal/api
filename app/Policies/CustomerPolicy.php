@@ -106,7 +106,7 @@ class CustomerPolicy
      * Determine whether the user can delete the customer.
      *
      * Requires customers.delete permission.
-     * Business rule check (active sites) is handled in controller to return proper HTTP 409.
+     * Domain dependency checks are handled by the customer lifecycle service.
      */
     public function delete(User $user, Customer $customer): bool
     {
