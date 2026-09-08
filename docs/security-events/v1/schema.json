@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.secpal.dev/security-events/v1/schema.json",
+  "title": "SecPal application security event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_name",
+    "occurred_at",
+    "outcome",
+    "reason",
+    "source_ip",
+    "correlation_id",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "event_name": {
+      "type": "string",
+      "enum": [
+        "authentication.failed",
+        "authentication.mfa_failed",
+        "authentication.passkey_failed",
+        "authentication.token_rejected",
+        "authentication.rate_limited",
+        "password_reset.token_rejected",
+        "password_reset.rate_limited"
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["failure", "denied"]
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "invalid_credentials",
+        "invalid_mfa_code",
+        "invalid_passkey_credential",
+        "invalid_or_expired",
+        "rate_limited"
+      ]
+    },
+    "source_ip": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 45,
+      "oneOf": [{ "format": "ipv4" }, { "format": "ipv6" }]
+    },
+    "correlation_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "actor_reference": {
+      "type": "string",
+      "pattern": "^hmac-sha256:v1:[a-f0-9]{64}$"
+    },
+    "metadata": {
+      "type": "object",
+      "maxProperties": 2
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "event_name": { "const": "authentication.failed" },
+        "outcome": { "const": "failure" },
+        "reason": { "const": "invalid_credentials" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authentication_method", "login_context"],
+          "properties": {
+            "authentication_method": { "const": "password" },
+            "login_context": { "enum": ["session", "token"] }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_name": { "const": "authentication.mfa_failed" },
+        "outcome": { "const": "failure" },
+        "reason": { "const": "invalid_mfa_code" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authentication_method", "login_context"],
+          "properties": {
+            "authentication_method": { "enum": ["totp", "recovery_code"] },
+            "login_context": { "enum": ["session", "token"] }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_name": { "const": "authentication.passkey_failed" },
+        "outcome": { "const": "failure" },
+        "reason": { "const": "invalid_passkey_credential" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authentication_method", "login_context"],
+          "properties": {
+            "authentication_method": { "const": "passkey" },
+            "login_context": { "enum": ["session", "token"] }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_name": { "const": "authentication.token_rejected" },
+        "outcome": { "const": "denied" },
+        "reason": { "const": "invalid_or_expired" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authentication_method"],
+          "properties": {
+            "authentication_method": { "const": "bearer_token" }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_name": { "const": "authentication.rate_limited" },
+        "outcome": { "const": "denied" },
+        "reason": { "const": "rate_limited" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authentication_method", "login_context"],
+          "properties": {
+            "authentication_method": { "const": "password" },
+            "login_context": { "enum": ["session", "token"] }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_name": { "const": "password_reset.token_rejected" },
+        "outcome": { "const": "denied" },
+        "reason": { "const": "invalid_or_expired" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reset_phase"],
+          "properties": {
+            "reset_phase": { "const": "confirmation" }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "event_name": { "const": "password_reset.rate_limited" },
+        "outcome": { "const": "denied" },
+        "reason": { "const": "rate_limited" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["reset_phase"],
+          "properties": {
+            "reset_phase": { "enum": ["request", "confirmation"] }
+          }
+        }
+      }
+    }
+  ]
+}

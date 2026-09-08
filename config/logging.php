@@ -3,6 +3,7 @@
 // SPDX-FileCopyrightText: 2025-2026 SecPal Contributors
 // SPDX-License-Identifier: MIT
 
+use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -54,6 +55,20 @@ return [
     */
 
     'channels' => [
+
+        'security_events' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/security-events.log'),
+            'level' => 'info',
+            'days' => 14,
+            'replace_placeholders' => false,
+            'formatter' => LineFormatter::class,
+            'formatter_with' => [
+                'format' => "%message%\n",
+                'allowInlineLineBreaks' => false,
+                'ignoreEmptyContextAndExtra' => true,
+            ],
+        ],
 
         'stack' => [
             'driver' => 'stack',

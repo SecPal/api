@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use App\Exceptions\DuplicateResourceException;
+use App\SecurityEvents\SecurityEventName;
+use App\Services\SecurityEventRecorder;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -79,6 +81,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (AuthenticationException $e, Request $request) use ($shouldRenderApiJson) {
             if (! $shouldRenderApiJson($request)) {
                 return null;
+            }
+
+            if ($request->bearerToken() !== null) {
+                app(SecurityEventRecorder::class)->record(
+                    $request,
+                    SecurityEventName::AuthenticationTokenRejected,
+                    ['authentication_method' => 'bearer_token'],
+                );
             }
 
             return response()->json(['message' => __('Unauthenticated.')], 401);

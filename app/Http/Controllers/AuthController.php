@@ -22,11 +22,13 @@ use App\Mail\PasswordResetMail;
 use App\Models\Employee;
 use App\Models\PasskeyCredential;
 use App\Models\User;
+use App\SecurityEvents\SecurityEventName;
 use App\Services\ActivityLogService;
 use App\Services\LoginMfaChallengeService;
 use App\Services\MfaService;
 use App\Services\PasskeyChallengeService;
 use App\Services\PasskeyService;
+use App\Services\SecurityEventRecorder;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -74,6 +76,7 @@ class AuthController extends Controller
         private MfaService $mfaService,
         private PasskeyChallengeService $passkeyChallengeService,
         private PasskeyService $passkeyService,
+        private SecurityEventRecorder $securityEventRecorder,
     ) {}
 
     /**
@@ -97,8 +100,10 @@ class AuthController extends Controller
         /** @var array{email: string, password: string} $credentials */
         $credentials = $request->validated();
         $user = $this->validatePrimaryCredentials(
+            $request,
             $credentials['email'],
             $credentials['password'],
+            LoginMfaChallengeService::LOGIN_CONTEXT_SESSION,
         );
 
         if ($user->hasTwoFactorEnabled()) {
@@ -121,8 +126,10 @@ class AuthController extends Controller
         /** @var array{email: string, password: string, device_name?: string} $validated */
         $validated = $request->validated();
         $user = $this->validatePrimaryCredentials(
+            $request,
             $validated['email'],
             $validated['password'],
+            LoginMfaChallengeService::LOGIN_CONTEXT_TOKEN,
         );
 
         $deviceName = $validated['device_name'] ?? 'api-client';
@@ -173,6 +180,15 @@ class AuthController extends Controller
 
         if (! $this->mfaService->verifyEnabledTwoFactorCode($user, $validated['method'], $validated['code'])) {
             $this->activityLogService->logLoginFailed($user->email, 'invalid_mfa_code');
+            $this->securityEventRecorder->record(
+                $request,
+                SecurityEventName::AuthenticationMfaFailed,
+                [
+                    'authentication_method' => $validated['method'],
+                    'login_context' => $challenge['login_context'],
+                ],
+                strtolower(trim($user->email)),
+            );
             $this->loginMfaChallengeService->forget($challengeId);
 
             throw ValidationException::withMessages([
@@ -966,9 +982,7 @@ class AuthController extends Controller
         $user = User::where('email', $validated['email'])->first();
 
         if (! $user) {
-            return response()->json([
-                'message' => __('Invalid or expired reset token'),
-            ], 400);
+            return $this->invalidPasswordResetResponse($request, $validated['email']);
         }
 
         // Get stored token record
@@ -978,9 +992,7 @@ class AuthController extends Controller
             ->first();
 
         if (! $tokenRecord) {
-            return response()->json([
-                'message' => __('Invalid or expired reset token'),
-            ], 400);
+            return $this->invalidPasswordResetResponse($request, $validated['email']);
         }
 
         // Check if token is expired
@@ -992,16 +1004,12 @@ class AuthController extends Controller
                 ->where('email', $validated['email'])
                 ->delete();
 
-            return response()->json([
-                'message' => __('Invalid or expired reset token'),
-            ], 400);
+            return $this->invalidPasswordResetResponse($request, $validated['email']);
         }
 
         // Verify token
         if (! Hash::check($validated['token'], $tokenRecord->token)) {
-            return response()->json([
-                'message' => __('Invalid or expired reset token'),
-            ], 400);
+            return $this->invalidPasswordResetResponse($request, $validated['email']);
         }
 
         $invalidToken = false;
@@ -1040,9 +1048,7 @@ class AuthController extends Controller
         });
 
         if ($invalidToken) {
-            return response()->json([
-                'message' => __('Invalid or expired reset token'),
-            ], 400);
+            return $this->invalidPasswordResetResponse($request, $validated['email']);
         }
 
         return response()->json([
@@ -1143,8 +1149,12 @@ class AuthController extends Controller
      *
      * @throws ValidationException
      */
-    private function validatePrimaryCredentials(string $email, string $password): User
-    {
+    private function validatePrimaryCredentials(
+        Request $request,
+        string $email,
+        string $password,
+        string $loginContext,
+    ): User {
         $user = User::where('email', $email)->first();
 
         $hashToCheck = $user !== null ? $user->password : $this->dummyPasswordHash();
@@ -1152,6 +1162,15 @@ class AuthController extends Controller
 
         if (! $user || ! $passwordValid) {
             $this->activityLogService->logLoginFailed($email, 'invalid_credentials');
+            $this->securityEventRecorder->record(
+                $request,
+                SecurityEventName::AuthenticationFailed,
+                [
+                    'authentication_method' => 'password',
+                    'login_context' => $loginContext,
+                ],
+                strtolower(trim($email)),
+            );
 
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
@@ -1159,6 +1178,20 @@ class AuthController extends Controller
         }
 
         return $user;
+    }
+
+    private function invalidPasswordResetResponse(Request $request, string $email): JsonResponse
+    {
+        $this->securityEventRecorder->record(
+            $request,
+            SecurityEventName::PasswordResetTokenRejected,
+            ['reset_phase' => 'confirmation'],
+            strtolower(trim($email)),
+        );
+
+        return response()->json([
+            'message' => __('Invalid or expired reset token'),
+        ], 400);
     }
 
     /**
@@ -1336,6 +1369,14 @@ class AuthController extends Controller
             );
         } catch (WebauthnException $exception) {
             $this->passkeyChallengeService->forgetAuthenticationChallenge($challengeId);
+            $this->securityEventRecorder->record(
+                $request,
+                SecurityEventName::AuthenticationPasskeyFailed,
+                [
+                    'authentication_method' => 'passkey',
+                    'login_context' => $expectedLoginContext,
+                ],
+            );
 
             throw $this->passkeyCredentialValidationException($exception);
         } catch (Throwable $exception) {
