@@ -7,6 +7,7 @@ use App\Models\AddressDataImport;
 use App\Models\AddressStreet;
 use App\Services\AddressData\AddressDataDownloader;
 use App\Services\AddressData\AddressDataImportService;
+use App\Services\AddressData\AddressDataSourceAdmission;
 use App\Services\AddressData\AddressStreetCsvImporter;
 use App\Services\AddressData\AddressSuggestionService;
 use Tests\Support\ResetsRefreshDatabaseStateForAddressData;
@@ -20,6 +21,7 @@ test('dry run validates fixture csv without persisting import or street rows', f
         new AddressDataDownloader,
         new AddressStreetCsvImporter,
         new AddressSuggestionService,
+        new AddressDataSourceAdmission,
     );
 
     expect(AddressDataImport::query()->count())->toBe(0)
@@ -29,6 +31,7 @@ test('dry run validates fixture csv without persisting import or street rows', f
         force: false,
         dryRun: true,
         sourcePath: $fixture,
+        expectedSha256: hash_file('sha256', $fixture),
         ifEmpty: false,
         setupOnly: false,
         keepImports: 1,

@@ -35,6 +35,9 @@ class AddressDataSeeder extends Seeder
             force: false,
             dryRun: false,
             sourcePath: $sourcePath,
+            expectedSha256: is_string(config('address_data.expected_sha256'))
+                ? config('address_data.expected_sha256')
+                : null,
             ifEmpty: true,
             setupOnly: true,
             keepImports: 0,

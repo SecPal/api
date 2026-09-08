@@ -14,9 +14,10 @@ class ImportAddressDataCommand extends Command
      * @var string
      */
     protected $signature = 'addresses:import
-                            {--force : Import even when the remote file checksum matches the active dataset}
+                            {--force : Re-import even when the authorized source checksum matches the active dataset}
                             {--dry-run : Validate the CSV without persisting rows}
                             {--source= : Path to a local CSV instead of downloading}
+                            {--expected-sha256= : Exact lowercase SHA-256 authorized for the source bytes}
                             {--if-empty : Skip when an activated import already exists}
                             {--setup-only : Only run when ADDRESS_DATA_IMPORT_ON_SETUP is enabled}
                             {--keep-imports=0 : Keep this many prior import versions (street rows + metadata)}';
@@ -41,6 +42,7 @@ class ImportAddressDataCommand extends Command
             force: (bool) $this->option('force'),
             dryRun: (bool) $this->option('dry-run'),
             sourcePath: $this->sourcePath(),
+            expectedSha256: $this->expectedSha256(),
             ifEmpty: (bool) $this->option('if-empty'),
             setupOnly: (bool) $this->option('setup-only'),
             keepImports: max(0, (int) $this->option('keep-imports')),
@@ -75,5 +77,17 @@ class ImportAddressDataCommand extends Command
         return is_string($setupSourcePath) && trim($setupSourcePath) !== ''
             ? $setupSourcePath
             : null;
+    }
+
+    private function expectedSha256(): ?string
+    {
+        $explicitDigest = $this->option('expected-sha256');
+        if ($explicitDigest !== null) {
+            return (string) $explicitDigest;
+        }
+
+        $configuredDigest = config('address_data.expected_sha256');
+
+        return is_string($configuredDigest) ? $configuredDigest : null;
     }
 }

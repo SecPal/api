@@ -4,8 +4,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Http;
 
-test('scheduler registers addresses:import', function (): void {
+test('scheduler omits address import and performs no network request when disabled', function (): void {
+    Http::fake();
+
+    expect(config('address_data.schedule_enabled'))->toBeFalse()
+        ->and(config('address_data.source_url'))->toBeNull()
+        ->and(config('address_data.expected_sha256'))->toBeNull();
+
     /** @var Schedule $schedule */
     $schedule = app(Schedule::class);
 
@@ -13,5 +20,20 @@ test('scheduler registers addresses:import', function (): void {
         ->map(fn ($event): string => $event->command ?? '')
         ->implode("\n");
 
-    expect($commands)->toContain('addresses:import');
+    expect($commands)->not->toContain('addresses:import');
+    Http::assertNothingSent();
+});
+
+test('enabled address import schedule retains single-server overlap protection', function (): void {
+    config(['address_data.schedule_enabled' => true]);
+    require base_path('routes/console.php');
+
+    /** @var Schedule $schedule */
+    $schedule = app(Schedule::class);
+    $event = collect($schedule->events())
+        ->first(fn ($candidate): bool => $candidate->description === 'address-data-update');
+
+    expect($event)->not->toBeNull()
+        ->and($event->onOneServer)->toBeTrue()
+        ->and($event->withoutOverlapping)->toBeTrue();
 });

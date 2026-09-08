@@ -17,6 +17,7 @@ final class AddressDataImportService
         private AddressDataDownloader $downloader,
         private AddressStreetCsvImporter $csvImporter,
         private AddressSuggestionService $suggestionService,
+        private AddressDataSourceAdmission $sourceAdmission,
     ) {}
 
     /**
@@ -27,6 +28,7 @@ final class AddressDataImportService
         bool $force,
         bool $dryRun,
         ?string $sourcePath,
+        ?string $expectedSha256,
         bool $ifEmpty,
         bool $setupOnly,
         int $keepImports,
@@ -52,10 +54,14 @@ final class AddressDataImportService
             return ['status' => 'skipped', 'message' => 'An activated address import already exists.'];
         }
 
-        $sourceUrl = AddressDataConfig::string(
-            'address_data.source_url',
-            'https://github.com/openpotato/openplzapi.data/raw/refs/heads/main/src/de/osm/streets.updated.csv',
-        );
+        try {
+            $expectedSha256 = $this->sourceAdmission->expectedSha256($expectedSha256);
+            $sourceUrl = $sourcePath === null
+                ? $this->sourceAdmission->remoteSourceUrl($this->configuredSourceUrl())
+                : '';
+        } catch (Throwable $e) {
+            return ['status' => 'failed', 'message' => $e->getMessage()];
+        }
 
         $emit('Resolving address data source (download or local file)…');
 
@@ -67,6 +73,14 @@ final class AddressDataImportService
 
         $path = $downloaded['path'];
         $sha256 = $downloaded['sha256'];
+
+        try {
+            $this->sourceAdmission->assertMatches($expectedSha256, $sha256);
+        } catch (Throwable $e) {
+            $this->cleanupTempDownload($path, $sourcePath);
+
+            return ['status' => 'failed', 'message' => $e->getMessage()];
+        }
 
         $active = $this->latestActivatedImport($countryCode);
         if (! $force && $active !== null && $active->source_sha256 !== null && hash_equals($active->source_sha256, $sha256)) {
@@ -99,7 +113,7 @@ final class AddressDataImportService
         $import = AddressDataImport::query()->create([
             'country_code' => $countryCode,
             'source_name' => AddressDataConfig::string('address_data.source_name', 'OpenPLZ API Data'),
-            'source_url' => $sourceUrl,
+            'source_url' => $sourcePath === null ? $sourceUrl : 'file://'.$sourcePath,
             'status' => AddressDataImport::STATUS_RUNNING,
             'started_at' => now(),
             'license' => $license,
@@ -194,6 +208,13 @@ final class AddressDataImportService
             ->where('country_code', $countryCode)
             ->whereNotNull('activated_at')
             ->exists();
+    }
+
+    private function configuredSourceUrl(): ?string
+    {
+        $sourceUrl = config('address_data.source_url');
+
+        return is_string($sourceUrl) && $sourceUrl !== '' ? $sourceUrl : null;
     }
 
     private function latestActivatedImport(string $countryCode): ?AddressDataImport
