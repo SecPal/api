@@ -56,10 +56,10 @@ final class RuntimeInfrastructure
         self::assertConfiguredValue('queue.default', self::QUEUE_CONNECTION, 'queue connection');
         self::assertConfiguredValue('session.driver', self::SESSION_DRIVER, 'session driver');
 
-        // Composer's package-discovery build step boots the application before
-        // deployment-owned trust material exists. It cannot open a connection;
-        // adapter selection above remains constrained even on this path.
-        if (self::isPackageDiscovery($application)) {
+        // Composer and static-analysis tooling boot the application before
+        // deployment-owned trust material exists. They cannot serve requests
+        // or run work; adapter selection above remains constrained everywhere.
+        if (! self::requiresProductionTrustInputs($application)) {
             return;
         }
 
@@ -74,13 +74,17 @@ final class RuntimeInfrastructure
         }
     }
 
-    private static function isPackageDiscovery(Application $application): bool
+    private static function requiresProductionTrustInputs(Application $application): bool
     {
         /** @var list<string> $arguments */
         $arguments = $_SERVER['argv'] ?? [];
 
-        return $application->runningInConsole()
-            && ($arguments[1] ?? null) === 'package:discover';
+        if (! $application->runningInConsole()) {
+            return true;
+        }
+
+        return basename($arguments[0] ?? '') === 'artisan'
+            && ($arguments[1] ?? null) !== 'package:discover';
     }
 
     private static function assertConfiguredValue(string $key, string $expected, string $label): void

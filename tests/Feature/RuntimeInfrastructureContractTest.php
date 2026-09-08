@@ -81,6 +81,28 @@ test('production package discovery works before deployment trust material is mou
     expect($process->isSuccessful())->toBeTrue();
 });
 
+test('production static tooling can bootstrap without deployment trust material', function (): void {
+    $script = <<<'PHP'
+    $basePath = $argv[1];
+    $_SERVER['argv'] = [$basePath.'/vendor/bin/phpstan'];
+    require $basePath.'/vendor/autoload.php';
+    $application = require $basePath.'/bootstrap/app.php';
+    $application->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+    PHP;
+
+    $process = new Process(
+        [PHP_BINARY, '-r', $script, base_path()],
+        base_path(),
+        array_merge(productionRuntimeEnvironment(), [
+            'DB_SSLMODE' => 'prefer',
+            'DB_SSLROOTCERT' => '',
+        ]),
+    );
+    $process->setTimeout(20)->run();
+
+    expect($process->isSuccessful())->toBeTrue();
+});
+
 /**
  * @return array<string, string>
  */
