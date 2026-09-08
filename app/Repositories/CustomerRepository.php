@@ -55,7 +55,7 @@ final class CustomerRepository
 
     public function hasDomainDependencies(Customer $customer): bool
     {
-        return $customer->customerEstablishments()->exists()
+        return $customer->customerEstablishments()->withTrashed()->exists()
             || $customer->sites()->exists();
     }
 
