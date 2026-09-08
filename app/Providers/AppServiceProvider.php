@@ -6,6 +6,7 @@
 namespace App\Providers;
 
 use App\Contracts\ProcessExecutor;
+use App\Contracts\SecurityEventEmitter;
 use App\Contracts\WebPushDeliveryServiceInterface;
 use App\Contracts\WebPushTransportInterface;
 use App\Models\CostCenter;
@@ -38,7 +39,10 @@ use App\Policies\QualificationPolicy;
 use App\Policies\RoleManagementPolicy;
 use App\Policies\SiteAssignmentPolicy;
 use App\Policies\SitePolicy;
+use App\SecurityEvents\SecurityEventName;
+use App\Services\BoundedSecurityEventEmitter;
 use App\Services\RuntimeHeartbeatService;
+use App\Services\SecurityEventRecorder;
 use App\Services\SystemProcessExecutor;
 use App\Services\WebPushDeliveryService;
 use App\Services\WebPushTransport;
@@ -68,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(ProcessExecutor::class, SystemProcessExecutor::class);
+        $this->app->bind(SecurityEventEmitter::class, BoundedSecurityEventEmitter::class);
         $this->app->bind(WebPushTransportInterface::class, WebPushTransport::class);
         $this->app->bind(WebPushDeliveryServiceInterface::class, WebPushDeliveryService::class);
     }
@@ -101,7 +106,27 @@ class AppServiceProvider extends ServiceProvider
 
         // Password reset rate limiter (5 per 60 minutes by IP)
         RateLimiter::for('password-reset', function (Request $request) {
-            return Limit::perMinutes(60, 5)->by($request->ip());
+            return Limit::perMinutes(60, 5)
+                ->by($request->ip())
+                ->response(function (Request $request, array $headers): JsonResponse {
+                    $phase = $request->is('v1/auth/password/reset-request') ? 'request' : 'confirmation';
+                    $email = $request->input('email');
+
+                    app(SecurityEventRecorder::class)->record(
+                        $request,
+                        SecurityEventName::PasswordResetRateLimited,
+                        ['reset_phase' => $phase],
+                        is_string($email) ? strtolower(trim($email)) : null,
+                    );
+
+                    /** @var array<string, mixed> $headers */
+                    $headers = $headers;
+
+                    return $this->buildRateLimitedJsonResponse(
+                        $headers,
+                        'Too many password reset attempts. Please try again later.',
+                    );
+                });
         });
 
         // A signed verification URL is its own authorization proof. Keying only
@@ -414,6 +439,19 @@ class AppServiceProvider extends ServiceProvider
             ->by($key)
             ->after(fn (SymfonyResponse $response): bool => $this->shouldCountLoginAttempt($response))
             ->response(function (Request $request, array $headers): JsonResponse {
+                $loginContext = $request->is('v1/auth/login') ? 'session' : 'token';
+                $email = $this->normalizedLoginThrottleEmail($request);
+
+                app(SecurityEventRecorder::class)->record(
+                    $request,
+                    SecurityEventName::AuthenticationRateLimited,
+                    [
+                        'authentication_method' => 'password',
+                        'login_context' => $loginContext,
+                    ],
+                    $email !== '' ? $email : null,
+                );
+
                 /** @var array<string, mixed> $headers */
                 $headers = $headers;
 
