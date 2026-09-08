@@ -193,24 +193,16 @@ class CustomerController extends Controller
      *
      * DELETE /api/v1/customers/{customer}
      *
-     * Soft deletes the customer. Blocked if customer has active sites.
+     * Soft deletes the customer. Blocked while domain dependencies exist.
      * Requires 'customers.delete' permission.
      *
-     * @return Response|JsonResponse 204 No Content on success, 409 Conflict if has active sites
+     * @return Response|JsonResponse 204 No Content on success, 409 Conflict if dependencies exist
      */
     public function destroy(Customer $customer): Response|JsonResponse
     {
         $this->authorize('delete', $customer);
 
-        // Check for active sites
-        if ($customer->sites()->where('is_active', true)->exists()) {
-            return response()->json([
-                'message' => __('Cannot delete customer with active sites.'),
-                'error' => 'has_active_sites',
-            ], Response::HTTP_CONFLICT);
-        }
-
-        $customer->delete();
+        $this->customerService->delete($customer);
 
         return response()->noContent();
     }

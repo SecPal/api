@@ -152,6 +152,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- blocked Customer deletion and Legal Entity reassignment whenever a live Site
+  or customer-establishment link still references the Customer, returning the
+  contract-defined neutral `409 Conflict` without mutating persisted state
+  (fixes `api#1335`)
 - Made onboarding file upload retries idempotent with tenant-scoped keys and
   exact original-filename and payload matching plus operation-scoped blind
   fingerprints so interrupted Android requests cannot create duplicate
