@@ -33,7 +33,7 @@ it('defines the production API image contract', function (): void {
         ->toContain('--no-scripts')
         ->toContain('--require-hashes', '--only-binary=:all:', 'opentimestamps-requirements.txt')
         ->toContain('rm -f bootstrap/cache/*.php', '/config/caddy /config/psysh')
-        ->toContain('redis-6.3.0')
+        ->not->toContain('redis-6.3.0')
         ->toContain('COPY --chown=root:root --chmod=0644 docker/frankenphp/Caddyfile /etc/frankenphp/Caddyfile')
         ->toContain('COPY --chown=root:root --chmod=0644 docker/php/conf.d/production.ini /usr/local/etc/php/conf.d/zz-secpal-production.ini')
         ->toContain('COPY --chown=root:root --chmod=0755 docker/healthchecks/http-live.sh /usr/local/bin/secpal-http-live')
@@ -47,6 +47,14 @@ it('defines the production API image contract', function (): void {
         ->toContain('HEALTHCHECK NONE')
         ->not->toContain('artisan migrate')
         ->not->toContain('octane');
+
+    expect($smokeScript)
+        ->toContain('DB_SSLMODE=verify-full')
+        ->toContain('DB_SSLROOTCERT=/run/secrets/postgresql-ca.crt')
+        ->toContain("POSTGRES_INITDB_ARGS='--auth-host=scram-sha-256'")
+        ->toContain('-c password_encryption=scram-sha-256')
+        ->toContain('SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()')
+        ->not->toContain('valkey_image=');
 
     expect($extensionsStage)->not->toContain('unzip');
     expect($dependenciesStage)
@@ -96,7 +104,8 @@ it('checks container command output without early-terminating pipelines', functi
         ->toContain('php_version=$(docker run --rm "$image" php -v)')
         ->toContain('frankenphp_version=$(docker run --rm "$image" frankenphp version)')
         ->toContain('php_modules=$(docker run --rm "$image" php -m)')
-        ->toContain('redis_info=$(docker run --rm "$image" php --ri redis)')
+        ->toContain('exit(extension_loaded("redis") ? 1 : 0)')
+        ->not->toContain('php --ri redis')
         ->toContain('php_ini_output=$(docker run --rm "$image" php --ini)')
         ->toContain('ots_version=$(docker run --rm "$image" ots --version)')
         ->not->toMatch('/docker run[^\n]*\\|[ \t]*grep\\b/');

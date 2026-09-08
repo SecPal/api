@@ -8,7 +8,16 @@ it('lists scheduled tasks without a database connection', function (): void {
 
     $process = new Symfony\Component\Process\Process(
         [PHP_BINARY, 'artisan', 'schedule:list', '--json'], base_path(),
-        ['APP_ENV' => 'production', 'CACHE_STORE' => 'database', 'DB_CONNECTION' => 'pgsql', 'DB_HOST' => 'unreachable.invalid'],
+        [
+            'APP_ENV' => 'production',
+            'CACHE_STORE' => 'database',
+            'DB_CONNECTION' => 'pgsql',
+            'DB_HOST' => 'unreachable.invalid',
+            'DB_SSLMODE' => 'verify-full',
+            'DB_SSLROOTCERT' => '/run/secrets/postgresql-ca.crt',
+            'QUEUE_CONNECTION' => 'database',
+            'SESSION_DRIVER' => 'database',
+        ],
     );
     $process->setTimeout(10)->run();
 

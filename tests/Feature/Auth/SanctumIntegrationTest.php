@@ -230,8 +230,7 @@ describe('Integration: Session Performance', function () {
         $httpOnly = config('session.http_only');
 
         expect($lifetime)->toBeInt()->toBeGreaterThan(0);
-        // In tests, driver is 'array'; in production: 'database', 'redis', 'cookie'
-        expect($driver)->toBeString()->toBeIn(['array', 'database', 'redis', 'cookie']);
+        expect($driver)->toBe('database');
         expect($httpOnly)->toBeTrue(); // Critical security setting
     });
 });
@@ -273,7 +272,6 @@ describe('Integration: Session Expiration', function () {
     test('session driver supports persistence', function () {
         $driver = config('session.driver');
 
-        // Valid session drivers (array for tests, persistent for production)
-        expect($driver)->toBeIn(['array', 'database', 'redis', 'cookie']);
+        expect($driver)->toBe('database');
     });
 });

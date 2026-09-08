@@ -18,7 +18,6 @@ RUN install-php-extensions \
         pcntl \
         pdo_pgsql \
         pgsql \
-        redis-6.3.0 \
         sodium \
         xml \
         zip \
@@ -60,7 +59,7 @@ RUN rm -f bootstrap/cache/*.php && composer dump-autoload \
         --no-dev \
         --no-interaction \
         --no-scripts \
-    && php artisan package:discover --ansi
+    && APP_ENV=local php artisan package:discover --ansi
 FROM extensions AS runtime
 
 ARG APP_UID=10001

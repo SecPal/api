@@ -291,8 +291,8 @@ php artisan idx:rebuild {tenant_id}
 **For production deployment**, see the comprehensive guides:
 
 - 🐳 [API Container](docs/containers.md) - Production image preparation with
-  FrankenPHP Classic, native PhpRedis, validated Valkey compatibility, and the
-  post-merge digest-only GHCR publishing contract
+  FrankenPHP Classic, PostgreSQL-backed runtime state, and the post-merge
+  digest-only GHCR publishing contract
 - 📖 [Production Deployment Guide](docs/deployment.md) - Complete setup instructions
 - ✅ [Deployment Checklist](docs/deployment-checklist.md) - Quick reference checklist
 - 🌐 [Uberspace Deployment](docs/deployment-uberspace.md) - Uberspace-specific guide
