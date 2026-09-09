@@ -120,6 +120,7 @@ GET /v1/users/{id}/permissions
 - [Activity Logging User Guide](docs/ACTIVITY_LOGGING_USER_GUIDE.md)
 - [Activity Logging Admin Guide](docs/ACTIVITY_LOGGING_ADMIN_GUIDE.md)
 - [Activity Logging Legal Guide](docs/ACTIVITY_LOGGING_LEGAL_GUIDE.md)
+- [Legal Hold API Guide](docs/guides/legal-holds.md)
 - [API Reference](docs/api/rbac-endpoints.md)
 
 ### 👥 Employee Status And Invitation Rules
