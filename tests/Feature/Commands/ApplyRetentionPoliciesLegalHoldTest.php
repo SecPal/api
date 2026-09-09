@@ -102,6 +102,35 @@ test('mixed retention preserves held chain truth while processing eligible activ
         ->and($activityD->verifyChainLink())->toBeTrue();
 });
 
+test('an unhashed expired activity does not orphan an unrelated genesis activity', function (): void {
+    $expiredAt = Carbon::now()->subYears(4)->startOfYear();
+    $unrelatedGenesis = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'financial_year_end',
+        'created_at' => $expiredAt,
+    ])->refresh();
+    $expiredActivity = Activity::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'log_name' => 'default',
+        'created_at' => $expiredAt->copy()->addDay(),
+    ])->refresh();
+    DB::table('activity_log')
+        ->where('tenant_id', $this->tenant->id)
+        ->where('id', $expiredActivity->id)
+        ->update(['event_hash' => null]);
+    $genesisUpdatedAt = $unrelatedGenesis->updated_at;
+
+    $this->artisan('activity:apply-retention')->assertSuccessful();
+
+    $unrelatedGenesis->refresh();
+
+    expect($expiredActivity->fresh())->toBeNull()
+        ->and(ActivityArchive::query()->findOrFail($expiredActivity->id)->event_hash)->toBeNull()
+        ->and($unrelatedGenesis->is_orphaned_genesis)->toBeFalse()
+        ->and($unrelatedGenesis->previous_hash)->toBeNull()
+        ->and($unrelatedGenesis->updated_at?->equalTo($genesisUpdatedAt))->toBeTrue();
+});
+
 test('detached attachment remains historical evidence without blocking retention', function (): void {
     $activity = Activity::factory()->create([
         'tenant_id' => $this->tenant->id,
