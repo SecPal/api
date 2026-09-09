@@ -144,6 +144,12 @@ class TenantKey extends Model
         return $this->hasMany(WorkInstructionAcknowledgment::class, 'tenant_id');
     }
 
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<LegalHold, $this> */
+    public function legalHolds(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(LegalHold::class, 'tenant_id');
+    }
+
     /**
      * Path to the KEK file (can be overridden for testing).
      */
