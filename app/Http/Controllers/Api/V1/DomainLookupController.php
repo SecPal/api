@@ -10,6 +10,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\DomainLookupResource;
 use App\Models\Customer;
+use App\Models\CustomerEstablishment;
 use App\Models\Establishment;
 use App\Models\LegalEntity;
 use App\Models\Site;
@@ -40,6 +41,8 @@ final class DomainLookupController extends Controller
 
     public function customerCandidates(Request $request, Establishment $establishment): AnonymousResourceCollection
     {
+        $this->authorize('create', CustomerEstablishment::class);
+
         return DomainLookupResource::collection($this->domainAccess->customerLinkCandidatesForEstablishment(
             $this->user($request),
             $request->integer('tenant_id'),
@@ -50,7 +53,7 @@ final class DomainLookupController extends Controller
     public function customers(Request $request, Establishment $establishment): AnonymousResourceCollection
     {
         $user = $this->user($request);
-        if (! $user->can('create', Site::class)) {
+        if (! $this->canCreateOrReassignSites($user)) {
             $this->authorize('create', Customer::class);
             $this->authorize('viewAny', Customer::class);
         }
@@ -68,5 +71,11 @@ final class DomainLookupController extends Controller
         $user = $request->user();
 
         return $user;
+    }
+
+    private function canCreateOrReassignSites(User $user): bool
+    {
+        return $user->can('create', Site::class)
+            || ($user->can('sites.update') && ! $user->organizationalScopes()->exists());
     }
 }

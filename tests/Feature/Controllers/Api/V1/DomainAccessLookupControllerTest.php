@@ -175,6 +175,33 @@ test('customer link candidates fail without relationship authority and hide fore
         ->assertNotFound();
 });
 
+test('site reassignment authority completes the linked customer lookup', function (): void {
+    givePermissionWithTenant($this->user, $this->tenant->id, 'sites.update');
+    $legalEntity = LegalEntity::factory()->forTenant((string) $this->tenant->id)->create();
+    $establishment = Establishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    $customer = Customer::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+    ]);
+    CustomerEstablishment::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'legal_entity_id' => $legalEntity->id,
+        'customer_id' => $customer->id,
+        'establishment_id' => $establishment->id,
+    ]);
+
+    $this->withToken($this->token)
+        ->getJson("/v1/lookups/establishments/{$establishment->id}/customers")
+        ->assertOk()
+        ->assertExactJson(['data' => [[
+            'id' => $customer->id,
+            'name' => $customer->name,
+        ]]]);
+});
+
 test('domain lookups cascade through authorized same-tenant records with minimal payloads', function (): void {
     givePermissionWithTenant($this->user, $this->tenant->id, 'customers.create');
     givePermissionWithTenant($this->user, $this->tenant->id, 'customers.read');

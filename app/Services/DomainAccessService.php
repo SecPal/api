@@ -173,8 +173,9 @@ final class DomainAccessService
         string $establishmentId,
     ): Collection {
         $this->ensureTenant($user, $tenantId);
-        $canCreateSites = $user->can('create', Site::class);
-        if (! $canCreateSites && ! $user->can('create', Customer::class)) {
+        $canCreateOrReassignSites = $user->can('create', Site::class)
+            || ($user->can('sites.update') && ! $user->organizationalScopes()->exists());
+        if (! $canCreateOrReassignSites && ! $user->can('create', Customer::class)) {
             throw new AuthorizationException;
         }
 
@@ -188,7 +189,7 @@ final class DomainAccessService
 
         $this->findWritableLegalEntity($user, $tenantId, $establishment->legal_entity_id);
 
-        if ($canCreateSites) {
+        if ($canCreateOrReassignSites) {
             return $this->repository->writableCustomersForEstablishmentQuery($tenantId, $establishmentId)
                 ->orderBy('name')
                 ->get();
@@ -209,7 +210,7 @@ final class DomainAccessService
         int $tenantId,
         string $establishmentId,
     ): Collection {
-        $this->ensureCanCreateCustomerEstablishments($user, $tenantId);
+        $this->ensureTenant($user, $tenantId);
 
         $establishment = $this->repository->findWritableEstablishment($tenantId, $establishmentId);
         if ($establishment === null) {
@@ -348,15 +349,6 @@ final class DomainAccessService
         $this->ensureTenant($user, $tenantId);
 
         if (! $this->canUseDomainWriteLookups($user)) {
-            throw new AuthorizationException;
-        }
-    }
-
-    private function ensureCanCreateCustomerEstablishments(User $user, int $tenantId): void
-    {
-        $this->ensureTenant($user, $tenantId);
-
-        if (! $this->canMutateCustomerEstablishments($user)) {
             throw new AuthorizationException;
         }
     }
