@@ -70,33 +70,16 @@ return new class extends Migration
                 )
             ),
             ADD CONSTRAINT legal_holds_creator_tenant_user_foreign
-            FOREIGN KEY (created_by_user_id)
-            REFERENCES users (id)
-            ON DELETE SET NULL,
+            FOREIGN KEY (tenant_id, created_by_user_id)
+            REFERENCES users (tenant_id, id)
+            ON DELETE SET NULL (created_by_user_id),
             ADD CONSTRAINT legal_holds_releaser_tenant_user_foreign
-            FOREIGN KEY (released_by_user_id)
-            REFERENCES users (id)
-            ON DELETE SET NULL
+            FOREIGN KEY (tenant_id, released_by_user_id)
+            REFERENCES users (tenant_id, id)
+            ON DELETE SET NULL (released_by_user_id)
             SQL);
 
         DB::unprepared(<<<'SQL'
-            CREATE OR REPLACE FUNCTION enforce_legal_hold_actor_reference(
-                actor_id uuid,
-                owner_tenant_id bigint
-            )
-            RETURNS boolean
-            LANGUAGE plpgsql
-            AS $$
-            BEGIN
-                PERFORM 1
-                FROM users
-                WHERE id = actor_id AND tenant_id = owner_tenant_id
-                FOR KEY SHARE;
-
-                RETURN FOUND;
-            END;
-            $$;
-
             CREATE OR REPLACE FUNCTION enforce_legal_hold_is_active(
                 hold_id uuid,
                 owner_tenant_id bigint
@@ -123,11 +106,7 @@ return new class extends Migration
             BEGIN
                 IF TG_OP = 'INSERT' THEN
                     IF NEW.created_by_user_id IS NULL
-                        OR NEW.created_by_identity_id IS DISTINCT FROM NEW.created_by_user_id
-                        OR NOT enforce_legal_hold_actor_reference(
-                            NEW.created_by_user_id,
-                            NEW.tenant_id
-                        ) THEN
+                        OR NEW.created_by_identity_id IS DISTINCT FROM NEW.created_by_user_id THEN
                         RAISE EXCEPTION 'legal hold creator identity must match a current user'
                             USING ERRCODE = '23514';
                     END IF;
@@ -136,10 +115,6 @@ return new class extends Migration
                         AND (
                             NEW.released_by_user_id IS NULL
                             OR NEW.released_by_identity_id IS DISTINCT FROM NEW.released_by_user_id
-                            OR NOT enforce_legal_hold_actor_reference(
-                                NEW.released_by_user_id,
-                                NEW.tenant_id
-                            )
                         ) THEN
                         RAISE EXCEPTION 'legal hold release identity must match a current user'
                             USING ERRCODE = '23514';
@@ -188,10 +163,6 @@ return new class extends Migration
                     AND (
                         NEW.released_by_user_id IS NULL
                         OR NEW.released_by_identity_id IS DISTINCT FROM NEW.released_by_user_id
-                        OR NOT enforce_legal_hold_actor_reference(
-                            NEW.released_by_user_id,
-                            NEW.tenant_id
-                        )
                     ) THEN
                     RAISE EXCEPTION 'legal hold release identity must match a current user'
                         USING ERRCODE = '23514';
@@ -251,13 +222,13 @@ return new class extends Migration
                 )
             ),
             ADD CONSTRAINT legal_hold_attachments_attacher_tenant_user_foreign
-            FOREIGN KEY (attached_by_user_id)
-            REFERENCES users (id)
-            ON DELETE SET NULL,
+            FOREIGN KEY (tenant_id, attached_by_user_id)
+            REFERENCES users (tenant_id, id)
+            ON DELETE SET NULL (attached_by_user_id),
             ADD CONSTRAINT legal_hold_attachments_detacher_tenant_user_foreign
-            FOREIGN KEY (detached_by_user_id)
-            REFERENCES users (id)
-            ON DELETE SET NULL
+            FOREIGN KEY (tenant_id, detached_by_user_id)
+            REFERENCES users (tenant_id, id)
+            ON DELETE SET NULL (detached_by_user_id)
             SQL);
 
         DB::statement(<<<'SQL'
@@ -296,11 +267,7 @@ return new class extends Migration
                     END IF;
 
                     IF NEW.attached_by_user_id IS NULL
-                        OR NEW.attached_by_identity_id IS DISTINCT FROM NEW.attached_by_user_id
-                        OR NOT enforce_legal_hold_actor_reference(
-                            NEW.attached_by_user_id,
-                            NEW.tenant_id
-                        ) THEN
+                        OR NEW.attached_by_identity_id IS DISTINCT FROM NEW.attached_by_user_id THEN
                         RAISE EXCEPTION 'attachment actor identity must match a current user'
                             USING ERRCODE = '23514';
                     END IF;
@@ -309,10 +276,6 @@ return new class extends Migration
                         AND (
                             NEW.detached_by_user_id IS NULL
                             OR NEW.detached_by_identity_id IS DISTINCT FROM NEW.detached_by_user_id
-                            OR NOT enforce_legal_hold_actor_reference(
-                                NEW.detached_by_user_id,
-                                NEW.tenant_id
-                            )
                         ) THEN
                         RAISE EXCEPTION 'detachment actor identity must match a current user'
                             USING ERRCODE = '23514';
@@ -371,10 +334,6 @@ return new class extends Migration
                     AND (
                         NEW.detached_by_user_id IS NULL
                         OR NEW.detached_by_identity_id IS DISTINCT FROM NEW.detached_by_user_id
-                        OR NOT enforce_legal_hold_actor_reference(
-                            NEW.detached_by_user_id,
-                            NEW.tenant_id
-                        )
                         OR NOT enforce_legal_hold_is_active(
                             NEW.legal_hold_id,
                             NEW.tenant_id
@@ -426,35 +385,6 @@ return new class extends Migration
             BEFORE TRUNCATE ON legal_hold_activity_attachments
             FOR EACH STATEMENT
             EXECUTE FUNCTION enforce_legal_hold_evidence_deletion();
-
-            CREATE OR REPLACE FUNCTION enforce_legal_hold_actor_tenant()
-            RETURNS trigger
-            LANGUAGE plpgsql
-            AS $$
-            BEGIN
-                IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
-                    AND (
-                        EXISTS (
-                            SELECT 1 FROM legal_holds
-                            WHERE created_by_user_id = OLD.id OR released_by_user_id = OLD.id
-                        )
-                        OR EXISTS (
-                            SELECT 1 FROM legal_hold_activity_attachments
-                            WHERE attached_by_user_id = OLD.id OR detached_by_user_id = OLD.id
-                        )
-                    ) THEN
-                    RAISE EXCEPTION 'legal hold actors cannot move across tenants while referenced'
-                        USING ERRCODE = '23514';
-                END IF;
-
-                RETURN NEW;
-            END;
-            $$;
-
-            CREATE TRIGGER users_enforce_legal_hold_actor_tenant
-            BEFORE UPDATE OF tenant_id ON users
-            FOR EACH ROW
-            EXECUTE FUNCTION enforce_legal_hold_actor_tenant();
             SQL);
     }
 

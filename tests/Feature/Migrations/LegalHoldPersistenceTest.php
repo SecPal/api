@@ -82,16 +82,20 @@ test('creates the canonical PostgreSQL legal hold persistence schema and constra
         ->pluck('conname')
         ->all();
 
+    $creatorForeignKey = (string) DB::table('pg_constraint')
+        ->whereRaw('connamespace = current_schema()::regnamespace')
+        ->where('conname', 'legal_holds_creator_tenant_user_foreign')
+        ->selectRaw('pg_get_constraintdef(oid) AS definition')
+        ->value('definition');
+
     expect($constraints)->toHaveCount(10)
         ->and(DB::table('pg_indexes')
             ->where('schemaname', DB::raw('current_schema()'))
             ->where('indexname', 'legal_hold_attachments_active_identity_unique')
             ->exists())->toBeTrue()
-        ->and((string) DB::scalar(<<<'SQL'
-            SELECT pg_get_functiondef(
-                'enforce_legal_hold_actor_reference(uuid, bigint)'::regprocedure
-            )
-            SQL))->toContain('FOR KEY SHARE');
+        ->and($creatorForeignKey)->toContain(
+            'FOREIGN KEY (tenant_id, created_by_user_id) REFERENCES users(tenant_id, id)'
+        );
 });
 
 test('scopes stable case references to a tenant', function (): void {
