@@ -194,7 +194,15 @@ test('concurrent duplicate attachment commits one active evidence row', function
 
     expect($results->where('status', 'success'))->toHaveCount(1)
         ->and($results->where('exception', DuplicateActiveLegalHoldAttachmentException::class))->toHaveCount(1)
-        ->and(LegalHoldActivityAttachment::query()->whereNull('detached_at')->count())->toBe(1);
+        ->and(LegalHoldActivityAttachment::query()->whereNull('detached_at')->count())->toBe(1)
+        ->and(Activity::query()->where('event', 'legal_hold.attach.succeeded')->count())->toBe(1)
+        ->and(Activity::query()->where('event', 'legal_hold.attach.failed')->count())->toBe(1);
+
+    $successAudit = Activity::query()->where('event', 'legal_hold.attach.succeeded')->firstOrFail();
+    $failureAudit = Activity::query()->where('event', 'legal_hold.attach.failed')->firstOrFail();
+
+    expect($successAudit->id)->toBeLessThan($failureAudit->id)
+        ->and($failureAudit->properties->get('reason_category'))->toBe('duplicate_active_attachment');
 });
 
 test('concurrent release and attachment are serially safe', function (): void {
@@ -226,7 +234,17 @@ test('concurrent release and attachment are serially safe', function (): void {
         ->and(LegalHoldActivityAttachment::query()->count())->toBeIn([0, 1]);
 
     if ($attachment !== null) {
-        expect($attachment->attached_at->lessThanOrEqualTo($hold->released_at))->toBeTrue();
+        expect($attachment->attached_at->lessThanOrEqualTo($hold->released_at))->toBeTrue()
+            ->and(Activity::query()->where('event', 'legal_hold.attach.succeeded')->firstOrFail()->id)
+            ->toBeLessThan(Activity::query()->where('event', 'legal_hold.release.succeeded')->firstOrFail()->id);
+    } else {
+        expect(Activity::query()->where('event', 'legal_hold.release.succeeded')->firstOrFail()->id)
+            ->toBeLessThan(Activity::query()->where('event', 'legal_hold.attach.failed')->firstOrFail()->id)
+            ->and(Activity::query()
+                ->where('event', 'legal_hold.attach.failed')
+                ->firstOrFail()
+                ->properties
+                ->get('reason_category'))->toBe('hold_not_active');
     }
 });
 
@@ -259,7 +277,17 @@ test('concurrent release and detachment are serially safe', function (): void {
             + $results->where('exception', LegalHoldNotActiveException::class)->count())->toBe(2);
 
     if ($attachment->detached_at !== null) {
-        expect($attachment->detached_at->lessThanOrEqualTo($hold->released_at))->toBeTrue();
+        expect($attachment->detached_at->lessThanOrEqualTo($hold->released_at))->toBeTrue()
+            ->and(Activity::query()->where('event', 'legal_hold.detach.succeeded')->firstOrFail()->id)
+            ->toBeLessThan(Activity::query()->where('event', 'legal_hold.release.succeeded')->firstOrFail()->id);
+    } else {
+        expect(Activity::query()->where('event', 'legal_hold.release.succeeded')->firstOrFail()->id)
+            ->toBeLessThan(Activity::query()->where('event', 'legal_hold.detach.failed')->firstOrFail()->id)
+            ->and(Activity::query()
+                ->where('event', 'legal_hold.detach.failed')
+                ->firstOrFail()
+                ->properties
+                ->get('reason_category'))->toBe('hold_not_active');
     }
 });
 
@@ -280,7 +308,15 @@ test('concurrent releases commit exactly one lifecycle transition', function ():
 
     expect($results->where('status', 'success'))->toHaveCount(1)
         ->and($results->where('exception', LegalHoldNotActiveException::class))->toHaveCount(1)
-        ->and($hold->fresh()?->status)->toBe(LegalHoldStatus::Released);
+        ->and($hold->fresh()?->status)->toBe(LegalHoldStatus::Released)
+        ->and(Activity::query()->where('event', 'legal_hold.release.succeeded')->count())->toBe(1)
+        ->and(Activity::query()->where('event', 'legal_hold.release.failed')->count())->toBe(1);
+
+    $successAudit = Activity::query()->where('event', 'legal_hold.release.succeeded')->firstOrFail();
+    $failureAudit = Activity::query()->where('event', 'legal_hold.release.failed')->firstOrFail();
+
+    expect($successAudit->id)->toBeLessThan($failureAudit->id)
+        ->and($failureAudit->properties->get('reason_category'))->toBe('hold_not_active');
 });
 
 test('concurrent retention and attachment either preserve held evidence or reject the late attachment', function (): void {
