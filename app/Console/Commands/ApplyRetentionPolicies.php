@@ -257,6 +257,33 @@ class ApplyRetentionPolicies extends Command
                     ),
                     true,
                 );
+                $deletableEventHashes = $logs
+                    ->reject(fn (Activity $log): bool => isset($heldActivityIds[$log->id]))
+                    ->pluck('event_hash')
+                    ->filter(fn (mixed $hash): bool => is_string($hash) && $hash !== '')
+                    ->values()
+                    ->all();
+                $successorsByPreviousHash = $deletableEventHashes === []
+                    ? collect()
+                    : Activity::query()
+                        ->where('tenant_id', $tenantId)
+                        ->whereIn('previous_hash', $deletableEventHashes)
+                        ->orderByDesc('id')
+                        ->lockForUpdate()
+                        ->get()
+                        ->keyBy('previous_hash');
+                $successorIds = [];
+                foreach ($successorsByPreviousHash as $successor) {
+                    /** @var Activity $successor */
+                    $successorIds[] = $successor->id;
+                }
+                $heldSuccessorIds = array_fill_keys(
+                    $this->legalHolds->activelyHeldActivityIdentityIds(
+                        $tenantId,
+                        $successorIds,
+                    ),
+                    true,
+                );
                 $chunkArchived = 0;
                 $chunkOrphaned = 0;
                 $chunkHeldSkipped = 0;
@@ -282,15 +309,12 @@ class ApplyRetentionPolicies extends Command
 
                     // Step 2: Mark the actual live successor only when it is not held.
                     // A held successor continues to verify against this archive.
-                    $nextLog = Activity::query()
-                        ->where('tenant_id', $tenantId)
-                        ->where('previous_hash', $log->event_hash)
-                        ->lockForUpdate()
-                        ->first();
+                    /** @var Activity|null $nextLog */
+                    $nextLog = $successorsByPreviousHash->get($log->event_hash);
 
                     if ($nextLog !== null
                         && ! isset($heldActivityIds[$nextLog->id])
-                        && ! $this->legalHolds->activityIsActivelyHeld($tenantId, $nextLog->id)) {
+                        && ! isset($heldSuccessorIds[$nextLog->id])) {
                         $nextLog->update([
                             'previous_hash' => null,
                             'is_orphaned_genesis' => true,

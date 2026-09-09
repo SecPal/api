@@ -67,12 +67,18 @@ test('mixed retention preserves held chain truth while processing eligible activ
     activelyHoldActivity($this->tenant, $activityB);
     $heldPreviousHash = $activityB->previous_hash;
     $heldUpdatedAt = $activityB->updated_at;
+    DB::enableQueryLog();
 
     $this->artisan('activity:apply-retention')
         ->expectsOutputToContain('Archived + deleted 2 logs')
         ->expectsOutputToContain('Skipped 1 actively held logs')
         ->assertSuccessful();
 
+    $holdClassificationQueries = collect(DB::getQueryLog())
+        ->filter(fn (array $query): bool => str_contains(
+            $query['query'],
+            'activity_is_actively_held',
+        ));
     $activityB->refresh();
     $activityD->refresh();
     $archiveA = ActivityArchive::query()->findOrFail($activityA->id);
@@ -87,6 +93,7 @@ test('mixed retention preserves held chain truth while processing eligible activ
         ->and($archiveC->previous_hash)->toBe($activityB->event_hash)
         ->and($activityD->is_orphaned_genesis)->toBeTrue()
         ->and($activityD->previous_hash)->toBeNull()
+        ->and($holdClassificationQueries)->toHaveCount(2)
         ->and($archiveA->verifyChain())->toBeTrue()
         ->and($archiveC->verifyChain())->toBeTrue()
         ->and($activityB->verifyChain())->toBeTrue()

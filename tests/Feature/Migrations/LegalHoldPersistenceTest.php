@@ -105,6 +105,10 @@ test('creates the canonical PostgreSQL legal hold persistence schema and constra
                     AND NOT tgisinternal
             )
             SQL))->toBeTrue()
+        ->and(DB::table('pg_proc')
+            ->whereRaw('pronamespace = current_schema()::regnamespace')
+            ->where('proname', 'activity_is_actively_held')
+            ->value('provolatile'))->toBe('s')
         ->and($creatorForeignKey)->toContain(
             'FOREIGN KEY (tenant_id, created_by_user_id) REFERENCES users(tenant_id, id)'
         );

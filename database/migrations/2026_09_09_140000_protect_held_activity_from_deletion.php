@@ -29,7 +29,7 @@ return new class extends Migration
             )
             RETURNS boolean
             LANGUAGE plpgsql
-            VOLATILE
+            STABLE
             AS $$
             BEGIN
                 RETURN EXISTS (
