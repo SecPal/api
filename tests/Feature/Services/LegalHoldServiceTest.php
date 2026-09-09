@@ -110,6 +110,51 @@ test('inspection returns active and detached attachment history', function (): v
         ->and($inspected->attachments->whereNull('detached_at'))->toHaveCount(1);
 });
 
+test('activity scope prevents inspection and detachment of inaccessible hold evidence', function (string $operation): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldActor($tenant);
+    $hold = LegalHold::factory()->create(['tenant_id' => $tenant->id]);
+    $activity = Activity::factory()->create([
+        'tenant_id' => $tenant->id,
+        'organizational_unit_id' => App\Models\OrganizationalUnit::factory()->create([
+            'tenant_id' => $tenant->id,
+        ])->id,
+    ]);
+    $attachment = LegalHoldActivityAttachment::factory()->create([
+        'tenant_id' => $tenant->id,
+        'legal_hold_id' => $hold->id,
+        'activity_id' => $activity->id,
+        'activity_identity_id' => $activity->id,
+    ]);
+    $service = app(LegalHoldService::class);
+
+    $call = $operation === 'inspect'
+        ? fn () => $service->inspect($actor, $hold->id)
+        : fn () => $service->detach($actor, $hold->id, $attachment->id, 'Must remain unchanged.');
+
+    expect($call)->toThrow(AuthorizationException::class)
+        ->and($attachment->fresh()?->detached_at)->toBeNull()
+        ->and($attachment->fresh()?->detachment_justification)->toBeNull();
+})->with(['inspect', 'detach']);
+
+test('inspection preserves attachment history after its live activity relation is gone', function (): void {
+    $tenant = TenantKey::factory()->create();
+    $actor = legalHoldActor($tenant);
+    $hold = LegalHold::factory()->create(['tenant_id' => $tenant->id]);
+    $activity = Activity::factory()->create(['tenant_id' => $tenant->id]);
+    $attachment = LegalHoldActivityAttachment::factory()->create([
+        'tenant_id' => $tenant->id,
+        'legal_hold_id' => $hold->id,
+        'activity_id' => $activity->id,
+        'activity_identity_id' => $activity->id,
+    ]);
+    $activity->delete();
+
+    $inspected = app(LegalHoldService::class)->inspect($actor, $hold->id);
+
+    expect($inspected->attachments->pluck('id')->all())->toContain($attachment->id);
+});
+
 test('foreign tenant legal holds cannot be inspected or mutated', function (string $operation): void {
     $tenant = TenantKey::factory()->create();
     $foreignTenant = TenantKey::factory()->create();

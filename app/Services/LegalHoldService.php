@@ -52,7 +52,13 @@ final readonly class LegalHoldService
 
     public function inspect(User $actor, string $legalHoldId): LegalHold
     {
-        return $this->legalHolds->inspect($this->authorizeActor($actor), $legalHoldId);
+        $legalHold = $this->legalHolds->inspect($this->authorizeActor($actor), $legalHoldId);
+
+        foreach ($legalHold->attachments as $attachment) {
+            $this->authorizeActivity($actor, $attachment->activity);
+        }
+
+        return $legalHold;
     }
 
     public function attach(User $actor, string $legalHoldId, int $activityId): LegalHoldActivityAttachment
@@ -95,6 +101,7 @@ final readonly class LegalHoldService
             $legalHold = $this->legalHolds->lock($tenantId, $legalHoldId);
             $this->requireActive($legalHold);
             $attachment = $this->legalHolds->lockAttachment($tenantId, $legalHold->id, $attachmentId);
+            $this->authorizeActivity($actor, $attachment->activity);
 
             if ($attachment->detached_at !== null) {
                 throw new LegalHoldAttachmentAlreadyDetachedException;
@@ -151,6 +158,13 @@ final readonly class LegalHoldService
     {
         if ($legalHold->status !== LegalHoldStatus::Active) {
             throw new LegalHoldNotActiveException;
+        }
+    }
+
+    private function authorizeActivity(User $actor, ?Activity $activity): void
+    {
+        if ($activity !== null) {
+            Gate::forUser($actor)->authorize('view', $activity);
         }
     }
 

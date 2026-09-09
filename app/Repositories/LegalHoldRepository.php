@@ -24,7 +24,7 @@ class LegalHoldRepository
         return LegalHold::query()
             ->where('tenant_id', $tenantId)
             ->whereKey($legalHoldId)
-            ->with('attachments')
+            ->with('attachments.activity')
             ->firstOrFail();
     }
 
@@ -54,6 +54,7 @@ class LegalHoldRepository
             ->where('tenant_id', $tenantId)
             ->where('legal_hold_id', $legalHoldId)
             ->whereKey($attachmentId)
+            ->with('activity')
             ->lockForUpdate()
             ->firstOrFail();
     }
