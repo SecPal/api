@@ -74,6 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- added the tenant-authoritative transactional Legal Hold lifecycle service for case creation and inspection, Activity attachment/detachment with immutable actor evidence, and justified release, including row-locked race safety, stable lifecycle conflicts, and rollback evidence (fixes `api#451`)
+
 - added the canonical tenant-safe legal-hold persistence foundation with closed
   active/released lifecycle constraints, immutable actor and Activity identity
   evidence, duplicate-safe historical attachment and detachment records, and
